@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  sso:
+    restart: always
+    build:
+      context: .
+    environment:
+      DB_NAME: iota_erp
+      DB_HOST: erp_db
+      DB_PORT: 5432
+      DB_PASSWORD: 2dP9L9d6gB9597
+      DOMAIN: apollos.studio
+      SESSION_DURATION: 30d
+      INITIAL_USER_EMAIL: diyor_khaydarov@apollos.studio
+      INITIAL_USER_PASSWORD: gSgnIInjB430
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sso.rule=Host(`sso.apollos.studio`)"
+      - "traefik.http.routers.sso.tls=true"
+      - "traefik.http.routers.sso.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sso.service=sso"
+      - "traefik.http.services.sso.loadbalancer.server.port=3200"
+    networks:
+      - app
+
+  sso_db:
+    image: postgres:15.1
+    restart: always
+    hostname: sso_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 2dP9L9d6gB9597
+      POSTGRES_DB: sso
+    volumes:
+      - ~/volumes/sso/postgres/data:/var/lib/postgresql/data
+    networks:
+      - app
+
+networks:
+  app:
+    name: app
+    external: true
