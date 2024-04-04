@@ -3,21 +3,16 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/apollos-studio/sso/pkg/authentication"
-	"github.com/apollos-studio/sso/pkg/server/helpers"
-	"github.com/apollos-studio/sso/pkg/server/routes"
-	"github.com/apollos-studio/sso/pkg/server/routes/resources"
-	"github.com/apollos-studio/sso/pkg/server/routes/roles"
-	"github.com/apollos-studio/sso/pkg/server/routes/users"
-	"github.com/apollos-studio/sso/pkg/utils"
-	"github.com/apollos-studio/sso/templates/pages"
-	"github.com/apollos-studio/sso/templates/pages/login"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/pkg/authentication"
+	"github.com/iota-agency/iota-erp/pkg/server/helpers"
+	"github.com/iota-agency/iota-erp/pkg/server/routes"
+	"github.com/iota-agency/iota-erp/pkg/server/routes/users"
+	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/jmoiron/sqlx"
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -64,57 +59,57 @@ func (s *Server) handleRedirects(w http.ResponseWriter, r *http.Request, token s
 }
 
 func (s *Server) Authenticate(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		helpers.BadRequest(w, err)
-		return
-	}
-	cookie, err := r.Cookie("sso-token")
-	if cookie != nil && err == nil {
-		s.handleRedirects(w, r, cookie.Value)
-		return
-	}
-	authErrors := &login.AuthenticationErrors{}
-	ctx := &login.AuthenticationContext{
-		Email:    r.FormValue("email"),
-		Password: r.FormValue("password"),
-		Errors:   authErrors,
-	}
-	email := strings.TrimSpace(r.FormValue("email"))
-	password := strings.TrimSpace(r.FormValue("password"))
-	if email == "" {
-		authErrors.Email = "Email is required"
-	}
-	if password == "" {
-		authErrors.Password = "Password is required"
-	}
-	if authErrors.Email != "" || authErrors.Password != "" {
-		if err := login.Index(ctx).Render(context.Background(), w); err != nil {
-			helpers.ServerError(w, err)
-			return
-		}
-		return
-	}
-	_, token, err := s.Auth.Authenticate(email, password, r.RemoteAddr, r.UserAgent())
-	if err != nil {
-		helpers.ServerError(w, err)
-		return
-	}
-	s.handleRedirects(w, r, token)
+	//if err := r.ParseForm(); err != nil {
+	//	helpers.BadRequest(w, err)
+	//	return
+	//}
+	//cookie, err := r.Cookie("sso-token")
+	//if cookie != nil && err == nil {
+	//	s.handleRedirects(w, r, cookie.Value)
+	//	return
+	//}
+	//authErrors := &login.AuthenticationErrors{}
+	//ctx := &login.AuthenticationContext{
+	//	Email:    r.FormValue("email"),
+	//	Password: r.FormValue("password"),
+	//	Errors:   authErrors,
+	//}
+	//email := strings.TrimSpace(r.FormValue("email"))
+	//password := strings.TrimSpace(r.FormValue("password"))
+	//if email == "" {
+	//	authErrors.Email = "Email is required"
+	//}
+	//if password == "" {
+	//	authErrors.Password = "Password is required"
+	//}
+	//if authErrors.Email != "" || authErrors.Password != "" {
+	//	if err := login.Index(ctx).Render(context.Background(), w); err != nil {
+	//		helpers.ServerError(w, err)
+	//		return
+	//	}
+	//	return
+	//}
+	//_, token, err := s.Auth.Authenticate(email, password, r.RemoteAddr, r.UserAgent())
+	//if err != nil {
+	//	helpers.ServerError(w, err)
+	//	return
+	//}
+	//s.handleRedirects(w, r, token)
 }
 
 func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
-	authenticated, ok := r.Context().Value("authenticated").(bool)
-	if ok && authenticated {
-		s.handleRedirects(w, r, r.Context().Value("token").(string))
-		return
-	}
-	ctx := &login.AuthenticationContext{
-		Errors: &login.AuthenticationErrors{},
-	}
-	if err := login.Index(ctx).Render(context.Background(), w); err != nil {
-		helpers.ServerError(w, err)
-		return
-	}
+	//authenticated, ok := r.Context().Value("authenticated").(bool)
+	//if ok && authenticated {
+	//	s.handleRedirects(w, r, r.Context().Value("token").(string))
+	//	return
+	//}
+	//ctx := &login.AuthenticationContext{
+	//	Errors: &login.AuthenticationErrors{},
+	//}
+	//if err := login.Index(ctx).Render(context.Background(), w); err != nil {
+	//	helpers.ServerError(w, err)
+	//	return
+	//}
 }
 
 func (s *Server) Authorize(w http.ResponseWriter, r *http.Request) {
@@ -136,15 +131,6 @@ func (s *Server) Authorize(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Index(w http.ResponseWriter, r *http.Request) {
-	auth, ok := r.Context().Value("authenticated").(bool)
-	if !ok || !auth {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-	if err := pages.Index().Render(context.Background(), w); err != nil {
-		helpers.ServerError(w, err)
-		return
-	}
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
@@ -190,10 +176,6 @@ func AuthMiddleware(db *sqlx.DB) mux.MiddlewareFunc {
 func (s *Server) Start() {
 	handlers := []routes.Route{
 		&users.ApiRoute{},
-		&users.Route{},
-		&roles.ApiRoute{},
-		&roles.Route{},
-		&resources.Route{},
 	}
 
 	r := mux.NewRouter().StrictSlash(true)
@@ -215,10 +197,14 @@ func (s *Server) Start() {
 	r.HandleFunc("/", s.Index).Methods(http.MethodGet)
 	r.HandleFunc("/login", s.Login).Methods(http.MethodGet)
 	r.HandleFunc("/login", s.Authenticate).Methods(http.MethodPost)
-	r.HandleFunc("/authorize", s.Authorize).Methods(http.MethodGet)
 	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet)
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
 	log.Println("Listening on port :3200")
-	err := http.ListenAndServe(":3200", r)
+	var err error
+	if utils.GetEnv("GO_APP_ENV", "development") == "production" {
+		err = http.ListenAndServe(":3200", r)
+	} else {
+		err = http.ListenAndServe("localhost:3200", r)
+	}
 	log.Fatal(err)
 }

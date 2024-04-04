@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/apollos-studio/sso/pkg/migration"
-	"github.com/apollos-studio/sso/pkg/utils"
+	"github.com/iota-agency/iota-erp/pkg/migration"
+	"github.com/iota-agency/iota-erp/pkg/utils"
 	"log"
 	"os"
 

@@ -1,11 +1,12 @@
 version: '3.8'
 
 services:
-  sso:
+  erp:
     restart: always
     build:
       context: .
     environment:
+      GO_APP_ENV: production
       DB_NAME: iota_erp
       DB_HOST: erp_db
       DB_PORT: 5432
@@ -16,24 +17,23 @@ services:
       INITIAL_USER_PASSWORD: gSgnIInjB430
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sso.rule=Host(`sso.apollos.studio`)"
-      - "traefik.http.routers.sso.tls=true"
-      - "traefik.http.routers.sso.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.sso.service=sso"
-      - "traefik.http.services.sso.loadbalancer.server.port=3200"
+      - "traefik.http.routers.erp.rule=Host(`erp.iota.uz`)"
+      - "traefik.http.routers.erp.tls=true"
+      - "traefik.http.routers.erp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.erp.loadbalancer.server.port=3200"
     networks:
       - app
 
-  sso_db:
+  erp_db:
     image: postgres:15.1
     restart: always
-    hostname: sso_db
+    hostname: erp_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 2dP9L9d6gB9597
-      POSTGRES_DB: sso
+      POSTGRES_DB: iota_erp
     volumes:
-      - ~/volumes/sso/postgres/data:/var/lib/postgresql/data
+      - ~/volumes/erp/postgres/data:/var/lib/postgresql/data
     networks:
       - app
 

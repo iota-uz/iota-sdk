@@ -2,9 +2,9 @@ package main
 
 import (
 	"database/sql"
-	"github.com/apollos-studio/sso/models"
-	"github.com/apollos-studio/sso/pkg/server"
-	"github.com/apollos-studio/sso/pkg/utils"
+	"github.com/iota-agency/iota-erp/models"
+	"github.com/iota-agency/iota-erp/pkg/server"
+	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"log"

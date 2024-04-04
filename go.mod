@@ -1,4 +1,4 @@
-module github.com/apollos-studio/sso
+module github.com/iota-agency/iota-erp
 
 go 1.21.4
 

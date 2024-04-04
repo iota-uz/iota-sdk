@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/apollos-studio/sso/pkg/utils"
+	"github.com/iota-agency/iota-erp/pkg/utils"
 	"os"
 	"strings"
 	"time"

@@ -2,8 +2,8 @@ package authentication
 
 import (
 	"errors"
-	"github.com/apollos-studio/sso/models"
-	"github.com/apollos-studio/sso/pkg/utils"
+	"github.com/iota-agency/iota-erp/models"
+	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/jmoiron/sqlx"
 	"time"
 )

@@ -28,7 +28,6 @@ type User struct {
 	MiddleName JsonNullString `json:"middle_name,omitempty" db:"middle_name"`
 	Password   string         `json:"-" db:"password"`
 	Email      string         `json:"email" db:"email"`
-	RoleId     int64          `json:"role_id" db:"role_id"`
 	LastIp     JsonNullString `json:"last_ip" db:"last_ip"`
 	LastLogin  *time.Time     `json:"last_login" db:"last_login"`
 	LastAction *time.Time     `json:"last_action" db:"last_action"`
@@ -37,7 +36,7 @@ type User struct {
 }
 
 func (u *User) fields() []string {
-	return []string{"first_name", "last_name", "middle_name", "password", "email", "role_id", "last_ip", "last_login", "last_action"}
+	return []string{"first_name", "last_name", "middle_name", "password", "email", "last_ip", "last_login", "last_action"}
 }
 
 func (u *User) CheckPassword(password string) bool {
@@ -57,9 +56,6 @@ func (u *User) Validate() []*ValidationError {
 	}
 	if u.Password == "" {
 		errs = append(errs, NewValidationError("password", "password is required"))
-	}
-	if u.RoleId == 0 {
-		errs = append(errs, NewValidationError("role_id", "role_id is required"))
 	}
 	return errs
 }
