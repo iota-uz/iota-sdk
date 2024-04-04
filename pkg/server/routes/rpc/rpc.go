@@ -15,7 +15,7 @@ type ApiRoute struct {
 }
 
 func (u *ApiRoute) Prefix() string {
-	return "/api/users"
+	return "/api/rpc"
 }
 
 type PostData struct {
@@ -28,18 +28,7 @@ type PostData struct {
 
 func (u *ApiRoute) Setup(router *mux.Router, opts *routes.Options) {
 	u.Db = opts.Db
-	router.HandleFunc("/", u.Get).Methods(http.MethodGet)
 	router.HandleFunc("/", u.Post).Methods(http.MethodPost)
-}
-
-func (u *ApiRoute) Get(w http.ResponseWriter, r *http.Request) {
-	var users []*models.User
-	err := u.Db.Select(&users, "SELECT * FROM users")
-	if err != nil {
-		helpers.ServerError(w, err)
-		return
-	}
-	helpers.RespondWithJson(w, http.StatusOK, users)
 }
 
 func (u *ApiRoute) Post(w http.ResponseWriter, r *http.Request) {

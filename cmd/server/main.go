@@ -35,7 +35,6 @@ func createInitialUser(db *sqlx.DB, email, password string) error {
 		LastName:  "User",
 		Email:     email,
 		Password:  password,
-		RoleId:    role.Id,
 	}
 	if err := user.SetPassword(password); err != nil {
 		return err
