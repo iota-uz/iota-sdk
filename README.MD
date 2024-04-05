@@ -1,4 +1,9 @@
 ## About
+IOTA ERP - is a set of building blocks for ERP development, which will later turn into a complete SDK
+
+## Overview
+
+[Architecture](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd)
 
 
 ## Development
@@ -7,6 +12,11 @@ Install dependencies
 
 ```shell
 go get -u -d ./...
+```
+
+Running in dev mode
+```shell
+air
 ```
 
 Run migrations

@@ -28,6 +28,7 @@ type User struct {
 	MiddleName JsonNullString `json:"middle_name,omitempty" db:"middle_name"`
 	Password   string         `json:"-" db:"password"`
 	Email      string         `json:"email" db:"email"`
+	RoleId     int64          `json:"role_id" db:"role_id"`
 	LastIp     JsonNullString `json:"last_ip" db:"last_ip"`
 	LastLogin  *time.Time     `json:"last_login" db:"last_login"`
 	LastAction *time.Time     `json:"last_action" db:"last_action"`

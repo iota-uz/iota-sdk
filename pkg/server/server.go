@@ -8,6 +8,7 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/iota-agency/iota-erp/pkg/server/routes"
 	"github.com/iota-agency/iota-erp/pkg/server/routes/users"
+	"github.com/iota-agency/iota-erp/pkg/server/service"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/jmoiron/sqlx"
 	"log"
@@ -176,8 +177,37 @@ func AuthMiddleware(db *sqlx.DB) mux.MiddlewareFunc {
 func (s *Server) Start() {
 	handlers := []routes.Route{
 		&users.ApiRoute{},
+		&routes.CrudRoute{
+			Service: service.New(
+				s.Db,
+				&service.Model{
+					Pk:    "id",
+					Table: "companies",
+				},
+			),
+			Path: "/companies",
+		},
+		&routes.CrudRoute{
+			Service: service.New(
+				s.Db,
+				&service.Model{
+					Pk:    "id",
+					Table: "employees",
+				},
+			),
+			Path: "/employees",
+		},
+		&routes.CrudRoute{
+			Service: service.New(
+				s.Db,
+				&service.Model{
+					Pk:    "id",
+					Table: "expenses",
+				},
+			),
+			Path: "/expenses",
+		},
 	}
-
 	r := mux.NewRouter().StrictSlash(true)
 	opts := &routes.Options{
 		Db: s.Db,

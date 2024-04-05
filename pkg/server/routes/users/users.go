@@ -53,6 +53,7 @@ func (u *ApiRoute) Post(w http.ResponseWriter, r *http.Request) {
 		LastName:  data.LastName,
 		Email:     data.Email,
 		Password:  data.Password,
+		RoleId:    data.RoleId,
 	}
 	if errs := user.Validate(); len(errs) != 0 {
 		response := map[string][]*models.ValidationError{"errors": errs}
