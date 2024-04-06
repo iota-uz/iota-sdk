@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/pkg/authentication"
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/iota-agency/iota-erp/pkg/server/routes"
@@ -59,60 +61,6 @@ func (s *Server) handleRedirects(w http.ResponseWriter, r *http.Request, token s
 	}
 }
 
-func (s *Server) Authenticate(w http.ResponseWriter, r *http.Request) {
-	//if err := r.ParseForm(); err != nil {
-	//	helpers.BadRequest(w, err)
-	//	return
-	//}
-	//cookie, err := r.Cookie("sso-token")
-	//if cookie != nil && err == nil {
-	//	s.handleRedirects(w, r, cookie.Value)
-	//	return
-	//}
-	//authErrors := &login.AuthenticationErrors{}
-	//ctx := &login.AuthenticationContext{
-	//	Email:    r.FormValue("email"),
-	//	Password: r.FormValue("password"),
-	//	Errors:   authErrors,
-	//}
-	//email := strings.TrimSpace(r.FormValue("email"))
-	//password := strings.TrimSpace(r.FormValue("password"))
-	//if email == "" {
-	//	authErrors.Email = "Email is required"
-	//}
-	//if password == "" {
-	//	authErrors.Password = "Password is required"
-	//}
-	//if authErrors.Email != "" || authErrors.Password != "" {
-	//	if err := login.Index(ctx).Render(context.Background(), w); err != nil {
-	//		helpers.ServerError(w, err)
-	//		return
-	//	}
-	//	return
-	//}
-	//_, token, err := s.Auth.Authenticate(email, password, r.RemoteAddr, r.UserAgent())
-	//if err != nil {
-	//	helpers.ServerError(w, err)
-	//	return
-	//}
-	//s.handleRedirects(w, r, token)
-}
-
-func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
-	//authenticated, ok := r.Context().Value("authenticated").(bool)
-	//if ok && authenticated {
-	//	s.handleRedirects(w, r, r.Context().Value("token").(string))
-	//	return
-	//}
-	//ctx := &login.AuthenticationContext{
-	//	Errors: &login.AuthenticationErrors{},
-	//}
-	//if err := login.Index(ctx).Render(context.Background(), w); err != nil {
-	//	helpers.ServerError(w, err)
-	//	return
-	//}
-}
-
 func (s *Server) Authorize(w http.ResponseWriter, r *http.Request) {
 	token, err := r.Cookie("sso-token")
 	if err != nil {
@@ -129,9 +77,6 @@ func (s *Server) Authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
-}
-
-func (s *Server) Index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
@@ -174,39 +119,30 @@ func AuthMiddleware(db *sqlx.DB) mux.MiddlewareFunc {
 	}
 }
 
+func (s *Server) GraphQL(schema graphql.Schema) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data := struct {
+			Query string `json:"query"`
+		}{}
+		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+			helpers.BadRequest(w, err)
+			return
+		}
+		result := graphql.Do(graphql.Params{
+			Schema:        schema,
+			RequestString: data.Query,
+		})
+		if len(result.Errors) > 0 {
+			helpers.RespondWithJson(w, http.StatusBadRequest, result)
+			return
+		}
+		helpers.RespondWithJson(w, http.StatusOK, result)
+	}
+}
+
 func (s *Server) Start() {
 	handlers := []routes.Route{
 		&users.ApiRoute{},
-		&routes.CrudRoute{
-			Service: service.New(
-				s.Db,
-				&service.Model{
-					Pk:    "id",
-					Table: "companies",
-				},
-			),
-			Path: "/companies",
-		},
-		&routes.CrudRoute{
-			Service: service.New(
-				s.Db,
-				&service.Model{
-					Pk:    "id",
-					Table: "employees",
-				},
-			),
-			Path: "/employees",
-		},
-		&routes.CrudRoute{
-			Service: service.New(
-				s.Db,
-				&service.Model{
-					Pk:    "id",
-					Table: "expenses",
-				},
-			),
-			Path: "/expenses",
-		},
 	}
 	r := mux.NewRouter().StrictSlash(true)
 	opts := &routes.Options{
@@ -222,15 +158,79 @@ func (s *Server) Start() {
 		}
 		route.Setup(subRouter, opts)
 	}
+	models := []*service.Model{
+		{
+			Pk:    "id",
+			Table: "companies",
+			Fields: []*service.Field{
+				{
+					Name: "name",
+					Type: "string",
+				},
+				{
+					Name: "address",
+					Type: "string",
+				},
+			},
+		},
+		{
+			Pk:    "id",
+			Table: "employees",
+			Fields: []*service.Field{
+				{
+					Name: "first_name",
+					Type: "string",
+				},
+				{
+					Name: "last_name",
+					Type: "string",
+				},
+			},
+		},
+	}
+	combinedQueryFields := graphql.Fields{}
+	combineMutations := graphql.Fields{}
+	for _, model := range models {
+		q, m := service.GraphQLAdapter(&service.GraphQLAdapterOptions{
+			Service: service.New(s.Db, model),
+			Name:    model.Table,
+		})
+		combinedQueryFields[model.Table] = &graphql.Field{
+			Type: q,
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				return q, nil
+			},
+		}
+		combineMutations[model.Table] = &graphql.Field{
+			Type: m,
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				return m, nil
+			},
+		}
+	}
+	schema, err := graphql.NewSchema(graphql.SchemaConfig{
+		Query: graphql.NewObject(
+			graphql.ObjectConfig{
+				Name:   "Query",
+				Fields: combinedQueryFields,
+			},
+		),
+		Mutation: graphql.NewObject(
+			graphql.ObjectConfig{
+				Name:   "Mutation",
+				Fields: combineMutations,
+			},
+		),
+	})
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
 	r.Use(loggingMiddleware)
 	r.Use(AuthMiddleware(s.Db))
-	r.HandleFunc("/", s.Index).Methods(http.MethodGet)
-	r.HandleFunc("/login", s.Login).Methods(http.MethodGet)
-	r.HandleFunc("/login", s.Authenticate).Methods(http.MethodPost)
-	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet)
+	r.HandleFunc("/graphql", s.GraphQL(schema)).Methods(http.MethodPost)
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
 	log.Println("Listening on port :3200")
-	var err error
 	if utils.GetEnv("GO_APP_ENV", "development") == "production" {
 		err = http.ListenAndServe(":3200", r)
 	} else {

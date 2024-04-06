@@ -14,6 +14,7 @@ require (
 require (
 	github.com/a-h/templ v0.2.513 // indirect
 	github.com/doug-martin/goqu/v9 v9.19.0 // indirect
+	github.com/graphql-go/graphql v0.8.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sashabaranov/go-openai v1.20.4 // indirect
 )
