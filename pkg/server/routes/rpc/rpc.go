@@ -3,7 +3,6 @@ package users
 import (
 	"encoding/json"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/models"
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/iota-agency/iota-erp/pkg/server/routes"
 	"github.com/jmoiron/sqlx"
@@ -15,15 +14,17 @@ type ApiRoute struct {
 }
 
 func (u *ApiRoute) Prefix() string {
-	return "/api/rpc"
+	return "/rpc"
 }
 
-type PostData struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	RoleId    int64  `json:"role_id"`
+type RpcCall struct {
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
+}
+
+type RpcResponse struct {
+	Result interface{} `json:"result"`
+	Error  interface{} `json:"error"`
 }
 
 func (u *ApiRoute) Setup(router *mux.Router, opts *routes.Options) {
@@ -32,29 +33,19 @@ func (u *ApiRoute) Setup(router *mux.Router, opts *routes.Options) {
 }
 
 func (u *ApiRoute) Post(w http.ResponseWriter, r *http.Request) {
-	data := PostData{}
+	data := RpcCall{}
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		helpers.BadRequest(w, err)
 		return
 	}
-	user := &models.User{
-		FirstName: data.FirstName,
-		LastName:  data.LastName,
-		Email:     data.Email,
-		Password:  data.Password,
+
+	switch data.Method {
+	case "DoSomething":
+		// Do something
+		helpers.RespondWithJson(w, http.StatusOK, RpcResponse{Result: "Something done"})
+	default:
+		helpers.RespondWithJson(w, http.StatusMethodNotAllowed, RpcResponse{
+			Error: "Method not found",
+		})
 	}
-	if errs := user.Validate(); len(errs) != 0 {
-		response := map[string][]*models.ValidationError{"errors": errs}
-		helpers.RespondWithJson(w, http.StatusUnprocessableEntity, response)
-		return
-	}
-	if err := user.SetPassword(user.Password); err != nil {
-		helpers.ServerError(w, err)
-		return
-	}
-	if err := user.Save(u.Db); err != nil {
-		helpers.ServerError(w, err)
-		return
-	}
-	helpers.RespondWithJson(w, http.StatusOK, user)
 }

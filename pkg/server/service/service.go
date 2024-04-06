@@ -53,7 +53,7 @@ func (s *serviceImpl) Model() *Model {
 }
 
 func (s *serviceImpl) Get(q *GetQuery) (map[string]interface{}, error) {
-	stmt, _, err := goqu.From(s.model.Table).Where(goqu.Ex{"id": q.Id}).ToSQL()
+	stmt, _, err := goqu.From(s.model.Table).Where(goqu.Ex{s.model.Pk: q.Id}).ToSQL()
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (s *serviceImpl) Create(data map[string]interface{}) (map[string]interface{
 }
 
 func (s *serviceImpl) Patch(id int64, data map[string]interface{}) (map[string]interface{}, error) {
-	stmt, _, err := goqu.Update(s.model.Table).Set(data).Where(goqu.Ex{"id": id}).Returning("*").ToSQL()
+	stmt, _, err := goqu.Update(s.model.Table).Set(data).Where(goqu.Ex{s.model.Pk: id}).Returning("*").ToSQL()
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (s *serviceImpl) Patch(id int64, data map[string]interface{}) (map[string]i
 }
 
 func (s *serviceImpl) Remove(id int64) error {
-	stmt, _, err := goqu.Delete(s.model.Table).Where(goqu.Ex{"id": id}).ToSQL()
+	stmt, _, err := goqu.Delete(s.model.Table).Where(goqu.Ex{s.model.Pk: id}).ToSQL()
 	if err != nil {
 		return err
 	}
