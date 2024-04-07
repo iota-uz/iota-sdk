@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/iota-agency/iota-erp/pkg/utils"
@@ -8,10 +9,20 @@ import (
 )
 
 func getAttrs(p graphql.ResolveParams) []interface{} {
+	if p.Info.FieldASTs[0].SelectionSet == nil {
+		return []interface{}{}
+	}
 	var attrs []interface{}
-	if p.Info.FieldASTs[0].SelectionSet != nil {
-		for _, field := range p.Info.FieldASTs[0].SelectionSet.Selections {
-			attrs = append(attrs, field.(*ast.Field).Name.Value)
+	for _, _f := range p.Info.FieldASTs[0].SelectionSet.Selections {
+		field := _f.(*ast.Field)
+		selections := field.GetSelectionSet()
+		if selections == nil {
+			attrs = append(attrs, field.Name.Value)
+			continue
+		}
+		for _, _a := range selections.Selections {
+			joinField := _a.(*ast.Field)
+			attrs = append(attrs, fmt.Sprintf("%s.%s", field.Name.Value, joinField.Name.Value))
 		}
 	}
 	return attrs

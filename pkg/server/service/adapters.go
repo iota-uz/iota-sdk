@@ -7,6 +7,7 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/iota-agency/iota-erp/pkg/utils"
+	"strings"
 )
 
 type GraphQLAdapterOptions struct {
@@ -258,27 +259,27 @@ func (g *graphQLAdapter) listQuery() *graphql.Field {
 		Type:        graphql.NewList(modelType),
 		Description: "Get list",
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// TODO: Refactor && to whomever reads this, I'm deeply sorry, I was just trying to make it work
 			allAttrs := getAttrs(p)
+			fmt.Println(allAttrs)
 			var attrs []interface{}
 			for _, attr := range allAttrs {
-				for _, field := range g.model().Fields {
-					if field.Name == attr {
-						attrs = append(attrs, goqu.I(fmt.Sprintf("%s.%s", g.model().Table, attr)))
-					}
+				parts := strings.Split(attr.(string), ".")
+				if len(parts) == 1 {
+					attrs = append(attrs, goqu.I(fmt.Sprintf("%s.%s", g.model().Table, attr)))
+					continue
+				}
+				dest := parts[0]
+				attr := parts[1]
 
-					if field.Association != nil && field.Association.As == attr {
-						for _, a := range p.Info.FieldASTs[0].SelectionSet.Selections {
-							selections := a.(*ast.Field).GetSelectionSet()
-							if selections == nil {
-								continue
-							}
-							for _, _a := range selections.Selections {
-								joinField := _a.(*ast.Field)
-								attr := fmt.Sprintf("%s.%s", field.Association.Table, joinField.Name.Value)
-								as := fmt.Sprintf("%s.%s", field.Association.As, joinField.Name.Value)
-								attrs = append(attrs, goqu.I(attr).As(goqu.C(as)))
-							}
-						}
+				for _, field := range g.model().Fields {
+					if field.Association == nil {
+						continue
+					}
+					if field.Association.As == dest {
+						source := fmt.Sprintf("%s.%s", field.Association.Table, attr)
+						target := fmt.Sprintf("%s.%s", field.Association.As, attr)
+						attrs = append(attrs, goqu.I(source).As(goqu.C(target)))
 					}
 				}
 			}
