@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jmoiron/sqlx"
@@ -54,10 +55,17 @@ const (
 	Xml                                   // Xml represents XML data
 )
 
+type Association struct {
+	Table  string
+	Column string
+	As     string
+}
+
 type Field struct {
-	Name     string
-	Type     DataType
-	Nullable bool
+	Name        string
+	Type        DataType
+	Nullable    bool
+	Association *Association
 }
 
 type Model struct {
@@ -72,12 +80,12 @@ type CountQuery struct {
 
 type GetQuery struct {
 	Id    int64
-	Attrs []string
+	Attrs []interface{}
 }
 
 type FindQuery struct {
 	Query  []goqu.Expression
-	Attrs  []string
+	Attrs  []interface{}
 	Sort   []string
 	Limit  int
 	Offset int
@@ -98,6 +106,7 @@ type Service interface {
 	Count(q *CountQuery) (int, error)
 	Get(q *GetQuery) (map[string]interface{}, error)
 	Find(q *FindQuery) ([]map[string]interface{}, error)
+	ExecuteFind(query *goqu.SelectDataset) ([]map[string]interface{}, error)
 	Aggregate(q *AggregateQuery) ([]map[string]interface{}, error)
 	Create(data map[string]interface{}) (map[string]interface{}, error)
 	Patch(id int64, data map[string]interface{}) (map[string]interface{}, error)
@@ -138,7 +147,7 @@ func (s *serviceImpl) Count(q *CountQuery) (int, error) {
 }
 
 func (s *serviceImpl) Get(q *GetQuery) (map[string]interface{}, error) {
-	stmt, _, err := goqu.From(s.model.Table).Where(goqu.Ex{s.PkCol(): q.Id}).ToSQL()
+	stmt, _, err := goqu.From(s.model.Table).Select(q.Attrs...).Where(goqu.Ex{s.PkCol(): q.Id}).ToSQL()
 	if err != nil {
 		return nil, err
 	}
@@ -147,33 +156,12 @@ func (s *serviceImpl) Get(q *GetQuery) (map[string]interface{}, error) {
 	if err := row.MapScan(data); err != nil {
 		return nil, err
 	}
-	return data, nil
+	return nestMap(data), nil
 }
 
-func (s *serviceImpl) Find(q *FindQuery) ([]map[string]interface{}, error) {
-	var attrs []interface{}
-	for _, attr := range q.Attrs {
-		attrs = append(attrs, attr)
-	}
-	query := goqu.From(s.model.Table).Select(attrs...).Where(q.Query...)
-	if q.Limit > 0 {
-		query = query.Limit(uint(q.Limit))
-	}
-	if q.Offset > 0 {
-		query = query.Offset(uint(q.Offset))
-	}
-	if len(q.Sort) > 0 {
-		var order []exp.OrderedExpression
-		for _, sort := range q.Sort {
-			if sort[0] == '-' {
-				order = append(order, goqu.I(sort[1:]).Desc())
-			} else {
-				order = append(order, goqu.I(sort).Asc())
-			}
-		}
-		query = query.Order(order...)
-	}
+func (s *serviceImpl) ExecuteFind(query *goqu.SelectDataset) ([]map[string]interface{}, error) {
 	stmt, _, err := query.ToSQL()
+	fmt.Println(stmt)
 	if err != nil {
 		return nil, err
 	}
@@ -190,9 +178,35 @@ func (s *serviceImpl) Find(q *FindQuery) ([]map[string]interface{}, error) {
 		if err := rows.MapScan(row); err != nil {
 			return data, err
 		}
-		data = append(data, row)
+		data = append(data, nestMap(row))
 	}
 	return data, nil
+}
+
+func orderStringToExpression(order []string) []exp.OrderedExpression {
+	var orderExpr []exp.OrderedExpression
+	for _, sort := range order {
+		if sort[0] == '-' {
+			orderExpr = append(orderExpr, goqu.I(sort[1:]).Desc())
+		} else {
+			orderExpr = append(orderExpr, goqu.I(sort).Asc())
+		}
+	}
+	return orderExpr
+}
+
+func (s *serviceImpl) Find(q *FindQuery) ([]map[string]interface{}, error) {
+	query := goqu.From(s.model.Table).Select(q.Attrs...).Where(q.Query...)
+	if q.Limit > 0 {
+		query = query.Limit(uint(q.Limit))
+	}
+	if q.Offset > 0 {
+		query = query.Offset(uint(q.Offset))
+	}
+	if len(q.Sort) > 0 {
+		query = query.Order(orderStringToExpression(q.Sort)...)
+	}
+	return s.ExecuteFind(query)
 }
 
 func (s *serviceImpl) Aggregate(q *AggregateQuery) ([]map[string]interface{}, error) {
@@ -229,9 +243,9 @@ func (s *serviceImpl) Aggregate(q *AggregateQuery) ([]map[string]interface{}, er
 	for rows.Next() {
 		row := map[string]interface{}{}
 		if err := rows.MapScan(row); err != nil {
-			return data, err
+			return nil, err
 		}
-		data = append(data, row)
+		data = append(data, nestMap(row))
 	}
 	return data, nil
 }

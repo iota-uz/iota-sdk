@@ -7,9 +7,6 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-	"strings"
 )
 
 type GraphQLAdapterOptions struct {
@@ -66,44 +63,38 @@ var QueryToExpression = map[string]func(string, interface{}) exp.BooleanExpressi
 	},
 }
 
-func getAttrs(p graphql.ResolveParams) []string {
-	var attrs []string
-	if p.Info.FieldASTs[0].SelectionSet != nil {
-		for _, field := range p.Info.FieldASTs[0].SelectionSet.Selections {
-			attrs = append(attrs, field.(*ast.Field).Name.Value)
-		}
-	}
-	return attrs
-}
-
-func paginatedQuery(service Service, modelType *graphql.Object) *graphql.Object {
+func (g *graphQLAdapter) paginatedQuery() *graphql.Object {
 	return graphql.NewObject(graphql.ObjectConfig{
-		Name: "Paginated" + modelType.Name(),
+		Name: fmt.Sprintf("%sPaginated", utils.Title(g.name)),
 		Fields: graphql.Fields{
 			"total": &graphql.Field{
 				Type: graphql.Int,
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-					return service.Count(&CountQuery{})
+					return g.service.Count(&CountQuery{})
 				},
 			},
 			"data": &graphql.Field{
-				Type: graphql.NewList(modelType),
+				Type: graphql.NewList(g.modelType),
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-					limit := p.Info.VariableValues["limit"].(int)
-					offset := p.Info.VariableValues["offset"].(int)
-					_sortBy, ok := p.Info.VariableValues["sortBy"].([]interface{})
-					var sortBy []string
+					attrs := getAttrs(p)
+					query := goqu.From(g.model().Table).Select(attrs...)
+					limit, ok := p.Info.VariableValues["limit"].(int)
 					if ok {
+						query.Limit(uint(limit))
+					}
+					offset, ok := p.Info.VariableValues["offset"].(int)
+					if ok {
+						query.Offset(uint(offset))
+					}
+					_sortBy, ok := p.Info.VariableValues["sortBy"].([]interface{})
+					if ok {
+						var sortBy []string
 						for _, s := range _sortBy {
 							sortBy = append(sortBy, s.(string))
 						}
+						query.Order(orderStringToExpression(sortBy)...)
 					}
-					data, err := service.Find(&FindQuery{
-						Attrs:  getAttrs(p),
-						Limit:  limit,
-						Offset: offset,
-						Sort:   sortBy,
-					})
+					data, err := g.service.ExecuteFind(query)
 					if err != nil {
 						return nil, err
 					}
@@ -114,78 +105,7 @@ func paginatedQuery(service Service, modelType *graphql.Object) *graphql.Object 
 	})
 }
 
-func modelToGraphQLObject(name string, model *Model) *graphql.Object {
-	fields := graphql.Fields{
-		model.Pk.Name: &graphql.Field{
-			Type: graphql.Int,
-		},
-	}
-	for _, field := range model.Fields {
-		t, ok := sql2graphql[field.Type]
-		if !ok {
-			continue
-		}
-		fields[field.Name] = &graphql.Field{
-			Type: t,
-		}
-	}
-	return graphql.NewObject(
-		graphql.ObjectConfig{
-			Name:   fmt.Sprintf("%sType", name),
-			Fields: fields,
-		},
-	)
-}
-
-func nestMap(data map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	for k, v := range data {
-		parts := strings.Split(k, ".")
-		lastKey := parts[len(parts)-1]
-		m := result
-		for _, part := range parts[:len(parts)-1] {
-			if _, ok := m[part]; !ok {
-				m[part] = make(map[string]interface{})
-			}
-			m = m[part].(map[string]interface{})
-		}
-		m[lastKey] = v
-	}
-	return result
-}
-
-func isNumeric(kind DataType) bool {
-	numerics := []DataType{
-		Integer,
-		BigSerial,
-		SmallSerial,
-		Serial,
-		Numeric,
-		Real,
-		DoublePrecision,
-	}
-	return utils.Includes(numerics, kind)
-}
-
-func isString(kind DataType) bool {
-	strings := []DataType{
-		Character,
-		CharacterVarying,
-		Text,
-	}
-	return utils.Includes(strings, kind)
-}
-
-func isTime(kind DataType) bool {
-	times := []DataType{
-		Date,
-		Time,
-		Timestamp,
-	}
-	return utils.Includes(times, kind)
-}
-
-func graphqlAggregateQuery(opts *GraphQLAdapterOptions) *graphql.Object {
+func (g *graphQLAdapter) aggregateSubQuery() *graphql.Object {
 	fields := graphql.Fields{}
 	aggregationQuery := func(f *Field) *graphql.Object {
 		queryFields := graphql.Fields{
@@ -212,18 +132,17 @@ func graphqlAggregateQuery(opts *GraphQLAdapterOptions) *graphql.Object {
 				Type: sql2graphql[f.Type],
 			}
 		}
-		caser := cases.Title(language.English)
 		return graphql.NewObject(
 			graphql.ObjectConfig{
-				Name:   fmt.Sprintf("%s%sAggregationQuery", caser.String(opts.Name), caser.String(f.Name)),
+				Name:   fmt.Sprintf("%s%sAggregationQuery", utils.Title(g.name), utils.Title(f.Name)),
 				Fields: queryFields,
 			},
 		)
 	}
-	for _, field := range opts.Service.Model().Fields {
+	for _, field := range g.model().Fields {
 		gqlType, ok := sql2graphql[field.Type]
 		if !ok {
-			panic(fmt.Sprintf("Type %s not found", field.Type))
+			panic(fmt.Sprintf("Type %v not found", field.Type))
 		}
 		args := graphql.FieldConfigArgument{
 			"in": &graphql.ArgumentConfig{
@@ -254,178 +173,280 @@ func graphqlAggregateQuery(opts *GraphQLAdapterOptions) *graphql.Object {
 	}
 	return graphql.NewObject(
 		graphql.ObjectConfig{
-			Name:   fmt.Sprintf("%sAggregate", opts.Name),
+			Name:   fmt.Sprintf("%sAggregate", utils.Title(g.name)),
 			Fields: fields,
 		},
 	)
 }
 
-func GraphQLAdapter(opts *GraphQLAdapterOptions) (*graphql.Object, *graphql.Object) {
-	pkCol := opts.Service.Model().Pk.Name
-	modelType := modelToGraphQLObject(opts.Name, opts.Service.Model())
-	paginatedQ := paginatedQuery(opts.Service, modelType)
-	aggregateType := graphqlAggregateQuery(opts)
-	queryType := graphql.NewObject(
+type graphQLAdapter struct {
+	modelType *graphql.Object
+	service   Service
+	name      string
+}
+
+func (g *graphQLAdapter) model() *Model {
+	return g.service.Model()
+}
+
+func (g *graphQLAdapter) pkName() string {
+	return g.model().Pk.Name
+}
+
+func (g *graphQLAdapter) getQuery() *graphql.Field {
+	return &graphql.Field{
+		Type:        g.modelType,
+		Description: "Get by id",
+		Args: graphql.FieldConfigArgument{
+			g.pkName(): &graphql.ArgumentConfig{
+				Type: sql2graphql[g.model().Pk.Type],
+			},
+		},
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			id, ok := p.Args[g.pkName()].(int)
+			if !ok {
+				return nil, nil
+			}
+			return g.service.Get(&GetQuery{
+				Id:    int64(id),
+				Attrs: getAttrs(p),
+			})
+		},
+	}
+}
+
+func (g *graphQLAdapter) listQuery() *graphql.Field {
+	fields := graphql.Fields{
+		g.pkName(): &graphql.Field{
+			Type: graphql.Int,
+		},
+	}
+	for _, field := range g.model().Fields {
+		t, ok := sql2graphql[field.Type]
+		if !ok {
+			continue
+		}
+		fields[field.Name] = &graphql.Field{
+			Type: t,
+		}
+		if field.Association != nil {
+			fields[field.Association.As] = &graphql.Field{
+				Type: graphql.NewObject(
+					graphql.ObjectConfig{
+						Name: fmt.Sprintf("%sJoinType", utils.Title(field.Association.Table)),
+						Fields: graphql.Fields{
+							field.Association.Column: &graphql.Field{
+								Type: graphql.Int,
+							},
+							"name": &graphql.Field{
+								Type: graphql.String,
+							},
+						},
+					},
+				),
+			}
+		}
+	}
+	modelType := graphql.NewObject(
 		graphql.ObjectConfig{
-			Name: opts.Name,
-			Fields: graphql.Fields{
-				"get": &graphql.Field{
-					Type:        modelType,
-					Description: "Get by id",
-					Args: graphql.FieldConfigArgument{
-						pkCol: &graphql.ArgumentConfig{
-							Type: sql2graphql[opts.Service.Model().Pk.Type],
-						},
-					},
-					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						id, ok := p.Args[pkCol].(int)
-						if !ok {
-							return nil, nil
+			Name:   fmt.Sprintf("%sTypeWithJoin", utils.Title(g.name)),
+			Fields: fields,
+		},
+	)
+	// TODO: Add filtering & sorting
+	return &graphql.Field{
+		Type:        graphql.NewList(modelType),
+		Description: "Get list",
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			allAttrs := getAttrs(p)
+			var attrs []interface{}
+			for _, attr := range allAttrs {
+				for _, field := range g.model().Fields {
+					if field.Name == attr {
+						attrs = append(attrs, goqu.I(fmt.Sprintf("%s.%s", g.model().Table, attr)))
+					}
+
+					if field.Association != nil && field.Association.As == attr {
+						for _, a := range p.Info.FieldASTs[0].SelectionSet.Selections {
+							selections := a.(*ast.Field).GetSelectionSet()
+							if selections == nil {
+								continue
+							}
+							for _, _a := range selections.Selections {
+								joinField := _a.(*ast.Field)
+								attr := fmt.Sprintf("%s.%s", field.Association.Table, joinField.Name.Value)
+								as := fmt.Sprintf("%s.%s", field.Association.As, joinField.Name.Value)
+								attrs = append(attrs, goqu.I(attr).As(goqu.C(as)))
+							}
 						}
-						return opts.Service.Get(&GetQuery{
-							Id:    int64(id),
-							Attrs: getAttrs(p),
-						})
-					},
-				},
-				"list": &graphql.Field{
-					Type:        graphql.NewList(modelType),
-					Description: "Get list",
-					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						return opts.Service.Find(&FindQuery{
-							Attrs: getAttrs(p),
-						})
-					},
-				},
-				"listPaginated": &graphql.Field{
-					Type:        paginatedQ,
-					Description: "Get list paginated",
-					Args: graphql.FieldConfigArgument{
-						"limit": &graphql.ArgumentConfig{
-							Type:         graphql.Int,
-							DefaultValue: 50,
-						},
-						"offset": &graphql.ArgumentConfig{
-							Type:         graphql.Int,
-							DefaultValue: 0,
-						},
-						"sortBy": &graphql.ArgumentConfig{
-							Type: graphql.NewList(graphql.String),
-							DefaultValue: []string{
-								pkCol,
+					}
+				}
+			}
+			query := goqu.From(g.model().Table).Select(attrs...)
+			for _, field := range g.model().Fields {
+				if field.Association != nil {
+					query = query.Join(
+						goqu.I(field.Association.Table),
+						goqu.On(
+							goqu.Ex{
+								fmt.Sprintf("%s.%s", field.Association.Table, field.Association.Column): goqu.I(fmt.Sprintf("%s.%s", g.model().Table, field.Name)),
 							},
-						},
-					},
-					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						return paginatedQ, nil
-					},
-				},
-				"aggregate": &graphql.Field{
-					Type:        graphql.NewList(aggregateType),
-					Description: "Aggregate",
-					Args: graphql.FieldConfigArgument{
-						"groupBy": &graphql.ArgumentConfig{
-							Type: graphql.NewList(graphql.String),
-						},
-						"limit": &graphql.ArgumentConfig{
-							Type:         graphql.Int,
-							DefaultValue: 50,
-						},
-						"offset": &graphql.ArgumentConfig{
-							Type:         graphql.Int,
-							DefaultValue: 0,
-						},
-						"sortBy": &graphql.ArgumentConfig{
-							Type: graphql.NewList(graphql.String),
-							DefaultValue: []string{
-								pkCol,
-							},
-						},
-					},
-					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						root := p.Info.FieldASTs[0]
-						aggregateQuery := &AggregateQuery{
-							Query:       []goqu.Expression{},
-							Expressions: []goqu.Expression{},
-							GroupBy:     []string{},
-							Sort:        []string{},
-						}
-						for _, _field := range root.SelectionSet.Selections {
-							field := _field.(*ast.Field)
-							for _, arg := range field.Arguments {
-								c := QueryToExpression[arg.Name.Value]
-								aggregateQuery.Query = append(aggregateQuery.Query, c(field.Name.Value, arg.Value.GetValue()))
-							}
-							for _, _op := range field.SelectionSet.Selections {
-								op := _op.(*ast.Field)
-								opName := op.Name.Value
-								sqlOp := StringOpToExpression[opName]
-								aggregateQuery.Expressions = append(
-									aggregateQuery.Expressions,
-									sqlOp(goqu.I(field.Name.Value)).As(goqu.C(fmt.Sprintf("%s.%s", field.Name.Value, opName))),
-								)
-							}
-						}
-						groupBy, ok := p.Args["groupBy"].([]interface{})
-						if ok {
-							for _, g := range groupBy {
-								aggregateQuery.GroupBy = append(aggregateQuery.GroupBy, g.(string))
-							}
-						}
-						sortBy, ok := p.Args["sortBy"].([]interface{})
-						if ok {
-							for _, s := range sortBy {
-								aggregateQuery.Sort = append(aggregateQuery.Sort, s.(string))
-							}
-						}
-						limit, ok := p.Args["limit"].(int)
-						if ok {
-							aggregateQuery.Limit = limit
-						}
-						offset, ok := p.Args["offset"].(int)
-						if ok {
-							aggregateQuery.Offset = offset
-						}
-						data, err := opts.Service.Aggregate(aggregateQuery)
-						if err != nil {
-							return nil, err
-						}
-						var result []map[string]interface{}
-						for _, row := range data {
-							result = append(result, nestMap(row))
-						}
-						return result, nil
-					},
+						),
+					)
+				}
+			}
+			data, err := g.service.ExecuteFind(query)
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		},
+	}
+}
+
+func (g *graphQLAdapter) listPaginatedQuery() *graphql.Field {
+	return &graphql.Field{
+		Type:        g.paginatedQuery(),
+		Description: "Get paginated",
+		Args: graphql.FieldConfigArgument{
+			"limit": &graphql.ArgumentConfig{
+				Type:         graphql.Int,
+				DefaultValue: 50,
+			},
+			"offset": &graphql.ArgumentConfig{
+				Type:         graphql.Int,
+				DefaultValue: 0,
+			},
+			"sortBy": &graphql.ArgumentConfig{
+				Type: graphql.NewList(graphql.String),
+				DefaultValue: []string{
+					g.pkName(),
 				},
 			},
 		},
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			return g.paginatedQuery(), nil
+		},
+	}
+}
+
+func (g *graphQLAdapter) aggregateQuery() *graphql.Field {
+	return &graphql.Field{
+		Type:        graphql.NewList(g.aggregateSubQuery()),
+		Description: "Aggregate",
+		Args: graphql.FieldConfigArgument{
+			"groupBy": &graphql.ArgumentConfig{
+				Type: graphql.NewList(graphql.String),
+			},
+			"limit": &graphql.ArgumentConfig{
+				Type:         graphql.Int,
+				DefaultValue: 50,
+			},
+			"offset": &graphql.ArgumentConfig{
+				Type:         graphql.Int,
+				DefaultValue: 0,
+			},
+			"sortBy": &graphql.ArgumentConfig{
+				Type: graphql.NewList(graphql.String),
+				DefaultValue: []string{
+					g.pkName(),
+				},
+			},
+		},
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			root := p.Info.FieldASTs[0]
+			aggregateQuery := &AggregateQuery{
+				Query:       []goqu.Expression{},
+				Expressions: []goqu.Expression{},
+				GroupBy:     []string{},
+				Sort:        []string{},
+			}
+			for _, _field := range root.SelectionSet.Selections {
+				field := _field.(*ast.Field)
+				for _, arg := range field.Arguments {
+					c := QueryToExpression[arg.Name.Value]
+					aggregateQuery.Query = append(aggregateQuery.Query, c(field.Name.Value, arg.Value.GetValue()))
+				}
+				for _, _op := range field.SelectionSet.Selections {
+					op := _op.(*ast.Field)
+					opName := op.Name.Value
+					sqlOp := StringOpToExpression[opName]
+					aggregateQuery.Expressions = append(
+						aggregateQuery.Expressions,
+						sqlOp(goqu.I(field.Name.Value)).As(goqu.C(fmt.Sprintf("%s.%s", field.Name.Value, opName))),
+					)
+				}
+			}
+			groupBy, ok := p.Args["groupBy"].([]interface{})
+			if ok {
+				for _, g := range groupBy {
+					aggregateQuery.GroupBy = append(aggregateQuery.GroupBy, g.(string))
+				}
+			}
+			sortBy, ok := p.Args["sortBy"].([]interface{})
+			if ok {
+				for _, s := range sortBy {
+					aggregateQuery.Sort = append(aggregateQuery.Sort, s.(string))
+				}
+			}
+			limit, ok := p.Args["limit"].(int)
+			if ok {
+				aggregateQuery.Limit = limit
+			}
+			offset, ok := p.Args["offset"].(int)
+			if ok {
+				aggregateQuery.Offset = offset
+			}
+			data, err := g.service.Aggregate(aggregateQuery)
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		},
+	}
+}
+
+func (g *graphQLAdapter) QueryType() *graphql.Object {
+	return graphql.NewObject(
+		graphql.ObjectConfig{
+			Name: utils.Title(g.name) + "Query",
+			Fields: graphql.Fields{
+				"get":           g.getQuery(),
+				"list":          g.listQuery(),
+				"listPaginated": g.listPaginatedQuery(),
+				"aggregate":     g.aggregateQuery(),
+			},
+		},
 	)
+}
+
+func (g *graphQLAdapter) MutationType() *graphql.Object {
 	createArgs := graphql.FieldConfigArgument{}
-	for _, field := range opts.Service.Model().Fields {
+	for _, field := range g.model().Fields {
 		createArgs[field.Name] = &graphql.ArgumentConfig{
 			Type: sql2graphql[field.Type],
 		}
 	}
-	mutationType := graphql.NewObject(
+	return graphql.NewObject(
 		graphql.ObjectConfig{
-			Name: opts.Name + "Mutation",
+			Name: utils.Title(g.name) + "Mutation",
 			Fields: graphql.Fields{
 				"create": &graphql.Field{
-					Type:        modelType,
+					Type:        g.modelType,
 					Description: "Create",
 					Args:        createArgs,
 					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						return opts.Service.Create(p.Args)
+						return g.service.Create(p.Args)
 					},
 				},
 				"update": &graphql.Field{
-					Type:        modelType,
+					Type:        g.modelType,
 					Description: "Update",
 					Args:        createArgs,
 					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						id, ok := p.Args[pkCol].(int64)
+						id, ok := p.Args[g.pkName()].(int64)
 						if ok {
-							return opts.Service.Patch(id, p.Args)
+							return g.service.Patch(id, p.Args)
 						}
 						return nil, nil
 					},
@@ -434,14 +455,14 @@ func GraphQLAdapter(opts *GraphQLAdapterOptions) (*graphql.Object, *graphql.Obje
 					Type:        graphql.String,
 					Description: "Delete",
 					Args: graphql.FieldConfigArgument{
-						pkCol: &graphql.ArgumentConfig{
+						g.pkName(): &graphql.ArgumentConfig{
 							Type: graphql.Int,
 						},
 					},
 					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						id, ok := p.Args[pkCol].(int)
+						id, ok := p.Args[g.pkName()].(int)
 						if ok {
-							return "", opts.Service.Remove(int64(id))
+							return "", g.service.Remove(int64(id))
 						}
 						return nil, nil
 					},
@@ -449,5 +470,38 @@ func GraphQLAdapter(opts *GraphQLAdapterOptions) (*graphql.Object, *graphql.Obje
 			},
 		},
 	)
-	return queryType, mutationType
+}
+
+func (g *graphQLAdapter) ToGraphQL() (*graphql.Object, *graphql.Object) {
+	return g.QueryType(), g.MutationType()
+}
+
+func GraphQLAdapter(opts *GraphQLAdapterOptions) (*graphql.Object, *graphql.Object) {
+	model := opts.Service.Model()
+	pkCol := model.Pk.Name
+	fields := graphql.Fields{
+		pkCol: &graphql.Field{
+			Type: graphql.Int,
+		},
+	}
+	for _, field := range model.Fields {
+		t, ok := sql2graphql[field.Type]
+		if !ok {
+			continue
+		}
+		fields[field.Name] = &graphql.Field{
+			Type: t,
+		}
+	}
+	modelType := graphql.NewObject(
+		graphql.ObjectConfig{
+			Name:   fmt.Sprintf("%sType", utils.Title(opts.Name)),
+			Fields: fields,
+		},
+	)
+	return (&graphQLAdapter{
+		service:   opts.Service,
+		name:      opts.Name,
+		modelType: modelType,
+	}).ToGraphQL()
 }

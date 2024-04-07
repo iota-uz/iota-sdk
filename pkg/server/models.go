@@ -59,6 +59,11 @@ var Models = []*service.Model{
 				Name:     "company_id",
 				Type:     service.Integer,
 				Nullable: false,
+				Association: &service.Association{
+					Table:  "companies",
+					Column: "id",
+					As:     "company",
+				},
 			},
 			{
 				Name:     "email",

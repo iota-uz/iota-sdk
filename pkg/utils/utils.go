@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 	"github.com/joho/godotenv"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"log"
 	"math/rand"
 	"os"
@@ -124,6 +126,10 @@ func Includes[T comparable](array []T, elem T) bool {
 		}
 	}
 	return false
+}
+
+func Title(str string) string {
+	return cases.Title(language.English).String(str)
 }
 
 func ReverseInPlace[T any](array []T) []T {
