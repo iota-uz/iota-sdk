@@ -98,10 +98,11 @@ func modelToGraphQLObject(name string, model *Model) *graphql.Object {
 
 func graphqlAggregateQuery(opts *GraphQLAdapterOptions, modelType *graphql.Object) *graphql.Object {
 	expressionsMap := map[string]func(col interface{}) exp.SQLFunctionExpression{
-		"min": goqu.MIN,
-		"max": goqu.MAX,
-		"avg": goqu.AVG,
-		"sum": goqu.SUM,
+		"min":   goqu.MIN,
+		"max":   goqu.MAX,
+		"avg":   goqu.AVG,
+		"sum":   goqu.SUM,
+		"count": goqu.COUNT,
 	}
 
 	fields := graphql.Fields{}
@@ -124,6 +125,9 @@ func graphqlAggregateQuery(opts *GraphQLAdapterOptions, modelType *graphql.Objec
 					},
 					"sum": &graphql.Field{
 						Type: sql2graphql[f.Type],
+					},
+					"count": &graphql.Field{
+						Type: graphql.Int,
 					},
 				},
 			},
@@ -228,7 +232,8 @@ func GraphQLAdapter(opts *GraphQLAdapterOptions) (*graphql.Object, *graphql.Obje
 					},
 				},
 				"aggregate": &graphql.Field{
-					Type: aggregateType,
+					Type:        aggregateType,
+					Description: "Aggregate",
 					Args: graphql.FieldConfigArgument{
 						"groupBy": &graphql.ArgumentConfig{
 							Type: graphql.NewList(graphql.String),
