@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jmoiron/sqlx"
@@ -144,6 +143,9 @@ func (s *serviceImpl) Find(q *FindQuery) ([]map[string]interface{}, error) {
 
 func (s *serviceImpl) Aggregate(q *AggregateQuery) ([]map[string]interface{}, error) {
 	var selects []interface{}
+	for _, expr := range q.GroupBy {
+		selects = append(selects, goqu.I(expr))
+	}
 	for _, expr := range q.Expressions {
 		selects = append(selects, expr)
 	}
@@ -155,7 +157,6 @@ func (s *serviceImpl) Aggregate(q *AggregateQuery) ([]map[string]interface{}, er
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(stmt)
 	rows, err := s.Db.Queryx(stmt)
 	if err != nil {
 		return nil, err

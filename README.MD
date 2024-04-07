@@ -41,3 +41,7 @@ go test -v ./...
 
 ## TODO
 
+- [ ] Add tests
+- [ ] Add more documentation
+- [ ] Add JOIN support for queries
+- [ ] Add more query filters (like `IN`, `NOT IN`, `LIKE`, `NOT LIKE`, `BETWEEN`, `NOT BETWEEN`, `IS NULL`, `IS NOT NULL`)

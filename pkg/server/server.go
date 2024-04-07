@@ -206,7 +206,12 @@ func (s *Server) Start() {
 				{
 					Name:     "salary",
 					Type:     reflect.Float64,
-					Nullable: true,
+					Nullable: false,
+				},
+				{
+					Name:     "created_at",
+					Type:     reflect.String,
+					Nullable: false,
 				},
 			},
 		},

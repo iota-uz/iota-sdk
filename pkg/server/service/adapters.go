@@ -105,28 +105,33 @@ func graphqlAggregateQuery(opts *GraphQLAdapterOptions, modelType *graphql.Objec
 	}
 
 	fields := graphql.Fields{}
-	aggregationQuery := graphql.NewObject(
-		graphql.ObjectConfig{
-			Name: fmt.Sprintf("%sAggregationQuery", opts.Name),
-			Fields: graphql.Fields{
-				"min": &graphql.Field{
-					Type: graphql.Float,
-				},
-				"max": &graphql.Field{
-					Type: graphql.Float,
-				},
-				"avg": &graphql.Field{
-					Type: graphql.Float,
-				},
-				"sum": &graphql.Field{
-					Type: graphql.Float,
+	aggregationQuery := func(f *Field) *graphql.Object {
+		return graphql.NewObject(
+			graphql.ObjectConfig{
+				Name: fmt.Sprintf("%s%sAggregationQuery", opts.Name, f.Name),
+				Fields: graphql.Fields{
+					"groupBy": &graphql.Field{
+						Type: graphql.NewList(graphql.String),
+					},
+					"min": &graphql.Field{
+						Type: sql2graphql[f.Type],
+					},
+					"max": &graphql.Field{
+						Type: sql2graphql[f.Type],
+					},
+					"avg": &graphql.Field{
+						Type: sql2graphql[f.Type],
+					},
+					"sum": &graphql.Field{
+						Type: sql2graphql[f.Type],
+					},
 				},
 			},
-		},
-	)
+		)
+	}
 	for _, field := range opts.Service.Model().Fields {
 		fields[field.Name] = &graphql.Field{
-			Type: graphql.NewList(aggregationQuery),
+			Type: graphql.NewList(aggregationQuery(field)),
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 				groupBy, ok := p.Info.VariableValues["groupBy"].([]interface{})
 				if !ok {
@@ -141,11 +146,15 @@ func graphqlAggregateQuery(opts *GraphQLAdapterOptions, modelType *graphql.Objec
 				for _, g := range groupBy {
 					groupByString = append(groupByString, g.(string))
 				}
-				return opts.Service.Aggregate(&AggregateQuery{
+				data, err := opts.Service.Aggregate(&AggregateQuery{
 					Query:       nil,
 					Expressions: expressions,
 					GroupBy:     groupByString,
 				})
+				if err != nil {
+					return nil, err
+				}
+				return data, err
 			},
 		}
 	}
