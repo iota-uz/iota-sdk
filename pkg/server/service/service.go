@@ -4,17 +4,64 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jmoiron/sqlx"
-	"reflect"
+)
+
+type DataType int
+
+const (
+	BigInt                DataType = iota // BigInt represents a signed eight-byte integer
+	BigSerial                             // BigSerial represents an autoincrementing eight-byte integer
+	Bit                                   // Bit represents a fixed-length bit string
+	BitVarying                            // BitVarying represents a variable-length bit string
+	Boolean                               // Boolean represents a logical Boolean (true/false)
+	Box                                   // Box represents a rectangular box on a plane
+	Bytea                                 // Bytea represents binary data (“byte array”)
+	Character                             // Character represents a fixed-length character string
+	CharacterVarying                      // CharacterVarying represents a variable-length character string
+	Cidr                                  // Cidr represents an IPv4 or IPv6 network address
+	Circle                                // Circle represents a circle on a plane
+	Date                                  // Date represents a calendar date (year, month, day)
+	DoublePrecision                       // DoublePrecision represents a double precision floating-point number (8 bytes)
+	Inet                                  // Inet represents an IPv4 or IPv6 host address
+	Integer                               // Integer represents a signed four-byte integer
+	Interval                              // Interval represents a time span
+	Json                                  // Json represents textual JSON data
+	Jsonb                                 // Jsonb represents binary JSON data, decomposed
+	Line                                  // Line represents an infinite line on a plane
+	Lseg                                  // Lseg represents a line segment on a plane
+	Macaddr                               // Macaddr represents a MAC (Media Access Control) address
+	Macaddr8                              // Macaddr8 represents a MAC (Media Access Control) address (EUI-64 format)
+	Money                                 // Money represents a currency amount
+	Numeric                               // Numeric represents an exact numeric of selectable precision
+	Path                                  // Path represents a geometric path on a plane
+	PgLsn                                 // PgLsn represents a PostgreSQL Log Sequence Number
+	PgSnapshot                            // PgSnapshot represents a user-level transaction ID snapshot
+	Point                                 // Point represents a geometric point on a plane
+	Polygon                               // Polygon represents a closed geometric path on a plane
+	Real                                  // Real represents a single precision floating-point number (4 bytes)
+	SmallInt                              // SmallInt represents a signed two-byte integer
+	SmallSerial                           // SmallSerial represents an autoincrementing two-byte integer
+	Serial                                // Serial represents an autoincrementing four-byte integer
+	Text                                  // Text represents a variable-length character string
+	Time                                  // Time represents a time of day (no time zone)
+	TimeWithTimeZone                      // TimeWithTimeZone represents a time of day, including time zone
+	Timestamp                             // Timestamp represents a date and time (no time zone)
+	TimestampWithTimeZone                 // TimestampWithTimeZone represents a date and time, including time zone
+	Tsquery                               // Tsquery represents a text search query
+	Tsvector                              // Tsvector represents a text search document
+	TxidSnapshot                          // TxidSnapshot represents a user-level transaction ID snapshot (deprecated; see pg_snapshot)
+	Uuid                                  // Uuid represents a universally unique identifier
+	Xml                                   // Xml represents XML data
 )
 
 type Field struct {
 	Name     string
-	Type     reflect.Kind
+	Type     DataType
 	Nullable bool
 }
 
 type Model struct {
-	Pk     string
+	Pk     *Field
 	Table  string
 	Fields []*Field
 }
@@ -40,6 +87,9 @@ type AggregateQuery struct {
 	Query       []goqu.Expression
 	Expressions []goqu.Expression
 	GroupBy     []string
+	Sort        []string
+	Limit       int
+	Offset      int
 }
 
 // Service A wrapper around SQLx to provide CRUD operations for a service
@@ -66,6 +116,10 @@ func New(db *sqlx.DB, model *Model) Service {
 	}
 }
 
+func (s *serviceImpl) PkCol() string {
+	return s.model.Pk.Name
+}
+
 func (s *serviceImpl) Model() *Model {
 	return s.model
 }
@@ -84,7 +138,7 @@ func (s *serviceImpl) Count(q *CountQuery) (int, error) {
 }
 
 func (s *serviceImpl) Get(q *GetQuery) (map[string]interface{}, error) {
-	stmt, _, err := goqu.From(s.model.Table).Where(goqu.Ex{s.model.Pk: q.Id}).ToSQL()
+	stmt, _, err := goqu.From(s.model.Table).Where(goqu.Ex{s.PkCol(): q.Id}).ToSQL()
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +207,14 @@ func (s *serviceImpl) Aggregate(q *AggregateQuery) ([]map[string]interface{}, er
 	for _, field := range q.GroupBy {
 		groupBy = append(groupBy, goqu.I(field))
 	}
-	stmt, _, err := goqu.From(s.model.Table).Select(selects...).Where(q.Query...).GroupBy(groupBy...).ToSQL()
+	query := goqu.From(s.model.Table).Select(selects...).Where(q.Query...).GroupBy(groupBy...)
+	if q.Limit > 0 {
+		query = query.Limit(uint(q.Limit))
+	}
+	if q.Offset > 0 {
+		query = query.Offset(uint(q.Offset))
+	}
+	stmt, _, err := query.ToSQL()
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +250,7 @@ func (s *serviceImpl) Create(data map[string]interface{}) (map[string]interface{
 }
 
 func (s *serviceImpl) Patch(id int64, data map[string]interface{}) (map[string]interface{}, error) {
-	stmt, _, err := goqu.Update(s.model.Table).Set(data).Where(goqu.Ex{s.model.Pk: id}).Returning("*").ToSQL()
+	stmt, _, err := goqu.Update(s.model.Table).Set(data).Where(goqu.Ex{s.PkCol(): id}).Returning("*").ToSQL()
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +263,7 @@ func (s *serviceImpl) Patch(id int64, data map[string]interface{}) (map[string]i
 }
 
 func (s *serviceImpl) Remove(id int64) error {
-	stmt, _, err := goqu.Delete(s.model.Table).Where(goqu.Ex{s.model.Pk: id}).ToSQL()
+	stmt, _, err := goqu.Delete(s.model.Table).Where(goqu.Ex{s.PkCol(): id}).ToSQL()
 	if err != nil {
 		return err
 	}

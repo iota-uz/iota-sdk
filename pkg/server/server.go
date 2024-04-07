@@ -16,7 +16,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 	"time"
 )
 
@@ -162,63 +161,9 @@ func (s *Server) Start() {
 		}
 		route.Setup(subRouter, opts)
 	}
-	models := []*service.Model{
-		{
-			Pk:    "id",
-			Table: "companies",
-			Fields: []*service.Field{
-				{
-					Name:     "name",
-					Type:     reflect.String,
-					Nullable: false,
-				},
-				{
-					Name:     "address",
-					Type:     reflect.String,
-					Nullable: true,
-				},
-			},
-		},
-		{
-			Pk:    "id",
-			Table: "employees",
-			Fields: []*service.Field{
-				{
-					Name:     "first_name",
-					Type:     reflect.String,
-					Nullable: false,
-				},
-				{
-					Name:     "last_name",
-					Type:     reflect.String,
-					Nullable: false,
-				},
-				{
-					Name:     "company_id",
-					Type:     reflect.Int,
-					Nullable: false,
-				},
-				{
-					Name:     "email",
-					Type:     reflect.String,
-					Nullable: false,
-				},
-				{
-					Name:     "salary",
-					Type:     reflect.Float64,
-					Nullable: false,
-				},
-				{
-					Name:     "created_at",
-					Type:     reflect.String,
-					Nullable: false,
-				},
-			},
-		},
-	}
 	combinedQueryFields := graphql.Fields{}
 	combineMutations := graphql.Fields{}
-	for _, model := range models {
+	for _, model := range Models {
 		q, m := service.GraphQLAdapter(&service.GraphQLAdapterOptions{
 			Service: service.New(s.Db, model),
 			Name:    model.Table,

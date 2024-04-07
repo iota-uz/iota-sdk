@@ -117,6 +117,15 @@ func SessionDuration() time.Duration {
 	return 0
 }
 
+func Includes[T comparable](array []T, elem T) bool {
+	for _, e := range array {
+		if e == elem {
+			return true
+		}
+	}
+	return false
+}
+
 func ReverseInPlace[T any](array []T) []T {
 	length := len(array)
 	swap := reflect.Swapper(array)
