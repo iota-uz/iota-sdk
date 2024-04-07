@@ -86,6 +86,7 @@ CREATE TABLE employees
     last_name   VARCHAR(255) NOT NULL,
     middle_name VARCHAR(255) NULL,
     email       VARCHAR(255) NOT NULL UNIQUE,
+    salary      FLOAT        NOT NULL,
     avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
     company_id  INT          NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
@@ -115,8 +116,8 @@ CREATE TABLE embeddings
 (
     id         SERIAL PRIMARY KEY,
     embedding  VECTOR(512) NOT NULL,
-    article_id INT           NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
-    text       TEXT          NOT NULL
+    article_id INT         NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
+    text       TEXT        NOT NULL
 );
 
 CREATE TABLE comments

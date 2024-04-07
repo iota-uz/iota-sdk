@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
 	"time"
 )
 
@@ -122,15 +123,18 @@ func AuthMiddleware(db *sqlx.DB) mux.MiddlewareFunc {
 func (s *Server) GraphQL(schema graphql.Schema) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data := struct {
-			Query string `json:"query"`
+			Query     string                 `json:"query"`
+			Variables map[string]interface{} `json:"variables"`
 		}{}
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 			helpers.BadRequest(w, err)
 			return
 		}
 		result := graphql.Do(graphql.Params{
-			Schema:        schema,
-			RequestString: data.Query,
+			Schema:         schema,
+			RequestString:  data.Query,
+			VariableValues: data.Variables,
+			Context:        r.Context(),
 		})
 		if len(result.Errors) > 0 {
 			helpers.RespondWithJson(w, http.StatusBadRequest, result)
@@ -164,12 +168,14 @@ func (s *Server) Start() {
 			Table: "companies",
 			Fields: []*service.Field{
 				{
-					Name: "name",
-					Type: "string",
+					Name:     "name",
+					Type:     reflect.String,
+					Nullable: false,
 				},
 				{
-					Name: "address",
-					Type: "string",
+					Name:     "address",
+					Type:     reflect.String,
+					Nullable: true,
 				},
 			},
 		},
@@ -178,12 +184,29 @@ func (s *Server) Start() {
 			Table: "employees",
 			Fields: []*service.Field{
 				{
-					Name: "first_name",
-					Type: "string",
+					Name:     "first_name",
+					Type:     reflect.String,
+					Nullable: false,
 				},
 				{
-					Name: "last_name",
-					Type: "string",
+					Name:     "last_name",
+					Type:     reflect.String,
+					Nullable: false,
+				},
+				{
+					Name:     "company_id",
+					Type:     reflect.Int,
+					Nullable: false,
+				},
+				{
+					Name:     "email",
+					Type:     reflect.String,
+					Nullable: false,
+				},
+				{
+					Name:     "salary",
+					Type:     reflect.Float64,
+					Nullable: true,
 				},
 			},
 		},
