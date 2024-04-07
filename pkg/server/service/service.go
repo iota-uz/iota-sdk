@@ -56,7 +56,7 @@ const (
 )
 
 type Association struct {
-	Table  string
+	To     *Model
 	Column string
 	As     string
 }

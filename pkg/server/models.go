@@ -4,6 +4,36 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/server/service"
 )
 
+var CompaniesModel = &service.Model{
+	Pk: &service.Field{
+		Name: "id",
+		Type: service.BigSerial,
+	},
+	Table: "companies",
+	Fields: []*service.Field{
+		{
+			Name:     "name",
+			Type:     service.CharacterVarying,
+			Nullable: false,
+		},
+		{
+			Name:     "address",
+			Type:     service.CharacterVarying,
+			Nullable: true,
+		},
+		{
+			Name:     "created_at",
+			Type:     service.Timestamp,
+			Nullable: false,
+		},
+		{
+			Name:     "updated_at",
+			Type:     service.Timestamp,
+			Nullable: false,
+		},
+	},
+}
+
 var Models = []*service.Model{
 	{
 		Table: "users",
@@ -19,25 +49,7 @@ var Models = []*service.Model{
 			},
 		},
 	},
-	{
-		Pk: &service.Field{
-			Name: "id",
-			Type: service.BigSerial,
-		},
-		Table: "companies",
-		Fields: []*service.Field{
-			{
-				Name:     "name",
-				Type:     service.CharacterVarying,
-				Nullable: false,
-			},
-			{
-				Name:     "address",
-				Type:     service.CharacterVarying,
-				Nullable: true,
-			},
-		},
-	},
+	CompaniesModel,
 	{
 		Pk: &service.Field{
 			Name: "id",
@@ -60,7 +72,7 @@ var Models = []*service.Model{
 				Type:     service.Integer,
 				Nullable: false,
 				Association: &service.Association{
-					Table:  "companies",
+					To:     CompaniesModel,
 					Column: "id",
 					As:     "company",
 				},

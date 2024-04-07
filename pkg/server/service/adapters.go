@@ -219,7 +219,7 @@ func (g *graphQLAdapter) getQuery() *graphql.Field {
 func (g *graphQLAdapter) listQuery() *graphql.Field {
 	fields := graphql.Fields{
 		g.pkName(): &graphql.Field{
-			Type: graphql.Int,
+			Type: sql2graphql[g.model().Pk.Type],
 		},
 	}
 	for _, field := range g.model().Fields {
@@ -231,18 +231,22 @@ func (g *graphQLAdapter) listQuery() *graphql.Field {
 			Type: t,
 		}
 		if field.Association != nil {
+			refModel := field.Association.To
+			refFields := graphql.Fields{
+				refModel.Pk.Name: &graphql.Field{
+					Type: sql2graphql[refModel.Pk.Type],
+				},
+			}
+			for _, refField := range refModel.Fields {
+				refFields[refField.Name] = &graphql.Field{
+					Type: sql2graphql[refField.Type],
+				}
+			}
 			fields[field.Association.As] = &graphql.Field{
 				Type: graphql.NewObject(
 					graphql.ObjectConfig{
-						Name: fmt.Sprintf("%sJoinType", utils.Title(field.Association.Table)),
-						Fields: graphql.Fields{
-							field.Association.Column: &graphql.Field{
-								Type: graphql.Int,
-							},
-							"name": &graphql.Field{
-								Type: graphql.String,
-							},
-						},
+						Name:   fmt.Sprintf("%sJoinType", utils.Title(refModel.Table)),
+						Fields: refFields,
 					},
 				),
 			}
@@ -277,7 +281,7 @@ func (g *graphQLAdapter) listQuery() *graphql.Field {
 						continue
 					}
 					if field.Association.As == dest {
-						source := fmt.Sprintf("%s.%s", field.Association.Table, attr)
+						source := fmt.Sprintf("%s.%s", field.Association.To.Table, attr)
 						target := fmt.Sprintf("%s.%s", field.Association.As, attr)
 						attrs = append(attrs, goqu.I(source).As(goqu.C(target)))
 					}
@@ -286,11 +290,12 @@ func (g *graphQLAdapter) listQuery() *graphql.Field {
 			query := goqu.From(g.model().Table).Select(attrs...)
 			for _, field := range g.model().Fields {
 				if field.Association != nil {
+					refTable := field.Association.To.Table
 					query = query.Join(
-						goqu.I(field.Association.Table),
+						goqu.I(refTable),
 						goqu.On(
 							goqu.Ex{
-								fmt.Sprintf("%s.%s", field.Association.Table, field.Association.Column): goqu.I(fmt.Sprintf("%s.%s", g.model().Table, field.Name)),
+								fmt.Sprintf("%s.%s", refTable, field.Association.Column): goqu.I(fmt.Sprintf("%s.%s", g.model().Table, field.Name)),
 							},
 						),
 					)
