@@ -115,7 +115,7 @@ CREATE TABLE articles
 CREATE TABLE embeddings
 (
     id         SERIAL PRIMARY KEY,
-    embedding  VECTOR(512) NOT NULL,
+    embedding  VECTOR(384) NOT NULL,
     article_id INT         NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
     text       TEXT        NOT NULL
 );
@@ -225,9 +225,10 @@ CREATE TABLE authentication_logs
     created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-
 CREATE INDEX users_first_name_idx ON users (first_name);
 CREATE INDEX users_last_name_idx ON users (last_name);
+CREATE INDEX user_roles_user_id_idx ON users (role_id);
+CREATE INDEX user_roles_role_id_idx ON users (company_id);
 
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
@@ -237,6 +238,32 @@ CREATE INDEX authentication_logs_created_at_idx ON authentication_logs (created_
 
 CREATE INDEX role_permissions_role_id_idx ON role_permissions (role_id);
 CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_id);
+
+CREATE INDEX articles_folder_id_idx ON articles (folder_id);
+
+CREATE INDEX comments_article_id_idx ON comments (article_id);
+CREATE INDEX comments_user_id_idx ON comments (user_id);
+
+CREATE INDEX likes_article_id_idx ON likes (article_id);
+CREATE INDEX likes_user_id_idx ON likes (user_id);
+
+CREATE INDEX embeddings_article_id_idx ON embeddings (article_id);
+
+CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
+
+CREATE INDEX action_log_user_id_idx ON action_log (user_id);
+
+CREATE INDEX messages_dialogue_id_idx ON messages (dialogue_id);
+
+CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
+
+CREATE INDEX expenses_category_id_idx ON expenses (category_id);
+
+CREATE INDEX employees_company_id_idx ON employees (company_id);
+
+CREATE INDEX uploads_uploader_id_idx ON uploads (uploader_id);
+
+CREATE INDEX folders_parent_id_idx ON folders (parent_id);
 
 -- +migrate Down
 DROP INDEX IF EXISTS user_roles_role_id_idx;

@@ -7,7 +7,6 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"strings"
 )
 
 type GraphQLAdapterOptions struct {
@@ -29,6 +28,7 @@ var sql2graphql = map[DataType]*graphql.Scalar{
 	Jsonb:            graphql.String,
 	Money:            graphql.Float,
 	Numeric:          graphql.Float,
+	Real:             graphql.Float,
 	Text:             graphql.String,
 	Time:             graphql.String,
 	Timestamp:        graphql.String,
@@ -62,6 +62,59 @@ var QueryToExpression = map[string]func(string, interface{}) exp.BooleanExpressi
 	"out": func(col string, val interface{}) exp.BooleanExpression {
 		return goqu.C(col).NotIn(val)
 	},
+}
+
+func modelToGQLType(model *Model, name string) *graphql.Object {
+	fields := graphql.Fields{
+		model.Pk.Name: &graphql.Field{
+			Type: sql2graphql[model.Pk.Type],
+		},
+	}
+	for _, field := range model.Fields {
+		t, ok := sql2graphql[field.Type]
+		if !ok {
+			continue
+		}
+		fields[field.Name] = &graphql.Field{
+			Type: t,
+		}
+	}
+	return graphql.NewObject(
+		graphql.ObjectConfig{
+			Name:   name,
+			Fields: fields,
+		},
+	)
+}
+
+func modelToGQLTypeWithJoins(model *Model, name string) *graphql.Object {
+	fields := graphql.Fields{
+		model.Pk.Name: &graphql.Field{
+			Type: sql2graphql[model.Pk.Type],
+		},
+	}
+	for _, field := range model.Fields {
+		t, ok := sql2graphql[field.Type]
+		if !ok {
+			continue
+		}
+		fields[field.Name] = &graphql.Field{
+			Type: t,
+		}
+		if field.Association != nil {
+			refModel := field.Association.To
+			refName := fmt.Sprintf("%s%s", name, utils.Title(refModel.Table))
+			fields[field.Association.As] = &graphql.Field{
+				Type: modelToGQLTypeWithJoins(refModel, refName),
+			}
+		}
+	}
+	return graphql.NewObject(
+		graphql.ObjectConfig{
+			Name:   name,
+			Fields: fields,
+		},
+	)
 }
 
 func (g *graphQLAdapter) paginatedQuery() *graphql.Object {
@@ -217,91 +270,15 @@ func (g *graphQLAdapter) getQuery() *graphql.Field {
 }
 
 func (g *graphQLAdapter) listQuery() *graphql.Field {
-	fields := graphql.Fields{
-		g.pkName(): &graphql.Field{
-			Type: sql2graphql[g.model().Pk.Type],
-		},
-	}
-	for _, field := range g.model().Fields {
-		t, ok := sql2graphql[field.Type]
-		if !ok {
-			continue
-		}
-		fields[field.Name] = &graphql.Field{
-			Type: t,
-		}
-		if field.Association != nil {
-			refModel := field.Association.To
-			refFields := graphql.Fields{
-				refModel.Pk.Name: &graphql.Field{
-					Type: sql2graphql[refModel.Pk.Type],
-				},
-			}
-			for _, refField := range refModel.Fields {
-				refFields[refField.Name] = &graphql.Field{
-					Type: sql2graphql[refField.Type],
-				}
-			}
-			fields[field.Association.As] = &graphql.Field{
-				Type: graphql.NewObject(
-					graphql.ObjectConfig{
-						Name:   fmt.Sprintf("%sJoinType", utils.Title(refModel.Table)),
-						Fields: refFields,
-					},
-				),
-			}
-		}
-	}
-	modelType := graphql.NewObject(
-		graphql.ObjectConfig{
-			Name:   fmt.Sprintf("%sTypeWithJoin", utils.Title(g.name)),
-			Fields: fields,
-		},
-	)
+	modelType := modelToGQLTypeWithJoins(g.model(), fmt.Sprintf("%sJoinType", utils.Title(g.name)))
+	model := g.model()
 	// TODO: Add filtering & sorting
 	return &graphql.Field{
 		Type:        graphql.NewList(modelType),
 		Description: "Get list",
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			// TODO: Refactor && to whomever reads this, I'm deeply sorry, I was just trying to make it work
-			allAttrs := getAttrs(p)
-			fmt.Println(allAttrs)
-			var attrs []interface{}
-			for _, attr := range allAttrs {
-				parts := strings.Split(attr.(string), ".")
-				if len(parts) == 1 {
-					attrs = append(attrs, goqu.I(fmt.Sprintf("%s.%s", g.model().Table, attr)))
-					continue
-				}
-				dest := parts[0]
-				attr := parts[1]
-
-				for _, field := range g.model().Fields {
-					if field.Association == nil {
-						continue
-					}
-					if field.Association.As == dest {
-						source := fmt.Sprintf("%s.%s", field.Association.To.Table, attr)
-						target := fmt.Sprintf("%s.%s", field.Association.As, attr)
-						attrs = append(attrs, goqu.I(source).As(goqu.C(target)))
-					}
-				}
-			}
-			query := goqu.From(g.model().Table).Select(attrs...)
-			for _, field := range g.model().Fields {
-				if field.Association != nil {
-					refTable := field.Association.To.Table
-					query = query.Join(
-						goqu.I(refTable),
-						goqu.On(
-							goqu.Ex{
-								fmt.Sprintf("%s.%s", refTable, field.Association.Column): goqu.I(fmt.Sprintf("%s.%s", g.model().Table, field.Name)),
-							},
-						),
-					)
-				}
-			}
-			data, err := g.service.ExecuteFind(query)
+			data, err := g.service.ExecuteFind(ResolveToQuery(p, model))
 			if err != nil {
 				return nil, err
 			}
@@ -483,31 +460,9 @@ func (g *graphQLAdapter) ToGraphQL() (*graphql.Object, *graphql.Object) {
 }
 
 func GraphQLAdapter(opts *GraphQLAdapterOptions) (*graphql.Object, *graphql.Object) {
-	model := opts.Service.Model()
-	pkCol := model.Pk.Name
-	fields := graphql.Fields{
-		pkCol: &graphql.Field{
-			Type: graphql.Int,
-		},
-	}
-	for _, field := range model.Fields {
-		t, ok := sql2graphql[field.Type]
-		if !ok {
-			continue
-		}
-		fields[field.Name] = &graphql.Field{
-			Type: t,
-		}
-	}
-	modelType := graphql.NewObject(
-		graphql.ObjectConfig{
-			Name:   fmt.Sprintf("%sType", utils.Title(opts.Name)),
-			Fields: fields,
-		},
-	)
 	return (&graphQLAdapter{
 		service:   opts.Service,
 		name:      opts.Name,
-		modelType: modelType,
+		modelType: modelToGQLType(opts.Service.Model(), fmt.Sprintf("%sType", utils.Title(opts.Name))),
 	}).ToGraphQL()
 }

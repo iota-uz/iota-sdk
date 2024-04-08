@@ -25,10 +25,10 @@ func TestServiceImpl_Get(t *testing.T) {
 	defer db.Close()
 
 	fields := []*Field{
-		{Name: "first_name", Type: "string"},
+		{Name: "first_name", Type: CharacterVarying},
 	}
 	model := &Model{
-		Pk:     "id",
+		Pk:     &Field{Name: "id", Type: Serial},
 		Table:  "users",
 		Fields: fields,
 	}
@@ -61,10 +61,10 @@ func TestServiceImpl_Find(t *testing.T) {
 	defer db.Close()
 
 	fields := []*Field{
-		{Name: "first_name", Type: "string"},
+		{Name: "first_name", Type: CharacterVarying},
 	}
 	model := &Model{
-		Pk:     "id",
+		Pk:     &Field{Name: "id", Type: Serial},
 		Table:  "users",
 		Fields: fields,
 	}

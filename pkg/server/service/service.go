@@ -74,6 +74,16 @@ type Model struct {
 	Fields []*Field
 }
 
+func (m *Model) Refs() []*Field {
+	var refs []*Field
+	for _, field := range m.Fields {
+		if field.Association != nil {
+			refs = append(refs, field)
+		}
+	}
+	return refs
+}
+
 type CountQuery struct {
 	Query []goqu.Expression
 }
