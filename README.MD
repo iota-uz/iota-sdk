@@ -19,6 +19,7 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [ ] Authentication
 * [ ] Subscriptions
 * [ ] DataLoader
+* [ ] File uploads
 
 ## Prerequisites
 * [Go](https://golang.org/doc/install)
@@ -53,7 +54,10 @@ Run in watch mode (hot reload)
 air
 ```
 
-Now visit http://localhost:3200/graphql and enjoy the GraphQL API
+Now open postman and explore the GraphQL schema at http://localhost:3200/graphql
+
+## Examples
+Get all employees and their positions
 ```graphql
 query GetEmployees {
     employees {
@@ -61,14 +65,10 @@ query GetEmployees {
             id,
             first_name, 
             last_name, 
-            company {
+            email,
+            position {
                 id,
-                name,
-                address,
-                created_at,
-                logo {
-                    id
-                }
+                name
             }
         }
     }
@@ -77,7 +77,7 @@ query GetEmployees {
 
 ## Reference commands
 
-Make migrations
+Making a migration
 ```shell
 go run cmd/makemigration/main.go
 ```
@@ -87,17 +87,7 @@ Running tests
 go test -v ./...
 ```
 
-Run server
+Running the server
 ```shell
 go run cmd/server/main.go
 ```
-
-## TODO
-
-- [ ] Refactoring
-- [ ] More tests
-- [ ] More examples
-- [ ] GraphQL naming conventions
-- [ ] More documentation
-- [x] Add JOIN support for queries
-- [ ] Add more query filters (like `IN`, `NOT IN`, `LIKE`, `NOT LIKE`, `BETWEEN`, `NOT BETWEEN`, `IS NULL`, `IS NOT NULL`)

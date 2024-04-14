@@ -1,19 +1,8 @@
 package server
 
 import (
-	"github.com/iota-agency/iota-erp/pkg/server/service"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/service"
 )
-
-//(
-//id          SERIAL PRIMARY KEY,
-//name        VARCHAR(255) NOT NULL,
-//path        VARCHAR(255) NOT NULL,
-//uploader_id INT          REFERENCES users (id) ON DELETE SET NULL,
-//mimetype    VARCHAR(255) NOT NULL,
-//size        FLOAT        NOT NULL,
-//created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-//updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-//);
 
 var UploadsModel = &service.Model{
 	Pk: &service.Field{
@@ -125,16 +114,6 @@ var Models = []*service.Model{
 				Name:     "last_name",
 				Type:     service.CharacterVarying,
 				Nullable: false,
-			},
-			{
-				Name:     "company_id",
-				Type:     service.Integer,
-				Nullable: false,
-				Association: &service.Association{
-					To:     CompaniesModel,
-					Column: "id",
-					As:     "company",
-				},
 			},
 			{
 				Name:     "email",

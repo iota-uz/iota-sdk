@@ -3,8 +3,8 @@ package routes
 import (
 	"encoding/json"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/service"
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
-	"github.com/iota-agency/iota-erp/pkg/server/service"
 	"github.com/jmoiron/sqlx"
 	"net/http"
 	"strconv"

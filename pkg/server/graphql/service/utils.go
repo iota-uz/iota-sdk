@@ -3,11 +3,24 @@ package service
 import (
 	"fmt"
 	"github.com/doug-martin/goqu/v9"
+	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"strings"
 )
+
+func OrderStringToExpression(order []string) []exp.OrderedExpression {
+	var orderExpr []exp.OrderedExpression
+	for _, sort := range order {
+		if sort[0] == '-' {
+			orderExpr = append(orderExpr, goqu.I(sort[1:]).Desc())
+		} else {
+			orderExpr = append(orderExpr, goqu.I(sort).Asc())
+		}
+	}
+	return orderExpr
+}
 
 func _getAttrs(parent string, fields []ast.Selection) []interface{} {
 	var attrs []interface{}
@@ -20,6 +33,9 @@ func _getAttrs(parent string, fields []ast.Selection) []interface{} {
 		} else {
 			base = field.Name.Value
 		}
+		if base == "__typename" {
+			continue
+		}
 		if selections == nil {
 			attrs = append(attrs, base)
 		} else {
@@ -29,7 +45,7 @@ func _getAttrs(parent string, fields []ast.Selection) []interface{} {
 	return attrs
 }
 
-func getAttrs(p graphql.ResolveParams) []interface{} {
+func GetAttrs(p graphql.ResolveParams) []interface{} {
 	if p.Info.FieldASTs[0].SelectionSet == nil {
 		return []interface{}{}
 	}
@@ -37,7 +53,7 @@ func getAttrs(p graphql.ResolveParams) []interface{} {
 }
 
 func ResolveToQuery(p graphql.ResolveParams, model *Model) *goqu.SelectDataset {
-	allAttrs := getAttrs(p)
+	allAttrs := GetAttrs(p)
 	var attrs []interface{}
 	for _, attr := range allAttrs {
 		parts := strings.Split(attr.(string), ".")
