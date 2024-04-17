@@ -110,14 +110,14 @@ func ServeTemplate(w http.ResponseWriter, name string, data interface{}) {
 func ReadTemplates(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
 	var files []string
 	for _, f := range entries {
 		if f.IsDir() {
 			subFiles, err := ReadTemplates(filepath.Join(dir, f.Name()))
 			if err != nil {
-				return []string{}, err
+				return nil, err
 			}
 			files = append(files, subFiles...)
 		} else {

@@ -159,19 +159,8 @@ func (g *graphQLAdapter) paginatedQuery() *graphql.Object {
 					if ok {
 						query.Offset(uint(offset))
 					}
-					_sortBy, ok := p.Info.VariableValues["sortBy"].([]interface{})
-					if ok {
-						var sortBy []string
-						for _, s := range _sortBy {
-							sortBy = append(sortBy, s.(string))
-						}
-						query.Order(OrderStringToExpression(sortBy)...)
-					}
-					data, err := Find(g.db, query)
-					if err != nil {
-						return nil, err
-					}
-					return data, nil
+					query.Order(OrderedExpressionsFromResolveParams(p)...)
+					return Find(g.db, query)
 				},
 			},
 		},
@@ -275,7 +264,7 @@ func (g *graphQLAdapter) getQuery() *graphql.Field {
 				return nil, errors.New("id is required")
 			}
 			query := goqu.From(g.model.Table).Select(GetAttrs(p)...).Where(goqu.Ex{
-				g.model.Pk.Name: int64(id),
+				g.model.Pk.Name: id,
 			})
 			return Get(g.db, query)
 		},
@@ -366,9 +355,7 @@ func (g *graphQLAdapter) aggregateQuery() *graphql.Field {
 			if ok {
 				query = query.Offset(uint(offset))
 			}
-			data, err := Find(g.db, query)
-			fmt.Println(data)
-			return data, err
+			return Find(g.db, query)
 		},
 	}
 }
@@ -393,6 +380,10 @@ func (g *graphQLAdapter) MutationType() *graphql.Object {
 			Type: sql2graphql[field.Type],
 		}
 	}
+	updateArgs := createArgs
+	updateArgs[g.pkName()] = &graphql.ArgumentConfig{
+		Type: sql2graphql[g.model.Pk.Type],
+	}
 	return graphql.NewObject(
 		graphql.ObjectConfig{
 			Name: utils.Title(g.name) + "Mutation",
@@ -409,9 +400,9 @@ func (g *graphQLAdapter) MutationType() *graphql.Object {
 				"update": &graphql.Field{
 					Type:        g.modelType,
 					Description: "Update",
-					Args:        createArgs,
+					Args:        updateArgs,
 					Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-						id, ok := p.Args[g.pkName()].(int64)
+						id, ok := p.Args[g.pkName()].(int)
 						if !ok {
 							return nil, errors.New("id is required")
 						}

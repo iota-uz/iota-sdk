@@ -82,6 +82,32 @@ var CompaniesModel = &service.Model{
 	},
 }
 
+var PositionsModel = &service.Model{
+	Pk: &service.Field{
+		Name: "id",
+		Type: service.BigSerial,
+	},
+	Table: "positions",
+	Fields: []*service.Field{
+		{
+			Name: "name",
+			Type: service.CharacterVarying,
+		},
+		{
+			Name: "description",
+			Type: service.Text,
+		},
+		{
+			Name: "created_at",
+			Type: service.Timestamp,
+		},
+		{
+			Name: "updated_at",
+			Type: service.Timestamp,
+		},
+	},
+}
+
 var Models = []*service.Model{
 	{
 		Table: "users",
@@ -98,6 +124,7 @@ var Models = []*service.Model{
 		},
 	},
 	CompaniesModel,
+	PositionsModel,
 	{
 		Pk: &service.Field{
 			Name: "id",
@@ -124,6 +151,20 @@ var Models = []*service.Model{
 				Name:     "salary",
 				Type:     service.Numeric,
 				Nullable: false,
+			},
+			{
+				Name:     "phone",
+				Type:     service.CharacterVarying,
+				Nullable: false,
+			},
+			{
+				Name:     "position_id",
+				Type:     service.Integer,
+				Nullable: false,
+				Association: &service.Association{
+					To:     PositionsModel,
+					Column: "id",
+				},
 			},
 			{
 				Name:     "created_at",

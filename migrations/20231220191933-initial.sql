@@ -131,7 +131,7 @@ CREATE TABLE employees
     last_name   VARCHAR(255) NOT NULL,
     middle_name VARCHAR(255) NULL,
     email       VARCHAR(255) NOT NULL UNIQUE,
-    phone       VARCHAR(255) NOT NULL,
+    phone       VARCHAR(255),
     salary      FLOAT        NOT NULL,
     position_id INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
     avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
