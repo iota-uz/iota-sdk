@@ -59,17 +59,15 @@ Now open postman and explore the GraphQL schema at http://localhost:3200/graphql
 ## Examples
 Get all employees and their positions
 ```graphql
-query GetEmployees {
-    employees {
-        list {
-            id,
-            first_name, 
-            last_name, 
-            email,
-            position {
-                id,
-                name
-            }
+query Users {
+    users {
+        total
+        data {
+            avatar_id
+            email
+            first_name
+            id
+            last_name
         }
     }
 }
@@ -90,4 +88,54 @@ go test -v ./...
 Running the server
 ```shell
 go run cmd/server/main.go
+```
+
+## Naming conventions
+
+### GraphQL
+For queries and mutations, we use camelCase. Below is an example for the `users` service
+
+```graphql
+type Query {
+    users: UsersPaginated!
+    user(id: ID!): User!
+    usersAggregate(filter: UserFilter): UsersAggregate!
+}
+
+type Mutation {
+    createUser(input: CreateUserInput!): UserResponse!
+    updateUser(id: ID!, input: UpdateUserInput!): UserResponse!
+    deleteUser(id: ID!): UserResponse!
+}
+
+type User {
+    id: ID!
+    email: String!
+    firstName: String!
+    lastName: String!
+    avatarId: ID
+}
+
+type UsersPaginated {
+    total: Int!
+    data: [User]!
+}
+
+input CreateUserInput {
+    email: String!
+    firstName: String!
+    lastName: String!
+    avatarId: ID
+}
+
+type UpdateUserInput {
+    email: String
+    firstName: String
+    lastName: String
+    avatarId: ID
+}
+
+type UsersAggregate {
+
+}
 ```

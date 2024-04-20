@@ -1,10 +1,7 @@
 package models
 
 import (
-	"fmt"
-	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
-	"strings"
 	"time"
 )
 
@@ -22,21 +19,31 @@ func NewValidationError(field, err string) *ValidationError {
 }
 
 type User struct {
-	Id         int64          `json:"id" db:"id"`
-	FirstName  string         `json:"first_name" db:"first_name"`
-	LastName   string         `json:"last_name" db:"last_name"`
-	MiddleName JsonNullString `json:"middle_name,omitempty" db:"middle_name"`
-	Password   string         `json:"-" db:"password"`
-	Email      string         `json:"email" db:"email"`
-	LastIp     JsonNullString `json:"last_ip" db:"last_ip"`
-	LastLogin  *time.Time     `json:"last_login" db:"last_login"`
-	LastAction *time.Time     `json:"last_action" db:"last_action"`
-	CreatedAt  *time.Time     `json:"created_at" db:"created_at"`
-	UpdatedAt  *time.Time     `json:"updated_at" db:"updated_at"`
+	Id         int64          `gql:"id" db:"id"`
+	FirstName  string         `gql:"first_name" db:"first_name"`
+	LastName   string         `gql:"last_name" db:"last_name"`
+	MiddleName JsonNullString `gql:"middle_name,omitempty" db:"middle_name"`
+	Password   string         `gql:"-" db:"password"`
+	Email      string         `gql:"email" db:"email"`
+	Avatar     *Uploads       `gql:"avatar" db:"avatar_id" belongs_to:"id"`
+	AvatarId   JsonNullInt64  `gql:"avatar_id" db:"avatar_id"`
+	LastIp     JsonNullString `gql:"last_ip" db:"last_ip"`
+	LastLogin  *time.Time     `gql:"last_login" db:"last_login"`
+	LastAction *time.Time     `gql:"last_action" db:"last_action"`
+	CreatedAt  *time.Time     `gql:"created_at" db:"created_at"`
+	UpdatedAt  *time.Time     `gql:"updated_at" db:"updated_at"`
 }
 
-func (u *User) fields() []string {
-	return []string{"first_name", "last_name", "middle_name", "password", "email", "last_ip", "last_login", "last_action"}
+func (u *User) Pk() interface{} {
+	return u.Id
+}
+
+func (u *User) PkField() *Field {
+	return &Field{Name: "id"}
+}
+
+func (u *User) Table() string {
+	return "users"
 }
 
 func (u *User) CheckPassword(password string) bool {
@@ -67,45 +74,4 @@ func (u *User) SetPassword(password string) error {
 	}
 	u.Password = string(hash)
 	return nil
-}
-
-func (u *User) insert(db *sqlx.DB) error {
-	q := fmt.Sprintf(
-		"INSERT INTO users (%s) VALUES (:%s) RETURNING id, created_at, updated_at",
-		strings.Join(u.fields(), ", "),
-		strings.Join(u.fields(), ", :"),
-	)
-	stmt, err := db.PrepareNamed(q)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	return stmt.QueryRow(u).Scan(&u.Id, &u.CreatedAt, &u.UpdatedAt)
-}
-
-func (u *User) update(db *sqlx.DB) error {
-	t := time.Now()
-	u.UpdatedAt = &t
-	var fields []string
-	for _, field := range u.fields() {
-		fields = append(fields, fmt.Sprintf("%s = :%s", field, field))
-	}
-	q := fmt.Sprintf(
-		"UPDATE users SET %s WHERE id = :id",
-		strings.Join(fields, ", "),
-	)
-	stmt, err := db.PrepareNamed(q)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(u)
-	return err
-}
-
-func (u *User) Save(db *sqlx.DB) error {
-	if u.Id == 0 {
-		return u.insert(db)
-	}
-	return u.update(db)
 }

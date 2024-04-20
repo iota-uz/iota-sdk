@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/pkg/authentication"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/auth"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/bichat"
+	expense_categories "github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expense-categories"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/users"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/service"
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/jmoiron/sqlx"
@@ -122,52 +122,36 @@ func (s *Server) HandleGraphQL(schema graphql.Schema) http.HandlerFunc {
 }
 
 func (s *Server) graphQlSchema() (graphql.Schema, error) {
-	graphqlConstructors := []routes.GraphQLConstructor{
-		bichat.GraphQL,
-		auth.GraphQL,
-		users.GraphQL,
+	queryConstructors := []routes.GraphQLConstructor{
+		//bichat.GraphQL,
+		users.Queries,
+		expense_categories.Queries,
 	}
-	combinedQueryFields := graphql.Fields{}
+	mutationConstructors := []routes.GraphQLConstructor{
+		auth.Mutations,
+		users.Mutations,
+		expense_categories.Mutations,
+	}
+	combinedQueries := graphql.Fields{}
 	combineMutations := graphql.Fields{}
-	for _, model := range Models {
-		q, m := service.GraphQLAdapter(&service.GraphQLAdapterOptions{
-			Db:    s.Db,
-			Model: model,
-			Name:  model.Table,
-		})
-		combinedQueryFields[model.Table] = &graphql.Field{
-			Type: q,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return q, nil
-			},
-		}
-		combineMutations[model.Table] = &graphql.Field{
-			Type: m,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return m, nil
-			},
+	for _, constructor := range queryConstructors {
+		for _, field := range constructor(s.Db) {
+			if field.Name == "" {
+				panic(fmt.Sprintf("field.Name is missing on %v", field))
+			}
+			combinedQueries[field.Name] = field
 		}
 	}
-	for _, constructor := range graphqlConstructors {
-		query, mutation := constructor(s.Db)
-		combinedQueryFields[query.Name()] = &graphql.Field{
-			Type: query,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return query, nil
-			},
-		}
-		combineMutations[mutation.Name()] = &graphql.Field{
-			Type: mutation,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return mutation, nil
-			},
+	for _, constructor := range mutationConstructors {
+		for _, field := range constructor(s.Db) {
+			combineMutations[field.Name] = field
 		}
 	}
 	return graphql.NewSchema(graphql.SchemaConfig{
 		Query: graphql.NewObject(
 			graphql.ObjectConfig{
 				Name:   "Query",
-				Fields: combinedQueryFields,
+				Fields: combinedQueries,
 			},
 		),
 		Mutation: graphql.NewObject(

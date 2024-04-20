@@ -48,40 +48,25 @@ func Authenticate(db *sqlx.DB) graphql.FieldResolveFn {
 	}
 }
 
-func GraphQL(db *sqlx.DB) (*graphql.Object, *graphql.Object) {
-	queryType := graphql.NewObject(graphql.ObjectConfig{
-		Name:        "Sessions",
-		Description: "A",
-		Fields: graphql.Fields{
-			"ip": &graphql.Field{
-				Name: "ip",
-				Type: graphql.String,
+func Mutations(db *sqlx.DB) []*graphql.Field {
+	return []*graphql.Field{{
+		Name: "authenticate",
+		Args: graphql.FieldConfigArgument{
+			"email": &graphql.ArgumentConfig{
+				Type: graphql.NewNonNull(graphql.String),
+			},
+			"password": &graphql.ArgumentConfig{
+				Type: graphql.NewNonNull(graphql.String),
 			},
 		},
-	})
-	mutationType := graphql.NewObject(graphql.ObjectConfig{
-		Name: "Authentication",
-		Fields: graphql.Fields{
-			"authenticate": &graphql.Field{
-				Args: graphql.FieldConfigArgument{
-					"email": &graphql.ArgumentConfig{
-						Type: graphql.NewNonNull(graphql.String),
-					},
-					"password": &graphql.ArgumentConfig{
-						Type: graphql.NewNonNull(graphql.String),
-					},
+		Type: graphql.NewObject(graphql.ObjectConfig{
+			Name: "AuthPayload",
+			Fields: graphql.Fields{
+				"token": &graphql.Field{
+					Type: graphql.String,
 				},
-				Type: graphql.NewObject(graphql.ObjectConfig{
-					Name: "AuthPayload",
-					Fields: graphql.Fields{
-						"token": &graphql.Field{
-							Type: graphql.String,
-						},
-					},
-				}),
-				Resolve: Authenticate(db),
 			},
-		},
-	})
-	return queryType, mutationType
+		}),
+		Resolve: Authenticate(db),
+	}}
 }

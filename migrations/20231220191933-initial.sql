@@ -69,6 +69,7 @@ CREATE TABLE users
     middle_name VARCHAR(255) NULL,
     email       VARCHAR(255) NOT NULL UNIQUE,
     password    VARCHAR(255) NOT NULL,
+    avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
     last_login  TIMESTAMP    NULL,
     last_ip     VARCHAR(255) NULL,
     last_action TIMESTAMP    NULL,

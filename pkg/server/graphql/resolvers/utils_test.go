@@ -1,51 +1,11 @@
-package service
+package resolvers
 
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/iota-agency/iota-erp/models"
 	"testing"
 )
-
-//[]*ast.Field{
-//					{
-//						Name: &ast.Name{
-//							Value: "id",
-//						},
-//					},
-//					{
-//						Name: &ast.Name{
-//							Value: "company",
-//						},
-//						SelectionSet: &ast.SelectionSet{
-//							Selections: []ast.Selection{
-//								&ast.Field{
-//									Name: &ast.Name{
-//										Value: "id",
-//									},
-//								},
-//								&ast.Field{
-//									Name: &ast.Name{
-//										Value: "name",
-//									},
-//								},
-//								&ast.Field{
-//									Name: &ast.Name{
-//										Value: "logo",
-//									},
-//									SelectionSet: &ast.SelectionSet{
-//										Selections: []ast.Selection{
-//											&ast.Field{
-//												Name: &ast.Name{
-//													Value: "id",
-//												},
-//											},
-//										},
-//									},
-//								},
-//							},
-//						},
-//					},
-//				}
 
 func TestResolveToQuery(t *testing.T) {
 	t.Run("Test ResolveToQuery", func(t *testing.T) {
@@ -100,33 +60,33 @@ func TestResolveToQuery(t *testing.T) {
 				},
 			},
 		}
-		model := &Model{
+		model := &models.Model{
 			Table: "employees",
-			Pk: &Field{
+			Pk: &models.Field{
 				Name: "id",
 			},
-			Fields: []*Field{
+			Fields: []*models.Field{
 				{
 					Name: "company_id",
-					Type: Integer,
-					Association: &Association{
-						To: &Model{
+					Type: models.Integer,
+					Association: &models.Association{
+						To: &models.Model{
 							Table: "companies",
-							Pk: &Field{
+							Pk: &models.Field{
 								Name: "id",
 							},
-							Fields: []*Field{
+							Fields: []*models.Field{
 								{
 									Name: "name",
-									Type: CharacterVarying,
+									Type: models.CharacterVarying,
 								},
 								{
 									Name: "logo_id",
-									Type: Integer,
-									Association: &Association{
-										To: &Model{
+									Type: models.Integer,
+									Association: &models.Association{
+										To: &models.Model{
 											Table: "images",
-											Pk: &Field{
+											Pk: &models.Field{
 												Name: "id",
 											},
 										},

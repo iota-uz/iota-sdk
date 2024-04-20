@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/graphql-go/graphql"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/service"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/dbutils"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/resolvers"
 	"github.com/jmoiron/sqlx"
 	"github.com/sashabaranov/go-openai"
 	"io"
@@ -131,20 +132,20 @@ func GraphQL(db *sqlx.DB) (*graphql.Object, *graphql.Object) {
 					},
 				)),
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-					query := service.ResolveToQuery(p, &service.Model{
+					query := resolvers.ResolveToQuery(p, &dbutils.Model{
 						Table: "dialogues",
-						Pk: &service.Field{
+						Pk: &dbutils.Field{
 							Name: "id",
-							Type: service.Serial,
+							Type: dbutils.Serial,
 						},
-						Fields: []*service.Field{
+						Fields: []*dbutils.Field{
 							{
 								Name: "label",
-								Type: service.CharacterVarying,
+								Type: dbutils.CharacterVarying,
 							},
 							{
 								Name: "messages",
-								Type: service.Jsonb,
+								Type: dbutils.Jsonb,
 							},
 						},
 					})
@@ -154,9 +155,9 @@ func GraphQL(db *sqlx.DB) (*graphql.Object, *graphql.Object) {
 						for _, s := range _sortBy {
 							sortBy = append(sortBy, s.(string))
 						}
-						query.Order(service.OrderStringToExpression(sortBy)...)
+						query.Order(resolvers.OrderStringToExpression(sortBy)...)
 					}
-					data, err := service.Find(db, query)
+					data, err := dbutils.Find(db, query)
 					if err != nil {
 						return nil, err
 					}

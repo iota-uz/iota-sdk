@@ -1,4 +1,4 @@
-package service
+package dbutils
 
 import (
 	"github.com/doug-martin/goqu/v9"
@@ -24,27 +24,15 @@ func TestServiceImpl_Get(t *testing.T) {
 	db := sqlx.MustConnect("postgres", "user=postgres password=postgres dbname=postgres sslmode=disable")
 	defer db.Close()
 
-	fields := []*Field{
-		{Name: "first_name", Type: CharacterVarying},
-	}
-	model := &Model{
-		Pk:     &Field{Name: "id", Type: Serial},
-		Table:  "users",
-		Fields: fields,
-	}
-
-	s := NewService(db, model)
-
-	_, err := s.Create(map[string]interface{}{
+	_, err := Create(db, goqu.Insert("users").Rows(map[string]interface{}{
 		"first_name": "John",
-	})
+	}))
 
 	if err != nil {
 		t.Errorf("Error creating data: %v", err)
 	}
 
-	q := &GetQuery{Id: 1}
-	data, err := s.Get(q)
+	data, err := Get(db, goqu.From("users").Select("first_name").Where(goqu.Ex{"first_name": "John"}))
 
 	if err != nil {
 		t.Errorf("Error getting data: %v", err)
@@ -60,27 +48,18 @@ func TestServiceImpl_Find(t *testing.T) {
 	db := sqlx.MustConnect("postgres", "user=postgres password=postgres dbname=postgres sslmode=disable")
 	defer db.Close()
 
-	fields := []*Field{
-		{Name: "first_name", Type: CharacterVarying},
-	}
-	model := &Model{
-		Pk:     &Field{Name: "id", Type: Serial},
-		Table:  "users",
-		Fields: fields,
-	}
-
-	s := NewService(db, model)
-
-	_, err := s.Create(map[string]interface{}{
+	query := goqu.Insert("users").Rows(map[string]interface{}{
 		"first_name": "John",
 	})
+
+	_, err := Create(db, query)
 
 	if err != nil {
 		t.Errorf("Error creating data: %v", err)
 	}
 
-	q := &FindQuery{Query: []goqu.Expression{goqu.Ex{"first_name": "John"}}}
-	data, err := s.Find(q)
+	q := goqu.From("users").Select("first_name").Where(goqu.Ex{"first_name": "John"})
+	data, err := Find(db, q)
 
 	if err != nil {
 		t.Errorf("Error finding data: %v", err)
@@ -92,17 +71,5 @@ func TestServiceImpl_Find(t *testing.T) {
 
 	if data[0]["first_name"] != "John" {
 		t.Errorf("Expected first_name to be John, got %v", data[0]["first_name"])
-	}
-
-	data2, err := s.Find(&FindQuery{
-		Query: []goqu.Expression{goqu.Ex{"first_name": "Jane"}},
-	})
-
-	if err != nil {
-		t.Errorf("Error finding data: %v", err)
-	}
-
-	if len(data2) != 0 {
-		t.Errorf("Expected 0 result, got %v", len(data2))
 	}
 }

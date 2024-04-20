@@ -3,7 +3,7 @@ package routes
 import (
 	"encoding/json"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/service"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/adapters"
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/jmoiron/sqlx"
 	"net/http"
@@ -12,7 +12,7 @@ import (
 
 type CrudRoute struct {
 	Path    string
-	Service service.Service
+	Service adapters.Service
 	Db      *sqlx.DB
 }
 
@@ -35,7 +35,7 @@ func (u *CrudRoute) Get(w http.ResponseWriter, r *http.Request) {
 		helpers.BadRequest(w, err)
 		return
 	}
-	res, err := u.Service.Get(&service.GetQuery{
+	res, err := u.Service.Get(&adapters.GetQuery{
 		Id: id,
 	})
 	if err != nil {
@@ -46,7 +46,7 @@ func (u *CrudRoute) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u *CrudRoute) Find(w http.ResponseWriter, r *http.Request) {
-	res, err := u.Service.Find(&service.FindQuery{})
+	res, err := u.Service.Find(&adapters.FindQuery{})
 	if err != nil {
 		helpers.ServerError(w, err)
 		return

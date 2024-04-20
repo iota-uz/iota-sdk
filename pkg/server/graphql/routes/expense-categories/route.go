@@ -1,1 +1,0 @@
-package expense_categories
