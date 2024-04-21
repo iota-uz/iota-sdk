@@ -14,6 +14,7 @@ import (
 	expenseCategories "github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expense-categories"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expenses"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/positions"
+	taskTypes "github.com/iota-agency/iota-erp/pkg/server/graphql/routes/task-types"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/users"
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/iota-agency/iota-erp/pkg/utils"
@@ -132,6 +133,7 @@ func (s *Server) graphQlSchema() (graphql.Schema, error) {
 		expenseCategories.Queries,
 		employees.Queries,
 		positions.Queries,
+		taskTypes.Queries,
 	}
 	mutationConstructors := []routes.GraphQLConstructor{
 		auth.Mutations,
@@ -140,6 +142,7 @@ func (s *Server) graphQlSchema() (graphql.Schema, error) {
 		expenseCategories.Mutations,
 		employees.Mutations,
 		positions.Mutations,
+		taskTypes.Mutations,
 	}
 	combinedQueries := graphql.Fields{}
 	combineMutations := graphql.Fields{}

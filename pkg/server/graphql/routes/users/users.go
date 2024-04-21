@@ -90,7 +90,7 @@ func Mutations(db *sqlx.DB) []*graphql.Field {
 		Args: graphql.FieldConfigArgument{
 			"data": &graphql.ArgumentConfig{
 				Type: graphql.NewNonNull(graphql.NewInputObject(graphql.InputObjectConfig{
-					Name: "UserCreateInput",
+					Name: "CreateUserInput",
 					Fields: graphql.InputObjectConfigFieldMap{
 						"first_name": &graphql.InputObjectFieldConfig{
 							Type: graphql.NewNonNull(graphql.String),
@@ -120,7 +120,7 @@ func Mutations(db *sqlx.DB) []*graphql.Field {
 			},
 			"data": &graphql.ArgumentConfig{
 				Type: graphql.NewNonNull(graphql.NewInputObject(graphql.InputObjectConfig{
-					Name: "UserUpdateInput",
+					Name: "UpdateUserInput",
 					Fields: graphql.InputObjectConfigFieldMap{
 						"first_name": &graphql.InputObjectFieldConfig{
 							Type: graphql.String,

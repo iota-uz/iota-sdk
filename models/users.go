@@ -27,6 +27,7 @@ type User struct {
 	Email      string         `gql:"email" db:"email"`
 	Avatar     *Uploads       `gql:"avatar" db:"avatar_id" belongs_to:"id"`
 	AvatarId   JsonNullInt64  `gql:"avatar_id" db:"avatar_id"`
+	EmployeeId JsonNullInt64  `gql:"employee_id" db:"employee_id"`
 	LastIp     JsonNullString `gql:"last_ip" db:"last_ip"`
 	LastLogin  *time.Time     `gql:"last_login" db:"last_login"`
 	LastAction *time.Time     `gql:"last_action" db:"last_action"`

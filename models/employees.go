@@ -2,6 +2,31 @@ package models
 
 import "time"
 
+type EmployeeMeta struct {
+	EmployeeId        int64          `db:"employee_id" gql:"employee_id"`
+	PrimaryLanguage   JsonNullString `db:"primary_language" gql:"primary_language"`
+	SecondaryLanguage JsonNullString `db:"secondary_language" gql:"secondary_language"`
+	Tin               JsonNullString `db:"tin" gql:"tin"`
+	GeneralInfo       JsonNullString `db:"general_info" gql:"general_info"`
+	YtProfileId       string         `db:"yt_profile_id" gql:"yt_profile_id"`
+	UpdatedAt         *time.Time     `db:"updated_at" gql:"updated_at"`
+}
+
+func (e *EmployeeMeta) PkField() *Field {
+	return &Field{
+		Name: "employee_id",
+		Type: BigInt,
+	}
+}
+
+func (e *EmployeeMeta) Table() string {
+	return "employee_meta"
+}
+
+func (e *EmployeeMeta) Pk() interface{} {
+	return e.EmployeeId
+}
+
 type Position struct {
 	Id          int64          `db:"id" gql:"id"`
 	Name        string         `db:"name" gql:"name"`
@@ -35,6 +60,7 @@ type Employee struct {
 	Salary     float64        `db:"salary" gql:"salary"`
 	HourlyRate float64        `db:"hourly_rate" gql:"hourly_rate"`
 	PositionId int64          `db:"position_id" gql:"position_id"`
+	Meta       *EmployeeMeta  `db:"id" gql:"meta" belongs_to:"employee_id"`
 	Position   *Position      `db:"position_id" gql:"position" belongs_to:"id"`
 	AvatarId   JsonNullInt64  `db:"avatar_id" gql:"avatar_id"`
 	CreatedAt  *time.Time     `db:"created_at" gql:"created_at"`

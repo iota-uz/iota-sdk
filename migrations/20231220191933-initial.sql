@@ -110,6 +110,7 @@ CREATE TABLE expenses
     id          SERIAL PRIMARY KEY,
     amount      FLOAT NOT NULL,
     category_id INT   NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
+    date        DATE  NOT NULL              DEFAULT CURRENT_DATE,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
@@ -140,6 +141,17 @@ CREATE TABLE employees
     avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE employee_meta
+(
+    employee_id        INT          NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
+    primary_language   VARCHAR(255),
+    secondary_language VARCHAR(255),
+    tin                VARCHAR(255),
+    general_info       TEXT,
+    yt_profile_id      VARCHAR(255) NOT NULL,
+    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_contacts
@@ -630,6 +642,7 @@ DROP TABLE IF EXISTS project_stages;
 DROP TABLE IF EXISTS projects;
 DROP TABLE IF EXISTS customer_contacts;
 DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS employee_meta;
 DROP TABLE IF EXISTS employee_contacts;
 DROP TABLE IF EXISTS employees;
 DROP TABLE IF EXISTS uploads;
