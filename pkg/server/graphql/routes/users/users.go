@@ -54,28 +54,12 @@ func UpdateUser(db *sqlx.DB) graphql.FieldResolveFn {
 }
 
 func Queries(db *sqlx.DB) []*graphql.Field {
-	userType := adapters.GqlTypeFromModel(&models.User{}, "UserQueryType")
-	paginationType := graphql.NewObject(graphql.ObjectConfig{
-		Name: "UsersPaginated",
-		Fields: graphql.Fields{
-			"total": &graphql.Field{
-				Type:    graphql.Int,
-				Resolve: resolvers.DefaultCountResolver(db, &models.User{}),
-			},
-			"data": &graphql.Field{
-				Type:    graphql.NewList(userType),
-				Resolve: resolvers.DefaultPaginationResolver(db, &models.User{}),
-			},
-		},
-	})
-	return []*graphql.Field{{
-		Name:        "users",
-		Description: "Get users with pagination and filtering",
-		Type:        paginationType,
-		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			return paginationType, nil
-		},
-	}}
+	userType := adapters.GqlTypeFromModel(&models.User{}, "User")
+	return []*graphql.Field{
+		adapters.AggregateQuery(db, &models.User{}, "users"),
+		adapters.ListPaginatedQuery(db, &models.User{}, userType, "users"),
+		adapters.GetQuery(db, &models.User{}, userType, "user"),
+	}
 }
 
 func Mutations(db *sqlx.DB) []*graphql.Field {

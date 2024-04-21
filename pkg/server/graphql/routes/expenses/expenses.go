@@ -1,4 +1,4 @@
-package expenseCategories
+package expenses
 
 import (
 	"github.com/graphql-go/graphql"
@@ -8,9 +8,9 @@ import (
 )
 
 func Queries(db *sqlx.DB) []*graphql.Field {
-	return adapters.DefaultQueries(db, &models.ExpenseCategory{}, "expenseCategory", "expenseCategories")
+	return adapters.DefaultQueries(db, &models.Expense{}, "expense", "expenses")
 }
 
 func Mutations(db *sqlx.DB) []*graphql.Field {
-	return adapters.DefaultMutations(db, &models.ExpenseCategory{}, "expenseCategory")
+	return adapters.DefaultMutations(db, &models.Expense{}, "expense")
 }

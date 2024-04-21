@@ -73,6 +73,7 @@ CREATE TABLE users
     last_login  TIMESTAMP    NULL,
     last_ip     VARCHAR(255) NULL,
     last_action TIMESTAMP    NULL,
+    employee_id INT          REFERENCES employees (id) ON DELETE SET NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -134,6 +135,7 @@ CREATE TABLE employees
     email       VARCHAR(255) NOT NULL UNIQUE,
     phone       VARCHAR(255),
     salary      FLOAT        NOT NULL,
+    hourly_rate FLOAT        NOT NULL,
     position_id INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
     avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,

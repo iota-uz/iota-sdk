@@ -129,7 +129,7 @@ func Includes[T comparable](array []T, elem T) bool {
 }
 
 func Title(str string) string {
-	return cases.Title(language.English).String(str)
+	return cases.Title(language.English, cases.NoLower).String(str)
 }
 
 func ReverseInPlace[T any](array []T) []T {

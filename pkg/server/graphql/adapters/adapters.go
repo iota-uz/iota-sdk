@@ -96,21 +96,22 @@ func GetQuery(db *sqlx.DB, model models.Model, modelType *graphql.Object, name s
 
 func ListPaginatedQuery(db *sqlx.DB, model models.Model, modelType *graphql.Object, name string) *graphql.Field {
 	pk := model.PkField()
-	return &graphql.Field{
+	paginationType := graphql.NewObject(graphql.ObjectConfig{
 		Name: name,
-		Type: graphql.NewObject(graphql.ObjectConfig{
-			Name: name,
-			Fields: graphql.Fields{
-				"total": &graphql.Field{
-					Type:    graphql.Int,
-					Resolve: resolvers.DefaultCountResolver(db, model),
-				},
-				"data": &graphql.Field{
-					Type:    graphql.NewList(modelType),
-					Resolve: resolvers.DefaultPaginationResolver(db, model),
-				},
+		Fields: graphql.Fields{
+			"total": &graphql.Field{
+				Type:    graphql.Int,
+				Resolve: resolvers.DefaultCountResolver(db, model),
 			},
-		}),
+			"data": &graphql.Field{
+				Type:    graphql.NewList(modelType),
+				Resolve: resolvers.DefaultPaginationResolver(db, model),
+			},
+		},
+	})
+	return &graphql.Field{
+		Name:        name,
+		Type:        paginationType,
 		Description: "Get paginated",
 		Args: graphql.FieldConfigArgument{
 			"limit": &graphql.ArgumentConfig{
@@ -128,6 +129,9 @@ func ListPaginatedQuery(db *sqlx.DB, model models.Model, modelType *graphql.Obje
 				},
 			},
 		},
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			return paginationType, nil
+		},
 	}
 }
 
@@ -143,35 +147,49 @@ func DefaultQueries(db *sqlx.DB, model models.Model, singular, plural string) []
 func DefaultMutations(db *sqlx.DB, model models.Model, name string) []*graphql.Field {
 	pk := model.PkField()
 	modelType := GqlTypeFromModel(model, fmt.Sprintf("%sType", utils.Title(name)))
-	createArgs := graphql.FieldConfigArgument{}
+	createArgs := graphql.InputObjectConfigFieldMap{}
 	for _, field := range models.Fields(model) {
-		createArgs[field.Name] = &graphql.ArgumentConfig{
+		if field.Name == pk.Name {
+			continue
+		}
+		createArgs[field.Name] = &graphql.InputObjectFieldConfig{
 			Type: sql2graphql[field.Type],
 		}
 	}
-	updateArgs := createArgs
-	updateArgs[pk.Name] = &graphql.ArgumentConfig{
-		Type: sql2graphql[model.PkField().Type],
-	}
 	return []*graphql.Field{
 		{
-			Name:        fmt.Sprintf("create%s", name),
+			Name:        fmt.Sprintf("create%s", utils.Title(name)),
 			Type:        modelType,
-			Description: fmt.Sprintf("Create %s", name),
-			Args:        createArgs,
-			Resolve:     resolvers.DefaultCreateResolver(db, model.Table()),
+			Description: "Create a record",
+			Args: graphql.FieldConfigArgument{
+				"data": &graphql.ArgumentConfig{
+					Type: graphql.NewInputObject(graphql.InputObjectConfig{
+						Name: fmt.Sprintf("Create%sInput", utils.Title(name)), Fields: createArgs,
+					}),
+				},
+			},
+			Resolve: resolvers.DefaultCreateResolver(db, model.Table()),
 		},
 		{
-			Name:        fmt.Sprintf("update%s", name),
+			Name:        fmt.Sprintf("update%s", utils.Title(name)),
 			Type:        modelType,
-			Description: fmt.Sprintf("Update %s", name),
-			Args:        updateArgs,
-			Resolve:     resolvers.DefaultUpdateResolver(db, model.Table(), pk.Name),
+			Description: "Update a record",
+			Args: graphql.FieldConfigArgument{
+				"id": &graphql.ArgumentConfig{
+					Type: graphql.NewNonNull(sql2graphql[pk.Type]),
+				},
+				"data": &graphql.ArgumentConfig{
+					Type: graphql.NewInputObject(graphql.InputObjectConfig{
+						Name: fmt.Sprintf("Update%sInput", utils.Title(name)), Fields: createArgs,
+					}),
+				},
+			},
+			Resolve: resolvers.DefaultUpdateResolver(db, model.Table(), pk.Name),
 		},
 		{
-			Name:        fmt.Sprintf("delete%s", name),
+			Name:        fmt.Sprintf("delete%s", utils.Title(name)),
 			Type:        graphql.String,
-			Description: fmt.Sprintf("Delete %s", name),
+			Description: "Delete a record",
 			Args: graphql.FieldConfigArgument{
 				pk.Name: &graphql.ArgumentConfig{
 					Type: sql2graphql[pk.Type],

@@ -49,7 +49,7 @@ func DefaultPaginationResolver(db *sqlx.DB, model models.Model) graphql.FieldRes
 
 func DefaultCreateResolver(db *sqlx.DB, tableName string) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		query := goqu.Insert(tableName).Rows(p.Args)
+		query := goqu.Insert(tableName).Rows(p.Args["data"])
 		return dbutils.Create(db, query)
 	}
 }
@@ -60,7 +60,7 @@ func DefaultUpdateResolver(db *sqlx.DB, tableName, pkName string) graphql.FieldR
 		if !ok {
 			return nil, errors.New(fmt.Sprintf("Invalid %s", pkName))
 		}
-		query := goqu.Update(tableName).Set(p.Args).Where(goqu.Ex{
+		query := goqu.Update(tableName).Set(p.Args["data"]).Where(goqu.Ex{
 			pkName: id,
 		})
 		return dbutils.Patch(db, query)

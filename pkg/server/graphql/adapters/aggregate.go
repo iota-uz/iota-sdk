@@ -123,13 +123,23 @@ func AggregateQuery(db *sqlx.DB, model models.Model, name string) *graphql.Field
 			var exprs []interface{}
 			for _, _field := range root.SelectionSet.Selections {
 				field := _field.(*ast.Field)
+				if field.Name.Value == "__typename" {
+					continue
+				}
 				for _, arg := range field.Arguments {
 					c := QueryToExpression[arg.Name.Value]
-					query = query.Where(c(field.Name.Value, arg.Value.GetValue()))
+					if arg.Value.GetKind() == "Variable" {
+						query = query.Where(c(field.Name.Value, p.Info.VariableValues[arg.Value.GetValue().(*ast.Name).Value]))
+					} else {
+						query = query.Where(c(field.Name.Value, arg.Value.GetValue()))
+					}
 				}
 				for _, _op := range field.SelectionSet.Selections {
 					op := _op.(*ast.Field)
 					opName := op.Name.Value
+					if opName == "__typename" {
+						continue
+					}
 					sqlOp := StringOpToExpression[opName]
 					exprs = append(
 						exprs,

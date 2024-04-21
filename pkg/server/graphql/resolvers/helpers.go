@@ -22,6 +22,29 @@ func OrderedExpressionsFromResolveParams(p graphql.ResolveParams) []exp.OrderedE
 	return OrderStringToExpression(sortBy)
 }
 
+func _getAttrs(parent string, fields []ast.Selection) []interface{} {
+	var attrs []interface{}
+	for _, _f := range fields {
+		field := _f.(*ast.Field)
+		if field.Name.Value == "__typename" {
+			continue
+		}
+		selections := field.GetSelectionSet()
+		var base string
+		if parent != "" {
+			base = fmt.Sprintf("%s.%s", parent, field.Name.Value)
+		} else {
+			base = field.Name.Value
+		}
+		if selections == nil {
+			attrs = append(attrs, base)
+		} else {
+			attrs = append(attrs, _getAttrs(base, selections.Selections)...)
+		}
+	}
+	return attrs
+}
+
 func GetAttrs(selectionSet *ast.SelectionSet) []interface{} {
 	return _getAttrs("", selectionSet.Selections)
 }
@@ -70,27 +93,4 @@ func OrderStringToExpression(order []string) []exp.OrderedExpression {
 		}
 	}
 	return orderExpr
-}
-
-func _getAttrs(parent string, fields []ast.Selection) []interface{} {
-	var attrs []interface{}
-	for _, _f := range fields {
-		field := _f.(*ast.Field)
-		selections := field.GetSelectionSet()
-		var base string
-		if parent != "" {
-			base = fmt.Sprintf("%s.%s", parent, field.Name.Value)
-		} else {
-			base = field.Name.Value
-		}
-		if base == "__typename" {
-			continue
-		}
-		if selections == nil {
-			attrs = append(attrs, base)
-		} else {
-			attrs = append(attrs, _getAttrs(base, selections.Selections)...)
-		}
-	}
-	return attrs
 }

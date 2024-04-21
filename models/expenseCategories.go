@@ -6,7 +6,7 @@ type ExpenseCategory struct {
 	Id          int64          `db:"id" gql:"id"`
 	Name        string         `db:"name" gql:"name"`
 	Description JsonNullString `db:"description" gql:"description"`
-	Amount      string         `db:"amount" gql:"amount"`
+	Amount      float64        `db:"amount" gql:"amount"`
 	CreatedAt   *time.Time     `db:"created_at" gql:"created_at"`
 	UpdatedAt   *time.Time     `db:"updated_at" gql:"updated_at"`
 }

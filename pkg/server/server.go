@@ -10,7 +10,10 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/authentication"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/auth"
-	expense_categories "github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expense-categories"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/employees"
+	expenseCategories "github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expense-categories"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expenses"
+	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/positions"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/users"
 	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/iota-agency/iota-erp/pkg/utils"
@@ -125,12 +128,18 @@ func (s *Server) graphQlSchema() (graphql.Schema, error) {
 	queryConstructors := []routes.GraphQLConstructor{
 		//bichat.GraphQL,
 		users.Queries,
-		expense_categories.Queries,
+		expenses.Queries,
+		expenseCategories.Queries,
+		employees.Queries,
+		positions.Queries,
 	}
 	mutationConstructors := []routes.GraphQLConstructor{
 		auth.Mutations,
 		users.Mutations,
-		expense_categories.Mutations,
+		expenses.Mutations,
+		expenseCategories.Mutations,
+		employees.Mutations,
+		positions.Mutations,
 	}
 	combinedQueries := graphql.Fields{}
 	combineMutations := graphql.Fields{}
@@ -165,22 +174,6 @@ func (s *Server) graphQlSchema() (graphql.Schema, error) {
 
 func (s *Server) Start() {
 	r := mux.NewRouter().StrictSlash(true)
-	//handlers := []routes.Route{
-	//	&users.ApiRoute{},
-	//}
-	//opts := &routes.Options{
-	//	Db: s.Db,
-	//}
-	//for _, route := range handlers {
-	//	prefix := route.Prefix()
-	//	var subRouter *mux.Router
-	//	if prefix == "/" || prefix == "" {
-	//		subRouter = r
-	//	} else {
-	//		subRouter = r.PathPrefix(prefix).Subrouter()
-	//	}
-	//	route.Setup(subRouter, opts)
-	//}
 	r.Use(loggingMiddleware)
 	r.Use(AuthMiddleware(s.Db))
 	schema, err := s.graphQlSchema()
