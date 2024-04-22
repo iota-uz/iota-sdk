@@ -78,6 +78,13 @@ CREATE TABLE users
     updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE telegram_sessions
+(
+    user_id    INT PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    session    TEXT NOT NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE user_roles
 (
     user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -137,6 +144,7 @@ CREATE TABLE employees
     phone       VARCHAR(255),
     salary      FLOAT        NOT NULL,
     hourly_rate FLOAT        NOT NULL,
+    coefficient FLOAT        NOT NULL,
     position_id INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
     avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
@@ -145,12 +153,15 @@ CREATE TABLE employees
 
 CREATE TABLE employee_meta
 (
-    employee_id        INT          NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
+    employee_id        INT PRIMARY KEY NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
     primary_language   VARCHAR(255),
     secondary_language VARCHAR(255),
     tin                VARCHAR(255),
     general_info       TEXT,
-    yt_profile_id      VARCHAR(255) NOT NULL,
+    yt_profile_id      VARCHAR(255)    NOT NULL,
+    birth_date         DATE,
+    join_date          DATE,
+    leave_date         DATE,
     updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 

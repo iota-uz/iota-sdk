@@ -17,8 +17,8 @@ func DefaultGetResolver(db *sqlx.DB, model models.Model) graphql.FieldResolveFn 
 		if !ok {
 			return nil, errors.New(fmt.Sprintf("Invalid %s", pkName))
 		}
-		query := goqu.From(model.Table()).Select(GetAttrs(p.Info.FieldASTs[0].SelectionSet)...).Where(goqu.Ex{
-			pkName: id,
+		query := ResolveToQuery(p.Info.FieldASTs[0].SelectionSet, model).Where(goqu.Ex{
+			fmt.Sprintf("%s.%s", model.Table(), pkName): id,
 		})
 		return dbutils.Get(db, query)
 	}
@@ -47,21 +47,53 @@ func DefaultPaginationResolver(db *sqlx.DB, model models.Model) graphql.FieldRes
 	}
 }
 
-func DefaultCreateResolver(db *sqlx.DB, tableName string) graphql.FieldResolveFn {
+func DefaultCreateResolver(db *sqlx.DB, model models.Model) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		query := goqu.Insert(tableName).Rows(p.Args["data"])
+		data := p.Args["data"].(map[string]interface{})
+		for _, field := range models.Refs(model) {
+			if subData, ok := data[field.Association.As]; ok {
+				delete(data, field.Association.As)
+				subModel := field.Association.To
+				subDataMap, ok := subData.(map[string]interface{})
+				if !ok {
+					return nil, errors.New(fmt.Sprintf("Invalid %s", field.Name))
+				}
+				q := goqu.Insert(subModel.Table()).Rows(subDataMap)
+				if _, err := dbutils.Create(db, q); err != nil {
+					return nil, err
+				}
+			}
+		}
+		query := goqu.Insert(model.Table()).Rows(data)
 		return dbutils.Create(db, query)
 	}
 }
 
-func DefaultUpdateResolver(db *sqlx.DB, tableName, pkName string) graphql.FieldResolveFn {
+func DefaultUpdateResolver(db *sqlx.DB, model models.Model) graphql.FieldResolveFn {
+	pk := model.PkField()
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		id, ok := p.Args[pkName].(int)
+		id, ok := p.Args[pk.Name].(int)
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("Invalid %s", pkName))
+			return nil, errors.New(fmt.Sprintf("Invalid %s", pk.Name))
 		}
-		query := goqu.Update(tableName).Set(p.Args["data"]).Where(goqu.Ex{
-			pkName: id,
+		data := p.Args["data"].(map[string]interface{})
+		for _, field := range models.Refs(model) {
+			if subData, ok := data[field.Association.As]; ok {
+				delete(data, field.Association.As)
+				subModel := field.Association.To
+				subDataMap, ok := subData.(map[string]interface{})
+				if !ok {
+					return nil, errors.New(fmt.Sprintf("Invalid %s", field.Name))
+				}
+				subDataMap[field.Association.Column] = id
+				q := goqu.Insert(subModel.Table()).Rows(subDataMap)
+				if _, err := dbutils.Create(db, q); err != nil {
+					return nil, err
+				}
+			}
+		}
+		query := goqu.Update(model.Table()).Set(data).Where(goqu.Ex{
+			pk.Name: id,
 		})
 		return dbutils.Patch(db, query)
 	}

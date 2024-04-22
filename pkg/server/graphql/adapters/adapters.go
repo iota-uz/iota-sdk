@@ -79,6 +79,24 @@ func GqlTypeFromModel(model models.Model, name string) *graphql.Object {
 	})
 }
 
+func CreateArgsFromModel(model models.Model) graphql.InputObjectConfigFieldMap {
+	args := graphql.InputObjectConfigFieldMap{}
+	for _, field := range models.Fields(model) {
+		if field.Association != nil {
+			args[field.Association.As] = &graphql.InputObjectFieldConfig{
+				Type: graphql.NewInputObject(graphql.InputObjectConfig{
+					Name:   fmt.Sprintf("%sInput", utils.Title(field.Association.As)),
+					Fields: CreateArgsFromModel(field.Association.To),
+				}),
+			}
+		}
+		args[field.Name] = &graphql.InputObjectFieldConfig{
+			Type: sql2graphql[field.Type],
+		}
+	}
+	return args
+}
+
 func GetQuery(db *sqlx.DB, model models.Model, modelType *graphql.Object, name string) *graphql.Field {
 	pk := model.PkField()
 	return &graphql.Field{
@@ -147,15 +165,7 @@ func DefaultQueries(db *sqlx.DB, model models.Model, singular, plural string) []
 func DefaultMutations(db *sqlx.DB, model models.Model, name string) []*graphql.Field {
 	pk := model.PkField()
 	modelType := GqlTypeFromModel(model, fmt.Sprintf("%sType", utils.Title(name)))
-	createArgs := graphql.InputObjectConfigFieldMap{}
-	for _, field := range models.Fields(model) {
-		if field.Name == pk.Name {
-			continue
-		}
-		createArgs[field.Name] = &graphql.InputObjectFieldConfig{
-			Type: sql2graphql[field.Type],
-		}
-	}
+	createArgs := CreateArgsFromModel(model)
 	return []*graphql.Field{
 		{
 			Name:        fmt.Sprintf("create%s", utils.Title(name)),
@@ -168,7 +178,7 @@ func DefaultMutations(db *sqlx.DB, model models.Model, name string) []*graphql.F
 					}),
 				},
 			},
-			Resolve: resolvers.DefaultCreateResolver(db, model.Table()),
+			Resolve: resolvers.DefaultCreateResolver(db, model),
 		},
 		{
 			Name:        fmt.Sprintf("update%s", utils.Title(name)),
@@ -184,7 +194,7 @@ func DefaultMutations(db *sqlx.DB, model models.Model, name string) []*graphql.F
 					}),
 				},
 			},
-			Resolve: resolvers.DefaultUpdateResolver(db, model.Table(), pk.Name),
+			Resolve: resolvers.DefaultUpdateResolver(db, model),
 		},
 		{
 			Name:        fmt.Sprintf("delete%s", utils.Title(name)),

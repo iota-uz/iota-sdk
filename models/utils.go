@@ -7,6 +7,11 @@ import (
 	"reflect"
 )
 
+type dataTypeWithMeta struct {
+	dataType DataType
+	nullable bool
+}
+
 func Insert(db *sqlx.DB, model Model) error {
 	query := goqu.Insert(model.Table()).Rows(MapData(model))
 	sql, _, err := query.ToSQL()
@@ -41,15 +46,18 @@ func Fields(model interface{}) []*Field {
 			continue
 		}
 		belongTo := field.Tag.Get("belongs_to")
+		t := reflectedTypeToDbType(field.Type)
 		if belongTo == "" {
 			fields = append(fields, &Field{
-				Name: dbTag,
-				Type: reflectedTypeToDbType(field.Type),
+				Name:     dbTag,
+				Type:     t.dataType,
+				Nullable: t.nullable,
 			})
 		} else {
 			fields = append(fields, &Field{
-				Name: dbTag,
-				Type: reflectedTypeToDbType(field.Type),
+				Name:     dbTag,
+				Type:     t.dataType,
+				Nullable: t.nullable,
 				Association: &Association{
 					To:     reflect.New(field.Type.Elem()).Interface().(Model),
 					Column: belongTo,
@@ -61,30 +69,45 @@ func Fields(model interface{}) []*Field {
 	return fields
 }
 
-func reflectedTypeToDbType(reflectedType reflect.Type) DataType {
+func reflectedTypeToDbType(reflectedType reflect.Type) *dataTypeWithMeta {
 	switch reflectedType.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
-		return Integer
+		return &dataTypeWithMeta{dataType: Integer, nullable: false}
 	case reflect.Int64:
-		return BigInt
+		return &dataTypeWithMeta{dataType: BigInt, nullable: false}
 	case reflect.Float32, reflect.Float64:
-		return DoublePrecision
+		return &dataTypeWithMeta{dataType: DoublePrecision, nullable: false}
 	case reflect.String:
-		return Text
+		return &dataTypeWithMeta{dataType: Text, nullable: false}
 	case reflect.Bool:
-		return Boolean
+		return &dataTypeWithMeta{dataType: Boolean, nullable: false}
 	case reflect.Ptr:
+		if reflectedType.Implements(reflect.TypeOf((*Model)(nil)).Elem()) {
+			return &dataTypeWithMeta{dataType: BigInt, nullable: false}
+		}
 		return reflectedTypeToDbType(reflectedType.Elem())
 	case reflect.Struct:
-		if reflectedType.PkgPath() == "time" {
-			if reflectedType.Name() == "Time" {
-				return Timestamp
-			}
+		if reflectedType.PkgPath() == "time" && reflectedType.Name() == "Time" {
+			return &dataTypeWithMeta{dataType: Timestamp, nullable: false}
+		}
+		switch reflectedType.Name() {
+		case "JsonNullString":
+			return &dataTypeWithMeta{dataType: CharacterVarying, nullable: true}
+		case "JsonNullInt64":
+			return &dataTypeWithMeta{dataType: BigInt, nullable: true}
+		case "JsonNullInt32":
+			return &dataTypeWithMeta{dataType: Integer, nullable: true}
+		case "JsonNullFloat32":
+			return &dataTypeWithMeta{dataType: Real, nullable: true}
+		case "JsonNullFloat64":
+			return &dataTypeWithMeta{dataType: DoublePrecision, nullable: true}
+		case "JsonNullBool":
+			return &dataTypeWithMeta{dataType: Boolean, nullable: true}
 		}
 	default:
 		panic(fmt.Sprintf("Unsupported type: %s", reflectedType.String()))
 	}
-	return Text
+	panic(fmt.Sprintf("Unsupported type: %s", reflectedType.String()))
 }
 
 func Refs(model interface{}) []*Field {

@@ -83,6 +83,8 @@ func Mutations(db *sqlx.DB) []*graphql.Field {
 			},
 		},
 	})
+	createArgs := adapters.CreateArgsFromModel(&models.User{})
+
 	createField := &graphql.Field{
 		Name:        "createUser",
 		Description: "Create a new user",
@@ -90,21 +92,8 @@ func Mutations(db *sqlx.DB) []*graphql.Field {
 		Args: graphql.FieldConfigArgument{
 			"data": &graphql.ArgumentConfig{
 				Type: graphql.NewNonNull(graphql.NewInputObject(graphql.InputObjectConfig{
-					Name: "CreateUserInput",
-					Fields: graphql.InputObjectConfigFieldMap{
-						"first_name": &graphql.InputObjectFieldConfig{
-							Type: graphql.NewNonNull(graphql.String),
-						},
-						"last_name": &graphql.InputObjectFieldConfig{
-							Type: graphql.NewNonNull(graphql.String),
-						},
-						"email": &graphql.InputObjectFieldConfig{
-							Type: graphql.NewNonNull(graphql.String),
-						},
-						"password": &graphql.InputObjectFieldConfig{
-							Type: graphql.NewNonNull(graphql.String),
-						},
-					},
+					Name:   "CreateUserInput",
+					Fields: createArgs,
 				})),
 			},
 		},
@@ -120,21 +109,8 @@ func Mutations(db *sqlx.DB) []*graphql.Field {
 			},
 			"data": &graphql.ArgumentConfig{
 				Type: graphql.NewNonNull(graphql.NewInputObject(graphql.InputObjectConfig{
-					Name: "UpdateUserInput",
-					Fields: graphql.InputObjectConfigFieldMap{
-						"first_name": &graphql.InputObjectFieldConfig{
-							Type: graphql.String,
-						},
-						"last_name": &graphql.InputObjectFieldConfig{
-							Type: graphql.String,
-						},
-						"email": &graphql.InputObjectFieldConfig{
-							Type: graphql.String,
-						},
-						"password": &graphql.InputObjectFieldConfig{
-							Type: graphql.String,
-						},
-					},
+					Name:   "UpdateUserInput",
+					Fields: createArgs,
 				})),
 			},
 		},

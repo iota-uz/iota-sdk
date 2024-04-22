@@ -2,10 +2,12 @@ package main
 
 import (
 	"github.com/iota-agency/iota-erp/pkg/server"
+	"github.com/iota-agency/iota-erp/pkg/tgServer"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"log"
+	"sync"
 )
 
 func main() {
@@ -15,6 +17,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	srv := server.New(db)
-	srv.Start()
+	httpServer := server.New(db)
+	telegramServer := tgServer.New(db)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		httpServer.Start()
+		wg.Done()
+	}()
+	go func() {
+		telegramServer.Start()
+		wg.Done()
+	}()
+	wg.Wait()
 }

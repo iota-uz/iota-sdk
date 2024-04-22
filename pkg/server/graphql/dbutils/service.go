@@ -11,6 +11,7 @@ func Get(db *sqlx.DB, query *goqu.SelectDataset) (map[string]interface{}, error)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(stmt)
 	row := db.QueryRowx(stmt)
 	data := make(map[string]interface{})
 	if err := row.MapScan(data); err != nil {
