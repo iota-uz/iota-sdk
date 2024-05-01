@@ -31,9 +31,9 @@ CREATE TABLE positions
 CREATE TABLE currencies
 (
     id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    code       VARCHAR(3)   NOT NULL,
-    symbol     VARCHAR(3)   NOT NULL,
+    name       VARCHAR(255) NOT NULL, -- Russian Ruble
+    code       VARCHAR(3)   NOT NULL, -- RUB
+    symbol     VARCHAR(3)   NOT NULL, -- ₽
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
