@@ -2,8 +2,8 @@
 IOTA ERP - is a set of building blocks for ERP development, which will later turn into a complete SDK
 
 ## Overview
-
-[Architecture](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd)
+* [Architecture](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd)
+* [Database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e)
 
 ## Features
 * [x] GraphQL API
@@ -97,45 +97,61 @@ For queries and mutations, we use camelCase. Below is an example for the `users`
 
 ```graphql
 type Query {
-    users: UsersPaginated!
-    user(id: ID!): User!
-    usersAggregate(filter: UserFilter): UsersAggregate!
+    employees: EmployeesPaginated!
+    employee(id: ID!): Employee!
+    usersAggregate(filter: EmployeeFilter): EmployeesAggregate!
 }
 
 type Mutation {
-    createUser(input: CreateUserInput!): UserResponse!
-    updateUser(id: ID!, input: UpdateUserInput!): UserResponse!
-    deleteUser(id: ID!): UserResponse!
+    createEmployee(input: CreateEmployeeInput!): EmployeeResponse!
+    updateEmployee(id: ID!, input: UpdateEmployeeInput!): EmployeeResponse!
+    deleteEmployee(id: ID!): EmployeeResponse!
 }
 
-type User {
-    id: ID!
+type Employee {
+    id: Int!
     email: String!
-    firstName: String!
-    lastName: String!
-    avatarId: ID
+    first_name: String!
+    last_name: String!
+    position_id: Int
+    salary: Float!
 }
 
-type UsersPaginated {
+type EmployeesPaginated {
     total: Int!
-    data: [User]!
+    data: [Employee]!
 }
 
-input CreateUserInput {
+input CreateEmployeeInput {
     email: String!
-    firstName: String!
-    lastName: String!
-    avatarId: ID
+    first_name: String!
+    last_name: String!
+    position_id: Int
 }
 
-type UpdateUserInput {
+type UpdateEmployeeInput {
     email: String
-    firstName: String
-    lastName: String
-    avatarId: ID
+    first_name: String
+    last_name: String
+    position_id: Int
 }
 
-type UsersAggregate {
-
+type EmployeesAggregate {
+    first_name {
+        count: Int!
+    }
+    last_name {
+        count: Int!
+    }
+    position_id {
+        count: Int!
+    }
+    salary {
+        sum: Float!
+        avg: Float!
+        max: Float!
+        min: Float!
+        count: Int!
+    }
 }
 ```

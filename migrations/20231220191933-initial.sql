@@ -1,6 +1,24 @@
 -- +migrate Up
 CREATE EXTENSION vector;
 
+CREATE TABLE money
+(
+    id          SERIAL PRIMARY KEY,
+    value       NUMERIC(9, 2) NOT NULL,
+    currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL
+);
+
+CREATE TABLE inventory
+(
+    id             SERIAL PRIMARY KEY,
+    name           VARCHAR(255) NOT NULL,
+    description    TEXT,
+    price_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
+    quantity       INT          NOT NULL,
+    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE positions
 (
     id          SERIAL PRIMARY KEY,
@@ -8,6 +26,16 @@ CREATE TABLE positions
     description TEXT,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE currencies
+(
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL,
+    code       VARCHAR(3)   NOT NULL,
+    symbol     VARCHAR(3)   NOT NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE difficult_levels
@@ -104,22 +132,22 @@ CREATE TABLE prompts
 
 CREATE TABLE expense_categories
 (
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description TEXT,
-    amount      FLOAT        NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL,
+    description     TEXT,
+    amount_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
+    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE expenses
 (
-    id          SERIAL PRIMARY KEY,
-    amount      FLOAT NOT NULL,
-    category_id INT   NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
-    date        DATE  NOT NULL              DEFAULT CURRENT_DATE,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id              SERIAL PRIMARY KEY,
+    amount_money_id INT  REFERENCES money (id) ON DELETE SET NULL,
+    category_id     INT  NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
+    date            DATE NOT NULL               DEFAULT CURRENT_DATE,
+    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE uploads
@@ -136,19 +164,19 @@ CREATE TABLE uploads
 
 CREATE TABLE employees
 (
-    id          SERIAL PRIMARY KEY,
-    first_name  VARCHAR(255) NOT NULL,
-    last_name   VARCHAR(255) NOT NULL,
-    middle_name VARCHAR(255) NULL,
-    email       VARCHAR(255) NOT NULL UNIQUE,
-    phone       VARCHAR(255),
-    salary      FLOAT        NOT NULL,
-    hourly_rate FLOAT        NOT NULL,
-    coefficient FLOAT        NOT NULL,
-    position_id INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
-    avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id              SERIAL PRIMARY KEY,
+    first_name      VARCHAR(255) NOT NULL,
+    last_name       VARCHAR(255) NOT NULL,
+    middle_name     VARCHAR(255) NULL,
+    email           VARCHAR(255) NOT NULL UNIQUE,
+    phone           VARCHAR(255),
+    salary_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
+    hourly_rate     FLOAT        NOT NULL,
+    coefficient     FLOAT        NOT NULL,
+    position_id     INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
+    avatar_id       INT          REFERENCES uploads (id) ON DELETE SET NULL,
+    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_meta
@@ -245,11 +273,11 @@ CREATE TABLE estimates
 
 CREATE TABLE payments
 (
-    id          SERIAL PRIMARY KEY,
-    amount      FLOAT NOT NULL,
-    customer_id INT   REFERENCES customers (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id              SERIAL PRIMARY KEY,
+    amount_money_id INT NOT NULL REFERENCES money (id) ON DELETE SET NULL,
+    customer_id     INT REFERENCES customers (id) ON DELETE SET NULL,
+    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE folders
@@ -395,21 +423,40 @@ CREATE TABLE vacancies
 
 CREATE TABLE salary_range
 (
-    min_salary FLOAT,
-    max_salary FLOAT,
-    vacancy_id INT PRIMARY KEY NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE
+    min_salary_money_id INT             REFERENCES money (id) ON DELETE SET NULL,
+    max_salary_money_id INT             REFERENCES money (id) ON DELETE SET NULL,
+    vacancy_id          INT PRIMARY KEY NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE
 );
 
 CREATE TABLE applicants
 (
-    id         SERIAL PRIMARY KEY,
-    first_name VARCHAR(255) NOT NULL,
-    last_name  VARCHAR(255) NOT NULL,
-    email      VARCHAR(255) NOT NULL,
-    phone      VARCHAR(255) NOT NULL,
-    experience INT          NOT NULL,
-    vacancy_id INT          NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id                  SERIAL PRIMARY KEY,
+    first_name          VARCHAR(255) NOT NULL,
+    last_name           VARCHAR(255) NOT NULL,
+    middle_name         VARCHAR(255),
+    primary_language    VARCHAR(255),
+    secondary_language  VARCHAR(255),
+    email               VARCHAR(255) NOT NULL,
+    phone               VARCHAR(255) NOT NULL,
+    experience_in_month INT          NOT NULL,
+    vacancy_id          INT          NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE,
+    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE skills
+(
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE applicant_skills
+(
+    applicant_id INT NOT NULL REFERENCES applicants (id) ON DELETE CASCADE,
+    skill_id     INT NOT NULL REFERENCES skills (id) ON DELETE CASCADE,
+    PRIMARY KEY (applicant_id, skill_id)
 );
 
 CREATE TABLE applicant_comments
@@ -426,7 +473,6 @@ CREATE TABLE applications
     id           SERIAL PRIMARY KEY,
     applicant_id INT NOT NULL REFERENCES applicants (id) ON DELETE CASCADE,
     vacancy_id   INT NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE,
-
     created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
@@ -616,6 +662,8 @@ CREATE INDEX blog_likes_post_id_idx ON blog_likes (post_id);
 CREATE INDEX website_page_views_page_id_idx ON website_page_views (page_id);
 
 -- +migrate Down
+DROP TABLE IF EXISTS currencies;
+DROP TABLE IF EXISTS money;
 DROP TABLE IF EXISTS website_pages;
 DROP TABLE IF EXISTS blog_likes;
 DROP TABLE IF EXISTS blog_comments;
@@ -666,5 +714,6 @@ DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS companies;
 DROP TABLE IF EXISTS website_page_views;
 DROP TABLE IF EXISTS settings;
+DROP TABLE IF EXISTS inventory;
 
 DROP EXTENSION IF EXISTS vector;
