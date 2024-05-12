@@ -38,7 +38,7 @@ CREATE TABLE currencies
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE difficult_levels
+CREATE TABLE difficulty_levels
 (
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
@@ -255,7 +255,7 @@ CREATE TABLE project_tasks
     description TEXT,
     stage_id    INT          NOT NULL REFERENCES project_stages (id) ON DELETE CASCADE,
     type_id     INT          NOT NULL REFERENCES task_types (id) ON DELETE CASCADE,
-    level_id    INT          NOT NULL REFERENCES difficult_levels (id) ON DELETE CASCADE,
+    level_id    INT          NOT NULL REFERENCES difficulty_levels (id) ON DELETE CASCADE,
     parent_id   INT REFERENCES project_tasks (id) ON DELETE CASCADE,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
@@ -284,6 +284,7 @@ CREATE TABLE folders
 (
     id         SERIAL PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
+    icon_id    INT          REFERENCES uploads (id) ON DELETE SET NULL,
     parent_id  INT REFERENCES folders (id) ON DELETE CASCADE,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
@@ -450,6 +451,13 @@ CREATE TABLE skills
     description TEXT,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE employee_skills
+(
+    employee_id INT NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
+    skill_id    INT NOT NULL REFERENCES skills (id) ON DELETE CASCADE,
+    PRIMARY KEY (employee_id, skill_id)
 );
 
 CREATE TABLE applicant_skills
@@ -692,7 +700,7 @@ DROP TABLE IF EXISTS embeddings;
 DROP TABLE IF EXISTS articles;
 DROP TABLE IF EXISTS folders;
 DROP TABLE IF EXISTS payments;
-DROP TABLE IF EXISTS difficult_levels;
+DROP TABLE IF EXISTS difficulty_levels;
 DROP TABLE IF EXISTS positions;
 DROP TABLE IF EXISTS task_types;
 DROP TABLE IF EXISTS estimates;

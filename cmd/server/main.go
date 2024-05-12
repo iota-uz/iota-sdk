@@ -3,15 +3,16 @@ package main
 import (
 	"github.com/iota-agency/iota-erp/pkg/server"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"log"
 )
 
 func main() {
 	utils.LoadEnv()
 	log.Println("Connecting to database:", utils.DbOpts())
-	db, err := sqlx.Connect("postgres", utils.DbOpts())
+	db, err := gorm.Open(postgres.Open(utils.DbOpts()), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}

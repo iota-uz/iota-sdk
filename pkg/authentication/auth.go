@@ -4,37 +4,33 @@ import (
 	"errors"
 	"github.com/iota-agency/iota-erp/models"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"github.com/jmoiron/sqlx"
+	"gorm.io/gorm"
 	"time"
 )
 
 type Authentication struct {
-	Db *sqlx.DB
+	Db *gorm.DB
 }
 
-func New(db *sqlx.DB) *Authentication {
+func New(db *gorm.DB) *Authentication {
 	return &Authentication{Db: db}
 }
 
 func (a *Authentication) Authorize(token string) (*models.User, error) {
 	session := &models.Session{}
-	err := a.Db.Get(session, "SELECT * FROM sessions WHERE token = $1", token)
-	if err != nil {
+
+	if err := a.Db.First(session, "token = ?", token).Error; err != nil {
 		return nil, err
 	}
 	user := &models.User{}
-
-	if err := a.Db.Get(user, "SELECT * FROM users WHERE id = $1", session.UserId); err != nil {
+	if err := a.Db.First(user, "id = ?", session.UserId).Error; err != nil {
 		return nil, err
 	}
 	return user, nil
 }
 
 func (a *Authentication) Logout(token string) error {
-	if _, err := a.Db.Exec("DELETE FROM sessions WHERE token = $1", token); err != nil {
-		return err
-	}
-	return nil
+	return a.Db.Delete(&models.Session{}, "token = ?", token).Error
 }
 
 func (a *Authentication) createToken() string {
@@ -43,26 +39,32 @@ func (a *Authentication) createToken() string {
 
 func (a *Authentication) Authenticate(email, password, ip, userAgent string) (*models.User, string, error) {
 	user := &models.User{}
-	err := a.Db.Get(user, "SELECT * FROM users WHERE email = $1", email)
-	if err != nil {
-		return nil, "", err
+	if res := a.Db.First(user, "email = ?", email); res.Error != nil {
+		return nil, "", res.Error
 	}
 	if !user.CheckPassword(password) {
 		return nil, "", errors.New("invalid password")
 	}
 	token := a.createToken()
-	_, err = a.Db.Exec(
-		"INSERT INTO sessions (token, user_id, ip, user_agent, expires_at) VALUES ($1, $2, $3, $4, $5)",
-		token, user.Id, ip, userAgent,
-		time.Now().Add(utils.SessionDuration()),
-	)
-	if err != nil {
-		return nil, "", err
+	session := &models.Session{
+		Token:     token,
+		UserId:    user.Id,
+		Ip:        ip,
+		UserAgent: userAgent,
+		ExpiresAt: time.Now().Add(utils.SessionDuration()),
 	}
-	if _, err := a.Db.Exec(
-		"INSERT INTO authentication_logs (user_id, ip, user_agent) VALUES ($1, $2, $3)",
-		user.Id, ip, userAgent,
-	); err != nil {
+	err := a.Db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(session).Error; err != nil {
+			return err
+		}
+		log := &models.AuthenticationLog{
+			UserId:    user.Id,
+			Ip:        ip,
+			UserAgent: userAgent,
+		}
+		return tx.Create(log).Error
+	})
+	if err != nil {
 		return nil, "", err
 	}
 	return user, token, nil

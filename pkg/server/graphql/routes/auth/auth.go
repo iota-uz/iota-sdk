@@ -5,12 +5,12 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/pkg/authentication"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"github.com/jmoiron/sqlx"
+	"gorm.io/gorm"
 	"net/http"
 	"time"
 )
 
-func Authenticate(db *sqlx.DB) graphql.FieldResolveFn {
+func Authenticate(db *gorm.DB) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		email, ok := p.Args["email"].(string)
 		if !ok {
@@ -48,7 +48,7 @@ func Authenticate(db *sqlx.DB) graphql.FieldResolveFn {
 	}
 }
 
-func Mutations(db *sqlx.DB) []*graphql.Field {
+func Mutations(db *gorm.DB) []*graphql.Field {
 	return []*graphql.Field{{
 		Name: "authenticate",
 		Args: graphql.FieldConfigArgument{

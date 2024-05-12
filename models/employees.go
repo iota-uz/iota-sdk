@@ -15,42 +15,12 @@ type EmployeeMeta struct {
 	UpdatedAt         *time.Time     `db:"updated_at" gql:"updated_at"`
 }
 
-func (e *EmployeeMeta) PkField() *Field {
-	return &Field{
-		Name: "employee_id",
-		Type: BigInt,
-	}
-}
-
-func (e *EmployeeMeta) Table() string {
-	return "employee_meta"
-}
-
-func (e *EmployeeMeta) Pk() interface{} {
-	return e.EmployeeId
-}
-
 type Position struct {
 	Id          int64          `db:"id" gql:"id"`
 	Name        string         `db:"name" gql:"name"`
 	Description JsonNullString `db:"description" gql:"description"`
 	CreatedAt   *time.Time     `db:"created_at" gql:"created_at"`
 	UpdatedAt   *time.Time     `db:"updated_at" gql:"updated_at"`
-}
-
-func (p *Position) PkField() *Field {
-	return &Field{
-		Name: "id",
-		Type: BigSerial,
-	}
-}
-
-func (p *Position) Table() string {
-	return "positions"
-}
-
-func (p *Position) Pk() interface{} {
-	return p.Id
 }
 
 type Employee struct {
@@ -69,19 +39,4 @@ type Employee struct {
 	AvatarId    JsonNullInt64  `db:"avatar_id" gql:"avatar_id"`
 	CreatedAt   *time.Time     `db:"created_at" gql:"created_at"`
 	UpdatedAt   *time.Time     `db:"updated_at" gql:"updated_at"`
-}
-
-func (e *Employee) PkField() *Field {
-	return &Field{
-		Name: "id",
-		Type: BigSerial,
-	}
-}
-
-func (e *Employee) Table() string {
-	return "employees"
-}
-
-func (e *Employee) Pk() interface{} {
-	return e.Id
 }

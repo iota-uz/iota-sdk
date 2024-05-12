@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/graphql-go/graphql"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/dbutils"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/resolvers"
+	dbutils2 "github.com/iota-agency/iota-erp/sdk/db/dbutils"
+	"github.com/iota-agency/iota-erp/sdk/graphql/dbutils"
+	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
 	"github.com/jmoiron/sqlx"
 	"github.com/sashabaranov/go-openai"
 	"io"
@@ -157,7 +158,7 @@ func GraphQL(db *sqlx.DB) (*graphql.Object, *graphql.Object) {
 						}
 						query.Order(resolvers.OrderStringToExpression(sortBy)...)
 					}
-					data, err := dbutils.Find(db, query)
+					data, err := dbutils2.Find(db, query)
 					if err != nil {
 						return nil, err
 					}

@@ -16,21 +16,21 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/positions"
 	taskTypes "github.com/iota-agency/iota-erp/pkg/server/graphql/routes/task-types"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/users"
-	"github.com/iota-agency/iota-erp/pkg/server/helpers"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"github.com/jmoiron/sqlx"
+	"github.com/iota-agency/iota-erp/sdk/http/helpers"
 	"github.com/rs/cors"
+	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"time"
 )
 
 type Server struct {
-	Db   *sqlx.DB
+	Db   *gorm.DB
 	Auth *authentication.Authentication
 }
 
-func New(db *sqlx.DB) *Server {
+func New(db *gorm.DB) *Server {
 	return &Server{
 		Db:   db,
 		Auth: authentication.New(db),
@@ -75,7 +75,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func AuthMiddleware(db *sqlx.DB) mux.MiddlewareFunc {
+func AuthMiddleware(db *gorm.DB) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), "writer", w)

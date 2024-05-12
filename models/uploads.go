@@ -12,15 +12,3 @@ type Uploads struct {
 	CreatedAt  *time.Time    `gql:"created_at" db:"created_at"`
 	UpdatedAt  *time.Time    `gql:"updated_at" db:"updated_at"`
 }
-
-func (u *Uploads) Pk() interface{} {
-	return u.Id
-}
-
-func (u *Uploads) PkField() *Field {
-	return &Field{Name: "id", Type: Integer}
-}
-
-func (u *Uploads) Table() string {
-	return "uploads"
-}

@@ -19,32 +19,20 @@ func NewValidationError(field, err string) *ValidationError {
 }
 
 type User struct {
-	Id         int64          `gql:"id" db:"id"`
-	FirstName  string         `gql:"first_name" db:"first_name"`
-	LastName   string         `gql:"last_name" db:"last_name"`
-	MiddleName JsonNullString `gql:"middle_name,omitempty" db:"middle_name"`
-	Password   string         `gql:"-" db:"password"`
-	Email      string         `gql:"email" db:"email"`
-	Avatar     *Uploads       `gql:"avatar" db:"avatar_id" belongs_to:"id"`
-	AvatarId   JsonNullInt64  `gql:"avatar_id" db:"avatar_id"`
-	EmployeeId JsonNullInt64  `gql:"employee_id" db:"employee_id"`
-	LastIp     JsonNullString `gql:"last_ip" db:"last_ip"`
-	LastLogin  *time.Time     `gql:"last_login" db:"last_login"`
-	LastAction *time.Time     `gql:"last_action" db:"last_action"`
-	CreatedAt  *time.Time     `gql:"created_at" db:"created_at"`
-	UpdatedAt  *time.Time     `gql:"updated_at" db:"updated_at"`
-}
-
-func (u *User) Pk() interface{} {
-	return u.Id
-}
-
-func (u *User) PkField() *Field {
-	return &Field{Name: "id"}
-}
-
-func (u *User) Table() string {
-	return "users"
+	Id         int64          `gql:"id"`
+	FirstName  string         `gql:"first_name"`
+	LastName   string         `gql:"last_name"`
+	MiddleName JsonNullString `gql:"middle_name,omitempty"`
+	Password   string         `gql:"-"`
+	Email      string         `gql:"email"`
+	Avatar     *Uploads       `gql:"avatar" gorm:"foreignKey:AvatarId"`
+	AvatarId   JsonNullInt64  `gql:"avatar_id"`
+	EmployeeId JsonNullInt64  `gql:"employee_id"`
+	LastIp     JsonNullString `gql:"last_ip"`
+	LastLogin  *time.Time     `gql:"last_login"`
+	LastAction *time.Time     `gql:"last_action"`
+	CreatedAt  *time.Time     `gql:"created_at"`
+	UpdatedAt  *time.Time     `gql:"updated_at"`
 }
 
 func (u *User) CheckPassword(password string) bool {

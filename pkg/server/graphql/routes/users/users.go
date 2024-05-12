@@ -3,12 +3,12 @@ package users
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/adapters"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/resolvers"
-	"github.com/jmoiron/sqlx"
+	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
+	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
+	"gorm.io/gorm"
 )
 
-func CreateUser(db *sqlx.DB) graphql.FieldResolveFn {
+func CreateUser(db *gorm.DB) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		data := p.Args["data"].(map[string]interface{})
 		user := &models.User{
@@ -23,14 +23,14 @@ func CreateUser(db *sqlx.DB) graphql.FieldResolveFn {
 		if err := user.SetPassword(user.Password); err != nil {
 			return nil, err
 		}
-		if err := models.Insert(db, user); err != nil {
+		if err := db.Create(user).Error; err != nil {
 			return nil, err
 		}
 		return user, nil
 	}
 }
 
-func UpdateUser(db *sqlx.DB) graphql.FieldResolveFn {
+func UpdateUser(db *gorm.DB) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		data := p.Args["data"].(map[string]interface{})
 		user := &models.User{
@@ -46,23 +46,26 @@ func UpdateUser(db *sqlx.DB) graphql.FieldResolveFn {
 		if err := user.SetPassword(user.Password); err != nil {
 			return nil, err
 		}
-		if err := models.Update(db, user); err != nil {
+		if err := db.Save(user).Error; err != nil {
 			return nil, err
 		}
 		return user, nil
 	}
 }
 
-func Queries(db *sqlx.DB) []*graphql.Field {
-	userType := adapters.GqlTypeFromModel(&models.User{}, "User")
+func Queries(db *gorm.DB) []*graphql.Field {
+	userType, err := adapters.GqlTypeFromModel(&models.User{}, "User")
+	if err != nil {
+		panic(err)
+	}
 	return []*graphql.Field{
-		adapters.AggregateQuery(db, &models.User{}, "users"),
+		//adapters.AggregateQuery(db, &models.User{}, "users"),
 		adapters.ListPaginatedQuery(db, &models.User{}, userType, "users"),
-		adapters.GetQuery(db, &models.User{}, userType, "user"),
+		//adapters.GetQuery(db, &models.User{}, userType, "user"),
 	}
 }
 
-func Mutations(db *sqlx.DB) []*graphql.Field {
+func Mutations(db *gorm.DB) []*graphql.Field {
 	userType := graphql.NewObject(graphql.ObjectConfig{
 		Name: "UserType",
 		Fields: graphql.Fields{
@@ -83,7 +86,10 @@ func Mutations(db *sqlx.DB) []*graphql.Field {
 			},
 		},
 	})
-	createArgs := adapters.CreateArgsFromModel(&models.User{})
+	createArgs, err := adapters.CreateArgsFromModel(&models.User{})
+	if err != nil {
+		panic(err)
+	}
 
 	createField := &graphql.Field{
 		Name:        "createUser",
@@ -125,7 +131,7 @@ func Mutations(db *sqlx.DB) []*graphql.Field {
 				Type: graphql.NewNonNull(graphql.Int),
 			},
 		},
-		Resolve: resolvers.DefaultDeleteResolver(db, "users", "id"),
+		Resolve: resolvers.DefaultDeleteResolver(db, &models.User{}),
 	}
 	return []*graphql.Field{createField, updateField, deleteField}
 }

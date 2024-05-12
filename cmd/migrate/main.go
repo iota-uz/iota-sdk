@@ -13,17 +13,18 @@ import (
 )
 
 func loadMigrations() ([]*sqlxmigrate.Migration, error) {
-	var migrations []*sqlxmigrate.Migration
+	//var migrations []*sqlxmigrate.Migration
 	files, err := os.ReadDir("migrations")
 	if err != nil {
 		return nil, err
 	}
-	for _, file := range files {
+	migrations := make([]*sqlxmigrate.Migration, len(files))
+	for i, file := range files {
 		m, err := migration.LoadMigration("migrations/" + file.Name())
 		if err != nil {
 			return nil, fmt.Errorf("could not parse migration %s: %v", file.Name(), err)
 		}
-		migrations = append(migrations, m)
+		migrations[i] = m
 	}
 	return migrations, nil
 }

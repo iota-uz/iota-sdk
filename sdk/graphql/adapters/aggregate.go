@@ -6,11 +6,12 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
-	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/dbutils"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/resolvers"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"github.com/jmoiron/sqlx"
+	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
+	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+	"sync"
 )
 
 var StringOpToExpression = map[string]func(col interface{}) exp.SQLFunctionExpression{
@@ -21,28 +22,28 @@ var StringOpToExpression = map[string]func(col interface{}) exp.SQLFunctionExpre
 	"count": goqu.COUNT,
 }
 
-func aggregateSubQuery(model models.Model, name string) *graphql.Object {
+func aggregateSubQuery(model interface{}, name string) *graphql.Object {
 	fields := graphql.Fields{}
-	aggregationQuery := func(f *models.Field) *graphql.Object {
+	aggregationQuery := func(f *schema.Field) *graphql.Object {
 		queryFields := graphql.Fields{
 			"count": &graphql.Field{
 				Type: graphql.Int,
 			},
 		}
-		if dbutils.IsTime(f.Type) || dbutils.IsNumeric(f.Type) {
+		if dbutils.IsTime(f.DataType) || dbutils.IsNumeric(f.DataType) {
 			queryFields["min"] = &graphql.Field{
-				Type: sql2graphql[f.Type],
+				Type: sql2graphql[f.DataType],
 			}
 			queryFields["max"] = &graphql.Field{
-				Type: sql2graphql[f.Type],
+				Type: sql2graphql[f.DataType],
 			}
 		}
-		if dbutils.IsNumeric(f.Type) {
+		if dbutils.IsNumeric(f.DataType) {
 			queryFields["avg"] = &graphql.Field{
-				Type: sql2graphql[f.Type],
+				Type: sql2graphql[f.DataType],
 			}
 			queryFields["sum"] = &graphql.Field{
-				Type: sql2graphql[f.Type],
+				Type: sql2graphql[f.DataType],
 			}
 		}
 		return graphql.NewObject(
@@ -52,10 +53,17 @@ func aggregateSubQuery(model models.Model, name string) *graphql.Object {
 			},
 		)
 	}
-	for _, field := range models.Fields(model) {
-		gqlType, ok := sql2graphql[field.Type]
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		panic(err)
+	}
+	for _, field := range s.Fields {
+		if !field.Readable || field.DataType == "" {
+			continue
+		}
+		gqlType, ok := sql2graphql[field.DataType]
 		if !ok {
-			panic(fmt.Sprintf("Type %v not found", field.Type))
+			panic(fmt.Sprintf("Type %v not found for field %s", field.DataType, field.Name))
 		}
 		args := graphql.FieldConfigArgument{
 			"in": &graphql.ArgumentConfig{
@@ -65,7 +73,7 @@ func aggregateSubQuery(model models.Model, name string) *graphql.Object {
 				Type: graphql.NewList(gqlType),
 			},
 		}
-		if dbutils.IsTime(field.Type) || dbutils.IsNumeric(field.Type) {
+		if dbutils.IsTime(field.DataType) || dbutils.IsNumeric(field.DataType) {
 			args["gt"] = &graphql.ArgumentConfig{
 				Type: gqlType,
 			}
@@ -92,11 +100,14 @@ func aggregateSubQuery(model models.Model, name string) *graphql.Object {
 	)
 }
 
-func AggregateQuery(db *sqlx.DB, model models.Model, name string) *graphql.Field {
-	pk := model.PkField()
+func AggregateQuery(db *gorm.DB, model interface{}, name string) *graphql.Field {
+	pk, err := dbutils.GetModelPk(model)
+	if err != nil {
+		panic(err)
+	}
 	return &graphql.Field{
 		Name:        name,
-		Type:        graphql.NewList(aggregateSubQuery(model, model.Table())),
+		Type:        graphql.NewList(aggregateSubQuery(model, name)),
 		Description: "Get aggregated data",
 		Args: graphql.FieldConfigArgument{
 			"groupBy": &graphql.ArgumentConfig{
@@ -119,7 +130,8 @@ func AggregateQuery(db *sqlx.DB, model models.Model, name string) *graphql.Field
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			root := p.Info.FieldASTs[0]
-			query := goqu.From(model.Table())
+			// TODO: come back to this
+			query := goqu.From("")
 			var exprs []interface{}
 			for _, _field := range root.SelectionSet.Selections {
 				field := _field.(*ast.Field)
@@ -162,7 +174,7 @@ func AggregateQuery(db *sqlx.DB, model models.Model, name string) *graphql.Field
 			if ok {
 				query = query.Offset(uint(offset))
 			}
-			return dbutils.Find(db, query)
+			return nil, nil
 		},
 	}
 }

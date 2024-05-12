@@ -10,18 +10,3 @@ type ExpenseCategory struct {
 	CreatedAt   *time.Time     `db:"created_at" gql:"created_at"`
 	UpdatedAt   *time.Time     `db:"updated_at" gql:"updated_at"`
 }
-
-func (e *ExpenseCategory) Pk() interface{} {
-	return e.Id
-}
-
-func (e *ExpenseCategory) PkField() *Field {
-	return &Field{
-		Name: "id",
-		Type: BigSerial,
-	}
-}
-
-func (e *ExpenseCategory) Table() string {
-	return "expense_categories"
-}

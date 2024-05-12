@@ -2,7 +2,7 @@ package routes
 
 import (
 	"github.com/graphql-go/graphql"
-	"github.com/jmoiron/sqlx"
+	"gorm.io/gorm"
 )
 
-type GraphQLConstructor func(db *sqlx.DB) []*graphql.Field
+type GraphQLConstructor func(db *gorm.DB) []*graphql.Field

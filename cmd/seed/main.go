@@ -25,7 +25,8 @@ func createInitialUser(db *sqlx.DB, email, password string) error {
 			},
 		},
 	}
-	if err := role.Save(db); err != nil {
+
+	if err := models.Insert(db, role); err != nil {
 		return err
 	}
 	user := &models.User{
@@ -37,7 +38,7 @@ func createInitialUser(db *sqlx.DB, email, password string) error {
 	if err := user.SetPassword(password); err != nil {
 		return err
 	}
-	return user.Save(db)
+	return models.Insert(db, user)
 }
 
 func main() {
