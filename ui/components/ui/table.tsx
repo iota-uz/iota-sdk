@@ -25,15 +25,16 @@ export type Column<T> = {
     };
 }
 
-export type SortBy<T> = Record<keyof T, 'asc' | 'desc'>;
+export type SortBy<T> = { [key in keyof T]?: 'asc' | 'desc' };
 
 export type Props<T extends object> = {
     primaryKey: keyof T;
     columns: Column<T>[];
     data: T[];
-    sortBy: SortBy<T>;
+    sortBy?: SortBy<T>;
     loading?: boolean;
     bulkActions?: boolean;
+    onSort?: (sortBy: SortBy<T>) => void;
     selected?: (keyof T)[];
     selector?: (t: any) => any;
 }
@@ -66,7 +67,6 @@ function formatDate(date: any, format: string): string {
     if (!date) {
         return '-';
     }
-    console.log(DateTime.fromISO(date), format);
     if (format === 'calendar') {
         return DateTime.fromISO(date).toRelativeCalendar() || '-';
     }
@@ -137,7 +137,7 @@ function TableBody<T extends object>({loading, data, bulkActions, columns}: Prop
             <tr>
                 <td colSpan={columnCount} className="py-4">
                     <div className="flex justify-center">
-                        <Spinner />
+                        <Spinner/>
                     </div>
                 </td>
             </tr>
@@ -169,20 +169,42 @@ function Chevron({direction}: { direction: 'asc' | 'desc' }) {
     );
 }
 
-function TableHeaderRow<T extends object>({column, sortBy}: { column: Column<T>, sortBy: SortBy<T> }) {
+function TableHeaderCell<T extends object>({column, sortBy, onSort}: {
+    column: Column<T>,
+    sortBy?: SortBy<T>,
+    onSort?: (sortBy: SortBy<T>) => void
+}) {
+    const classes = cn(
+        "border-primary-200 text-center text-sm font-medium text-gray-950 dark:text-gray-400",
+        column.label ? "p-4" : ""
+    );
+    if (!sortBy || !column.sortable || !onSort) {
+        return (
+            <th className={classes}>
+                {column.label}
+            </th>
+        );
+    }
     const name = column.key as keyof T;
+    const direction = sortBy[name];
+    const toggleDirection = direction === 'asc' ? 'desc' : 'asc';
     return (
-        <th className={cn("border-primary-200 text-left text-sm font-medium text-gray-950 dark:text-gray-400", column.label ? "p-4" : "")}>
-            {column.sortable ? <a href="#" onClick={(e) => {
-                e.preventDefault();
-                // setOrdering(column.name);
-            }}>{column.label}</a> : column.label}
-            {sortBy[name] && <Chevron direction={sortBy[name]}/>}
+        <th className={classes}>
+            <a
+                href="#"
+                onClick={(e) => {
+                    e.preventDefault();
+                    onSort({[name]: toggleDirection} as SortBy<T>);
+                }}
+            >
+                {column.label}
+            </a>
+            {direction && <Chevron direction={direction}/>}
         </th>
     );
 }
 
-function TableHeader<T extends object>({columns, bulkActions, sortBy}: Props<T>) {
+function TableHeader<T extends object>({columns, bulkActions, sortBy, onSort}: Props<T>) {
     return (
         <thead className="mb-4">
         <tr className="bg-primary-100 dark:bg-gray-800 rounded-lg">
@@ -192,13 +214,21 @@ function TableHeader<T extends object>({columns, bulkActions, sortBy}: Props<T>)
                     // onChange={(e) => selectAll(e.target.checked)}
                 />
             </th>}
-            {columns.map((column) => <TableHeaderRow key={column.key} column={column} sortBy={sortBy}/>)}
+            {columns.map((column) => <TableHeaderCell
+                key={column.key}
+                column={column}
+                sortBy={sortBy}
+                onSort={onSort}/>
+            )}
         </tr>
         </thead>
     );
 }
 
 export default function BaseTable<T extends object>(props: Props<T>) {
+    if (props.columns.some((column) => column.sortable && !props.onSort)) {
+        throw new Error('You need to provide onSort callback for sortable columns');
+    }
     return (
         <div className="overflow-x-auto relative">
             <table className="min-w-full table-auto rounded-table">

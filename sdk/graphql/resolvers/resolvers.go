@@ -38,18 +38,32 @@ func DefaultCountResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn
 
 func DefaultPaginationResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		var result []map[string]interface{}
 		query := db.Model(model)
-		limit, ok := p.Args["limit"].(int)
+		args := p.Source.(map[string]interface{})
+		limit, ok := args["limit"].(int)
 		if ok {
 			query = query.Limit(limit)
 		}
-		offset, ok := p.Args["offset"].(int)
+		offset, ok := args["offset"].(int)
 		if ok {
 			query = query.Offset(offset)
 		}
+		sortBy, ok := args["sortBy"].([]interface{})
+		if ok {
+			for _, s := range sortBy {
+				query = query.Order(s.(string))
+			}
+		}
+		associations := GetAssociations(model, p.Info.FieldASTs[0].SelectionSet)
+		for _, a := range associations {
+			query = query.Joins(a)
+		}
+		var result []map[string]interface{}
 		if err := query.Find(&result).Error; err != nil {
 			return nil, err
+		}
+		for i, r := range result {
+			result[i] = NestMap(model, r)
 		}
 		return result, nil
 	}

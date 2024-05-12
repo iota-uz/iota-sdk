@@ -55,8 +55,11 @@ func GqlTypeFromModel(model interface{}, name string) (*graphql.Object, error) {
 		if !field.Readable {
 			continue
 		}
+		as := field.Tag.Get("gql")
+		if as == "-" {
+			continue
+		}
 		if field.DataType == "" {
-			as := field.Tag.Get("gql")
 			refName := fmt.Sprintf("%s%sJoin", name, as)
 			obj, err := GqlTypeFromModel(reflect.New(field.FieldType).Elem().Interface(), refName)
 			if err != nil {
@@ -200,7 +203,7 @@ func ListPaginatedQuery(db *gorm.DB, model interface{}, modelType *graphql.Objec
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			return paginationType, nil
+			return p.Args, nil
 		},
 	}
 }

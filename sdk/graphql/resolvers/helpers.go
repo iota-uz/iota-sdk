@@ -6,6 +6,9 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"gorm.io/gorm/schema"
+	"strings"
+	"sync"
 )
 
 func OrderedExpressionsFromResolveParams(p graphql.ResolveParams) []exp.OrderedExpression {
@@ -43,43 +46,63 @@ func _getAttrs(parent string, fields []ast.Selection) []interface{} {
 	return attrs
 }
 
+func GetAssociations(model interface{}, selectionSet *ast.SelectionSet) []string {
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		panic(err)
+	}
+	var selected []string
+	for _, selection := range selectionSet.Selections {
+		field := selection.(*ast.Field)
+		selections := field.GetSelectionSet()
+		if selections == nil {
+			continue
+		}
+		selected = append(selected, field.Name.Value)
+	}
+	associations := make([]string, len(selected))
+	for i, sel := range selected {
+		for _, rel := range s.Fields {
+			if rel.DataType == "" && rel.Tag.Get("gql") == sel {
+				associations[i] = rel.Name
+			}
+		}
+	}
+	return associations
+}
+
+func NestMap(model interface{}, data map[string]interface{}) map[string]interface{} {
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		panic(err)
+	}
+	nested := make(map[string]interface{})
+	for _, field := range s.Fields {
+		as := field.Tag.Get("gql")
+		prefix := field.Name + "__"
+		for key, value := range data {
+			if value == nil {
+				continue
+			}
+			if field.DataType != "" && field.DBName == key && as != "-" {
+				nested[as] = value
+				continue
+			}
+			if strings.HasPrefix(key, prefix) {
+				nakedKey := strings.TrimPrefix(key, prefix)
+				if nested[as] == nil {
+					nested[as] = map[string]interface{}{}
+				}
+				nested[as].(map[string]interface{})[nakedKey] = value
+			}
+		}
+	}
+	return nested
+}
+
 func GetAttrs(selectionSet *ast.SelectionSet) []interface{} {
 	return _getAttrs("", selectionSet.Selections)
 }
-
-//func ResolveToQuery(selectionSet *ast.SelectionSet, model models.Model) *goqu.SelectDataset {
-//	allAttrs := GetAttrs(selectionSet)
-//	var attrs []interface{}
-//	for _, attr := range allAttrs {
-//		parts := strings.Split(attr.(string), ".")
-//		if len(parts) == 1 {
-//			attrs = append(attrs, goqu.I(fmt.Sprintf("%s.%s", model.Table(), attr)))
-//			continue
-//		}
-//		dest := parts[len(parts)-2]
-//		attr := parts[len(parts)-1]
-//		for _, field := range models.Refs(model) {
-//			if field.Association.As == dest {
-//				source := fmt.Sprintf("%s.%s", field.Association.To.Table(), attr)
-//				target := fmt.Sprintf("%s.%s", field.Association.As, attr)
-//				attrs = append(attrs, goqu.I(source).As(goqu.C(target)))
-//			}
-//		}
-//	}
-//	query := goqu.From(model.Table()).Select(attrs...)
-//	for _, field := range models.Refs(model) {
-//		refTable := field.Association.To.Table()
-//		query = query.LeftJoin(
-//			goqu.I(refTable),
-//			goqu.On(
-//				goqu.Ex{
-//					fmt.Sprintf("%s.%s", refTable, field.Association.Column): goqu.I(fmt.Sprintf("%s.%s", model.Table(), field.Name)),
-//				},
-//			),
-//		)
-//	}
-//	return query
-//}
 
 func OrderStringToExpression(order []string) []exp.OrderedExpression {
 	var orderExpr []exp.OrderedExpression

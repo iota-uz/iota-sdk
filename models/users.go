@@ -22,7 +22,7 @@ type User struct {
 	Id         int64          `gql:"id"`
 	FirstName  string         `gql:"first_name"`
 	LastName   string         `gql:"last_name"`
-	MiddleName JsonNullString `gql:"middle_name,omitempty"`
+	MiddleName JsonNullString `gql:"middle_name"`
 	Password   string         `gql:"-"`
 	Email      string         `gql:"email"`
 	Avatar     *Uploads       `gql:"avatar" gorm:"foreignKey:AvatarId"`

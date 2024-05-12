@@ -8,7 +8,7 @@ import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover"
 import {Calendar} from "@/components/ui/calendar"
 import {Pagination} from "@/components/ui/pagination"
 import * as Icons from "@phosphor-icons/react"
-import BaseTable, {Column} from "@/components/ui/table";
+import BaseTable, {Column, SortBy} from "@/components/ui/table";
 import {gql, useQuery} from "@apollo/client";
 import React, {useEffect, useState} from "react";
 import PerPageSelect from "@/components/ui/per-page-select";
@@ -18,8 +18,8 @@ import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {User} from "@/src/__generated__/graphql";
 
 const GET_USERS = gql`
-    query GetUsers($limit: Int, $offset: Int) {
-        users(limit: $limit, offset: $offset) {
+    query GetUsers($limit: Int, $offset: Int, $sortBy: [String]) {
+        users(limit: $limit, offset: $offset, sortBy: $sortBy) {
             total
             data {
                 id
@@ -28,21 +28,36 @@ const GET_USERS = gql`
                 email
                 created_at
                 updated_at
+                avatar {
+                    id
+                }
             }
         }
     }
 `;
 
 export default function Component() {
-    const {data, loading, error, refetch} = useQuery(GET_USERS);
-    const {total, data: users} = data?.users || {total: 0, data: []};
     const [perPage, setPerPage] = useState(10);
     const [page, setPage] = useState(1);
-    const [sortBy, setSortBy] = useState<string[]>([]);
+    const [sortBy, setSortBy] = useState<SortBy<User>>({
+        created_at: 'desc'
+    });
+    const {data, loading, error, refetch} = useQuery(GET_USERS, {
+        variables: {
+            limit: perPage,
+            offset: (page - 1) * perPage,
+            sortBy: Object.keys(sortBy).map((key) => `${key} ${sortBy[key as keyof User]}`)
+        }
+    });
     useEffect(() => {
-        refetch({limit: perPage, offset: (page - 1) * perPage});
-    }, [page, perPage]);
+        refetch({
+            limit: perPage,
+            offset: (page - 1) * perPage,
+            sortBy: Object.keys(sortBy).map((key) => `${key} ${sortBy[key as keyof User]}`)
+        });
+    }, [page, perPage, sortBy]);
 
+    const {total, data: users} = data?.users || {total: 0, data: []};
     if (error) {
         return <div>{error.message}</div>;
     }
@@ -87,8 +102,8 @@ export default function Component() {
             field: (item) => (
                 <div className="flex justify-center">
                     <Link href={`/users/${item.id}`}>
-                        <Button size="sm" variant="outline" className="bg-primary-100 p-3">
-                            <Icons.PencilSimple className="w-4 h-4"/>
+                        <Button size="sm" variant="outline" className="text-gray-700 bg-primary-100 p-3">
+                            <Icons.PencilSimple size={18} weight="bold"/>
                         </Button>
                     </Link>
                 </div>
@@ -160,7 +175,7 @@ export default function Component() {
                     </div>
                 </div>
             </div>
-            <Card>
+            <Card className="rounded-lg">
                 <div className="p-5">
                     <div className="relative">
                         <Icons.MagnifyingGlass
@@ -174,7 +189,15 @@ export default function Component() {
                 </div>
                 <hr className="bg-primary-100"/>
                 <div className="p-5">
-                    <BaseTable primaryKey={"id"} columns={columns} data={users} sortBy={{}} loading={loading} bulkActions/>
+                    <BaseTable
+                        primaryKey={"id"}
+                        columns={columns}
+                        data={users}
+                        sortBy={sortBy}
+                        loading={loading}
+                        bulkActions
+                        onSort={setSortBy}
+                    />
                     <div className="flex items-center justify-between mt-6">
                         <Pagination total={total} perPage={perPage} currentPage={page} onChange={setPage}/>
                         <div className="flex items-center gap-2">

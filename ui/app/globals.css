@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 225, 100%, 99%;
+        --foreground: 222.2 84% 4.9%;
+
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+
+        --primary: 217, 60.9%, 45.1%;
+        --primary-foreground: 210 40% 98%;
+        --primary-50: #fbfcff;
+        --primary-100: #f0f4fd;
+        --primary-200: #dee6fb;
+        --primary-300: #c5d2f7;
+        --primary-400: #a4b9f3;
+        --primary-500: #7c9aed;
+        --primary-600: #4c75e7;
+        --primary-700: #1d4fd7;
+        --primary-800: #102c79;
+        --primary-900: #091740;
+        --primary-950: #06102d;
+
+        --gray-50: #fcfcfd;
+        --gray-100: #f1f3f6;
+        --gray-200: #e0e4ea;
+        --gray-300: #c8ced9;
+        --gray-400: #a8b3c4;
+        --gray-500: #8292aa;
+        --gray-600: #5b6b86;
+        --gray-700: #384252;
+        --gray-800: #242b35;
+        --gray-900: #191d24;
+        --gray-950: #15181e;
+
+        --secondary: 210 40% 96.1%;
+        --secondary-foreground: 222.2 47.4% 11.2%;
+
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 210 40% 98%;
+
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 222.2 84% 4.9%;
+
+        --radius: 0.5rem;
+    }
+
+    .dark {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+
+        --card: 222.2 84% 4.9%;
+        --card-foreground: 210 40% 98%;
+
+        --popover: 222.2 84% 4.9%;
+        --popover-foreground: 210 40% 98%;
+
+        --primary: 210 40% 98%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+
+        --secondary: 217.2 32.6% 17.5%;
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 217.2 32.6% 17.5%;
+        --muted-foreground: 215 20.2% 65.1%;
+
+        --accent: 217.2 32.6% 17.5%;
+        --accent-foreground: 210 40% 98%;
+
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 210 40% 98%;
+
+        --border: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 17.5%;
+        --ring: 212.7 26.8% 83.9%;
+    }
+
+    .rounded-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .rounded-table th:first-child {
+        border-bottom-left-radius: calc(var(--radius) + 2px);
+        border-top-left-radius: calc(var(--radius) + 2px);
+    }
+
+    .rounded-table th:last-child {
+        border-top-right-radius: calc(var(--radius) + 2px);
+        border-bottom-right-radius: calc(var(--radius) + 2px);
+    }
+
+    .rounded-table tr:first-child td:first-child {
+        border-top-left-radius: calc(var(--radius) + 2px);
+    }
+
+    .rounded-table tr:first-child td:last-child {
+        border-top-right-radius: calc(var(--radius) + 2px);
+    }
+
+    .rounded-table tr:last-child td:first-child {
+        border-bottom-left-radius: calc(var(--radius) + 2px);
+    }
+
+    .rounded-table tr:last-child td:last-child {
+        border-bottom-right-radius: calc(var(--radius) + 2px);
+    }
+
+    .rounded-table tbody:before {
+        content: "@";
+        display: block;
+        line-height: 15px;
+        text-indent: -99999px;
+    }
+
+    .rounded-table th:first-child {
+        border-left: 1px solid var(--primary-200);
+    }
+
+    .rounded-table th {
+        border-top: 1px solid var(--primary-200);
+        border-bottom: 1px solid var(--primary-200);
+        border-right: 1px solid var(--primary-200);
+    }
+
+    .rounded-table td {
+        border-bottom: 1px solid var(--primary-200);
+        border-right: 1px solid var(--primary-200);
+    }
+
+    .rounded-table tr:first-child td {
+        border-top: 1px solid var(--primary-200);
+    }
+
+    .rounded-table td:first-child {
+        border-left: 1px solid var(--primary-200);
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+}
