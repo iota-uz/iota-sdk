@@ -1,4 +1,4 @@
-package adapters
+package resolvers
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
-	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
+	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"sync"
@@ -32,18 +32,18 @@ func aggregateSubQuery(model interface{}, name string) *graphql.Object {
 		}
 		if dbutils.IsTime(f.DataType) || dbutils.IsNumeric(f.DataType) {
 			queryFields["min"] = &graphql.Field{
-				Type: sql2graphql[f.DataType],
+				Type: adapters.Sql2graphql[f.DataType],
 			}
 			queryFields["max"] = &graphql.Field{
-				Type: sql2graphql[f.DataType],
+				Type: adapters.Sql2graphql[f.DataType],
 			}
 		}
 		if dbutils.IsNumeric(f.DataType) {
 			queryFields["avg"] = &graphql.Field{
-				Type: sql2graphql[f.DataType],
+				Type: adapters.Sql2graphql[f.DataType],
 			}
 			queryFields["sum"] = &graphql.Field{
-				Type: sql2graphql[f.DataType],
+				Type: adapters.Sql2graphql[f.DataType],
 			}
 		}
 		return graphql.NewObject(
@@ -61,7 +61,7 @@ func aggregateSubQuery(model interface{}, name string) *graphql.Object {
 		if !field.Readable || field.DataType == "" {
 			continue
 		}
-		gqlType, ok := sql2graphql[field.DataType]
+		gqlType, ok := adapters.Sql2graphql[field.DataType]
 		if !ok {
 			panic(fmt.Sprintf("Type %v not found for field %s", field.DataType, field.Name))
 		}
@@ -139,7 +139,7 @@ func AggregateQuery(db *gorm.DB, model interface{}, name string) *graphql.Field 
 					continue
 				}
 				for _, arg := range field.Arguments {
-					c := QueryToExpression[arg.Name.Value]
+					c := adapters.QueryToExpression[arg.Name.Value]
 					if arg.Value.GetKind() == "Variable" {
 						query = query.Where(c(field.Name.Value, p.Info.VariableValues[arg.Value.GetValue().(*ast.Name).Value]))
 					} else {
@@ -165,7 +165,7 @@ func AggregateQuery(db *gorm.DB, model interface{}, name string) *graphql.Field 
 			for i, f := range groupByFields {
 				groupBy[i] = f
 			}
-			query = query.GroupBy(groupBy...).Order(resolvers.OrderedExpressionsFromResolveParams(p)...)
+			query = query.GroupBy(groupBy...).Order(OrderedExpressionsFromResolveParams(p)...)
 			limit, ok := p.Args["limit"].(int)
 			if ok {
 				query = query.Limit(uint(limit))

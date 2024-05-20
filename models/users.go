@@ -20,19 +20,19 @@ func NewValidationError(field, err string) *ValidationError {
 
 type User struct {
 	Id         int64          `gql:"id"`
-	FirstName  string         `gql:"first_name"`
-	LastName   string         `gql:"last_name"`
-	MiddleName JsonNullString `gql:"middle_name"`
-	Password   string         `gql:"-"`
+	FirstName  string         `gql:"firstName"`
+	LastName   string         `gql:"lastName"`
+	MiddleName JsonNullString `gql:"middleName"`
+	Password   string         `gql:"password,!read"`
 	Email      string         `gql:"email"`
 	Avatar     *Uploads       `gql:"avatar" gorm:"foreignKey:AvatarId"`
-	AvatarId   JsonNullInt64  `gql:"avatar_id"`
-	EmployeeId JsonNullInt64  `gql:"employee_id"`
-	LastIp     JsonNullString `gql:"last_ip"`
-	LastLogin  *time.Time     `gql:"last_login"`
-	LastAction *time.Time     `gql:"last_action"`
-	CreatedAt  *time.Time     `gql:"created_at"`
-	UpdatedAt  *time.Time     `gql:"updated_at"`
+	AvatarId   JsonNullInt64  `gql:"avatarId"`
+	EmployeeId JsonNullInt64  `gql:"employeeId"`
+	LastIp     JsonNullString `gql:"lastIp"`
+	LastLogin  *time.Time     `gql:"lastLogin"`
+	LastAction *time.Time     `gql:"lastAction"`
+	CreatedAt  *time.Time     `gql:"createdAt"`
+	UpdatedAt  *time.Time     `gql:"updatedAt"`
 }
 
 func (u *User) CheckPassword(password string) bool {

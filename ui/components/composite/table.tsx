@@ -3,7 +3,6 @@ import {IMask} from "react-imask";
 import {CSSProperties} from "react";
 import {useRouter} from "next/navigation";
 import {cn} from "@/lib/utils";
-import {Checkbox} from "@/components/ui/checkbox";
 import Spinner from "@/components/icons/spinner";
 
 export type Column<T> = {
@@ -33,7 +32,6 @@ export type Props<T extends object> = {
     data: T[];
     sortBy?: SortBy<T>;
     loading?: boolean;
-    bulkActions?: boolean;
     onSort?: (sortBy: SortBy<T>) => void;
     selected?: (keyof T)[];
     selector?: (t: any) => any;
@@ -111,26 +109,8 @@ function TableCell<T extends object>({item, column}: { item: T, column: Column<T
     )
 }
 
-function TableRow<T extends object>({columns, item, bulkActions}: {
-    columns: Column<T>[],
-    item: T,
-    bulkActions?: boolean
-}) {
-    return (
-        <tr>
-            {bulkActions && <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                <Checkbox
-                    checked={false}
-                    // onChange={(e) => select(item)}
-                />
-            </td>}
-            {columns.map((column) => <TableCell key={column.key} item={item} column={column}/>)}
-        </tr>
-    );
-}
-
-function TableBody<T extends object>({loading, data, bulkActions, columns}: Props<T>) {
-    const columnCount = columns.length + (bulkActions ? 1 : 0);
+function TableBody<T extends object>({loading, data, columns}: Props<T>) {
+    const columnCount = columns.length;
     if (loading) {
         return (
             <tbody>
@@ -156,7 +136,13 @@ function TableBody<T extends object>({loading, data, bulkActions, columns}: Prop
 
     return (
         <tbody>
-        {data.map((item, index) => <TableRow key={index} columns={columns} item={item} bulkActions={bulkActions}/>)}
+        {
+            data.map((item, index) => (
+                <tr>
+                    {columns.map((column) => <TableCell key={column.key} item={item} column={column}/>)}
+                </tr>
+            ))
+        }
         </tbody>
     );
 }
@@ -204,22 +190,20 @@ function TableHeaderCell<T extends object>({column, sortBy, onSort}: {
     );
 }
 
-function TableHeader<T extends object>({columns, bulkActions, sortBy, onSort}: Props<T>) {
+function TableHeader<T extends object>({columns, sortBy, onSort}: Props<T>) {
     return (
         <thead className="mb-4">
         <tr className="bg-primary-100 dark:bg-gray-800 rounded-lg">
-            {bulkActions && <th className="px-4 py-3 text-left text-sm font-medium text-gray-950 dark:text-gray-400">
-                <Checkbox
-                    checked={false}
-                    // onChange={(e) => selectAll(e.target.checked)}
-                />
-            </th>}
-            {columns.map((column) => <TableHeaderCell
-                key={column.key}
-                column={column}
-                sortBy={sortBy}
-                onSort={onSort}/>
-            )}
+            {
+                columns.map((column) => (
+                        <TableHeaderCell
+                            key={column.key}
+                            column={column}
+                            sortBy={sortBy}
+                            onSort={onSort}/>
+                    )
+                )
+            }
         </tr>
         </thead>
     );

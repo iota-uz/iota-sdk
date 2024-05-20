@@ -8,7 +8,7 @@ import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover"
 import {Calendar} from "@/components/ui/calendar"
 import {Pagination} from "@/components/ui/pagination"
 import * as Icons from "@phosphor-icons/react"
-import BaseTable, {Column, SortBy} from "@/components/ui/table";
+import BaseTable, {Column, SortBy} from "@/components/composite/table";
 import {gql, useQuery} from "@apollo/client";
 import React, {useEffect, useState} from "react";
 import PerPageSelect from "@/components/ui/per-page-select";
@@ -23,11 +23,11 @@ const GET_USERS = gql`
             total
             data {
                 id
-                first_name
-                last_name
+                firstName
+                lastName
                 email
-                created_at
-                updated_at
+                createdAt
+                updatedAt
                 avatar {
                     id
                 }
@@ -40,7 +40,7 @@ export default function Component() {
     const [perPage, setPerPage] = useState(10);
     const [page, setPage] = useState(1);
     const [sortBy, setSortBy] = useState<SortBy<User>>({
-        created_at: 'desc'
+        createdAt: 'desc'
     });
     const {data, loading, error, refetch} = useQuery(GET_USERS, {
         variables: {
@@ -59,13 +59,28 @@ export default function Component() {
 
     const {total, data: users} = data?.users || {total: 0, data: []};
     if (error) {
-        return <div>{error.message}</div>;
+        return (
+            <div className="container mx-auto px-8 py-8">
+                <h1 className="text-2xl">Ошибка при загрузке пользователей</h1>
+                <p className="text-lg">
+                    {error.message}
+                </p>
+                <code>
+                    {error.stack}
+                </code>
+                <div className="flex justify-center mt-4">
+                    <Button onClick={() => refetch()}>
+                        Повторить
+                    </Button>
+                </div>
+            </div>
+        );
     }
 
     const columns: Array<Column<User>> = [
         {
             label: 'ФИО',
-            key: 'first_name',
+            key: 'firstName',
             field: (item) => (
                 <div className="flex items-center gap-2.5">
                     <Avatar className="w-10 h-10">
@@ -77,21 +92,27 @@ export default function Component() {
                         <AvatarFallback>CN</AvatarFallback>
                     </Avatar>
                     <div>
-                        <p>{item.first_name} {item.last_name} {item.middle_name}</p>
+                        <p>{item.firstName} {item.lastName} {item.middleName}</p>
                         <p className="text-gray-400">{item.email}</p>
                     </div>
                 </div>
             ),
         },
         {
+            label: 'Последнее действие',
+            key: 'lastAction',
+            dateFormat: 'calendar',
+            sortable: true,
+        },
+        {
             label: 'Дата создания',
-            key: 'created_at',
+            key: 'createdAt',
             dateFormat: 'calendar',
             sortable: true,
         },
         {
             label: 'Дата обновления',
-            key: 'updated_at',
+            key: 'updatedAt',
             dateFormat: 'calendar',
             sortable: true,
         },

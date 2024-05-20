@@ -3,14 +3,14 @@ package positions
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
+	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
 	"gorm.io/gorm"
 )
 
 func Queries(db *gorm.DB) []*graphql.Field {
-	return adapters.DefaultQueries(db, &models.Position{}, "position", "positions")
+	return resolvers.DefaultQueries(db, &models.Position{}, "position", "positions")
 }
 
 func Mutations(db *gorm.DB) []*graphql.Field {
-	return adapters.DefaultMutations(db, &models.Position{}, "position")
+	return resolvers.DefaultMutations(db, &models.Position{}, "position")
 }

@@ -5,111 +5,95 @@ import (
 	"fmt"
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
+	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+	"strings"
 )
 
-func DefaultGetResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
+func ApplySort(query *gorm.DB, sortBy []interface{}, model interface{}) (*gorm.DB, error) {
+	mapping, err := adapters.GetGormFields(model, func(f *schema.Field, gf *adapters.GqlFieldMeta) bool {
+		return f.Readable && gf.Readable
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range sortBy {
+		parts := strings.Split(s.(string), " ")
+		if len(parts) > 2 {
+			return nil, errors.New(fmt.Sprintf("invalid sort field %s", s))
+		}
+		if len(parts) == 2 && parts[1] != "asc" && parts[1] != "desc" {
+			return nil, errors.New(fmt.Sprintf("invalid sort order %s", parts[1]))
+		}
+		field, ok := mapping[parts[0]]
+		if !ok {
+			return nil, errors.New(fmt.Sprintf("field %s not found", s))
+		}
+		query = query.Order(fmt.Sprintf("%s %s", field.DBName, parts[1]))
+	}
+	return query, nil
+}
+
+func GetQuery(db *gorm.DB, model interface{}, modelType *graphql.Object, name string) *graphql.Field {
 	pk, err := dbutils.GetModelPk(model)
 	if err != nil {
 		panic(err)
 	}
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		id, ok := p.Args[pk.DBName].(int)
-		if !ok {
-			return nil, errors.New(fmt.Sprintf("Invalid %s", pk.DBName))
-		}
-		var dest map[string]interface{}
-		if err := db.First(&dest, id).Error; err != nil {
-			return nil, err
-		}
-		return dest, nil
+	as := pk.Tag.Get("gql")
+	return &graphql.Field{
+		Name:        name,
+		Type:        modelType,
+		Description: "Get by id",
+		Args: graphql.FieldConfigArgument{
+			as: &graphql.ArgumentConfig{
+				Type: adapters.Sql2graphql[pk.DataType],
+			},
+		},
+		Resolve: DefaultGetResolver(db, model),
 	}
 }
 
-func DefaultCountResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		var count int64
-		if err := db.Model(model).Count(&count).Error; err != nil {
-			return nil, err
-		}
-		return count, nil
-	}
-}
-
-func DefaultPaginationResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		query := db.Model(model)
-		args := p.Source.(map[string]interface{})
-		limit, ok := args["limit"].(int)
-		if ok {
-			query = query.Limit(limit)
-		}
-		offset, ok := args["offset"].(int)
-		if ok {
-			query = query.Offset(offset)
-		}
-		sortBy, ok := args["sortBy"].([]interface{})
-		if ok {
-			for _, s := range sortBy {
-				query = query.Order(s.(string))
-			}
-		}
-		associations := GetAssociations(model, p.Info.FieldASTs[0].SelectionSet)
-		for _, a := range associations {
-			query = query.Joins(a)
-		}
-		var result []map[string]interface{}
-		if err := query.Find(&result).Error; err != nil {
-			return nil, err
-		}
-		for i, r := range result {
-			result[i] = NestMap(model, r)
-		}
-		return result, nil
-	}
-}
-
-func DefaultCreateResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		data := p.Args["data"].(map[string]interface{})
-		if err := db.Model(model).Create(data).Error; err != nil {
-			return nil, err
-		}
-		return data, nil
-	}
-}
-
-func DefaultUpdateResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
+func ListPaginatedQuery(db *gorm.DB, model interface{}, modelType *graphql.Object, name string) *graphql.Field {
 	pk, err := dbutils.GetModelPk(model)
 	if err != nil {
 		panic(err)
 	}
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		id, ok := p.Args[pk.DBName].(int)
-		if !ok {
-			return nil, errors.New(fmt.Sprintf("Invalid %s", pk.Name))
-		}
-		data := p.Args["data"].(map[string]interface{})
-		if err := db.Model(model).Where(pk.DBName, id).Updates(data).Error; err != nil {
-			return nil, err
-		}
-		return data, nil
-	}
-}
-
-func DefaultDeleteResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
-	pk, err := dbutils.GetModelPk(model)
-	if err != nil {
-		panic(err)
-	}
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		id, ok := p.Args[pk.DBName].(int)
-		if !ok {
-			return nil, errors.New(fmt.Sprintf("Invalid %s", pk.DBName))
-		}
-		if err := db.Model(model).Where(pk.DBName, id).Delete(model).Error; err != nil {
-			return nil, err
-		}
-		return id, nil
+	paginationType := graphql.NewObject(graphql.ObjectConfig{
+		Name: name,
+		Fields: graphql.Fields{
+			"total": &graphql.Field{
+				Type:    graphql.Int,
+				Resolve: DefaultCountResolver(db, model),
+			},
+			"data": &graphql.Field{
+				Type:    graphql.NewList(modelType),
+				Resolve: DefaultPaginationResolver(db, model),
+			},
+		},
+	})
+	return &graphql.Field{
+		Name:        name,
+		Type:        paginationType,
+		Description: "Get paginated",
+		Args: graphql.FieldConfigArgument{
+			"limit": &graphql.ArgumentConfig{
+				Type:         graphql.Int,
+				DefaultValue: 50,
+			},
+			"offset": &graphql.ArgumentConfig{
+				Type:         graphql.Int,
+				DefaultValue: 0,
+			},
+			"sortBy": &graphql.ArgumentConfig{
+				Type: graphql.NewList(graphql.String),
+				DefaultValue: []string{
+					pk.Name,
+				},
+			},
+		},
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			return p.Args, nil
+		},
 	}
 }

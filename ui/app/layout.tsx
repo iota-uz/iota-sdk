@@ -7,6 +7,7 @@ import {Sidebar} from "@/components/sidebar";
 import * as Icons from "@phosphor-icons/react";
 import {ApolloClient, ApolloProvider, InMemoryCache} from "@apollo/client";
 import Navbar from "@/components/navbar";
+import {Settings} from "luxon";
 
 const fontSans = FontSans({
     subsets: ["latin"],
@@ -19,6 +20,7 @@ const client = new ApolloClient({
 });
 
 export default function RootLayoutWithApollo({children}: { children: React.ReactNode }) {
+    Settings.defaultLocale = "ru";
     return <ApolloProvider client={client}>
         <RootLayout>
             {children}
