@@ -138,7 +138,7 @@ function TableBody<T extends object>({loading, data, columns}: Props<T>) {
         <tbody>
         {
             data.map((item, index) => (
-                <tr>
+                <tr key={index}>
                     {columns.map((column) => <TableCell key={column.key} item={item} column={column}/>)}
                 </tr>
             ))
@@ -221,11 +221,4 @@ export default function BaseTable<T extends object>(props: Props<T>) {
             </table>
         </div>
     );
-}
-
-BaseTable.defaultProps = {
-    loading: false,
-    bulkActions: false,
-    selected: [],
-    selector: (t: any) => t
 }

@@ -11,7 +11,7 @@ import {User} from '@/src/__generated__/graphql';
 import ConfirmDeleteModal from "@/components/composite/confirmDeleteModal";
 
 const GET_USER = gql`
-    query GetUser($id: Int!) {
+    query GetUser($id: ID!) {
         user(id: $id) {
             id
             firstName
@@ -22,23 +22,23 @@ const GET_USER = gql`
 `;
 
 const CREATE_USER = gql`
-    mutation CreateUser($data: CreateUserInput!) {
-        createUser(data: $data) {
+    mutation CreateUser($data: CreateUser!) {
+        createUser(input: $data) {
             id
         }
     }
 `;
 
 const UPDATE_USER = gql`
-    mutation UpdateUser($id: Int!, $data: UpdateUserInput!) {
-        updateUser(id: $id, data: $data) {
+    mutation UpdateUser($id: ID!, $data: UpdateUser!) {
+        updateUser(id: $id, input: $data) {
             id
         }
     }
 `;
 
 const DELETE_USER = gql`
-    mutation RemoveUser($id: Int!) {
+    mutation RemoveUser($id: ID!) {
         deleteUser(id: $id)
     }
 `;
@@ -138,9 +138,12 @@ export default function Component() {
     const router = useRouter();
     const params = useParams();
     const [user, setUser] = useState<User>({
+        id: '',
         firstName: '',
         lastName: '',
-        email: ''
+        email: '',
+        createdAt: '',
+        updatedAt: '',
     });
     let loading = false;
     if (params.id !== 'new') {

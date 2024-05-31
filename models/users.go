@@ -6,38 +6,28 @@ import (
 	"time"
 )
 
-type ValidationError struct {
-	Field   string `json:"field"`
-	Message string `json:"error"`
-}
-
-func (v *ValidationError) Error() string {
-	return v.Message
-}
-
-func NewValidationError(field, err string) *ValidationError {
-	return &ValidationError{Field: field, Message: err}
-}
-
 type User struct {
-	Id         int64          `gql:"id"`
-	FirstName  string         `gql:"firstName"`
-	LastName   string         `gql:"lastName"`
-	MiddleName JsonNullString `gql:"middleName"`
-	Password   string         `gql:"password,!read"`
-	Email      string         `gql:"email"`
-	Avatar     *Uploads       `gql:"avatar" gorm:"foreignKey:AvatarId"`
-	AvatarId   JsonNullInt64  `gql:"avatarId"`
-	EmployeeId JsonNullInt64  `gql:"employeeId"`
-	LastIp     JsonNullString `gql:"lastIp"`
-	LastLogin  *time.Time     `gql:"lastLogin"`
-	LastAction *time.Time     `gql:"lastAction"`
-	CreatedAt  *time.Time     `gql:"createdAt"`
-	UpdatedAt  *time.Time     `gql:"updatedAt"`
+	Id         int64
+	FirstName  string
+	LastName   string
+	MiddleName *string
+	Password   *string
+	Email      string
+	Avatar     *Upload `gorm:"foreignKey:AvatarId"`
+	AvatarId   *int64
+	EmployeeId *int64
+	LastIp     *string
+	LastLogin  *time.Time
+	LastAction *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 func (u *User) CheckPassword(password string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)) == nil
+	if u.Password == nil {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(*u.Password), []byte(password)) == nil
 }
 
 func (u *User) SetPassword(password string) error {
@@ -45,15 +35,32 @@ func (u *User) SetPassword(password string) error {
 	if err != nil {
 		return err
 	}
-	u.Password = string(hash)
+	newPassword := string(hash)
+	u.Password = &newPassword
 	return nil
+}
+
+func (u *User) avatar2graph() *model.Upload {
+	if u.Avatar == nil {
+		return nil
+	}
+	return u.Avatar.ToGraph()
 }
 
 func (u *User) ToGraph() *model.User {
 	return &model.User{
-		ID:        u.Id,
-		FirstName: u.FirstName,
-		LastName:  u.LastName,
-		Email:     u.Email,
+		ID:         u.Id,
+		FirstName:  u.FirstName,
+		LastName:   u.LastName,
+		MiddleName: u.MiddleName,
+		Email:      u.Email,
+		AvatarID:   u.AvatarId,
+		Avatar:     u.avatar2graph(),
+		EmployeeID: u.EmployeeId,
+		LastIP:     u.LastIp,
+		LastLogin:  u.LastLogin,
+		LastAction: u.LastAction,
+		CreatedAt:  u.CreatedAt,
+		UpdatedAt:  u.UpdatedAt,
 	}
 }

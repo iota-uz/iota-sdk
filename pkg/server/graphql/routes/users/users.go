@@ -3,8 +3,8 @@ package users
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
-	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
+	"github.com/iota-agency/iota-erp/sdk/graphql/old/adapters"
+	resolvers2 "github.com/iota-agency/iota-erp/sdk/graphql/old/resolvers"
 	"gorm.io/gorm"
 )
 
@@ -53,9 +53,9 @@ func Queries(db *gorm.DB) []*graphql.Field {
 		panic(err)
 	}
 	return []*graphql.Field{
-		resolvers.AggregateQuery(db, &models.User{}, "users"),
-		resolvers.ListPaginatedQuery(db, &models.User{}, userType, "users"),
-		resolvers.GetQuery(db, &models.User{}, userType, "user"),
+		resolvers2.AggregateQuery(db, &models.User{}, "users"),
+		resolvers2.ListPaginatedQuery(db, &models.User{}, userType, "users"),
+		resolvers2.GetQuery(db, &models.User{}, userType, "user"),
 	}
 }
 
@@ -112,7 +112,7 @@ func Mutations(db *gorm.DB) []*graphql.Field {
 				Type: graphql.NewNonNull(graphql.Int),
 			},
 		},
-		Resolve: resolvers.DefaultDeleteResolver(db, &models.User{}),
+		Resolve: resolvers2.DefaultDeleteResolver(db, &models.User{}),
 	}
 	return []*graphql.Field{createField, updateField, deleteField}
 }

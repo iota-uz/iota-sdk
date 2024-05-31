@@ -3,7 +3,7 @@ package employees
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
+	"github.com/iota-agency/iota-erp/sdk/graphql/old/resolvers"
 	"gorm.io/gorm"
 )
 

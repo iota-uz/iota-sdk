@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"time"
+)
 
 type EmployeeMeta struct {
 	EmployeeId        int64          `db:"employee_id" gql:"employee_id"`
@@ -15,12 +18,37 @@ type EmployeeMeta struct {
 	UpdatedAt         *time.Time     `db:"updated_at" gql:"updated_at"`
 }
 
+func (e *EmployeeMeta) ToGraph() *model.EmployeeMeta {
+	return &model.EmployeeMeta{
+		EmployeeID:        int(e.EmployeeId),
+		PrimaryLanguage:   &e.PrimaryLanguage.String,
+		SecondaryLanguage: &e.SecondaryLanguage.String,
+		Tin:               &e.Tin.String,
+		BirthDate:         e.BirthDate,
+		JoinDate:          e.JoinDate,
+		LeaveDate:         e.LeaveDate,
+		GeneralInfo:       &e.GeneralInfo.String,
+		YtProfileID:       &e.YtProfileId,
+		UpdatedAt:         *e.UpdatedAt,
+	}
+}
+
 type Position struct {
 	Id          int64          `db:"id" gql:"id"`
 	Name        string         `db:"name" gql:"name"`
 	Description JsonNullString `db:"description" gql:"description"`
 	CreatedAt   *time.Time     `db:"created_at" gql:"created_at"`
 	UpdatedAt   *time.Time     `db:"updated_at" gql:"updated_at"`
+}
+
+func (p *Position) ToGraph() *model.Position {
+	return &model.Position{
+		ID:          p.Id,
+		Name:        p.Name,
+		Description: &p.Description.String,
+		CreatedAt:   *p.CreatedAt,
+		UpdatedAt:   *p.UpdatedAt,
+	}
 }
 
 type Employee struct {
@@ -39,4 +67,24 @@ type Employee struct {
 	AvatarId    JsonNullInt64  `db:"avatar_id" gql:"avatar_id"`
 	CreatedAt   *time.Time     `db:"created_at" gql:"created_at"`
 	UpdatedAt   *time.Time     `db:"updated_at" gql:"updated_at"`
+}
+
+func (e *Employee) ToGraph() *model.Employee {
+	avatarID := int(e.AvatarId.Int64)
+	return &model.Employee{
+		ID:          e.Id,
+		FirstName:   e.FirstName,
+		LastName:    e.LastName,
+		MiddleName:  &e.MiddleName.String,
+		Email:       e.Email,
+		Phone:       &e.Phone.String,
+		Salary:      e.Salary,
+		HourlyRate:  e.HourlyRate,
+		Position:    e.Position.ToGraph(),
+		Coefficient: e.Coefficient,
+		Meta:        e.Meta.ToGraph(),
+		AvatarID:    &avatarID,
+		CreatedAt:   *e.CreatedAt,
+		UpdatedAt:   *e.UpdatedAt,
+	}
 }

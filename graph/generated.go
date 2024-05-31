@@ -98,6 +98,7 @@ type ComplexityRoot struct {
 	}
 
 	ExpenseCategory struct {
+		Amount      func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -180,12 +181,10 @@ type ComplexityRoot struct {
 
 	Permission struct {
 		Action      func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
 		Modifier    func(childComplexity int) int
 		Resource    func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
 	}
 
 	Position struct {
@@ -197,39 +196,28 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		AuthenticationLog           func(childComplexity int, id int64) int
-		AuthenticationLogs          func(childComplexity int) int
-		Employee                    func(childComplexity int, id int64) int
-		Employees                   func(childComplexity int) int
-		Expense                     func(childComplexity int, id int64) int
-		ExpenseCategories           func(childComplexity int) int
-		ExpenseCategory             func(childComplexity int, id int64) int
-		Expenses                    func(childComplexity int) int
-		PaginatedAuthenticationLogs func(childComplexity int, offset int, limit int) int
-		PaginatedEmployees          func(childComplexity int, offset int, limit int) int
-		PaginatedExpenseCategories  func(childComplexity int, offset int, limit int) int
-		PaginatedExpenses           func(childComplexity int, offset int, limit int) int
-		PaginatedPermissions        func(childComplexity int, offset int, limit int) int
-		PaginatedPositions          func(childComplexity int, offset int, limit int) int
-		PaginatedRolePermissions    func(childComplexity int, offset int, limit int) int
-		PaginatedRoles              func(childComplexity int, offset int, limit int) int
-		PaginatedSessions           func(childComplexity int, offset int, limit int) int
-		PaginatedUploads            func(childComplexity int, offset int, limit int) int
-		PaginatedUsers              func(childComplexity int, offset int, limit int) int
-		Permission                  func(childComplexity int, id int64) int
-		Permissions                 func(childComplexity int) int
-		Position                    func(childComplexity int, id int64) int
-		Positions                   func(childComplexity int) int
-		Role                        func(childComplexity int, id int64) int
-		RolePermission              func(childComplexity int, roleID int, permissionID int) int
-		RolePermissions             func(childComplexity int) int
-		Roles                       func(childComplexity int) int
-		Session                     func(childComplexity int, token string) int
-		Sessions                    func(childComplexity int) int
-		Upload                      func(childComplexity int, id int64) int
-		Uploads                     func(childComplexity int) int
-		User                        func(childComplexity int, id int64) int
-		Users                       func(childComplexity int) int
+		AuthenticationLog  func(childComplexity int, id int64) int
+		AuthenticationLogs func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Employee           func(childComplexity int, id int64) int
+		Employees          func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Expense            func(childComplexity int, id int64) int
+		ExpenseCategories  func(childComplexity int, offset int, limit int, sortBy []*string) int
+		ExpenseCategory    func(childComplexity int, id int64) int
+		Expenses           func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Permission         func(childComplexity int, id int64) int
+		Permissions        func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Position           func(childComplexity int, id int64) int
+		Positions          func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Role               func(childComplexity int, id int64) int
+		RolePermission     func(childComplexity int, roleID int, permissionID int) int
+		RolePermissions    func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Roles              func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Session            func(childComplexity int, token string) int
+		Sessions           func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Upload             func(childComplexity int, id int64) int
+		Uploads            func(childComplexity int, offset int, limit int, sortBy []*string) int
+		User               func(childComplexity int, id int64) int
+		Users              func(childComplexity int, offset int, limit int, sortBy []*string) int
 	}
 
 	Role struct {
@@ -254,7 +242,7 @@ type ComplexityRoot struct {
 		UserID    func(childComplexity int) int
 	}
 
-	Uploads struct {
+	Upload struct {
 		CreatedAt  func(childComplexity int) int
 		ID         func(childComplexity int) int
 		Mimetype   func(childComplexity int) int
@@ -277,6 +265,7 @@ type ComplexityRoot struct {
 		LastIP     func(childComplexity int) int
 		LastLogin  func(childComplexity int) int
 		LastName   func(childComplexity int) int
+		MiddleName func(childComplexity int) int
 		UpdatedAt  func(childComplexity int) int
 	}
 }
@@ -300,38 +289,27 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	User(ctx context.Context, id int64) (*model.User, error)
-	Users(ctx context.Context) ([]*model.User, error)
-	PaginatedUsers(ctx context.Context, offset int, limit int) (*model.PaginatedUsers, error)
-	Upload(ctx context.Context, id int64) (*model.Uploads, error)
-	Uploads(ctx context.Context) ([]*model.Uploads, error)
-	PaginatedUploads(ctx context.Context, offset int, limit int) (*model.PaginatedUploads, error)
+	Users(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUsers, error)
+	Upload(ctx context.Context, id int64) (*model.Upload, error)
+	Uploads(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUploads, error)
 	Employee(ctx context.Context, id int64) (*model.Employee, error)
-	Employees(ctx context.Context) ([]*model.Employee, error)
-	PaginatedEmployees(ctx context.Context, offset int, limit int) (*model.PaginatedEmployees, error)
+	Employees(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedEmployees, error)
 	Position(ctx context.Context, id int64) (*model.Position, error)
-	Positions(ctx context.Context) ([]*model.Position, error)
-	PaginatedPositions(ctx context.Context, offset int, limit int) (*model.PaginatedPositions, error)
+	Positions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPositions, error)
 	Role(ctx context.Context, id int64) (*model.Role, error)
-	Roles(ctx context.Context) ([]*model.Role, error)
-	PaginatedRoles(ctx context.Context, offset int, limit int) (*model.PaginatedRoles, error)
+	Roles(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRoles, error)
 	Permission(ctx context.Context, id int64) (*model.Permission, error)
-	Permissions(ctx context.Context) ([]*model.Permission, error)
-	PaginatedPermissions(ctx context.Context, offset int, limit int) (*model.PaginatedPermissions, error)
+	Permissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPermissions, error)
 	RolePermission(ctx context.Context, roleID int, permissionID int) (*model.RolePermissions, error)
-	RolePermissions(ctx context.Context) ([]*model.RolePermissions, error)
-	PaginatedRolePermissions(ctx context.Context, offset int, limit int) (*model.PaginatedRolePermissions, error)
+	RolePermissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRolePermissions, error)
 	ExpenseCategory(ctx context.Context, id int64) (*model.ExpenseCategory, error)
-	ExpenseCategories(ctx context.Context) ([]*model.ExpenseCategory, error)
-	PaginatedExpenseCategories(ctx context.Context, offset int, limit int) (*model.PaginatedExpenseCategories, error)
+	ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenseCategories, error)
 	Expense(ctx context.Context, id int64) (*model.Expense, error)
-	Expenses(ctx context.Context) ([]*model.Expense, error)
-	PaginatedExpenses(ctx context.Context, offset int, limit int) (*model.PaginatedExpenses, error)
+	Expenses(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenses, error)
 	AuthenticationLog(ctx context.Context, id int64) (*model.AuthenticationLog, error)
-	AuthenticationLogs(ctx context.Context) ([]*model.AuthenticationLog, error)
-	PaginatedAuthenticationLogs(ctx context.Context, offset int, limit int) (*model.PaginatedAuthenticationLogs, error)
+	AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedAuthenticationLogs, error)
 	Session(ctx context.Context, token string) (*model.Session, error)
-	Sessions(ctx context.Context) ([]*model.Session, error)
-	PaginatedSessions(ctx context.Context, offset int, limit int) (*model.PaginatedSessions, error)
+	Sessions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedSessions, error)
 }
 
 type executableSchema struct {
@@ -611,6 +589,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Expense.UpdatedAt(childComplexity), true
+
+	case "ExpenseCategory.amount":
+		if e.complexity.ExpenseCategory.Amount == nil {
+			break
+		}
+
+		return e.complexity.ExpenseCategory.Amount(childComplexity), true
 
 	case "ExpenseCategory.createdAt":
 		if e.complexity.ExpenseCategory.CreatedAt == nil {
@@ -988,13 +973,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Permission.Action(childComplexity), true
 
-	case "Permission.createdAt":
-		if e.complexity.Permission.CreatedAt == nil {
-			break
-		}
-
-		return e.complexity.Permission.CreatedAt(childComplexity), true
-
 	case "Permission.description":
 		if e.complexity.Permission.Description == nil {
 			break
@@ -1022,13 +1000,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Permission.Resource(childComplexity), true
-
-	case "Permission.updatedAt":
-		if e.complexity.Permission.UpdatedAt == nil {
-			break
-		}
-
-		return e.complexity.Permission.UpdatedAt(childComplexity), true
 
 	case "Position.createdAt":
 		if e.complexity.Position.CreatedAt == nil {
@@ -1082,7 +1053,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.AuthenticationLogs(childComplexity), true
+		args, err := ec.field_Query_authenticationLogs_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.AuthenticationLogs(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.employee":
 		if e.complexity.Query.Employee == nil {
@@ -1101,7 +1077,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Employees(childComplexity), true
+		args, err := ec.field_Query_employees_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Employees(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.expense":
 		if e.complexity.Query.Expense == nil {
@@ -1120,7 +1101,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.ExpenseCategories(childComplexity), true
+		args, err := ec.field_Query_expenseCategories_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ExpenseCategories(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.expenseCategory":
 		if e.complexity.Query.ExpenseCategory == nil {
@@ -1139,139 +1125,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Expenses(childComplexity), true
-
-	case "Query.paginatedAuthenticationLogs":
-		if e.complexity.Query.PaginatedAuthenticationLogs == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedAuthenticationLogs_args(context.TODO(), rawArgs)
+		args, err := ec.field_Query_expenses_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Query.PaginatedAuthenticationLogs(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedEmployees":
-		if e.complexity.Query.PaginatedEmployees == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedEmployees_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedEmployees(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedExpenseCategories":
-		if e.complexity.Query.PaginatedExpenseCategories == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedExpenseCategories_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedExpenseCategories(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedExpenses":
-		if e.complexity.Query.PaginatedExpenses == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedExpenses_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedExpenses(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedPermissions":
-		if e.complexity.Query.PaginatedPermissions == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedPermissions_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedPermissions(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedPositions":
-		if e.complexity.Query.PaginatedPositions == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedPositions_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedPositions(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedRolePermissions":
-		if e.complexity.Query.PaginatedRolePermissions == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedRolePermissions_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedRolePermissions(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedRoles":
-		if e.complexity.Query.PaginatedRoles == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedRoles_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedRoles(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedSessions":
-		if e.complexity.Query.PaginatedSessions == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedSessions_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedSessions(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedUploads":
-		if e.complexity.Query.PaginatedUploads == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedUploads_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedUploads(childComplexity, args["offset"].(int), args["limit"].(int)), true
-
-	case "Query.paginatedUsers":
-		if e.complexity.Query.PaginatedUsers == nil {
-			break
-		}
-
-		args, err := ec.field_Query_paginatedUsers_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.PaginatedUsers(childComplexity, args["offset"].(int), args["limit"].(int)), true
+		return e.complexity.Query.Expenses(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.permission":
 		if e.complexity.Query.Permission == nil {
@@ -1290,7 +1149,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Permissions(childComplexity), true
+		args, err := ec.field_Query_permissions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Permissions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.position":
 		if e.complexity.Query.Position == nil {
@@ -1309,7 +1173,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Positions(childComplexity), true
+		args, err := ec.field_Query_positions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Positions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.role":
 		if e.complexity.Query.Role == nil {
@@ -1340,14 +1209,24 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.RolePermissions(childComplexity), true
+		args, err := ec.field_Query_rolePermissions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.RolePermissions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.roles":
 		if e.complexity.Query.Roles == nil {
 			break
 		}
 
-		return e.complexity.Query.Roles(childComplexity), true
+		args, err := ec.field_Query_roles_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Roles(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.session":
 		if e.complexity.Query.Session == nil {
@@ -1366,7 +1245,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Sessions(childComplexity), true
+		args, err := ec.field_Query_sessions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Sessions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.upload":
 		if e.complexity.Query.Upload == nil {
@@ -1385,7 +1269,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Uploads(childComplexity), true
+		args, err := ec.field_Query_uploads_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Uploads(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Query.user":
 		if e.complexity.Query.User == nil {
@@ -1404,7 +1293,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Users(childComplexity), true
+		args, err := ec.field_Query_users_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Users(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
 
 	case "Role.createdAt":
 		if e.complexity.Role.CreatedAt == nil {
@@ -1497,61 +1391,61 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Session.UserID(childComplexity), true
 
-	case "Uploads.createdAt":
-		if e.complexity.Uploads.CreatedAt == nil {
+	case "Upload.createdAt":
+		if e.complexity.Upload.CreatedAt == nil {
 			break
 		}
 
-		return e.complexity.Uploads.CreatedAt(childComplexity), true
+		return e.complexity.Upload.CreatedAt(childComplexity), true
 
-	case "Uploads.id":
-		if e.complexity.Uploads.ID == nil {
+	case "Upload.id":
+		if e.complexity.Upload.ID == nil {
 			break
 		}
 
-		return e.complexity.Uploads.ID(childComplexity), true
+		return e.complexity.Upload.ID(childComplexity), true
 
-	case "Uploads.mimetype":
-		if e.complexity.Uploads.Mimetype == nil {
+	case "Upload.mimetype":
+		if e.complexity.Upload.Mimetype == nil {
 			break
 		}
 
-		return e.complexity.Uploads.Mimetype(childComplexity), true
+		return e.complexity.Upload.Mimetype(childComplexity), true
 
-	case "Uploads.name":
-		if e.complexity.Uploads.Name == nil {
+	case "Upload.name":
+		if e.complexity.Upload.Name == nil {
 			break
 		}
 
-		return e.complexity.Uploads.Name(childComplexity), true
+		return e.complexity.Upload.Name(childComplexity), true
 
-	case "Uploads.path":
-		if e.complexity.Uploads.Path == nil {
+	case "Upload.path":
+		if e.complexity.Upload.Path == nil {
 			break
 		}
 
-		return e.complexity.Uploads.Path(childComplexity), true
+		return e.complexity.Upload.Path(childComplexity), true
 
-	case "Uploads.size":
-		if e.complexity.Uploads.Size == nil {
+	case "Upload.size":
+		if e.complexity.Upload.Size == nil {
 			break
 		}
 
-		return e.complexity.Uploads.Size(childComplexity), true
+		return e.complexity.Upload.Size(childComplexity), true
 
-	case "Uploads.updatedAt":
-		if e.complexity.Uploads.UpdatedAt == nil {
+	case "Upload.updatedAt":
+		if e.complexity.Upload.UpdatedAt == nil {
 			break
 		}
 
-		return e.complexity.Uploads.UpdatedAt(childComplexity), true
+		return e.complexity.Upload.UpdatedAt(childComplexity), true
 
-	case "Uploads.uploaderId":
-		if e.complexity.Uploads.UploaderID == nil {
+	case "Upload.uploaderId":
+		if e.complexity.Upload.UploaderID == nil {
 			break
 		}
 
-		return e.complexity.Uploads.UploaderID(childComplexity), true
+		return e.complexity.Upload.UploaderID(childComplexity), true
 
 	case "User.avatar":
 		if e.complexity.User.Avatar == nil {
@@ -1629,6 +1523,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.User.LastName(childComplexity), true
+
+	case "User.middleName":
+		if e.complexity.User.MiddleName == nil {
+			break
+		}
+
+		return e.complexity.User.MiddleName(childComplexity), true
 
 	case "User.updatedAt":
 		if e.complexity.User.UpdatedAt == nil {
@@ -2070,6 +1971,39 @@ func (ec *executionContext) field_Query_authenticationLog_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_authenticationLogs_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_employee_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -2082,6 +2016,72 @@ func (ec *executionContext) field_Query_employee_args(ctx context.Context, rawAr
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_employees_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_expenseCategories_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
 	return args, nil
 }
 
@@ -2115,7 +2115,7 @@ func (ec *executionContext) field_Query_expense_args(ctx context.Context, rawArg
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_paginatedAuthenticationLogs_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Query_expenses_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 int
@@ -2136,246 +2136,15 @@ func (ec *executionContext) field_Query_paginatedAuthenticationLogs_args(ctx con
 		}
 	}
 	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedEmployees_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedExpenseCategories_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedExpenses_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedPermissions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedPositions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedRolePermissions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedRoles_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedSessions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedUploads_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_paginatedUsers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["offset"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["limit"] = arg1
+	args["sortBy"] = arg2
 	return args, nil
 }
 
@@ -2394,6 +2163,39 @@ func (ec *executionContext) field_Query_permission_args(ctx context.Context, raw
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_permissions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_position_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -2406,6 +2208,39 @@ func (ec *executionContext) field_Query_position_args(ctx context.Context, rawAr
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_positions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
 	return args, nil
 }
 
@@ -2433,6 +2268,39 @@ func (ec *executionContext) field_Query_rolePermission_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_rolePermissions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_role_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -2445,6 +2313,39 @@ func (ec *executionContext) field_Query_role_args(ctx context.Context, rawArgs m
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_roles_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
 	return args, nil
 }
 
@@ -2463,6 +2364,39 @@ func (ec *executionContext) field_Query_session_args(ctx context.Context, rawArg
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_sessions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_upload_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -2478,6 +2412,39 @@ func (ec *executionContext) field_Query_upload_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_uploads_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -2490,6 +2457,39 @@ func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs m
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 []*string
+	if tmp, ok := rawArgs["sortBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["sortBy"] = arg2
 	return args, nil
 }
 
@@ -3451,11 +3451,14 @@ func (ec *executionContext) _EmployeeMeta_employeeId(ctx context.Context, field 
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*int)
+	res := resTmp.(int)
 	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EmployeeMeta_employeeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3617,9 +3620,9 @@ func (ec *executionContext) _EmployeeMeta_birthDate(ctx context.Context, field g
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EmployeeMeta_birthDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3629,7 +3632,7 @@ func (ec *executionContext) fieldContext_EmployeeMeta_birthDate(_ context.Contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3658,9 +3661,9 @@ func (ec *executionContext) _EmployeeMeta_joinDate(ctx context.Context, field gr
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EmployeeMeta_joinDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3670,7 +3673,7 @@ func (ec *executionContext) fieldContext_EmployeeMeta_joinDate(_ context.Context
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3699,9 +3702,9 @@ func (ec *executionContext) _EmployeeMeta_leaveDate(ctx context.Context, field g
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EmployeeMeta_leaveDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3711,7 +3714,7 @@ func (ec *executionContext) fieldContext_EmployeeMeta_leaveDate(_ context.Contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3820,11 +3823,14 @@ func (ec *executionContext) _EmployeeMeta_updatedAt(ctx context.Context, field g
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EmployeeMeta_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3834,7 +3840,7 @@ func (ec *executionContext) fieldContext_EmployeeMeta_updatedAt(_ context.Contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3954,9 +3960,9 @@ func (ec *executionContext) _Expense_categoryId(ctx context.Context, field graph
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Expense_categoryId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3966,7 +3972,7 @@ func (ec *executionContext) fieldContext_Expense_categoryId(_ context.Context, f
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4014,6 +4020,8 @@ func (ec *executionContext) fieldContext_Expense_category(_ context.Context, fie
 				return ec.fieldContext_ExpenseCategory_name(ctx, field)
 			case "description":
 				return ec.fieldContext_ExpenseCategory_description(ctx, field)
+			case "amount":
+				return ec.fieldContext_ExpenseCategory_amount(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
 			case "updatedAt":
@@ -4046,11 +4054,14 @@ func (ec *executionContext) _Expense_date(ctx context.Context, field graphql.Col
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Expense_date(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4060,7 +4071,7 @@ func (ec *executionContext) fieldContext_Expense_date(_ context.Context, field g
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4283,6 +4294,50 @@ func (ec *executionContext) fieldContext_ExpenseCategory_description(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _ExpenseCategory_amount(ctx context.Context, field graphql.CollectedField, obj *model.ExpenseCategory) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ExpenseCategory_amount(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Amount, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ExpenseCategory_amount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExpenseCategory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ExpenseCategory_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.ExpenseCategory) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
 	if err != nil {
@@ -4485,6 +4540,8 @@ func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context
 				return ec.fieldContext_User_firstName(ctx, field)
 			case "lastName":
 				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "avatar":
@@ -4566,6 +4623,8 @@ func (ec *executionContext) fieldContext_Mutation_updateUser(ctx context.Context
 				return ec.fieldContext_User_firstName(ctx, field)
 			case "lastName":
 				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "avatar":
@@ -4952,6 +5011,8 @@ func (ec *executionContext) fieldContext_Mutation_createExpenseCategory(ctx cont
 				return ec.fieldContext_ExpenseCategory_name(ctx, field)
 			case "description":
 				return ec.fieldContext_ExpenseCategory_description(ctx, field)
+			case "amount":
+				return ec.fieldContext_ExpenseCategory_amount(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
 			case "updatedAt":
@@ -5019,6 +5080,8 @@ func (ec *executionContext) fieldContext_Mutation_updateExpenseCategory(ctx cont
 				return ec.fieldContext_ExpenseCategory_name(ctx, field)
 			case "description":
 				return ec.fieldContext_ExpenseCategory_description(ctx, field)
+			case "amount":
+				return ec.fieldContext_ExpenseCategory_amount(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
 			case "updatedAt":
@@ -5613,6 +5676,8 @@ func (ec *executionContext) fieldContext_PaginatedExpenseCategories_data(_ conte
 				return ec.fieldContext_ExpenseCategory_name(ctx, field)
 			case "description":
 				return ec.fieldContext_ExpenseCategory_description(ctx, field)
+			case "amount":
+				return ec.fieldContext_ExpenseCategory_amount(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
 			case "updatedAt":
@@ -5821,10 +5886,6 @@ func (ec *executionContext) fieldContext_PaginatedPermissions_data(_ context.Con
 				return ec.fieldContext_Permission_action(ctx, field)
 			case "modifier":
 				return ec.fieldContext_Permission_modifier(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Permission_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Permission_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Permission", field.Name)
 		},
@@ -6298,9 +6359,9 @@ func (ec *executionContext) _PaginatedUploads_data(ctx context.Context, field gr
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.Uploads)
+	res := resTmp.([]*model.Upload)
 	fc.Result = res
-	return ec.marshalNUploads2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploadsᚄ(ctx, field.Selections, res)
+	return ec.marshalNUpload2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploadᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedUploads_data(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6312,23 +6373,23 @@ func (ec *executionContext) fieldContext_PaginatedUploads_data(_ context.Context
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
-				return ec.fieldContext_Uploads_id(ctx, field)
+				return ec.fieldContext_Upload_id(ctx, field)
 			case "name":
-				return ec.fieldContext_Uploads_name(ctx, field)
+				return ec.fieldContext_Upload_name(ctx, field)
 			case "path":
-				return ec.fieldContext_Uploads_path(ctx, field)
+				return ec.fieldContext_Upload_path(ctx, field)
 			case "uploaderId":
-				return ec.fieldContext_Uploads_uploaderId(ctx, field)
+				return ec.fieldContext_Upload_uploaderId(ctx, field)
 			case "mimetype":
-				return ec.fieldContext_Uploads_mimetype(ctx, field)
+				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "size":
-				return ec.fieldContext_Uploads_size(ctx, field)
+				return ec.fieldContext_Upload_size(ctx, field)
 			case "createdAt":
-				return ec.fieldContext_Uploads_createdAt(ctx, field)
+				return ec.fieldContext_Upload_createdAt(ctx, field)
 			case "updatedAt":
-				return ec.fieldContext_Uploads_updatedAt(ctx, field)
+				return ec.fieldContext_Upload_updatedAt(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type Uploads", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type Upload", field.Name)
 		},
 	}
 	return fc, nil
@@ -6423,6 +6484,8 @@ func (ec *executionContext) fieldContext_PaginatedUsers_data(_ context.Context, 
 				return ec.fieldContext_User_firstName(ctx, field)
 			case "lastName":
 				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "avatar":
@@ -6700,94 +6763,6 @@ func (ec *executionContext) fieldContext_Permission_modifier(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _Permission_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Permission) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Permission_createdAt(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.CreatedAt, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(time.Time)
-	fc.Result = res
-	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Permission_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Permission",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Time does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Permission_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Permission) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Permission_updatedAt(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.UpdatedAt, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(time.Time)
-	fc.Result = res
-	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Permission_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Permission",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Time does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Position_id(ctx context.Context, field graphql.CollectedField, obj *model.Position) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Position_id(ctx, field)
 	if err != nil {
@@ -7047,6 +7022,8 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 				return ec.fieldContext_User_firstName(ctx, field)
 			case "lastName":
 				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "avatar":
@@ -7097,77 +7074,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Users(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.User)
-	fc.Result = res
-	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUserᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_users(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_User_id(ctx, field)
-			case "firstName":
-				return ec.fieldContext_User_firstName(ctx, field)
-			case "lastName":
-				return ec.fieldContext_User_lastName(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
-			case "avatar":
-				return ec.fieldContext_User_avatar(ctx, field)
-			case "avatarId":
-				return ec.fieldContext_User_avatarId(ctx, field)
-			case "employeeId":
-				return ec.fieldContext_User_employeeId(ctx, field)
-			case "lastIp":
-				return ec.fieldContext_User_lastIp(ctx, field)
-			case "lastLogin":
-				return ec.fieldContext_User_lastLogin(ctx, field)
-			case "lastAction":
-				return ec.fieldContext_User_lastAction(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_User_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_User_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedUsers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedUsers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedUsers(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Users(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7184,7 +7091,7 @@ func (ec *executionContext) _Query_paginatedUsers(ctx context.Context, field gra
 	return ec.marshalNPaginatedUsers2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedUsers(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedUsers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_users(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -7207,7 +7114,7 @@ func (ec *executionContext) fieldContext_Query_paginatedUsers(ctx context.Contex
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedUsers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_users_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -7237,9 +7144,9 @@ func (ec *executionContext) _Query_upload(ctx context.Context, field graphql.Col
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.Uploads)
+	res := resTmp.(*model.Upload)
 	fc.Result = res
-	return ec.marshalOUploads2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploads(ctx, field.Selections, res)
+	return ec.marshalOUpload2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_upload(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -7251,23 +7158,23 @@ func (ec *executionContext) fieldContext_Query_upload(ctx context.Context, field
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
-				return ec.fieldContext_Uploads_id(ctx, field)
+				return ec.fieldContext_Upload_id(ctx, field)
 			case "name":
-				return ec.fieldContext_Uploads_name(ctx, field)
+				return ec.fieldContext_Upload_name(ctx, field)
 			case "path":
-				return ec.fieldContext_Uploads_path(ctx, field)
+				return ec.fieldContext_Upload_path(ctx, field)
 			case "uploaderId":
-				return ec.fieldContext_Uploads_uploaderId(ctx, field)
+				return ec.fieldContext_Upload_uploaderId(ctx, field)
 			case "mimetype":
-				return ec.fieldContext_Uploads_mimetype(ctx, field)
+				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "size":
-				return ec.fieldContext_Uploads_size(ctx, field)
+				return ec.fieldContext_Upload_size(ctx, field)
 			case "createdAt":
-				return ec.fieldContext_Uploads_createdAt(ctx, field)
+				return ec.fieldContext_Upload_createdAt(ctx, field)
 			case "updatedAt":
-				return ec.fieldContext_Uploads_updatedAt(ctx, field)
+				return ec.fieldContext_Upload_updatedAt(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type Uploads", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type Upload", field.Name)
 		},
 	}
 	defer func() {
@@ -7298,69 +7205,7 @@ func (ec *executionContext) _Query_uploads(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Uploads(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Uploads)
-	fc.Result = res
-	return ec.marshalNUploads2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploadsᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_uploads(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Uploads_id(ctx, field)
-			case "name":
-				return ec.fieldContext_Uploads_name(ctx, field)
-			case "path":
-				return ec.fieldContext_Uploads_path(ctx, field)
-			case "uploaderId":
-				return ec.fieldContext_Uploads_uploaderId(ctx, field)
-			case "mimetype":
-				return ec.fieldContext_Uploads_mimetype(ctx, field)
-			case "size":
-				return ec.fieldContext_Uploads_size(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Uploads_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Uploads_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Uploads", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedUploads(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedUploads(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedUploads(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Uploads(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7377,7 +7222,7 @@ func (ec *executionContext) _Query_paginatedUploads(ctx context.Context, field g
 	return ec.marshalNPaginatedUploads2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedUploads(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedUploads(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_uploads(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -7400,7 +7245,7 @@ func (ec *executionContext) fieldContext_Query_paginatedUploads(ctx context.Cont
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedUploads_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_uploads_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -7505,83 +7350,7 @@ func (ec *executionContext) _Query_employees(ctx context.Context, field graphql.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Employees(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Employee)
-	fc.Result = res
-	return ec.marshalNEmployee2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐEmployeeᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_employees(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Employee_id(ctx, field)
-			case "firstName":
-				return ec.fieldContext_Employee_firstName(ctx, field)
-			case "lastName":
-				return ec.fieldContext_Employee_lastName(ctx, field)
-			case "middleName":
-				return ec.fieldContext_Employee_middleName(ctx, field)
-			case "email":
-				return ec.fieldContext_Employee_email(ctx, field)
-			case "phone":
-				return ec.fieldContext_Employee_phone(ctx, field)
-			case "salary":
-				return ec.fieldContext_Employee_salary(ctx, field)
-			case "hourlyRate":
-				return ec.fieldContext_Employee_hourlyRate(ctx, field)
-			case "positionId":
-				return ec.fieldContext_Employee_positionId(ctx, field)
-			case "coefficient":
-				return ec.fieldContext_Employee_coefficient(ctx, field)
-			case "meta":
-				return ec.fieldContext_Employee_meta(ctx, field)
-			case "position":
-				return ec.fieldContext_Employee_position(ctx, field)
-			case "avatarId":
-				return ec.fieldContext_Employee_avatarId(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Employee_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Employee_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Employee", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedEmployees(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedEmployees(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedEmployees(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Employees(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7598,7 +7367,7 @@ func (ec *executionContext) _Query_paginatedEmployees(ctx context.Context, field
 	return ec.marshalNPaginatedEmployees2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedEmployees(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedEmployees(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_employees(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -7621,7 +7390,7 @@ func (ec *executionContext) fieldContext_Query_paginatedEmployees(ctx context.Co
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedEmployees_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_employees_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -7706,63 +7475,7 @@ func (ec *executionContext) _Query_positions(ctx context.Context, field graphql.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Positions(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Position)
-	fc.Result = res
-	return ec.marshalNPosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPositionᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_positions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Position_id(ctx, field)
-			case "name":
-				return ec.fieldContext_Position_name(ctx, field)
-			case "description":
-				return ec.fieldContext_Position_description(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Position_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Position_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedPositions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedPositions(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedPositions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Positions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7779,7 +7492,7 @@ func (ec *executionContext) _Query_paginatedPositions(ctx context.Context, field
 	return ec.marshalNPaginatedPositions2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedPositions(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedPositions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_positions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -7802,7 +7515,7 @@ func (ec *executionContext) fieldContext_Query_paginatedPositions(ctx context.Co
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedPositions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_positions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -7887,63 +7600,7 @@ func (ec *executionContext) _Query_roles(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Roles(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Role)
-	fc.Result = res
-	return ec.marshalNRole2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐRoleᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_roles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Role_id(ctx, field)
-			case "name":
-				return ec.fieldContext_Role_name(ctx, field)
-			case "description":
-				return ec.fieldContext_Role_description(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Role_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Role_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Role", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedRoles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedRoles(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedRoles(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Roles(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7960,7 +7617,7 @@ func (ec *executionContext) _Query_paginatedRoles(ctx context.Context, field gra
 	return ec.marshalNPaginatedRoles2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedRoles(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedRoles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_roles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -7983,7 +7640,7 @@ func (ec *executionContext) fieldContext_Query_paginatedRoles(ctx context.Contex
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedRoles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_roles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8036,10 +7693,6 @@ func (ec *executionContext) fieldContext_Query_permission(ctx context.Context, f
 				return ec.fieldContext_Permission_action(ctx, field)
 			case "modifier":
 				return ec.fieldContext_Permission_modifier(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Permission_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Permission_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Permission", field.Name)
 		},
@@ -8072,67 +7725,7 @@ func (ec *executionContext) _Query_permissions(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Permissions(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Permission)
-	fc.Result = res
-	return ec.marshalNPermission2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPermissionᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_permissions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Permission_id(ctx, field)
-			case "description":
-				return ec.fieldContext_Permission_description(ctx, field)
-			case "resource":
-				return ec.fieldContext_Permission_resource(ctx, field)
-			case "action":
-				return ec.fieldContext_Permission_action(ctx, field)
-			case "modifier":
-				return ec.fieldContext_Permission_modifier(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Permission_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Permission_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Permission", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedPermissions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedPermissions(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedPermissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Permissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8149,7 +7742,7 @@ func (ec *executionContext) _Query_paginatedPermissions(ctx context.Context, fie
 	return ec.marshalNPaginatedPermissions2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedPermissions(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedPermissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_permissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -8172,7 +7765,7 @@ func (ec *executionContext) fieldContext_Query_paginatedPermissions(ctx context.
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedPermissions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_permissions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8251,57 +7844,7 @@ func (ec *executionContext) _Query_rolePermissions(ctx context.Context, field gr
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().RolePermissions(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.RolePermissions)
-	fc.Result = res
-	return ec.marshalNRolePermissions2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐRolePermissionsᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_rolePermissions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "permissionId":
-				return ec.fieldContext_RolePermissions_permissionId(ctx, field)
-			case "roleId":
-				return ec.fieldContext_RolePermissions_roleId(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type RolePermissions", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedRolePermissions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedRolePermissions(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedRolePermissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().RolePermissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8318,7 +7861,7 @@ func (ec *executionContext) _Query_paginatedRolePermissions(ctx context.Context,
 	return ec.marshalNPaginatedRolePermissions2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedRolePermissions(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedRolePermissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_rolePermissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -8341,7 +7884,7 @@ func (ec *executionContext) fieldContext_Query_paginatedRolePermissions(ctx cont
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedRolePermissions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_rolePermissions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8390,6 +7933,8 @@ func (ec *executionContext) fieldContext_Query_expenseCategory(ctx context.Conte
 				return ec.fieldContext_ExpenseCategory_name(ctx, field)
 			case "description":
 				return ec.fieldContext_ExpenseCategory_description(ctx, field)
+			case "amount":
+				return ec.fieldContext_ExpenseCategory_amount(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
 			case "updatedAt":
@@ -8426,63 +7971,7 @@ func (ec *executionContext) _Query_expenseCategories(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().ExpenseCategories(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.ExpenseCategory)
-	fc.Result = res
-	return ec.marshalNExpenseCategory2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpenseCategoryᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_expenseCategories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_ExpenseCategory_id(ctx, field)
-			case "name":
-				return ec.fieldContext_ExpenseCategory_name(ctx, field)
-			case "description":
-				return ec.fieldContext_ExpenseCategory_description(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_ExpenseCategory_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type ExpenseCategory", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedExpenseCategories(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedExpenseCategories(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedExpenseCategories(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().ExpenseCategories(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8499,7 +7988,7 @@ func (ec *executionContext) _Query_paginatedExpenseCategories(ctx context.Contex
 	return ec.marshalNPaginatedExpenseCategories2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedExpenseCategories(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedExpenseCategories(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_expenseCategories(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -8522,7 +8011,7 @@ func (ec *executionContext) fieldContext_Query_paginatedExpenseCategories(ctx co
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedExpenseCategories_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_expenseCategories_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8611,67 +8100,7 @@ func (ec *executionContext) _Query_expenses(ctx context.Context, field graphql.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Expenses(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Expense)
-	fc.Result = res
-	return ec.marshalNExpense2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpenseᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_expenses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Expense_id(ctx, field)
-			case "amount":
-				return ec.fieldContext_Expense_amount(ctx, field)
-			case "categoryId":
-				return ec.fieldContext_Expense_categoryId(ctx, field)
-			case "category":
-				return ec.fieldContext_Expense_category(ctx, field)
-			case "date":
-				return ec.fieldContext_Expense_date(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Expense_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Expense_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Expense", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedExpenses(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedExpenses(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedExpenses(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Expenses(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8688,7 +8117,7 @@ func (ec *executionContext) _Query_paginatedExpenses(ctx context.Context, field 
 	return ec.marshalNPaginatedExpenses2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedExpenses(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedExpenses(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_expenses(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -8711,7 +8140,7 @@ func (ec *executionContext) fieldContext_Query_paginatedExpenses(ctx context.Con
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedExpenses_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_expenses_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8796,63 +8225,7 @@ func (ec *executionContext) _Query_authenticationLogs(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().AuthenticationLogs(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.AuthenticationLog)
-	fc.Result = res
-	return ec.marshalNAuthenticationLog2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐAuthenticationLogᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_authenticationLogs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_AuthenticationLog_id(ctx, field)
-			case "userId":
-				return ec.fieldContext_AuthenticationLog_userId(ctx, field)
-			case "ip":
-				return ec.fieldContext_AuthenticationLog_ip(ctx, field)
-			case "userAgent":
-				return ec.fieldContext_AuthenticationLog_userAgent(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_AuthenticationLog_createdAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type AuthenticationLog", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedAuthenticationLogs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedAuthenticationLogs(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedAuthenticationLogs(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().AuthenticationLogs(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8869,7 +8242,7 @@ func (ec *executionContext) _Query_paginatedAuthenticationLogs(ctx context.Conte
 	return ec.marshalNPaginatedAuthenticationLogs2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedAuthenticationLogs(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedAuthenticationLogs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_authenticationLogs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -8892,7 +8265,7 @@ func (ec *executionContext) fieldContext_Query_paginatedAuthenticationLogs(ctx c
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedAuthenticationLogs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_authenticationLogs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8979,65 +8352,7 @@ func (ec *executionContext) _Query_sessions(ctx context.Context, field graphql.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Sessions(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Session)
-	fc.Result = res
-	return ec.marshalNSession2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐSessionᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_sessions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "token":
-				return ec.fieldContext_Session_token(ctx, field)
-			case "userId":
-				return ec.fieldContext_Session_userId(ctx, field)
-			case "ip":
-				return ec.fieldContext_Session_ip(ctx, field)
-			case "userAgent":
-				return ec.fieldContext_Session_userAgent(ctx, field)
-			case "expiresAt":
-				return ec.fieldContext_Session_expiresAt(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Session_createdAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedSessions(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedSessions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int))
+		return ec.resolvers.Query().Sessions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -9054,7 +8369,7 @@ func (ec *executionContext) _Query_paginatedSessions(ctx context.Context, field 
 	return ec.marshalNPaginatedSessions2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedSessions(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_paginatedSessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_sessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -9077,7 +8392,7 @@ func (ec *executionContext) fieldContext_Query_paginatedSessions(ctx context.Con
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_paginatedSessions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_sessions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -9782,8 +9097,8 @@ func (ec *executionContext) fieldContext_Session_createdAt(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_id(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_id(ctx, field)
+func (ec *executionContext) _Upload_id(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_id(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9813,9 +9128,9 @@ func (ec *executionContext) _Uploads_id(ctx context.Context, field graphql.Colle
 	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -9826,8 +9141,8 @@ func (ec *executionContext) fieldContext_Uploads_id(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_name(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_name(ctx, field)
+func (ec *executionContext) _Upload_name(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_name(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9857,9 +9172,9 @@ func (ec *executionContext) _Uploads_name(ctx context.Context, field graphql.Col
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -9870,8 +9185,8 @@ func (ec *executionContext) fieldContext_Uploads_name(_ context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_path(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_path(ctx, field)
+func (ec *executionContext) _Upload_path(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_path(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9901,9 +9216,9 @@ func (ec *executionContext) _Uploads_path(ctx context.Context, field graphql.Col
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -9914,8 +9229,8 @@ func (ec *executionContext) fieldContext_Uploads_path(_ context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_uploaderId(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_uploaderId(ctx, field)
+func (ec *executionContext) _Upload_uploaderId(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_uploaderId(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9937,26 +9252,26 @@ func (ec *executionContext) _Uploads_uploaderId(ctx context.Context, field graph
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*int)
+	res := resTmp.(*int64)
 	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+	return ec.marshalOID2ᚖint64(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_uploaderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_uploaderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_mimetype(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_mimetype(ctx, field)
+func (ec *executionContext) _Upload_mimetype(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_mimetype(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9986,9 +9301,9 @@ func (ec *executionContext) _Uploads_mimetype(ctx context.Context, field graphql
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_mimetype(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_mimetype(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -9999,8 +9314,8 @@ func (ec *executionContext) fieldContext_Uploads_mimetype(_ context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_size(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_size(ctx, field)
+func (ec *executionContext) _Upload_size(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_size(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10030,9 +9345,9 @@ func (ec *executionContext) _Uploads_size(ctx context.Context, field graphql.Col
 	return ec.marshalNFloat2float64(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -10043,8 +9358,8 @@ func (ec *executionContext) fieldContext_Uploads_size(_ context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_createdAt(ctx, field)
+func (ec *executionContext) _Upload_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_createdAt(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10074,9 +9389,9 @@ func (ec *executionContext) _Uploads_createdAt(ctx context.Context, field graphq
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -10087,8 +9402,8 @@ func (ec *executionContext) fieldContext_Uploads_createdAt(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _Uploads_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Uploads) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Uploads_updatedAt(ctx, field)
+func (ec *executionContext) _Upload_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_updatedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10118,9 +9433,9 @@ func (ec *executionContext) _Uploads_updatedAt(ctx context.Context, field graphq
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Uploads_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Upload_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Uploads",
+		Object:     "Upload",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -10263,6 +9578,47 @@ func (ec *executionContext) fieldContext_User_lastName(_ context.Context, field 
 	return fc, nil
 }
 
+func (ec *executionContext) _User_middleName(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_middleName(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MiddleName, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_User_middleName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_email(ctx, field)
 	if err != nil {
@@ -10330,9 +9686,9 @@ func (ec *executionContext) _User_avatar(ctx context.Context, field graphql.Coll
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.Uploads)
+	res := resTmp.(*model.Upload)
 	fc.Result = res
-	return ec.marshalOUploads2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploads(ctx, field.Selections, res)
+	return ec.marshalOUpload2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_avatar(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10344,23 +9700,23 @@ func (ec *executionContext) fieldContext_User_avatar(_ context.Context, field gr
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
-				return ec.fieldContext_Uploads_id(ctx, field)
+				return ec.fieldContext_Upload_id(ctx, field)
 			case "name":
-				return ec.fieldContext_Uploads_name(ctx, field)
+				return ec.fieldContext_Upload_name(ctx, field)
 			case "path":
-				return ec.fieldContext_Uploads_path(ctx, field)
+				return ec.fieldContext_Upload_path(ctx, field)
 			case "uploaderId":
-				return ec.fieldContext_Uploads_uploaderId(ctx, field)
+				return ec.fieldContext_Upload_uploaderId(ctx, field)
 			case "mimetype":
-				return ec.fieldContext_Uploads_mimetype(ctx, field)
+				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "size":
-				return ec.fieldContext_Uploads_size(ctx, field)
+				return ec.fieldContext_Upload_size(ctx, field)
 			case "createdAt":
-				return ec.fieldContext_Uploads_createdAt(ctx, field)
+				return ec.fieldContext_Upload_createdAt(ctx, field)
 			case "updatedAt":
-				return ec.fieldContext_Uploads_updatedAt(ctx, field)
+				return ec.fieldContext_Upload_updatedAt(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type Uploads", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type Upload", field.Name)
 		},
 	}
 	return fc, nil
@@ -10389,9 +9745,9 @@ func (ec *executionContext) _User_avatarId(ctx context.Context, field graphql.Co
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*int)
+	res := resTmp.(*int64)
 	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+	return ec.marshalOID2ᚖint64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_avatarId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10401,7 +9757,7 @@ func (ec *executionContext) fieldContext_User_avatarId(_ context.Context, field 
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -10430,9 +9786,9 @@ func (ec *executionContext) _User_employeeId(ctx context.Context, field graphql.
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*int)
+	res := resTmp.(*int64)
 	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+	return ec.marshalOID2ᚖint64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_employeeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10442,7 +9798,7 @@ func (ec *executionContext) fieldContext_User_employeeId(_ context.Context, fiel
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -10512,9 +9868,9 @@ func (ec *executionContext) _User_lastLogin(ctx context.Context, field graphql.C
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_lastLogin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10524,7 +9880,7 @@ func (ec *executionContext) fieldContext_User_lastLogin(_ context.Context, field
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -10553,9 +9909,9 @@ func (ec *executionContext) _User_lastAction(ctx context.Context, field graphql.
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_lastAction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10565,7 +9921,7 @@ func (ec *executionContext) fieldContext_User_lastAction(_ context.Context, fiel
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -12455,7 +11811,7 @@ func (ec *executionContext) unmarshalInputCreateExpense(ctx context.Context, obj
 			it.Amount = data
 		case "categoryId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("categoryId"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
+			data, err := ec.unmarshalNID2int64(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -12480,7 +11836,7 @@ func (ec *executionContext) unmarshalInputCreateExpenseCategory(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "description"}
+	fieldsInOrder := [...]string{"name", "amount", "description"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -12494,6 +11850,13 @@ func (ec *executionContext) unmarshalInputCreateExpenseCategory(ctx context.Cont
 				return it, err
 			}
 			it.Name = data
+		case "amount":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("amount"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Amount = data
 		case "description":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -12582,7 +11945,7 @@ func (ec *executionContext) unmarshalInputCreateUser(ctx context.Context, obj in
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"firstName", "lastName", "password", "email", "employeeId", "avatarId"}
+	fieldsInOrder := [...]string{"firstName", "lastName", "email", "password", "employeeId", "avatarId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -12603,20 +11966,20 @@ func (ec *executionContext) unmarshalInputCreateUser(ctx context.Context, obj in
 				return it, err
 			}
 			it.LastName = data
-		case "password":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+		case "email":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Password = data
-		case "email":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+			it.Email = data
+		case "password":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Email = data
+			it.Password = data
 		case "employeeId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("employeeId"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -12660,7 +12023,7 @@ func (ec *executionContext) unmarshalInputUpdateExpense(ctx context.Context, obj
 			it.Amount = data
 		case "categoryId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("categoryId"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			data, err := ec.unmarshalOID2ᚖint64(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -12685,7 +12048,7 @@ func (ec *executionContext) unmarshalInputUpdateExpenseCategory(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "description"}
+	fieldsInOrder := [...]string{"name", "amount", "description"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -12699,6 +12062,13 @@ func (ec *executionContext) unmarshalInputUpdateExpenseCategory(ctx context.Cont
 				return it, err
 			}
 			it.Name = data
+		case "amount":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("amount"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Amount = data
 		case "description":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -12982,6 +12352,9 @@ func (ec *executionContext) _EmployeeMeta(ctx context.Context, sel ast.Selection
 			out.Values[i] = graphql.MarshalString("EmployeeMeta")
 		case "employeeId":
 			out.Values[i] = ec._EmployeeMeta_employeeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "primaryLanguage":
 			out.Values[i] = ec._EmployeeMeta_primaryLanguage(ctx, field, obj)
 		case "secondaryLanguage":
@@ -13000,6 +12373,9 @@ func (ec *executionContext) _EmployeeMeta(ctx context.Context, sel ast.Selection
 			out.Values[i] = ec._EmployeeMeta_ytProfileId(ctx, field, obj)
 		case "updatedAt":
 			out.Values[i] = ec._EmployeeMeta_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13053,6 +12429,9 @@ func (ec *executionContext) _Expense(ctx context.Context, sel ast.SelectionSet, 
 			out.Values[i] = ec._Expense_category(ctx, field, obj)
 		case "date":
 			out.Values[i] = ec._Expense_date(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._Expense_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -13109,6 +12488,11 @@ func (ec *executionContext) _ExpenseCategory(ctx context.Context, sel ast.Select
 			}
 		case "description":
 			out.Values[i] = ec._ExpenseCategory_description(ctx, field, obj)
+		case "amount":
+			out.Values[i] = ec._ExpenseCategory_amount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._ExpenseCategory_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -13797,16 +13181,6 @@ func (ec *executionContext) _Permission(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = ec._Permission_action(ctx, field, obj)
 		case "modifier":
 			out.Values[i] = ec._Permission_modifier(ctx, field, obj)
-		case "createdAt":
-			out.Values[i] = ec._Permission_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "updatedAt":
-			out.Values[i] = ec._Permission_updatedAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13946,28 +13320,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedUsers":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedUsers(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "upload":
 			field := field
 
@@ -13997,28 +13349,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_uploads(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedUploads":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedUploads(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -14072,28 +13402,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedEmployees":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedEmployees(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "position":
 			field := field
 
@@ -14123,28 +13431,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_positions(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedPositions":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedPositions(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -14198,28 +13484,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedRoles":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedRoles(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "permission":
 			field := field
 
@@ -14249,28 +13513,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_permissions(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedPermissions":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedPermissions(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -14324,28 +13566,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedRolePermissions":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedRolePermissions(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "expenseCategory":
 			field := field
 
@@ -14375,28 +13595,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_expenseCategories(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedExpenseCategories":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedExpenseCategories(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -14450,28 +13648,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedExpenses":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedExpenses(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "authenticationLog":
 			field := field
 
@@ -14513,28 +13689,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedAuthenticationLogs":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedAuthenticationLogs(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "session":
 			field := field
 
@@ -14564,28 +13718,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_sessions(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "paginatedSessions":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedSessions(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -14793,51 +13925,51 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
-var uploadsImplementors = []string{"Uploads"}
+var uploadImplementors = []string{"Upload"}
 
-func (ec *executionContext) _Uploads(ctx context.Context, sel ast.SelectionSet, obj *model.Uploads) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, uploadsImplementors)
+func (ec *executionContext) _Upload(ctx context.Context, sel ast.SelectionSet, obj *model.Upload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, uploadImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("Uploads")
+			out.Values[i] = graphql.MarshalString("Upload")
 		case "id":
-			out.Values[i] = ec._Uploads_id(ctx, field, obj)
+			out.Values[i] = ec._Upload_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "name":
-			out.Values[i] = ec._Uploads_name(ctx, field, obj)
+			out.Values[i] = ec._Upload_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "path":
-			out.Values[i] = ec._Uploads_path(ctx, field, obj)
+			out.Values[i] = ec._Upload_path(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "uploaderId":
-			out.Values[i] = ec._Uploads_uploaderId(ctx, field, obj)
+			out.Values[i] = ec._Upload_uploaderId(ctx, field, obj)
 		case "mimetype":
-			out.Values[i] = ec._Uploads_mimetype(ctx, field, obj)
+			out.Values[i] = ec._Upload_mimetype(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "size":
-			out.Values[i] = ec._Uploads_size(ctx, field, obj)
+			out.Values[i] = ec._Upload_size(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "createdAt":
-			out.Values[i] = ec._Uploads_createdAt(ctx, field, obj)
+			out.Values[i] = ec._Upload_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "updatedAt":
-			out.Values[i] = ec._Uploads_updatedAt(ctx, field, obj)
+			out.Values[i] = ec._Upload_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -14890,6 +14022,8 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "middleName":
+			out.Values[i] = ec._User_middleName(ctx, field, obj)
 		case "email":
 			out.Values[i] = ec._User_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -16061,7 +15195,7 @@ func (ec *executionContext) unmarshalNUpdateUser2githubᚗcomᚋiotaᚑagencyᚋ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNUploads2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploadsᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Uploads) graphql.Marshaler {
+func (ec *executionContext) marshalNUpload2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploadᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Upload) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -16085,7 +15219,7 @@ func (ec *executionContext) marshalNUploads2ᚕᚖgithubᚗcomᚋiotaᚑagency�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUploads2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploads(ctx, sel, v[i])
+			ret[i] = ec.marshalNUpload2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpload(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -16105,14 +15239,14 @@ func (ec *executionContext) marshalNUploads2ᚕᚖgithubᚗcomᚋiotaᚑagency�
 	return ret
 }
 
-func (ec *executionContext) marshalNUploads2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploads(ctx context.Context, sel ast.SelectionSet, v *model.Uploads) graphql.Marshaler {
+func (ec *executionContext) marshalNUpload2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpload(ctx context.Context, sel ast.SelectionSet, v *model.Upload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._Uploads(ctx, sel, v)
+	return ec._Upload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNUser2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
@@ -16503,6 +15637,22 @@ func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel as
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
+func (ec *executionContext) unmarshalOID2ᚖint64(ctx context.Context, v interface{}) (*int64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt64(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖint64(ctx context.Context, sel ast.SelectionSet, v *int64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalInt64(*v)
+	return res
+}
+
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
 	if v == nil {
 		return nil, nil
@@ -16554,6 +15704,38 @@ func (ec *executionContext) marshalOSession2ᚖgithubᚗcomᚋiotaᚑagencyᚋio
 	return ec._Session(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOString2ᚕᚖstring(ctx context.Context, v interface{}) ([]*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]*string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalOString2ᚖstring(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕᚖstring(ctx context.Context, sel ast.SelectionSet, v []*string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalOString2ᚖstring(ctx, sel, v[i])
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -16570,11 +15752,27 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOUploads2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUploads(ctx context.Context, sel ast.SelectionSet, v *model.Uploads) graphql.Marshaler {
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v interface{}) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return ec._Uploads(ctx, sel, v)
+	res := graphql.MarshalTime(*v)
+	return res
+}
+
+func (ec *executionContext) marshalOUpload2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpload(ctx context.Context, sel ast.SelectionSet, v *model.Upload) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Upload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {

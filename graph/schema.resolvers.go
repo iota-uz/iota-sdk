@@ -12,24 +12,21 @@ import (
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/models"
+	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/pkg/utils"
+	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 )
 
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
-	ip, ok := ctx.Value("ip").(string)
+	params, ok := ctx.Value("params").(*middleware.RequestParams)
 	if !ok {
-		ip = "-"
+		return nil, fmt.Errorf("request params not found")
 	}
-	userAgent, ok := ctx.Value("userAgent").(string)
-	if !ok {
-		userAgent = "-"
-	}
-	_, session, err := r.AuthService.Authenticate(email, password, ip, userAgent)
+	_, session, err := r.AuthService.Authenticate(email, password, params.Ip, params.UserAgent)
 	if err != nil {
 		return nil, err
 	}
-	writer := ctx.Value("writer").(http.ResponseWriter)
 	cookie := &http.Cookie{
 		Name:     "token",
 		Value:    session.Token,
@@ -39,7 +36,7 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 		Secure:   false,
 		Domain:   utils.GetEnv("DOMAIN", "localhost"),
 	}
-	http.SetCookie(writer, cookie)
+	http.SetCookie(params.Writer, cookie)
 	return session.ToGraph(), nil
 }
 
@@ -48,12 +45,12 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 	user := &models.User{
 		FirstName: input.FirstName,
 		LastName:  input.LastName,
+		Email:     input.Email,
 	}
-	if input.Email != nil {
-		user.Email = *input.Email
-	}
-	if err := user.SetPassword(input.Password); err != nil {
-		return nil, err
+	if input.Password != nil {
+		if err := user.SetPassword(*input.Password); err != nil {
+			return nil, err
+		}
 	}
 	if err := r.Db.Create(user).Error; err != nil {
 		return nil, err
@@ -102,17 +99,44 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, erro
 
 // CreateRole is the resolver for the createRole field.
 func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRole) (*model.Role, error) {
-	panic(fmt.Errorf("not implemented: CreateRole - createRole"))
+	role := &models.Role{
+		Name:        input.Name,
+		Description: input.Description,
+	}
+	if err := r.Db.Create(role).Error; err != nil {
+		return nil, err
+	}
+	return role.ToGraph(), nil
 }
 
 // UpdateRole is the resolver for the updateRole field.
 func (r *mutationResolver) UpdateRole(ctx context.Context, id int64, input model.UpdateRole) (*model.Role, error) {
-	panic(fmt.Errorf("not implemented: UpdateRole - updateRole"))
+	role := &models.Role{}
+	if err := r.Db.First(role, id).Error; err != nil {
+		return nil, err
+	}
+	if input.Name != nil {
+		role.Name = *input.Name
+	}
+	if input.Description != nil {
+		role.Description = input.Description
+	}
+	if err := r.Db.Save(role).Error; err != nil {
+		return nil, err
+	}
+	return role.ToGraph(), nil
 }
 
 // DeleteRole is the resolver for the deleteRole field.
 func (r *mutationResolver) DeleteRole(ctx context.Context, id int64) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteRole - deleteRole"))
+	role := &models.Role{}
+	if err := r.Db.First(role, id).Error; err != nil {
+		return false, err
+	}
+	if err := r.Db.Delete(role).Error; err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // CreateRolePermission is the resolver for the createRolePermission field.
@@ -122,7 +146,14 @@ func (r *mutationResolver) CreateRolePermission(ctx context.Context, input model
 
 // CreateExpenseCategory is the resolver for the createExpenseCategory field.
 func (r *mutationResolver) CreateExpenseCategory(ctx context.Context, input model.CreateExpenseCategory) (*model.ExpenseCategory, error) {
-	panic(fmt.Errorf("not implemented: CreateExpenseCategory - createExpenseCategory"))
+	expenseCategory := &models.ExpenseCategory{
+		Name:        input.Name,
+		Description: input.Description,
+	}
+	if err := r.Db.Create(expenseCategory).Error; err != nil {
+		return nil, err
+	}
+	return expenseCategory.ToGraph(), nil
 }
 
 // UpdateExpenseCategory is the resolver for the updateExpenseCategory field.
@@ -137,7 +168,14 @@ func (r *mutationResolver) DeleteExpenseCategory(ctx context.Context, id int64) 
 
 // CreateExpense is the resolver for the createExpense field.
 func (r *mutationResolver) CreateExpense(ctx context.Context, input model.CreateExpense) (*model.Expense, error) {
-	panic(fmt.Errorf("not implemented: CreateExpense - createExpense"))
+	expense := &models.Expense{
+		Amount:     input.Amount,
+		CategoryId: input.CategoryID,
+	}
+	if err := r.Db.Create(expense).Error; err != nil {
+		return nil, err
+	}
+	return expense.ToGraph(), nil
 }
 
 // UpdateExpense is the resolver for the updateExpense field.
@@ -165,106 +203,155 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 }
 
 // Users is the resolver for the users field.
-func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
+func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUsers, error) {
+	preloads := helpers.GetPreloads(ctx)
 	var users []*models.User
-	if err := r.Db.Find(&users).Error; err != nil {
+	q := r.Db.Offset(offset).Limit(limit)
+	// TODO: come up with something better
+	if helpers.HasAssociation(preloads, "avatar") {
+		q = q.Joins("Avatar")
+	}
+	if err := q.Find(&users).Error; err != nil {
 		return nil, err
 	}
 	var result []*model.User
 	for _, user := range users {
 		result = append(result, user.ToGraph())
 	}
-	return result, nil
-}
-
-// PaginatedUsers is the resolver for the paginatedUsers field.
-func (r *queryResolver) PaginatedUsers(ctx context.Context, offset int, limit int) (*model.PaginatedUsers, error) {
-	var users []*models.User
-	if err := r.Db.Offset(offset).Limit(limit).Find(&users).Error; err != nil {
+	var total int64
+	if err := r.Db.Model(models.User{}).Count(&total).Error; err != nil {
 		return nil, err
-	}
-	var result []*model.User
-	for _, user := range users {
-		result = append(result, user.ToGraph())
 	}
 	return &model.PaginatedUsers{
-		Data: result,
+		Data:  result,
+		Total: int(total),
 	}, nil
 }
 
 // Upload is the resolver for the upload field.
-func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Uploads, error) {
+func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Upload, error) {
 	panic(fmt.Errorf("not implemented: Upload - upload"))
 }
 
 // Uploads is the resolver for the uploads field.
-func (r *queryResolver) Uploads(ctx context.Context) ([]*model.Uploads, error) {
+func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUploads, error) {
 	panic(fmt.Errorf("not implemented: Uploads - uploads"))
-}
-
-// PaginatedUploads is the resolver for the paginatedUploads field.
-func (r *queryResolver) PaginatedUploads(ctx context.Context, offset int, limit int) (*model.PaginatedUploads, error) {
-	panic(fmt.Errorf("not implemented: PaginatedUploads - paginatedUploads"))
 }
 
 // Employee is the resolver for the employee field.
 func (r *queryResolver) Employee(ctx context.Context, id int64) (*model.Employee, error) {
-	panic(fmt.Errorf("not implemented: Employee - employee"))
+	employee := &models.Employee{}
+	if err := r.Db.First(employee, id).Error; err != nil {
+		return nil, err
+	}
+	return employee.ToGraph(), nil
 }
 
 // Employees is the resolver for the employees field.
-func (r *queryResolver) Employees(ctx context.Context) ([]*model.Employee, error) {
-	panic(fmt.Errorf("not implemented: Employees - employees"))
-}
-
-// PaginatedEmployees is the resolver for the paginatedEmployees field.
-func (r *queryResolver) PaginatedEmployees(ctx context.Context, offset int, limit int) (*model.PaginatedEmployees, error) {
-	panic(fmt.Errorf("not implemented: PaginatedEmployees - paginatedEmployees"))
+func (r *queryResolver) Employees(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedEmployees, error) {
+	var employees []*models.Employee
+	if err := r.Db.Offset(offset).Limit(limit).Find(&employees).Error; err != nil {
+		return nil, err
+	}
+	var result []*model.Employee
+	for _, employee := range employees {
+		result = append(result, employee.ToGraph())
+	}
+	var total int64
+	if err := r.Db.Model(models.Employee{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+	return &model.PaginatedEmployees{
+		Data:  result,
+		Total: int(total),
+	}, nil
 }
 
 // Position is the resolver for the position field.
 func (r *queryResolver) Position(ctx context.Context, id int64) (*model.Position, error) {
-	panic(fmt.Errorf("not implemented: Position - position"))
+	position := &models.Position{}
+	if err := r.Db.First(position, id).Error; err != nil {
+		return nil, err
+	}
+	return position.ToGraph(), nil
 }
 
 // Positions is the resolver for the positions field.
-func (r *queryResolver) Positions(ctx context.Context) ([]*model.Position, error) {
-	panic(fmt.Errorf("not implemented: Positions - positions"))
-}
-
-// PaginatedPositions is the resolver for the paginatedPositions field.
-func (r *queryResolver) PaginatedPositions(ctx context.Context, offset int, limit int) (*model.PaginatedPositions, error) {
-	panic(fmt.Errorf("not implemented: PaginatedPositions - paginatedPositions"))
+func (r *queryResolver) Positions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPositions, error) {
+	var positions []*models.Position
+	if err := r.Db.Offset(offset).Limit(limit).Find(&positions).Error; err != nil {
+		return nil, err
+	}
+	var result []*model.Position
+	for _, position := range positions {
+		result = append(result, position.ToGraph())
+	}
+	var total int64
+	if err := r.Db.Model(models.Position{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+	return &model.PaginatedPositions{
+		Data:  result,
+		Total: int(total),
+	}, nil
 }
 
 // Role is the resolver for the role field.
 func (r *queryResolver) Role(ctx context.Context, id int64) (*model.Role, error) {
-	panic(fmt.Errorf("not implemented: Role - role"))
+	role := &models.Role{}
+	if err := r.Db.First(role, id).Error; err != nil {
+		return nil, err
+	}
+	return role.ToGraph(), nil
 }
 
 // Roles is the resolver for the roles field.
-func (r *queryResolver) Roles(ctx context.Context) ([]*model.Role, error) {
-	panic(fmt.Errorf("not implemented: Roles - roles"))
-}
-
-// PaginatedRoles is the resolver for the paginatedRoles field.
-func (r *queryResolver) PaginatedRoles(ctx context.Context, offset int, limit int) (*model.PaginatedRoles, error) {
-	panic(fmt.Errorf("not implemented: PaginatedRoles - paginatedRoles"))
+func (r *queryResolver) Roles(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRoles, error) {
+	var roles []*models.Role
+	if err := r.Db.Offset(offset).Limit(limit).Find(&roles).Error; err != nil {
+		return nil, err
+	}
+	var result []*model.Role
+	for _, role := range roles {
+		result = append(result, role.ToGraph())
+	}
+	var total int64
+	if err := r.Db.Model(models.Role{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+	return &model.PaginatedRoles{
+		Data:  result,
+		Total: int(total),
+	}, nil
 }
 
 // Permission is the resolver for the permission field.
 func (r *queryResolver) Permission(ctx context.Context, id int64) (*model.Permission, error) {
-	panic(fmt.Errorf("not implemented: Permission - permission"))
+	permission := &models.Permission{}
+	if err := r.Db.First(permission, id).Error; err != nil {
+		return nil, err
+	}
+	return permission.ToGraph(), nil
 }
 
 // Permissions is the resolver for the permissions field.
-func (r *queryResolver) Permissions(ctx context.Context) ([]*model.Permission, error) {
-	panic(fmt.Errorf("not implemented: Permissions - permissions"))
-}
-
-// PaginatedPermissions is the resolver for the paginatedPermissions field.
-func (r *queryResolver) PaginatedPermissions(ctx context.Context, offset int, limit int) (*model.PaginatedPermissions, error) {
-	panic(fmt.Errorf("not implemented: PaginatedPermissions - paginatedPermissions"))
+func (r *queryResolver) Permissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPermissions, error) {
+	var permissions []*models.Permission
+	if err := r.Db.Offset(offset).Limit(limit).Find(&permissions).Error; err != nil {
+		return nil, err
+	}
+	var result []*model.Permission
+	for _, permission := range permissions {
+		result = append(result, permission.ToGraph())
+	}
+	var total int64
+	if err := r.Db.Model(models.Permission{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+	return &model.PaginatedPermissions{
+		Data:  result,
+		Total: int(total),
+	}, nil
 }
 
 // RolePermission is the resolver for the rolePermission field.
@@ -273,13 +360,8 @@ func (r *queryResolver) RolePermission(ctx context.Context, roleID int, permissi
 }
 
 // RolePermissions is the resolver for the rolePermissions field.
-func (r *queryResolver) RolePermissions(ctx context.Context) ([]*model.RolePermissions, error) {
+func (r *queryResolver) RolePermissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRolePermissions, error) {
 	panic(fmt.Errorf("not implemented: RolePermissions - rolePermissions"))
-}
-
-// PaginatedRolePermissions is the resolver for the paginatedRolePermissions field.
-func (r *queryResolver) PaginatedRolePermissions(ctx context.Context, offset int, limit int) (*model.PaginatedRolePermissions, error) {
-	panic(fmt.Errorf("not implemented: PaginatedRolePermissions - paginatedRolePermissions"))
 }
 
 // ExpenseCategory is the resolver for the expenseCategory field.
@@ -288,13 +370,8 @@ func (r *queryResolver) ExpenseCategory(ctx context.Context, id int64) (*model.E
 }
 
 // ExpenseCategories is the resolver for the expenseCategories field.
-func (r *queryResolver) ExpenseCategories(ctx context.Context) ([]*model.ExpenseCategory, error) {
+func (r *queryResolver) ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenseCategories, error) {
 	panic(fmt.Errorf("not implemented: ExpenseCategories - expenseCategories"))
-}
-
-// PaginatedExpenseCategories is the resolver for the paginatedExpenseCategories field.
-func (r *queryResolver) PaginatedExpenseCategories(ctx context.Context, offset int, limit int) (*model.PaginatedExpenseCategories, error) {
-	panic(fmt.Errorf("not implemented: PaginatedExpenseCategories - paginatedExpenseCategories"))
 }
 
 // Expense is the resolver for the expense field.
@@ -303,13 +380,8 @@ func (r *queryResolver) Expense(ctx context.Context, id int64) (*model.Expense, 
 }
 
 // Expenses is the resolver for the expenses field.
-func (r *queryResolver) Expenses(ctx context.Context) ([]*model.Expense, error) {
+func (r *queryResolver) Expenses(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenses, error) {
 	panic(fmt.Errorf("not implemented: Expenses - expenses"))
-}
-
-// PaginatedExpenses is the resolver for the paginatedExpenses field.
-func (r *queryResolver) PaginatedExpenses(ctx context.Context, offset int, limit int) (*model.PaginatedExpenses, error) {
-	panic(fmt.Errorf("not implemented: PaginatedExpenses - paginatedExpenses"))
 }
 
 // AuthenticationLog is the resolver for the authenticationLog field.
@@ -318,13 +390,8 @@ func (r *queryResolver) AuthenticationLog(ctx context.Context, id int64) (*model
 }
 
 // AuthenticationLogs is the resolver for the authenticationLogs field.
-func (r *queryResolver) AuthenticationLogs(ctx context.Context) ([]*model.AuthenticationLog, error) {
+func (r *queryResolver) AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedAuthenticationLogs, error) {
 	panic(fmt.Errorf("not implemented: AuthenticationLogs - authenticationLogs"))
-}
-
-// PaginatedAuthenticationLogs is the resolver for the paginatedAuthenticationLogs field.
-func (r *queryResolver) PaginatedAuthenticationLogs(ctx context.Context, offset int, limit int) (*model.PaginatedAuthenticationLogs, error) {
-	panic(fmt.Errorf("not implemented: PaginatedAuthenticationLogs - paginatedAuthenticationLogs"))
 }
 
 // Session is the resolver for the session field.
@@ -333,13 +400,8 @@ func (r *queryResolver) Session(ctx context.Context, token string) (*model.Sessi
 }
 
 // Sessions is the resolver for the sessions field.
-func (r *queryResolver) Sessions(ctx context.Context) ([]*model.Session, error) {
+func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedSessions, error) {
 	panic(fmt.Errorf("not implemented: Sessions - sessions"))
-}
-
-// PaginatedSessions is the resolver for the paginatedSessions field.
-func (r *queryResolver) PaginatedSessions(ctx context.Context, offset int, limit int) (*model.PaginatedSessions, error) {
-	panic(fmt.Errorf("not implemented: PaginatedSessions - paginatedSessions"))
 }
 
 // Mutation returns MutationResolver implementation.

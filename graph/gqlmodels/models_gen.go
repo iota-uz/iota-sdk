@@ -16,12 +16,13 @@ type AuthenticationLog struct {
 
 type CreateExpense struct {
 	Amount     float64 `json:"amount"`
-	CategoryID int     `json:"categoryId"`
+	CategoryID int64   `json:"categoryId"`
 	Date       *string `json:"date,omitempty"`
 }
 
 type CreateExpenseCategory struct {
 	Name        string  `json:"name"`
+	Amount      float64 `json:"amount"`
 	Description *string `json:"description,omitempty"`
 }
 
@@ -38,8 +39,8 @@ type CreateRolePermission struct {
 type CreateUser struct {
 	FirstName  string  `json:"firstName"`
 	LastName   string  `json:"lastName"`
-	Password   string  `json:"password"`
-	Email      *string `json:"email,omitempty"`
+	Email      string  `json:"email"`
+	Password   *string `json:"password,omitempty"`
 	EmployeeID *int    `json:"employeeId,omitempty"`
 	AvatarID   *int    `json:"avatarId,omitempty"`
 }
@@ -63,24 +64,24 @@ type Employee struct {
 }
 
 type EmployeeMeta struct {
-	EmployeeID        *int    `json:"employeeId,omitempty"`
-	PrimaryLanguage   *string `json:"primaryLanguage,omitempty"`
-	SecondaryLanguage *string `json:"secondaryLanguage,omitempty"`
-	Tin               *string `json:"tin,omitempty"`
-	BirthDate         *string `json:"birthDate,omitempty"`
-	JoinDate          *string `json:"joinDate,omitempty"`
-	LeaveDate         *string `json:"leaveDate,omitempty"`
-	GeneralInfo       *string `json:"generalInfo,omitempty"`
-	YtProfileID       *string `json:"ytProfileId,omitempty"`
-	UpdatedAt         *string `json:"updatedAt,omitempty"`
+	EmployeeID        int        `json:"employeeId"`
+	PrimaryLanguage   *string    `json:"primaryLanguage,omitempty"`
+	SecondaryLanguage *string    `json:"secondaryLanguage,omitempty"`
+	Tin               *string    `json:"tin,omitempty"`
+	BirthDate         *time.Time `json:"birthDate,omitempty"`
+	JoinDate          *time.Time `json:"joinDate,omitempty"`
+	LeaveDate         *time.Time `json:"leaveDate,omitempty"`
+	GeneralInfo       *string    `json:"generalInfo,omitempty"`
+	YtProfileID       *string    `json:"ytProfileId,omitempty"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
 }
 
 type Expense struct {
 	ID         int64            `json:"id"`
 	Amount     float64          `json:"amount"`
-	CategoryID int              `json:"categoryId"`
+	CategoryID int64            `json:"categoryId"`
 	Category   *ExpenseCategory `json:"category,omitempty"`
-	Date       *string          `json:"date,omitempty"`
+	Date       time.Time        `json:"date"`
 	CreatedAt  time.Time        `json:"createdAt"`
 	UpdatedAt  time.Time        `json:"updatedAt"`
 }
@@ -89,6 +90,7 @@ type ExpenseCategory struct {
 	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description,omitempty"`
+	Amount      float64   `json:"amount"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -142,8 +144,8 @@ type PaginatedSessions struct {
 }
 
 type PaginatedUploads struct {
-	Data  []*Uploads `json:"data"`
-	Total int        `json:"total"`
+	Data  []*Upload `json:"data"`
+	Total int       `json:"total"`
 }
 
 type PaginatedUsers struct {
@@ -152,13 +154,11 @@ type PaginatedUsers struct {
 }
 
 type Permission struct {
-	ID          int64     `json:"id"`
-	Description *string   `json:"description,omitempty"`
-	Resource    *string   `json:"resource,omitempty"`
-	Action      *string   `json:"action,omitempty"`
-	Modifier    *string   `json:"modifier,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID          int64   `json:"id"`
+	Description *string `json:"description,omitempty"`
+	Resource    *string `json:"resource,omitempty"`
+	Action      *string `json:"action,omitempty"`
+	Modifier    *string `json:"modifier,omitempty"`
 }
 
 type Position struct {
@@ -196,13 +196,14 @@ type Session struct {
 
 type UpdateExpense struct {
 	Amount     *float64 `json:"amount,omitempty"`
-	CategoryID *int     `json:"categoryId,omitempty"`
+	CategoryID *int64   `json:"categoryId,omitempty"`
 	Date       *string  `json:"date,omitempty"`
 }
 
 type UpdateExpenseCategory struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
+	Name        *string  `json:"name,omitempty"`
+	Amount      *float64 `json:"amount,omitempty"`
+	Description *string  `json:"description,omitempty"`
 }
 
 type UpdateRole struct {
@@ -219,11 +220,11 @@ type UpdateUser struct {
 	AvatarID   *int    `json:"avatarId,omitempty"`
 }
 
-type Uploads struct {
+type Upload struct {
 	ID         int64     `json:"id"`
 	Name       string    `json:"name"`
 	Path       string    `json:"path"`
-	UploaderID *int      `json:"uploaderId,omitempty"`
+	UploaderID *int64    `json:"uploaderId,omitempty"`
 	Mimetype   string    `json:"mimetype"`
 	Size       float64   `json:"size"`
 	CreatedAt  time.Time `json:"createdAt"`
@@ -231,16 +232,17 @@ type Uploads struct {
 }
 
 type User struct {
-	ID         int64     `json:"id"`
-	FirstName  string    `json:"firstName"`
-	LastName   string    `json:"lastName"`
-	Email      string    `json:"email"`
-	Avatar     *Uploads  `json:"avatar,omitempty"`
-	AvatarID   *int      `json:"avatarId,omitempty"`
-	EmployeeID *int      `json:"employeeId,omitempty"`
-	LastIP     *string   `json:"lastIp,omitempty"`
-	LastLogin  *string   `json:"lastLogin,omitempty"`
-	LastAction *string   `json:"lastAction,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID         int64      `json:"id"`
+	FirstName  string     `json:"firstName"`
+	LastName   string     `json:"lastName"`
+	MiddleName *string    `json:"middleName,omitempty"`
+	Email      string     `json:"email"`
+	Avatar     *Upload    `json:"avatar,omitempty"`
+	AvatarID   *int64     `json:"avatarId,omitempty"`
+	EmployeeID *int64     `json:"employeeId,omitempty"`
+	LastIP     *string    `json:"lastIp,omitempty"`
+	LastLogin  *time.Time `json:"lastLogin,omitempty"`
+	LastAction *time.Time `json:"lastAction,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
 }

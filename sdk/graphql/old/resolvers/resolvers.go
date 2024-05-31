@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
-	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
+	adapters2 "github.com/iota-agency/iota-erp/sdk/graphql/old/adapters"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"strings"
 )
 
 func ApplySort(query *gorm.DB, sortBy []interface{}, model interface{}) (*gorm.DB, error) {
-	mapping, err := adapters.GetGormFields(model, func(f *schema.Field, gf *adapters.GqlFieldMeta) bool {
+	mapping, err := adapters2.GetGormFields(model, func(f *schema.Field, gf *adapters2.GqlFieldMeta) bool {
 		return f.Readable && gf.Readable
 	})
 	if err != nil {
@@ -47,7 +47,7 @@ func GetQuery(db *gorm.DB, model interface{}, modelType *graphql.Object, name st
 		Description: "Get by id",
 		Args: graphql.FieldConfigArgument{
 			as: &graphql.ArgumentConfig{
-				Type: adapters.Sql2graphql[pk.DataType],
+				Type: adapters2.Sql2graphql[pk.DataType],
 			},
 		},
 		Resolve: DefaultGetResolver(db, model),

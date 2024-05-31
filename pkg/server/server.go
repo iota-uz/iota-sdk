@@ -66,38 +66,6 @@ func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
-	})
-}
-
-func AuthMiddleware(db *gorm.DB) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), "writer", w)
-			token, err := r.Cookie("token")
-			if err != nil {
-				ctx = context.WithValue(ctx, "authenticated", false)
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
-			}
-			user, err := authentication.New(db).Authorize(token.Value)
-			if err != nil {
-				ctx = context.WithValue(ctx, "authenticated", false)
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
-			}
-			ctx = context.WithValue(ctx, "authenticated", true)
-			ctx = context.WithValue(ctx, "user", user)
-			ctx = context.WithValue(ctx, "token", token.Value)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
 func (s *Server) HandleGraphQL(schema graphql.Schema) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data := struct {
@@ -175,8 +143,6 @@ func (s *Server) graphQlSchema() (graphql.Schema, error) {
 
 func (s *Server) Start() {
 	r := mux.NewRouter().StrictSlash(true)
-	r.Use(loggingMiddleware)
-	r.Use(AuthMiddleware(s.Db))
 	schema, err := s.graphQlSchema()
 	if err != nil {
 		log.Fatal(err)

@@ -8,7 +8,7 @@ import (
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
-	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
+	"github.com/iota-agency/iota-erp/sdk/graphql/old/adapters"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"sync"

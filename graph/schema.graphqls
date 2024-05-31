@@ -37,8 +37,6 @@ type Permission {
     resource: String
     action: String
     modifier: String
-    createdAt: Time!
-    updatedAt: Time!
 }
 
 type PaginatedPermissions {
@@ -60,6 +58,7 @@ type ExpenseCategory {
     id: ID!
     name: String!
     description: String
+    amount: Float!
     createdAt: Time!
     updatedAt: Time!
 }
@@ -72,9 +71,9 @@ type PaginatedExpenseCategories {
 type Expense {
     id: ID!
     amount: Float!
-    categoryId: Int!
+    categoryId: ID!
     category: ExpenseCategory
-    date: String
+    date: Time!
     createdAt: Time!
     updatedAt: Time!
 }
@@ -85,16 +84,16 @@ type PaginatedExpenses {
 }
 
 type EmployeeMeta {
-    employeeId: Int
+    employeeId: Int!
     primaryLanguage: String
     secondaryLanguage: String
     tin: String
-    birthDate: String
-    joinDate: String
-    leaveDate: String
+    birthDate: Time
+    joinDate: Time
+    leaveDate: Time
     generalInfo: String
     ytProfileId: String
-    updatedAt: String
+    updatedAt: Time!
 }
 
 type Position {
@@ -146,11 +145,11 @@ type PaginatedRoles {
     total: Int!
 }
 
-type Uploads {
+type Upload {
     id: ID!
     name: String!
     path: String!
-    uploaderId: Int
+    uploaderId: ID
     mimetype: String!
     size: Float!
     createdAt: Time!
@@ -158,7 +157,7 @@ type Uploads {
 }
 
 type PaginatedUploads {
-    data: [Uploads!]!
+    data: [Upload!]!
     total: Int!
 }
 
@@ -166,13 +165,14 @@ type User {
     id: ID!
     firstName: String!
     lastName: String!
+    middleName: String
     email: String!
-    avatar: Uploads
-    avatarId: Int
-    employeeId: Int
+    avatar: Upload
+    avatarId: ID
+    employeeId: ID
     lastIp: String
-    lastLogin: String
-    lastAction: String
+    lastLogin: Time
+    lastAction: Time
     createdAt: Time!
     updatedAt: Time!
 }
@@ -184,55 +184,44 @@ type PaginatedUsers {
 
 type Query {
     user(id: ID!): User
-    users: [User!]!
-    paginatedUsers(offset: Int!, limit: Int!): PaginatedUsers!
+    users(offset: Int!, limit: Int!, sortBy: [String]): PaginatedUsers!
 
-    upload(id: ID!): Uploads
-    uploads: [Uploads!]!
-    paginatedUploads(offset: Int!, limit: Int!): PaginatedUploads!
+    upload(id: ID!): Upload
+    uploads(offset: Int!, limit: Int!, sortBy: [String]): PaginatedUploads!
 
     employee(id: ID!): Employee
-    employees: [Employee!]!
-    paginatedEmployees(offset: Int!, limit: Int!): PaginatedEmployees!
+    employees(offset: Int!, limit: Int!, sortBy: [String]): PaginatedEmployees!
 
     position(id: ID!): Position
-    positions: [Position!]!
-    paginatedPositions(offset: Int!, limit: Int!): PaginatedPositions!
+    positions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedPositions!
 
     role(id: ID!): Role
-    roles: [Role!]!
-    paginatedRoles(offset: Int!, limit: Int!): PaginatedRoles!
+    roles(offset: Int!, limit: Int!, sortBy: [String]): PaginatedRoles!
 
     permission(id: ID!): Permission
-    permissions: [Permission!]!
-    paginatedPermissions(offset: Int!, limit: Int!): PaginatedPermissions!
+    permissions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedPermissions!
 
     rolePermission(roleId: Int!, permissionId: Int!): RolePermissions
-    rolePermissions: [RolePermissions!]!
-    paginatedRolePermissions(offset: Int!, limit: Int!): PaginatedRolePermissions!
+    rolePermissions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedRolePermissions!
 
     expenseCategory(id: ID!): ExpenseCategory
-    expenseCategories: [ExpenseCategory!]!
-    paginatedExpenseCategories(offset: Int!, limit: Int!): PaginatedExpenseCategories!
+    expenseCategories(offset: Int!, limit: Int!, sortBy: [String]): PaginatedExpenseCategories!
 
     expense(id: ID!): Expense
-    expenses: [Expense!]!
-    paginatedExpenses(offset: Int!, limit: Int!): PaginatedExpenses!
+    expenses(offset: Int!, limit: Int!, sortBy: [String]): PaginatedExpenses!
 
     authenticationLog(id: ID!): AuthenticationLog
-    authenticationLogs: [AuthenticationLog!]!
-    paginatedAuthenticationLogs(offset: Int!, limit: Int!): PaginatedAuthenticationLogs!
+    authenticationLogs(offset: Int!, limit: Int!, sortBy: [String]): PaginatedAuthenticationLogs!
 
     session(token: String!): Session
-    sessions: [Session!]!
-    paginatedSessions(offset: Int!, limit: Int!): PaginatedSessions!
+    sessions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedSessions!
 }
 
 input CreateUser {
     firstName: String!
     lastName: String!
-    password: String!
-    email: String
+    email: String!
+    password: String
     employeeId: Int
     avatarId: Int
 }
@@ -263,24 +252,36 @@ input CreateRolePermission {
 
 input CreateExpenseCategory {
     name: String!
+    amount: Float!
     description: String
 }
 
 input UpdateExpenseCategory {
     name: String
+    amount: Float
     description: String
 }
 
 input CreateExpense {
     amount: Float!
-    categoryId: Int!
+    categoryId: ID!
     date: String
 }
 
 input UpdateExpense {
     amount: Float
-    categoryId: Int
+    categoryId: ID
     date: String
+}
+
+input CreatePosition {
+    name: String!
+    description: String
+}
+
+input UpdatePosition {
+    name: String
+    description: String
 }
 
 type Mutation {
@@ -303,6 +304,10 @@ type Mutation {
     createExpense(input: CreateExpense!): Expense!
     updateExpense(id: ID!, input: UpdateExpense!): Expense!
     deleteExpense(id: ID!): Boolean!
+
+    createPosition(input: CreatePosition!): Position!
+    updatePosition(id: ID!, input: UpdatePosition!): Position!
+    deletePosition(id: ID!): Boolean!
 
     deleteSession(token: String!): Boolean!
 }

@@ -18,7 +18,7 @@ import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {User} from "@/src/__generated__/graphql";
 
 const GET_USERS = gql`
-    query GetUsers($limit: Int, $offset: Int, $sortBy: [String]) {
+    query GetUsers($limit: Int!, $offset: Int!, $sortBy: [String]) {
         users(limit: $limit, offset: $offset, sortBy: $sortBy) {
             total
             data {

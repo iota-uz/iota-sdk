@@ -1,14 +1,30 @@
 package models
 
-import "time"
+import (
+	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"time"
+)
 
-type Uploads struct {
-	Id         int64         `gql:"id" db:"id"`
-	Name       string        `gql:"name" db:"name"`
-	Path       string        `gql:"path" db:"path"`
-	UploaderId JsonNullInt64 `gql:"uploader_id" db:"uploader_id"`
-	Mimetype   string        `gql:"mimetype" db:"mimetype"`
-	Size       float64       `gql:"size" db:"size"`
-	CreatedAt  *time.Time    `gql:"created_at" db:"created_at"`
-	UpdatedAt  *time.Time    `gql:"updated_at" db:"updated_at"`
+type Upload struct {
+	Id         int64
+	Name       string
+	Path       string
+	UploaderId *int64
+	Mimetype   string
+	Size       float64
+	CreatedAt  *time.Time
+	UpdatedAt  *time.Time
+}
+
+func (u *Upload) ToGraph() *model.Upload {
+	return &model.Upload{
+		ID:         u.Id,
+		Name:       u.Name,
+		Path:       u.Path,
+		UploaderID: u.UploaderId,
+		Mimetype:   u.Mimetype,
+		Size:       u.Size,
+		CreatedAt:  *u.CreatedAt,
+		UpdatedAt:  *u.UpdatedAt,
+	}
 }

@@ -94,9 +94,9 @@ CREATE TABLE users
     id          SERIAL PRIMARY KEY,
     first_name  VARCHAR(255) NOT NULL,
     last_name   VARCHAR(255) NOT NULL,
-    middle_name VARCHAR(255) NULL,
+    middle_name VARCHAR(255),
     email       VARCHAR(255) NOT NULL UNIQUE,
-    password    VARCHAR(255) NOT NULL,
+    password    VARCHAR(255),
     avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
     last_login  TIMESTAMP    NULL,
     last_ip     VARCHAR(255) NULL,
@@ -167,7 +167,7 @@ CREATE TABLE employees
     id              SERIAL PRIMARY KEY,
     first_name      VARCHAR(255) NOT NULL,
     last_name       VARCHAR(255) NOT NULL,
-    middle_name     VARCHAR(255) NULL,
+    middle_name     VARCHAR(255),
     email           VARCHAR(255) NOT NULL UNIQUE,
     phone           VARCHAR(255),
     salary_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
@@ -369,9 +369,10 @@ CREATE TABLE permissions
 (
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL UNIQUE,
-    description TEXT,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    resource    VARCHAR(255) NOT NULL,
+    module      VARCHAR(255) NOT NULL,
+    modifier    VARCHAR(255) NOT NULL,
+    description TEXT
 );
 
 CREATE TABLE role_permissions

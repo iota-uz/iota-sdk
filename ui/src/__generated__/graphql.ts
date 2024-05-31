@@ -13,779 +13,120 @@ export type Scalars = {
   Boolean: { input: boolean; output: boolean; }
   Int: { input: number; output: number; }
   Float: { input: number; output: number; }
-  /** The `DateTime` scalar type represents a DateTime. The DateTime is serialized as an RFC 3339 quoted string */
-  DateTime: { input: any; output: any; }
+  Time: { input: any; output: any; }
 };
 
-export type AuthPayload = {
-  __typename?: 'AuthPayload';
-  token?: Maybe<Scalars['String']['output']>;
+export type AuthenticationLog = {
+  __typename?: 'AuthenticationLog';
+  createdAt: Scalars['Time']['output'];
+  id: Scalars['ID']['output'];
+  ip: Scalars['String']['output'];
+  userAgent: Scalars['String']['output'];
+  userId: Scalars['Int']['output'];
 };
 
-export type AvatarCreateInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  mimetype?: InputMaybe<Scalars['String']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  path?: InputMaybe<Scalars['String']['input']>;
-  size?: InputMaybe<Scalars['Float']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-  uploader_id?: InputMaybe<Scalars['Int']['input']>;
+export type CreateExpense = {
+  amount: Scalars['Float']['input'];
+  categoryId: Scalars['ID']['input'];
+  date?: InputMaybe<Scalars['String']['input']>;
 };
 
-export type AvatarUpdateInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  mimetype?: InputMaybe<Scalars['String']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  path?: InputMaybe<Scalars['String']['input']>;
-  size?: InputMaybe<Scalars['Float']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-  uploader_id?: InputMaybe<Scalars['Int']['input']>;
-};
-
-export type CategoryCreateInput = {
-  amount?: InputMaybe<Scalars['Float']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
+export type CreateExpenseCategory = {
+  amount: Scalars['Float']['input'];
   description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
+  name: Scalars['String']['input'];
 };
 
-export type CategoryUpdateInput = {
-  amount?: InputMaybe<Scalars['Float']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
+export type CreateRole = {
   description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
+  name: Scalars['String']['input'];
 };
 
-export type CreateEmployeeInput = {
-  avatar_id?: InputMaybe<Scalars['Int']['input']>;
-  coefficient?: InputMaybe<Scalars['Float']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  email?: InputMaybe<Scalars['String']['input']>;
-  first_name?: InputMaybe<Scalars['String']['input']>;
-  hourly_rate?: InputMaybe<Scalars['Float']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  last_name?: InputMaybe<Scalars['String']['input']>;
-  meta?: InputMaybe<MetaCreateInput>;
-  middle_name?: InputMaybe<Scalars['String']['input']>;
-  phone?: InputMaybe<Scalars['String']['input']>;
-  position?: InputMaybe<PositionCreateInput>;
-  position_id?: InputMaybe<Scalars['Int']['input']>;
-  salary?: InputMaybe<Scalars['Float']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
+export type CreateRolePermission = {
+  permissionId: Scalars['Int']['input'];
+  roleId: Scalars['Int']['input'];
 };
 
-export type CreateExpenseCategoryInput = {
-  amount?: InputMaybe<Scalars['Float']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type CreateExpenseInput = {
-  amount?: InputMaybe<Scalars['Float']['input']>;
-  category?: InputMaybe<CategoryCreateInput>;
-  category_id?: InputMaybe<Scalars['Int']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  date?: InputMaybe<Scalars['DateTime']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type CreatePositionInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type CreateTaskTypeInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  description?: InputMaybe<Scalars['String']['input']>;
-  icon?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type CreateUserInput = {
-  avatar?: InputMaybe<AvatarCreateInput>;
-  avatar_id?: InputMaybe<Scalars['Int']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  email?: InputMaybe<Scalars['String']['input']>;
-  employee_id?: InputMaybe<Scalars['Int']['input']>;
-  first_name?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  last_action?: InputMaybe<Scalars['DateTime']['input']>;
-  last_ip?: InputMaybe<Scalars['String']['input']>;
-  last_login?: InputMaybe<Scalars['DateTime']['input']>;
-  last_name?: InputMaybe<Scalars['String']['input']>;
-  middle_name?: InputMaybe<Scalars['String']['input']>;
+export type CreateUser = {
+  avatarId?: InputMaybe<Scalars['Int']['input']>;
+  email: Scalars['String']['input'];
+  employeeId?: InputMaybe<Scalars['Int']['input']>;
+  firstName: Scalars['String']['input'];
+  lastName: Scalars['String']['input'];
   password?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
 };
 
 export type Employee = {
   __typename?: 'Employee';
-  avatar_id?: Maybe<Scalars['Int']['output']>;
-  coefficient?: Maybe<Scalars['Float']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  email?: Maybe<Scalars['String']['output']>;
-  first_name?: Maybe<Scalars['String']['output']>;
-  hourly_rate?: Maybe<Scalars['Float']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  last_name?: Maybe<Scalars['String']['output']>;
-  meta?: Maybe<EmployeemetaJoin>;
-  middle_name?: Maybe<Scalars['String']['output']>;
+  avatarId?: Maybe<Scalars['Int']['output']>;
+  coefficient: Scalars['Float']['output'];
+  createdAt: Scalars['Time']['output'];
+  email: Scalars['String']['output'];
+  firstName: Scalars['String']['output'];
+  hourlyRate: Scalars['Float']['output'];
+  id: Scalars['ID']['output'];
+  lastName: Scalars['String']['output'];
+  meta?: Maybe<EmployeeMeta>;
+  middleName?: Maybe<Scalars['String']['output']>;
   phone?: Maybe<Scalars['String']['output']>;
-  position?: Maybe<EmployeepositionJoin>;
-  position_id?: Maybe<Scalars['Int']['output']>;
-  salary?: Maybe<Scalars['Float']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
+  position?: Maybe<Position>;
+  positionId: Scalars['Int']['output'];
+  salary: Scalars['Float']['output'];
+  updatedAt: Scalars['Time']['output'];
 };
 
-export type EmployeeType = {
-  __typename?: 'EmployeeType';
-  avatar_id?: Maybe<Scalars['Int']['output']>;
-  coefficient?: Maybe<Scalars['Float']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  email?: Maybe<Scalars['String']['output']>;
-  first_name?: Maybe<Scalars['String']['output']>;
-  hourly_rate?: Maybe<Scalars['Float']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  last_name?: Maybe<Scalars['String']['output']>;
-  meta?: Maybe<EmployeeTypemetaJoin>;
-  middle_name?: Maybe<Scalars['String']['output']>;
-  phone?: Maybe<Scalars['String']['output']>;
-  position?: Maybe<EmployeeTypepositionJoin>;
-  position_id?: Maybe<Scalars['Int']['output']>;
-  salary?: Maybe<Scalars['Float']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type EmployeeTypemetaJoin = {
-  __typename?: 'EmployeeTypemetaJoin';
-  birth_date?: Maybe<Scalars['DateTime']['output']>;
-  employee_id?: Maybe<Scalars['Int']['output']>;
-  general_info?: Maybe<Scalars['String']['output']>;
-  join_date?: Maybe<Scalars['DateTime']['output']>;
-  leave_date?: Maybe<Scalars['DateTime']['output']>;
-  primary_language?: Maybe<Scalars['String']['output']>;
-  secondary_language?: Maybe<Scalars['String']['output']>;
+export type EmployeeMeta = {
+  __typename?: 'EmployeeMeta';
+  birthDate?: Maybe<Scalars['Time']['output']>;
+  employeeId: Scalars['Int']['output'];
+  generalInfo?: Maybe<Scalars['String']['output']>;
+  joinDate?: Maybe<Scalars['Time']['output']>;
+  leaveDate?: Maybe<Scalars['Time']['output']>;
+  primaryLanguage?: Maybe<Scalars['String']['output']>;
+  secondaryLanguage?: Maybe<Scalars['String']['output']>;
   tin?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-  yt_profile_id?: Maybe<Scalars['String']['output']>;
-};
-
-export type EmployeeTypepositionJoin = {
-  __typename?: 'EmployeeTypepositionJoin';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type EmployeemetaJoin = {
-  __typename?: 'EmployeemetaJoin';
-  birth_date?: Maybe<Scalars['DateTime']['output']>;
-  employee_id?: Maybe<Scalars['Int']['output']>;
-  general_info?: Maybe<Scalars['String']['output']>;
-  join_date?: Maybe<Scalars['DateTime']['output']>;
-  leave_date?: Maybe<Scalars['DateTime']['output']>;
-  primary_language?: Maybe<Scalars['String']['output']>;
-  secondary_language?: Maybe<Scalars['String']['output']>;
-  tin?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-  yt_profile_id?: Maybe<Scalars['String']['output']>;
-};
-
-export type EmployeepositionJoin = {
-  __typename?: 'EmployeepositionJoin';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type EmployeesAggregateAggregate = {
-  __typename?: 'EmployeesAggregateAggregate';
-  AvatarId?: Maybe<EmployeesAggregateAvatarIdAggregationQuery>;
-  Coefficient?: Maybe<EmployeesAggregateCoefficientAggregationQuery>;
-  CreatedAt?: Maybe<EmployeesAggregateCreatedAtAggregationQuery>;
-  Email?: Maybe<EmployeesAggregateEmailAggregationQuery>;
-  FirstName?: Maybe<EmployeesAggregateFirstNameAggregationQuery>;
-  HourlyRate?: Maybe<EmployeesAggregateHourlyRateAggregationQuery>;
-  Id?: Maybe<EmployeesAggregateIdAggregationQuery>;
-  LastName?: Maybe<EmployeesAggregateLastNameAggregationQuery>;
-  MiddleName?: Maybe<EmployeesAggregateMiddleNameAggregationQuery>;
-  Phone?: Maybe<EmployeesAggregatePhoneAggregationQuery>;
-  PositionId?: Maybe<EmployeesAggregatePositionIdAggregationQuery>;
-  Salary?: Maybe<EmployeesAggregateSalaryAggregationQuery>;
-  UpdatedAt?: Maybe<EmployeesAggregateUpdatedAtAggregationQuery>;
-};
-
-
-export type EmployeesAggregateAggregateAvatarIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateCoefficientArgs = {
-  gt?: InputMaybe<Scalars['Float']['input']>;
-  gte?: InputMaybe<Scalars['Float']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-  lt?: InputMaybe<Scalars['Float']['input']>;
-  lte?: InputMaybe<Scalars['Float']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateCreatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateEmailArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateFirstNameArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateHourlyRateArgs = {
-  gt?: InputMaybe<Scalars['Float']['input']>;
-  gte?: InputMaybe<Scalars['Float']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-  lt?: InputMaybe<Scalars['Float']['input']>;
-  lte?: InputMaybe<Scalars['Float']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateLastNameArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateMiddleNameArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregatePhoneArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregatePositionIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateSalaryArgs = {
-  gt?: InputMaybe<Scalars['Float']['input']>;
-  gte?: InputMaybe<Scalars['Float']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-  lt?: InputMaybe<Scalars['Float']['input']>;
-  lte?: InputMaybe<Scalars['Float']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-};
-
-
-export type EmployeesAggregateAggregateUpdatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-export type EmployeesAggregateAvatarIdAggregationQuery = {
-  __typename?: 'EmployeesAggregateAvatarIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregateCoefficientAggregationQuery = {
-  __typename?: 'EmployeesAggregateCoefficientAggregationQuery';
-  avg?: Maybe<Scalars['Float']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Float']['output']>;
-  min?: Maybe<Scalars['Float']['output']>;
-  sum?: Maybe<Scalars['Float']['output']>;
-};
-
-export type EmployeesAggregateCreatedAtAggregationQuery = {
-  __typename?: 'EmployeesAggregateCreatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type EmployeesAggregateEmailAggregationQuery = {
-  __typename?: 'EmployeesAggregateEmailAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregateFirstNameAggregationQuery = {
-  __typename?: 'EmployeesAggregateFirstNameAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregateHourlyRateAggregationQuery = {
-  __typename?: 'EmployeesAggregateHourlyRateAggregationQuery';
-  avg?: Maybe<Scalars['Float']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Float']['output']>;
-  min?: Maybe<Scalars['Float']['output']>;
-  sum?: Maybe<Scalars['Float']['output']>;
-};
-
-export type EmployeesAggregateIdAggregationQuery = {
-  __typename?: 'EmployeesAggregateIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregateLastNameAggregationQuery = {
-  __typename?: 'EmployeesAggregateLastNameAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregateMiddleNameAggregationQuery = {
-  __typename?: 'EmployeesAggregateMiddleNameAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregatePhoneAggregationQuery = {
-  __typename?: 'EmployeesAggregatePhoneAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregatePositionIdAggregationQuery = {
-  __typename?: 'EmployeesAggregatePositionIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type EmployeesAggregateSalaryAggregationQuery = {
-  __typename?: 'EmployeesAggregateSalaryAggregationQuery';
-  avg?: Maybe<Scalars['Float']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Float']['output']>;
-  min?: Maybe<Scalars['Float']['output']>;
-  sum?: Maybe<Scalars['Float']['output']>;
-};
-
-export type EmployeesAggregateUpdatedAtAggregationQuery = {
-  __typename?: 'EmployeesAggregateUpdatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Scalars['Time']['output'];
+  ytProfileId?: Maybe<Scalars['String']['output']>;
 };
 
 export type Expense = {
   __typename?: 'Expense';
-  amount?: Maybe<Scalars['Float']['output']>;
-  category?: Maybe<ExpensecategoryJoin>;
-  category_id?: Maybe<Scalars['Int']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  date?: Maybe<Scalars['DateTime']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpenseCategoriesAggregateAggregate = {
-  __typename?: 'ExpenseCategoriesAggregateAggregate';
-  Amount?: Maybe<ExpenseCategoriesAggregateAmountAggregationQuery>;
-  CreatedAt?: Maybe<ExpenseCategoriesAggregateCreatedAtAggregationQuery>;
-  Description?: Maybe<ExpenseCategoriesAggregateDescriptionAggregationQuery>;
-  Id?: Maybe<ExpenseCategoriesAggregateIdAggregationQuery>;
-  Name?: Maybe<ExpenseCategoriesAggregateNameAggregationQuery>;
-  UpdatedAt?: Maybe<ExpenseCategoriesAggregateUpdatedAtAggregationQuery>;
-};
-
-
-export type ExpenseCategoriesAggregateAggregateAmountArgs = {
-  gt?: InputMaybe<Scalars['Float']['input']>;
-  gte?: InputMaybe<Scalars['Float']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-  lt?: InputMaybe<Scalars['Float']['input']>;
-  lte?: InputMaybe<Scalars['Float']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-};
-
-
-export type ExpenseCategoriesAggregateAggregateCreatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-
-export type ExpenseCategoriesAggregateAggregateDescriptionArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type ExpenseCategoriesAggregateAggregateIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type ExpenseCategoriesAggregateAggregateNameArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type ExpenseCategoriesAggregateAggregateUpdatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-export type ExpenseCategoriesAggregateAmountAggregationQuery = {
-  __typename?: 'ExpenseCategoriesAggregateAmountAggregationQuery';
-  avg?: Maybe<Scalars['Float']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Float']['output']>;
-  min?: Maybe<Scalars['Float']['output']>;
-  sum?: Maybe<Scalars['Float']['output']>;
-};
-
-export type ExpenseCategoriesAggregateCreatedAtAggregationQuery = {
-  __typename?: 'ExpenseCategoriesAggregateCreatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpenseCategoriesAggregateDescriptionAggregationQuery = {
-  __typename?: 'ExpenseCategoriesAggregateDescriptionAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type ExpenseCategoriesAggregateIdAggregationQuery = {
-  __typename?: 'ExpenseCategoriesAggregateIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type ExpenseCategoriesAggregateNameAggregationQuery = {
-  __typename?: 'ExpenseCategoriesAggregateNameAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type ExpenseCategoriesAggregateUpdatedAtAggregationQuery = {
-  __typename?: 'ExpenseCategoriesAggregateUpdatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
+  amount: Scalars['Float']['output'];
+  category?: Maybe<ExpenseCategory>;
+  categoryId: Scalars['ID']['output'];
+  createdAt: Scalars['Time']['output'];
+  date: Scalars['Time']['output'];
+  id: Scalars['ID']['output'];
+  updatedAt: Scalars['Time']['output'];
 };
 
 export type ExpenseCategory = {
   __typename?: 'ExpenseCategory';
-  amount?: Maybe<Scalars['Float']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
+  amount: Scalars['Float']['output'];
+  createdAt: Scalars['Time']['output'];
   description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpenseCategoryType = {
-  __typename?: 'ExpenseCategoryType';
-  amount?: Maybe<Scalars['Float']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpenseType = {
-  __typename?: 'ExpenseType';
-  amount?: Maybe<Scalars['Float']['output']>;
-  category?: Maybe<ExpenseTypecategoryJoin>;
-  category_id?: Maybe<Scalars['Int']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  date?: Maybe<Scalars['DateTime']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpenseTypecategoryJoin = {
-  __typename?: 'ExpenseTypecategoryJoin';
-  amount?: Maybe<Scalars['Float']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpensecategoryJoin = {
-  __typename?: 'ExpensecategoryJoin';
-  amount?: Maybe<Scalars['Float']['output']>;
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpensesAggregateAggregate = {
-  __typename?: 'ExpensesAggregateAggregate';
-  Amount?: Maybe<ExpensesAggregateAmountAggregationQuery>;
-  CategoryId?: Maybe<ExpensesAggregateCategoryIdAggregationQuery>;
-  CreatedAt?: Maybe<ExpensesAggregateCreatedAtAggregationQuery>;
-  Date?: Maybe<ExpensesAggregateDateAggregationQuery>;
-  Id?: Maybe<ExpensesAggregateIdAggregationQuery>;
-  UpdatedAt?: Maybe<ExpensesAggregateUpdatedAtAggregationQuery>;
-};
-
-
-export type ExpensesAggregateAggregateAmountArgs = {
-  gt?: InputMaybe<Scalars['Float']['input']>;
-  gte?: InputMaybe<Scalars['Float']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-  lt?: InputMaybe<Scalars['Float']['input']>;
-  lte?: InputMaybe<Scalars['Float']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Float']['input']>>>;
-};
-
-
-export type ExpensesAggregateAggregateCategoryIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type ExpensesAggregateAggregateCreatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-
-export type ExpensesAggregateAggregateDateArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-
-export type ExpensesAggregateAggregateIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type ExpensesAggregateAggregateUpdatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-export type ExpensesAggregateAmountAggregationQuery = {
-  __typename?: 'ExpensesAggregateAmountAggregationQuery';
-  avg?: Maybe<Scalars['Float']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Float']['output']>;
-  min?: Maybe<Scalars['Float']['output']>;
-  sum?: Maybe<Scalars['Float']['output']>;
-};
-
-export type ExpensesAggregateCategoryIdAggregationQuery = {
-  __typename?: 'ExpensesAggregateCategoryIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type ExpensesAggregateCreatedAtAggregationQuery = {
-  __typename?: 'ExpensesAggregateCreatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpensesAggregateDateAggregationQuery = {
-  __typename?: 'ExpensesAggregateDateAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type ExpensesAggregateIdAggregationQuery = {
-  __typename?: 'ExpensesAggregateIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type ExpensesAggregateUpdatedAtAggregationQuery = {
-  __typename?: 'ExpensesAggregateUpdatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type MetaCreateInput = {
-  birth_date?: InputMaybe<Scalars['DateTime']['input']>;
-  employee_id?: InputMaybe<Scalars['Int']['input']>;
-  general_info?: InputMaybe<Scalars['String']['input']>;
-  join_date?: InputMaybe<Scalars['DateTime']['input']>;
-  leave_date?: InputMaybe<Scalars['DateTime']['input']>;
-  primary_language?: InputMaybe<Scalars['String']['input']>;
-  secondary_language?: InputMaybe<Scalars['String']['input']>;
-  tin?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-  yt_profile_id?: InputMaybe<Scalars['String']['input']>;
-};
-
-export type MetaUpdateInput = {
-  birth_date?: InputMaybe<Scalars['DateTime']['input']>;
-  employee_id?: InputMaybe<Scalars['Int']['input']>;
-  general_info?: InputMaybe<Scalars['String']['input']>;
-  join_date?: InputMaybe<Scalars['DateTime']['input']>;
-  leave_date?: InputMaybe<Scalars['DateTime']['input']>;
-  primary_language?: InputMaybe<Scalars['String']['input']>;
-  secondary_language?: InputMaybe<Scalars['String']['input']>;
-  tin?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-  yt_profile_id?: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
 };
 
 export type Mutation = {
   __typename?: 'Mutation';
-  authenticate?: Maybe<AuthPayload>;
-  /** Create a record */
-  createEmployee?: Maybe<EmployeeType>;
-  /** Create a record */
-  createExpense?: Maybe<ExpenseType>;
-  /** Create a record */
-  createExpenseCategory?: Maybe<ExpenseCategoryType>;
-  /** Create a record */
-  createPosition?: Maybe<PositionType>;
-  /** Create a record */
-  createTaskType?: Maybe<TaskTypeType>;
-  /** Create a new user */
-  createUser?: Maybe<UserResponse>;
-  /** Delete a record */
-  deleteEmployee?: Maybe<Scalars['String']['output']>;
-  /** Delete a record */
-  deleteExpense?: Maybe<Scalars['String']['output']>;
-  /** Delete a record */
-  deleteExpenseCategory?: Maybe<Scalars['String']['output']>;
-  /** Delete a record */
-  deletePosition?: Maybe<Scalars['String']['output']>;
-  /** Delete a record */
-  deleteTaskType?: Maybe<Scalars['String']['output']>;
-  /** Delete a user */
-  deleteUser?: Maybe<Scalars['Boolean']['output']>;
-  /** Update a record */
-  updateEmployee?: Maybe<EmployeeType>;
-  /** Update a record */
-  updateExpense?: Maybe<ExpenseType>;
-  /** Update a record */
-  updateExpenseCategory?: Maybe<ExpenseCategoryType>;
-  /** Update a record */
-  updatePosition?: Maybe<PositionType>;
-  /** Update a record */
-  updateTaskType?: Maybe<TaskTypeType>;
-  /** Update a user */
-  updateUser?: Maybe<UserResponse>;
+  authenticate: Session;
+  createExpense: Expense;
+  createExpenseCategory: ExpenseCategory;
+  createRole: Role;
+  createRolePermission: RolePermissions;
+  createUser: User;
+  deleteExpense: Scalars['Boolean']['output'];
+  deleteExpenseCategory: Scalars['Boolean']['output'];
+  deleteRole: Scalars['Boolean']['output'];
+  deleteSession: Scalars['Boolean']['output'];
+  deleteUser: Scalars['Boolean']['output'];
+  updateExpense: Expense;
+  updateExpenseCategory: ExpenseCategory;
+  updateRole: Role;
+  updateUser: User;
 };
 
 
@@ -795,646 +136,398 @@ export type MutationAuthenticateArgs = {
 };
 
 
-export type MutationCreateEmployeeArgs = {
-  data?: InputMaybe<CreateEmployeeInput>;
-};
-
-
 export type MutationCreateExpenseArgs = {
-  data?: InputMaybe<CreateExpenseInput>;
+  input: CreateExpense;
 };
 
 
 export type MutationCreateExpenseCategoryArgs = {
-  data?: InputMaybe<CreateExpenseCategoryInput>;
+  input: CreateExpenseCategory;
 };
 
 
-export type MutationCreatePositionArgs = {
-  data?: InputMaybe<CreatePositionInput>;
+export type MutationCreateRoleArgs = {
+  input: CreateRole;
 };
 
 
-export type MutationCreateTaskTypeArgs = {
-  data?: InputMaybe<CreateTaskTypeInput>;
+export type MutationCreateRolePermissionArgs = {
+  input: CreateRolePermission;
 };
 
 
 export type MutationCreateUserArgs = {
-  data: CreateUserInput;
-};
-
-
-export type MutationDeleteEmployeeArgs = {
-  Id?: InputMaybe<Scalars['Int']['input']>;
+  input: CreateUser;
 };
 
 
 export type MutationDeleteExpenseArgs = {
-  Id?: InputMaybe<Scalars['Int']['input']>;
+  id: Scalars['ID']['input'];
 };
 
 
 export type MutationDeleteExpenseCategoryArgs = {
-  Id?: InputMaybe<Scalars['Int']['input']>;
+  id: Scalars['ID']['input'];
 };
 
 
-export type MutationDeletePositionArgs = {
-  Id?: InputMaybe<Scalars['Int']['input']>;
+export type MutationDeleteRoleArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
-export type MutationDeleteTaskTypeArgs = {
-  Id?: InputMaybe<Scalars['Int']['input']>;
+export type MutationDeleteSessionArgs = {
+  token: Scalars['String']['input'];
 };
 
 
 export type MutationDeleteUserArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationUpdateEmployeeArgs = {
-  data?: InputMaybe<UpdateEmployeeInput>;
-  id: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
 export type MutationUpdateExpenseArgs = {
-  data?: InputMaybe<UpdateExpenseInput>;
-  id: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
+  input: UpdateExpense;
 };
 
 
 export type MutationUpdateExpenseCategoryArgs = {
-  data?: InputMaybe<UpdateExpenseCategoryInput>;
-  id: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
+  input: UpdateExpenseCategory;
 };
 
 
-export type MutationUpdatePositionArgs = {
-  data?: InputMaybe<UpdatePositionInput>;
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationUpdateTaskTypeArgs = {
-  data?: InputMaybe<UpdateTaskTypeInput>;
-  id: Scalars['Int']['input'];
+export type MutationUpdateRoleArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdateRole;
 };
 
 
 export type MutationUpdateUserArgs = {
-  data: UpdateUserInput;
-  id: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
+  input: UpdateUser;
+};
+
+export type PaginatedAuthenticationLogs = {
+  __typename?: 'PaginatedAuthenticationLogs';
+  data: Array<AuthenticationLog>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedEmployees = {
+  __typename?: 'PaginatedEmployees';
+  data: Array<Employee>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedExpenseCategories = {
+  __typename?: 'PaginatedExpenseCategories';
+  data: Array<ExpenseCategory>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedExpenses = {
+  __typename?: 'PaginatedExpenses';
+  data: Array<Expense>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedPermissions = {
+  __typename?: 'PaginatedPermissions';
+  data: Array<Permission>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedPositions = {
+  __typename?: 'PaginatedPositions';
+  data: Array<Position>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedRolePermissions = {
+  __typename?: 'PaginatedRolePermissions';
+  data: Array<RolePermissions>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedRoles = {
+  __typename?: 'PaginatedRoles';
+  data: Array<Role>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedSessions = {
+  __typename?: 'PaginatedSessions';
+  data: Array<Session>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedUploads = {
+  __typename?: 'PaginatedUploads';
+  data: Array<Upload>;
+  total: Scalars['Int']['output'];
+};
+
+export type PaginatedUsers = {
+  __typename?: 'PaginatedUsers';
+  data: Array<User>;
+  total: Scalars['Int']['output'];
+};
+
+export type Permission = {
+  __typename?: 'Permission';
+  action?: Maybe<Scalars['String']['output']>;
+  description?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  modifier?: Maybe<Scalars['String']['output']>;
+  resource?: Maybe<Scalars['String']['output']>;
 };
 
 export type Position = {
   __typename?: 'Position';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['Time']['output'];
   description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type PositionCreateInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type PositionType = {
-  __typename?: 'PositionType';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type PositionUpdateInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type PositionsAggregateAggregate = {
-  __typename?: 'PositionsAggregateAggregate';
-  CreatedAt?: Maybe<PositionsAggregateCreatedAtAggregationQuery>;
-  Description?: Maybe<PositionsAggregateDescriptionAggregationQuery>;
-  Id?: Maybe<PositionsAggregateIdAggregationQuery>;
-  Name?: Maybe<PositionsAggregateNameAggregationQuery>;
-  UpdatedAt?: Maybe<PositionsAggregateUpdatedAtAggregationQuery>;
-};
-
-
-export type PositionsAggregateAggregateCreatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-
-export type PositionsAggregateAggregateDescriptionArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type PositionsAggregateAggregateIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type PositionsAggregateAggregateNameArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type PositionsAggregateAggregateUpdatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-export type PositionsAggregateCreatedAtAggregationQuery = {
-  __typename?: 'PositionsAggregateCreatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type PositionsAggregateDescriptionAggregationQuery = {
-  __typename?: 'PositionsAggregateDescriptionAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type PositionsAggregateIdAggregationQuery = {
-  __typename?: 'PositionsAggregateIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type PositionsAggregateNameAggregationQuery = {
-  __typename?: 'PositionsAggregateNameAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type PositionsAggregateUpdatedAtAggregationQuery = {
-  __typename?: 'PositionsAggregateUpdatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
 };
 
 export type Query = {
   __typename?: 'Query';
-  /** Get by id */
+  authenticationLog?: Maybe<AuthenticationLog>;
+  authenticationLogs: PaginatedAuthenticationLogs;
   employee?: Maybe<Employee>;
-  /** Get paginated */
-  employees?: Maybe<Employees>;
-  /** Get aggregated data */
-  employeesAggregate?: Maybe<Array<Maybe<EmployeesAggregateAggregate>>>;
-  /** Get by id */
+  employees: PaginatedEmployees;
   expense?: Maybe<Expense>;
-  /** Get paginated */
-  expenseCategories?: Maybe<ExpenseCategories>;
-  /** Get aggregated data */
-  expenseCategoriesAggregate?: Maybe<Array<Maybe<ExpenseCategoriesAggregateAggregate>>>;
-  /** Get by id */
+  expenseCategories: PaginatedExpenseCategories;
   expenseCategory?: Maybe<ExpenseCategory>;
-  /** Get paginated */
-  expenses?: Maybe<Expenses>;
-  /** Get aggregated data */
-  expensesAggregate?: Maybe<Array<Maybe<ExpensesAggregateAggregate>>>;
-  /** Get by id */
+  expenses: PaginatedExpenses;
+  permission?: Maybe<Permission>;
+  permissions: PaginatedPermissions;
   position?: Maybe<Position>;
-  /** Get paginated */
-  positions?: Maybe<Positions>;
-  /** Get aggregated data */
-  positionsAggregate?: Maybe<Array<Maybe<PositionsAggregateAggregate>>>;
-  /** Get by id */
-  taskType?: Maybe<TaskType>;
-  /** Get paginated */
-  taskTypes?: Maybe<TaskTypes>;
-  /** Get aggregated data */
-  taskTypesAggregate?: Maybe<Array<Maybe<TaskTypesAggregateAggregate>>>;
-  /** Get by id */
+  positions: PaginatedPositions;
+  role?: Maybe<Role>;
+  rolePermission?: Maybe<RolePermissions>;
+  rolePermissions: PaginatedRolePermissions;
+  roles: PaginatedRoles;
+  session?: Maybe<Session>;
+  sessions: PaginatedSessions;
+  upload?: Maybe<Upload>;
+  uploads: PaginatedUploads;
   user?: Maybe<User>;
-  /** Get paginated */
-  users?: Maybe<Users>;
+  users: PaginatedUsers;
 };
 
 
-export type QueryEmployeeArgs = {
-  id?: InputMaybe<Scalars['Int']['input']>;
+export type QueryAuthenticationLogArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
-export type QueryEmployeesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+export type QueryAuthenticationLogsArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
-export type QueryEmployeesAggregateArgs = {
-  groupBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+export type QueryEmployeeArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryEmployeesArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
 export type QueryExpenseArgs = {
-  id?: InputMaybe<Scalars['Int']['input']>;
+  id: Scalars['ID']['input'];
 };
 
 
 export type QueryExpenseCategoriesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type QueryExpenseCategoriesAggregateArgs = {
-  groupBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
 export type QueryExpenseCategoryArgs = {
-  id?: InputMaybe<Scalars['Int']['input']>;
+  id: Scalars['ID']['input'];
 };
 
 
 export type QueryExpensesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
-export type QueryExpensesAggregateArgs = {
-  groupBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+export type QueryPermissionArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryPermissionsArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
 export type QueryPositionArgs = {
-  id?: InputMaybe<Scalars['Int']['input']>;
+  id: Scalars['ID']['input'];
 };
 
 
 export type QueryPositionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
-export type QueryPositionsAggregateArgs = {
-  groupBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+export type QueryRoleArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryRolePermissionArgs = {
+  permissionId: Scalars['Int']['input'];
+  roleId: Scalars['Int']['input'];
+};
+
+
+export type QueryRolePermissionsArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
-export type QueryTaskTypeArgs = {
-  id?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryTaskTypesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+export type QueryRolesArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
-export type QueryTaskTypesAggregateArgs = {
-  groupBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+export type QuerySessionArgs = {
+  token: Scalars['String']['input'];
+};
+
+
+export type QuerySessionsArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
+  sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
+};
+
+
+export type QueryUploadArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryUploadsArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
 
 export type QueryUserArgs = {
-  id?: InputMaybe<Scalars['Int']['input']>;
+  id: Scalars['ID']['input'];
 };
 
 
 export type QueryUsersArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
 };
 
-export type TaskType = {
-  __typename?: 'TaskType';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
+export type Role = {
+  __typename?: 'Role';
+  createdAt: Scalars['Time']['output'];
   description?: Maybe<Scalars['String']['output']>;
-  icon?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
 };
 
-export type TaskTypeType = {
-  __typename?: 'TaskTypeType';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  description?: Maybe<Scalars['String']['output']>;
-  icon?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
+export type RolePermissions = {
+  __typename?: 'RolePermissions';
+  permissionId: Scalars['Int']['output'];
+  roleId: Scalars['Int']['output'];
 };
 
-export type TaskTypesAggregateAggregate = {
-  __typename?: 'TaskTypesAggregateAggregate';
-  CreatedAt?: Maybe<TaskTypesAggregateCreatedAtAggregationQuery>;
-  Description?: Maybe<TaskTypesAggregateDescriptionAggregationQuery>;
-  Icon?: Maybe<TaskTypesAggregateIconAggregationQuery>;
-  Id?: Maybe<TaskTypesAggregateIdAggregationQuery>;
-  Name?: Maybe<TaskTypesAggregateNameAggregationQuery>;
-  UpdatedAt?: Maybe<TaskTypesAggregateUpdatedAtAggregationQuery>;
+export type Session = {
+  __typename?: 'Session';
+  createdAt: Scalars['Time']['output'];
+  expiresAt: Scalars['Time']['output'];
+  ip: Scalars['String']['output'];
+  token: Scalars['String']['output'];
+  userAgent: Scalars['String']['output'];
+  userId: Scalars['Int']['output'];
 };
 
-
-export type TaskTypesAggregateAggregateCreatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-
-export type TaskTypesAggregateAggregateDescriptionArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type TaskTypesAggregateAggregateIconArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type TaskTypesAggregateAggregateIdArgs = {
-  gt?: InputMaybe<Scalars['Int']['input']>;
-  gte?: InputMaybe<Scalars['Int']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-  lt?: InputMaybe<Scalars['Int']['input']>;
-  lte?: InputMaybe<Scalars['Int']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['Int']['input']>>>;
-};
-
-
-export type TaskTypesAggregateAggregateNameArgs = {
-  in?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['String']['input']>>>;
-};
-
-
-export type TaskTypesAggregateAggregateUpdatedAtArgs = {
-  gt?: InputMaybe<Scalars['DateTime']['input']>;
-  gte?: InputMaybe<Scalars['DateTime']['input']>;
-  in?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-  lt?: InputMaybe<Scalars['DateTime']['input']>;
-  lte?: InputMaybe<Scalars['DateTime']['input']>;
-  out?: InputMaybe<Array<InputMaybe<Scalars['DateTime']['input']>>>;
-};
-
-export type TaskTypesAggregateCreatedAtAggregationQuery = {
-  __typename?: 'TaskTypesAggregateCreatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type TaskTypesAggregateDescriptionAggregationQuery = {
-  __typename?: 'TaskTypesAggregateDescriptionAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type TaskTypesAggregateIconAggregationQuery = {
-  __typename?: 'TaskTypesAggregateIconAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type TaskTypesAggregateIdAggregationQuery = {
-  __typename?: 'TaskTypesAggregateIdAggregationQuery';
-  avg?: Maybe<Scalars['Int']['output']>;
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['Int']['output']>;
-  min?: Maybe<Scalars['Int']['output']>;
-  sum?: Maybe<Scalars['Int']['output']>;
-};
-
-export type TaskTypesAggregateNameAggregationQuery = {
-  __typename?: 'TaskTypesAggregateNameAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-};
-
-export type TaskTypesAggregateUpdatedAtAggregationQuery = {
-  __typename?: 'TaskTypesAggregateUpdatedAtAggregationQuery';
-  count?: Maybe<Scalars['Int']['output']>;
-  max?: Maybe<Scalars['DateTime']['output']>;
-  min?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type UpdateEmployeeInput = {
-  avatar_id?: InputMaybe<Scalars['Int']['input']>;
-  coefficient?: InputMaybe<Scalars['Float']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  email?: InputMaybe<Scalars['String']['input']>;
-  first_name?: InputMaybe<Scalars['String']['input']>;
-  hourly_rate?: InputMaybe<Scalars['Float']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  last_name?: InputMaybe<Scalars['String']['input']>;
-  meta?: InputMaybe<MetaUpdateInput>;
-  middle_name?: InputMaybe<Scalars['String']['input']>;
-  phone?: InputMaybe<Scalars['String']['input']>;
-  position?: InputMaybe<PositionUpdateInput>;
-  position_id?: InputMaybe<Scalars['Int']['input']>;
-  salary?: InputMaybe<Scalars['Float']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type UpdateExpenseCategoryInput = {
+export type UpdateExpense = {
   amount?: InputMaybe<Scalars['Float']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  date?: InputMaybe<Scalars['String']['input']>;
 };
 
-export type UpdateExpenseInput = {
+export type UpdateExpenseCategory = {
   amount?: InputMaybe<Scalars['Float']['input']>;
-  category?: InputMaybe<CategoryUpdateInput>;
-  category_id?: InputMaybe<Scalars['Int']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
-  date?: InputMaybe<Scalars['DateTime']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
-};
-
-export type UpdatePositionInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
   description?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
 };
 
-export type UpdateTaskTypeInput = {
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
+export type UpdateRole = {
   description?: InputMaybe<Scalars['String']['input']>;
-  icon?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
 };
 
-export type UpdateUserInput = {
-  avatar?: InputMaybe<AvatarUpdateInput>;
-  avatar_id?: InputMaybe<Scalars['Int']['input']>;
-  created_at?: InputMaybe<Scalars['DateTime']['input']>;
+export type UpdateUser = {
+  avatarId?: InputMaybe<Scalars['Int']['input']>;
   email?: InputMaybe<Scalars['String']['input']>;
-  employee_id?: InputMaybe<Scalars['Int']['input']>;
-  first_name?: InputMaybe<Scalars['String']['input']>;
-  id?: InputMaybe<Scalars['Int']['input']>;
-  last_action?: InputMaybe<Scalars['DateTime']['input']>;
-  last_ip?: InputMaybe<Scalars['String']['input']>;
-  last_login?: InputMaybe<Scalars['DateTime']['input']>;
-  last_name?: InputMaybe<Scalars['String']['input']>;
-  middle_name?: InputMaybe<Scalars['String']['input']>;
+  employeeId?: InputMaybe<Scalars['Int']['input']>;
+  firstName?: InputMaybe<Scalars['String']['input']>;
+  lastName?: InputMaybe<Scalars['String']['input']>;
   password?: InputMaybe<Scalars['String']['input']>;
-  updated_at?: InputMaybe<Scalars['DateTime']['input']>;
+};
+
+export type Upload = {
+  __typename?: 'Upload';
+  createdAt: Scalars['Time']['output'];
+  id: Scalars['ID']['output'];
+  mimetype: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  path: Scalars['String']['output'];
+  size: Scalars['Float']['output'];
+  updatedAt: Scalars['Time']['output'];
+  uploaderId?: Maybe<Scalars['ID']['output']>;
 };
 
 export type User = {
   __typename?: 'User';
-  avatar?: Maybe<UseravatarJoin>;
-  avatarId?: Maybe<Scalars['Int']['output']>;
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
-  email?: Maybe<Scalars['String']['output']>;
-  employeeId?: Maybe<Scalars['Int']['output']>;
-  firstName?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  lastAction?: Maybe<Scalars['DateTime']['output']>;
+  avatar?: Maybe<Upload>;
+  avatarId?: Maybe<Scalars['ID']['output']>;
+  createdAt: Scalars['Time']['output'];
+  email: Scalars['String']['output'];
+  employeeId?: Maybe<Scalars['ID']['output']>;
+  firstName: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  lastAction?: Maybe<Scalars['Time']['output']>;
   lastIp?: Maybe<Scalars['String']['output']>;
-  lastLogin?: Maybe<Scalars['DateTime']['output']>;
-  lastName?: Maybe<Scalars['String']['output']>;
+  lastLogin?: Maybe<Scalars['Time']['output']>;
+  lastName: Scalars['String']['output'];
   middleName?: Maybe<Scalars['String']['output']>;
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type UserResponse = {
-  __typename?: 'UserResponse';
-  avatar?: Maybe<UserResponseavatarJoin>;
-  avatarId?: Maybe<Scalars['Int']['output']>;
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
-  email?: Maybe<Scalars['String']['output']>;
-  employeeId?: Maybe<Scalars['Int']['output']>;
-  firstName?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  lastAction?: Maybe<Scalars['DateTime']['output']>;
-  lastIp?: Maybe<Scalars['String']['output']>;
-  lastLogin?: Maybe<Scalars['DateTime']['output']>;
-  lastName?: Maybe<Scalars['String']['output']>;
-  middleName?: Maybe<Scalars['String']['output']>;
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
-};
-
-export type UserResponseavatarJoin = {
-  __typename?: 'UserResponseavatarJoin';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  mimetype?: Maybe<Scalars['String']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  path?: Maybe<Scalars['String']['output']>;
-  size?: Maybe<Scalars['Float']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-  uploader_id?: Maybe<Scalars['Int']['output']>;
-};
-
-export type UseravatarJoin = {
-  __typename?: 'UseravatarJoin';
-  created_at?: Maybe<Scalars['DateTime']['output']>;
-  id?: Maybe<Scalars['Int']['output']>;
-  mimetype?: Maybe<Scalars['String']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  path?: Maybe<Scalars['String']['output']>;
-  size?: Maybe<Scalars['Float']['output']>;
-  updated_at?: Maybe<Scalars['DateTime']['output']>;
-  uploader_id?: Maybe<Scalars['Int']['output']>;
-};
-
-export type Employees = {
-  __typename?: 'employees';
-  data?: Maybe<Array<Maybe<Employee>>>;
-  total?: Maybe<Scalars['Int']['output']>;
-};
-
-export type ExpenseCategories = {
-  __typename?: 'expenseCategories';
-  data?: Maybe<Array<Maybe<ExpenseCategory>>>;
-  total?: Maybe<Scalars['Int']['output']>;
-};
-
-export type Expenses = {
-  __typename?: 'expenses';
-  data?: Maybe<Array<Maybe<Expense>>>;
-  total?: Maybe<Scalars['Int']['output']>;
-};
-
-export type Positions = {
-  __typename?: 'positions';
-  data?: Maybe<Array<Maybe<Position>>>;
-  total?: Maybe<Scalars['Int']['output']>;
-};
-
-export type TaskTypes = {
-  __typename?: 'taskTypes';
-  data?: Maybe<Array<Maybe<TaskType>>>;
-  total?: Maybe<Scalars['Int']['output']>;
-};
-
-export type Users = {
-  __typename?: 'users';
-  data?: Maybe<Array<Maybe<User>>>;
-  total?: Maybe<Scalars['Int']['output']>;
+  updatedAt: Scalars['Time']['output'];
 };

@@ -60,14 +60,17 @@ Now open postman and explore the GraphQL schema at http://localhost:3200/graphql
 Get all employees and their positions
 ```graphql
 query Users {
-    users {
+    users(limit: 10, offset: 0) {
         total
         data {
-            avatar_id
-            email
-            first_name
             id
-            last_name
+            email
+            firstName
+            lastName
+            avatar {
+                id
+                size
+            }
         }
     }
 }
@@ -75,7 +78,7 @@ query Users {
 
 ## Reference commands
 
-Regenerate the GraphQL schema
+Regenerate from GraphQL schema
 ```shell
 go generate ./...
 ```

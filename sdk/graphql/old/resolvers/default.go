@@ -6,7 +6,7 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
-	"github.com/iota-agency/iota-erp/sdk/graphql/adapters"
+	adapters2 "github.com/iota-agency/iota-erp/sdk/graphql/old/adapters"
 	"gorm.io/gorm"
 )
 
@@ -61,7 +61,7 @@ func DefaultGetResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn {
 		panic(err)
 	}
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		id, err := adapters.CastId(p.Args, pk)
+		id, err := adapters2.CastId(p.Args, pk)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +84,7 @@ func DefaultCountResolver(db *gorm.DB, model interface{}) graphql.FieldResolveFn
 }
 
 func DefaultQueries(db *gorm.DB, model interface{}, singular, plural string) []*graphql.Field {
-	modelType, err := adapters.ReadTypeFromModel(model, utils.Title(singular))
+	modelType, err := adapters2.ReadTypeFromModel(model, utils.Title(singular))
 	if err != nil {
 		panic(err)
 	}
@@ -100,16 +100,16 @@ func DefaultMutations(db *gorm.DB, model interface{}, name string) []*graphql.Fi
 	if err != nil {
 		panic(err)
 	}
-	modelType, err := adapters.ReadTypeFromModel(model, fmt.Sprintf("%sType", utils.Title(name)))
+	modelType, err := adapters2.ReadTypeFromModel(model, fmt.Sprintf("%sType", utils.Title(name)))
 	if err != nil {
 		panic(err)
 	}
-	createArgs, err := adapters.CreateArgsFromModel(model)
+	createArgs, err := adapters2.CreateArgsFromModel(model)
 	if err != nil {
 		panic(err)
 	}
 
-	updateArgs, err := adapters.UpdateArgsFromModel(model)
+	updateArgs, err := adapters2.UpdateArgsFromModel(model)
 	if err != nil {
 		panic(err)
 	}
@@ -134,7 +134,7 @@ func DefaultMutations(db *gorm.DB, model interface{}, name string) []*graphql.Fi
 			Description: "Update a record",
 			Args: graphql.FieldConfigArgument{
 				"id": &graphql.ArgumentConfig{
-					Type: graphql.NewNonNull(adapters.Sql2graphql[pk.DataType]),
+					Type: graphql.NewNonNull(adapters2.Sql2graphql[pk.DataType]),
 				},
 				"data": &graphql.ArgumentConfig{
 					Type: graphql.NewInputObject(graphql.InputObjectConfig{
@@ -151,7 +151,7 @@ func DefaultMutations(db *gorm.DB, model interface{}, name string) []*graphql.Fi
 			Description: "Delete a record",
 			Args: graphql.FieldConfigArgument{
 				pk.Name: &graphql.ArgumentConfig{
-					Type: adapters.Sql2graphql[pk.DataType],
+					Type: adapters2.Sql2graphql[pk.DataType],
 				},
 			},
 			Resolve: DefaultDeleteResolver(db, model),
