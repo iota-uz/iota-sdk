@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/iota-agency/iota-erp/graph/gqlmodels"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 )
@@ -39,23 +40,6 @@ func (u *User) CheckPassword(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)) == nil
 }
 
-func (u *User) Validate() []*ValidationError {
-	var errs []*ValidationError
-	if u.FirstName == "" {
-		errs = append(errs, NewValidationError("first_name", "first_name is required"))
-	}
-	if u.LastName == "" {
-		errs = append(errs, NewValidationError("last_name", "last_name is required"))
-	}
-	if u.Email == "" {
-		errs = append(errs, NewValidationError("email", "email is required"))
-	}
-	if u.Password == "" {
-		errs = append(errs, NewValidationError("password", "password is required"))
-	}
-	return errs
-}
-
 func (u *User) SetPassword(password string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -63,4 +47,13 @@ func (u *User) SetPassword(password string) error {
 	}
 	u.Password = string(hash)
 	return nil
+}
+
+func (u *User) ToGraph() *model.User {
+	return &model.User{
+		ID:        u.Id,
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Email:     u.Email,
+	}
 }

@@ -378,7 +378,6 @@ CREATE TABLE role_permissions
 (
     role_id       INT NOT NULL,
     permission_id INT NOT NULL,
-    created_at    TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     PRIMARY KEY (role_id, permission_id),
     CONSTRAINT fk_role_permissions_role
         FOREIGN KEY (role_id)

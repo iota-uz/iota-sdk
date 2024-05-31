@@ -41,7 +41,7 @@ func CreateArgsFromModel(model interface{}) (graphql.InputObjectConfigFieldMap, 
 		return f.Creatable && gf.Creatable
 	})
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	args := graphql.InputObjectConfigFieldMap{}
 	for key, field := range gormFields {

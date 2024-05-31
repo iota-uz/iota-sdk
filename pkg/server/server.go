@@ -9,7 +9,6 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/iota-agency/iota-erp/pkg/authentication"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes"
-	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/auth"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/employees"
 	expenseCategories "github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expense-categories"
 	"github.com/iota-agency/iota-erp/pkg/server/graphql/routes/expenses"
@@ -27,7 +26,7 @@ import (
 
 type Server struct {
 	Db   *gorm.DB
-	Auth *authentication.Authentication
+	Auth *authentication.Service
 }
 
 func New(db *gorm.DB) *Server {
@@ -136,7 +135,6 @@ func (s *Server) graphQlSchema() (graphql.Schema, error) {
 		taskTypes.Queries,
 	}
 	mutationConstructors := []routes.GraphQLConstructor{
-		auth.Mutations,
 		users.Mutations,
 		expenses.Mutations,
 		expenseCategories.Mutations,

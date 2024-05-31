@@ -5,9 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/graphql-go/graphql"
-	dbutils2 "github.com/iota-agency/iota-erp/sdk/db/dbutils"
-	"github.com/iota-agency/iota-erp/sdk/graphql/dbutils"
-	"github.com/iota-agency/iota-erp/sdk/graphql/resolvers"
 	"github.com/jmoiron/sqlx"
 	"github.com/sashabaranov/go-openai"
 	"io"
@@ -133,36 +130,37 @@ func GraphQL(db *sqlx.DB) (*graphql.Object, *graphql.Object) {
 					},
 				)),
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-					query := resolvers.ResolveToQuery(p, &dbutils.Model{
-						Table: "dialogues",
-						Pk: &dbutils.Field{
-							Name: "id",
-							Type: dbutils.Serial,
-						},
-						Fields: []*dbutils.Field{
-							{
-								Name: "label",
-								Type: dbutils.CharacterVarying,
-							},
-							{
-								Name: "messages",
-								Type: dbutils.Jsonb,
-							},
-						},
-					})
-					_sortBy, ok := p.Info.VariableValues["sortBy"].([]interface{})
-					if ok {
-						var sortBy []string
-						for _, s := range _sortBy {
-							sortBy = append(sortBy, s.(string))
-						}
-						query.Order(resolvers.OrderStringToExpression(sortBy)...)
-					}
-					data, err := dbutils2.Find(db, query)
-					if err != nil {
-						return nil, err
-					}
-					return data, nil
+					//query := resolvers.ResolveToQuery(p, &dbutils.Model{
+					//	Table: "dialogues",
+					//	Pk: &dbutils.Field{
+					//		Name: "id",
+					//		Type: dbutils.Serial,
+					//	},
+					//	Fields: []*dbutils.Field{
+					//		{
+					//			Name: "label",
+					//			Type: dbutils.CharacterVarying,
+					//		},
+					//		{
+					//			Name: "messages",
+					//			Type: dbutils.Jsonb,
+					//		},
+					//	},
+					//})
+					//_sortBy, ok := p.Info.VariableValues["sortBy"].([]interface{})
+					//if ok {
+					//	var sortBy []string
+					//	for _, s := range _sortBy {
+					//		sortBy = append(sortBy, s.(string))
+					//	}
+					//	query.Order(resolvers.OrderStringToExpression(sortBy)...)
+					//}
+					//data, err := dbutils2.Find(db, query)
+					//if err != nil {
+					//	return nil, err
+					//}
+					//return data, nil
+					return nil, nil
 				},
 			},
 		},

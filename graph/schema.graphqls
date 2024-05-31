@@ -1,0 +1,308 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+scalar Time
+
+type Session {
+    token: String!
+    userId: Int!
+    ip: String!
+    userAgent: String!
+    expiresAt: Time!
+    createdAt: Time!
+}
+
+type PaginatedSessions {
+    data: [Session!]!
+    total: Int!
+}
+
+type AuthenticationLog {
+    id: ID!
+    userId: Int!
+    ip: String!
+    userAgent: String!
+    createdAt: Time!
+}
+
+type PaginatedAuthenticationLogs {
+    data: [AuthenticationLog!]!
+    total: Int!
+}
+
+type Permission {
+    id: ID!
+    description: String
+    resource: String
+    action: String
+    modifier: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedPermissions {
+    data: [Permission!]!
+    total: Int!
+}
+
+type RolePermissions {
+    permissionId: Int!
+    roleId: Int!
+}
+
+type PaginatedRolePermissions {
+    data: [RolePermissions!]!
+    total: Int!
+}
+
+type ExpenseCategory {
+    id: ID!
+    name: String!
+    description: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedExpenseCategories {
+    data: [ExpenseCategory!]!
+    total: Int!
+}
+
+type Expense {
+    id: ID!
+    amount: Float!
+    categoryId: Int!
+    category: ExpenseCategory
+    date: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedExpenses {
+    data: [Expense!]!
+    total: Int!
+}
+
+type EmployeeMeta {
+    employeeId: Int
+    primaryLanguage: String
+    secondaryLanguage: String
+    tin: String
+    birthDate: String
+    joinDate: String
+    leaveDate: String
+    generalInfo: String
+    ytProfileId: String
+    updatedAt: String
+}
+
+type Position {
+    id: ID!
+    name: String!
+    description: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedPositions {
+    data: [Position!]!
+    total: Int!
+}
+
+type Employee {
+    id: ID!
+    firstName: String!
+    lastName: String!
+    middleName: String
+    email: String!
+    phone: String
+    salary: Float!
+    hourlyRate: Float!
+    positionId: Int!
+    coefficient: Float!
+    meta: EmployeeMeta
+    position: Position
+    avatarId: Int
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedEmployees {
+    data: [Employee!]!
+    total: Int!
+}
+
+type Role {
+    id: ID!
+    name: String!
+    description: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedRoles {
+    data: [Role!]!
+    total: Int!
+}
+
+type Uploads {
+    id: ID!
+    name: String!
+    path: String!
+    uploaderId: Int
+    mimetype: String!
+    size: Float!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedUploads {
+    data: [Uploads!]!
+    total: Int!
+}
+
+type User {
+    id: ID!
+    firstName: String!
+    lastName: String!
+    email: String!
+    avatar: Uploads
+    avatarId: Int
+    employeeId: Int
+    lastIp: String
+    lastLogin: String
+    lastAction: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedUsers {
+    data: [User!]!
+    total: Int!
+}
+
+type Query {
+    user(id: ID!): User
+    users: [User!]!
+    paginatedUsers(offset: Int!, limit: Int!): PaginatedUsers!
+
+    upload(id: ID!): Uploads
+    uploads: [Uploads!]!
+    paginatedUploads(offset: Int!, limit: Int!): PaginatedUploads!
+
+    employee(id: ID!): Employee
+    employees: [Employee!]!
+    paginatedEmployees(offset: Int!, limit: Int!): PaginatedEmployees!
+
+    position(id: ID!): Position
+    positions: [Position!]!
+    paginatedPositions(offset: Int!, limit: Int!): PaginatedPositions!
+
+    role(id: ID!): Role
+    roles: [Role!]!
+    paginatedRoles(offset: Int!, limit: Int!): PaginatedRoles!
+
+    permission(id: ID!): Permission
+    permissions: [Permission!]!
+    paginatedPermissions(offset: Int!, limit: Int!): PaginatedPermissions!
+
+    rolePermission(roleId: Int!, permissionId: Int!): RolePermissions
+    rolePermissions: [RolePermissions!]!
+    paginatedRolePermissions(offset: Int!, limit: Int!): PaginatedRolePermissions!
+
+    expenseCategory(id: ID!): ExpenseCategory
+    expenseCategories: [ExpenseCategory!]!
+    paginatedExpenseCategories(offset: Int!, limit: Int!): PaginatedExpenseCategories!
+
+    expense(id: ID!): Expense
+    expenses: [Expense!]!
+    paginatedExpenses(offset: Int!, limit: Int!): PaginatedExpenses!
+
+    authenticationLog(id: ID!): AuthenticationLog
+    authenticationLogs: [AuthenticationLog!]!
+    paginatedAuthenticationLogs(offset: Int!, limit: Int!): PaginatedAuthenticationLogs!
+
+    session(token: String!): Session
+    sessions: [Session!]!
+    paginatedSessions(offset: Int!, limit: Int!): PaginatedSessions!
+}
+
+input CreateUser {
+    firstName: String!
+    lastName: String!
+    password: String!
+    email: String
+    employeeId: Int
+    avatarId: Int
+}
+
+input UpdateUser {
+    firstName: String
+    lastName: String
+    email: String
+    password: String
+    employeeId: Int
+    avatarId: Int
+}
+
+input CreateRole {
+    name: String!
+    description: String
+}
+
+input UpdateRole {
+    name: String
+    description: String
+}
+
+input CreateRolePermission {
+    roleId: Int!
+    permissionId: Int!
+}
+
+input CreateExpenseCategory {
+    name: String!
+    description: String
+}
+
+input UpdateExpenseCategory {
+    name: String
+    description: String
+}
+
+input CreateExpense {
+    amount: Float!
+    categoryId: Int!
+    date: String
+}
+
+input UpdateExpense {
+    amount: Float
+    categoryId: Int
+    date: String
+}
+
+type Mutation {
+    authenticate(email: String!, password: String!): Session!
+
+    createUser(input: CreateUser!): User!
+    updateUser(id: ID!, input: UpdateUser!): User!
+    deleteUser(id: ID!): Boolean!
+
+    createRole(input: CreateRole!): Role!
+    updateRole(id: ID!, input: UpdateRole!): Role!
+    deleteRole(id: ID!): Boolean!
+
+    createRolePermission(input: CreateRolePermission!): RolePermissions!
+
+    createExpenseCategory(input: CreateExpenseCategory!): ExpenseCategory!
+    updateExpenseCategory(id: ID!, input: UpdateExpenseCategory!): ExpenseCategory!
+    deleteExpenseCategory(id: ID!): Boolean!
+
+    createExpense(input: CreateExpense!): Expense!
+    updateExpense(id: ID!, input: UpdateExpense!): Expense!
+    deleteExpense(id: ID!): Boolean!
+
+    deleteSession(token: String!): Boolean!
+}

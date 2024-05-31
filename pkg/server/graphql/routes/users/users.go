@@ -17,9 +17,6 @@ func CreateUser(db *gorm.DB) graphql.FieldResolveFn {
 			Email:     data["email"].(string),
 			Password:  data["password"].(string),
 		}
-		if errs := user.Validate(); len(errs) != 0 {
-			return nil, errs[0]
-		}
 		if err := user.SetPassword(user.Password); err != nil {
 			return nil, err
 		}
@@ -39,9 +36,6 @@ func UpdateUser(db *gorm.DB) graphql.FieldResolveFn {
 			LastName:  data["lastName"].(string),
 			Email:     data["email"].(string),
 			Password:  data["password"].(string),
-		}
-		if errs := user.Validate(); len(errs) != 0 {
-			return nil, errs[0]
 		}
 		if err := user.SetPassword(user.Password); err != nil {
 			return nil, err

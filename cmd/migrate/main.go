@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"github.com/iota-agency/iota-erp/pkg/migration"
 	"github.com/iota-agency/iota-erp/pkg/utils"
-	"log"
-	"os"
-
 	"github.com/jmoiron/sqlx"
 	"github.com/kulado/sqlxmigrate"
 	_ "github.com/lib/pq"
+	"log"
+	"os"
 )
 
 func loadMigrations() ([]*sqlxmigrate.Migration, error) {
