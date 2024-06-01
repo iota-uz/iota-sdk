@@ -36,8 +36,7 @@ func main() {
 
 	port := utils.GetEnv("PORT", "3200")
 	http.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
-
-	graphHandler := middleware.AuthMiddleware(authService)(middleware.LoggingMiddleware(srv))
+	graphHandler := middleware.AuthMiddleware(db, authService)(middleware.LoggingMiddleware(srv))
 	http.Handle("/graphql", cors.Default().Handler(graphHandler))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)

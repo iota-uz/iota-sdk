@@ -110,16 +110,19 @@ type ComplexityRoot struct {
 		Authenticate          func(childComplexity int, email string, password string) int
 		CreateExpense         func(childComplexity int, input model.CreateExpense) int
 		CreateExpenseCategory func(childComplexity int, input model.CreateExpenseCategory) int
+		CreatePosition        func(childComplexity int, input model.CreatePosition) int
 		CreateRole            func(childComplexity int, input model.CreateRole) int
 		CreateRolePermission  func(childComplexity int, input model.CreateRolePermission) int
 		CreateUser            func(childComplexity int, input model.CreateUser) int
 		DeleteExpense         func(childComplexity int, id int64) int
 		DeleteExpenseCategory func(childComplexity int, id int64) int
+		DeletePosition        func(childComplexity int, id int64) int
 		DeleteRole            func(childComplexity int, id int64) int
 		DeleteSession         func(childComplexity int, token string) int
 		DeleteUser            func(childComplexity int, id int64) int
 		UpdateExpense         func(childComplexity int, id int64, input model.UpdateExpense) int
 		UpdateExpenseCategory func(childComplexity int, id int64, input model.UpdateExpenseCategory) int
+		UpdatePosition        func(childComplexity int, id int64, input model.UpdatePosition) int
 		UpdateRole            func(childComplexity int, id int64, input model.UpdateRole) int
 		UpdateUser            func(childComplexity int, id int64, input model.UpdateUser) int
 	}
@@ -209,7 +212,7 @@ type ComplexityRoot struct {
 		Position           func(childComplexity int, id int64) int
 		Positions          func(childComplexity int, offset int, limit int, sortBy []*string) int
 		Role               func(childComplexity int, id int64) int
-		RolePermission     func(childComplexity int, roleID int, permissionID int) int
+		RolePermission     func(childComplexity int, roleID int64, permissionID int64) int
 		RolePermissions    func(childComplexity int, offset int, limit int, sortBy []*string) int
 		Roles              func(childComplexity int, offset int, limit int, sortBy []*string) int
 		Session            func(childComplexity int, token string) int
@@ -217,7 +220,7 @@ type ComplexityRoot struct {
 		Upload             func(childComplexity int, id int64) int
 		Uploads            func(childComplexity int, offset int, limit int, sortBy []*string) int
 		User               func(childComplexity int, id int64) int
-		Users              func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Users              func(childComplexity int, offset int, limit int, sortBy []string) int
 	}
 
 	Role struct {
@@ -285,11 +288,14 @@ type MutationResolver interface {
 	CreateExpense(ctx context.Context, input model.CreateExpense) (*model.Expense, error)
 	UpdateExpense(ctx context.Context, id int64, input model.UpdateExpense) (*model.Expense, error)
 	DeleteExpense(ctx context.Context, id int64) (bool, error)
+	CreatePosition(ctx context.Context, input model.CreatePosition) (*model.Position, error)
+	UpdatePosition(ctx context.Context, id int64, input model.UpdatePosition) (*model.Position, error)
+	DeletePosition(ctx context.Context, id int64) (bool, error)
 	DeleteSession(ctx context.Context, token string) (bool, error)
 }
 type QueryResolver interface {
 	User(ctx context.Context, id int64) (*model.User, error)
-	Users(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUsers, error)
+	Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error)
 	Upload(ctx context.Context, id int64) (*model.Upload, error)
 	Uploads(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUploads, error)
 	Employee(ctx context.Context, id int64) (*model.Employee, error)
@@ -300,7 +306,7 @@ type QueryResolver interface {
 	Roles(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRoles, error)
 	Permission(ctx context.Context, id int64) (*model.Permission, error)
 	Permissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPermissions, error)
-	RolePermission(ctx context.Context, roleID int, permissionID int) (*model.RolePermissions, error)
+	RolePermission(ctx context.Context, roleID int64, permissionID int64) (*model.RolePermissions, error)
 	RolePermissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRolePermissions, error)
 	ExpenseCategory(ctx context.Context, id int64) (*model.ExpenseCategory, error)
 	ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenseCategories, error)
@@ -668,6 +674,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateExpenseCategory(childComplexity, args["input"].(model.CreateExpenseCategory)), true
 
+	case "Mutation.createPosition":
+		if e.complexity.Mutation.CreatePosition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createPosition_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreatePosition(childComplexity, args["input"].(model.CreatePosition)), true
+
 	case "Mutation.createRole":
 		if e.complexity.Mutation.CreateRole == nil {
 			break
@@ -728,6 +746,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.DeleteExpenseCategory(childComplexity, args["id"].(int64)), true
 
+	case "Mutation.deletePosition":
+		if e.complexity.Mutation.DeletePosition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deletePosition_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeletePosition(childComplexity, args["id"].(int64)), true
+
 	case "Mutation.deleteRole":
 		if e.complexity.Mutation.DeleteRole == nil {
 			break
@@ -787,6 +817,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.UpdateExpenseCategory(childComplexity, args["id"].(int64), args["input"].(model.UpdateExpenseCategory)), true
+
+	case "Mutation.updatePosition":
+		if e.complexity.Mutation.UpdatePosition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updatePosition_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdatePosition(childComplexity, args["id"].(int64), args["input"].(model.UpdatePosition)), true
 
 	case "Mutation.updateRole":
 		if e.complexity.Mutation.UpdateRole == nil {
@@ -1202,7 +1244,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.RolePermission(childComplexity, args["roleId"].(int), args["permissionId"].(int)), true
+		return e.complexity.Query.RolePermission(childComplexity, args["roleId"].(int64), args["permissionId"].(int64)), true
 
 	case "Query.rolePermissions":
 		if e.complexity.Query.RolePermissions == nil {
@@ -1298,7 +1340,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Users(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Users(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Role.createdAt":
 		if e.complexity.Role.CreatedAt == nil {
@@ -1548,11 +1590,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputCreateExpense,
 		ec.unmarshalInputCreateExpenseCategory,
+		ec.unmarshalInputCreatePosition,
 		ec.unmarshalInputCreateRole,
 		ec.unmarshalInputCreateRolePermission,
 		ec.unmarshalInputCreateUser,
 		ec.unmarshalInputUpdateExpense,
 		ec.unmarshalInputUpdateExpenseCategory,
+		ec.unmarshalInputUpdatePosition,
 		ec.unmarshalInputUpdateRole,
 		ec.unmarshalInputUpdateUser,
 	)
@@ -1725,6 +1769,21 @@ func (ec *executionContext) field_Mutation_createExpense_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createPosition_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.CreatePosition
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNCreatePosition2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐCreatePosition(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createRolePermission_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -1786,6 +1845,21 @@ func (ec *executionContext) field_Mutation_deleteExpenseCategory_args(ctx contex
 }
 
 func (ec *executionContext) field_Mutation_deleteExpense_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int64
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2int64(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deletePosition_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 int64
@@ -1885,6 +1959,30 @@ func (ec *executionContext) field_Mutation_updateExpense_args(ctx context.Contex
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 		arg1, err = ec.unmarshalNUpdateExpense2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpdateExpense(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updatePosition_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int64
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2int64(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	var arg1 model.UpdatePosition
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg1, err = ec.unmarshalNUpdatePosition2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpdatePosition(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2247,19 +2345,19 @@ func (ec *executionContext) field_Query_positions_args(ctx context.Context, rawA
 func (ec *executionContext) field_Query_rolePermission_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 int
+	var arg0 int64
 	if tmp, ok := rawArgs["roleId"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleId"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		arg0, err = ec.unmarshalNID2int64(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
 	args["roleId"] = arg0
-	var arg1 int
+	var arg1 int64
 	if tmp, ok := rawArgs["permissionId"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permissionId"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		arg1, err = ec.unmarshalNID2int64(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2481,10 +2579,10 @@ func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2601,9 +2699,9 @@ func (ec *executionContext) _AuthenticationLog_userId(ctx context.Context, field
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_AuthenticationLog_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2613,7 +2711,7 @@ func (ec *executionContext) fieldContext_AuthenticationLog_userId(_ context.Cont
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3123,9 +3221,9 @@ func (ec *executionContext) _Employee_positionId(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Employee_positionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3135,7 +3233,7 @@ func (ec *executionContext) fieldContext_Employee_positionId(_ context.Context, 
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3324,9 +3422,9 @@ func (ec *executionContext) _Employee_avatarId(ctx context.Context, field graphq
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*int)
+	res := resTmp.(*int64)
 	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+	return ec.marshalOID2ᚖint64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Employee_avatarId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3336,7 +3434,7 @@ func (ec *executionContext) fieldContext_Employee_avatarId(_ context.Context, fi
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3456,9 +3554,9 @@ func (ec *executionContext) _EmployeeMeta_employeeId(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EmployeeMeta_employeeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3468,7 +3566,7 @@ func (ec *executionContext) fieldContext_EmployeeMeta_employeeId(_ context.Conte
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5356,6 +5454,195 @@ func (ec *executionContext) fieldContext_Mutation_deleteExpense(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createPosition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createPosition(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreatePosition(rctx, fc.Args["input"].(model.CreatePosition))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Position)
+	fc.Result = res
+	return ec.marshalNPosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPosition(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createPosition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Position_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Position_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Position_description(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Position_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Position_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createPosition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updatePosition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_updatePosition(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdatePosition(rctx, fc.Args["id"].(int64), fc.Args["input"].(model.UpdatePosition))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Position)
+	fc.Result = res
+	return ec.marshalNPosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPosition(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updatePosition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Position_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Position_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Position_description(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Position_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Position_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updatePosition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deletePosition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deletePosition(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeletePosition(rctx, fc.Args["id"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deletePosition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deletePosition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteSession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_deleteSession(ctx, field)
 	if err != nil {
@@ -5493,9 +5780,9 @@ func (ec *executionContext) _PaginatedAuthenticationLogs_total(ctx context.Conte
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedAuthenticationLogs_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5505,7 +5792,7 @@ func (ec *executionContext) fieldContext_PaginatedAuthenticationLogs_total(_ con
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5613,9 +5900,9 @@ func (ec *executionContext) _PaginatedEmployees_total(ctx context.Context, field
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedEmployees_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5625,7 +5912,7 @@ func (ec *executionContext) fieldContext_PaginatedEmployees_total(_ context.Cont
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5715,9 +6002,9 @@ func (ec *executionContext) _PaginatedExpenseCategories_total(ctx context.Contex
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedExpenseCategories_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5727,7 +6014,7 @@ func (ec *executionContext) fieldContext_PaginatedExpenseCategories_total(_ cont
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5819,9 +6106,9 @@ func (ec *executionContext) _PaginatedExpenses_total(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedExpenses_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5831,7 +6118,7 @@ func (ec *executionContext) fieldContext_PaginatedExpenses_total(_ context.Conte
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5919,9 +6206,9 @@ func (ec *executionContext) _PaginatedPermissions_total(ctx context.Context, fie
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedPermissions_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5931,7 +6218,7 @@ func (ec *executionContext) fieldContext_PaginatedPermissions_total(_ context.Co
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6019,9 +6306,9 @@ func (ec *executionContext) _PaginatedPositions_total(ctx context.Context, field
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedPositions_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6031,7 +6318,7 @@ func (ec *executionContext) fieldContext_PaginatedPositions_total(_ context.Cont
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6113,9 +6400,9 @@ func (ec *executionContext) _PaginatedRolePermissions_total(ctx context.Context,
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedRolePermissions_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6125,7 +6412,7 @@ func (ec *executionContext) fieldContext_PaginatedRolePermissions_total(_ contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6213,9 +6500,9 @@ func (ec *executionContext) _PaginatedRoles_total(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedRoles_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6225,7 +6512,7 @@ func (ec *executionContext) fieldContext_PaginatedRoles_total(_ context.Context,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6315,9 +6602,9 @@ func (ec *executionContext) _PaginatedSessions_total(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedSessions_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6327,7 +6614,7 @@ func (ec *executionContext) fieldContext_PaginatedSessions_total(_ context.Conte
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6421,9 +6708,9 @@ func (ec *executionContext) _PaginatedUploads_total(ctx context.Context, field g
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedUploads_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6433,7 +6720,7 @@ func (ec *executionContext) fieldContext_PaginatedUploads_total(_ context.Contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6537,9 +6824,9 @@ func (ec *executionContext) _PaginatedUsers_total(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedUsers_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6549,7 +6836,7 @@ func (ec *executionContext) fieldContext_PaginatedUsers_total(_ context.Context,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Int64 does not have child fields")
 		},
 	}
 	return fc, nil
@@ -7074,7 +7361,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Users(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Users(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7786,7 +8073,7 @@ func (ec *executionContext) _Query_rolePermission(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().RolePermission(rctx, fc.Args["roleId"].(int), fc.Args["permissionId"].(int))
+		return ec.resolvers.Query().RolePermission(rctx, fc.Args["roleId"].(int64), fc.Args["permissionId"].(int64))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8771,9 +9058,9 @@ func (ec *executionContext) _RolePermissions_permissionId(ctx context.Context, f
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_RolePermissions_permissionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -8783,7 +9070,7 @@ func (ec *executionContext) fieldContext_RolePermissions_permissionId(_ context.
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -8815,9 +9102,9 @@ func (ec *executionContext) _RolePermissions_roleId(ctx context.Context, field g
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_RolePermissions_roleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -8827,7 +9114,7 @@ func (ec *executionContext) fieldContext_RolePermissions_roleId(_ context.Contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -8903,9 +9190,9 @@ func (ec *executionContext) _Session_userId(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Session_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -8915,7 +9202,7 @@ func (ec *executionContext) fieldContext_Session_userId(_ context.Context, field
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -11870,6 +12157,40 @@ func (ec *executionContext) unmarshalInputCreateExpenseCategory(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreatePosition(ctx context.Context, obj interface{}) (model.CreatePosition, error) {
+	var it model.CreatePosition
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateRole(ctx context.Context, obj interface{}) (model.CreateRole, error) {
 	var it model.CreateRole
 	asMap := map[string]interface{}{}
@@ -11920,14 +12241,14 @@ func (ec *executionContext) unmarshalInputCreateRolePermission(ctx context.Conte
 		switch k {
 		case "roleId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleId"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
+			data, err := ec.unmarshalNID2int64(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.RoleID = data
 		case "permissionId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permissionId"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
+			data, err := ec.unmarshalNID2int64(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -11982,14 +12303,14 @@ func (ec *executionContext) unmarshalInputCreateUser(ctx context.Context, obj in
 			it.Password = data
 		case "employeeId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("employeeId"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			data, err := ec.unmarshalOID2ᚖint64(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.EmployeeID = data
 		case "avatarId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarId"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			data, err := ec.unmarshalOID2ᚖint64(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -12082,6 +12403,40 @@ func (ec *executionContext) unmarshalInputUpdateExpenseCategory(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdatePosition(ctx context.Context, obj interface{}) (model.UpdatePosition, error) {
+	var it model.UpdatePosition
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateRole(ctx context.Context, obj interface{}) (model.UpdateRole, error) {
 	var it model.UpdateRole
 	asMap := map[string]interface{}{}
@@ -12160,14 +12515,14 @@ func (ec *executionContext) unmarshalInputUpdateUser(ctx context.Context, obj in
 			it.Password = data
 		case "employeeId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("employeeId"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			data, err := ec.unmarshalOID2ᚖint64(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.EmployeeID = data
 		case "avatarId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarId"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			data, err := ec.unmarshalOID2ᚖint64(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -12639,6 +12994,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteExpense":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteExpense(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createPosition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createPosition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatePosition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updatePosition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deletePosition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deletePosition(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -14479,6 +14855,11 @@ func (ec *executionContext) unmarshalNCreateExpenseCategory2githubᚗcomᚋiota�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreatePosition2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐCreatePosition(ctx context.Context, v interface{}) (model.CreatePosition, error) {
+	res, err := ec.unmarshalInputCreatePosition(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateRole2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐCreateRole(ctx context.Context, v interface{}) (model.CreateRole, error) {
 	res, err := ec.unmarshalInputCreateRole(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -14709,6 +15090,21 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) unmarshalNInt642int64(ctx context.Context, v interface{}) (int64, error) {
+	res, err := graphql.UnmarshalInt64(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.SelectionSet, v int64) graphql.Marshaler {
+	res := graphql.MarshalInt64(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) marshalNPaginatedAuthenticationLogs2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPaginatedAuthenticationLogs(ctx context.Context, sel ast.SelectionSet, v model.PaginatedAuthenticationLogs) graphql.Marshaler {
 	return ec._PaginatedAuthenticationLogs(ctx, sel, &v)
 }
@@ -14915,6 +15311,10 @@ func (ec *executionContext) marshalNPermission2ᚖgithubᚗcomᚋiotaᚑagency�
 		return graphql.Null
 	}
 	return ec._Permission(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPosition2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPosition(ctx context.Context, sel ast.SelectionSet, v model.Position) graphql.Marshaler {
+	return ec._Position(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNPosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPositionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Position) graphql.Marshaler {
@@ -15182,6 +15582,11 @@ func (ec *executionContext) unmarshalNUpdateExpense2githubᚗcomᚋiotaᚑagency
 
 func (ec *executionContext) unmarshalNUpdateExpenseCategory2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpdateExpenseCategory(ctx context.Context, v interface{}) (model.UpdateExpenseCategory, error) {
 	res, err := ec.unmarshalInputUpdateExpenseCategory(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdatePosition2githubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUpdatePosition(ctx context.Context, v interface{}) (model.UpdatePosition, error) {
+	res, err := ec.unmarshalInputUpdatePosition(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -15653,22 +16058,6 @@ func (ec *executionContext) marshalOID2ᚖint64(ctx context.Context, sel ast.Sel
 	return res
 }
 
-func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := graphql.UnmarshalInt(v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	res := graphql.MarshalInt(*v)
-	return res
-}
-
 func (ec *executionContext) marshalOPermission2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPermission(ctx context.Context, sel ast.SelectionSet, v *model.Permission) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -15702,6 +16091,44 @@ func (ec *executionContext) marshalOSession2ᚖgithubᚗcomᚋiotaᚑagencyᚋio
 		return graphql.Null
 	}
 	return ec._Session(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚕᚖstring(ctx context.Context, v interface{}) ([]*string, error) {

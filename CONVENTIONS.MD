@@ -1,3 +1,6 @@
+## Types
+Use `int64` for count && id fields
+
 ## Naming
 
 ### GraphQL

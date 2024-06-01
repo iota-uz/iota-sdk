@@ -7,19 +7,20 @@ package graph
 import (
 	"context"
 	"fmt"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"net/http"
 	"time"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
-	params, ok := ctx.Value("params").(*middleware.RequestParams)
+	params, ok := composables.UseParams(ctx)
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
 	}
@@ -43,16 +44,18 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUser) (*model.User, error) {
 	user := &models.User{
-		FirstName: input.FirstName,
-		LastName:  input.LastName,
-		Email:     input.Email,
+		FirstName:  input.FirstName,
+		LastName:   input.LastName,
+		Email:      input.Email,
+		EmployeeId: input.EmployeeID,
+		AvatarId:   input.AvatarID,
 	}
 	if input.Password != nil {
 		if err := user.SetPassword(*input.Password); err != nil {
 			return nil, err
 		}
 	}
-	if err := r.Db.Create(user).Error; err != nil {
+	if err := r.UsersService.Create(ctx, user); err != nil {
 		return nil, err
 	}
 	return user.ToGraph(), nil
@@ -77,7 +80,6 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 		if err := user.SetPassword(*input.Password); err != nil {
 			return nil, err
 		}
-
 	}
 	if err := r.Db.Save(user).Error; err != nil {
 		return nil, err
@@ -188,6 +190,21 @@ func (r *mutationResolver) DeleteExpense(ctx context.Context, id int64) (bool, e
 	panic(fmt.Errorf("not implemented: DeleteExpense - deleteExpense"))
 }
 
+// CreatePosition is the resolver for the createPosition field.
+func (r *mutationResolver) CreatePosition(ctx context.Context, input model.CreatePosition) (*model.Position, error) {
+	panic(fmt.Errorf("not implemented: CreatePosition - createPosition"))
+}
+
+// UpdatePosition is the resolver for the updatePosition field.
+func (r *mutationResolver) UpdatePosition(ctx context.Context, id int64, input model.UpdatePosition) (*model.Position, error) {
+	panic(fmt.Errorf("not implemented: UpdatePosition - updatePosition"))
+}
+
+// DeletePosition is the resolver for the deletePosition field.
+func (r *mutationResolver) DeletePosition(ctx context.Context, id int64) (bool, error) {
+	panic(fmt.Errorf("not implemented: DeletePosition - deletePosition"))
+}
+
 // DeleteSession is the resolver for the deleteSession field.
 func (r *mutationResolver) DeleteSession(ctx context.Context, token string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteSession - deleteSession"))
@@ -203,28 +220,32 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 }
 
 // Users is the resolver for the users field.
-func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUsers, error) {
+func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error) {
 	preloads := helpers.GetPreloads(ctx)
-	var users []*models.User
-	q := r.Db.Offset(offset).Limit(limit)
+	params := &service.FindParams{
+		Offset: offset,
+		Limit:  limit,
+		SortBy: sortBy,
+	}
 	// TODO: come up with something better
 	if helpers.HasAssociation(preloads, "avatar") {
-		q = q.Joins("Avatar")
+		params.Joins = append(params.Joins, "Avatar")
 	}
-	if err := q.Find(&users).Error; err != nil {
+	users, err := r.UsersService.GetAll(ctx, params)
+	if err != nil {
 		return nil, err
 	}
-	var result []*model.User
+	result := make([]*model.User, len(users))
 	for _, user := range users {
 		result = append(result, user.ToGraph())
 	}
-	var total int64
-	if err := r.Db.Model(models.User{}).Count(&total).Error; err != nil {
+	total, err := r.UsersService.Count(ctx)
+	if err != nil {
 		return nil, err
 	}
 	return &model.PaginatedUsers{
 		Data:  result,
-		Total: int(total),
+		Total: total,
 	}, nil
 }
 
@@ -263,7 +284,7 @@ func (r *queryResolver) Employees(ctx context.Context, offset int, limit int, so
 	}
 	return &model.PaginatedEmployees{
 		Data:  result,
-		Total: int(total),
+		Total: total,
 	}, nil
 }
 
@@ -292,7 +313,7 @@ func (r *queryResolver) Positions(ctx context.Context, offset int, limit int, so
 	}
 	return &model.PaginatedPositions{
 		Data:  result,
-		Total: int(total),
+		Total: total,
 	}, nil
 }
 
@@ -321,7 +342,7 @@ func (r *queryResolver) Roles(ctx context.Context, offset int, limit int, sortBy
 	}
 	return &model.PaginatedRoles{
 		Data:  result,
-		Total: int(total),
+		Total: total,
 	}, nil
 }
 
@@ -350,12 +371,12 @@ func (r *queryResolver) Permissions(ctx context.Context, offset int, limit int, 
 	}
 	return &model.PaginatedPermissions{
 		Data:  result,
-		Total: int(total),
+		Total: total,
 	}, nil
 }
 
 // RolePermission is the resolver for the rolePermission field.
-func (r *queryResolver) RolePermission(ctx context.Context, roleID int, permissionID int) (*model.RolePermissions, error) {
+func (r *queryResolver) RolePermission(ctx context.Context, roleID int64, permissionID int64) (*model.RolePermissions, error) {
 	panic(fmt.Errorf("not implemented: RolePermission - rolePermission"))
 }
 

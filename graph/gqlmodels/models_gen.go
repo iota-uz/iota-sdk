@@ -8,7 +8,7 @@ import (
 
 type AuthenticationLog struct {
 	ID        int64     `json:"id"`
-	UserID    int       `json:"userId"`
+	UserID    int64     `json:"userId"`
 	IP        string    `json:"ip"`
 	UserAgent string    `json:"userAgent"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -26,14 +26,19 @@ type CreateExpenseCategory struct {
 	Description *string `json:"description,omitempty"`
 }
 
+type CreatePosition struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+}
+
 type CreateRole struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 }
 
 type CreateRolePermission struct {
-	RoleID       int `json:"roleId"`
-	PermissionID int `json:"permissionId"`
+	RoleID       int64 `json:"roleId"`
+	PermissionID int64 `json:"permissionId"`
 }
 
 type CreateUser struct {
@@ -41,8 +46,8 @@ type CreateUser struct {
 	LastName   string  `json:"lastName"`
 	Email      string  `json:"email"`
 	Password   *string `json:"password,omitempty"`
-	EmployeeID *int    `json:"employeeId,omitempty"`
-	AvatarID   *int    `json:"avatarId,omitempty"`
+	EmployeeID *int64  `json:"employeeId,omitempty"`
+	AvatarID   *int64  `json:"avatarId,omitempty"`
 }
 
 type Employee struct {
@@ -54,17 +59,17 @@ type Employee struct {
 	Phone       *string       `json:"phone,omitempty"`
 	Salary      float64       `json:"salary"`
 	HourlyRate  float64       `json:"hourlyRate"`
-	PositionID  int           `json:"positionId"`
+	PositionID  int64         `json:"positionId"`
 	Coefficient float64       `json:"coefficient"`
 	Meta        *EmployeeMeta `json:"meta,omitempty"`
 	Position    *Position     `json:"position,omitempty"`
-	AvatarID    *int          `json:"avatarId,omitempty"`
+	AvatarID    *int64        `json:"avatarId,omitempty"`
 	CreatedAt   time.Time     `json:"createdAt"`
 	UpdatedAt   time.Time     `json:"updatedAt"`
 }
 
 type EmployeeMeta struct {
-	EmployeeID        int        `json:"employeeId"`
+	EmployeeID        int64      `json:"employeeId"`
 	PrimaryLanguage   *string    `json:"primaryLanguage,omitempty"`
 	SecondaryLanguage *string    `json:"secondaryLanguage,omitempty"`
 	Tin               *string    `json:"tin,omitempty"`
@@ -100,57 +105,57 @@ type Mutation struct {
 
 type PaginatedAuthenticationLogs struct {
 	Data  []*AuthenticationLog `json:"data"`
-	Total int                  `json:"total"`
+	Total int64                `json:"total"`
 }
 
 type PaginatedEmployees struct {
 	Data  []*Employee `json:"data"`
-	Total int         `json:"total"`
+	Total int64       `json:"total"`
 }
 
 type PaginatedExpenseCategories struct {
 	Data  []*ExpenseCategory `json:"data"`
-	Total int                `json:"total"`
+	Total int64              `json:"total"`
 }
 
 type PaginatedExpenses struct {
 	Data  []*Expense `json:"data"`
-	Total int        `json:"total"`
+	Total int64      `json:"total"`
 }
 
 type PaginatedPermissions struct {
 	Data  []*Permission `json:"data"`
-	Total int           `json:"total"`
+	Total int64         `json:"total"`
 }
 
 type PaginatedPositions struct {
 	Data  []*Position `json:"data"`
-	Total int         `json:"total"`
+	Total int64       `json:"total"`
 }
 
 type PaginatedRolePermissions struct {
 	Data  []*RolePermissions `json:"data"`
-	Total int                `json:"total"`
+	Total int64              `json:"total"`
 }
 
 type PaginatedRoles struct {
 	Data  []*Role `json:"data"`
-	Total int     `json:"total"`
+	Total int64   `json:"total"`
 }
 
 type PaginatedSessions struct {
 	Data  []*Session `json:"data"`
-	Total int        `json:"total"`
+	Total int64      `json:"total"`
 }
 
 type PaginatedUploads struct {
 	Data  []*Upload `json:"data"`
-	Total int       `json:"total"`
+	Total int64     `json:"total"`
 }
 
 type PaginatedUsers struct {
 	Data  []*User `json:"data"`
-	Total int     `json:"total"`
+	Total int64   `json:"total"`
 }
 
 type Permission struct {
@@ -181,13 +186,13 @@ type Role struct {
 }
 
 type RolePermissions struct {
-	PermissionID int `json:"permissionId"`
-	RoleID       int `json:"roleId"`
+	PermissionID int64 `json:"permissionId"`
+	RoleID       int64 `json:"roleId"`
 }
 
 type Session struct {
 	Token     string    `json:"token"`
-	UserID    int       `json:"userId"`
+	UserID    int64     `json:"userId"`
 	IP        string    `json:"ip"`
 	UserAgent string    `json:"userAgent"`
 	ExpiresAt time.Time `json:"expiresAt"`
@@ -206,6 +211,11 @@ type UpdateExpenseCategory struct {
 	Description *string  `json:"description,omitempty"`
 }
 
+type UpdatePosition struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
 type UpdateRole struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
@@ -216,8 +226,8 @@ type UpdateUser struct {
 	LastName   *string `json:"lastName,omitempty"`
 	Email      *string `json:"email,omitempty"`
 	Password   *string `json:"password,omitempty"`
-	EmployeeID *int    `json:"employeeId,omitempty"`
-	AvatarID   *int    `json:"avatarId,omitempty"`
+	EmployeeID *int64  `json:"employeeId,omitempty"`
+	AvatarID   *int64  `json:"avatarId,omitempty"`
 }
 
 type Upload struct {

@@ -3,10 +3,11 @@
 # https://gqlgen.com/getting-started/
 
 scalar Time
+scalar Int64
 
 type Session {
     token: String!
-    userId: Int!
+    userId: ID!
     ip: String!
     userAgent: String!
     expiresAt: Time!
@@ -15,12 +16,12 @@ type Session {
 
 type PaginatedSessions {
     data: [Session!]!
-    total: Int!
+    total: Int64!
 }
 
 type AuthenticationLog {
     id: ID!
-    userId: Int!
+    userId: ID!
     ip: String!
     userAgent: String!
     createdAt: Time!
@@ -28,7 +29,7 @@ type AuthenticationLog {
 
 type PaginatedAuthenticationLogs {
     data: [AuthenticationLog!]!
-    total: Int!
+    total: Int64!
 }
 
 type Permission {
@@ -41,17 +42,17 @@ type Permission {
 
 type PaginatedPermissions {
     data: [Permission!]!
-    total: Int!
+    total: Int64!
 }
 
 type RolePermissions {
-    permissionId: Int!
-    roleId: Int!
+    permissionId: ID!
+    roleId: ID!
 }
 
 type PaginatedRolePermissions {
     data: [RolePermissions!]!
-    total: Int!
+    total: Int64!
 }
 
 type ExpenseCategory {
@@ -65,7 +66,7 @@ type ExpenseCategory {
 
 type PaginatedExpenseCategories {
     data: [ExpenseCategory!]!
-    total: Int!
+    total: Int64!
 }
 
 type Expense {
@@ -80,11 +81,11 @@ type Expense {
 
 type PaginatedExpenses {
     data: [Expense!]!
-    total: Int!
+    total: Int64!
 }
 
 type EmployeeMeta {
-    employeeId: Int!
+    employeeId: ID!
     primaryLanguage: String
     secondaryLanguage: String
     tin: String
@@ -106,7 +107,7 @@ type Position {
 
 type PaginatedPositions {
     data: [Position!]!
-    total: Int!
+    total: Int64!
 }
 
 type Employee {
@@ -118,18 +119,18 @@ type Employee {
     phone: String
     salary: Float!
     hourlyRate: Float!
-    positionId: Int!
+    positionId: ID!
     coefficient: Float!
     meta: EmployeeMeta
     position: Position
-    avatarId: Int
+    avatarId: ID
     createdAt: Time!
     updatedAt: Time!
 }
 
 type PaginatedEmployees {
     data: [Employee!]!
-    total: Int!
+    total: Int64!
 }
 
 type Role {
@@ -142,7 +143,7 @@ type Role {
 
 type PaginatedRoles {
     data: [Role!]!
-    total: Int!
+    total: Int64!
 }
 
 type Upload {
@@ -158,7 +159,7 @@ type Upload {
 
 type PaginatedUploads {
     data: [Upload!]!
-    total: Int!
+    total: Int64!
 }
 
 type User {
@@ -179,12 +180,12 @@ type User {
 
 type PaginatedUsers {
     data: [User!]!
-    total: Int!
+    total: Int64!
 }
 
 type Query {
     user(id: ID!): User
-    users(offset: Int!, limit: Int!, sortBy: [String]): PaginatedUsers!
+    users(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUsers!
 
     upload(id: ID!): Upload
     uploads(offset: Int!, limit: Int!, sortBy: [String]): PaginatedUploads!
@@ -201,7 +202,7 @@ type Query {
     permission(id: ID!): Permission
     permissions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedPermissions!
 
-    rolePermission(roleId: Int!, permissionId: Int!): RolePermissions
+    rolePermission(roleId: ID!, permissionId: ID!): RolePermissions
     rolePermissions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedRolePermissions!
 
     expenseCategory(id: ID!): ExpenseCategory
@@ -222,8 +223,8 @@ input CreateUser {
     lastName: String!
     email: String!
     password: String
-    employeeId: Int
-    avatarId: Int
+    employeeId: ID
+    avatarId: ID
 }
 
 input UpdateUser {
@@ -231,8 +232,8 @@ input UpdateUser {
     lastName: String
     email: String
     password: String
-    employeeId: Int
-    avatarId: Int
+    employeeId: ID
+    avatarId: ID
 }
 
 input CreateRole {
@@ -246,8 +247,8 @@ input UpdateRole {
 }
 
 input CreateRolePermission {
-    roleId: Int!
-    permissionId: Int!
+    roleId: ID!
+    permissionId: ID!
 }
 
 input CreateExpenseCategory {
