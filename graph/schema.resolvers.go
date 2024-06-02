@@ -7,7 +7,8 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"net/http"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
-	params, ok := composables.UseParams(ctx)
+	params, ok := composables.UseParams[any, any](ctx)
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
 	}
@@ -64,24 +65,15 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model.UpdateUser) (*model.User, error) {
 	user := &models.User{}
-	if err := r.Db.First(user, id).Error; err != nil {
+	if err := mapper.LenientMapping(input, user); err != nil {
 		return nil, err
-	}
-	if input.FirstName != nil {
-		user.FirstName = *input.FirstName
-	}
-	if input.LastName != nil {
-		user.LastName = *input.LastName
-	}
-	if input.Email != nil {
-		user.Email = *input.Email
 	}
 	if input.Password != nil {
 		if err := user.SetPassword(*input.Password); err != nil {
 			return nil, err
 		}
 	}
-	if err := r.Db.Save(user).Error; err != nil {
+	if err := r.UsersService.Update(ctx, id, user); err != nil {
 		return nil, err
 	}
 	return user.ToGraph(), nil
@@ -89,11 +81,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 
 // DeleteUser is the resolver for the deleteUser field.
 func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, error) {
-	user := &models.User{}
-	if err := r.Db.First(user, id).Error; err != nil {
-		return false, err
-	}
-	if err := r.Db.Delete(user).Error; err != nil {
+	if err := r.UsersService.Delete(ctx, id); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -101,9 +89,9 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, erro
 
 // CreateRole is the resolver for the createRole field.
 func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRole) (*model.Role, error) {
-	role := &models.Role{
-		Name:        input.Name,
-		Description: input.Description,
+	role := &models.Role{}
+	if err := mapper.LenientMapping(input, role); err != nil {
+		return nil, err
 	}
 	if err := r.Db.Create(role).Error; err != nil {
 		return nil, err
@@ -114,14 +102,11 @@ func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRol
 // UpdateRole is the resolver for the updateRole field.
 func (r *mutationResolver) UpdateRole(ctx context.Context, id int64, input model.UpdateRole) (*model.Role, error) {
 	role := &models.Role{}
-	if err := r.Db.First(role, id).Error; err != nil {
+	if err := mapper.LenientMapping(input, role); err != nil {
 		return nil, err
 	}
-	if input.Name != nil {
-		role.Name = *input.Name
-	}
-	if input.Description != nil {
-		role.Description = input.Description
+	if err := r.Db.First(role, id).Error; err != nil {
+		return nil, err
 	}
 	if err := r.Db.Save(role).Error; err != nil {
 		return nil, err

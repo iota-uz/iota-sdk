@@ -1,6 +1,28 @@
 -- +migrate Up
 CREATE EXTENSION vector;
 
+CREATE TABLE uploads
+(
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL,
+    path       VARCHAR(255) NOT NULL,
+--     uploader_id INT          REFERENCES users (id) ON DELETE SET NULL,
+    mimetype   VARCHAR(255) NOT NULL,
+    size       FLOAT        NOT NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE currencies
+(
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL, -- Russian Ruble
+    code       VARCHAR(3)   NOT NULL, -- RUB
+    symbol     VARCHAR(3)   NOT NULL, -- ₽
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE money
 (
     id          SERIAL PRIMARY KEY,
@@ -26,16 +48,6 @@ CREATE TABLE positions
     description TEXT,
     created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE currencies
-(
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL, -- Russian Ruble
-    code       VARCHAR(3)   NOT NULL, -- RUB
-    symbol     VARCHAR(3)   NOT NULL, -- ₽
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE difficulty_levels
@@ -66,6 +78,37 @@ CREATE TABLE settings
     ndfl           FLOAT NOT NULL,
     esn            FLOAT NOT NULL,
     updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE employees
+(
+    id              SERIAL PRIMARY KEY,
+    first_name      VARCHAR(255) NOT NULL,
+    last_name       VARCHAR(255) NOT NULL,
+    middle_name     VARCHAR(255),
+    email           VARCHAR(255) NOT NULL UNIQUE,
+    phone           VARCHAR(255),
+    salary_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
+    hourly_rate     FLOAT        NOT NULL,
+    coefficient     FLOAT        NOT NULL,
+    position_id     INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
+    avatar_id       INT          REFERENCES uploads (id) ON DELETE SET NULL,
+    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE employee_meta
+(
+    employee_id        INT PRIMARY KEY NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
+    primary_language   VARCHAR(255),
+    secondary_language VARCHAR(255),
+    tin                VARCHAR(255),
+    general_info       TEXT,
+    yt_profile_id      VARCHAR(255)    NOT NULL,
+    birth_date         DATE,
+    join_date          DATE,
+    leave_date         DATE,
+    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE companies
@@ -148,49 +191,6 @@ CREATE TABLE expenses
     date            DATE NOT NULL               DEFAULT CURRENT_DATE,
     created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE uploads
-(
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    path        VARCHAR(255) NOT NULL,
-    uploader_id INT          REFERENCES users (id) ON DELETE SET NULL,
-    mimetype    VARCHAR(255) NOT NULL,
-    size        FLOAT        NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE employees
-(
-    id              SERIAL PRIMARY KEY,
-    first_name      VARCHAR(255) NOT NULL,
-    last_name       VARCHAR(255) NOT NULL,
-    middle_name     VARCHAR(255),
-    email           VARCHAR(255) NOT NULL UNIQUE,
-    phone           VARCHAR(255),
-    salary_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
-    hourly_rate     FLOAT        NOT NULL,
-    coefficient     FLOAT        NOT NULL,
-    position_id     INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
-    avatar_id       INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE employee_meta
-(
-    employee_id        INT PRIMARY KEY NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
-    primary_language   VARCHAR(255),
-    secondary_language VARCHAR(255),
-    tin                VARCHAR(255),
-    general_info       TEXT,
-    yt_profile_id      VARCHAR(255)    NOT NULL,
-    birth_date         DATE,
-    join_date          DATE,
-    leave_date         DATE,
-    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_contacts
@@ -626,8 +626,6 @@ CREATE INDEX expenses_category_id_idx ON expenses (category_id);
 CREATE INDEX employees_position_id_idx ON employees (position_id);
 CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
-CREATE INDEX uploads_uploader_id_idx ON uploads (uploader_id);
-
 CREATE INDEX folders_parent_id_idx ON folders (parent_id);
 
 CREATE INDEX project_stages_project_id_idx ON project_stages (project_id);
@@ -670,58 +668,62 @@ CREATE INDEX blog_likes_post_id_idx ON blog_likes (post_id);
 CREATE INDEX website_page_views_page_id_idx ON website_page_views (page_id);
 
 -- +migrate Down
-DROP TABLE IF EXISTS currencies;
-DROP TABLE IF EXISTS money;
-DROP TABLE IF EXISTS website_pages;
-DROP TABLE IF EXISTS blog_likes;
-DROP TABLE IF EXISTS blog_comments;
-DROP TABLE IF EXISTS blog_post_tag_relations;
-DROP TABLE IF EXISTS blog_post_tags;
-DROP TABLE IF EXISTS blog_posts;
-DROP TABLE IF EXISTS contact_form_submissions;
-DROP TABLE IF EXISTS interview_ratings;
-DROP TABLE IF EXISTS interviews;
-DROP TABLE IF EXISTS interview_questions;
-DROP TABLE IF EXISTS applications;
-DROP TABLE IF EXISTS applicant_comments;
-DROP TABLE IF EXISTS applicants;
-DROP TABLE IF EXISTS salary_range;
-DROP TABLE IF EXISTS vacancies;
-DROP TABLE IF EXISTS authentication_logs;
-DROP TABLE IF EXISTS sessions;
-DROP TABLE IF EXISTS role_permissions;
-DROP TABLE IF EXISTS permissions;
-DROP TABLE IF EXISTS dialogues;
-DROP TABLE IF EXISTS action_log;
-DROP TABLE IF EXISTS uploaded_images;
-DROP TABLE IF EXISTS likes;
-DROP TABLE IF EXISTS comments;
-DROP TABLE IF EXISTS embeddings;
-DROP TABLE IF EXISTS articles;
-DROP TABLE IF EXISTS folders;
-DROP TABLE IF EXISTS payments;
-DROP TABLE IF EXISTS difficulty_levels;
-DROP TABLE IF EXISTS positions;
-DROP TABLE IF EXISTS task_types;
-DROP TABLE IF EXISTS estimates;
-DROP TABLE IF EXISTS project_tasks;
-DROP TABLE IF EXISTS project_stages;
-DROP TABLE IF EXISTS projects;
-DROP TABLE IF EXISTS customer_contacts;
-DROP TABLE IF EXISTS customers;
-DROP TABLE IF EXISTS employee_meta;
-DROP TABLE IF EXISTS employee_contacts;
-DROP TABLE IF EXISTS employees;
-DROP TABLE IF EXISTS uploads;
-DROP TABLE IF EXISTS expenses;
-DROP TABLE IF EXISTS expense_categories;
-DROP TABLE IF EXISTS prompts;
-DROP TABLE IF EXISTS user_roles;
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS roles;
-DROP TABLE IF EXISTS companies;
-DROP TABLE IF EXISTS website_page_views;
-DROP TABLE IF EXISTS settings;
-DROP TABLE IF EXISTS inventory;
+DROP TABLE IF EXISTS action_log CASCADE;
+DROP TABLE IF EXISTS applicant_comments CASCADE;
+DROP TABLE IF EXISTS applicant_skills CASCADE;
+DROP TABLE IF EXISTS applicants CASCADE;
+DROP TABLE IF EXISTS applications CASCADE;
+DROP TABLE IF EXISTS articles CASCADE;
+DROP TABLE IF EXISTS authentication_logs CASCADE;
+DROP TABLE IF EXISTS blog_comments CASCADE;
+DROP TABLE IF EXISTS blog_likes CASCADE;
+DROP TABLE IF EXISTS blog_post_tag_relations CASCADE;
+DROP TABLE IF EXISTS blog_post_tags CASCADE;
+DROP TABLE IF EXISTS blog_posts CASCADE;
+DROP TABLE IF EXISTS companies CASCADE;
+DROP TABLE IF EXISTS comments CASCADE;
+DROP TABLE IF EXISTS contact_form_submissions CASCADE;
+DROP TABLE IF EXISTS currencies CASCADE;
+DROP TABLE IF EXISTS customer_contacts CASCADE;
+DROP TABLE IF EXISTS customers CASCADE;
+DROP TABLE IF EXISTS dialogues CASCADE;
+DROP TABLE IF EXISTS difficulty_levels CASCADE;
+DROP TABLE IF EXISTS embeddings CASCADE;
+DROP TABLE IF EXISTS employee_contacts CASCADE;
+DROP TABLE IF EXISTS employee_meta CASCADE;
+DROP TABLE IF EXISTS employee_skills CASCADE;
+DROP TABLE IF EXISTS employees CASCADE;
+DROP TABLE IF EXISTS estimates CASCADE;
+DROP TABLE IF EXISTS expense_categories CASCADE;
+DROP TABLE IF EXISTS expenses CASCADE;
+DROP TABLE IF EXISTS folders CASCADE;
+DROP TABLE IF EXISTS interview_questions CASCADE;
+DROP TABLE IF EXISTS interview_ratings CASCADE;
+DROP TABLE IF EXISTS interviews CASCADE;
+DROP TABLE IF EXISTS inventory CASCADE;
+DROP TABLE IF EXISTS likes CASCADE;
+DROP TABLE IF EXISTS money CASCADE;
+DROP TABLE IF EXISTS permissions CASCADE;
+DROP TABLE IF EXISTS positions CASCADE;
+DROP TABLE IF EXISTS prompts CASCADE;
+DROP TABLE IF EXISTS project_stages CASCADE;
+DROP TABLE IF EXISTS project_tasks CASCADE;
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS role_permissions CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS salary_range CASCADE;
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS settings CASCADE;
+DROP TABLE IF EXISTS skills CASCADE;
+DROP TABLE IF EXISTS task_types CASCADE;
+DROP TABLE IF EXISTS telegram_sessions CASCADE;
+DROP TABLE IF EXISTS uploaded_images CASCADE;
+DROP TABLE IF EXISTS uploads CASCADE;
+DROP TABLE IF EXISTS user_roles CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS vacancies CASCADE;
+DROP TABLE IF EXISTS website_page_views CASCADE;
+DROP TABLE IF EXISTS website_pages CASCADE;
+DROP TABLE IF EXISTS payments CASCADE;
 
 DROP EXTENSION IF EXISTS vector;

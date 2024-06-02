@@ -13,6 +13,5 @@ RUN go mod download
 COPY . .
 
 RUN go build -o run_server cmd/server/main.go
-RUN go build -o migrate cmd/migrate/main.go
 
-CMD /build/migrate up && /build/run_server
+CMD sql-migrate up -env="production" && /build/run_server

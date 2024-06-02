@@ -15,17 +15,20 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [x] Query relations (partial)
 * [x] Query fields selection
 * [ ] Caching
-* [ ] Authorization
-* [ ] Authentication
+* [x] Authorization
+* [x] Authentication
 * [ ] Subscriptions
 * [ ] DataLoader
 * [ ] File uploads
 
 ## Prerequisites
+* [SQL-Migrate](https://github.com/rubenv/sql-migrate)
 * [Go](https://golang.org/doc/install)
 * [Docker](https://docs.docker.com/get-docker/)
 * [Air](https://github.com/cosmtrek/air#Installation)
 
+## Project structure
+We follow the [Standard Go Project Layout](https://github.com/golang-standards/project-layout)
 
 ## Development
 

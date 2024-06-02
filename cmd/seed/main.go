@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/iota-agency/iota-erp/models"
 	"github.com/iota-agency/iota-erp/pkg/utils"
+	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
@@ -16,10 +17,9 @@ func createInitialUser(tx *gorm.DB, email, password string) error {
 	if count > 0 {
 		return nil
 	}
-	description := "Administrator"
 	role := &models.Role{
 		Name:        "admin",
-		Description: &description,
+		Description: mapper.Pointer("Administrator"),
 	}
 	if err := tx.Create(role).Error; err != nil {
 		return err

@@ -1,5 +1,40 @@
+## Code
+
+If the size of the array is known, use `make` to create the array with the correct size
+
+```go
+package main
+
+// Bad
+var employees []string
+for i := 0; i < 10; i++ {
+    employees = append(employees, "employee")
+}
+
+// Good
+employees := make([]string, 10)
+
+for i := 0; i < 10; i++ {
+    employees[i] = "employee"
+}
+```
+
 ## Types
-Use `int64` for count && id fields
+
+Use `int64` for `count` && `ID` fields
+
+```go
+package models
+
+type Employee struct {
+    ID        int64
+    Email     string
+    FirstName string
+    LastName  string
+    PositionID int64
+    Salary    float64
+}
+```
 
 ## Naming
 

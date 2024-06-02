@@ -20,7 +20,7 @@ type EmployeeMeta struct {
 
 func (e *EmployeeMeta) ToGraph() *model.EmployeeMeta {
 	return &model.EmployeeMeta{
-		EmployeeID:        int(e.EmployeeId),
+		EmployeeID:        e.EmployeeId,
 		PrimaryLanguage:   &e.PrimaryLanguage.String,
 		SecondaryLanguage: &e.SecondaryLanguage.String,
 		Tin:               &e.Tin.String,
@@ -52,38 +52,37 @@ func (p *Position) ToGraph() *model.Position {
 }
 
 type Employee struct {
-	Id          int64          `db:"id" gql:"id"`
-	FirstName   string         `db:"first_name" gql:"first_name"`
-	LastName    string         `db:"last_name" gql:"last_name"`
-	MiddleName  JsonNullString `db:"middle_name" gql:"middle_name"`
-	Email       string         `db:"email" gql:"email"`
-	Phone       JsonNullString `db:"phone" gql:"phone"`
-	Salary      float64        `db:"salary" gql:"salary"`
-	HourlyRate  float64        `db:"hourly_rate" gql:"hourly_rate"`
-	PositionId  int64          `db:"position_id" gql:"position_id"`
-	Coefficient float64        `db:"coefficient" gql:"coefficient"`
-	Meta        *EmployeeMeta  `db:"id" gql:"meta" belongs_to:"employee_id"`
-	Position    *Position      `db:"position_id" gql:"position" belongs_to:"id"`
-	AvatarId    JsonNullInt64  `db:"avatar_id" gql:"avatar_id"`
-	CreatedAt   *time.Time     `db:"created_at" gql:"created_at"`
-	UpdatedAt   *time.Time     `db:"updated_at" gql:"updated_at"`
+	Id          int64         `db:"id" gql:"id"`
+	FirstName   string        `db:"first_name" gql:"first_name"`
+	LastName    string        `db:"last_name" gql:"last_name"`
+	MiddleName  *string       `db:"middle_name" gql:"middle_name"`
+	Email       string        `db:"email" gql:"email"`
+	Phone       *string       `db:"phone" gql:"phone"`
+	Salary      float64       `db:"salary" gql:"salary"`
+	HourlyRate  float64       `db:"hourly_rate" gql:"hourly_rate"`
+	PositionId  int64         `db:"position_id" gql:"position_id"`
+	Coefficient float64       `db:"coefficient" gql:"coefficient"`
+	Meta        *EmployeeMeta `db:"id" gql:"meta" belongs_to:"employee_id"`
+	Position    *Position     `db:"position_id" gql:"position" belongs_to:"id"`
+	AvatarId    *int64        `db:"avatar_id" gql:"avatar_id"`
+	CreatedAt   *time.Time    `db:"created_at" gql:"created_at"`
+	UpdatedAt   *time.Time    `db:"updated_at" gql:"updated_at"`
 }
 
 func (e *Employee) ToGraph() *model.Employee {
-	avatarID := int(e.AvatarId.Int64)
 	return &model.Employee{
 		ID:          e.Id,
 		FirstName:   e.FirstName,
 		LastName:    e.LastName,
-		MiddleName:  &e.MiddleName.String,
+		MiddleName:  e.MiddleName,
 		Email:       e.Email,
-		Phone:       &e.Phone.String,
+		Phone:       e.Phone,
 		Salary:      e.Salary,
 		HourlyRate:  e.HourlyRate,
 		Position:    e.Position.ToGraph(),
 		Coefficient: e.Coefficient,
 		Meta:        e.Meta.ToGraph(),
-		AvatarID:    &avatarID,
+		AvatarID:    e.AvatarId,
 		CreatedAt:   *e.CreatedAt,
 		UpdatedAt:   *e.UpdatedAt,
 	}

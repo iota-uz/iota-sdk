@@ -4,9 +4,10 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/iota-agency/iota-erp/graph"
+	"github.com/iota-agency/iota-erp/models"
 	"github.com/iota-agency/iota-erp/pkg/authentication"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/pkg/utils"
+	"github.com/iota-agency/iota-erp/sdk/middleware"
 	_ "github.com/lib/pq"
 	"github.com/rs/cors"
 	"gorm.io/driver/postgres"
@@ -36,9 +37,8 @@ func main() {
 
 	port := utils.GetEnv("PORT", "3200")
 	http.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
-	graphHandler := middleware.AuthMiddleware(db, authService)(middleware.LoggingMiddleware(srv))
+	graphHandler := middleware.AuthMiddleware[models.User, models.Session](db, authService)(middleware.LoggingMiddleware(srv))
 	http.Handle("/graphql", cors.Default().Handler(graphHandler))
-
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	if utils.GetEnv("GO_APP_ENV", "development") == "production" {
 		err = http.ListenAndServe(":3200", nil)

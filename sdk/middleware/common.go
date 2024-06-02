@@ -3,21 +3,19 @@ package middleware
 import (
 	"context"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/pkg/authentication"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"time"
 )
 
-type RequestParams struct {
+type RequestParams[U, S any] struct {
 	Ip            string
 	UserAgent     string
 	Writer        http.ResponseWriter
 	Authenticated bool
-	User          *models.User
-	Token         string
+	User          *U
+	Session       *S
 	Tx            *gorm.DB
 }
 
@@ -29,11 +27,15 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func AuthMiddleware(db *gorm.DB, authService *authentication.Service) mux.MiddlewareFunc {
+type AuthService[U, S any] interface {
+	Authorize(token string) (*U, *S, error)
+}
+
+func AuthMiddleware[U any, S any](db *gorm.DB, authService AuthService[U, S]) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			err := db.Transaction(func(tx *gorm.DB) error {
-				params := &RequestParams{
+				params := &RequestParams[U, S]{
 					Ip:            r.RemoteAddr,
 					UserAgent:     r.UserAgent(),
 					Writer:        w,
@@ -46,14 +48,14 @@ func AuthMiddleware(db *gorm.DB, authService *authentication.Service) mux.Middle
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return nil
 				}
-				user, err := authService.Authorize(token.Value)
+				user, session, err := authService.Authorize(token.Value)
 				if err != nil {
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return nil
 				}
 				params.Authenticated = true
 				params.User = user
-				params.Token = token.Value
+				params.Session = session
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return nil
 			})

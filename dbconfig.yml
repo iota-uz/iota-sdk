@@ -1,0 +1,11 @@
+development:
+  dialect: postgres
+  datasource: dbname=iota_erp sslmode=disable user=postgres password=postgres
+  dir: migrations/postgres
+  table: migrations
+
+production:
+  dialect: postgres
+  datasource: dbname=iota_erp sslmode=disable user={$DB_USER} password={$DB_PASSWORD}
+  dir: migrations/postgres
+  table: migrations
