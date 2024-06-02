@@ -57,7 +57,7 @@ Run in watch mode (hot reload)
 air
 ```
 
-Now open postman and explore the GraphQL schema at http://localhost:3200/graphql
+Now open postman and explore the GraphQL schema at http://localhost:3200/query
 
 ## Examples
 Get all employees and their positions

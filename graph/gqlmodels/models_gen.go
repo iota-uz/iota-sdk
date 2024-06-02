@@ -44,6 +44,7 @@ type CreateRolePermission struct {
 type CreateUser struct {
 	FirstName  string  `json:"firstName"`
 	LastName   string  `json:"lastName"`
+	MiddleName *string `json:"middleName,omitempty"`
 	Email      string  `json:"email"`
 	Password   *string `json:"password,omitempty"`
 	EmployeeID *int64  `json:"employeeId,omitempty"`
@@ -199,6 +200,9 @@ type Session struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type Subscription struct {
+}
+
 type UpdateExpense struct {
 	Amount     *float64 `json:"amount,omitempty"`
 	CategoryID *int64   `json:"categoryId,omitempty"`
@@ -224,6 +228,7 @@ type UpdateRole struct {
 type UpdateUser struct {
 	FirstName  *string `json:"firstName,omitempty"`
 	LastName   *string `json:"lastName,omitempty"`
+	MiddleName *string `json:"middleName,omitempty"`
 	Email      *string `json:"email,omitempty"`
 	Password   *string `json:"password,omitempty"`
 	EmployeeID *int64  `json:"employeeId,omitempty"`
@@ -231,14 +236,13 @@ type UpdateUser struct {
 }
 
 type Upload struct {
-	ID         int64     `json:"id"`
-	Name       string    `json:"name"`
-	Path       string    `json:"path"`
-	UploaderID *int64    `json:"uploaderId,omitempty"`
-	Mimetype   string    `json:"mimetype"`
-	Size       float64   `json:"size"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Path      string    `json:"path"`
+	Mimetype  string    `json:"mimetype"`
+	Size      float64   `json:"size"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type User struct {

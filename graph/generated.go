@@ -8,6 +8,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -42,6 +43,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 }
 
 type DirectiveRoot struct {
@@ -200,25 +202,25 @@ type ComplexityRoot struct {
 
 	Query struct {
 		AuthenticationLog  func(childComplexity int, id int64) int
-		AuthenticationLogs func(childComplexity int, offset int, limit int, sortBy []*string) int
+		AuthenticationLogs func(childComplexity int, offset int, limit int, sortBy []string) int
 		Employee           func(childComplexity int, id int64) int
-		Employees          func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Employees          func(childComplexity int, offset int, limit int, sortBy []string) int
 		Expense            func(childComplexity int, id int64) int
-		ExpenseCategories  func(childComplexity int, offset int, limit int, sortBy []*string) int
+		ExpenseCategories  func(childComplexity int, offset int, limit int, sortBy []string) int
 		ExpenseCategory    func(childComplexity int, id int64) int
-		Expenses           func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Expenses           func(childComplexity int, offset int, limit int, sortBy []string) int
 		Permission         func(childComplexity int, id int64) int
-		Permissions        func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Permissions        func(childComplexity int, offset int, limit int, sortBy []string) int
 		Position           func(childComplexity int, id int64) int
-		Positions          func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Positions          func(childComplexity int, offset int, limit int, sortBy []string) int
 		Role               func(childComplexity int, id int64) int
 		RolePermission     func(childComplexity int, roleID int64, permissionID int64) int
-		RolePermissions    func(childComplexity int, offset int, limit int, sortBy []*string) int
-		Roles              func(childComplexity int, offset int, limit int, sortBy []*string) int
+		RolePermissions    func(childComplexity int, offset int, limit int, sortBy []string) int
+		Roles              func(childComplexity int, offset int, limit int, sortBy []string) int
 		Session            func(childComplexity int, token string) int
-		Sessions           func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Sessions           func(childComplexity int, offset int, limit int, sortBy []string) int
 		Upload             func(childComplexity int, id int64) int
-		Uploads            func(childComplexity int, offset int, limit int, sortBy []*string) int
+		Uploads            func(childComplexity int, offset int, limit int, sortBy []string) int
 		User               func(childComplexity int, id int64) int
 		Users              func(childComplexity int, offset int, limit int, sortBy []string) int
 	}
@@ -245,15 +247,35 @@ type ComplexityRoot struct {
 		UserID    func(childComplexity int) int
 	}
 
+	Subscription struct {
+		ExpenseCategoryCreated func(childComplexity int) int
+		ExpenseCategoryDeleted func(childComplexity int) int
+		ExpenseCategoryUpdated func(childComplexity int) int
+		ExpenseCreated         func(childComplexity int) int
+		ExpenseDeleted         func(childComplexity int) int
+		ExpenseUpdated         func(childComplexity int) int
+		PositionCreated        func(childComplexity int) int
+		PositionDeleted        func(childComplexity int) int
+		PositionUpdated        func(childComplexity int) int
+		RoleCreated            func(childComplexity int) int
+		RoleDeleted            func(childComplexity int) int
+		RolePermissionCreated  func(childComplexity int) int
+		RolePermissionDeleted  func(childComplexity int) int
+		RoleUpdated            func(childComplexity int) int
+		SessionDeleted         func(childComplexity int) int
+		UserCreated            func(childComplexity int) int
+		UserDeleted            func(childComplexity int) int
+		UserUpdated            func(childComplexity int) int
+	}
+
 	Upload struct {
-		CreatedAt  func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Mimetype   func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Path       func(childComplexity int) int
-		Size       func(childComplexity int) int
-		UpdatedAt  func(childComplexity int) int
-		UploaderID func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Mimetype  func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Path      func(childComplexity int) int
+		Size      func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	User struct {
@@ -297,25 +319,45 @@ type QueryResolver interface {
 	User(ctx context.Context, id int64) (*model.User, error)
 	Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error)
 	Upload(ctx context.Context, id int64) (*model.Upload, error)
-	Uploads(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUploads, error)
+	Uploads(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUploads, error)
 	Employee(ctx context.Context, id int64) (*model.Employee, error)
-	Employees(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedEmployees, error)
+	Employees(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedEmployees, error)
 	Position(ctx context.Context, id int64) (*model.Position, error)
-	Positions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPositions, error)
+	Positions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPositions, error)
 	Role(ctx context.Context, id int64) (*model.Role, error)
-	Roles(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRoles, error)
+	Roles(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedRoles, error)
 	Permission(ctx context.Context, id int64) (*model.Permission, error)
-	Permissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPermissions, error)
+	Permissions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPermissions, error)
 	RolePermission(ctx context.Context, roleID int64, permissionID int64) (*model.RolePermissions, error)
-	RolePermissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRolePermissions, error)
+	RolePermissions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedRolePermissions, error)
 	ExpenseCategory(ctx context.Context, id int64) (*model.ExpenseCategory, error)
-	ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenseCategories, error)
+	ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedExpenseCategories, error)
 	Expense(ctx context.Context, id int64) (*model.Expense, error)
-	Expenses(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenses, error)
+	Expenses(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedExpenses, error)
 	AuthenticationLog(ctx context.Context, id int64) (*model.AuthenticationLog, error)
-	AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedAuthenticationLogs, error)
+	AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedAuthenticationLogs, error)
 	Session(ctx context.Context, token string) (*model.Session, error)
-	Sessions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedSessions, error)
+	Sessions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedSessions, error)
+}
+type SubscriptionResolver interface {
+	UserCreated(ctx context.Context) (<-chan *model.User, error)
+	UserUpdated(ctx context.Context) (<-chan *model.User, error)
+	UserDeleted(ctx context.Context) (<-chan int64, error)
+	RoleCreated(ctx context.Context) (<-chan *model.Role, error)
+	RoleUpdated(ctx context.Context) (<-chan *model.Role, error)
+	RoleDeleted(ctx context.Context) (<-chan int64, error)
+	RolePermissionCreated(ctx context.Context) (<-chan *model.RolePermissions, error)
+	RolePermissionDeleted(ctx context.Context) (<-chan int64, error)
+	ExpenseCategoryCreated(ctx context.Context) (<-chan *model.ExpenseCategory, error)
+	ExpenseCategoryUpdated(ctx context.Context) (<-chan *model.ExpenseCategory, error)
+	ExpenseCategoryDeleted(ctx context.Context) (<-chan int64, error)
+	ExpenseCreated(ctx context.Context) (<-chan *model.Expense, error)
+	ExpenseUpdated(ctx context.Context) (<-chan *model.Expense, error)
+	ExpenseDeleted(ctx context.Context) (<-chan int64, error)
+	PositionCreated(ctx context.Context) (<-chan *model.Position, error)
+	PositionUpdated(ctx context.Context) (<-chan *model.Position, error)
+	PositionDeleted(ctx context.Context) (<-chan int64, error)
+	SessionDeleted(ctx context.Context) (<-chan int64, error)
 }
 
 type executableSchema struct {
@@ -1100,7 +1142,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.AuthenticationLogs(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.AuthenticationLogs(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.employee":
 		if e.complexity.Query.Employee == nil {
@@ -1124,7 +1166,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Employees(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Employees(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.expense":
 		if e.complexity.Query.Expense == nil {
@@ -1148,7 +1190,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.ExpenseCategories(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.ExpenseCategories(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.expenseCategory":
 		if e.complexity.Query.ExpenseCategory == nil {
@@ -1172,7 +1214,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Expenses(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Expenses(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.permission":
 		if e.complexity.Query.Permission == nil {
@@ -1196,7 +1238,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Permissions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Permissions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.position":
 		if e.complexity.Query.Position == nil {
@@ -1220,7 +1262,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Positions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Positions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.role":
 		if e.complexity.Query.Role == nil {
@@ -1256,7 +1298,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.RolePermissions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.RolePermissions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.roles":
 		if e.complexity.Query.Roles == nil {
@@ -1268,7 +1310,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Roles(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Roles(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.session":
 		if e.complexity.Query.Session == nil {
@@ -1292,7 +1334,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Sessions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Sessions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.upload":
 		if e.complexity.Query.Upload == nil {
@@ -1316,7 +1358,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Uploads(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]*string)), true
+		return e.complexity.Query.Uploads(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
 
 	case "Query.user":
 		if e.complexity.Query.User == nil {
@@ -1433,6 +1475,132 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Session.UserID(childComplexity), true
 
+	case "Subscription.expenseCategoryCreated":
+		if e.complexity.Subscription.ExpenseCategoryCreated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ExpenseCategoryCreated(childComplexity), true
+
+	case "Subscription.expenseCategoryDeleted":
+		if e.complexity.Subscription.ExpenseCategoryDeleted == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ExpenseCategoryDeleted(childComplexity), true
+
+	case "Subscription.expenseCategoryUpdated":
+		if e.complexity.Subscription.ExpenseCategoryUpdated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ExpenseCategoryUpdated(childComplexity), true
+
+	case "Subscription.expenseCreated":
+		if e.complexity.Subscription.ExpenseCreated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ExpenseCreated(childComplexity), true
+
+	case "Subscription.expenseDeleted":
+		if e.complexity.Subscription.ExpenseDeleted == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ExpenseDeleted(childComplexity), true
+
+	case "Subscription.expenseUpdated":
+		if e.complexity.Subscription.ExpenseUpdated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ExpenseUpdated(childComplexity), true
+
+	case "Subscription.positionCreated":
+		if e.complexity.Subscription.PositionCreated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.PositionCreated(childComplexity), true
+
+	case "Subscription.positionDeleted":
+		if e.complexity.Subscription.PositionDeleted == nil {
+			break
+		}
+
+		return e.complexity.Subscription.PositionDeleted(childComplexity), true
+
+	case "Subscription.positionUpdated":
+		if e.complexity.Subscription.PositionUpdated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.PositionUpdated(childComplexity), true
+
+	case "Subscription.roleCreated":
+		if e.complexity.Subscription.RoleCreated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.RoleCreated(childComplexity), true
+
+	case "Subscription.roleDeleted":
+		if e.complexity.Subscription.RoleDeleted == nil {
+			break
+		}
+
+		return e.complexity.Subscription.RoleDeleted(childComplexity), true
+
+	case "Subscription.rolePermissionCreated":
+		if e.complexity.Subscription.RolePermissionCreated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.RolePermissionCreated(childComplexity), true
+
+	case "Subscription.rolePermissionDeleted":
+		if e.complexity.Subscription.RolePermissionDeleted == nil {
+			break
+		}
+
+		return e.complexity.Subscription.RolePermissionDeleted(childComplexity), true
+
+	case "Subscription.roleUpdated":
+		if e.complexity.Subscription.RoleUpdated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.RoleUpdated(childComplexity), true
+
+	case "Subscription.sessionDeleted":
+		if e.complexity.Subscription.SessionDeleted == nil {
+			break
+		}
+
+		return e.complexity.Subscription.SessionDeleted(childComplexity), true
+
+	case "Subscription.userCreated":
+		if e.complexity.Subscription.UserCreated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.UserCreated(childComplexity), true
+
+	case "Subscription.userDeleted":
+		if e.complexity.Subscription.UserDeleted == nil {
+			break
+		}
+
+		return e.complexity.Subscription.UserDeleted(childComplexity), true
+
+	case "Subscription.userUpdated":
+		if e.complexity.Subscription.UserUpdated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.UserUpdated(childComplexity), true
+
 	case "Upload.createdAt":
 		if e.complexity.Upload.CreatedAt == nil {
 			break
@@ -1481,13 +1649,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Upload.UpdatedAt(childComplexity), true
-
-	case "Upload.uploaderId":
-		if e.complexity.Upload.UploaderID == nil {
-			break
-		}
-
-		return e.complexity.Upload.UploaderID(childComplexity), true
 
 	case "User.avatar":
 		if e.complexity.User.Avatar == nil {
@@ -1642,6 +1803,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, rc.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next(ctx)
+
+			if data == nil {
+				return nil
+			}
 			data.MarshalGQL(&buf)
 
 			return &graphql.Response{
@@ -2090,10 +2268,10 @@ func (ec *executionContext) field_Query_authenticationLogs_args(ctx context.Cont
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2138,10 +2316,10 @@ func (ec *executionContext) field_Query_employees_args(ctx context.Context, rawA
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2171,10 +2349,10 @@ func (ec *executionContext) field_Query_expenseCategories_args(ctx context.Conte
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2234,10 +2412,10 @@ func (ec *executionContext) field_Query_expenses_args(ctx context.Context, rawAr
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2282,10 +2460,10 @@ func (ec *executionContext) field_Query_permissions_args(ctx context.Context, ra
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2330,10 +2508,10 @@ func (ec *executionContext) field_Query_positions_args(ctx context.Context, rawA
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2387,10 +2565,10 @@ func (ec *executionContext) field_Query_rolePermissions_args(ctx context.Context
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2435,10 +2613,10 @@ func (ec *executionContext) field_Query_roles_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2483,10 +2661,10 @@ func (ec *executionContext) field_Query_sessions_args(ctx context.Context, rawAr
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -2531,10 +2709,10 @@ func (ec *executionContext) field_Query_uploads_args(ctx context.Context, rawArg
 		}
 	}
 	args["limit"] = arg1
-	var arg2 []*string
+	var arg2 []string
 	if tmp, ok := rawArgs["sortBy"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-		arg2, err = ec.unmarshalOString2ᚕᚖstring(ctx, tmp)
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -6665,8 +6843,6 @@ func (ec *executionContext) fieldContext_PaginatedUploads_data(_ context.Context
 				return ec.fieldContext_Upload_name(ctx, field)
 			case "path":
 				return ec.fieldContext_Upload_path(ctx, field)
-			case "uploaderId":
-				return ec.fieldContext_Upload_uploaderId(ctx, field)
 			case "mimetype":
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "size":
@@ -7450,8 +7626,6 @@ func (ec *executionContext) fieldContext_Query_upload(ctx context.Context, field
 				return ec.fieldContext_Upload_name(ctx, field)
 			case "path":
 				return ec.fieldContext_Upload_path(ctx, field)
-			case "uploaderId":
-				return ec.fieldContext_Upload_uploaderId(ctx, field)
 			case "mimetype":
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "size":
@@ -7492,7 +7666,7 @@ func (ec *executionContext) _Query_uploads(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Uploads(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Uploads(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7637,7 +7811,7 @@ func (ec *executionContext) _Query_employees(ctx context.Context, field graphql.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Employees(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Employees(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7762,7 +7936,7 @@ func (ec *executionContext) _Query_positions(ctx context.Context, field graphql.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Positions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Positions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7887,7 +8061,7 @@ func (ec *executionContext) _Query_roles(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Roles(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Roles(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8012,7 +8186,7 @@ func (ec *executionContext) _Query_permissions(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Permissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Permissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8131,7 +8305,7 @@ func (ec *executionContext) _Query_rolePermissions(ctx context.Context, field gr
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().RolePermissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().RolePermissions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8258,7 +8432,7 @@ func (ec *executionContext) _Query_expenseCategories(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().ExpenseCategories(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().ExpenseCategories(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8387,7 +8561,7 @@ func (ec *executionContext) _Query_expenses(ctx context.Context, field graphql.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Expenses(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Expenses(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8512,7 +8686,7 @@ func (ec *executionContext) _Query_authenticationLogs(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().AuthenticationLogs(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().AuthenticationLogs(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8639,7 +8813,7 @@ func (ec *executionContext) _Query_sessions(ctx context.Context, field graphql.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Sessions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]*string))
+		return ec.resolvers.Query().Sessions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -9384,6 +9558,1220 @@ func (ec *executionContext) fieldContext_Session_createdAt(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_userCreated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_userCreated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().UserCreated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.User):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUser(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_userCreated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "firstName":
+				return ec.fieldContext_User_firstName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "avatar":
+				return ec.fieldContext_User_avatar(ctx, field)
+			case "avatarId":
+				return ec.fieldContext_User_avatarId(ctx, field)
+			case "employeeId":
+				return ec.fieldContext_User_employeeId(ctx, field)
+			case "lastIp":
+				return ec.fieldContext_User_lastIp(ctx, field)
+			case "lastLogin":
+				return ec.fieldContext_User_lastLogin(ctx, field)
+			case "lastAction":
+				return ec.fieldContext_User_lastAction(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_User_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_User_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_userUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_userUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().UserUpdated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.User):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUser(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_userUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "firstName":
+				return ec.fieldContext_User_firstName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "avatar":
+				return ec.fieldContext_User_avatar(ctx, field)
+			case "avatarId":
+				return ec.fieldContext_User_avatarId(ctx, field)
+			case "employeeId":
+				return ec.fieldContext_User_employeeId(ctx, field)
+			case "lastIp":
+				return ec.fieldContext_User_lastIp(ctx, field)
+			case "lastLogin":
+				return ec.fieldContext_User_lastLogin(ctx, field)
+			case "lastAction":
+				return ec.fieldContext_User_lastAction(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_User_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_User_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_userDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_userDeleted(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().UserDeleted(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int64):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_userDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_roleCreated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_roleCreated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().RoleCreated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Role):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNRole2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐRole(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_roleCreated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Role_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Role_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Role_description(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Role_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Role_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Role", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_roleUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_roleUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().RoleUpdated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Role):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNRole2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐRole(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_roleUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Role_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Role_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Role_description(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Role_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Role_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Role", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_roleDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_roleDeleted(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().RoleDeleted(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int64):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_roleDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_rolePermissionCreated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_rolePermissionCreated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().RolePermissionCreated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.RolePermissions):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNRolePermissions2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐRolePermissions(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_rolePermissionCreated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "permissionId":
+				return ec.fieldContext_RolePermissions_permissionId(ctx, field)
+			case "roleId":
+				return ec.fieldContext_RolePermissions_roleId(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type RolePermissions", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_rolePermissionDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_rolePermissionDeleted(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().RolePermissionDeleted(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int64):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_rolePermissionDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_expenseCategoryCreated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_expenseCategoryCreated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ExpenseCategoryCreated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.ExpenseCategory):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNExpenseCategory2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpenseCategory(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_expenseCategoryCreated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ExpenseCategory_id(ctx, field)
+			case "name":
+				return ec.fieldContext_ExpenseCategory_name(ctx, field)
+			case "description":
+				return ec.fieldContext_ExpenseCategory_description(ctx, field)
+			case "amount":
+				return ec.fieldContext_ExpenseCategory_amount(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ExpenseCategory_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ExpenseCategory", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_expenseCategoryUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_expenseCategoryUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ExpenseCategoryUpdated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.ExpenseCategory):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNExpenseCategory2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpenseCategory(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_expenseCategoryUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ExpenseCategory_id(ctx, field)
+			case "name":
+				return ec.fieldContext_ExpenseCategory_name(ctx, field)
+			case "description":
+				return ec.fieldContext_ExpenseCategory_description(ctx, field)
+			case "amount":
+				return ec.fieldContext_ExpenseCategory_amount(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ExpenseCategory_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ExpenseCategory_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ExpenseCategory", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_expenseCategoryDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_expenseCategoryDeleted(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ExpenseCategoryDeleted(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int64):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_expenseCategoryDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_expenseCreated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_expenseCreated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ExpenseCreated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Expense):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNExpense2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpense(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_expenseCreated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Expense_id(ctx, field)
+			case "amount":
+				return ec.fieldContext_Expense_amount(ctx, field)
+			case "categoryId":
+				return ec.fieldContext_Expense_categoryId(ctx, field)
+			case "category":
+				return ec.fieldContext_Expense_category(ctx, field)
+			case "date":
+				return ec.fieldContext_Expense_date(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Expense_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Expense_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Expense", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_expenseUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_expenseUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ExpenseUpdated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Expense):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNExpense2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpense(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_expenseUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Expense_id(ctx, field)
+			case "amount":
+				return ec.fieldContext_Expense_amount(ctx, field)
+			case "categoryId":
+				return ec.fieldContext_Expense_categoryId(ctx, field)
+			case "category":
+				return ec.fieldContext_Expense_category(ctx, field)
+			case "date":
+				return ec.fieldContext_Expense_date(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Expense_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Expense_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Expense", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_expenseDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_expenseDeleted(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ExpenseDeleted(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int64):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_expenseDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_positionCreated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_positionCreated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().PositionCreated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Position):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNPosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPosition(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_positionCreated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Position_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Position_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Position_description(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Position_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Position_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_positionUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_positionUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().PositionUpdated(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Position):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNPosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐPosition(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_positionUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Position_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Position_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Position_description(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Position_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Position_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Position", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_positionDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_positionDeleted(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().PositionDeleted(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int64):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_positionDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_sessionDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_sessionDeleted(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().SessionDeleted(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan int64):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_sessionDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Upload_id(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Upload_id(ctx, field)
 	if err != nil {
@@ -9511,47 +10899,6 @@ func (ec *executionContext) fieldContext_Upload_path(_ context.Context, field gr
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Upload_uploaderId(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Upload_uploaderId(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.UploaderID, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*int64)
-	fc.Result = res
-	return ec.marshalOID2ᚖint64(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Upload_uploaderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Upload",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -9992,8 +11339,6 @@ func (ec *executionContext) fieldContext_User_avatar(_ context.Context, field gr
 				return ec.fieldContext_Upload_name(ctx, field)
 			case "path":
 				return ec.fieldContext_Upload_path(ctx, field)
-			case "uploaderId":
-				return ec.fieldContext_Upload_uploaderId(ctx, field)
 			case "mimetype":
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "size":
@@ -12266,7 +13611,7 @@ func (ec *executionContext) unmarshalInputCreateUser(ctx context.Context, obj in
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"firstName", "lastName", "email", "password", "employeeId", "avatarId"}
+	fieldsInOrder := [...]string{"firstName", "lastName", "middleName", "email", "password", "employeeId", "avatarId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -12287,6 +13632,13 @@ func (ec *executionContext) unmarshalInputCreateUser(ctx context.Context, obj in
 				return it, err
 			}
 			it.LastName = data
+		case "middleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("middleName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MiddleName = data
 		case "email":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -12478,7 +13830,7 @@ func (ec *executionContext) unmarshalInputUpdateUser(ctx context.Context, obj in
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"firstName", "lastName", "email", "password", "employeeId", "avatarId"}
+	fieldsInOrder := [...]string{"firstName", "lastName", "middleName", "email", "password", "employeeId", "avatarId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -12499,6 +13851,13 @@ func (ec *executionContext) unmarshalInputUpdateUser(ctx context.Context, obj in
 				return it, err
 			}
 			it.LastName = data
+		case "middleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("middleName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MiddleName = data
 		case "email":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -14301,6 +15660,60 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		ec.Errorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "userCreated":
+		return ec._Subscription_userCreated(ctx, fields[0])
+	case "userUpdated":
+		return ec._Subscription_userUpdated(ctx, fields[0])
+	case "userDeleted":
+		return ec._Subscription_userDeleted(ctx, fields[0])
+	case "roleCreated":
+		return ec._Subscription_roleCreated(ctx, fields[0])
+	case "roleUpdated":
+		return ec._Subscription_roleUpdated(ctx, fields[0])
+	case "roleDeleted":
+		return ec._Subscription_roleDeleted(ctx, fields[0])
+	case "rolePermissionCreated":
+		return ec._Subscription_rolePermissionCreated(ctx, fields[0])
+	case "rolePermissionDeleted":
+		return ec._Subscription_rolePermissionDeleted(ctx, fields[0])
+	case "expenseCategoryCreated":
+		return ec._Subscription_expenseCategoryCreated(ctx, fields[0])
+	case "expenseCategoryUpdated":
+		return ec._Subscription_expenseCategoryUpdated(ctx, fields[0])
+	case "expenseCategoryDeleted":
+		return ec._Subscription_expenseCategoryDeleted(ctx, fields[0])
+	case "expenseCreated":
+		return ec._Subscription_expenseCreated(ctx, fields[0])
+	case "expenseUpdated":
+		return ec._Subscription_expenseUpdated(ctx, fields[0])
+	case "expenseDeleted":
+		return ec._Subscription_expenseDeleted(ctx, fields[0])
+	case "positionCreated":
+		return ec._Subscription_positionCreated(ctx, fields[0])
+	case "positionUpdated":
+		return ec._Subscription_positionUpdated(ctx, fields[0])
+	case "positionDeleted":
+		return ec._Subscription_positionDeleted(ctx, fields[0])
+	case "sessionDeleted":
+		return ec._Subscription_sessionDeleted(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
+}
+
 var uploadImplementors = []string{"Upload"}
 
 func (ec *executionContext) _Upload(ctx context.Context, sel ast.SelectionSet, obj *model.Upload) graphql.Marshaler {
@@ -14327,8 +15740,6 @@ func (ec *executionContext) _Upload(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "uploaderId":
-			out.Values[i] = ec._Upload_uploaderId(ctx, field, obj)
 		case "mimetype":
 			out.Values[i] = ec._Upload_mimetype(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -16126,38 +17537,6 @@ func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel
 		if e == graphql.Null {
 			return graphql.Null
 		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) unmarshalOString2ᚕᚖstring(ctx context.Context, v interface{}) ([]*string, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var vSlice []interface{}
-	if v != nil {
-		vSlice = graphql.CoerceList(v)
-	}
-	var err error
-	res := make([]*string, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalOString2ᚖstring(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) marshalOString2ᚕᚖstring(ctx context.Context, sel ast.SelectionSet, v []*string) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	ret := make(graphql.Array, len(v))
-	for i := range v {
-		ret[i] = ec.marshalOString2ᚖstring(ctx, sel, v[i])
 	}
 
 	return ret

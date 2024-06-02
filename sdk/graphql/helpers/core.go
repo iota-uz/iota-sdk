@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/99designs/gqlgen/graphql"
-	adapters2 "github.com/iota-agency/iota-erp/sdk/graphql/old/adapters"
+	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"strings"
@@ -45,8 +45,8 @@ func GetPreloadString(prefix, name string) string {
 }
 
 func ApplySort(query *gorm.DB, sortBy []string, model interface{}) (*gorm.DB, error) {
-	mapping, err := adapters2.GetGormFields(model, func(f *schema.Field, gf *adapters2.GqlFieldMeta) bool {
-		return f.Readable && gf.Readable
+	mapping, err := dbutils.GetGormFields(model, func(f *schema.Field) bool {
+		return f.Readable
 	})
 	if err != nil {
 		return nil, err

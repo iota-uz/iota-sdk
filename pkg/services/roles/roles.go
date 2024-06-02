@@ -6,30 +6,23 @@ import (
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
-	"gorm.io/gorm"
 )
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+func NewService() *Service {
+	return &Service{}
 }
 
 type Service struct {
-	db *gorm.DB
-}
-
-func (s *Service) useTx(ctx context.Context) *gorm.DB {
-	if tx, ok := composables.UseTx(ctx); ok {
-		return tx
-	} else {
-		return s.db
-	}
 }
 
 func (s *Service) GetAll(ctx context.Context, params *service.FindParams) ([]*models.User, error) {
 	if params == nil {
 		params = &service.FindParams{}
 	}
-	tx := s.useTx(ctx)
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return nil, service.ErrNoTx
+	}
 	q := tx.Offset(params.Offset)
 	if params.Limit > 0 {
 		q = q.Limit(params.Limit)
@@ -55,7 +48,10 @@ func (s *Service) GetAll(ctx context.Context, params *service.FindParams) ([]*mo
 }
 
 func (s *Service) Count(ctx context.Context) (int64, error) {
-	tx := s.useTx(ctx)
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return 0, service.ErrNoTx
+	}
 	var count int64
 	if err := tx.Model(&models.User{}).Count(&count).Error; err != nil {
 		return 0, err
@@ -64,7 +60,10 @@ func (s *Service) Count(ctx context.Context) (int64, error) {
 }
 
 func (s *Service) Create(ctx context.Context, user *models.User) error {
-	tx := s.useTx(ctx)
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
 	if err := tx.Create(user).Error; err != nil {
 		return err
 	}
@@ -72,7 +71,10 @@ func (s *Service) Create(ctx context.Context, user *models.User) error {
 }
 
 func (s *Service) Update(ctx context.Context, id int64, user *models.User) error {
-	tx := s.useTx(ctx)
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
 	if err := tx.First(user, id).Error; err != nil {
 		return err
 	}
@@ -83,7 +85,10 @@ func (s *Service) Update(ctx context.Context, id int64, user *models.User) error
 }
 
 func (s *Service) Delete(ctx context.Context, id int64) error {
-	tx := s.useTx(ctx)
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
 	if err := tx.Delete(&models.User{}, id).Error; err != nil {
 		return err
 	}

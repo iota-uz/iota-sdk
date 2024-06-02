@@ -4,32 +4,78 @@ package composables
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/sdk/middleware"
 	"gorm.io/gorm"
+	"log"
 	"net/http"
 )
 
+type Params[U, S any] struct {
+	Ip            string
+	UserAgent     string
+	User          *U
+	Session       *S
+	Authenticated bool
+	Request       *http.Request
+	Writer        http.ResponseWriter
+	Meta          map[string]interface{}
+}
+
 // UseParams returns the request parameters from the context.
 // If the parameters are not found, the second return value will be false.
-func UseParams[U any, S any](ctx context.Context) (*middleware.RequestParams[U, S], bool) {
-	params, ok := ctx.Value("params").(*middleware.RequestParams[U, S])
+func UseParams[U any, S any](ctx context.Context) (*Params[U, S], bool) {
+	params, ok := ctx.Value("params").(*Params[U, S])
 	return params, ok
+}
+
+// WithParams returns a new context with the request parameters.
+func WithParams[U, S any](ctx context.Context, params *Params[U, S]) context.Context {
+	return context.WithValue(ctx, "params", params)
+}
+
+// UseRequest returns the request from the context.
+// If the request is not found, the second return value will be false.
+func UseRequest(ctx context.Context) (*http.Request, bool) {
+	params, ok := UseParams[any, any](ctx)
+	if !ok {
+		return nil, false
+	}
+	return params.Request, true
+}
+
+// UseLogger returns the logger from the context.
+// If the logger is not found, the second return value will be false.
+func UseLogger(ctx context.Context) (*log.Logger, bool) {
+	logger, ok := ctx.Value("logger").(*log.Logger)
+	if !ok {
+		return nil, false
+	}
+	return logger, true
+}
+
+// UseMeta returns the meta data from the context.
+// If the meta data is not found, the second return value will be false.
+func UseMeta(ctx context.Context) (map[string]interface{}, bool) {
+	params, ok := UseParams[any, any](ctx)
+	if !ok {
+		return nil, false
+	}
+	return params.Meta, true
 }
 
 // UseTx returns the database transaction from the context.
 // If the transaction is not found, the second return value will be false.
 func UseTx(ctx context.Context) (*gorm.DB, bool) {
-	params, ok := UseParams[any, any](ctx)
+	tx, ok := ctx.Value("tx").(*gorm.DB)
 	if !ok {
 		return nil, false
 	}
-	return params.Tx, true
+	return tx, true
 }
 
 // UseUser returns the user from the context.
 // If the user is not found, the second return value will be false.
 func UseUser[U any](ctx context.Context) (*U, bool) {
-	params, ok := UseParams[*U, any](ctx)
+	params, ok := UseParams[U, any](ctx)
 	if !ok {
 		return nil, false
 	}
@@ -39,7 +85,7 @@ func UseUser[U any](ctx context.Context) (*U, bool) {
 // UseSession returns the session from the context.
 // If the session is not found, the second return value will be false.
 func UseSession[S any](ctx context.Context) (*S, bool) {
-	params, ok := UseParams[any, *S](ctx)
+	params, ok := UseParams[any, S](ctx)
 	if !ok {
 		return nil, false
 	}

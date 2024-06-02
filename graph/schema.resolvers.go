@@ -7,25 +7,25 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/iota-agency/iota-erp/sdk/composables"
-	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"net/http"
 	"time"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/models"
 	"github.com/iota-agency/iota-erp/pkg/utils"
+	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
-	params, ok := composables.UseParams[any, any](ctx)
+	writer, ok := composables.UseWriter(ctx)
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
 	}
-	_, session, err := r.AuthService.Authenticate(email, password, params.Ip, params.UserAgent)
+	_, session, err := r.AuthService.Authenticate(ctx, email, password)
 	if err != nil {
 		return nil, err
 	}
@@ -38,18 +38,15 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 		Secure:   false,
 		Domain:   utils.GetEnv("DOMAIN", "localhost"),
 	}
-	http.SetCookie(params.Writer, cookie)
+	http.SetCookie(writer, cookie)
 	return session.ToGraph(), nil
 }
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUser) (*model.User, error) {
-	user := &models.User{
-		FirstName:  input.FirstName,
-		LastName:   input.LastName,
-		Email:      input.Email,
-		EmployeeId: input.EmployeeID,
-		AvatarId:   input.AvatarID,
+	user := &models.User{}
+	if err := mapper.LenientMapping(&input, user); err != nil {
+		return nil, err
 	}
 	if input.Password != nil {
 		if err := user.SetPassword(*input.Password); err != nil {
@@ -64,8 +61,11 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model.UpdateUser) (*model.User, error) {
-	user := &models.User{}
-	if err := mapper.LenientMapping(input, user); err != nil {
+	user, err := r.UsersService.Get(ctx, &service.GetParams[int64]{Id: id})
+	if err != nil {
+		return nil, err
+	}
+	if err := mapper.LenientMapping(&input, user); err != nil {
 		return nil, err
 	}
 	if input.Password != nil {
@@ -73,7 +73,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 			return nil, err
 		}
 	}
-	if err := r.UsersService.Update(ctx, id, user); err != nil {
+	if err := r.UsersService.Update(ctx, user); err != nil {
 		return nil, err
 	}
 	return user.ToGraph(), nil
@@ -89,41 +89,17 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, erro
 
 // CreateRole is the resolver for the createRole field.
 func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRole) (*model.Role, error) {
-	role := &models.Role{}
-	if err := mapper.LenientMapping(input, role); err != nil {
-		return nil, err
-	}
-	if err := r.Db.Create(role).Error; err != nil {
-		return nil, err
-	}
-	return role.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: CreateRole - createRole"))
 }
 
 // UpdateRole is the resolver for the updateRole field.
 func (r *mutationResolver) UpdateRole(ctx context.Context, id int64, input model.UpdateRole) (*model.Role, error) {
-	role := &models.Role{}
-	if err := mapper.LenientMapping(input, role); err != nil {
-		return nil, err
-	}
-	if err := r.Db.First(role, id).Error; err != nil {
-		return nil, err
-	}
-	if err := r.Db.Save(role).Error; err != nil {
-		return nil, err
-	}
-	return role.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: UpdateRole - updateRole"))
 }
 
 // DeleteRole is the resolver for the deleteRole field.
 func (r *mutationResolver) DeleteRole(ctx context.Context, id int64) (bool, error) {
-	role := &models.Role{}
-	if err := r.Db.First(role, id).Error; err != nil {
-		return false, err
-	}
-	if err := r.Db.Delete(role).Error; err != nil {
-		return false, err
-	}
-	return true, nil
+	panic(fmt.Errorf("not implemented: DeleteRole - deleteRole"))
 }
 
 // CreateRolePermission is the resolver for the createRolePermission field.
@@ -133,14 +109,7 @@ func (r *mutationResolver) CreateRolePermission(ctx context.Context, input model
 
 // CreateExpenseCategory is the resolver for the createExpenseCategory field.
 func (r *mutationResolver) CreateExpenseCategory(ctx context.Context, input model.CreateExpenseCategory) (*model.ExpenseCategory, error) {
-	expenseCategory := &models.ExpenseCategory{
-		Name:        input.Name,
-		Description: input.Description,
-	}
-	if err := r.Db.Create(expenseCategory).Error; err != nil {
-		return nil, err
-	}
-	return expenseCategory.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: CreateExpenseCategory - createExpenseCategory"))
 }
 
 // UpdateExpenseCategory is the resolver for the updateExpenseCategory field.
@@ -155,14 +124,7 @@ func (r *mutationResolver) DeleteExpenseCategory(ctx context.Context, id int64) 
 
 // CreateExpense is the resolver for the createExpense field.
 func (r *mutationResolver) CreateExpense(ctx context.Context, input model.CreateExpense) (*model.Expense, error) {
-	expense := &models.Expense{
-		Amount:     input.Amount,
-		CategoryId: input.CategoryID,
-	}
-	if err := r.Db.Create(expense).Error; err != nil {
-		return nil, err
-	}
-	return expense.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: CreateExpense - createExpense"))
 }
 
 // UpdateExpense is the resolver for the updateExpense field.
@@ -197,8 +159,14 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, token string) (boo
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
-	user := &models.User{}
-	if err := r.Db.First(user, id).Error; err != nil {
+	preloads := helpers.GetPreloads(ctx)
+	params := &service.GetParams[int64]{Id: id}
+	// TODO: come up with something better
+	if helpers.HasAssociation(preloads, "avatar") {
+		params.Joins = append(params.Joins, "Avatar")
+	}
+	user, err := r.UsersService.Get(ctx, params)
+	if err != nil {
 		return nil, err
 	}
 	return user.ToGraph(), nil
@@ -240,37 +208,18 @@ func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Upload, er
 }
 
 // Uploads is the resolver for the uploads field.
-func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedUploads, error) {
+func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUploads, error) {
 	panic(fmt.Errorf("not implemented: Uploads - uploads"))
 }
 
 // Employee is the resolver for the employee field.
 func (r *queryResolver) Employee(ctx context.Context, id int64) (*model.Employee, error) {
-	employee := &models.Employee{}
-	if err := r.Db.First(employee, id).Error; err != nil {
-		return nil, err
-	}
-	return employee.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Employee - employee"))
 }
 
 // Employees is the resolver for the employees field.
-func (r *queryResolver) Employees(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedEmployees, error) {
-	var employees []*models.Employee
-	if err := r.Db.Offset(offset).Limit(limit).Find(&employees).Error; err != nil {
-		return nil, err
-	}
-	var result []*model.Employee
-	for _, employee := range employees {
-		result = append(result, employee.ToGraph())
-	}
-	var total int64
-	if err := r.Db.Model(models.Employee{}).Count(&total).Error; err != nil {
-		return nil, err
-	}
-	return &model.PaginatedEmployees{
-		Data:  result,
-		Total: total,
-	}, nil
+func (r *queryResolver) Employees(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedEmployees, error) {
+	panic(fmt.Errorf("not implemented: Employees - employees"))
 }
 
 // Position is the resolver for the position field.
@@ -283,23 +232,8 @@ func (r *queryResolver) Position(ctx context.Context, id int64) (*model.Position
 }
 
 // Positions is the resolver for the positions field.
-func (r *queryResolver) Positions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPositions, error) {
-	var positions []*models.Position
-	if err := r.Db.Offset(offset).Limit(limit).Find(&positions).Error; err != nil {
-		return nil, err
-	}
-	var result []*model.Position
-	for _, position := range positions {
-		result = append(result, position.ToGraph())
-	}
-	var total int64
-	if err := r.Db.Model(models.Position{}).Count(&total).Error; err != nil {
-		return nil, err
-	}
-	return &model.PaginatedPositions{
-		Data:  result,
-		Total: total,
-	}, nil
+func (r *queryResolver) Positions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPositions, error) {
+	panic(fmt.Errorf("not implemented: Positions - positions"))
 }
 
 // Role is the resolver for the role field.
@@ -312,52 +246,18 @@ func (r *queryResolver) Role(ctx context.Context, id int64) (*model.Role, error)
 }
 
 // Roles is the resolver for the roles field.
-func (r *queryResolver) Roles(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRoles, error) {
-	var roles []*models.Role
-	if err := r.Db.Offset(offset).Limit(limit).Find(&roles).Error; err != nil {
-		return nil, err
-	}
-	var result []*model.Role
-	for _, role := range roles {
-		result = append(result, role.ToGraph())
-	}
-	var total int64
-	if err := r.Db.Model(models.Role{}).Count(&total).Error; err != nil {
-		return nil, err
-	}
-	return &model.PaginatedRoles{
-		Data:  result,
-		Total: total,
-	}, nil
+func (r *queryResolver) Roles(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedRoles, error) {
+	panic(fmt.Errorf("not implemented: Roles - roles"))
 }
 
 // Permission is the resolver for the permission field.
 func (r *queryResolver) Permission(ctx context.Context, id int64) (*model.Permission, error) {
-	permission := &models.Permission{}
-	if err := r.Db.First(permission, id).Error; err != nil {
-		return nil, err
-	}
-	return permission.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Permission - permission"))
 }
 
 // Permissions is the resolver for the permissions field.
-func (r *queryResolver) Permissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedPermissions, error) {
-	var permissions []*models.Permission
-	if err := r.Db.Offset(offset).Limit(limit).Find(&permissions).Error; err != nil {
-		return nil, err
-	}
-	var result []*model.Permission
-	for _, permission := range permissions {
-		result = append(result, permission.ToGraph())
-	}
-	var total int64
-	if err := r.Db.Model(models.Permission{}).Count(&total).Error; err != nil {
-		return nil, err
-	}
-	return &model.PaginatedPermissions{
-		Data:  result,
-		Total: total,
-	}, nil
+func (r *queryResolver) Permissions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPermissions, error) {
+	panic(fmt.Errorf("not implemented: Permissions - permissions"))
 }
 
 // RolePermission is the resolver for the rolePermission field.
@@ -366,7 +266,7 @@ func (r *queryResolver) RolePermission(ctx context.Context, roleID int64, permis
 }
 
 // RolePermissions is the resolver for the rolePermissions field.
-func (r *queryResolver) RolePermissions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedRolePermissions, error) {
+func (r *queryResolver) RolePermissions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedRolePermissions, error) {
 	panic(fmt.Errorf("not implemented: RolePermissions - rolePermissions"))
 }
 
@@ -376,7 +276,7 @@ func (r *queryResolver) ExpenseCategory(ctx context.Context, id int64) (*model.E
 }
 
 // ExpenseCategories is the resolver for the expenseCategories field.
-func (r *queryResolver) ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenseCategories, error) {
+func (r *queryResolver) ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedExpenseCategories, error) {
 	panic(fmt.Errorf("not implemented: ExpenseCategories - expenseCategories"))
 }
 
@@ -386,7 +286,7 @@ func (r *queryResolver) Expense(ctx context.Context, id int64) (*model.Expense, 
 }
 
 // Expenses is the resolver for the expenses field.
-func (r *queryResolver) Expenses(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedExpenses, error) {
+func (r *queryResolver) Expenses(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedExpenses, error) {
 	panic(fmt.Errorf("not implemented: Expenses - expenses"))
 }
 
@@ -396,7 +296,7 @@ func (r *queryResolver) AuthenticationLog(ctx context.Context, id int64) (*model
 }
 
 // AuthenticationLogs is the resolver for the authenticationLogs field.
-func (r *queryResolver) AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedAuthenticationLogs, error) {
+func (r *queryResolver) AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedAuthenticationLogs, error) {
 	panic(fmt.Errorf("not implemented: AuthenticationLogs - authenticationLogs"))
 }
 
@@ -406,8 +306,135 @@ func (r *queryResolver) Session(ctx context.Context, token string) (*model.Sessi
 }
 
 // Sessions is the resolver for the sessions field.
-func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sortBy []*string) (*model.PaginatedSessions, error) {
+func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedSessions, error) {
 	panic(fmt.Errorf("not implemented: Sessions - sessions"))
+}
+
+// UserCreated is the resolver for the userCreated field.
+func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.User, error) {
+	//ch := make(chan *model.Time)
+	//
+	//// You can (and probably should) handle your channels in a central place outside of `schema.resolvers.go`.
+	//// For this example we'll simply use a Goroutine with a simple loop.
+	//go func() {
+	//	// Handle deregistration of the channel here. Note the `defer`
+	//	defer close(ch)
+	//
+	//	for {
+	//		// In our example we'll send the current time every second.
+	//		time.Sleep(1 * time.Second)
+	//		fmt.Println("Tick")
+	//
+	//		// Prepare your object.
+	//		currentTime := time.Now()
+	//		t := &model.Time{
+	//			UnixTime:  int(currentTime.Unix()),
+	//			TimeStamp: currentTime.Format(time.RFC3339),
+	//		}
+	//
+	//		// The subscription may have got closed due to the client disconnecting.
+	//		// Hence we do send in a select block with a check for context cancellation.
+	//		// This avoids goroutine getting blocked forever or panicking,
+	//		select {
+	//		case <-ctx.Done(): // This runs when context gets cancelled. Subscription closes.
+	//			fmt.Println("Subscription Closed")
+	//			// Handle deregistration of the channel here. `close(ch)`
+	//			return // Remember to return to end the routine.
+	//
+	//		case ch <- t: // This is the actual send.
+	//			// Our message went through, do nothing
+	//		}
+	//	}
+	//}()
+	//
+	//// We return the channel and no error.
+	//return ch, nil
+	panic(fmt.Errorf("not implemented: UserCreated - userCreated"))
+}
+
+// UserUpdated is the resolver for the userUpdated field.
+func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.User, error) {
+	panic(fmt.Errorf("not implemented: UserUpdated - userUpdated"))
+}
+
+// UserDeleted is the resolver for the userDeleted field.
+func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: UserDeleted - userDeleted"))
+}
+
+// RoleCreated is the resolver for the roleCreated field.
+func (r *subscriptionResolver) RoleCreated(ctx context.Context) (<-chan *model.Role, error) {
+	panic(fmt.Errorf("not implemented: RoleCreated - roleCreated"))
+}
+
+// RoleUpdated is the resolver for the roleUpdated field.
+func (r *subscriptionResolver) RoleUpdated(ctx context.Context) (<-chan *model.Role, error) {
+	panic(fmt.Errorf("not implemented: RoleUpdated - roleUpdated"))
+}
+
+// RoleDeleted is the resolver for the roleDeleted field.
+func (r *subscriptionResolver) RoleDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: RoleDeleted - roleDeleted"))
+}
+
+// RolePermissionCreated is the resolver for the rolePermissionCreated field.
+func (r *subscriptionResolver) RolePermissionCreated(ctx context.Context) (<-chan *model.RolePermissions, error) {
+	panic(fmt.Errorf("not implemented: RolePermissionCreated - rolePermissionCreated"))
+}
+
+// RolePermissionDeleted is the resolver for the rolePermissionDeleted field.
+func (r *subscriptionResolver) RolePermissionDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: RolePermissionDeleted - rolePermissionDeleted"))
+}
+
+// ExpenseCategoryCreated is the resolver for the expenseCategoryCreated field.
+func (r *subscriptionResolver) ExpenseCategoryCreated(ctx context.Context) (<-chan *model.ExpenseCategory, error) {
+	panic(fmt.Errorf("not implemented: ExpenseCategoryCreated - expenseCategoryCreated"))
+}
+
+// ExpenseCategoryUpdated is the resolver for the expenseCategoryUpdated field.
+func (r *subscriptionResolver) ExpenseCategoryUpdated(ctx context.Context) (<-chan *model.ExpenseCategory, error) {
+	panic(fmt.Errorf("not implemented: ExpenseCategoryUpdated - expenseCategoryUpdated"))
+}
+
+// ExpenseCategoryDeleted is the resolver for the expenseCategoryDeleted field.
+func (r *subscriptionResolver) ExpenseCategoryDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: ExpenseCategoryDeleted - expenseCategoryDeleted"))
+}
+
+// ExpenseCreated is the resolver for the expenseCreated field.
+func (r *subscriptionResolver) ExpenseCreated(ctx context.Context) (<-chan *model.Expense, error) {
+	panic(fmt.Errorf("not implemented: ExpenseCreated - expenseCreated"))
+}
+
+// ExpenseUpdated is the resolver for the expenseUpdated field.
+func (r *subscriptionResolver) ExpenseUpdated(ctx context.Context) (<-chan *model.Expense, error) {
+	panic(fmt.Errorf("not implemented: ExpenseUpdated - expenseUpdated"))
+}
+
+// ExpenseDeleted is the resolver for the expenseDeleted field.
+func (r *subscriptionResolver) ExpenseDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: ExpenseDeleted - expenseDeleted"))
+}
+
+// PositionCreated is the resolver for the positionCreated field.
+func (r *subscriptionResolver) PositionCreated(ctx context.Context) (<-chan *model.Position, error) {
+	panic(fmt.Errorf("not implemented: PositionCreated - positionCreated"))
+}
+
+// PositionUpdated is the resolver for the positionUpdated field.
+func (r *subscriptionResolver) PositionUpdated(ctx context.Context) (<-chan *model.Position, error) {
+	panic(fmt.Errorf("not implemented: PositionUpdated - positionUpdated"))
+}
+
+// PositionDeleted is the resolver for the positionDeleted field.
+func (r *subscriptionResolver) PositionDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: PositionDeleted - positionDeleted"))
+}
+
+// SessionDeleted is the resolver for the sessionDeleted field.
+func (r *subscriptionResolver) SessionDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: SessionDeleted - sessionDeleted"))
 }
 
 // Mutation returns MutationResolver implementation.
@@ -416,5 +443,9 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

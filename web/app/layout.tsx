@@ -15,7 +15,7 @@ const fontSans = FontSans({
 })
 
 const client = new ApolloClient({
-    uri: "http://localhost:3200/graphql",
+    uri: "http://localhost:3200/query",
     cache: new InMemoryCache(),
 });
 

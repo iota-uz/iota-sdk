@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"github.com/iota-agency/iota-erp/pkg/authentication"
+	"github.com/iota-agency/iota-erp/pkg/services/auth"
 	"github.com/iota-agency/iota-erp/pkg/services/users"
 	"gorm.io/gorm"
 )
@@ -14,6 +14,6 @@ import (
 
 type Resolver struct {
 	Db           *gorm.DB
-	AuthService  *authentication.Service
+	AuthService  *auth.Service
 	UsersService *users.Service
 }

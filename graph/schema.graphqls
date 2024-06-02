@@ -150,7 +150,6 @@ type Upload {
     id: ID!
     name: String!
     path: String!
-    uploaderId: ID
     mimetype: String!
     size: Float!
     createdAt: Time!
@@ -188,39 +187,40 @@ type Query {
     users(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUsers!
 
     upload(id: ID!): Upload
-    uploads(offset: Int!, limit: Int!, sortBy: [String]): PaginatedUploads!
+    uploads(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUploads!
 
     employee(id: ID!): Employee
-    employees(offset: Int!, limit: Int!, sortBy: [String]): PaginatedEmployees!
+    employees(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedEmployees!
 
     position(id: ID!): Position
-    positions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedPositions!
+    positions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPositions!
 
     role(id: ID!): Role
-    roles(offset: Int!, limit: Int!, sortBy: [String]): PaginatedRoles!
+    roles(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedRoles!
 
     permission(id: ID!): Permission
-    permissions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedPermissions!
+    permissions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPermissions!
 
     rolePermission(roleId: ID!, permissionId: ID!): RolePermissions
-    rolePermissions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedRolePermissions!
+    rolePermissions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedRolePermissions!
 
     expenseCategory(id: ID!): ExpenseCategory
-    expenseCategories(offset: Int!, limit: Int!, sortBy: [String]): PaginatedExpenseCategories!
+    expenseCategories(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenseCategories!
 
     expense(id: ID!): Expense
-    expenses(offset: Int!, limit: Int!, sortBy: [String]): PaginatedExpenses!
+    expenses(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenses!
 
     authenticationLog(id: ID!): AuthenticationLog
-    authenticationLogs(offset: Int!, limit: Int!, sortBy: [String]): PaginatedAuthenticationLogs!
+    authenticationLogs(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedAuthenticationLogs!
 
     session(token: String!): Session
-    sessions(offset: Int!, limit: Int!, sortBy: [String]): PaginatedSessions!
+    sessions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedSessions!
 }
 
 input CreateUser {
     firstName: String!
     lastName: String!
+    middleName: String
     email: String!
     password: String
     employeeId: ID
@@ -230,6 +230,7 @@ input CreateUser {
 input UpdateUser {
     firstName: String
     lastName: String
+    middleName: String
     email: String
     password: String
     employeeId: ID
@@ -283,6 +284,33 @@ input CreatePosition {
 input UpdatePosition {
     name: String
     description: String
+}
+
+type Subscription {
+    userCreated: User!
+    userUpdated: User!
+    userDeleted: ID!
+
+    roleCreated: Role!
+    roleUpdated: Role!
+    roleDeleted: ID!
+
+    rolePermissionCreated: RolePermissions!
+    rolePermissionDeleted: ID!
+
+    expenseCategoryCreated: ExpenseCategory!
+    expenseCategoryUpdated: ExpenseCategory!
+    expenseCategoryDeleted: ID!
+
+    expenseCreated: Expense!
+    expenseUpdated: Expense!
+    expenseDeleted: ID!
+
+    positionCreated: Position!
+    positionUpdated: Position!
+    positionDeleted: ID!
+
+    sessionDeleted: ID!
 }
 
 type Mutation {

@@ -13,9 +13,9 @@ type User struct {
 	MiddleName *string
 	Password   *string
 	Email      string
-	Avatar     *Upload `gorm:"foreignKey:AvatarId"`
-	AvatarId   *int64
-	EmployeeId *int64
+	Avatar     *Upload `gorm:"foreignKey:AvatarID"`
+	AvatarID   *int64
+	EmployeeID *int64
 	LastIp     *string
 	LastLogin  *time.Time
 	LastAction *time.Time
@@ -54,9 +54,9 @@ func (u *User) ToGraph() *model.User {
 		LastName:   u.LastName,
 		MiddleName: u.MiddleName,
 		Email:      u.Email,
-		AvatarID:   u.AvatarId,
+		AvatarID:   u.AvatarID,
 		Avatar:     u.avatar2graph(),
-		EmployeeID: u.EmployeeId,
+		EmployeeID: u.EmployeeID,
 		LastIP:     u.LastIp,
 		LastLogin:  u.LastLogin,
 		LastAction: u.LastAction,

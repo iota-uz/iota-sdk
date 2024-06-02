@@ -17,10 +17,11 @@ type Session struct {
 func (s *Session) IsExpired() bool {
 	return s.ExpiresAt.Before(time.Now())
 }
+
 func (s *Session) ToGraph() *model.Session {
 	return &model.Session{
 		Token:     s.Token,
-		UserID:    int(s.UserId),
+		UserID:    s.UserId,
 		IP:        s.Ip,
 		UserAgent: s.UserAgent,
 		ExpiresAt: s.ExpiresAt,

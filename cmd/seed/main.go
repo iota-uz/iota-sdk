@@ -21,7 +21,7 @@ func createInitialUser(tx *gorm.DB, email, password string) error {
 		Name:        "admin",
 		Description: mapper.Pointer("Administrator"),
 	}
-	if err := tx.Create(role).Error; err != nil {
+	if err := tx.Save(role).Error; err != nil {
 		return err
 	}
 	user := &models.User{
@@ -33,14 +33,14 @@ func createInitialUser(tx *gorm.DB, email, password string) error {
 	if err := user.SetPassword(password); err != nil {
 		return err
 	}
-	if err := tx.Create(user).Error; err != nil {
+	if err := tx.Save(user).Error; err != nil {
 		return err
 	}
 	userRole := &models.UserRole{
 		UserId: user.Id,
 		RoleId: role.Id,
 	}
-	return tx.Create(userRole).Error
+	return tx.Save(userRole).Error
 }
 
 func main() {
