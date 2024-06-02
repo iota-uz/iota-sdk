@@ -19,6 +19,36 @@ for i := 0; i < 10; i++ {
 }
 ```
 
+## Project structure
+We follow the [Standard Go Project Layout](https://github.com/golang-standards/project-layout) and DDD principles. 
+Below is an example of a project structure
+```
+project-root/
+├── cmd/
+│   └── server/
+│       └── main.go
+├── internal/
+│   ├── app/
+│   │   ├── application.go
+│   │   ├── service/
+│   │   │   └── user_service.go
+│   ├── domain/
+│   │   ├── user/
+│   │   │   ├── user.go
+│   │   │   ├── user_repository.go
+│   │   │   └── user_service.go
+│   ├── infrastructure/
+│   │   ├── persistence/
+│   │   │   └── user_repository.go
+│   │   ├── event/
+│   │   │   └── event_publisher.go
+│   └── interfaces/
+│       └── api/
+│           └── user_handler.go
+└── go.mod
+```
+
+
 ## Types
 
 Use `int64` for `count` && `ID` fields

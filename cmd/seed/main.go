@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
+	"github.com/iota-agency/iota-erp/sdk/utils"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"

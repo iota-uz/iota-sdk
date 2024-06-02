@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gotd/td/telegram"
-	"github.com/iota-agency/iota-erp/pkg/utils"
+	"github.com/iota-agency/iota-erp/sdk/utils"
 	"github.com/jmoiron/sqlx"
 	"strconv"
 )

@@ -1,4 +1,4 @@
-package models
+package user
 
 import (
 	"github.com/iota-agency/iota-erp/graph/gqlmodels"
@@ -13,7 +13,6 @@ type User struct {
 	MiddleName *string
 	Password   *string
 	Email      string
-	Avatar     *Upload `gorm:"foreignKey:AvatarID"`
 	AvatarID   *int64
 	EmployeeID *int64
 	LastIp     *string
@@ -40,13 +39,6 @@ func (u *User) SetPassword(password string) error {
 	return nil
 }
 
-func (u *User) avatar2graph() *model.Upload {
-	if u.Avatar == nil {
-		return nil
-	}
-	return u.Avatar.ToGraph()
-}
-
 func (u *User) ToGraph() *model.User {
 	return &model.User{
 		ID:         u.Id,
@@ -55,7 +47,6 @@ func (u *User) ToGraph() *model.User {
 		MiddleName: u.MiddleName,
 		Email:      u.Email,
 		AvatarID:   u.AvatarID,
-		Avatar:     u.avatar2graph(),
 		EmployeeID: u.EmployeeID,
 		LastIP:     u.LastIp,
 		LastLogin:  u.LastLogin,

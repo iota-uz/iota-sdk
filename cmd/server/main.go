@@ -1,16 +1,19 @@
 package main
 
 import (
-	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/graph"
+	"github.com/iota-agency/iota-erp/internal/app"
+	"github.com/iota-agency/iota-erp/internal/domain/auth"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
+	infrastructure "github.com/iota-agency/iota-erp/internal/infrastracture"
+	"github.com/iota-agency/iota-erp/internal/infrastracture/event"
+	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
 	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/pkg/services/auth"
-	"github.com/iota-agency/iota-erp/pkg/services/users"
-	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/iota-agency/iota-erp/sdk/middleware"
+	"github.com/iota-agency/iota-erp/sdk/utils"
 	_ "github.com/lib/pq"
 	"github.com/rs/cors"
 	"gorm.io/driver/postgres"
@@ -26,23 +29,23 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	authService := auth.New()
-	srv := handler.NewDefaultServer(graph.NewExecutableSchema(
-		graph.Config{
-			Resolvers: &graph.Resolver{
-				Db:           db,
-				AuthService:  authService,
-				UsersService: users.New(),
-			},
-		},
-	))
+	authService := auth.NewService()
+	eventPublisher := event.NewEventPublisher()
+	registry := infrastructure.NewRepositoryRegistry()
+	registry.RegisterUserRepository(persistence.NewUserRepository())
+	registry.RegisterUploadRepository(persistence.NewUploadRepository())
+	//registry.RegisterSessionRepository(persistence.NewSessionRepository())
+	application := app.New(registry, eventPublisher)
+
+	srv := graph.NewDefaultServer(db, application)
 	srv.AddTransport(&transport.Websocket{})
+
 	r := mux.NewRouter()
 	r.Use(middleware.RequestParams(middleware.DefaultParamsConstructor))
 	r.Use(middleware.WithLogger(log.Default()))
 	r.Use(middleware.LogRequests)
 	r.Use(middleware.Transactions(db))
-	r.Use(middleware.Authorization[models.User, models.Session](authService))
+	r.Use(middleware.Authorization[user.User, models.Session](authService))
 	r.Use(cors.Default().Handler)
 	r.Handle("/query", srv)
 	r.Handle("/", playground.Handler("GraphQL playground", "/query"))

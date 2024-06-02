@@ -7,16 +7,14 @@ package graph
 import (
 	"context"
 	"fmt"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"github.com/iota-agency/iota-erp/sdk/utils"
 	"net/http"
 	"time"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/models"
-	"github.com/iota-agency/iota-erp/pkg/utils"
 	"github.com/iota-agency/iota-erp/sdk/composables"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
-	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
 // Authenticate is the resolver for the authenticate field.
@@ -25,7 +23,7 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
 	}
-	_, session, err := r.AuthService.Authenticate(ctx, email, password)
+	_, session, err := r.app.AuthService.Authenticate(ctx, email, password)
 	if err != nil {
 		return nil, err
 	}
@@ -44,24 +42,24 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUser) (*model.User, error) {
-	user := &models.User{}
-	if err := mapper.LenientMapping(&input, user); err != nil {
+	u := &user.User{}
+	if err := mapper.LenientMapping(&input, u); err != nil {
 		return nil, err
 	}
 	if input.Password != nil {
-		if err := user.SetPassword(*input.Password); err != nil {
+		if err := u.SetPassword(*input.Password); err != nil {
 			return nil, err
 		}
 	}
-	if err := r.UsersService.Create(ctx, user); err != nil {
+	if err := r.app.UserService.CreateUser(ctx, u); err != nil {
 		return nil, err
 	}
-	return user.ToGraph(), nil
+	return u.ToGraph(), nil
 }
 
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model.UpdateUser) (*model.User, error) {
-	user, err := r.UsersService.Get(ctx, &service.GetParams[int64]{Id: id})
+	user, err := r.app.UserService.GetUserByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +71,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 			return nil, err
 		}
 	}
-	if err := r.UsersService.Update(ctx, user); err != nil {
+	if err := r.app.UserService.UpdateUser(ctx, user); err != nil {
 		return nil, err
 	}
 	return user.ToGraph(), nil
@@ -81,7 +79,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 
 // DeleteUser is the resolver for the deleteUser field.
 func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, error) {
-	if err := r.UsersService.Delete(ctx, id); err != nil {
+	if err := r.app.UserService.DeleteUser(ctx, id); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -159,13 +157,7 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, token string) (boo
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
-	preloads := helpers.GetPreloads(ctx)
-	params := &service.GetParams[int64]{Id: id}
-	// TODO: come up with something better
-	if helpers.HasAssociation(preloads, "avatar") {
-		params.Joins = append(params.Joins, "Avatar")
-	}
-	user, err := r.UsersService.Get(ctx, params)
+	user, err := r.app.UserService.GetUserByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -174,17 +166,7 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error) {
-	preloads := helpers.GetPreloads(ctx)
-	params := &service.FindParams{
-		Offset: offset,
-		Limit:  limit,
-		SortBy: sortBy,
-	}
-	// TODO: come up with something better
-	if helpers.HasAssociation(preloads, "avatar") {
-		params.Joins = append(params.Joins, "Avatar")
-	}
-	users, err := r.UsersService.GetAll(ctx, params)
+	users, err := r.app.UserService.GetUsersPaginated(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +174,7 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 	for _, user := range users {
 		result = append(result, user.ToGraph())
 	}
-	total, err := r.UsersService.Count(ctx)
+	total, err := r.app.UserService.GetUsersCount(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -204,12 +186,28 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 
 // Upload is the resolver for the upload field.
 func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Upload, error) {
-	panic(fmt.Errorf("not implemented: Upload - upload"))
+	upload, err := r.app.UploadService.GetUploadByID(ctx, id)
+	return upload.ToGraph(), err
 }
 
 // Uploads is the resolver for the uploads field.
 func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUploads, error) {
-	panic(fmt.Errorf("not implemented: Uploads - uploads"))
+	uploads, err := r.app.UploadService.GetUploadsPaginated(ctx, limit, offset, sortBy)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Upload, len(uploads))
+	for _, upload := range uploads {
+		result = append(result, upload.ToGraph())
+	}
+	total, err := r.app.UploadService.GetUploadsCount(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &model.PaginatedUploads{
+		Data:  result,
+		Total: total,
+	}, nil
 }
 
 // Employee is the resolver for the employee field.
@@ -224,11 +222,7 @@ func (r *queryResolver) Employees(ctx context.Context, offset int, limit int, so
 
 // Position is the resolver for the position field.
 func (r *queryResolver) Position(ctx context.Context, id int64) (*model.Position, error) {
-	position := &models.Position{}
-	if err := r.Db.First(position, id).Error; err != nil {
-		return nil, err
-	}
-	return position.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Position - position"))
 }
 
 // Positions is the resolver for the positions field.
@@ -238,11 +232,7 @@ func (r *queryResolver) Positions(ctx context.Context, offset int, limit int, so
 
 // Role is the resolver for the role field.
 func (r *queryResolver) Role(ctx context.Context, id int64) (*model.Role, error) {
-	role := &models.Role{}
-	if err := r.Db.First(role, id).Error; err != nil {
-		return nil, err
-	}
-	return role.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Role - role"))
 }
 
 // Roles is the resolver for the roles field.
@@ -437,6 +427,15 @@ func (r *subscriptionResolver) SessionDeleted(ctx context.Context) (<-chan int64
 	panic(fmt.Errorf("not implemented: SessionDeleted - sessionDeleted"))
 }
 
+// Avatar is the resolver for the avatar field.
+func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Upload, error) {
+	if obj.AvatarID == nil {
+		return nil, nil
+	}
+	upload, err := r.app.UploadService.GetUploadByID(ctx, *obj.AvatarID)
+	return upload.ToGraph(), err
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
@@ -446,6 +445,10 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
+// User returns UserResolver implementation.
+func (r *Resolver) User() UserResolver { return &userResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }

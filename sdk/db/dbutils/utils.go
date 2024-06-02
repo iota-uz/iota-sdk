@@ -2,7 +2,7 @@ package dbutils
 
 import (
 	"errors"
-	"github.com/iota-agency/iota-erp/pkg/utils"
+	"github.com/iota-agency/iota-erp/sdk/utils"
 	"gorm.io/gorm/schema"
 	"sync"
 )

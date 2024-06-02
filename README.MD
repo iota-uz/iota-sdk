@@ -27,9 +27,6 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [Docker](https://docs.docker.com/get-docker/)
 * [Air](https://github.com/cosmtrek/air#Installation)
 
-## Project structure
-We follow the [Standard Go Project Layout](https://github.com/golang-standards/project-layout)
-
 ## Development
 
 Clone the repository
