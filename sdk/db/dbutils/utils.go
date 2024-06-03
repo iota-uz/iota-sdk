@@ -2,7 +2,7 @@ package dbutils
 
 import (
 	"errors"
-	"github.com/iota-agency/iota-erp/sdk/utils"
+	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
 	"gorm.io/gorm/schema"
 	"sync"
 )
@@ -28,7 +28,7 @@ func IsNumeric(kind schema.DataType) bool {
 		schema.Float,
 		schema.Uint,
 	}
-	return utils.Includes(numerics, kind)
+	return sequence.Includes(numerics, kind)
 }
 
 func IsString(kind schema.DataType) bool {
@@ -36,14 +36,14 @@ func IsString(kind schema.DataType) bool {
 		schema.String,
 		schema.Bytes,
 	}
-	return utils.Includes(vals, kind)
+	return sequence.Includes(vals, kind)
 }
 
 func IsTime(kind schema.DataType) bool {
 	times := []schema.DataType{
 		schema.Time,
 	}
-	return utils.Includes(times, kind)
+	return sequence.Includes(times, kind)
 }
 
 // GetGormFields returns a map of fields of a model that are readable and match the filter
