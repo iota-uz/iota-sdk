@@ -29,22 +29,17 @@ project-root/
 │       └── main.go
 ├── internal/
 │   ├── app/
-│   │   ├── application.go
-│   │   ├── service/
-│   │   │   └── user_service.go
+│   │   └── application.go
 │   ├── domain/
 │   │   ├── user/
 │   │   │   ├── user.go
 │   │   │   ├── user_repository.go
 │   │   │   └── user_service.go
-│   ├── infrastructure/
-│   │   ├── persistence/
-│   │   │   └── user_repository.go
-│   │   ├── event/
-│   │   │   └── event_publisher.go
-│   └── interfaces/
-│       └── api/
-│           └── user_handler.go
+│   └── infrastructure/
+│       ├── persistence/
+│       │   └── user_repository.go
+│       └── event/
+│           └── event_publisher.go
 └── go.mod
 ```
 
