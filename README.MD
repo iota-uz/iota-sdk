@@ -22,10 +22,10 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [ ] File uploads
 
 ## Prerequisites
-* [SQL-Migrate](https://github.com/rubenv/sql-migrate)
 * [Go](https://golang.org/doc/install)
-* [Docker](https://docs.docker.com/get-docker/)
 * [Air](https://github.com/cosmtrek/air#Installation)
+* [Docker](https://docs.docker.com/get-docker/)
+* [SQL-Migrate](https://github.com/rubenv/sql-migrate)
 
 ## Development
 
