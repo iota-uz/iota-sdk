@@ -62,6 +62,11 @@ func UseMeta(ctx context.Context) (map[string]interface{}, bool) {
 	return params.Meta, true
 }
 
+// WithTx returns a new context with the database transaction.
+func WithTx(ctx context.Context, tx *gorm.DB) context.Context {
+	return context.WithValue(ctx, "tx", tx)
+}
+
 // UseTx returns the database transaction from the context.
 // If the transaction is not found, the second return value will be false.
 func UseTx(ctx context.Context) (*gorm.DB, bool) {

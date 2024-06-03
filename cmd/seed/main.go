@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
 	"github.com/iota-agency/iota-erp/models"
+	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"github.com/iota-agency/iota-erp/sdk/utils"
 	"gorm.io/driver/postgres"
@@ -9,14 +13,16 @@ import (
 	"log"
 )
 
-func createInitialUser(tx *gorm.DB, email, password string) error {
-	var count int64
-	if err := tx.Model(&models.User{}).Count(&count).Error; err != nil {
+func createInitialUser(ctx context.Context, email, password string) error {
+	userRepo := persistence.NewUserRepository()
+	count, err := userRepo.Count(ctx)
+	if err != nil {
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
+	tx, _ := composables.UseTx(ctx)
 	role := &models.Role{
 		Name:        "admin",
 		Description: mapper.Pointer("Administrator"),
@@ -24,20 +30,20 @@ func createInitialUser(tx *gorm.DB, email, password string) error {
 	if err := tx.Save(role).Error; err != nil {
 		return err
 	}
-	user := &models.User{
+	u := &user.User{
 		FirstName: "Admin",
 		LastName:  "User",
 		Email:     email,
 		Password:  &password,
 	}
-	if err := user.SetPassword(password); err != nil {
+	if err := u.SetPassword(password); err != nil {
 		return err
 	}
-	if err := tx.Save(user).Error; err != nil {
+	if err := userRepo.Update(ctx, u); err != nil {
 		return err
 	}
 	userRole := &models.UserRole{
-		UserId: user.Id,
+		UserId: u.Id,
 		RoleId: role.Id,
 	}
 	return tx.Save(userRole).Error
@@ -54,7 +60,8 @@ func main() {
 	userPassword := utils.GetEnv("INITIAL_USER_PASSWORD", "")
 	if userEmail != "" && userPassword != "" {
 		if err := db.Transaction(func(tx *gorm.DB) error {
-			return createInitialUser(tx, userEmail, userPassword)
+			ctx := composables.WithTx(context.Background(), tx)
+			return createInitialUser(ctx, userEmail, userPassword)
 		}); err != nil {
 			panic(err)
 		}
