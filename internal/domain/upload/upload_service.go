@@ -10,7 +10,7 @@ type Service struct {
 	eventPublisher *event.Publisher
 }
 
-func NewUploadService(repo Repository, publisher *event.Publisher) *Service {
+func NewService(repo Repository, publisher *event.Publisher) *Service {
 	return &Service{
 		repo:           repo,
 		eventPublisher: publisher,

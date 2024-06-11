@@ -59,11 +59,11 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id int64) (*user.User,
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	user := &user.User{}
-	if err := tx.First(user, id).Error; err != nil {
+	u := &user.User{}
+	if err := tx.First(u, id).Error; err != nil {
 		return nil, err
 	}
-	return user, nil
+	return u, nil
 }
 
 func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {

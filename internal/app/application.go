@@ -17,7 +17,7 @@ type Application struct {
 func New(registry *infrastructure.RepositoryRegistry, eventPublisher *event.Publisher) *Application {
 	authService := auth.NewService()
 	userService := user.NewUserService(registry.GetUserRepository(), eventPublisher)
-	uploadService := upload.NewUploadService(registry.GetUploadRepository(), eventPublisher)
+	uploadService := upload.NewService(registry.GetUploadRepository(), eventPublisher)
 	return &Application{
 		AuthService:   authService,
 		UserService:   userService,

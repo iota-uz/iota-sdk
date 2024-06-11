@@ -1,11 +1,14 @@
 ## About
+
 IOTA ERP - is a set of building blocks for ERP development, which will later turn into a complete SDK
 
 ## Overview
+
 * [Architecture](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd)
 * [Database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e)
 
 ## Features
+
 * [x] GraphQL API
 * [x] Database migrations
 * [x] Hot reload
@@ -22,6 +25,7 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [ ] File uploads
 
 ## Prerequisites
+
 * [Go](https://golang.org/doc/install)
 * [Air](https://github.com/cosmtrek/air#Installation)
 * [Docker](https://docs.docker.com/get-docker/)
@@ -30,26 +34,31 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 ## Development
 
 Clone the repository
+
 ```shell
 git clone https://github.com/iota-agency/iota-erp.git
 ```
 
 Install dependencies
+
 ```shell
 go get -u -d ./...
 ```
 
 Run postgres
+
 ```shell
 docker compose -f docker-compose.dev.yml up -d
 ```
 
 Run migrations
+
 ```shell
-go run cmd/migrate/migrate.go up
+sql-migrate up
 ```
 
 Run in watch mode (hot reload)
+
 ```shell
 air
 ```
@@ -57,7 +66,9 @@ air
 Now open postman and explore the GraphQL schema at http://localhost:3200/query
 
 ## Examples
+
 Get all employees and their positions
+
 ```graphql
 query Users {
     users(limit: 10, offset: 0) {
@@ -76,28 +87,57 @@ query Users {
 }
 ```
 
+## CLI
+Generate a new domain
+```shell
+go run sdk/cli/main.go generate <domain-name> 
+```
+
 ## Reference commands
 
 Regenerate from GraphQL schema
+
 ```shell
 go generate ./...
 ```
 
-Making a migration
+Running migrations
+
 ```shell
-go run cmd/makemigration/main.go
+sql-migrate up
+```
+
+Rolling back migrations
+
+```shell
+sql-migrate down
+```
+
+Redoing migrations (useful for development)
+
+```shell
+sql-migrate redo
+```
+
+Making a migration
+
+```shell
+sql-migrate new <migration-name>
 ```
 
 Running tests
+
 ```shell
 go test -v ./...
 ```
 
 Running the server
+
 ```shell
 go run cmd/server/main.go
 ```
 
 ## Conventions
+
 * [Naming](CONVENTIONS.MD#naming)
 * [Code style](CONVENTIONS.MD#code-style)
