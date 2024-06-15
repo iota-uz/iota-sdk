@@ -1,0 +1,16 @@
+commands:
+  service:
+    args:
+      name:
+        required: true
+      type:
+        required: true
+    templates:
+      - template: templates/repository_interface.templ
+        output: internal/domain/{{ .Name }}/{{ .Name }}_repository.go
+      - template: templates/entity.templ
+        output: internal/domain/{{ .Name }}/{{ .Name }}.go
+      - template: templates/service.templ
+        output: internal/app/services/{{ .Name }}_service.go
+      - template: templates/repository.templ
+        output: internal/infrastracture/persistence/{{ .Name }}_repository.go

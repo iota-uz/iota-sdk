@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/gotd/td/session"
-	"github.com/iota-agency/iota-erp/models"
+	"github.com/iota-agency/iota-erp/internal/domain/telegramSession"
 	"github.com/jmoiron/sqlx"
 	"sync"
 )
@@ -33,7 +33,7 @@ func (s *DbSession) LoadSession(context.Context) ([]byte, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 
-	dest := &models.TelegramSession{}
+	dest := &telegramSession.TelegramSession{}
 	if err := s.db.Get(dest, "SELECT session FROM telegram_sessions WHERE user_id = $1", s.userId); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, session.ErrNotFound

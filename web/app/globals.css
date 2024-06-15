@@ -148,6 +148,10 @@
     .rounded-table td:first-child {
         border-left: 1px solid var(--primary-200);
     }
+
+    .h-chat {
+        height: calc(100vh - 12rem);
+    }
 }
 
 @layer base {

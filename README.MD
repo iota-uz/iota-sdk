@@ -88,9 +88,11 @@ query Users {
 ```
 
 ## CLI
-Generate a new domain
+
+Generate a new entity, service & repository
+
 ```shell
-go run sdk/cli/main.go generate <domain-name> 
+go run cli/cmd/generate/main.go service -f --type Message --name message
 ```
 
 ## Reference commands

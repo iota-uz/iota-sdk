@@ -14,6 +14,10 @@ type AuthenticationLog struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type CompletionDelta struct {
+	Content string `json:"content"`
+}
+
 type CreateExpense struct {
 	Amount     float64 `json:"amount"`
 	CategoryID int64   `json:"categoryId"`
@@ -29,6 +33,12 @@ type CreateExpenseCategory struct {
 type CreatePosition struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
+}
+
+type CreatePrompt struct {
+	Title       string  `json:"title"`
+	Description *string `json:"description,omitempty"`
+	Prompt      string  `json:"prompt"`
 }
 
 type CreateRole struct {
@@ -49,6 +59,15 @@ type CreateUser struct {
 	Password   *string `json:"password,omitempty"`
 	EmployeeID *int64  `json:"employeeId,omitempty"`
 	AvatarID   *int64  `json:"avatarId,omitempty"`
+}
+
+type Dialogue struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"userId"`
+	Label     string    `json:"label"`
+	Messages  string    `json:"messages"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Employee struct {
@@ -109,6 +128,11 @@ type PaginatedAuthenticationLogs struct {
 	Total int64                `json:"total"`
 }
 
+type PaginatedDialogues struct {
+	Data  []*Dialogue `json:"data"`
+	Total int64       `json:"total"`
+}
+
 type PaginatedEmployees struct {
 	Data  []*Employee `json:"data"`
 	Total int64       `json:"total"`
@@ -132,6 +156,11 @@ type PaginatedPermissions struct {
 type PaginatedPositions struct {
 	Data  []*Position `json:"data"`
 	Total int64       `json:"total"`
+}
+
+type PaginatedPrompts struct {
+	Data  []*Prompt `json:"data"`
+	Total int64     `json:"total"`
 }
 
 type PaginatedRolePermissions struct {
@@ -175,6 +204,15 @@ type Position struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+type Prompt struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Prompt      string    `json:"prompt"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
 type Query struct {
 }
 
@@ -200,7 +238,18 @@ type Session struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type StartDialogue struct {
+	Message string  `json:"message"`
+	Model   *string `json:"model,omitempty"`
+}
+
 type Subscription struct {
+}
+
+type UpdateDialogue struct {
+	UserID   *int64  `json:"userId,omitempty"`
+	Label    *string `json:"label,omitempty"`
+	Messages *string `json:"messages,omitempty"`
 }
 
 type UpdateExpense struct {
@@ -218,6 +267,12 @@ type UpdateExpenseCategory struct {
 type UpdatePosition struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
+}
+
+type UpdatePrompt struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Prompt      *string `json:"prompt,omitempty"`
 }
 
 type UpdateRole struct {

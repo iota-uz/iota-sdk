@@ -6,36 +6,44 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/graph"
 	"github.com/iota-agency/iota-erp/internal/app"
-	"github.com/iota-agency/iota-erp/internal/domain/auth"
-	"github.com/iota-agency/iota-erp/internal/domain/user"
-	infrastructure "github.com/iota-agency/iota-erp/internal/infrastracture"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/event"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
-	"github.com/iota-agency/iota-erp/models"
+	"github.com/iota-agency/iota-erp/internal/configuration"
+	localMiddleware "github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/sdk/middleware"
-	"github.com/iota-agency/iota-erp/sdk/utils"
 	_ "github.com/lib/pq"
 	"github.com/rs/cors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"log"
 	"net/http"
+	"os"
+	"time"
 )
 
 func main() {
-	utils.LoadEnv()
-	log.Println("Connecting to database:", utils.DbOpts())
-	db, err := gorm.Open(postgres.Open(utils.DbOpts()), &gorm.Config{})
+	conf := configuration.Use()
+	if err := conf.Load(); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Connecting to database:", conf.DbOpts())
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold:             time.Second,
+			LogLevel:                  logger.Info,
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
+			Colorful:                  true,
+		},
+	)
+	db, err := gorm.Open(postgres.Open(conf.DbOpts()), &gorm.Config{
+		Logger:                 newLogger,
+		SkipDefaultTransaction: true,
+	})
 	if err != nil {
 		panic(err)
 	}
-	authService := auth.NewService()
-	eventPublisher := event.NewEventPublisher()
-	registry := infrastructure.NewRepositoryRegistry()
-	registry.RegisterUserRepository(persistence.NewUserRepository())
-	registry.RegisterUploadRepository(persistence.NewUploadRepository())
-	//registry.RegisterSessionRepository(persistence.NewSessionRepository())
-	application := app.New(registry, eventPublisher)
+	application := app.New()
 
 	srv := graph.NewDefaultServer(db, application)
 	srv.AddTransport(&transport.Websocket{})
@@ -45,30 +53,11 @@ func main() {
 	r.Use(middleware.WithLogger(log.Default()))
 	r.Use(middleware.LogRequests)
 	r.Use(middleware.Transactions(db))
-	r.Use(middleware.Authorization[user.User, models.Session](authService))
+	r.Use(localMiddleware.Authorization(application.AuthService))
 	r.Use(cors.Default().Handler)
 	r.Handle("/query", srv)
 	r.Handle("/", playground.Handler("GraphQL playground", "/query"))
 
-	port := utils.GetEnv("PORT", "3200")
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	if utils.GetEnv("GO_APP_ENV", "development") == "production" {
-		err = http.ListenAndServe(":3200", r)
-	} else {
-		err = http.ListenAndServe("localhost:3200", r)
-	}
-	log.Fatal(err)
-
-	//telegramServer := tgServer.New(db)
-	//wg := sync.WaitGroup{}
-	//wg.Add(2)
-	//go func() {
-	//	httpServer.Start()
-	//	wg.Done()
-	//}()
-	//go func() {
-	//	telegramServer.Start()
-	//	wg.Done()
-	//}()
-	//wg.Wait()
+	log.Printf("connect to http://localhost:%s/ for GraphQL playground", conf.ServerPort())
+	log.Fatal(http.ListenAndServe(conf.SocketAddress(), r))
 }

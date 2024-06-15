@@ -9,11 +9,9 @@ import (
 	"net/http"
 )
 
-type Params[U, S any] struct {
+type Params struct {
 	Ip            string
 	UserAgent     string
-	User          *U
-	Session       *S
 	Authenticated bool
 	Request       *http.Request
 	Writer        http.ResponseWriter
@@ -22,20 +20,20 @@ type Params[U, S any] struct {
 
 // UseParams returns the request parameters from the context.
 // If the parameters are not found, the second return value will be false.
-func UseParams[U any, S any](ctx context.Context) (*Params[U, S], bool) {
-	params, ok := ctx.Value("params").(*Params[U, S])
+func UseParams(ctx context.Context) (*Params, bool) {
+	params, ok := ctx.Value("params").(*Params)
 	return params, ok
 }
 
 // WithParams returns a new context with the request parameters.
-func WithParams[U, S any](ctx context.Context, params *Params[U, S]) context.Context {
+func WithParams(ctx context.Context, params *Params) context.Context {
 	return context.WithValue(ctx, "params", params)
 }
 
 // UseRequest returns the request from the context.
 // If the request is not found, the second return value will be false.
 func UseRequest(ctx context.Context) (*http.Request, bool) {
-	params, ok := UseParams[any, any](ctx)
+	params, ok := UseParams(ctx)
 	if !ok {
 		return nil, false
 	}
@@ -52,10 +50,10 @@ func UseLogger(ctx context.Context) (*log.Logger, bool) {
 	return logger, true
 }
 
-// UseMeta returns the meta data from the context.
-// If the meta data is not found, the second return value will be false.
+// UseMeta returns the metadata from the context.
+// If the metadata is not found, the second return value will be false.
 func UseMeta(ctx context.Context) (map[string]interface{}, bool) {
-	params, ok := UseParams[any, any](ctx)
+	params, ok := UseParams(ctx)
 	if !ok {
 		return nil, false
 	}
@@ -77,40 +75,20 @@ func UseTx(ctx context.Context) (*gorm.DB, bool) {
 	return tx, true
 }
 
-// UseUser returns the user from the context.
-// If the user is not found, the second return value will be false.
-func UseUser[U any](ctx context.Context) (*U, bool) {
-	params, ok := UseParams[U, any](ctx)
-	if !ok {
-		return nil, false
-	}
-	return params.User, true
-}
-
-// UseSession returns the session from the context.
-// If the session is not found, the second return value will be false.
-func UseSession[S any](ctx context.Context) (*S, bool) {
-	params, ok := UseParams[any, S](ctx)
-	if !ok {
-		return nil, false
-	}
-	return params.Session, true
-}
-
 // UseAuthenticated returns whether the user is authenticated and the second return value is true.
 // If the user is not authenticated, the second return value is false.
-func UseAuthenticated(ctx context.Context) (bool, bool) {
-	params, ok := UseParams[any, any](ctx)
+func UseAuthenticated(ctx context.Context) bool {
+	params, ok := UseParams(ctx)
 	if !ok {
-		return false, false
+		return false
 	}
-	return params.Authenticated, true
+	return params.Authenticated
 }
 
 // UseIp returns the IP address from the context.
 // If the IP address is not found, the second return value will be false.
 func UseIp(ctx context.Context) (string, bool) {
-	params, ok := UseParams[any, any](ctx)
+	params, ok := UseParams(ctx)
 	if !ok {
 		return "", false
 	}
@@ -120,7 +98,7 @@ func UseIp(ctx context.Context) (string, bool) {
 // UseUserAgent returns the user agent from the context.
 // If the user agent is not found, the second return value will be false.
 func UseUserAgent(ctx context.Context) (string, bool) {
-	params, ok := UseParams[any, any](ctx)
+	params, ok := UseParams(ctx)
 	if !ok {
 		return "", false
 	}
@@ -130,7 +108,7 @@ func UseUserAgent(ctx context.Context) (string, bool) {
 // UseWriter returns the response writer from the context.
 // If the response writer is not found, the second return value will be false.
 func UseWriter(ctx context.Context) (http.ResponseWriter, bool) {
-	params, ok := UseParams[any, any](ctx)
+	params, ok := UseParams(ctx)
 	if !ok {
 		return nil, false
 	}

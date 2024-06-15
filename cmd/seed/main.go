@@ -2,16 +2,19 @@ package main
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/configuration"
+	"github.com/iota-agency/iota-erp/internal/domain/role"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
-	"github.com/iota-agency/iota-erp/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
-	"github.com/iota-agency/iota-erp/sdk/utils"
+	"github.com/iota-agency/iota-erp/sdk/utils/env"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 )
+
+// TODO: refactor
 
 func createInitialUser(ctx context.Context, email, password string) error {
 	userRepo := persistence.NewUserRepository()
@@ -23,11 +26,11 @@ func createInitialUser(ctx context.Context, email, password string) error {
 		return nil
 	}
 	tx, _ := composables.UseTx(ctx)
-	role := &models.Role{
+	r := &role.Role{
 		Name:        "admin",
 		Description: mapper.Pointer("Administrator"),
 	}
-	if err := tx.Save(role).Error; err != nil {
+	if err := tx.Save(r).Error; err != nil {
 		return err
 	}
 	u := &user.User{
@@ -42,22 +45,25 @@ func createInitialUser(ctx context.Context, email, password string) error {
 	if err := userRepo.Update(ctx, u); err != nil {
 		return err
 	}
-	userRole := &models.UserRole{
+	userRole := &role.UserRole{
 		UserId: u.Id,
-		RoleId: role.Id,
+		RoleId: r.Id,
 	}
 	return tx.Save(userRole).Error
 }
 
 func main() {
-	utils.LoadEnv()
-	log.Println("Connecting to database:", utils.DbOpts())
-	db, err := gorm.Open(postgres.Open(utils.DbOpts()), &gorm.Config{})
+	conf := configuration.Use()
+	if err := conf.Load(); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Connecting to database:", conf.DbOpts())
+	db, err := gorm.Open(postgres.Open(conf.DbOpts()), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}
-	userEmail := utils.GetEnv("INITIAL_USER_EMAIL", "")
-	userPassword := utils.GetEnv("INITIAL_USER_PASSWORD", "")
+	userEmail := env.GetEnv("INITIAL_USER_EMAIL", "")
+	userPassword := env.GetEnv("INITIAL_USER_PASSWORD", "")
 	if userEmail != "" && userPassword != "" {
 		if err := db.Transaction(func(tx *gorm.DB) error {
 			ctx := composables.WithTx(context.Background(), tx)
