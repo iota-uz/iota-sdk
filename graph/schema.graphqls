@@ -182,6 +182,34 @@ type PaginatedUsers {
     total: Int64!
 }
 
+type Dialogue {
+    id: ID!
+    userId: ID!
+    label: String!
+    messages: String!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedDialogues {
+    data: [Dialogue!]!
+    total: Int64!
+}
+
+type Prompt {
+    id: String!
+    title: String!
+    description: String!
+    prompt: String!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedPrompts {
+    data: [Prompt!]!
+    total: Int64!
+}
+
 type Query {
     user(id: ID!): User
     users(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUsers!
@@ -215,6 +243,54 @@ type Query {
 
     session(token: String!): Session
     sessions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedSessions!
+
+    dialogue(id: ID!): Dialogue
+    dialogues(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedDialogues!
+
+    prompt(id: String!): Prompt
+    prompts(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPrompts!
+}
+
+type CompletionDelta {
+    content: String!
+}
+
+type Subscription {
+    userCreated: User!
+    userUpdated: User!
+    userDeleted: ID!
+
+    roleCreated: Role!
+    roleUpdated: Role!
+    roleDeleted: ID!
+
+    rolePermissionCreated: RolePermissions!
+    rolePermissionDeleted: ID!
+
+    expenseCategoryCreated: ExpenseCategory!
+    expenseCategoryUpdated: ExpenseCategory!
+    expenseCategoryDeleted: ID!
+
+    expenseCreated: Expense!
+    expenseUpdated: Expense!
+    expenseDeleted: ID!
+
+    positionCreated: Position!
+    positionUpdated: Position!
+    positionDeleted: ID!
+
+    sessionDeleted: ID!
+
+    dialogueCreated: Dialogue!
+    dialogueUpdated: Dialogue!
+
+    promptCreated: Prompt!
+    promptUpdated: Prompt!
+    promptDeleted: ID!
+
+    completionStarted: Boolean!
+    completionDelta: CompletionDelta!
+    completionEnded: Boolean!
 }
 
 input CreateUser {
@@ -286,31 +362,27 @@ input UpdatePosition {
     description: String
 }
 
-type Subscription {
-    userCreated: User!
-    userUpdated: User!
-    userDeleted: ID!
+input StartDialogue {
+    message: String!
+    model: String
+}
 
-    roleCreated: Role!
-    roleUpdated: Role!
-    roleDeleted: ID!
+input UpdateDialogue {
+    userId: ID
+    label: String
+    messages: String
+}
 
-    rolePermissionCreated: RolePermissions!
-    rolePermissionDeleted: ID!
+input CreatePrompt {
+    title: String!
+    description: String
+    prompt: String!
+}
 
-    expenseCategoryCreated: ExpenseCategory!
-    expenseCategoryUpdated: ExpenseCategory!
-    expenseCategoryDeleted: ID!
-
-    expenseCreated: Expense!
-    expenseUpdated: Expense!
-    expenseDeleted: ID!
-
-    positionCreated: Position!
-    positionUpdated: Position!
-    positionDeleted: ID!
-
-    sessionDeleted: ID!
+input UpdatePrompt {
+    title: String
+    description: String
+    prompt: String
 }
 
 type Mutation {
@@ -339,4 +411,9 @@ type Mutation {
     deletePosition(id: ID!): Boolean!
 
     deleteSession(token: String!): Boolean!
+
+    startDialogue(input: StartDialogue!): Dialogue!
+
+    createPrompt(input: CreatePrompt!): Prompt!
+    updatePrompt(id: String!, input: UpdatePrompt!): Prompt!
 }

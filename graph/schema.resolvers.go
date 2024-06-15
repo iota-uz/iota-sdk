@@ -7,14 +7,12 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/user"
-	"github.com/iota-agency/iota-erp/sdk/utils"
-	"net/http"
-	"time"
-
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
+	"github.com/iota-agency/iota-erp/sdk/utils/env"
+	"net/http"
 )
 
 // Authenticate is the resolver for the authenticate field.
@@ -30,11 +28,11 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	cookie := &http.Cookie{
 		Name:     "token",
 		Value:    session.Token,
-		Expires:  time.Now().Add(utils.SessionDuration()),
+		Expires:  session.ExpiresAt,
 		HttpOnly: false,
 		SameSite: http.SameSiteNoneMode,
 		Secure:   false,
-		Domain:   utils.GetEnv("DOMAIN", "localhost"),
+		Domain:   env.GetEnv("DOMAIN", "localhost"),
 	}
 	http.SetCookie(writer, cookie)
 	return session.ToGraph(), nil
@@ -51,7 +49,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 			return nil, err
 		}
 	}
-	if err := r.app.UserService.CreateUser(ctx, u); err != nil {
+	if err := r.app.UserService.Create(ctx, u); err != nil {
 		return nil, err
 	}
 	return u.ToGraph(), nil
@@ -59,27 +57,27 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model.UpdateUser) (*model.User, error) {
-	user, err := r.app.UserService.GetUserByID(ctx, id)
+	entity, err := r.app.UserService.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := mapper.LenientMapping(&input, user); err != nil {
+	if err := mapper.LenientMapping(&input, entity); err != nil {
 		return nil, err
 	}
 	if input.Password != nil {
-		if err := user.SetPassword(*input.Password); err != nil {
+		if err := entity.SetPassword(*input.Password); err != nil {
 			return nil, err
 		}
 	}
-	if err := r.app.UserService.UpdateUser(ctx, user); err != nil {
+	if err := r.app.UserService.Update(ctx, entity); err != nil {
 		return nil, err
 	}
-	return user.ToGraph(), nil
+	return entity.ToGraph(), nil
 }
 
 // DeleteUser is the resolver for the deleteUser field.
 func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, error) {
-	if err := r.app.UserService.DeleteUser(ctx, id); err != nil {
+	if err := r.app.UserService.Delete(ctx, id); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -155,26 +153,49 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, token string) (boo
 	panic(fmt.Errorf("not implemented: DeleteSession - deleteSession"))
 }
 
-// User is the resolver for the user field.
-func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
-	user, err := r.app.UserService.GetUserByID(ctx, id)
+// StartDialogue is the resolver for the startDialogue field.
+func (r *mutationResolver) StartDialogue(ctx context.Context, input model.StartDialogue) (*model.Dialogue, error) {
+	openaiModel := "gpt-4o-2024-05-13"
+	if input.Model != nil {
+		openaiModel = *input.Model
+	}
+	data, err := r.app.DialogueService.StartDialogue(ctx, input.Message, openaiModel)
 	if err != nil {
 		return nil, err
 	}
-	return user.ToGraph(), nil
+	return data.ToGraph()
+}
+
+// CreatePrompt is the resolver for the createPrompt field.
+func (r *mutationResolver) CreatePrompt(ctx context.Context, input model.CreatePrompt) (*model.Prompt, error) {
+	panic(fmt.Errorf("not implemented: Create - createPrompt"))
+}
+
+// UpdatePrompt is the resolver for the updatePrompt field.
+func (r *mutationResolver) UpdatePrompt(ctx context.Context, id string, input model.UpdatePrompt) (*model.Prompt, error) {
+	panic(fmt.Errorf("not implemented: Update - updatePrompt"))
+}
+
+// User is the resolver for the user field.
+func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
+	entity, err := r.app.UserService.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return entity.ToGraph(), nil
 }
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error) {
-	users, err := r.app.UserService.GetUsersPaginated(ctx, limit, offset, sortBy)
+	entities, err := r.app.UserService.GetPaginated(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*model.User, len(users))
-	for _, user := range users {
-		result = append(result, user.ToGraph())
+	result := make([]*model.User, len(entities))
+	for i, entity := range entities {
+		result[i] = entity.ToGraph()
 	}
-	total, err := r.app.UserService.GetUsersCount(ctx)
+	total, err := r.app.UserService.Count(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -186,8 +207,11 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 
 // Upload is the resolver for the upload field.
 func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Upload, error) {
-	upload, err := r.app.UploadService.GetUploadByID(ctx, id)
-	return upload.ToGraph(), err
+	entity, err := r.app.UploadService.GetUploadByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return entity.ToGraph(), nil
 }
 
 // Uploads is the resolver for the uploads field.
@@ -300,51 +324,65 @@ func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sor
 	panic(fmt.Errorf("not implemented: Sessions - sessions"))
 }
 
+// Dialogue is the resolver for the dialogue field.
+func (r *queryResolver) Dialogue(ctx context.Context, id int64) (*model.Dialogue, error) {
+	panic(fmt.Errorf("not implemented: Dialogue - dialogue"))
+}
+
+// Dialogues is the resolver for the dialogues field.
+func (r *queryResolver) Dialogues(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedDialogues, error) {
+	entities, err := r.app.DialogueService.GetPaginated(ctx, limit, offset, sortBy)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Dialogue, len(entities))
+	for i, entity := range entities {
+		r, err := entity.ToGraph()
+		if err != nil {
+			return nil, err
+		}
+		result[i] = r
+	}
+	total, err := r.app.UserService.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &model.PaginatedDialogues{
+		Data:  result,
+		Total: total,
+	}, nil
+}
+
+// Prompt is the resolver for the prompt field.
+func (r *queryResolver) Prompt(ctx context.Context, id string) (*model.Prompt, error) {
+	panic(fmt.Errorf("not implemented: Prompt - prompt"))
+}
+
+// Prompts is the resolver for the prompts field.
+func (r *queryResolver) Prompts(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPrompts, error) {
+	panic(fmt.Errorf("not implemented: Prompts - prompts"))
+}
+
 // UserCreated is the resolver for the userCreated field.
 func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.User, error) {
-	//ch := make(chan *model.Time)
-	//
-	//// You can (and probably should) handle your channels in a central place outside of `schema.resolvers.go`.
-	//// For this example we'll simply use a Goroutine with a simple loop.
-	//go func() {
-	//	// Handle deregistration of the channel here. Note the `defer`
-	//	defer close(ch)
-	//
-	//	for {
-	//		// In our example we'll send the current time every second.
-	//		time.Sleep(1 * time.Second)
-	//		fmt.Println("Tick")
-	//
-	//		// Prepare your object.
-	//		currentTime := time.Now()
-	//		t := &model.Time{
-	//			UnixTime:  int(currentTime.Unix()),
-	//			TimeStamp: currentTime.Format(time.RFC3339),
-	//		}
-	//
-	//		// The subscription may have got closed due to the client disconnecting.
-	//		// Hence we do send in a select block with a check for context cancellation.
-	//		// This avoids goroutine getting blocked forever or panicking,
-	//		select {
-	//		case <-ctx.Done(): // This runs when context gets cancelled. Subscription closes.
-	//			fmt.Println("Subscription Closed")
-	//			// Handle deregistration of the channel here. `close(ch)`
-	//			return // Remember to return to end the routine.
-	//
-	//		case ch <- t: // This is the actual send.
-	//			// Our message went through, do nothing
-	//		}
-	//	}
-	//}()
-	//
-	//// We return the channel and no error.
-	//return ch, nil
-	panic(fmt.Errorf("not implemented: UserCreated - userCreated"))
+	ch := make(chan *model.User)
+	r.app.EventPublisher.Subscribe("user.created", func(data interface{}) {
+		if entity, ok := data.(*user.User); ok {
+			ch <- entity.ToGraph()
+		}
+	})
+	return ch, nil
 }
 
 // UserUpdated is the resolver for the userUpdated field.
 func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.User, error) {
-	panic(fmt.Errorf("not implemented: UserUpdated - userUpdated"))
+	ch := make(chan *model.User)
+	r.app.EventPublisher.Subscribe("user.updated", func(data interface{}) {
+		if entity, ok := data.(*user.User); ok {
+			ch <- entity.ToGraph()
+		}
+	})
+	return ch, nil
 }
 
 // UserDeleted is the resolver for the userDeleted field.
@@ -427,13 +465,68 @@ func (r *subscriptionResolver) SessionDeleted(ctx context.Context) (<-chan int64
 	panic(fmt.Errorf("not implemented: SessionDeleted - sessionDeleted"))
 }
 
+// DialogueCreated is the resolver for the dialogueCreated field.
+func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *model.Dialogue, error) {
+	ch := make(chan *model.Dialogue)
+	r.app.EventPublisher.Subscribe("dialogue.created", func(data interface{}) {
+		if entity, ok := data.(*model.Dialogue); ok {
+			ch <- entity
+		}
+	})
+	return ch, nil
+}
+
+// DialogueUpdated is the resolver for the dialogueUpdated field.
+func (r *subscriptionResolver) DialogueUpdated(ctx context.Context) (<-chan *model.Dialogue, error) {
+	ch := make(chan *model.Dialogue)
+	r.app.EventPublisher.Subscribe("dialogue.updated", func(data interface{}) {
+		if entity, ok := data.(*model.Dialogue); ok {
+			ch <- entity
+		}
+	})
+	return ch, nil
+}
+
+// PromptCreated is the resolver for the promptCreated field.
+func (r *subscriptionResolver) PromptCreated(ctx context.Context) (<-chan *model.Prompt, error) {
+	panic(fmt.Errorf("not implemented: PromptCreated - promptCreated"))
+}
+
+// PromptUpdated is the resolver for the promptUpdated field.
+func (r *subscriptionResolver) PromptUpdated(ctx context.Context) (<-chan *model.Prompt, error) {
+	panic(fmt.Errorf("not implemented: PromptUpdated - promptUpdated"))
+}
+
+// PromptDeleted is the resolver for the promptDeleted field.
+func (r *subscriptionResolver) PromptDeleted(ctx context.Context) (<-chan int64, error) {
+	panic(fmt.Errorf("not implemented: PromptDeleted - promptDeleted"))
+}
+
+// CompletionStarted is the resolver for the completionStarted field.
+func (r *subscriptionResolver) CompletionStarted(ctx context.Context) (<-chan bool, error) {
+	panic(fmt.Errorf("not implemented: CompletionStarted - completionStarted"))
+}
+
+// CompletionDelta is the resolver for the completionDelta field.
+func (r *subscriptionResolver) CompletionDelta(ctx context.Context) (<-chan *model.CompletionDelta, error) {
+	panic(fmt.Errorf("not implemented: CompletionDelta - completionDelta"))
+}
+
+// CompletionEnded is the resolver for the completionEnded field.
+func (r *subscriptionResolver) CompletionEnded(ctx context.Context) (<-chan bool, error) {
+	panic(fmt.Errorf("not implemented: CompletionEnded - completionEnded"))
+}
+
 // Avatar is the resolver for the avatar field.
 func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Upload, error) {
 	if obj.AvatarID == nil {
 		return nil, nil
 	}
 	upload, err := r.app.UploadService.GetUploadByID(ctx, *obj.AvatarID)
-	return upload.ToGraph(), err
+	if err != nil {
+		return nil, err
+	}
+	return upload.ToGraph(), nil
 }
 
 // Mutation returns MutationResolver implementation.

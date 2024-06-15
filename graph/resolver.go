@@ -2,7 +2,7 @@ package graph
 
 import (
 	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/iota-agency/iota-erp/internal/app"
+	"github.com/iota-agency/iota-erp/internal/app/services"
 	"gorm.io/gorm"
 )
 
@@ -14,10 +14,10 @@ import (
 
 type Resolver struct {
 	db  *gorm.DB
-	app *app.Application
+	app *services.Application
 }
 
-func NewDefaultServer(db *gorm.DB, app *app.Application) *handler.Server {
+func NewDefaultServer(db *gorm.DB, app *services.Application) *handler.Server {
 	return handler.NewDefaultServer(NewExecutableSchema(
 		Config{
 			Resolvers: &Resolver{

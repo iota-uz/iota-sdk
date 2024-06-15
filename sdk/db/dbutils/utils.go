@@ -56,13 +56,6 @@ func GetGormFields(model interface{}, filter FieldsFilter) (map[string]*schema.F
 	}
 	fields := map[string]*schema.Field{}
 	for _, field := range s.Fields {
-		as := field.Tag.Get("gql")
-		if as == "" {
-			return nil, errors.New("gql tag is required")
-		}
-		if as == "-" {
-			continue
-		}
 		if filter(field) {
 			fields[field.Name] = field
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
@@ -19,11 +20,12 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, limit, offset int
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var users []*user.User
 	q := tx.Limit(limit).Offset(offset)
-	for _, s := range sortBy {
-		q = q.Order(s)
+	q, err := helpers.ApplySort(q, sortBy, &user.User{})
+	if err != nil {
+		return nil, err
 	}
+	var users []*user.User
 	if err := q.Find(&users).Error; err != nil {
 		return nil, err
 	}
@@ -61,6 +63,18 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id int64) (*user.User,
 	}
 	u := &user.User{}
 	if err := tx.First(u, id).Error; err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return nil, service.ErrNoTx
+	}
+	u := &user.User{}
+	if err := tx.First(u, "email = ?", email).Error; err != nil {
 		return nil, err
 	}
 	return u, nil

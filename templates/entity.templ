@@ -1,0 +1,21 @@
+package {{ .Name }}
+
+import (
+	"github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"time"
+)
+
+type {{ .Type }} struct {
+	ID          int64
+	// more fields...
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (r *{{ .Type }}) ToGraph() *model.{{ .Type }} {
+	return &model.{{ .Type }}{
+		ID:          r.ID,
+		CreatedAt:   r.CreatedAt,
+		UpdatedAt:   r.UpdatedAt,
+	}
+}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gotd/td/telegram"
-	"github.com/iota-agency/iota-erp/sdk/utils"
+	"github.com/iota-agency/iota-erp/sdk/utils/env"
 	"github.com/jmoiron/sqlx"
 	"strconv"
 )
@@ -20,11 +20,11 @@ func New(db *sqlx.DB) *Server {
 }
 
 func (s *Server) Start() {
-	appId, err := strconv.Atoi(utils.GetEnv("TELEGRAM_APP_ID", ""))
+	appId, err := strconv.Atoi(env.GetEnv("TELEGRAM_APP_ID", ""))
 	if err != nil {
 		panic(err)
 	}
-	appHash := utils.GetEnv("TELEGRAM_APP_HASH", "")
+	appHash := env.GetEnv("TELEGRAM_APP_HASH", "")
 	//log, err := zap.NewDevelopment()
 	//if err != nil {
 	//	panic(err)

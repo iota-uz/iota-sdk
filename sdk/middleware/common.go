@@ -11,14 +11,10 @@ import (
 )
 
 type GenericConstructor func(r *http.Request, w http.ResponseWriter) interface{}
-type ParamsConstructor func(r *http.Request, w http.ResponseWriter) *composables.Params[any, any]
+type ParamsConstructor func(r *http.Request, w http.ResponseWriter) *composables.Params
 
-type AuthService[U, S any] interface {
-	Authorize(ctx context.Context, token string) (*U, *S, error)
-}
-
-func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composables.Params[any, any] {
-	return &composables.Params[any, any]{
+func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composables.Params {
+	return &composables.Params{
 		Request:   r,
 		Writer:    w,
 		Ip:        r.RemoteAddr,
@@ -70,32 +66,6 @@ func Transactions(db *gorm.DB) mux.MiddlewareFunc {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
-		})
-	}
-}
-
-func Authorization[U, S any](authService AuthService[U, S]) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, err := r.Cookie("token")
-			if err != nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-			ctx := r.Context()
-			user, session, err := authService.Authorize(ctx, token.Value)
-			if err != nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-			params, ok := composables.UseParams[U, S](ctx)
-			if !ok {
-				panic("params not found. Add RequestParams middleware up the chain")
-			}
-			params.Authenticated = true
-			params.User = user
-			params.Session = session
-			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
