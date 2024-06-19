@@ -62,12 +62,17 @@ type CreateUser struct {
 }
 
 type Dialogue struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"userId"`
-	Label     string    `json:"label"`
-	Messages  string    `json:"messages"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID        int64      `json:"id"`
+	UserID    int64      `json:"userId"`
+	Label     string     `json:"label"`
+	Messages  []*Message `json:"messages"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+}
+
+type DialogueReply struct {
+	Message string  `json:"message"`
+	Model   *string `json:"model,omitempty"`
 }
 
 type Employee struct {
@@ -120,7 +125,18 @@ type ExpenseCategory struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+type Message struct {
+	Role      string      `json:"role"`
+	Content   string      `json:"content"`
+	ToolCalls []*ToolCall `json:"toolCalls,omitempty"`
+}
+
 type Mutation struct {
+}
+
+type NewDialogue struct {
+	Message string  `json:"message"`
+	Model   *string `json:"model,omitempty"`
 }
 
 type PaginatedAuthenticationLogs struct {
@@ -238,18 +254,18 @@ type Session struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-type StartDialogue struct {
-	Message string  `json:"message"`
-	Model   *string `json:"model,omitempty"`
-}
-
 type Subscription struct {
 }
 
+type ToolCall struct {
+	ID    string `json:"id"`
+	Index int    `json:"index"`
+	Type  string `json:"type"`
+}
+
 type UpdateDialogue struct {
-	UserID   *int64  `json:"userId,omitempty"`
-	Label    *string `json:"label,omitempty"`
-	Messages *string `json:"messages,omitempty"`
+	UserID *int64  `json:"userId,omitempty"`
+	Label  *string `json:"label,omitempty"`
 }
 
 type UpdateExpense struct {

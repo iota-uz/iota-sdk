@@ -3,6 +3,7 @@ package chatfuncs
 import (
 	"encoding/json"
 	"errors"
+	"github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
 	"gorm.io/gorm"
 )
 
@@ -10,7 +11,7 @@ type doSQLQuery struct {
 	db *gorm.DB
 }
 
-func NewDoSQLQuery(db *gorm.DB) ChatFunctionDefinition {
+func NewDoSQLQuery(db *gorm.DB) functions.ChatFunctionDefinition {
 	return doSQLQuery{db: db}
 }
 

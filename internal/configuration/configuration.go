@@ -7,17 +7,17 @@ import (
 	"time"
 )
 
-var Singleton *Configuration
+var singleton *Configuration
 
 type Configuration struct {
 	Loaded bool
 }
 
 func Use() *Configuration {
-	if Singleton == nil {
-		Singleton = &Configuration{}
+	if singleton == nil {
+		singleton = &Configuration{}
 	}
-	return Singleton
+	return singleton
 }
 
 func (c *Configuration) Load() error {
@@ -52,4 +52,8 @@ func (c *Configuration) SocketAddress() string {
 		return fmt.Sprintf(":%s", c.ServerPort())
 	}
 	return fmt.Sprintf("localhost:%s", c.ServerPort())
+}
+
+func (c *Configuration) OpenAIKey() string {
+	return env.MustGetEnv("OPENAI_KEY")
 }

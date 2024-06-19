@@ -1,4 +1,4 @@
-package chatfuncs
+package functions
 
 import (
 	"encoding/json"

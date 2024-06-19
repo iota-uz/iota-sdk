@@ -182,11 +182,23 @@ type PaginatedUsers {
     total: Int64!
 }
 
+type ToolCall {
+    id: String!
+    index: Int!
+    type: String!
+}
+
+type Message {
+    role: String!
+    content: String!
+    toolCalls: [ToolCall!]
+}
+
 type Dialogue {
     id: ID!
     userId: ID!
     label: String!
-    messages: String!
+    messages: [Message!]!
     createdAt: Time!
     updatedAt: Time!
 }
@@ -251,47 +263,6 @@ type Query {
     prompts(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPrompts!
 }
 
-type CompletionDelta {
-    content: String!
-}
-
-type Subscription {
-    userCreated: User!
-    userUpdated: User!
-    userDeleted: ID!
-
-    roleCreated: Role!
-    roleUpdated: Role!
-    roleDeleted: ID!
-
-    rolePermissionCreated: RolePermissions!
-    rolePermissionDeleted: ID!
-
-    expenseCategoryCreated: ExpenseCategory!
-    expenseCategoryUpdated: ExpenseCategory!
-    expenseCategoryDeleted: ID!
-
-    expenseCreated: Expense!
-    expenseUpdated: Expense!
-    expenseDeleted: ID!
-
-    positionCreated: Position!
-    positionUpdated: Position!
-    positionDeleted: ID!
-
-    sessionDeleted: ID!
-
-    dialogueCreated: Dialogue!
-    dialogueUpdated: Dialogue!
-
-    promptCreated: Prompt!
-    promptUpdated: Prompt!
-    promptDeleted: ID!
-
-    completionStarted: Boolean!
-    completionDelta: CompletionDelta!
-    completionEnded: Boolean!
-}
 
 input CreateUser {
     firstName: String!
@@ -362,7 +333,12 @@ input UpdatePosition {
     description: String
 }
 
-input StartDialogue {
+input NewDialogue {
+    message: String!
+    model: String
+}
+
+input DialogueReply {
     message: String!
     model: String
 }
@@ -370,7 +346,6 @@ input StartDialogue {
 input UpdateDialogue {
     userId: ID
     label: String
-    messages: String
 }
 
 input CreatePrompt {
@@ -412,8 +387,49 @@ type Mutation {
 
     deleteSession(token: String!): Boolean!
 
-    startDialogue(input: StartDialogue!): Dialogue!
+    newDialogue(input: NewDialogue!): Dialogue!
+    replyDialogue(id: ID!, input: DialogueReply!): Dialogue!
+    deleteDialogue(id: ID!): Boolean!
 
     createPrompt(input: CreatePrompt!): Prompt!
     updatePrompt(id: String!, input: UpdatePrompt!): Prompt!
+}
+
+
+type CompletionDelta {
+    content: String!
+}
+
+type Subscription {
+    userCreated: User!
+    userUpdated: User!
+    userDeleted: ID!
+
+    roleCreated: Role!
+    roleUpdated: Role!
+    roleDeleted: ID!
+
+    rolePermissionCreated: RolePermissions!
+    rolePermissionDeleted: ID!
+
+    expenseCategoryCreated: ExpenseCategory!
+    expenseCategoryUpdated: ExpenseCategory!
+    expenseCategoryDeleted: ID!
+
+    expenseCreated: Expense!
+    expenseUpdated: Expense!
+    expenseDeleted: ID!
+
+    positionCreated: Position!
+    positionUpdated: Position!
+    positionDeleted: ID!
+
+    sessionDeleted: ID!
+
+    dialogueCreated: Dialogue!
+    dialogueUpdated: Dialogue!
+
+    promptCreated: Prompt!
+    promptUpdated: Prompt!
+    promptDeleted: ID!
 }

@@ -303,14 +303,6 @@ CREATE TABLE articles
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE embeddings
-(
-    id         SERIAL PRIMARY KEY,
-    embedding  VECTOR(384) NOT NULL,
-    article_id INT         NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
-    text       TEXT        NOT NULL
-);
-
 CREATE TABLE comments
 (
     id         SERIAL PRIMARY KEY,
@@ -613,8 +605,6 @@ CREATE INDEX comments_user_id_idx ON comments (user_id);
 CREATE INDEX likes_article_id_idx ON likes (article_id);
 CREATE INDEX likes_user_id_idx ON likes (user_id);
 
-CREATE INDEX embeddings_article_id_idx ON embeddings (article_id);
-
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
 CREATE INDEX action_log_user_id_idx ON action_log (user_id);
@@ -688,7 +678,6 @@ DROP TABLE IF EXISTS customer_contacts CASCADE;
 DROP TABLE IF EXISTS customers CASCADE;
 DROP TABLE IF EXISTS dialogues CASCADE;
 DROP TABLE IF EXISTS difficulty_levels CASCADE;
-DROP TABLE IF EXISTS embeddings CASCADE;
 DROP TABLE IF EXISTS employee_contacts CASCADE;
 DROP TABLE IF EXISTS employee_meta CASCADE;
 DROP TABLE IF EXISTS employee_skills CASCADE;

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/graph"
@@ -43,19 +42,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	application := app.New()
-
-	srv := graph.NewDefaultServer(db, application)
-	srv.AddTransport(&transport.Websocket{})
+	application := app.New(db)
 
 	r := mux.NewRouter()
+	r.Use(cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000", "ws://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowCredentials: true,
+	}).Handler)
 	r.Use(middleware.RequestParams(middleware.DefaultParamsConstructor))
 	r.Use(middleware.WithLogger(log.Default()))
 	r.Use(middleware.LogRequests)
 	r.Use(middleware.Transactions(db))
 	r.Use(localMiddleware.Authorization(application.AuthService))
-	r.Use(cors.Default().Handler)
-	r.Handle("/query", srv)
+	r.Handle("/query", graph.NewDefaultServer(db, application))
 	r.Handle("/", playground.Handler("GraphQL playground", "/query"))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", conf.ServerPort())

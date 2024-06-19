@@ -1,4 +1,4 @@
-package chatfuncs
+package functions
 
 type ChatFunctionDefinition interface {
 	Name() string
