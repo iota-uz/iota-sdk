@@ -6,13 +6,16 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/internal/domain/dialogue"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"github.com/iota-agency/iota-erp/sdk/utils/env"
-	"net/http"
 )
 
 // Authenticate is the resolver for the authenticate field.
@@ -153,8 +156,11 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, token string) (boo
 	panic(fmt.Errorf("not implemented: DeleteSession - deleteSession"))
 }
 
-// StartDialogue is the resolver for the startDialogue field.
-func (r *mutationResolver) StartDialogue(ctx context.Context, input model.StartDialogue) (*model.Dialogue, error) {
+// NewDialogue is the resolver for the newDialogue field.
+func (r *mutationResolver) NewDialogue(ctx context.Context, input model.NewDialogue) (*model.Dialogue, error) {
+	if !composables.UseAuthenticated(ctx) {
+		return nil, errors.New("authentication required")
+	}
 	openaiModel := "gpt-4o-2024-05-13"
 	if input.Model != nil {
 		openaiModel = *input.Model
@@ -164,6 +170,30 @@ func (r *mutationResolver) StartDialogue(ctx context.Context, input model.StartD
 		return nil, err
 	}
 	return data.ToGraph()
+}
+
+// ReplyDialogue is the resolver for the replyDialogue field.
+func (r *mutationResolver) ReplyDialogue(ctx context.Context, id int64, input model.DialogueReply) (*model.Dialogue, error) {
+	if !composables.UseAuthenticated(ctx) {
+		return nil, errors.New("authentication required")
+	}
+	openaiModel := "gpt-4o-2024-05-13"
+	if input.Model != nil {
+		openaiModel = *input.Model
+	}
+	data, err := r.app.DialogueService.ReplyToDialogue(ctx, id, input.Message, openaiModel)
+	if err != nil {
+		return nil, err
+	}
+	return data.ToGraph()
+}
+
+// DeleteDialogue is the resolver for the deleteDialogue field.
+func (r *mutationResolver) DeleteDialogue(ctx context.Context, id int64) (bool, error) {
+	if err := r.app.DialogueService.Delete(ctx, id); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // CreatePrompt is the resolver for the createPrompt field.
@@ -326,7 +356,11 @@ func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sor
 
 // Dialogue is the resolver for the dialogue field.
 func (r *queryResolver) Dialogue(ctx context.Context, id int64) (*model.Dialogue, error) {
-	panic(fmt.Errorf("not implemented: Dialogue - dialogue"))
+	entity, err := r.app.DialogueService.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return entity.ToGraph()
 }
 
 // Dialogues is the resolver for the dialogues field.
@@ -387,7 +421,13 @@ func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.U
 
 // UserDeleted is the resolver for the userDeleted field.
 func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan int64, error) {
-	panic(fmt.Errorf("not implemented: UserDeleted - userDeleted"))
+	ch := make(chan int64)
+	r.app.EventPublisher.Subscribe("user.deleted", func(data interface{}) {
+		if id, ok := data.(int64); ok {
+			ch <- id
+		}
+	})
+	return ch, nil
 }
 
 // RoleCreated is the resolver for the roleCreated field.
@@ -469,8 +509,11 @@ func (r *subscriptionResolver) SessionDeleted(ctx context.Context) (<-chan int64
 func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *model.Dialogue, error) {
 	ch := make(chan *model.Dialogue)
 	r.app.EventPublisher.Subscribe("dialogue.created", func(data interface{}) {
-		if entity, ok := data.(*model.Dialogue); ok {
-			ch <- entity
+		if entity, ok := data.(*dialogue.Dialogue); ok {
+			res, err := entity.ToGraph()
+			if err == nil {
+				ch <- res
+			}
 		}
 	})
 	return ch, nil
@@ -480,8 +523,11 @@ func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *mod
 func (r *subscriptionResolver) DialogueUpdated(ctx context.Context) (<-chan *model.Dialogue, error) {
 	ch := make(chan *model.Dialogue)
 	r.app.EventPublisher.Subscribe("dialogue.updated", func(data interface{}) {
-		if entity, ok := data.(*model.Dialogue); ok {
-			ch <- entity
+		if entity, ok := data.(*dialogue.Dialogue); ok {
+			res, err := entity.ToGraph()
+			if err == nil {
+				ch <- res
+			}
 		}
 	})
 	return ch, nil
@@ -500,21 +546,6 @@ func (r *subscriptionResolver) PromptUpdated(ctx context.Context) (<-chan *model
 // PromptDeleted is the resolver for the promptDeleted field.
 func (r *subscriptionResolver) PromptDeleted(ctx context.Context) (<-chan int64, error) {
 	panic(fmt.Errorf("not implemented: PromptDeleted - promptDeleted"))
-}
-
-// CompletionStarted is the resolver for the completionStarted field.
-func (r *subscriptionResolver) CompletionStarted(ctx context.Context) (<-chan bool, error) {
-	panic(fmt.Errorf("not implemented: CompletionStarted - completionStarted"))
-}
-
-// CompletionDelta is the resolver for the completionDelta field.
-func (r *subscriptionResolver) CompletionDelta(ctx context.Context) (<-chan *model.CompletionDelta, error) {
-	panic(fmt.Errorf("not implemented: CompletionDelta - completionDelta"))
-}
-
-// CompletionEnded is the resolver for the completionEnded field.
-func (r *subscriptionResolver) CompletionEnded(ctx context.Context) (<-chan bool, error) {
-	panic(fmt.Errorf("not implemented: CompletionEnded - completionEnded"))
 }
 
 // Avatar is the resolver for the avatar field.

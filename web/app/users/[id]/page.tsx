@@ -6,9 +6,9 @@ import {Card, CardContent, CardFooter} from '@/components/ui/card';
 import {Label} from '@/components/ui/label';
 import {Input} from '@/components/ui/input';
 import {Button} from '@/components/ui/button';
-import PictureInput from '@/components/composite/pictureInput';
+import PictureInput from '@/components/composite/picture-input';
 import {User} from '@/src/__generated__/graphql';
-import ConfirmDeleteModal from "@/components/composite/confirmDeleteModal";
+import ConfirmDeleteModal from "@/components/composite/confirm-delete-modal";
 
 const GET_USER = gql`
     query GetUser($id: ID!) {

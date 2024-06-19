@@ -4,9 +4,10 @@ import (
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/infrastracture/event"
 	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
+	"gorm.io/gorm"
 )
 
-func New() *services.Application {
+func New(db *gorm.DB) *services.Application {
 	eventPublisher := event.NewEventPublisher()
 	userRepository := persistence.NewUserRepository()
 	uploadRepository := persistence.NewUploadRepository()
@@ -25,6 +26,7 @@ func New() *services.Application {
 	promptService := services.NewPromptService(promptRepository, app)
 	sessionService := services.NewSessionService(sessionRepository, app)
 	authLogService := services.NewAuthLogService(authLogRepository, app)
+	embeddingService := services.NewEmbeddingService(app)
 
 	app.AuthService = authService
 	app.UserService = userService
@@ -33,5 +35,6 @@ func New() *services.Application {
 	app.PromptService = promptService
 	app.SessionService = sessionService
 	app.AuthLogService = authLogService
+	app.EmbeddingService = embeddingService
 	return app
 }

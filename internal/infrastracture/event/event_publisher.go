@@ -16,7 +16,7 @@ func NewEventPublisher() *Publisher {
 func (p *Publisher) Publish(event string, data interface{}) {
 	for _, subscriber := range p.Subscribers {
 		if subscriber.Event == event {
-			subscriber.Handler(data)
+			go subscriber.Handler(data)
 		}
 	}
 }

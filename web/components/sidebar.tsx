@@ -75,7 +75,7 @@ export function Sidebar({links}: SidebarProps) {
         <div key="1" className="flex w-full flex-col bg-white shadow-lg dark:bg-gray-950">
             <div className="flex h-16 items-center justify-center">
                 <Link className="flex items-center gap-2" href="#">
-                    <Image src={"/svg/iota.svg"} alt="Logo" width={180} height={30}/>
+                    <Image src={"/svg/iota-4c.svg"} alt="Logo" width={180} height={30}/>
                 </Link>
             </div>
             <nav className="flex-1 overflow-y-auto px-2 py-4">

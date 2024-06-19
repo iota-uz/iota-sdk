@@ -26,10 +26,9 @@ export type AuthenticationLog = {
   userId: Scalars['ID']['output'];
 };
 
-export type CreateDialogue = {
-  label: Scalars['String']['input'];
-  messages: Scalars['String']['input'];
-  userId: Scalars['ID']['input'];
+export type CompletionDelta = {
+  __typename?: 'CompletionDelta';
+  content: Scalars['String']['output'];
 };
 
 export type CreateExpense = {
@@ -47,6 +46,12 @@ export type CreateExpenseCategory = {
 export type CreatePosition = {
   description?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
+};
+
+export type CreatePrompt = {
+  description?: InputMaybe<Scalars['String']['input']>;
+  prompt: Scalars['String']['input'];
+  title: Scalars['String']['input'];
 };
 
 export type CreateRole = {
@@ -74,9 +79,14 @@ export type Dialogue = {
   createdAt: Scalars['Time']['output'];
   id: Scalars['ID']['output'];
   label: Scalars['String']['output'];
-  messages: Scalars['String']['output'];
+  messages: Array<Message>;
   updatedAt: Scalars['Time']['output'];
   userId: Scalars['ID']['output'];
+};
+
+export type DialogueReply = {
+  message: Scalars['String']['input'];
+  model?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type Employee = {
@@ -133,26 +143,36 @@ export type ExpenseCategory = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type Message = {
+  __typename?: 'Message';
+  content: Scalars['String']['output'];
+  role: Scalars['String']['output'];
+  toolCalls?: Maybe<Array<ToolCall>>;
+};
+
 export type Mutation = {
   __typename?: 'Mutation';
   authenticate: Session;
-  createDialogue: Dialogue;
   createExpense: Expense;
   createExpenseCategory: ExpenseCategory;
   createPosition: Position;
+  createPrompt: Prompt;
   createRole: Role;
   createRolePermission: RolePermissions;
   createUser: User;
+  deleteDialogue: Scalars['Boolean']['output'];
   deleteExpense: Scalars['Boolean']['output'];
   deleteExpenseCategory: Scalars['Boolean']['output'];
   deletePosition: Scalars['Boolean']['output'];
   deleteRole: Scalars['Boolean']['output'];
   deleteSession: Scalars['Boolean']['output'];
   deleteUser: Scalars['Boolean']['output'];
-  updateDialogue: Dialogue;
+  newDialogue: Dialogue;
+  replyDialogue: Dialogue;
   updateExpense: Expense;
   updateExpenseCategory: ExpenseCategory;
   updatePosition: Position;
+  updatePrompt: Prompt;
   updateRole: Role;
   updateUser: User;
 };
@@ -161,11 +181,6 @@ export type Mutation = {
 export type MutationAuthenticateArgs = {
   email: Scalars['String']['input'];
   password: Scalars['String']['input'];
-};
-
-
-export type MutationCreateDialogueArgs = {
-  input: CreateDialogue;
 };
 
 
@@ -184,6 +199,11 @@ export type MutationCreatePositionArgs = {
 };
 
 
+export type MutationCreatePromptArgs = {
+  input: CreatePrompt;
+};
+
+
 export type MutationCreateRoleArgs = {
   input: CreateRole;
 };
@@ -196,6 +216,11 @@ export type MutationCreateRolePermissionArgs = {
 
 export type MutationCreateUserArgs = {
   input: CreateUser;
+};
+
+
+export type MutationDeleteDialogueArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -229,9 +254,14 @@ export type MutationDeleteUserArgs = {
 };
 
 
-export type MutationUpdateDialogueArgs = {
+export type MutationNewDialogueArgs = {
+  input: NewDialogue;
+};
+
+
+export type MutationReplyDialogueArgs = {
   id: Scalars['ID']['input'];
-  input: UpdateDialogue;
+  input: DialogueReply;
 };
 
 
@@ -253,6 +283,12 @@ export type MutationUpdatePositionArgs = {
 };
 
 
+export type MutationUpdatePromptArgs = {
+  id: Scalars['String']['input'];
+  input: UpdatePrompt;
+};
+
+
 export type MutationUpdateRoleArgs = {
   id: Scalars['ID']['input'];
   input: UpdateRole;
@@ -262,6 +298,11 @@ export type MutationUpdateRoleArgs = {
 export type MutationUpdateUserArgs = {
   id: Scalars['ID']['input'];
   input: UpdateUser;
+};
+
+export type NewDialogue = {
+  message: Scalars['String']['input'];
+  model?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type PaginatedAuthenticationLogs = {
@@ -303,6 +344,12 @@ export type PaginatedPermissions = {
 export type PaginatedPositions = {
   __typename?: 'PaginatedPositions';
   data: Array<Position>;
+  total: Scalars['Int64']['output'];
+};
+
+export type PaginatedPrompts = {
+  __typename?: 'PaginatedPrompts';
+  data: Array<Prompt>;
   total: Scalars['Int64']['output'];
 };
 
@@ -354,6 +401,16 @@ export type Position = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type Prompt = {
+  __typename?: 'Prompt';
+  createdAt: Scalars['Time']['output'];
+  description: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  prompt: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
 export type Query = {
   __typename?: 'Query';
   authenticationLog?: Maybe<AuthenticationLog>;
@@ -370,6 +427,8 @@ export type Query = {
   permissions: PaginatedPermissions;
   position?: Maybe<Position>;
   positions: PaginatedPositions;
+  prompt?: Maybe<Prompt>;
+  prompts: PaginatedPrompts;
   role?: Maybe<Role>;
   rolePermission?: Maybe<RolePermissions>;
   rolePermissions: PaginatedRolePermissions;
@@ -461,6 +520,18 @@ export type QueryPositionArgs = {
 
 
 export type QueryPositionsArgs = {
+  limit: Scalars['Int']['input'];
+  offset: Scalars['Int']['input'];
+  sortBy?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+
+export type QueryPromptArgs = {
+  id: Scalars['String']['input'];
+};
+
+
+export type QueryPromptsArgs = {
   limit: Scalars['Int']['input'];
   offset: Scalars['Int']['input'];
   sortBy?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -565,6 +636,9 @@ export type Subscription = {
   positionCreated: Position;
   positionDeleted: Scalars['ID']['output'];
   positionUpdated: Position;
+  promptCreated: Prompt;
+  promptDeleted: Scalars['ID']['output'];
+  promptUpdated: Prompt;
   roleCreated: Role;
   roleDeleted: Scalars['ID']['output'];
   rolePermissionCreated: RolePermissions;
@@ -576,9 +650,15 @@ export type Subscription = {
   userUpdated: User;
 };
 
+export type ToolCall = {
+  __typename?: 'ToolCall';
+  id: Scalars['String']['output'];
+  index: Scalars['Int']['output'];
+  type: Scalars['String']['output'];
+};
+
 export type UpdateDialogue = {
   label?: InputMaybe<Scalars['String']['input']>;
-  messages?: InputMaybe<Scalars['String']['input']>;
   userId?: InputMaybe<Scalars['ID']['input']>;
 };
 
@@ -597,6 +677,12 @@ export type UpdateExpenseCategory = {
 export type UpdatePosition = {
   description?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdatePrompt = {
+  description?: InputMaybe<Scalars['String']['input']>;
+  prompt?: InputMaybe<Scalars['String']['input']>;
+  title?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateRole = {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
 	"gorm.io/gorm"
 	"net/http"
 )
@@ -37,7 +38,7 @@ func GetExchangeRate(from string, to string) (float64, error) {
 	return exchangeRates[from] / exchangeRates[to], nil
 }
 
-func NewUnitConversion(db *gorm.DB) ChatFunctionDefinition {
+func NewUnitConversion(db *gorm.DB) functions.ChatFunctionDefinition {
 	return &unitConversion{db: db}
 }
 
