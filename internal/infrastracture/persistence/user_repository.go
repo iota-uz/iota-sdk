@@ -99,6 +99,22 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 	return tx.Save(user).Error
 }
 
+func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id int64) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Model(&user.User{}).Where("id = ?", id).Update("last_login", "NOW()").Error
+}
+
+func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id int64) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Model(&user.User{}).Where("id = ?", id).Update("last_action", "NOW()").Error
+}
+
 func (g *GormUserRepository) Delete(ctx context.Context, id int64) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

@@ -1,10 +1,3 @@
-# GraphQL schema example
-#
-# https://gqlgen.com/getting-started/
-
-scalar Time
-scalar Int64
-
 type Session {
     token: String!
     userId: ID!
@@ -32,29 +25,6 @@ type PaginatedAuthenticationLogs {
     total: Int64!
 }
 
-type Permission {
-    id: ID!
-    description: String
-    resource: String
-    action: String
-    modifier: String
-}
-
-type PaginatedPermissions {
-    data: [Permission!]!
-    total: Int64!
-}
-
-type RolePermissions {
-    permissionId: ID!
-    roleId: ID!
-}
-
-type PaginatedRolePermissions {
-    data: [RolePermissions!]!
-    total: Int64!
-}
-
 type ExpenseCategory {
     id: ID!
     name: String!
@@ -69,21 +39,6 @@ type PaginatedExpenseCategories {
     total: Int64!
 }
 
-type Expense {
-    id: ID!
-    amount: Float!
-    categoryId: ID!
-    category: ExpenseCategory
-    date: Time!
-    createdAt: Time!
-    updatedAt: Time!
-}
-
-type PaginatedExpenses {
-    data: [Expense!]!
-    total: Int64!
-}
-
 type EmployeeMeta {
     employeeId: ID!
     primaryLanguage: String
@@ -95,19 +50,6 @@ type EmployeeMeta {
     generalInfo: String
     ytProfileId: String
     updatedAt: Time!
-}
-
-type Position {
-    id: ID!
-    name: String!
-    description: String
-    createdAt: Time!
-    updatedAt: Time!
-}
-
-type PaginatedPositions {
-    data: [Position!]!
-    total: Int64!
 }
 
 type Employee {
@@ -130,19 +72,6 @@ type Employee {
 
 type PaginatedEmployees {
     data: [Employee!]!
-    total: Int64!
-}
-
-type Role {
-    id: ID!
-    name: String!
-    description: String
-    createdAt: Time!
-    updatedAt: Time!
-}
-
-type PaginatedRoles {
-    data: [Role!]!
     total: Int64!
 }
 
@@ -222,7 +151,7 @@ type PaginatedPrompts {
     total: Int64!
 }
 
-type Query {
+extend type Query {
     user(id: ID!): User
     users(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUsers!
 
@@ -232,23 +161,8 @@ type Query {
     employee(id: ID!): Employee
     employees(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedEmployees!
 
-    position(id: ID!): Position
-    positions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPositions!
-
-    role(id: ID!): Role
-    roles(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedRoles!
-
-    permission(id: ID!): Permission
-    permissions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPermissions!
-
-    rolePermission(roleId: ID!, permissionId: ID!): RolePermissions
-    rolePermissions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedRolePermissions!
-
     expenseCategory(id: ID!): ExpenseCategory
     expenseCategories(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenseCategories!
-
-    expense(id: ID!): Expense
-    expenses(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenses!
 
     authenticationLog(id: ID!): AuthenticationLog
     authenticationLogs(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedAuthenticationLogs!
@@ -284,21 +198,6 @@ input UpdateUser {
     avatarId: ID
 }
 
-input CreateRole {
-    name: String!
-    description: String
-}
-
-input UpdateRole {
-    name: String
-    description: String
-}
-
-input CreateRolePermission {
-    roleId: ID!
-    permissionId: ID!
-}
-
 input CreateExpenseCategory {
     name: String!
     amount: Float!
@@ -308,28 +207,6 @@ input CreateExpenseCategory {
 input UpdateExpenseCategory {
     name: String
     amount: Float
-    description: String
-}
-
-input CreateExpense {
-    amount: Float!
-    categoryId: ID!
-    date: String
-}
-
-input UpdateExpense {
-    amount: Float
-    categoryId: ID
-    date: String
-}
-
-input CreatePosition {
-    name: String!
-    description: String
-}
-
-input UpdatePosition {
-    name: String
     description: String
 }
 
@@ -360,18 +237,12 @@ input UpdatePrompt {
     prompt: String
 }
 
-type Mutation {
+extend type Mutation {
     authenticate(email: String!, password: String!): Session!
 
     createUser(input: CreateUser!): User!
     updateUser(id: ID!, input: UpdateUser!): User!
     deleteUser(id: ID!): Boolean!
-
-    createRole(input: CreateRole!): Role!
-    updateRole(id: ID!, input: UpdateRole!): Role!
-    deleteRole(id: ID!): Boolean!
-
-    createRolePermission(input: CreateRolePermission!): RolePermissions!
 
     createExpenseCategory(input: CreateExpenseCategory!): ExpenseCategory!
     updateExpenseCategory(id: ID!, input: UpdateExpenseCategory!): ExpenseCategory!
@@ -380,10 +251,6 @@ type Mutation {
     createExpense(input: CreateExpense!): Expense!
     updateExpense(id: ID!, input: UpdateExpense!): Expense!
     deleteExpense(id: ID!): Boolean!
-
-    createPosition(input: CreatePosition!): Position!
-    updatePosition(id: ID!, input: UpdatePosition!): Position!
-    deletePosition(id: ID!): Boolean!
 
     deleteSession(token: String!): Boolean!
 
@@ -400,29 +267,14 @@ type CompletionDelta {
     content: String!
 }
 
-type Subscription {
+extend type Subscription {
     userCreated: User!
     userUpdated: User!
     userDeleted: ID!
 
-    roleCreated: Role!
-    roleUpdated: Role!
-    roleDeleted: ID!
-
-    rolePermissionCreated: RolePermissions!
-    rolePermissionDeleted: ID!
-
     expenseCategoryCreated: ExpenseCategory!
     expenseCategoryUpdated: ExpenseCategory!
     expenseCategoryDeleted: ID!
-
-    expenseCreated: Expense!
-    expenseUpdated: Expense!
-    expenseDeleted: ID!
-
-    positionCreated: Position!
-    positionUpdated: Position!
-    positionDeleted: ID!
 
     sessionDeleted: ID!
 

@@ -62,7 +62,7 @@ func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*
 		return nil, service.ErrNoTx
 	}
 	var entity session.Session
-	if err := tx.First(&entity, token).Error; err != nil {
+	if err := tx.First(&entity, "token = ?", token).Error; err != nil {
 		return nil, err
 	}
 	return &entity, nil

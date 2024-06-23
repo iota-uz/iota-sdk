@@ -1,0 +1,80 @@
+{
+  "Login": {
+    "title": "Login",
+    "email": {
+      "label": "Email",
+      "placeholder": "Enter email"
+    },
+    "password": {
+      "label": "Password",
+      "placeholder": "Enter password"
+    },
+    "submit": "Login",
+    "errors": {
+      "login": "Failed to login"
+    }
+  },
+  "Sidebar": {
+    "home": "Dashboard",
+    "users": "Users",
+    "bi-chat": "BI-Chat",
+    "knowledge-base": "Knowledge Base",
+    "operations": {
+      "index": "Operations",
+      "employees": "Employees",
+      "settings": "Settings",
+      "projects": "Projects",
+      "calendar": "Calendar"
+    },
+    "enums": {
+      "index": "Enums",
+      "task-types": "Task Types",
+      "positions": "Positions"
+    },
+    "cashflow": {
+      "index": "Cash Flow",
+      "categories": "Expense categories",
+      "payments": "Payments"
+    },
+    "reports": {
+      "index": "Reports",
+      "cashflow": "Cash Flow",
+      "employees": "Employees",
+      "projects": "Projects"
+    },
+    "logout": "Logout"
+  },
+  "Users": {
+    "title": "Users",
+    "subtitle": "List of users",
+    "columns": {
+      "fullName": "Full Name",
+      "lastAction": "Last Action",
+      "updatedAt": "Updated At"
+    },
+    "errors": {
+      "load": "Failed to load users"
+    }
+  },
+  "User": {
+    "firstName": {
+      "label": "First Name",
+      "placeholder": "Enter first name"
+    },
+    "lastName": {
+      "label": "Last Name",
+      "placeholder": "Enter last name"
+    },
+    "email": {
+      "label": "Email",
+      "placeholder": "Enter email"
+    },
+    "password": {
+      "label": "Password",
+      "placeholder": "Enter password"
+    },
+    "save": "Save",
+    "add": "Add",
+    "delete": "Delete"
+  }
+}

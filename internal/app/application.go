@@ -15,6 +15,9 @@ func New(db *gorm.DB) *services.Application {
 	promptRepository := persistence.NewPromptRepository()
 	sessionRepository := persistence.NewSessionRepository()
 	authLogRepository := persistence.NewAuthLogRepository()
+	employeeRepository := persistence.NewEmployeeRepository()
+	roleRepository := persistence.NewRoleRepository()
+	positionRepository := persistence.NewPositionRepository()
 
 	app := &services.Application{
 		EventPublisher: eventPublisher,
@@ -26,7 +29,10 @@ func New(db *gorm.DB) *services.Application {
 	promptService := services.NewPromptService(promptRepository, app)
 	sessionService := services.NewSessionService(sessionRepository, app)
 	authLogService := services.NewAuthLogService(authLogRepository, app)
+	employeeService := services.NewEmployeeService(employeeRepository, app)
 	embeddingService := services.NewEmbeddingService(app)
+	roleService := services.NewRoleService(roleRepository, app)
+	positionService := services.NewPositionService(positionRepository, app)
 
 	app.AuthService = authService
 	app.UserService = userService
@@ -36,5 +42,8 @@ func New(db *gorm.DB) *services.Application {
 	app.SessionService = sessionService
 	app.AuthLogService = authLogService
 	app.EmbeddingService = embeddingService
+	app.EmployeeService = employeeService
+	app.RoleService = roleService
+	app.PositionService = positionService
 	return app
 }

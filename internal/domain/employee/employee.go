@@ -48,8 +48,8 @@ type Employee struct {
 	Meta        *Meta
 	Position    *position.Position
 	AvatarId    *int64
-	CreatedAt   *time.Time
-	UpdatedAt   *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (e *Employee) ToGraph() *model.Employee {
@@ -66,7 +66,7 @@ func (e *Employee) ToGraph() *model.Employee {
 		Coefficient: e.Coefficient,
 		Meta:        e.Meta.ToGraph(),
 		AvatarID:    e.AvatarId,
-		CreatedAt:   *e.CreatedAt,
-		UpdatedAt:   *e.UpdatedAt,
+		CreatedAt:   e.CreatedAt,
+		UpdatedAt:   e.UpdatedAt,
 	}
 }
