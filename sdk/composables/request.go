@@ -4,6 +4,7 @@ package composables
 
 import (
 	"context"
+	"golang.org/x/text/language"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
@@ -113,4 +114,22 @@ func UseWriter(ctx context.Context) (http.ResponseWriter, bool) {
 		return nil, false
 	}
 	return params.Writer, true
+}
+
+// UseLocale returns the locale from the context.
+// If the locale is not found, the second return value will be false.
+func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
+	params, ok := UseParams(ctx)
+	if !ok {
+		return defaultLocale
+	}
+	headerValue := params.Request.Header.Get("Accept-Language")
+	tags, _, err := language.ParseAcceptLanguage(headerValue)
+	if err != nil {
+		return defaultLocale
+	}
+	if len(tags) == 0 {
+		return defaultLocale
+	}
+	return tags[0]
 }

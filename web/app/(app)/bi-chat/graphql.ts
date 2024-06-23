@@ -1,4 +1,4 @@
-import {gql} from "@apollo/client";
+import { gql } from '@apollo/client';
 
 const GET_DIALOGUES = gql`
     query GetDialogues {
@@ -71,11 +71,11 @@ const ON_DIALOGUE_UPDATED = gql`
 `;
 
 export {
-    GET_DIALOGUES,
-    GET_DIALOGUE,
-    DELETE_DIALOGUE,
-    NEW_DIALOGUE,
-    REPLY_TO_DIALOGUE,
-    ON_DIALOGUE_CREATED,
-    ON_DIALOGUE_UPDATED
-}
+  GET_DIALOGUES,
+  GET_DIALOGUE,
+  DELETE_DIALOGUE,
+  NEW_DIALOGUE,
+  REPLY_TO_DIALOGUE,
+  ON_DIALOGUE_CREATED,
+  ON_DIALOGUE_UPDATED,
+};

@@ -26,7 +26,7 @@ func (s *SessionService) GetAll(ctx context.Context) ([]*session.Session, error)
 	return s.repo.GetAll(ctx)
 }
 
-func (s *SessionService) GetUploadByID(ctx context.Context, id string) (*session.Session, error) {
+func (s *SessionService) GetByToken(ctx context.Context, id string) (*session.Session, error) {
 	return s.repo.GetByToken(ctx, id)
 }
 

@@ -34,6 +34,18 @@ func (c *Configuration) DbOpts() string {
 		env.GetEnv("DB_NAME", "iota_erp"), env.GetEnv("DB_PASSWORD", "postgres"))
 }
 
+func (c *Configuration) GoogleRedirectURL() string {
+	return env.GetEnv("GOOGLE_REDIRECT_URL", "http://localhost:3200/oauth/google/callback")
+}
+
+func (c *Configuration) GoogleClientID() string {
+	return env.GetEnv("GOOGLE_CLIENT_ID", "")
+}
+
+func (c *Configuration) GoogleClientSecret() string {
+	return env.GetEnv("GOOGLE_CLIENT_SECRET", "")
+}
+
 func (c *Configuration) ServerPort() string {
 	return env.GetEnv("PORT", "3200")
 }

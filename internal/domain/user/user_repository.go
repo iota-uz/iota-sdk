@@ -12,5 +12,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id int64) (*User, error)
 	Create(ctx context.Context, user *User) error
 	Update(ctx context.Context, user *User) error
+	UpdateLastAction(ctx context.Context, id int64) error
+	UpdateLastLogin(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
 }

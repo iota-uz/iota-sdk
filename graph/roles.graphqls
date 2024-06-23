@@ -1,0 +1,81 @@
+scalar Time
+scalar Int64
+
+type Permission {
+    id: ID!
+    description: String
+    resource: String
+    action: String
+    modifier: String
+}
+
+type PaginatedPermissions {
+    data: [Permission!]!
+    total: Int64!
+}
+
+type RolePermissions {
+    permissionId: ID!
+    roleId: ID!
+}
+
+type PaginatedRolePermissions {
+    data: [RolePermissions!]!
+    total: Int64!
+}
+
+type Role {
+    id: ID!
+    name: String!
+    description: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedRoles {
+    data: [Role!]!
+    total: Int64!
+}
+
+type Query {
+    role(id: ID!): Role
+    roles(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedRoles!
+
+    permission(id: ID!): Permission
+    permissions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPermissions!
+
+    rolePermission(roleId: ID!, permissionId: ID!): RolePermissions
+    rolePermissions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedRolePermissions!
+}
+
+input CreateRole {
+    name: String!
+    description: String
+}
+
+input UpdateRole {
+    name: String
+    description: String
+}
+
+input CreateRolePermission {
+    roleId: ID!
+    permissionId: ID!
+}
+
+type Mutation {
+    createRole(input: CreateRole!): Role!
+    updateRole(id: ID!, input: UpdateRole!): Role!
+    deleteRole(id: ID!): Boolean!
+
+    createRolePermission(input: CreateRolePermission!): RolePermissions!
+}
+
+type Subscription {
+    roleCreated: Role!
+    roleUpdated: Role!
+    roleDeleted: ID!
+
+    rolePermissionCreated: RolePermissions!
+    rolePermissionDeleted: ID!
+}

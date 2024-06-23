@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "compile": "graphql-codegen",
     "watch": "graphql-codegen -w"
   },
@@ -59,6 +60,7 @@
     "lucide-react": "^0.378.0",
     "luxon": "^3.4.4",
     "next": "14.2.3",
+    "next-intl": "^3.15.2",
     "next-themes": "^0.3.0",
     "react": "^18",
     "react-day-picker": "^8.10.1",
@@ -80,6 +82,7 @@
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^7.8.0",
     "eslint": "^8.57.0",
+    "eslint-config-airbnb": "^19.0.4",
     "eslint-config-next": "14.2.3",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",

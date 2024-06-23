@@ -1,0 +1,37 @@
+type Expense {
+    id: ID!
+    amount: Float!
+    categoryId: ID!
+    category: ExpenseCategory
+    date: Time!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedExpenses {
+    data: [Expense!]!
+    total: Int64!
+}
+
+extend type Query {
+    expense(id: ID!): Expense
+    expenses(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenses!
+}
+
+input CreateExpense {
+    amount: Float!
+    categoryId: ID!
+    date: String
+}
+
+input UpdateExpense {
+    amount: Float
+    categoryId: ID
+    date: String
+}
+
+extend type Subscription {
+    expenseCreated: Expense!
+    expenseUpdated: Expense!
+    expenseDeleted: ID!
+}

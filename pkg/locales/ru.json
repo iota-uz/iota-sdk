@@ -1,0 +1,11 @@
+{
+  "Users": {
+    "retry": "Повторить",
+    "errors": {
+      "load": "Ошибка загрузки пользователей"
+    }
+  },
+  "errors": {
+    "message": "The requested resource could not be found."
+  }
+}

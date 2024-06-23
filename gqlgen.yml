@@ -61,7 +61,7 @@ resolver:
 # skip_validation: true
 
 # Optional: set to skip running `go mod tidy` when generating server code
-# skip_mod_tidy: true
+skip_mod_tidy: true
 
 # gqlgen will search for any type names in the schema in these go packages
 # if they match it will use them, otherwise it will generate them.
@@ -92,4 +92,26 @@ models:
   User:
     fields:
       avatar:
+        resolver: true
+  PaginatedEmployees:
+    fields:
+      data:
+        resolver: true
+      total:
+        resolver: true
+  Employee:
+    fields:
+      meta:
+        resolver: true
+  PaginatedPositions:
+    fields:
+      data:
+        resolver: true
+      total:
+        resolver: true
+  PaginatedExpenses:
+    fields:
+      data:
+        resolver: true
+      total:
         resolver: true

@@ -18,22 +18,15 @@ A detailed description of the project, its purpose, and the problem it solves.
 Step-by-step instructions on how to install the project.
 
 ```bash
-# Clone the repository
-git clone https://github.com/iota-agency/py-embed.git
-
 # Navigate to the project directory
 cd py-embed
-```
 
-Create a virtual environment
-
-```bash
+# Create a virtual environment
 
 python -m venv venv
 source venv/bin/activate
 
 # or using conda
-
 conda create --name venv python=3.10
 conda activate venv
 ```
@@ -49,8 +42,11 @@ pip install -r requirements.txt
 Instructions on how to use the project. Include code snippets and examples where applicable.
 
 ```bash
+# Run the database
+docker compose -f docker-compose.dev.yml up -d db
+
 # Running the main script
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
 ## Features

@@ -46,6 +46,14 @@ func (s *UserService) Create(ctx context.Context, user *user.User) error {
 	return nil
 }
 
+func (s *UserService) UpdateLastAction(ctx context.Context, id int64) error {
+	return s.Repo.UpdateLastAction(ctx, id)
+}
+
+func (s *UserService) UpdateLastLogin(ctx context.Context, id int64) error {
+	return s.Repo.UpdateLastLogin(ctx, id)
+}
+
 func (s *UserService) Update(ctx context.Context, user *user.User) error {
 	if err := s.Repo.Update(ctx, user); err != nil {
 		return err
