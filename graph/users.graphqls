@@ -39,42 +39,6 @@ type PaginatedExpenseCategories {
     total: Int64!
 }
 
-type EmployeeMeta {
-    employeeId: ID!
-    primaryLanguage: String
-    secondaryLanguage: String
-    tin: String
-    birthDate: Time
-    joinDate: Time
-    leaveDate: Time
-    generalInfo: String
-    ytProfileId: String
-    updatedAt: Time!
-}
-
-type Employee {
-    id: ID!
-    firstName: String!
-    lastName: String!
-    middleName: String
-    email: String!
-    phone: String
-    salary: Float!
-    hourlyRate: Float!
-    positionId: ID!
-    coefficient: Float!
-    meta: EmployeeMeta
-    position: Position
-    avatarId: ID
-    createdAt: Time!
-    updatedAt: Time!
-}
-
-type PaginatedEmployees {
-    data: [Employee!]!
-    total: Int64!
-}
-
 type Upload {
     id: ID!
     name: String!
@@ -157,9 +121,6 @@ extend type Query {
 
     upload(id: ID!): Upload
     uploads(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUploads!
-
-    employee(id: ID!): Employee
-    employees(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedEmployees!
 
     expenseCategory(id: ID!): ExpenseCategory
     expenseCategories(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenseCategories!
@@ -261,7 +222,6 @@ extend type Mutation {
     createPrompt(input: CreatePrompt!): Prompt!
     updatePrompt(id: String!, input: UpdatePrompt!): Prompt!
 }
-
 
 type CompletionDelta {
     content: String!
