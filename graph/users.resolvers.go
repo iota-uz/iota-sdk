@@ -18,15 +18,6 @@ import (
 	"github.com/iota-agency/iota-erp/sdk/utils/env"
 )
 
-// Meta is the resolver for the meta field.
-func (r *employeeResolver) Meta(ctx context.Context, obj *model.Employee) (*model.EmployeeMeta, error) {
-	meta, err := r.app.EmployeeService.GetMeta(ctx, obj.ID)
-	if err != nil {
-		return nil, err
-	}
-	return meta.ToGraph(), nil
-}
-
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
 	writer, ok := composables.UseWriter(ctx)
@@ -180,24 +171,6 @@ func (r *mutationResolver) UpdatePrompt(ctx context.Context, id string, input mo
 	panic(fmt.Errorf("not implemented: Update - updatePrompt"))
 }
 
-// Data is the resolver for the data field.
-func (r *paginatedEmployeesResolver) Data(ctx context.Context, obj *model.PaginatedEmployees) ([]*model.Employee, error) {
-	entities, err := r.app.EmployeeService.GetPaginated(ctx, len(obj.Data), 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Employee, len(entities))
-	for i, entity := range entities {
-		result[i] = entity.ToGraph()
-	}
-	return result, nil
-}
-
-// Total is the resolver for the total field.
-func (r *paginatedEmployeesResolver) Total(ctx context.Context, obj *model.PaginatedEmployees) (int64, error) {
-	return r.app.EmployeeService.Count(ctx)
-}
-
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
 	entity, err := r.app.UserService.GetByID(ctx, id)
@@ -254,20 +227,6 @@ func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sort
 		Data:  result,
 		Total: total,
 	}, nil
-}
-
-// Employee is the resolver for the employee field.
-func (r *queryResolver) Employee(ctx context.Context, id int64) (*model.Employee, error) {
-	entity, err := r.app.EmployeeService.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
-}
-
-// Employees is the resolver for the employees field.
-func (r *queryResolver) Employees(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedEmployees, error) {
-	return &model.PaginatedEmployees{}, nil
 }
 
 // ExpenseCategory is the resolver for the expenseCategory field.
@@ -451,17 +410,7 @@ func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Uplo
 	return upload.ToGraph(), nil
 }
 
-// Employee returns EmployeeResolver implementation.
-func (r *Resolver) Employee() EmployeeResolver { return &employeeResolver{r} }
-
-// PaginatedEmployees returns PaginatedEmployeesResolver implementation.
-func (r *Resolver) PaginatedEmployees() PaginatedEmployeesResolver {
-	return &paginatedEmployeesResolver{r}
-}
-
 // User returns UserResolver implementation.
 func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
-type employeeResolver struct{ *Resolver }
-type paginatedEmployeesResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }
