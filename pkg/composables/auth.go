@@ -14,20 +14,20 @@ var (
 
 // UseUser returns the user from the context.
 // If the user is not found, the second return value will be false.
-func UseUser(ctx context.Context) (*user.User, bool) {
+func UseUser(ctx context.Context) (*user.User, error) {
 	u, ok := ctx.Value("user").(*user.User)
 	if !ok {
-		return nil, false
+		return nil, ErrNoUserFound
 	}
-	return u, true
+	return u, nil
 }
 
 // UseSession returns the session from the context.
 // If the session is not found, the second return value will be false.
-func UseSession(ctx context.Context) (*session.Session, bool) {
+func UseSession(ctx context.Context) (*session.Session, error) {
 	sess, ok := ctx.Value("session").(*session.Session)
 	if !ok {
-		return nil, false
+		return nil, ErrNoSessionFound
 	}
-	return sess, true
+	return sess, nil
 }

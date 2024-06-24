@@ -40,13 +40,13 @@ func (s *UserService) GetPaginated(ctx context.Context, limit, offset int, sortB
 }
 
 func (s *UserService) Create(ctx context.Context, data *user.User) error {
-	sess, ok := composables.UseSession(ctx)
-	if !ok {
-		return composables.ErrNoSessionFound
+	sess, err := composables.UseSession(ctx)
+	if err != nil {
+		return err
 	}
-	u, ok := composables.UseUser(ctx)
-	if !ok {
-		return composables.ErrNoUserFound
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return err
 	}
 	ev := &user.Created{
 		User:    &(*u),

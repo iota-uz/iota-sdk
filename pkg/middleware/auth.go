@@ -17,8 +17,8 @@ type AuthService interface {
 func PermissionCheck() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, ok := localComposables.UseSession(r.Context())
-			if !ok {
+			_, err := localComposables.UseSession(r.Context())
+			if err != nil {
 				next.ServeHTTP(w, r)
 				return
 			}
