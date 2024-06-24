@@ -67,7 +67,7 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		http.Error(w, "code not found", http.StatusBadRequest)
 		return
 	}
-	u, sess, err := s.AuthenticateGoogle(r.Context(), code)
+	_, sess, err := s.AuthenticateGoogle(r.Context(), code)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

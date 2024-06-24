@@ -9,15 +9,16 @@ import (
 )
 
 {{ $entityType := print .Name "." .Type }}
+{{ $serviceName := print "Gorm" .Name | Title "Repository" }}
 
-type Gorm{{ .Name | Title }}Repository struct {
+type {{ $serviceName }} struct {
 }
 
 func New{{ .Name | Title }}Repository() {{ .Name }}.Repository {
-	return &Gorm{{ .Name | Title }}{}
+	return &{{ $serviceName }}{}
 }
 
-func (g *Gorm{{ .Name | Title }}) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*{{ $entityType }}, error) {
+func (g *{{ $serviceName }}) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*{{ $entityType }}, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -34,7 +35,7 @@ func (g *Gorm{{ .Name | Title }}) GetPaginated(ctx context.Context, limit, offse
 	return entities, nil
 }
 
-func (g *Gorm{{ .Name | Title }}) Count(ctx context.Context) (int64, error) {
+func (g *{{ $serviceName }}) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
@@ -46,7 +47,7 @@ func (g *Gorm{{ .Name | Title }}) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *Gorm{{ .Name | Title }}) GetAll(ctx context.Context) ([]*{{ $entityType }}, error) {
+func (g *{{ $serviceName }}) GetAll(ctx context.Context) ([]*{{ $entityType }}, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -58,7 +59,7 @@ func (g *Gorm{{ .Name | Title }}) GetAll(ctx context.Context) ([]*{{ $entityType
 	return entities, nil
 }
 
-func (g *Gorm{{ .Name | Title }}) GetByID(ctx context.Context, id int64) (*{{ $entityType }}, error) {
+func (g *{{ $serviceName }}) GetByID(ctx context.Context, id int64) (*{{ $entityType }}, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -70,7 +71,7 @@ func (g *Gorm{{ .Name | Title }}) GetByID(ctx context.Context, id int64) (*{{ $e
 	return &entity, nil
 }
 
-func (g *Gorm{{ .Name | Title }}) Create(ctx context.Context, data *{{ $entityType }}) error {
+func (g *{{ $serviceName }}) Create(ctx context.Context, data *{{ $entityType }}) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -81,7 +82,7 @@ func (g *Gorm{{ .Name | Title }}) Create(ctx context.Context, data *{{ $entityTy
 	return nil
 }
 
-func (g *Gorm{{ .Name | Title }}) Update(ctx context.Context, data *{{ $entityType }}) error {
+func (g *{{ $serviceName }}) Update(ctx context.Context, data *{{ $entityType }}) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -92,7 +93,7 @@ func (g *Gorm{{ .Name | Title }}) Update(ctx context.Context, data *{{ $entityTy
 	return nil
 }
 
-func (g *Gorm{{ .Name | Title }}) Delete(ctx context.Context, id int64) error {
+func (g *{{ $serviceName }}) Delete(ctx context.Context, id int64) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
