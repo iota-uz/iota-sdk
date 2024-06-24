@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/dialogue"
 	localComposables "github.com/iota-agency/iota-erp/pkg/composables"
@@ -221,9 +220,9 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err != nil {
 		return nil, err
 	}
-	u, ok := localComposables.UseUser(ctx)
-	if !ok {
-		return nil, fmt.Errorf("user not found")
+	u, err := localComposables.UseUser(ctx)
+	if err != nil {
+		return nil, err
 	}
 	data := &dialogue.Dialogue{
 		UserID: u.Id,
