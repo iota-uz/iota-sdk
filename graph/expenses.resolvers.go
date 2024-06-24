@@ -11,6 +11,21 @@ import (
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
 )
 
+// CreateExpense is the resolver for the createExpense field.
+func (r *mutationResolver) CreateExpense(ctx context.Context, input model.CreateExpense) (*model.Expense, error) {
+	panic(fmt.Errorf("not implemented: CreateExpense - createExpense"))
+}
+
+// UpdateExpense is the resolver for the updateExpense field.
+func (r *mutationResolver) UpdateExpense(ctx context.Context, id int64, input model.UpdateExpense) (*model.Expense, error) {
+	panic(fmt.Errorf("not implemented: UpdateExpense - updateExpense"))
+}
+
+// DeleteExpense is the resolver for the deleteExpense field.
+func (r *mutationResolver) DeleteExpense(ctx context.Context, id int64) (bool, error) {
+	panic(fmt.Errorf("not implemented: DeleteExpense - deleteExpense"))
+}
+
 // Data is the resolver for the data field.
 func (r *paginatedExpensesResolver) Data(ctx context.Context, obj *model.PaginatedExpenses) ([]*model.Expense, error) {
 	panic(fmt.Errorf("not implemented: Data - data"))

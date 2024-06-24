@@ -1,4 +1,4 @@
-package expenseCategory
+package category
 
 import (
 	"github.com/iota-agency/iota-erp/graph/gqlmodels"

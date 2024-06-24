@@ -6,40 +6,15 @@ package graph
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/internal/domain/dialogue"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"github.com/iota-agency/iota-erp/sdk/utils/env"
 )
-
-// Authenticate is the resolver for the authenticate field.
-func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
-	writer, ok := composables.UseWriter(ctx)
-	if !ok {
-		return nil, fmt.Errorf("request params not found")
-	}
-	_, session, err := r.app.AuthService.Authenticate(ctx, email, password)
-	if err != nil {
-		return nil, err
-	}
-	cookie := &http.Cookie{
-		Name:     "token",
-		Value:    session.Token,
-		Expires:  session.ExpiresAt,
-		HttpOnly: false,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   false,
-		Domain:   env.GetEnv("DOMAIN", "localhost"),
-	}
-	http.SetCookie(writer, cookie)
-	return session.ToGraph(), nil
-}
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUser) (*model.User, error) {
@@ -86,91 +61,6 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, erro
 	return true, nil
 }
 
-// CreateExpenseCategory is the resolver for the createExpenseCategory field.
-func (r *mutationResolver) CreateExpenseCategory(ctx context.Context, input model.CreateExpenseCategory) (*model.ExpenseCategory, error) {
-	panic(fmt.Errorf("not implemented: CreateExpenseCategory - createExpenseCategory"))
-}
-
-// UpdateExpenseCategory is the resolver for the updateExpenseCategory field.
-func (r *mutationResolver) UpdateExpenseCategory(ctx context.Context, id int64, input model.UpdateExpenseCategory) (*model.ExpenseCategory, error) {
-	panic(fmt.Errorf("not implemented: UpdateExpenseCategory - updateExpenseCategory"))
-}
-
-// DeleteExpenseCategory is the resolver for the deleteExpenseCategory field.
-func (r *mutationResolver) DeleteExpenseCategory(ctx context.Context, id int64) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteExpenseCategory - deleteExpenseCategory"))
-}
-
-// CreateExpense is the resolver for the createExpense field.
-func (r *mutationResolver) CreateExpense(ctx context.Context, input model.CreateExpense) (*model.Expense, error) {
-	panic(fmt.Errorf("not implemented: CreateExpense - createExpense"))
-}
-
-// UpdateExpense is the resolver for the updateExpense field.
-func (r *mutationResolver) UpdateExpense(ctx context.Context, id int64, input model.UpdateExpense) (*model.Expense, error) {
-	panic(fmt.Errorf("not implemented: UpdateExpense - updateExpense"))
-}
-
-// DeleteExpense is the resolver for the deleteExpense field.
-func (r *mutationResolver) DeleteExpense(ctx context.Context, id int64) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteExpense - deleteExpense"))
-}
-
-// DeleteSession is the resolver for the deleteSession field.
-func (r *mutationResolver) DeleteSession(ctx context.Context, token string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteSession - deleteSession"))
-}
-
-// NewDialogue is the resolver for the newDialogue field.
-func (r *mutationResolver) NewDialogue(ctx context.Context, input model.NewDialogue) (*model.Dialogue, error) {
-	if !composables.UseAuthenticated(ctx) {
-		return nil, errors.New("authentication required")
-	}
-	openaiModel := "gpt-4o-2024-05-13"
-	if input.Model != nil {
-		openaiModel = *input.Model
-	}
-	data, err := r.app.DialogueService.StartDialogue(ctx, input.Message, openaiModel)
-	if err != nil {
-		return nil, err
-	}
-	return data.ToGraph()
-}
-
-// ReplyDialogue is the resolver for the replyDialogue field.
-func (r *mutationResolver) ReplyDialogue(ctx context.Context, id int64, input model.DialogueReply) (*model.Dialogue, error) {
-	if !composables.UseAuthenticated(ctx) {
-		return nil, errors.New("authentication required")
-	}
-	openaiModel := "gpt-4o-2024-05-13"
-	if input.Model != nil {
-		openaiModel = *input.Model
-	}
-	data, err := r.app.DialogueService.ReplyToDialogue(ctx, id, input.Message, openaiModel)
-	if err != nil {
-		return nil, err
-	}
-	return data.ToGraph()
-}
-
-// DeleteDialogue is the resolver for the deleteDialogue field.
-func (r *mutationResolver) DeleteDialogue(ctx context.Context, id int64) (bool, error) {
-	if err := r.app.DialogueService.Delete(ctx, id); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-// CreatePrompt is the resolver for the createPrompt field.
-func (r *mutationResolver) CreatePrompt(ctx context.Context, input model.CreatePrompt) (*model.Prompt, error) {
-	panic(fmt.Errorf("not implemented: Create - createPrompt"))
-}
-
-// UpdatePrompt is the resolver for the updatePrompt field.
-func (r *mutationResolver) UpdatePrompt(ctx context.Context, id string, input model.UpdatePrompt) (*model.Prompt, error) {
-	panic(fmt.Errorf("not implemented: Update - updatePrompt"))
-}
-
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
 	entity, err := r.app.UserService.GetByID(ctx, id)
@@ -198,108 +88,6 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 		Data:  result,
 		Total: total,
 	}, nil
-}
-
-// Upload is the resolver for the upload field.
-func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Upload, error) {
-	entity, err := r.app.UploadService.GetUploadByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
-}
-
-// Uploads is the resolver for the uploads field.
-func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUploads, error) {
-	uploads, err := r.app.UploadService.GetUploadsPaginated(ctx, limit, offset, sortBy)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Upload, len(uploads))
-	for _, upload := range uploads {
-		result = append(result, upload.ToGraph())
-	}
-	total, err := r.app.UploadService.GetUploadsCount(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &model.PaginatedUploads{
-		Data:  result,
-		Total: total,
-	}, nil
-}
-
-// ExpenseCategory is the resolver for the expenseCategory field.
-func (r *queryResolver) ExpenseCategory(ctx context.Context, id int64) (*model.ExpenseCategory, error) {
-	panic(fmt.Errorf("not implemented: ExpenseCategory - expenseCategory"))
-}
-
-// ExpenseCategories is the resolver for the expenseCategories field.
-func (r *queryResolver) ExpenseCategories(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedExpenseCategories, error) {
-	panic(fmt.Errorf("not implemented: ExpenseCategories - expenseCategories"))
-}
-
-// AuthenticationLog is the resolver for the authenticationLog field.
-func (r *queryResolver) AuthenticationLog(ctx context.Context, id int64) (*model.AuthenticationLog, error) {
-	panic(fmt.Errorf("not implemented: AuthenticationLog - authenticationLog"))
-}
-
-// AuthenticationLogs is the resolver for the authenticationLogs field.
-func (r *queryResolver) AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedAuthenticationLogs, error) {
-	panic(fmt.Errorf("not implemented: AuthenticationLogs - authenticationLogs"))
-}
-
-// Session is the resolver for the session field.
-func (r *queryResolver) Session(ctx context.Context, token string) (*model.Session, error) {
-	panic(fmt.Errorf("not implemented: Session - session"))
-}
-
-// Sessions is the resolver for the sessions field.
-func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedSessions, error) {
-	panic(fmt.Errorf("not implemented: Sessions - sessions"))
-}
-
-// Dialogue is the resolver for the dialogue field.
-func (r *queryResolver) Dialogue(ctx context.Context, id int64) (*model.Dialogue, error) {
-	entity, err := r.app.DialogueService.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph()
-}
-
-// Dialogues is the resolver for the dialogues field.
-func (r *queryResolver) Dialogues(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedDialogues, error) {
-	entities, err := r.app.DialogueService.GetPaginated(ctx, limit, offset, sortBy)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Dialogue, len(entities))
-	for i, entity := range entities {
-		r, err := entity.ToGraph()
-		if err != nil {
-			return nil, err
-		}
-		result[i] = r
-	}
-	total, err := r.app.UserService.Count(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &model.PaginatedDialogues{
-		Data:  result,
-		Total: total,
-	}, nil
-}
-
-// Prompt is the resolver for the prompt field.
-func (r *queryResolver) Prompt(ctx context.Context, id string) (*model.Prompt, error) {
-	panic(fmt.Errorf("not implemented: Prompt - prompt"))
-}
-
-// Prompts is the resolver for the prompts field.
-func (r *queryResolver) Prompts(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPrompts, error) {
-	panic(fmt.Errorf("not implemented: Prompts - prompts"))
 }
 
 // UserCreated is the resolver for the userCreated field.
@@ -335,69 +123,6 @@ func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan int64, e
 	return ch, nil
 }
 
-// ExpenseCategoryCreated is the resolver for the expenseCategoryCreated field.
-func (r *subscriptionResolver) ExpenseCategoryCreated(ctx context.Context) (<-chan *model.ExpenseCategory, error) {
-	panic(fmt.Errorf("not implemented: ExpenseCategoryCreated - expenseCategoryCreated"))
-}
-
-// ExpenseCategoryUpdated is the resolver for the expenseCategoryUpdated field.
-func (r *subscriptionResolver) ExpenseCategoryUpdated(ctx context.Context) (<-chan *model.ExpenseCategory, error) {
-	panic(fmt.Errorf("not implemented: ExpenseCategoryUpdated - expenseCategoryUpdated"))
-}
-
-// ExpenseCategoryDeleted is the resolver for the expenseCategoryDeleted field.
-func (r *subscriptionResolver) ExpenseCategoryDeleted(ctx context.Context) (<-chan int64, error) {
-	panic(fmt.Errorf("not implemented: ExpenseCategoryDeleted - expenseCategoryDeleted"))
-}
-
-// SessionDeleted is the resolver for the sessionDeleted field.
-func (r *subscriptionResolver) SessionDeleted(ctx context.Context) (<-chan int64, error) {
-	panic(fmt.Errorf("not implemented: SessionDeleted - sessionDeleted"))
-}
-
-// DialogueCreated is the resolver for the dialogueCreated field.
-func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *model.Dialogue, error) {
-	ch := make(chan *model.Dialogue)
-	r.app.EventPublisher.Subscribe("dialogue.created", func(data interface{}) {
-		if entity, ok := data.(*dialogue.Dialogue); ok {
-			res, err := entity.ToGraph()
-			if err == nil {
-				ch <- res
-			}
-		}
-	})
-	return ch, nil
-}
-
-// DialogueUpdated is the resolver for the dialogueUpdated field.
-func (r *subscriptionResolver) DialogueUpdated(ctx context.Context) (<-chan *model.Dialogue, error) {
-	ch := make(chan *model.Dialogue)
-	r.app.EventPublisher.Subscribe("dialogue.updated", func(data interface{}) {
-		if entity, ok := data.(*dialogue.Dialogue); ok {
-			res, err := entity.ToGraph()
-			if err == nil {
-				ch <- res
-			}
-		}
-	})
-	return ch, nil
-}
-
-// PromptCreated is the resolver for the promptCreated field.
-func (r *subscriptionResolver) PromptCreated(ctx context.Context) (<-chan *model.Prompt, error) {
-	panic(fmt.Errorf("not implemented: PromptCreated - promptCreated"))
-}
-
-// PromptUpdated is the resolver for the promptUpdated field.
-func (r *subscriptionResolver) PromptUpdated(ctx context.Context) (<-chan *model.Prompt, error) {
-	panic(fmt.Errorf("not implemented: PromptUpdated - promptUpdated"))
-}
-
-// PromptDeleted is the resolver for the promptDeleted field.
-func (r *subscriptionResolver) PromptDeleted(ctx context.Context) (<-chan int64, error) {
-	panic(fmt.Errorf("not implemented: PromptDeleted - promptDeleted"))
-}
-
 // Avatar is the resolver for the avatar field.
 func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Upload, error) {
 	if obj.AvatarID == nil {
@@ -414,3 +139,31 @@ func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Uplo
 func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
 type userResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//     it when you're done.
+//   - You have helper methods in this file. Move them out to keep these resolver files clean.
+func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
+	writer, ok := composables.UseWriter(ctx)
+	if !ok {
+		return nil, fmt.Errorf("request params not found")
+	}
+	_, session, err := r.app.AuthService.Authenticate(ctx, email, password)
+	if err != nil {
+		return nil, err
+	}
+	cookie := &http.Cookie{
+		Name:     "token",
+		Value:    session.Token,
+		Expires:  session.ExpiresAt,
+		HttpOnly: false,
+		SameSite: http.SameSiteNoneMode,
+		Secure:   false,
+		Domain:   env.GetEnv("DOMAIN", "localhost"),
+	}
+	http.SetCookie(writer, cookie)
+	return session.ToGraph(), nil
+}
