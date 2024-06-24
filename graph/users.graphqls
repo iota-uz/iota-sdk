@@ -4,7 +4,7 @@ type User {
     lastName: String!
     middleName: String
     email: String!
-    avatar: Upload
+    avatar: Media
     avatarId: ID
     employeeId: ID
     lastIp: String

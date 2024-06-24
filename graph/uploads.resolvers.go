@@ -8,16 +8,55 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/99designs/gqlgen/graphql"
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/internal/domain/upload"
 )
 
+// UploadFile is the resolver for the uploadFile field.
+func (r *mutationResolver) UploadFile(ctx context.Context, file graphql.Upload) (*model.Media, error) {
+	entity := &upload.Upload{
+		Name:     file.Filename,
+		Path:     file.Filename,
+		Mimetype: file.ContentType,
+		Size:     file.Size,
+	}
+
+	if err := r.app.UploadService.UploadFile(ctx, file.File, entity); err != nil {
+		return nil, err
+	}
+	return entity.ToGraph(), nil
+}
+
 // DeleteUpload is the resolver for the deleteUpload field.
-func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (bool, error) {
+func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (*model.Media, error) {
 	panic(fmt.Errorf("not implemented: DeleteUpload - deleteUpload"))
 }
 
+// Data is the resolver for the data field.
+func (r *paginatedMediaResolver) Data(ctx context.Context, obj *model.PaginatedMedia) ([]*model.Media, error) {
+	entities, err := r.app.UploadService.GetUploadsPaginated(ctx, len(obj.Data), 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Media, len(entities))
+	for _, entity := range entities {
+		result = append(result, entity.ToGraph())
+	}
+	return result, nil
+}
+
+// Total is the resolver for the total field.
+func (r *paginatedMediaResolver) Total(ctx context.Context, obj *model.PaginatedMedia) (int64, error) {
+	count, err := r.app.UploadService.GetUploadsCount(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // Upload is the resolver for the upload field.
-func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Upload, error) {
+func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Media, error) {
 	entity, err := r.app.UploadService.GetUploadByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -26,36 +65,26 @@ func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Upload, er
 }
 
 // Uploads is the resolver for the uploads field.
-func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUploads, error) {
-	uploads, err := r.app.UploadService.GetUploadsPaginated(ctx, limit, offset, sortBy)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Upload, len(uploads))
-	for _, upload := range uploads {
-		result = append(result, upload.ToGraph())
-	}
-	total, err := r.app.UploadService.GetUploadsCount(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &model.PaginatedUploads{
-		Data:  result,
-		Total: total,
-	}, nil
+func (r *queryResolver) Uploads(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedMedia, error) {
+	return &model.PaginatedMedia{}, nil
 }
 
 // UploadCreated is the resolver for the uploadCreated field.
-func (r *subscriptionResolver) UploadCreated(ctx context.Context) (<-chan *model.Upload, error) {
+func (r *subscriptionResolver) UploadCreated(ctx context.Context) (<-chan *model.Media, error) {
 	panic(fmt.Errorf("not implemented: UploadCreated - uploadCreated"))
 }
 
 // UploadUpdated is the resolver for the uploadUpdated field.
-func (r *subscriptionResolver) UploadUpdated(ctx context.Context) (<-chan *model.Upload, error) {
+func (r *subscriptionResolver) UploadUpdated(ctx context.Context) (<-chan *model.Media, error) {
 	panic(fmt.Errorf("not implemented: UploadUpdated - uploadUpdated"))
 }
 
 // UploadDeleted is the resolver for the uploadDeleted field.
-func (r *subscriptionResolver) UploadDeleted(ctx context.Context) (<-chan int64, error) {
+func (r *subscriptionResolver) UploadDeleted(ctx context.Context) (<-chan *model.Media, error) {
 	panic(fmt.Errorf("not implemented: UploadDeleted - uploadDeleted"))
 }
+
+// PaginatedMedia returns PaginatedMediaResolver implementation.
+func (r *Resolver) PaginatedMedia() PaginatedMediaResolver { return &paginatedMediaResolver{r} }
+
+type paginatedMediaResolver struct{ *Resolver }
