@@ -70,7 +70,7 @@ func main() {
 	r.Use(localMiddleware.Authorization(application.AuthService))
 	r.Handle("/query", graph.NewDefaultServer(db, application))
 	r.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	r.HandleFunc("/auth/google/callback", oauthGoogleCallback)
+	r.HandleFunc("/auth/google/callback", application.AuthService.OauthGoogleCallback)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", conf.ServerPort())
 	log.Fatal(http.ListenAndServe(conf.SocketAddress(), r))

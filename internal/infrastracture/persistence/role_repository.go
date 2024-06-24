@@ -12,10 +12,10 @@ type GormRoleRepository struct {
 }
 
 func NewRoleRepository() role.Repository {
-	return &GormRole{}
+	return &GormRoleRepository{}
 }
 
-func (g *GormRole) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*role.Role, error) {
+func (g *GormRoleRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*role.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -32,7 +32,7 @@ func (g *GormRole) GetPaginated(ctx context.Context, limit, offset int, sortBy [
 	return entities, nil
 }
 
-func (g *GormRole) Count(ctx context.Context) (int64, error) {
+func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
@@ -44,7 +44,7 @@ func (g *GormRole) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormRole) GetAll(ctx context.Context) ([]*role.Role, error) {
+func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -56,7 +56,7 @@ func (g *GormRole) GetAll(ctx context.Context) ([]*role.Role, error) {
 	return entities, nil
 }
 
-func (g *GormRole) GetByID(ctx context.Context, id int64) (*role.Role, error) {
+func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -68,7 +68,7 @@ func (g *GormRole) GetByID(ctx context.Context, id int64) (*role.Role, error) {
 	return &entity, nil
 }
 
-func (g *GormRole) Create(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -79,7 +79,7 @@ func (g *GormRole) Create(ctx context.Context, data *role.Role) error {
 	return nil
 }
 
-func (g *GormRole) Update(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -90,7 +90,7 @@ func (g *GormRole) Update(ctx context.Context, data *role.Role) error {
 	return nil
 }
 
-func (g *GormRole) Delete(ctx context.Context, id int64) error {
+func (g *GormRoleRepository) Delete(ctx context.Context, id int64) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
