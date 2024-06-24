@@ -1,0 +1,84 @@
+type ToolCall {
+    id: String!
+    index: Int!
+    type: String!
+}
+
+type Message {
+    role: String!
+    content: String!
+    toolCalls: [ToolCall!]
+}
+
+type Dialogue {
+    id: ID!
+    userId: ID!
+    label: String!
+    messages: [Message!]!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedDialogues {
+    data: [Dialogue!]!
+    total: Int64!
+}
+
+type Prompt {
+    id: String!
+    title: String!
+    description: String!
+    prompt: String!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedPrompts {
+    data: [Prompt!]!
+    total: Int64!
+}
+
+input NewDialogue {
+    message: String!
+    model: String
+}
+
+input DialogueReply {
+    message: String!
+    model: String
+}
+
+input UpdateDialogue {
+    userId: ID
+    label: String
+}
+
+input UpdatePrompt {
+    title: String
+    description: String
+    prompt: String
+}
+
+extend type Query {
+    dialogue(id: ID!): Dialogue
+    dialogues(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedDialogues!
+
+    prompt(id: String!): Prompt
+    prompts(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPrompts!
+}
+
+extend type Mutation {
+    newDialogue(input: NewDialogue!): Dialogue!
+    replyDialogue(id: ID!, input: DialogueReply!): Dialogue!
+    deleteDialogue(id: ID!): Boolean!
+
+    updatePrompt(id: String!, input: UpdatePrompt!): Prompt!
+}
+
+extend type Subscription {
+    dialogueCreated: Dialogue!
+    dialogueUpdated: Dialogue!
+    dialogueDeleted: Dialogue!
+
+    promptUpdated: Prompt!
+}

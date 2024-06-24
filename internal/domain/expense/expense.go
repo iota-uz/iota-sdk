@@ -2,7 +2,6 @@ package expense
 
 import (
 	"github.com/iota-agency/iota-erp/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/internal/domain/expenseCategory"
 	"time"
 )
 
@@ -10,7 +9,7 @@ type Expense struct {
 	Id         int64 `gorm:"primaryKey"`
 	Amount     float64
 	CategoryId int64
-	Category   *expenseCategory.ExpenseCategory `gorm:"foreignKey:CategoryId"`
+	Category   *categories.ExpenseCategory `gorm:"foreignKey:CategoryId"`
 	Date       time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

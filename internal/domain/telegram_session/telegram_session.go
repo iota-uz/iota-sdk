@@ -1,4 +1,4 @@
-package telegramSession
+package telegram_session
 
 import "time"
 

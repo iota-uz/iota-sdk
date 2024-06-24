@@ -7,10 +7,10 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/employee"
-	"github.com/iota-agency/iota-erp/sdk/mapper"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/internal/domain/employee"
+	"github.com/iota-agency/iota-erp/sdk/mapper"
 )
 
 // Meta is the resolver for the meta field.

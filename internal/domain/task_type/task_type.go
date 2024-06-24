@@ -1,4 +1,4 @@
-package taskType
+package task_type
 
 import "time"
 

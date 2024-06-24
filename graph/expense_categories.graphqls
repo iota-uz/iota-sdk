@@ -1,0 +1,42 @@
+type ExpenseCategory {
+    id: ID!
+    name: String!
+    description: String
+    amount: Float!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedExpenseCategories {
+    data: [ExpenseCategory!]!
+    total: Int64!
+}
+
+input CreateExpenseCategory {
+    name: String!
+    amount: Float!
+    description: String
+}
+
+input UpdateExpenseCategory {
+    name: String
+    amount: Float
+    description: String
+}
+
+extend type Query {
+    expenseCategory(id: ID!): ExpenseCategory
+    expenseCategories(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenseCategories!
+}
+
+extend type Mutation {
+    createExpenseCategory(input: CreateExpenseCategory!): ExpenseCategory!
+    updateExpenseCategory(id: ID!, input: UpdateExpenseCategory!): ExpenseCategory!
+    deleteExpenseCategory(id: ID!): Boolean!
+}
+
+extend type Subscription {
+    expenseCategoryCreated: ExpenseCategory!
+    expenseCategoryUpdated: ExpenseCategory!
+    expenseCategoryDeleted: ID!
+}

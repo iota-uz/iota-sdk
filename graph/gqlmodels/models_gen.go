@@ -14,10 +14,6 @@ type AuthenticationLog struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-type CompletionDelta struct {
-	Content string `json:"content"`
-}
-
 type CreateEmployee struct {
 	FirstName   string             `json:"firstName"`
 	LastName    string             `json:"lastName"`
@@ -46,12 +42,6 @@ type CreateExpenseCategory struct {
 type CreatePosition struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
-}
-
-type CreatePrompt struct {
-	Title       string  `json:"title"`
-	Description *string `json:"description,omitempty"`
-	Prompt      string  `json:"prompt"`
 }
 
 type CreateRole struct {

@@ -13,11 +13,6 @@ type PaginatedExpenses {
     total: Int64!
 }
 
-extend type Query {
-    expense(id: ID!): Expense
-    expenses(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenses!
-}
-
 input CreateExpense {
     amount: Float!
     categoryId: ID!
@@ -28,6 +23,17 @@ input UpdateExpense {
     amount: Float
     categoryId: ID
     date: String
+}
+
+extend type Query {
+    expense(id: ID!): Expense
+    expenses(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedExpenses!
+}
+
+extend type Mutation {
+    createExpense(input: CreateExpense!): Expense!
+    updateExpense(id: ID!, input: UpdateExpense!): Expense!
+    deleteExpense(id: ID!): Boolean!
 }
 
 extend type Subscription {
