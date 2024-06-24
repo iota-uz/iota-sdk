@@ -139,6 +139,16 @@ type ExpenseCategory struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+type Media struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Path      string    `json:"path"`
+	Mimetype  string    `json:"mimetype"`
+	Size      int64     `json:"size"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 type Message struct {
 	Role      string      `json:"role"`
 	Content   string      `json:"content"`
@@ -178,6 +188,11 @@ type PaginatedExpenses struct {
 	Total int64      `json:"total"`
 }
 
+type PaginatedMedia struct {
+	Data  []*Media `json:"data"`
+	Total int64    `json:"total"`
+}
+
 type PaginatedPermissions struct {
 	Data  []*Permission `json:"data"`
 	Total int64         `json:"total"`
@@ -206,11 +221,6 @@ type PaginatedRoles struct {
 type PaginatedSessions struct {
 	Data  []*Session `json:"data"`
 	Total int64      `json:"total"`
-}
-
-type PaginatedUploads struct {
-	Data  []*Upload `json:"data"`
-	Total int64     `json:"total"`
 }
 
 type PaginatedUsers struct {
@@ -333,23 +343,13 @@ type UpdateUser struct {
 	AvatarID   *int64  `json:"avatarId,omitempty"`
 }
 
-type Upload struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	Mimetype  string    `json:"mimetype"`
-	Size      float64   `json:"size"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-}
-
 type User struct {
 	ID         int64      `json:"id"`
 	FirstName  string     `json:"firstName"`
 	LastName   string     `json:"lastName"`
 	MiddleName *string    `json:"middleName,omitempty"`
 	Email      string     `json:"email"`
-	Avatar     *Upload    `json:"avatar,omitempty"`
+	Avatar     *Media     `json:"avatar,omitempty"`
 	AvatarID   *int64     `json:"avatarId,omitempty"`
 	EmployeeID *int64     `json:"employeeId,omitempty"`
 	LastIP     *string    `json:"lastIp,omitempty"`

@@ -115,3 +115,9 @@ models:
         resolver: true
       total:
         resolver: true
+  PaginatedMedia:
+    fields:
+      data:
+        resolver: true
+      total:
+        resolver: true

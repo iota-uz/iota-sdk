@@ -124,7 +124,7 @@ func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan int64, e
 }
 
 // Avatar is the resolver for the avatar field.
-func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Upload, error) {
+func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Media, error) {
 	if obj.AvatarID == nil {
 		return nil, nil
 	}

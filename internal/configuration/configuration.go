@@ -69,3 +69,7 @@ func (c *Configuration) SocketAddress() string {
 func (c *Configuration) OpenAIKey() string {
 	return env.MustGetEnv("OPENAI_KEY")
 }
+
+func (c *Configuration) UploadsPath() string {
+	return env.GetEnv("UPLOADS_PATH", "uploads")
+}

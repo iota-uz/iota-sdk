@@ -10,13 +10,13 @@ type Upload struct {
 	Name      string
 	Path      string
 	Mimetype  string
-	Size      float64
+	Size      int64
 	CreatedAt *time.Time
 	UpdatedAt *time.Time
 }
 
-func (u *Upload) ToGraph() *model.Upload {
-	return &model.Upload{
+func (u *Upload) ToGraph() *model.Media {
+	return &model.Media{
 		ID:        u.Id,
 		Name:      u.Name,
 		Path:      u.Path,

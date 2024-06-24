@@ -1,29 +1,32 @@
-type Upload {
+scalar Upload
+
+type Media {
     id: ID!
     name: String!
     path: String!
     mimetype: String!
-    size: Float!
+    size: Int64!
     createdAt: Time!
     updatedAt: Time!
 }
 
-type PaginatedUploads {
-    data: [Upload!]!
+type PaginatedMedia {
+    data: [Media!]!
     total: Int64!
 }
 
 extend type Query {
-    upload(id: ID!): Upload
-    uploads(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUploads!
+    upload(id: ID!): Media
+    uploads(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedMedia!
 }
 
 extend type Mutation {
-    deleteUpload(id: ID!): Boolean!
+    uploadFile(file: Upload!): Media!
+    deleteUpload(id: ID!): Media!
 }
 
 extend type Subscription {
-    uploadCreated: Upload!
-    uploadUpdated: Upload!
-    uploadDeleted: ID!
+    uploadCreated: Media!
+    uploadUpdated: Media!
+    uploadDeleted: Media!
 }

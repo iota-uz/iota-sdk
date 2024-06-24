@@ -2,7 +2,11 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/upload"
+	"io"
+	"os"
+	"path/filepath"
 )
 
 type UploadService struct {
@@ -31,6 +35,21 @@ func (s *UploadService) GetUploadByID(ctx context.Context, id int64) (*upload.Up
 
 func (s *UploadService) GetUploadsPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*upload.Upload, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+}
+
+func (s *UploadService) UploadFile(ctx context.Context, file io.ReadSeeker, upload *upload.Upload) error {
+	// write file to disk
+	conf := configuration.Use()
+	fullPath := filepath.Join(conf.UploadsPath(), upload.Path)
+	f, err := os.Create(fullPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := io.Copy(f, file); err != nil {
+		return err
+	}
+	return s.CreateUpload(ctx, upload)
 }
 
 func (s *UploadService) CreateUpload(ctx context.Context, upload *upload.Upload) error {
