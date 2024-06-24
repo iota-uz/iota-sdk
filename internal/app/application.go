@@ -2,8 +2,8 @@ package app
 
 import (
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/event"
 	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
+	"github.com/iota-agency/iota-erp/sdk/event"
 	"gorm.io/gorm"
 )
 

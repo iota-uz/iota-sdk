@@ -19,6 +19,5 @@ type Updated struct {
 type Deleted struct {
 	User    *User
 	Session *session.Session
-	Data    *User
 	Result  *User
 }

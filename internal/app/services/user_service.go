@@ -3,7 +3,8 @@ package services
 import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/event"
+	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
 type UserService struct {
@@ -38,11 +39,25 @@ func (s *UserService) GetPaginated(ctx context.Context, limit, offset int, sortB
 	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *UserService) Create(ctx context.Context, user *user.User) error {
-	if err := s.Repo.Create(ctx, user); err != nil {
+func (s *UserService) Create(ctx context.Context, data *user.User) error {
+	sess, ok := composables.UseSession(ctx)
+	if !ok {
+		return composables.ErrNoSessionFound
+	}
+	u, ok := composables.UseUser(ctx)
+	if !ok {
+		return composables.ErrNoUserFound
+	}
+	ev := &user.Created{
+		User:    &(*u),
+		Session: sess,
+		Data:    &(*data),
+	}
+	if err := s.Repo.Create(ctx, data); err != nil {
 		return err
 	}
-	s.Publisher.Publish("user.created", user)
+	ev.Result = &(*data)
+	s.Publisher.Publish(ev)
 	return nil
 }
 
