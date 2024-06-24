@@ -2,8 +2,14 @@ package composables
 
 import (
 	"context"
+	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/session"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
+)
+
+var (
+	ErrNoSessionFound = errors.New("no session found")
+	ErrNoUserFound    = errors.New("no user found")
 )
 
 // UseUser returns the user from the context.

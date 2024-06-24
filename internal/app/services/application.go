@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/iota-agency/iota-erp/internal/infrastracture/event"
+	"github.com/iota-agency/iota-erp/sdk/event"
 	"gorm.io/gorm"
 )
 
