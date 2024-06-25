@@ -6,14 +6,10 @@ package graph
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
-	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
-	"github.com/iota-agency/iota-erp/sdk/utils/env"
 )
 
 // CreateUser is the resolver for the createUser field.
@@ -54,11 +50,15 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 }
 
 // DeleteUser is the resolver for the deleteUser field.
-func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (bool, error) {
-	if err := r.app.UserService.Delete(ctx, id); err != nil {
-		return false, err
+func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (*model.User, error) {
+	entity, err := r.app.UserService.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	return true, nil
+	if err := r.app.UserService.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	return entity.ToGraph(), nil
 }
 
 // User is the resolver for the user field.
@@ -93,10 +93,8 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 // UserCreated is the resolver for the userCreated field.
 func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe("user.created", func(data interface{}) {
-		if entity, ok := data.(*user.User); ok {
-			ch <- entity.ToGraph()
-		}
+	r.app.EventPublisher.Subscribe(func(evt *user.Created) {
+		ch <- evt.User.ToGraph()
 	})
 	return ch, nil
 }
@@ -104,21 +102,17 @@ func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.U
 // UserUpdated is the resolver for the userUpdated field.
 func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe("user.updated", func(data interface{}) {
-		if entity, ok := data.(*user.User); ok {
-			ch <- entity.ToGraph()
-		}
+	r.app.EventPublisher.Subscribe(func(evt *user.Updated) {
+		ch <- evt.User.ToGraph()
 	})
 	return ch, nil
 }
 
 // UserDeleted is the resolver for the userDeleted field.
-func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan int64, error) {
-	ch := make(chan int64)
-	r.app.EventPublisher.Subscribe("user.deleted", func(data interface{}) {
-		if id, ok := data.(int64); ok {
-			ch <- id
-		}
+func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan *model.User, error) {
+	ch := make(chan *model.User)
+	r.app.EventPublisher.Subscribe(func(evt *user.Deleted) {
+		ch <- evt.User.ToGraph()
 	})
 	return ch, nil
 }
@@ -139,31 +133,3 @@ func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Medi
 func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
 type userResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//     it when you're done.
-//   - You have helper methods in this file. Move them out to keep these resolver files clean.
-func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
-	writer, ok := composables.UseWriter(ctx)
-	if !ok {
-		return nil, fmt.Errorf("request params not found")
-	}
-	_, session, err := r.app.AuthService.Authenticate(ctx, email, password)
-	if err != nil {
-		return nil, err
-	}
-	cookie := &http.Cookie{
-		Name:     "token",
-		Value:    session.Token,
-		Expires:  session.ExpiresAt,
-		HttpOnly: false,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   false,
-		Domain:   env.GetEnv("DOMAIN", "localhost"),
-	}
-	http.SetCookie(writer, cookie)
-	return session.ToGraph(), nil
-}

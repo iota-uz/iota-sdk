@@ -33,11 +33,11 @@ extend type Query {
 extend type Mutation {
     createExpense(input: CreateExpense!): Expense!
     updateExpense(id: ID!, input: UpdateExpense!): Expense!
-    deleteExpense(id: ID!): Boolean!
+    deleteExpense(id: ID!): Expense!
 }
 
 extend type Subscription {
     expenseCreated: Expense!
     expenseUpdated: Expense!
-    expenseDeleted: ID!
+    expenseDeleted: Expense!
 }

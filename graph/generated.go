@@ -140,6 +140,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		Authenticate          func(childComplexity int, email string, password string) int
 		CreateEmployee        func(childComplexity int, input model.CreateEmployee) int
 		CreateExpense         func(childComplexity int, input model.CreateExpense) int
 		CreateExpenseCategory func(childComplexity int, input model.CreateExpenseCategory) int
@@ -310,7 +311,6 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		Authenticate           func(childComplexity int, email string, password string) int
 		DialogueCreated        func(childComplexity int) int
 		DialogueDeleted        func(childComplexity int) int
 		DialogueUpdated        func(childComplexity int) int
@@ -372,6 +372,7 @@ type MutationResolver interface {
 	UpdateRole(ctx context.Context, id int64, input model.UpdateRole) (*model.Role, error)
 	DeleteRole(ctx context.Context, id int64) (bool, error)
 	CreateRolePermission(ctx context.Context, input model.CreateRolePermission) (*model.RolePermissions, error)
+	Authenticate(ctx context.Context, email string, password string) (*model.Session, error)
 	DeleteSession(ctx context.Context, token string) (bool, error)
 	NewDialogue(ctx context.Context, input model.NewDialogue) (*model.Dialogue, error)
 	ReplyDialogue(ctx context.Context, id int64, input model.DialogueReply) (*model.Dialogue, error)
@@ -385,7 +386,7 @@ type MutationResolver interface {
 	DeleteExpenseCategory(ctx context.Context, id int64) (bool, error)
 	CreateExpense(ctx context.Context, input model.CreateExpense) (*model.Expense, error)
 	UpdateExpense(ctx context.Context, id int64, input model.UpdateExpense) (*model.Expense, error)
-	DeleteExpense(ctx context.Context, id int64) (bool, error)
+	DeleteExpense(ctx context.Context, id int64) (*model.Expense, error)
 	CreatePosition(ctx context.Context, input model.CreatePosition) (*model.Position, error)
 	UpdatePosition(ctx context.Context, id int64, input model.UpdatePosition) (*model.Position, error)
 	DeletePosition(ctx context.Context, id int64) (bool, error)
@@ -393,7 +394,7 @@ type MutationResolver interface {
 	DeleteUpload(ctx context.Context, id int64) (*model.Media, error)
 	CreateUser(ctx context.Context, input model.CreateUser) (*model.User, error)
 	UpdateUser(ctx context.Context, id int64, input model.UpdateUser) (*model.User, error)
-	DeleteUser(ctx context.Context, id int64) (bool, error)
+	DeleteUser(ctx context.Context, id int64) (*model.User, error)
 }
 type PaginatedEmployeesResolver interface {
 	Data(ctx context.Context, obj *model.PaginatedEmployees) ([]*model.Employee, error)
@@ -445,7 +446,6 @@ type SubscriptionResolver interface {
 	RoleDeleted(ctx context.Context) (<-chan int64, error)
 	RolePermissionCreated(ctx context.Context) (<-chan *model.RolePermissions, error)
 	RolePermissionDeleted(ctx context.Context) (<-chan int64, error)
-	Authenticate(ctx context.Context, email string, password string) (<-chan *model.Session, error)
 	SessionDeleted(ctx context.Context) (<-chan int64, error)
 	DialogueCreated(ctx context.Context) (<-chan *model.Dialogue, error)
 	DialogueUpdated(ctx context.Context) (<-chan *model.Dialogue, error)
@@ -459,7 +459,7 @@ type SubscriptionResolver interface {
 	ExpenseCategoryDeleted(ctx context.Context) (<-chan int64, error)
 	ExpenseCreated(ctx context.Context) (<-chan *model.Expense, error)
 	ExpenseUpdated(ctx context.Context) (<-chan *model.Expense, error)
-	ExpenseDeleted(ctx context.Context) (<-chan int64, error)
+	ExpenseDeleted(ctx context.Context) (<-chan *model.Expense, error)
 	PositionCreated(ctx context.Context) (<-chan *model.Position, error)
 	PositionUpdated(ctx context.Context) (<-chan *model.Position, error)
 	PositionDeleted(ctx context.Context) (<-chan int64, error)
@@ -468,7 +468,7 @@ type SubscriptionResolver interface {
 	UploadDeleted(ctx context.Context) (<-chan *model.Media, error)
 	UserCreated(ctx context.Context) (<-chan *model.User, error)
 	UserUpdated(ctx context.Context) (<-chan *model.User, error)
-	UserDeleted(ctx context.Context) (<-chan int64, error)
+	UserDeleted(ctx context.Context) (<-chan *model.User, error)
 }
 type UserResolver interface {
 	Avatar(ctx context.Context, obj *model.User) (*model.Media, error)
@@ -905,6 +905,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Message.ToolCalls(childComplexity), true
+
+	case "Mutation.authenticate":
+		if e.complexity.Mutation.Authenticate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_authenticate_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.Authenticate(childComplexity, args["email"].(string), args["password"].(string)), true
 
 	case "Mutation.createEmployee":
 		if e.complexity.Mutation.CreateEmployee == nil {
@@ -1915,18 +1927,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Session.UserID(childComplexity), true
 
-	case "Subscription.authenticate":
-		if e.complexity.Subscription.Authenticate == nil {
-			break
-		}
-
-		args, err := ec.field_Subscription_authenticate_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Subscription.Authenticate(childComplexity, args["email"].(string), args["password"].(string)), true
-
 	case "Subscription.dialogueCreated":
 		if e.complexity.Subscription.DialogueCreated == nil {
 			break
@@ -2401,6 +2401,30 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_authenticate_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["email"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["email"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["password"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["password"] = arg1
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_createEmployee_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -3509,30 +3533,6 @@ func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["sortBy"] = arg2
-	return args, nil
-}
-
-func (ec *executionContext) field_Subscription_authenticate_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 string
-	if tmp, ok := rawArgs["email"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
-		arg0, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["email"] = arg0
-	var arg1 string
-	if tmp, ok := rawArgs["password"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
-		arg1, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["password"] = arg1
 	return args, nil
 }
 
@@ -6436,6 +6436,75 @@ func (ec *executionContext) fieldContext_Mutation_createRolePermission(ctx conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_authenticate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_authenticate(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().Authenticate(rctx, fc.Args["email"].(string), fc.Args["password"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Session)
+	fc.Result = res
+	return ec.marshalNSession2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐSession(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_authenticate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "token":
+				return ec.fieldContext_Session_token(ctx, field)
+			case "userId":
+				return ec.fieldContext_Session_userId(ctx, field)
+			case "ip":
+				return ec.fieldContext_Session_ip(ctx, field)
+			case "userAgent":
+				return ec.fieldContext_Session_userAgent(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_Session_expiresAt(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Session_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_authenticate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteSession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_deleteSession(ctx, field)
 	if err != nil {
@@ -7375,9 +7444,9 @@ func (ec *executionContext) _Mutation_deleteExpense(ctx context.Context, field g
 		}
 		return graphql.Null
 	}
-	res := resTmp.(bool)
+	res := resTmp.(*model.Expense)
 	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+	return ec.marshalNExpense2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpense(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteExpense(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -7387,7 +7456,23 @@ func (ec *executionContext) fieldContext_Mutation_deleteExpense(ctx context.Cont
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Expense_id(ctx, field)
+			case "amount":
+				return ec.fieldContext_Expense_amount(ctx, field)
+			case "categoryId":
+				return ec.fieldContext_Expense_categoryId(ctx, field)
+			case "category":
+				return ec.fieldContext_Expense_category(ctx, field)
+			case "date":
+				return ec.fieldContext_Expense_date(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Expense_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Expense_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Expense", field.Name)
 		},
 	}
 	defer func() {
@@ -7927,9 +8012,9 @@ func (ec *executionContext) _Mutation_deleteUser(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(bool)
+	res := resTmp.(*model.User)
 	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -7939,7 +8024,35 @@ func (ec *executionContext) fieldContext_Mutation_deleteUser(ctx context.Context
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "firstName":
+				return ec.fieldContext_User_firstName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "avatar":
+				return ec.fieldContext_User_avatar(ctx, field)
+			case "avatarId":
+				return ec.fieldContext_User_avatarId(ctx, field)
+			case "employeeId":
+				return ec.fieldContext_User_employeeId(ctx, field)
+			case "lastIp":
+				return ec.fieldContext_User_lastIp(ctx, field)
+			case "lastLogin":
+				return ec.fieldContext_User_lastLogin(ctx, field)
+			case "lastAction":
+				return ec.fieldContext_User_lastAction(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_User_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_User_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
 	}
 	defer func() {
@@ -12680,89 +12793,6 @@ func (ec *executionContext) fieldContext_Subscription_rolePermissionDeleted(_ co
 	return fc, nil
 }
 
-func (ec *executionContext) _Subscription_authenticate(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
-	fc, err := ec.fieldContext_Subscription_authenticate(ctx, field)
-	if err != nil {
-		return nil
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = nil
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().Authenticate(rctx, fc.Args["email"].(string), fc.Args["password"].(string))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return nil
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return nil
-	}
-	return func(ctx context.Context) graphql.Marshaler {
-		select {
-		case res, ok := <-resTmp.(<-chan *model.Session):
-			if !ok {
-				return nil
-			}
-			return graphql.WriterFunc(func(w io.Writer) {
-				w.Write([]byte{'{'})
-				graphql.MarshalString(field.Alias).MarshalGQL(w)
-				w.Write([]byte{':'})
-				ec.marshalNSession2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐSession(ctx, field.Selections, res).MarshalGQL(w)
-				w.Write([]byte{'}'})
-			})
-		case <-ctx.Done():
-			return nil
-		}
-	}
-}
-
-func (ec *executionContext) fieldContext_Subscription_authenticate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Subscription",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "token":
-				return ec.fieldContext_Session_token(ctx, field)
-			case "userId":
-				return ec.fieldContext_Session_userId(ctx, field)
-			case "ip":
-				return ec.fieldContext_Session_ip(ctx, field)
-			case "userAgent":
-				return ec.fieldContext_Session_userAgent(ctx, field)
-			case "expiresAt":
-				return ec.fieldContext_Session_expiresAt(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Session_createdAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Subscription_authenticate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Subscription_sessionDeleted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	fc, err := ec.fieldContext_Subscription_sessionDeleted(ctx, field)
 	if err != nil {
@@ -13757,7 +13787,7 @@ func (ec *executionContext) _Subscription_expenseDeleted(ctx context.Context, fi
 	}
 	return func(ctx context.Context) graphql.Marshaler {
 		select {
-		case res, ok := <-resTmp.(<-chan int64):
+		case res, ok := <-resTmp.(<-chan *model.Expense):
 			if !ok {
 				return nil
 			}
@@ -13765,7 +13795,7 @@ func (ec *executionContext) _Subscription_expenseDeleted(ctx context.Context, fi
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				ec.marshalNExpense2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐExpense(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		case <-ctx.Done():
@@ -13781,7 +13811,23 @@ func (ec *executionContext) fieldContext_Subscription_expenseDeleted(_ context.C
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Expense_id(ctx, field)
+			case "amount":
+				return ec.fieldContext_Expense_amount(ctx, field)
+			case "categoryId":
+				return ec.fieldContext_Expense_categoryId(ctx, field)
+			case "category":
+				return ec.fieldContext_Expense_category(ctx, field)
+			case "date":
+				return ec.fieldContext_Expense_date(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Expense_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Expense_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Expense", field.Name)
 		},
 	}
 	return fc, nil
@@ -14407,7 +14453,7 @@ func (ec *executionContext) _Subscription_userDeleted(ctx context.Context, field
 	}
 	return func(ctx context.Context) graphql.Marshaler {
 		select {
-		case res, ok := <-resTmp.(<-chan int64):
+		case res, ok := <-resTmp.(<-chan *model.User):
 			if !ok {
 				return nil
 			}
@@ -14415,7 +14461,7 @@ func (ec *executionContext) _Subscription_userDeleted(ctx context.Context, field
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
+				ec.marshalNUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐUser(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		case <-ctx.Done():
@@ -14431,7 +14477,35 @@ func (ec *executionContext) fieldContext_Subscription_userDeleted(_ context.Cont
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "firstName":
+				return ec.fieldContext_User_firstName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_User_lastName(ctx, field)
+			case "middleName":
+				return ec.fieldContext_User_middleName(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "avatar":
+				return ec.fieldContext_User_avatar(ctx, field)
+			case "avatarId":
+				return ec.fieldContext_User_avatarId(ctx, field)
+			case "employeeId":
+				return ec.fieldContext_User_employeeId(ctx, field)
+			case "lastIp":
+				return ec.fieldContext_User_lastIp(ctx, field)
+			case "lastLogin":
+				return ec.fieldContext_User_lastLogin(ctx, field)
+			case "lastAction":
+				return ec.fieldContext_User_lastAction(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_User_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_User_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
 	}
 	return fc, nil
@@ -18385,6 +18459,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "authenticate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_authenticate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteSession":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteSession(ctx, field)
@@ -20319,8 +20400,6 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_rolePermissionCreated(ctx, fields[0])
 	case "rolePermissionDeleted":
 		return ec._Subscription_rolePermissionDeleted(ctx, fields[0])
-	case "authenticate":
-		return ec._Subscription_authenticate(ctx, fields[0])
 	case "sessionDeleted":
 		return ec._Subscription_sessionDeleted(ctx, fields[0])
 	case "dialogueCreated":

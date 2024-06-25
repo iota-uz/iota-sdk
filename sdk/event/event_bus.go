@@ -59,3 +59,20 @@ func (p *Publisher) Subscribe(handler interface{}) {
 		Subscriber{Handler: handler},
 	)
 }
+
+func (p *Publisher) Unsubscribe(handler interface{}) {
+	for i, subscriber := range p.Subscribers {
+		if subscriber.Handler == handler {
+			p.Subscribers = append(p.Subscribers[:i], p.Subscribers[i+1:]...)
+			return
+		}
+	}
+}
+
+func (p *Publisher) Clear() {
+	p.Subscribers = []Subscriber{}
+}
+
+func (p *Publisher) SubscribersCount() int {
+	return len(p.Subscribers)
+}

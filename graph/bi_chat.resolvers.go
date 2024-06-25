@@ -109,12 +109,10 @@ func (r *queryResolver) Prompts(ctx context.Context, offset int, limit int, sort
 // DialogueCreated is the resolver for the dialogueCreated field.
 func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *model.Dialogue, error) {
 	ch := make(chan *model.Dialogue)
-	r.app.EventPublisher.Subscribe("dialogue.created", func(data interface{}) {
-		if entity, ok := data.(*dialogue.Dialogue); ok {
-			res, err := entity.ToGraph()
-			if err == nil {
-				ch <- res
-			}
+	r.app.EventPublisher.Subscribe(func(evt *dialogue.Created) {
+		res, err := evt.Result.ToGraph()
+		if err == nil {
+			ch <- res
 		}
 	})
 	return ch, nil
@@ -123,12 +121,10 @@ func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *mod
 // DialogueUpdated is the resolver for the dialogueUpdated field.
 func (r *subscriptionResolver) DialogueUpdated(ctx context.Context) (<-chan *model.Dialogue, error) {
 	ch := make(chan *model.Dialogue)
-	r.app.EventPublisher.Subscribe("dialogue.updated", func(data interface{}) {
-		if entity, ok := data.(*dialogue.Dialogue); ok {
-			res, err := entity.ToGraph()
-			if err == nil {
-				ch <- res
-			}
+	r.app.EventPublisher.Subscribe(func(evt *dialogue.Updated) {
+		res, err := evt.Result.ToGraph()
+		if err == nil {
+			ch <- res
 		}
 	})
 	return ch, nil
@@ -136,7 +132,14 @@ func (r *subscriptionResolver) DialogueUpdated(ctx context.Context) (<-chan *mod
 
 // DialogueDeleted is the resolver for the dialogueDeleted field.
 func (r *subscriptionResolver) DialogueDeleted(ctx context.Context) (<-chan *model.Dialogue, error) {
-	panic(fmt.Errorf("not implemented: DialogueDeleted - dialogueDeleted"))
+	ch := make(chan *model.Dialogue)
+	r.app.EventPublisher.Subscribe(func(evt *dialogue.Deleted) {
+		res, err := evt.Result.ToGraph()
+		if err == nil {
+			ch <- res
+		}
+	})
+	return ch, nil
 }
 
 // PromptUpdated is the resolver for the promptUpdated field.
