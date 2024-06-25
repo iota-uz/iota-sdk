@@ -22,7 +22,7 @@ func (r *mutationResolver) UpdateExpense(ctx context.Context, id int64, input mo
 }
 
 // DeleteExpense is the resolver for the deleteExpense field.
-func (r *mutationResolver) DeleteExpense(ctx context.Context, id int64) (bool, error) {
+func (r *mutationResolver) DeleteExpense(ctx context.Context, id int64) (*model.Expense, error) {
 	panic(fmt.Errorf("not implemented: DeleteExpense - deleteExpense"))
 }
 
@@ -57,7 +57,7 @@ func (r *subscriptionResolver) ExpenseUpdated(ctx context.Context) (<-chan *mode
 }
 
 // ExpenseDeleted is the resolver for the expenseDeleted field.
-func (r *subscriptionResolver) ExpenseDeleted(ctx context.Context) (<-chan int64, error) {
+func (r *subscriptionResolver) ExpenseDeleted(ctx context.Context) (<-chan *model.Expense, error) {
 	panic(fmt.Errorf("not implemented: ExpenseDeleted - expenseDeleted"))
 }
 

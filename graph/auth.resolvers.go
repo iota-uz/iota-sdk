@@ -7,9 +7,35 @@ package graph
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/sdk/utils/env"
 )
+
+// Authenticate is the resolver for the authenticate field.
+func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
+	writer, ok := composables.UseWriter(ctx)
+	if !ok {
+		return nil, fmt.Errorf("request params not found")
+	}
+	_, session, err := r.app.AuthService.Authenticate(ctx, email, password)
+	if err != nil {
+		return nil, err
+	}
+	cookie := &http.Cookie{
+		Name:     "token",
+		Value:    session.Token,
+		Expires:  session.ExpiresAt,
+		HttpOnly: false,
+		SameSite: http.SameSiteNoneMode,
+		Secure:   false,
+		Domain:   env.GetEnv("DOMAIN", "localhost"),
+	}
+	http.SetCookie(writer, cookie)
+	return session.ToGraph(), nil
+}
 
 // DeleteSession is the resolver for the deleteSession field.
 func (r *mutationResolver) DeleteSession(ctx context.Context, token string) (bool, error) {
@@ -34,11 +60,6 @@ func (r *queryResolver) Session(ctx context.Context, token string) (*model.Sessi
 // Sessions is the resolver for the sessions field.
 func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedSessions, error) {
 	panic(fmt.Errorf("not implemented: Sessions - sessions"))
-}
-
-// Authenticate is the resolver for the authenticate field.
-func (r *subscriptionResolver) Authenticate(ctx context.Context, email string, password string) (<-chan *model.Session, error) {
-	panic(fmt.Errorf("not implemented: Authenticate - authenticate"))
 }
 
 // SessionDeleted is the resolver for the sessionDeleted field.

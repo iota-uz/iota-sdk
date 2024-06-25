@@ -47,11 +47,11 @@ extend type Query {
 extend type Mutation {
     createUser(input: CreateUser!): User!
     updateUser(id: ID!, input: UpdateUser!): User!
-    deleteUser(id: ID!): Boolean!
+    deleteUser(id: ID!): User!
 }
 
 extend type Subscription {
     userCreated: User!
     userUpdated: User!
-    userDeleted: ID!
+    userDeleted: User!
 }

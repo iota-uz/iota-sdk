@@ -34,11 +34,11 @@ extend type Query {
 }
 
 extend type Mutation {
+    authenticate(email: String!, password: String!): Session!
+
     deleteSession(token: String!): Boolean!
 }
 
 extend type Subscription {
-    authenticate(email: String!, password: String!): Session!
-
     sessionDeleted: ID!
 }
