@@ -70,7 +70,7 @@ extend type Query {
 extend type Mutation {
     newDialogue(input: NewDialogue!): Dialogue!
     replyDialogue(id: ID!, input: DialogueReply!): Dialogue!
-    deleteDialogue(id: ID!): Boolean!
+    deleteDialogue(id: ID!): Dialogue!
 
     updatePrompt(id: String!, input: UpdatePrompt!): Prompt!
 }
