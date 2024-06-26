@@ -40,18 +40,14 @@ func (s *UserService) GetPaginated(ctx context.Context, limit, offset int, sortB
 }
 
 func (s *UserService) Create(ctx context.Context, data *user.User) error {
-	sess, err := composables.UseSession(ctx)
-	if err != nil {
-		return err
-	}
-	u, err := composables.UseUser(ctx)
-	if err != nil {
-		return err
-	}
 	ev := &user.Created{
-		User:    &(*u),
-		Session: sess,
-		Data:    &(*data),
+		Data: &(*data),
+	}
+	if u, err := composables.UseUser(ctx); err == nil {
+		ev.Sender = u
+	}
+	if sess, err := composables.UseSession(ctx); err == nil {
+		ev.Session = sess
 	}
 	if err := s.Repo.Create(ctx, data); err != nil {
 		return err
@@ -69,18 +65,40 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id int64) error {
 	return s.Repo.UpdateLastLogin(ctx, id)
 }
 
-func (s *UserService) Update(ctx context.Context, user *user.User) error {
-	if err := s.Repo.Update(ctx, user); err != nil {
+func (s *UserService) Update(ctx context.Context, data *user.User) error {
+	evt := &user.Updated{
+		Data: &(*data),
+	}
+	if u, err := composables.UseUser(ctx); err == nil {
+		evt.Sender = u
+	}
+	if sess, err := composables.UseSession(ctx); err == nil {
+		evt.Session = sess
+	}
+	if err := s.Repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.Publisher.Publish("user.updated", user)
+	evt.Result = &(*data)
+	s.Publisher.Publish(evt)
 	return nil
 }
 
-func (s *UserService) Delete(ctx context.Context, id int64) error {
-	if err := s.Repo.Delete(ctx, id); err != nil {
-		return err
+func (s *UserService) Delete(ctx context.Context, id int64) (*user.User, error) {
+	evt := &user.Deleted{}
+	if u, err := composables.UseUser(ctx); err == nil {
+		evt.Sender = u
 	}
-	s.Publisher.Publish("user.deleted", id)
-	return nil
+	if sess, err := composables.UseSession(ctx); err == nil {
+		evt.Session = sess
+	}
+	entity, err := s.Repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Repo.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	evt.Result = entity
+	s.Publisher.Publish(evt)
+	return entity, nil
 }

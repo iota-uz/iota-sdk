@@ -47,11 +47,12 @@ func (r *mutationResolver) ReplyDialogue(ctx context.Context, id int64, input mo
 }
 
 // DeleteDialogue is the resolver for the deleteDialogue field.
-func (r *mutationResolver) DeleteDialogue(ctx context.Context, id int64) (bool, error) {
-	if err := r.app.DialogueService.Delete(ctx, id); err != nil {
-		return false, err
+func (r *mutationResolver) DeleteDialogue(ctx context.Context, id int64) (*model.Dialogue, error) {
+	entity, err := r.app.DialogueService.Delete(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	return true, nil
+	return entity.ToGraph()
 }
 
 // UpdatePrompt is the resolver for the updatePrompt field.
@@ -103,7 +104,22 @@ func (r *queryResolver) Prompt(ctx context.Context, id string) (*model.Prompt, e
 
 // Prompts is the resolver for the prompts field.
 func (r *queryResolver) Prompts(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPrompts, error) {
-	panic(fmt.Errorf("not implemented: Prompts - prompts"))
+	entities, err := r.app.PromptService.GetPaginated(ctx, limit, offset, sortBy)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Prompt, len(entities))
+	for i, entity := range entities {
+		result[i] = entity.ToGraph()
+	}
+	total, err := r.app.PromptService.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &model.PaginatedPrompts{
+		Data:  result,
+		Total: total,
+	}, nil
 }
 
 // DialogueCreated is the resolver for the dialogueCreated field.

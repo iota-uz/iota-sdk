@@ -152,7 +152,9 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 		})
 		for m := range ch {
 			data.Messages[len(data.Messages)-1] = m
-			s.app.EventPublisher.Publish("dialogue.updated", data)
+			s.app.EventPublisher.Publish(dialogue.Updated{
+				Result: data,
+			})
 		}
 		msg := data.Messages[len(data.Messages)-1]
 		if err := s.repo.Update(ctx, data); err != nil {
@@ -235,7 +237,16 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err := s.repo.Create(ctx, data); err != nil {
 		return nil, err
 	}
-	s.app.EventPublisher.Publish("dialogue.created", data)
+	sess, err := localComposables.UseSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.app.EventPublisher.Publish(dialogue.Created{
+		Data:    data,
+		Result:  data,
+		Sender:  u,
+		Session: sess,
+	})
 	if err := s.ChatComplete(ctx, data, model); err != nil {
 		return nil, err
 	}
@@ -243,17 +254,39 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 }
 
 func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) error {
+	evt := &dialogue.Updated{
+		Data: &(*data),
+	}
+	if u, err := localComposables.UseUser(ctx); err == nil {
+		evt.Sender = u
+	}
+	if sess, err := localComposables.UseSession(ctx); err == nil {
+		evt.Session = sess
+	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("dialogue.updated", data)
+	evt.Result = &(*data)
+	s.app.EventPublisher.Publish(evt)
 	return nil
 }
 
-func (s *DialogueService) Delete(ctx context.Context, id int64) error {
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
+	evt := &dialogue.Deleted{}
+	if u, err := localComposables.UseUser(ctx); err == nil {
+		evt.Sender = u
 	}
-	s.app.EventPublisher.Publish("dialogue.deleted", id)
-	return nil
+	if sess, err := localComposables.UseSession(ctx); err == nil {
+		evt.Session = sess
+	}
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	evt.Result = entity
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	s.app.EventPublisher.Publish(evt)
+	return entity, nil
 }

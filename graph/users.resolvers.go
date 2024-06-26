@@ -51,11 +51,8 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 
 // DeleteUser is the resolver for the deleteUser field.
 func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (*model.User, error) {
-	entity, err := r.app.UserService.GetByID(ctx, id)
+	entity, err := r.app.UserService.Delete(ctx, id)
 	if err != nil {
-		return nil, err
-	}
-	if err := r.app.UserService.Delete(ctx, id); err != nil {
 		return nil, err
 	}
 	return entity.ToGraph(), nil
@@ -94,7 +91,7 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
 	r.app.EventPublisher.Subscribe(func(evt *user.Created) {
-		ch <- evt.User.ToGraph()
+		ch <- evt.Result.ToGraph()
 	})
 	return ch, nil
 }
@@ -103,7 +100,7 @@ func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.U
 func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
 	r.app.EventPublisher.Subscribe(func(evt *user.Updated) {
-		ch <- evt.User.ToGraph()
+		ch <- evt.Result.ToGraph()
 	})
 	return ch, nil
 }
@@ -112,7 +109,7 @@ func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.U
 func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
 	r.app.EventPublisher.Subscribe(func(evt *user.Deleted) {
-		ch <- evt.User.ToGraph()
+		ch <- evt.Result.ToGraph()
 	})
 	return ch, nil
 }

@@ -376,7 +376,7 @@ type MutationResolver interface {
 	DeleteSession(ctx context.Context, token string) (bool, error)
 	NewDialogue(ctx context.Context, input model.NewDialogue) (*model.Dialogue, error)
 	ReplyDialogue(ctx context.Context, id int64, input model.DialogueReply) (*model.Dialogue, error)
-	DeleteDialogue(ctx context.Context, id int64) (bool, error)
+	DeleteDialogue(ctx context.Context, id int64) (*model.Dialogue, error)
 	UpdatePrompt(ctx context.Context, id string, input model.UpdatePrompt) (*model.Prompt, error)
 	CreateEmployee(ctx context.Context, input model.CreateEmployee) (*model.Employee, error)
 	UpdateEmployee(ctx context.Context, id int64, input model.UpdateEmployee) (*model.Employee, error)
@@ -6724,9 +6724,9 @@ func (ec *executionContext) _Mutation_deleteDialogue(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(bool)
+	res := resTmp.(*model.Dialogue)
 	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+	return ec.marshalNDialogue2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑerpᚋgraphᚋgqlmodelsᚐDialogue(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteDialogue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6736,7 +6736,21 @@ func (ec *executionContext) fieldContext_Mutation_deleteDialogue(ctx context.Con
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Dialogue_id(ctx, field)
+			case "userId":
+				return ec.fieldContext_Dialogue_userId(ctx, field)
+			case "label":
+				return ec.fieldContext_Dialogue_label(ctx, field)
+			case "messages":
+				return ec.fieldContext_Dialogue_messages(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Dialogue_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Dialogue_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Dialogue", field.Name)
 		},
 	}
 	defer func() {
