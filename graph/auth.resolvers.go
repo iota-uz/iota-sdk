@@ -7,11 +7,11 @@ package graph
 import (
 	"context"
 	"fmt"
+	"github.com/iota-agency/iota-erp/internal/configuration"
 	"net/http"
 
 	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/sdk/composables"
-	"github.com/iota-agency/iota-erp/sdk/utils/env"
 )
 
 // Authenticate is the resolver for the authenticate field.
@@ -24,17 +24,23 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	if err != nil {
 		return nil, err
 	}
+	conf := configuration.Use()
 	cookie := &http.Cookie{
 		Name:     "token",
 		Value:    session.Token,
 		Expires:  session.ExpiresAt,
 		HttpOnly: false,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteDefaultMode,
 		Secure:   false,
-		Domain:   env.GetEnv("DOMAIN", "localhost"),
+		Domain:   conf.FrontendDomain,
 	}
 	http.SetCookie(writer, cookie)
 	return session.ToGraph(), nil
+}
+
+// GoogleAuthenticate is the resolver for the googleAuthenticate field.
+func (r *mutationResolver) GoogleAuthenticate(ctx context.Context) (string, error) {
+	return r.app.AuthService.GoogleAuthenticate(ctx)
 }
 
 // DeleteSession is the resolver for the deleteSession field.

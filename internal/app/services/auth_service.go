@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/session"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
-	"github.com/iota-agency/iota-erp/sdk/utils/env"
 	"github.com/iota-agency/iota-erp/sdk/utils/random"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -27,9 +28,9 @@ func NewAuthService(app *Application) *AuthService {
 	return &AuthService{
 		app: app,
 		oAuthConfig: &oauth2.Config{
-			RedirectURL:  conf.GoogleRedirectURL(),
-			ClientID:     conf.GoogleClientID(),
-			ClientSecret: conf.GoogleClientSecret(),
+			RedirectURL:  conf.GoogleRedirectURL,
+			ClientID:     conf.GoogleClientID,
+			ClientSecret: conf.GoogleClientSecret,
 			Scopes: []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
@@ -72,6 +73,7 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	conf := configuration.Use()
 	cookie := &http.Cookie{
 		Name:     "token",
 		Value:    sess.Token,
@@ -79,7 +81,7 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		HttpOnly: false,
 		SameSite: http.SameSiteNoneMode,
 		Secure:   false,
-		Domain:   env.GetEnv("DOMAIN", "localhost"),
+		Domain:   conf.FrontendDomain,
 	}
 	http.SetCookie(w, cookie)
 }
@@ -120,10 +122,7 @@ func (s *AuthService) authenticate(ctx context.Context, id int64) (*user.User, *
 	}
 	ip, _ := composables.UseIp(ctx)
 	userAgent, _ := composables.UseUserAgent(ctx)
-	duration, err := configuration.Use().SessionDuration()
-	if err != nil {
-		return nil, nil, err
-	}
+	duration := configuration.Use().SessionDuration
 	sess := &session.Session{
 		Token:     s.newSessionToken(),
 		UserId:    u.Id,
@@ -152,4 +151,23 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 		return nil, nil, service.ErrInvalidPassword
 	}
 	return s.authenticate(ctx, u.Id)
+}
+
+func generateStateOauthCookie() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	state := base64.URLEncoding.EncodeToString(b)
+	return state, nil
+}
+
+func (s *AuthService) GoogleAuthenticate(ctx context.Context) (string, error) {
+	oauthState, err := generateStateOauthCookie()
+	if err != nil {
+		return "", err
+	}
+	u := s.oAuthConfig.AuthCodeURL(oauthState, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	return u, nil
 }

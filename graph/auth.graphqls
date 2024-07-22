@@ -35,6 +35,7 @@ extend type Query {
 
 extend type Mutation {
     authenticate(email: String!, password: String!): Session!
+    googleAuthenticate: String!
 
     deleteSession(token: String!): Boolean!
 }

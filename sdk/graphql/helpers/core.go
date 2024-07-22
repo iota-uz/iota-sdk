@@ -5,12 +5,31 @@ import (
 	"errors"
 	"fmt"
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/iota-agency/iota-erp/sdk/db/dbutils"
 	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"strings"
+	"sync"
 )
+
+type FieldsFilter func(f *schema.Field) bool
+
+// GetGormFields returns a map of fields of a model that are readable and match the filter
+// The key of the map is the alias of the field in the graphql schema
+// The value is the field itself
+func GetGormFields(model interface{}, filter FieldsFilter) (map[string]*schema.Field, error) {
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		return nil, err
+	}
+	fields := map[string]*schema.Field{}
+	for _, field := range s.Fields {
+		if filter(field) {
+			fields[field.Name] = field
+		}
+	}
+	return fields, nil
+}
 
 func GetPreloads(ctx context.Context) []string {
 	return GetNestedPreloads(
@@ -46,7 +65,7 @@ func GetPreloadString(prefix, name string) string {
 }
 
 func ApplySort(query *gorm.DB, sortBy []string, model interface{}) (*gorm.DB, error) {
-	mapping, err := dbutils.GetGormFields(model, func(f *schema.Field) bool {
+	mapping, err := GetGormFields(model, func(f *schema.Field) bool {
 		return f.Readable
 	})
 	if err != nil {

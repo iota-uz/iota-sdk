@@ -157,6 +157,7 @@ type ComplexityRoot struct {
 		DeleteSession         func(childComplexity int, token string) int
 		DeleteUpload          func(childComplexity int, id int64) int
 		DeleteUser            func(childComplexity int, id int64) int
+		GoogleAuthenticate    func(childComplexity int) int
 		NewDialogue           func(childComplexity int, input model.NewDialogue) int
 		ReplyDialogue         func(childComplexity int, id int64, input model.DialogueReply) int
 		UpdateEmployee        func(childComplexity int, id int64, input model.UpdateEmployee) int
@@ -373,6 +374,7 @@ type MutationResolver interface {
 	DeleteRole(ctx context.Context, id int64) (bool, error)
 	CreateRolePermission(ctx context.Context, input model.CreateRolePermission) (*model.RolePermissions, error)
 	Authenticate(ctx context.Context, email string, password string) (*model.Session, error)
+	GoogleAuthenticate(ctx context.Context) (string, error)
 	DeleteSession(ctx context.Context, token string) (bool, error)
 	NewDialogue(ctx context.Context, input model.NewDialogue) (*model.Dialogue, error)
 	ReplyDialogue(ctx context.Context, id int64, input model.DialogueReply) (*model.Dialogue, error)
@@ -1109,6 +1111,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeleteUser(childComplexity, args["id"].(int64)), true
+
+	case "Mutation.googleAuthenticate":
+		if e.complexity.Mutation.GoogleAuthenticate == nil {
+			break
+		}
+
+		return e.complexity.Mutation.GoogleAuthenticate(childComplexity), true
 
 	case "Mutation.newDialogue":
 		if e.complexity.Mutation.NewDialogue == nil {
@@ -6501,6 +6510,50 @@ func (ec *executionContext) fieldContext_Mutation_authenticate(ctx context.Conte
 	if fc.Args, err = ec.field_Mutation_authenticate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_googleAuthenticate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_googleAuthenticate(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().GoogleAuthenticate(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_googleAuthenticate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -18476,6 +18529,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "authenticate":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_authenticate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "googleAuthenticate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_googleAuthenticate(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
