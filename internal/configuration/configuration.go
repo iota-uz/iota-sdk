@@ -10,66 +10,61 @@ import (
 var singleton *Configuration
 
 type Configuration struct {
-	Loaded bool
+	DbOpts             string
+	DbHost             string
+	DbPort             int
+	DbUser             string
+	DbName             string
+	DbPassword         string
+	GoogleRedirectURL  string
+	GoogleClientID     string
+	GoogleClientSecret string
+	ServerPort         string
+	SessionDuration    time.Duration
+	GoAppEnvironment   string
+	SocketAddress      string
+	OpenAIKey          string
+	UploadsPath        string
+	FrontendDomain     string
 }
 
 func Use() *Configuration {
 	if singleton == nil {
 		singleton = &Configuration{}
+		if err := singleton.Load(); err != nil {
+			panic(err)
+		}
 	}
 	return singleton
 }
 
 func (c *Configuration) Load() error {
-	if c.Loaded {
-		return nil
+	if err := configuration.LoadEnv(); err != nil {
+		return err
 	}
-	return configuration.LoadEnv()
-}
 
-func (c *Configuration) DbOpts() string {
-	return fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+	c.DbOpts = fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
 		env.GetEnv("DB_HOST", "localhost"), env.GetEnv("DB_PORT", "5432"),
 		env.GetEnv("DB_USER", "postgres"),
 		env.GetEnv("DB_NAME", "iota_erp"), env.GetEnv("DB_PASSWORD", "postgres"))
-}
 
-func (c *Configuration) GoogleRedirectURL() string {
-	return env.GetEnv("GOOGLE_REDIRECT_URL", "http://localhost:3200/oauth/google/callback")
-}
-
-func (c *Configuration) GoogleClientID() string {
-	return env.GetEnv("GOOGLE_CLIENT_ID", "")
-}
-
-func (c *Configuration) GoogleClientSecret() string {
-	return env.GetEnv("GOOGLE_CLIENT_SECRET", "")
-}
-
-func (c *Configuration) ServerPort() string {
-	return env.GetEnv("PORT", "3200")
-}
-
-func (c *Configuration) SessionDuration() (time.Duration, error) {
-	sessionDuration := env.GetEnv("SESSION_DURATION", "1h")
-	return configuration.ParseDuration(sessionDuration)
-}
-
-func (c *Configuration) GoAppEnvironment() string {
-	return env.GetEnv("GO_APP_ENV", "development")
-}
-
-func (c *Configuration) SocketAddress() string {
-	if c.GoAppEnvironment() == "production" {
-		return fmt.Sprintf(":%s", c.ServerPort())
+	c.GoogleRedirectURL = env.MustGetEnv("GOOGLE_REDIRECT_URL")
+	c.GoogleClientID = env.MustGetEnv("GOOGLE_CLIENT_ID")
+	c.GoogleClientSecret = env.MustGetEnv("GOOGLE_CLIENT_SECRET")
+	c.ServerPort = env.GetEnv("PORT", "3200")
+	duration, err := configuration.ParseDuration(env.GetEnv("SESSION_DURATION", "1h"))
+	if err != nil {
+		return err
 	}
-	return fmt.Sprintf("localhost:%s", c.ServerPort())
-}
-
-func (c *Configuration) OpenAIKey() string {
-	return env.MustGetEnv("OPENAI_KEY")
-}
-
-func (c *Configuration) UploadsPath() string {
-	return env.GetEnv("UPLOADS_PATH", "uploads")
+	c.SessionDuration = duration
+	c.GoAppEnvironment = env.GetEnv("GO_APP_ENV", "development")
+	if c.GoAppEnvironment == "production" {
+		c.SocketAddress = fmt.Sprintf(":%s", c.ServerPort)
+	} else {
+		c.SocketAddress = fmt.Sprintf("localhost:%s", c.ServerPort)
+	}
+	c.OpenAIKey = env.MustGetEnv("OPENAI_KEY")
+	c.UploadsPath = env.GetEnv("UPLOADS_PATH", "uploads")
+	c.FrontendDomain = env.GetEnv("FRONTEND_DOMAIN", "localhost")
+	return nil
 }

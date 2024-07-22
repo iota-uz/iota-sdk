@@ -62,7 +62,7 @@ func (s *DialogueService) streamCompletions(
 	messages []openai.ChatCompletionMessage,
 	model string,
 ) (chan openai.ChatCompletionMessage, error) {
-	client := openai.NewClient(configuration.Use().OpenAIKey())
+	client := openai.NewClient(configuration.Use().OpenAIKey)
 	stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
 		Model:    model,
 		Messages: messages,

@@ -40,7 +40,7 @@ func (s *UploadService) GetUploadsPaginated(ctx context.Context, limit, offset i
 func (s *UploadService) UploadFile(ctx context.Context, file io.ReadSeeker, upload *upload.Upload) error {
 	// write file to disk
 	conf := configuration.Use()
-	fullPath := filepath.Join(conf.UploadsPath(), upload.Path)
+	fullPath := filepath.Join(conf.UploadsPath, upload.Path)
 	f, err := os.Create(fullPath)
 	if err != nil {
 		return err

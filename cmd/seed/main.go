@@ -57,8 +57,8 @@ func main() {
 	if err := conf.Load(); err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Connecting to database:", conf.DbOpts())
-	db, err := gorm.Open(postgres.Open(conf.DbOpts()), &gorm.Config{})
+	log.Println("Connecting to database:", conf.DbOpts)
+	db, err := gorm.Open(postgres.Open(conf.DbOpts), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}

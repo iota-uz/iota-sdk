@@ -13,7 +13,6 @@ var (
 )
 
 // UseUser returns the user from the context.
-// If the user is not found, the second return value will be false.
 func UseUser(ctx context.Context) (*user.User, error) {
 	u, ok := ctx.Value("user").(*user.User)
 	if !ok {
@@ -23,7 +22,6 @@ func UseUser(ctx context.Context) (*user.User, error) {
 }
 
 // UseSession returns the session from the context.
-// If the session is not found, the second return value will be false.
 func UseSession(ctx context.Context) (*session.Session, error) {
 	sess, ok := ctx.Value("session").(*session.Session)
 	if !ok {
