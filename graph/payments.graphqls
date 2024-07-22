@@ -1,0 +1,39 @@
+type Payment {
+    id: ID!
+    customerId: ID!
+    transactionId: ID!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedPayments {
+    data: [Payment!]!
+    total: Int64!
+}
+
+extend type Query {
+    payment(id: ID!): Payment
+    payments(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedPayments!
+}
+
+input CreatePayment {
+    customerId: ID!
+    transactionId: ID!
+}
+
+input UpdatePayment {
+    customerId: ID
+    transactionId: ID
+}
+
+extend type Mutation {
+    createPayment(input: CreatePayment!): Payment!
+    updatePayment(id: ID!, input: UpdatePayment!): Payment!
+    deletePayment(id: ID!): Boolean!
+}
+
+extend type Subscription {
+    paymentCreated: Payment!
+    paymentUpdated: Payment!
+    paymentDeleted: ID!
+}
