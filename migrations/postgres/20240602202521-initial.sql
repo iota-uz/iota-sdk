@@ -23,22 +23,16 @@ CREATE TABLE currencies
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE money
-(
-    id          SERIAL PRIMARY KEY,
-    value       NUMERIC(9, 2) NOT NULL,
-    currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL
-);
-
 CREATE TABLE inventory
 (
-    id             SERIAL PRIMARY KEY,
-    name           VARCHAR(255) NOT NULL,
-    description    TEXT,
-    price_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
-    quantity       INT          NOT NULL,
-    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(255)  NOT NULL,
+    description TEXT,
+    currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
+    price       NUMERIC(9, 2) NOT NULL,
+    quantity    INT           NOT NULL,
+    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE positions
@@ -72,29 +66,30 @@ CREATE TABLE task_types
 
 CREATE TABLE settings
 (
-    id             SERIAL PRIMARY KEY,
-    default_risks  FLOAT NOT NULL,
-    default_margin FLOAT NOT NULL,
-    ndfl           FLOAT NOT NULL,
-    esn            FLOAT NOT NULL,
-    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id              SERIAL PRIMARY KEY,
+    default_risks   FLOAT NOT NULL,
+    default_margin  FLOAT NOT NULL,
+    income_tax_rate FLOAT NOT NULL,
+    social_tax_rate FLOAT NOT NULL,
+    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employees
 (
-    id              SERIAL PRIMARY KEY,
-    first_name      VARCHAR(255) NOT NULL,
-    last_name       VARCHAR(255) NOT NULL,
-    middle_name     VARCHAR(255),
-    email           VARCHAR(255) NOT NULL UNIQUE,
-    phone           VARCHAR(255),
-    salary_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
-    hourly_rate     FLOAT        NOT NULL,
-    coefficient     FLOAT        NOT NULL,
-    position_id     INT          NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
-    avatar_id       INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id                 SERIAL PRIMARY KEY,
+    first_name         VARCHAR(255)  NOT NULL,
+    last_name          VARCHAR(255)  NOT NULL,
+    middle_name        VARCHAR(255),
+    email              VARCHAR(255)  NOT NULL UNIQUE,
+    phone              VARCHAR(255),
+    salary             NUMERIC(9, 2) NOT NULL,
+    salary_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
+    hourly_rate        NUMERIC(9, 2) NOT NULL,
+    coefficient        FLOAT         NOT NULL,
+    position_id        INT           NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
+    avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
+    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_meta
@@ -175,22 +170,22 @@ CREATE TABLE prompts
 
 CREATE TABLE expense_categories
 (
-    id              SERIAL PRIMARY KEY,
-    name            VARCHAR(255) NOT NULL,
-    description     TEXT,
-    amount_money_id INT          REFERENCES money (id) ON DELETE SET NULL,
-    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id                 SERIAL PRIMARY KEY,
+    name               VARCHAR(255)  NOT NULL,
+    description        TEXT,
+    amount             NUMERIC(9, 2) NOT NULL,
+    amount_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
+    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE expenses
 (
-    id              SERIAL PRIMARY KEY,
-    amount_money_id INT  REFERENCES money (id) ON DELETE SET NULL,
-    category_id     INT  NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
-    date            DATE NOT NULL               DEFAULT CURRENT_DATE,
-    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id             SERIAL PRIMARY KEY,
+    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
+    category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
+    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_contacts
@@ -271,13 +266,25 @@ CREATE TABLE estimates
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
+CREATE TABLE transactions
+(
+    id                 SERIAL PRIMARY KEY,
+    amount             NUMERIC(9, 2) NOT NULL,
+    amount_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
+    money_account_id   INT           REFERENCES money_accounts (id) ON DELETE SET NULL,
+    transaction_date   DATE          NOT NULL      DEFAULT CURRENT_DATE,
+    accounting_period  DATE          NOT NULL      DEFAULT CURRENT_DATE,
+    transaction_type   VARCHAR(255)  NOT NULL, -- income, expense, transfer
+    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE payments
 (
-    id              SERIAL PRIMARY KEY,
-    amount_money_id INT NOT NULL REFERENCES money (id) ON DELETE SET NULL,
-    customer_id     INT REFERENCES customers (id) ON DELETE SET NULL,
-    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    id             SERIAL PRIMARY KEY,
+    customer_id    INT REFERENCES customers (id) ON DELETE SET NULL,
+    transaction_id INT REFERENCES transactions (id) ON DELETE SET NULL,
+    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE folders
@@ -332,6 +339,18 @@ CREATE TABLE uploaded_images
     height     INT          NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE money_accounts
+(
+    id                  SERIAL PRIMARY KEY,
+    name                VARCHAR(255)  NOT NULL,
+    account_number      VARCHAR(255)  NOT NULL,
+    description         TEXT,
+    balance             NUMERIC(9, 2) NOT NULL,
+    balance_currency_id INT           NOT NULL REFERENCES currencies (id) ON DELETE CASCADE,
+    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE action_log
@@ -416,9 +435,11 @@ CREATE TABLE vacancies
 
 CREATE TABLE salary_range
 (
-    min_salary_money_id INT             REFERENCES money (id) ON DELETE SET NULL,
-    max_salary_money_id INT             REFERENCES money (id) ON DELETE SET NULL,
-    vacancy_id          INT PRIMARY KEY NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE
+    min_salary             NUMERIC(9, 2)   NOT NULL,
+    max_salary             NUMERIC(9, 2)   NOT NULL,
+    min_salary_currency_id INT             REFERENCES currencies (id) ON DELETE SET NULL,
+    max_salary_currency_id INT             REFERENCES currencies (id) ON DELETE SET NULL,
+    vacancy_id             INT PRIMARY KEY NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE
 );
 
 CREATE TABLE applicants
@@ -691,7 +712,6 @@ DROP TABLE IF EXISTS interview_ratings CASCADE;
 DROP TABLE IF EXISTS interviews CASCADE;
 DROP TABLE IF EXISTS inventory CASCADE;
 DROP TABLE IF EXISTS likes CASCADE;
-DROP TABLE IF EXISTS money CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS positions CASCADE;
 DROP TABLE IF EXISTS prompts CASCADE;
