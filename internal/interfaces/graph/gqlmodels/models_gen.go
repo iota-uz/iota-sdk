@@ -39,6 +39,11 @@ type CreateExpenseCategory struct {
 	Description *string `json:"description,omitempty"`
 }
 
+type CreatePayment struct {
+	CustomerID    int64 `json:"customerId"`
+	TransactionID int64 `json:"transactionId"`
+}
+
 type CreatePosition struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
@@ -193,6 +198,11 @@ type PaginatedMedia struct {
 	Total int64    `json:"total"`
 }
 
+type PaginatedPayments struct {
+	Data  []*Payment `json:"data"`
+	Total int64      `json:"total"`
+}
+
 type PaginatedPermissions struct {
 	Data  []*Permission `json:"data"`
 	Total int64         `json:"total"`
@@ -226,6 +236,14 @@ type PaginatedSessions struct {
 type PaginatedUsers struct {
 	Data  []*User `json:"data"`
 	Total int64   `json:"total"`
+}
+
+type Payment struct {
+	ID            int64     `json:"id"`
+	CustomerID    int64     `json:"customerId"`
+	TransactionID int64     `json:"transactionId"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 type Permission struct {
@@ -315,6 +333,11 @@ type UpdateExpenseCategory struct {
 	Name        *string  `json:"name,omitempty"`
 	Amount      *float64 `json:"amount,omitempty"`
 	Description *string  `json:"description,omitempty"`
+}
+
+type UpdatePayment struct {
+	CustomerID    *int64 `json:"customerId,omitempty"`
+	TransactionID *int64 `json:"transactionId,omitempty"`
 }
 
 type UpdatePosition struct {

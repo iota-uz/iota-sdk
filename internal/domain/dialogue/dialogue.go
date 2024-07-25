@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/sashabaranov/go-openai"
 	"time"
 )
