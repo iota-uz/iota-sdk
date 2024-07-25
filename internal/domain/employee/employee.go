@@ -1,8 +1,8 @@
 package employee
 
 import (
-	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/internal/domain/position"
+	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"time"
 )
 

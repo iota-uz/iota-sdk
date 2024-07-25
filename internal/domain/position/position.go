@@ -1,7 +1,7 @@
 package position
 
 import (
-	"github.com/iota-agency/iota-erp/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"time"
 )
 

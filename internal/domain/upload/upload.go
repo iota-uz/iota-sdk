@@ -1,7 +1,7 @@
 package upload
 
 import (
-	model "github.com/iota-agency/iota-erp/graph/gqlmodels"
+	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"time"
 )
 
