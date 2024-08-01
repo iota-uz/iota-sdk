@@ -1,3 +1,5 @@
 <div class=\"grid grid-cols-2 h-screen\"><div class=\"flex flex-col gap-16 justify-center items-center text-left\"><h1 class=\"text-2xl text-gray-950\">Вход</h1><form class=\"flex flex-col gap-7 w-2/3\"><div>
 </div><div>
-</div><button>Войти</button></form></div><div class=\"bg-primary-700\"><img src=\"/static/img/login.png\" alt=\"login\" class=\"w-full h-full object-cover\"></div></div>
+</div>
+Войти
+</form></div><div class=\"bg-primary-700\"><img src=\"/static/img/login.png\" alt=\"login\" class=\"w-full h-full object-cover\"></div></div>
