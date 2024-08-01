@@ -2,6 +2,9 @@ package server
 
 import (
 	"encoding/json"
+	"log"
+	"net/http"
+
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app"
@@ -13,8 +16,6 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/rs/cors"
 	"golang.org/x/text/language"
-	"log"
-	"net/http"
 )
 
 var (
@@ -69,6 +70,7 @@ func (s *Server) Start() error {
 	application := app.New(db)
 	allowOrigins := []string{"http://localhost:3000", "ws://localhost:3000"}
 	loginController := controllers.NewLoginController(application)
+	homeController := controllers.NewHomeController(application)
 
 	r := s.useRouter(
 		cors.New(cors.Options{
@@ -84,8 +86,9 @@ func (s *Server) Start() error {
 		localMiddleware.Authorization(application.AuthService),
 	)
 	r.Handle("/query", graph.NewDefaultServer(application))
-	r.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	r.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
 	r.HandleFunc("/login", loginController.Login).Methods(http.MethodGet, http.MethodPost)
+	r.HandleFunc("/", homeController.Home).Methods(http.MethodGet)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", s.conf.ServerPort)

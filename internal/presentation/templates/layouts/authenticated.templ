@@ -1,0 +1,74 @@
+package layouts
+
+import "github.com/iota-agency/iota-erp/internal/presentation/types"
+import "bytes"
+
+type itemProps struct {
+	name     string
+	href     string
+	children []itemProps
+}
+
+// name: string;
+// icon: Icon;
+// isExpanded: boolean;
+// active: boolean;
+type sidebarLink struct {
+	name        string
+	expanded    bool
+	classes string
+}
+
+func newSidebarLink(name string, active bool) sidebarLink {
+  var classes bytes.Buffer
+  classes.WriteString("flex items-center gap-4 px-4 py-3 text-base font-medium hover:text-gray-200 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-50")
+  if active {
+    classes.WriteString("text-white hover:text-gray-100")
+  } else {
+    classes.WriteString("text-gray-400")
+  }
+
+  return sidebarLink{
+    name: name,
+    classes: classes.String(),
+  }
+}
+
+templ (l sidebarLink) render() {
+	<div class={l.classes}></div>
+}
+
+templ sidebarItem(props itemProps) {
+	<li class="rounded-md">
+    @newSidebarLink(props.name, false).render()
+	</li>
+}
+
+// export function SidebarItem(props: LinkProps) {
+//   const pathname = usePathname();
+//   const active = pathname == props.href;
+//   const [isExpanded, setIsExpanded] = useState(false);
+//   return (
+//     <li onClick={() => setIsExpanded(!isExpanded)} className={cn('rounded-md', active ? 'bg-primary' : '')}>
+//       <SidebarLink name={props.name} href={props.href} icon={props.icon} isExpanded={isExpanded} active={active}/>
+//       {isExpanded && (
+//         <ul className="space-y-2 pl-4">
+//           {props.children && props.children.map((link) => (
+//             <SidebarItem key={link.name} {...link} />
+//           ))}
+//         </ul>
+//       )}
+//     </li>
+//   );
+// }
+templ sidebar() {
+}
+
+templ Authenticated(ctx *types.PageContext) {
+	<div>
+		Authenticated
+		<div>
+			{ children... }
+		</div>
+	</div>
+}

@@ -4,3 +4,4 @@ __pycache__
 postgres-data/
 tmp/
 .env
+.env.local

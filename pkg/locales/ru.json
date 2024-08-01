@@ -5,6 +5,10 @@
       "load": "Ошибка загрузки пользователей"
     }
   },
+  "NavigationLinks": {
+    "Dashboard": "Дашборд",
+    "Users": "Пользователи"
+  },
   "errors": {
     "message": "The requested resource could not be found."
   }
