@@ -34,9 +34,11 @@ templ Index(pageCtx *types.PageContext) {
 							Placeholder: "",
 						})
 					</div>
-					<button>
-						Войти
-					</button>
+					@base.BaseButton(base.BaseButtonProps{
+                        Type: "button",
+                    }) {
+                        Войти
+                    }
 				</form>
 			</div>
 			<div class="bg-primary-700">

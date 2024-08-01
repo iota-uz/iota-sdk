@@ -88,6 +88,7 @@ func (s *Server) Start() error {
 	r.HandleFunc("/login", loginController.Login).Methods(http.MethodGet, http.MethodPost)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", s.conf.ServerPort)
 	log.Fatal(http.ListenAndServe(s.conf.SocketAddress, r))
