@@ -1,4 +1,5 @@
 -- +migrate Up
+BEGIN;
 CREATE EXTENSION vector;
 
 CREATE TABLE uploads
@@ -179,15 +180,6 @@ CREATE TABLE expense_categories
     updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE expenses
-(
-    id             SERIAL PRIMARY KEY,
-    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
-    category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
-    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE employee_contacts
 (
     id          SERIAL PRIMARY KEY,
@@ -266,6 +258,18 @@ CREATE TABLE estimates
     updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
+CREATE TABLE money_accounts
+(
+    id                  SERIAL PRIMARY KEY,
+    name                VARCHAR(255)  NOT NULL,
+    account_number      VARCHAR(255)  NOT NULL,
+    description         TEXT,
+    balance             NUMERIC(9, 2) NOT NULL,
+    balance_currency_id INT           NOT NULL REFERENCES currencies (id) ON DELETE CASCADE,
+    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE transactions
 (
     id                 SERIAL PRIMARY KEY,
@@ -276,6 +280,15 @@ CREATE TABLE transactions
     accounting_period  DATE          NOT NULL      DEFAULT CURRENT_DATE,
     transaction_type   VARCHAR(255)  NOT NULL, -- income, expense, transfer
     created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE expenses
+(
+    id             SERIAL PRIMARY KEY,
+    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
+    category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
+    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE payments
@@ -339,18 +352,6 @@ CREATE TABLE uploaded_images
     height     INT          NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE money_accounts
-(
-    id                  SERIAL PRIMARY KEY,
-    name                VARCHAR(255)  NOT NULL,
-    account_number      VARCHAR(255)  NOT NULL,
-    description         TEXT,
-    balance             NUMERIC(9, 2) NOT NULL,
-    balance_currency_id INT           NOT NULL REFERENCES currencies (id) ON DELETE CASCADE,
-    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE action_log
@@ -736,3 +737,4 @@ DROP TABLE IF EXISTS website_pages CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 
 DROP EXTENSION IF EXISTS vector;
+COMMIT;

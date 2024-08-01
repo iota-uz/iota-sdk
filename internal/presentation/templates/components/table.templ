@@ -1,0 +1,56 @@
+package components
+
+type Column[T any] struct {
+	Label      string
+	Key        string
+	Width      int
+	Field      func(item T) any
+	Subtitle   func(item T) any
+	DateFormat string
+	Duration   bool
+	Sortable   bool
+	Classes    []string
+}
+
+type SortBy string
+
+const (
+	SortByAsc  string = "asc"
+	SortByDesc        = "desc"
+)
+
+type BaseTableProps[T any] struct {
+	PrimaryKey func(value T) string
+	Columns    []Column[T]
+	Data       []T
+	SortBy     map[string]SortBy
+	Loading    bool
+	OnSort     func(sortBy map[string]SortBy)
+	Selected   []string
+	Selector   func(item T) any
+}
+
+templ TableHeaderCell() {
+}
+
+templ TableHeader[T any](columns []Column[T], sortBy map[string]SortBy, onSort func(sortBy map[string]SortBy)) {
+	<thead className="mb-4">
+		<tr className="bg-primary-100 dark:bg-gray-800 rounded-lg">
+      for _, _ := range columns {
+        @TableHeaderCell()
+      }
+    </tr>
+	</thead>
+}
+
+templ TableBody() {
+}
+
+templ BaseTable[T any](props BaseTableProps[T]) {
+	<div className="overflow-x-auto relative">
+		<table className="min-w-full table-auto rounded-table">
+			@TableHeader(props.Columns, props.SortBy, props.OnSort)
+			@TableBody()
+		</table>
+	</div>
+}
