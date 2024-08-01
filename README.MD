@@ -30,6 +30,7 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [Air](https://github.com/cosmtrek/air#Installation)
 * [Docker](https://docs.docker.com/get-docker/)
 * [SQL-Migrate](https://github.com/rubenv/sql-migrate)
+* [Templ](https://templ.guide/)
 
 ## Development
 
@@ -61,6 +62,12 @@ Run in watch mode (hot reload)
 
 ```shell
 air
+```
+
+Run templ in watch mode
+
+```shell
+templ generate -watch
 ```
 
 Now open postman and explore the GraphQL schema at http://localhost:3200/query
@@ -137,6 +144,12 @@ Running the server
 
 ```shell
 go run cmd/server/main.go
+```
+
+Format templ files
+
+```shell
+templ fmt .
 ```
 
 ## Conventions
