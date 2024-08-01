@@ -4,18 +4,18 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"net/http"
+	"time"
+
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/session"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
-	"github.com/iota-agency/iota-erp/sdk/utils/random"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
-	"net/http"
-	"time"
 )
 
 type AuthService struct {
@@ -110,9 +110,14 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 	return tx.Delete(&session.Session{}, "token = ?", token).Error
 }
 
-func (s *AuthService) newSessionToken() string {
-	// TODO: use a secure & truly random generator
-	return random.String(32, random.AlphaNumericSet)
+func (s *AuthService) newSessionToken() (string, error) {
+	b := make([]byte, 24)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(b)
+	return encoded, nil
 }
 
 func (s *AuthService) authenticate(ctx context.Context, id int64) (*user.User, *session.Session, error) {
@@ -123,8 +128,12 @@ func (s *AuthService) authenticate(ctx context.Context, id int64) (*user.User, *
 	ip, _ := composables.UseIp(ctx)
 	userAgent, _ := composables.UseUserAgent(ctx)
 	duration := configuration.Use().SessionDuration
+	token, err := s.newSessionToken()
+	if err != nil {
+		return nil, nil, err
+	}
 	sess := &session.Session{
-		Token:     s.newSessionToken(),
+		Token:     token,
 		UserId:    u.Id,
 		Ip:        ip,
 		UserAgent: userAgent,
