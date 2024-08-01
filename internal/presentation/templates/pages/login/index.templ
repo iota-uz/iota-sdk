@@ -1,0 +1,47 @@
+package login
+
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+)
+
+templ Index(pageCtx *types.PageContext) {
+	@layouts.Default(pageCtx) {
+		<div class="grid grid-cols-2 h-screen">
+			<div class="flex flex-col gap-16 justify-center items-center text-left">
+				<h1 class="text-2xl text-gray-950">
+					Вход
+				</h1>
+				<form class="flex flex-col gap-7 w-2/3">
+					<div>
+						@base.BaseLabel(base.BaseLabelProps{
+							Text: "Почта",
+						})
+						@base.BaseInput(base.BaseInputProps{
+							Type:        "email",
+							Name:        "email",
+							Placeholder: "",
+						})
+					</div>
+					<div>
+						@base.BaseLabel(base.BaseLabelProps{
+							Text: "Пароль",
+						})
+						@base.BaseInput(base.BaseInputProps{
+							Type:        "password",
+							Name:        "password",
+							Placeholder: "",
+						})
+					</div>
+					<button>
+						Войти
+					</button>
+				</form>
+			</div>
+			<div class="bg-primary-700">
+			    <img src="/assets/images/login.svg" alt="login" class="w-full h-full object-cover">
+			</div>
+		</div>
+	}
+}

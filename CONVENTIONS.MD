@@ -35,11 +35,41 @@ project-root/
 │   │   │   ├── user.go
 │   │   │   ├── user_repository.go
 │   │   │   └── user_service.go
-│   └── infrastructure/
-│       ├── persistence/
-│       │   └── user_repository.go
-│       └── event/
-│           └── event_publisher.go
+│   ├── infrastructure/
+│   │   ├── persistence/
+│   │   │   └── user_repository.go
+│   │   └── event/
+│   │       └── event_publisher.go
+│   ├── interfaces/
+│   │   └── graph/
+│   │       ├── users.graphqls
+│   │       ├── users.resolvers.go
+│   │       └── gqlmodels/
+│   │           └── models_gen.go
+│   └── presentation/
+│       ├── templates/
+│       │   ├── pages/
+│       │   │   ├── home/
+│       │   │   │   └── index.templ
+│       │   │   ├── user/
+│       │   │   │   ├── profile.templ
+│       │   │   │   └── list.templ
+│       │   │   ├── admin/
+│       │   │   │   └── dashboard.templ
+│       │   ├── layouts/
+│       │   │   ├── main.templ
+│       │   │   └── admin.templ
+│       │   ├── components/
+│       │   │   ├── navbar.templ
+│       │   │   ├── footer.templ
+│       │   │   └── sidebar.templ
+│       ├── controllers/
+│       │   └── user_controller.go
+│       └── static/
+│           ├── css/
+│           │   └── styles.css
+│           └── js/
+│               └── scripts.js
 └── go.mod
 ```
 
@@ -67,79 +97,47 @@ type Employee struct {
 For queries and mutations, we use camelCase. Below is an example for the `users` service
 
 ```graphql
-type Query {
-    employees: EmployeesPaginated!
-    employee(id: ID!): Employee!
-    usersAggregate(filter: EmployeeFilter): EmployeesAggregate!
-}
-
-type Mutation {
-    createEmployee(input: CreateEmployeeInput!): EmployeeResponse!
-    updateEmployee(id: ID!, input: UpdateEmployeeInput!): EmployeeResponse!
-    deleteEmployee(id: ID!): EmployeeResponse!
-}
-
-type Employee {
-    id: Int!
+type User {
+    id: ID!
+    firstName: String!
+    lastName: String!
     email: String!
-    first_name: String!
-    last_name: String!
-    position_id: Int
-    salary: Float!
+    createdAt: Time!
+    updatedAt: Time!
 }
 
-type EmployeesPaginated {
-    total: Int!
-    data: [Employee]!
+type PaginatedUsers {
+    data: [User!]!
+    total: Int64!
 }
 
-input CreateEmployeeInput {
+input CreateUser {
+    firstName: String!
+    lastName: String!
     email: String!
-    first_name: String!
-    last_name: String!
-    position_id: Int
 }
 
-type UpdateEmployeeInput {
+input UpdateUser {
+    firstName: String
+    lastName: String
     email: String
-    first_name: String
-    last_name: String
-    position_id: Int
 }
 
-type EmployeesAggregate {
-    first_name {
-        count: Int!
-    }
-    last_name {
-        count: Int!
-    }
-    position_id {
-        count: Int!
-    }
-    salary {
-        sum: Float!
-        avg: Float!
-        max: Float!
-        min: Float!
-        count: Int!
-    }
-}
-```
-
-
-#### CRUD operations
-```graphql
-type Query {
-    employees: EmployeesPaginated!
-    employee(id: ID!): Employee!
-    usersAggregate(filter: EmployeeFilter): EmployeesAggregate!
+extend type Query {
+    user(id: ID!): User
+    users(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUsers!
 }
 
-type Mutation {
-    createEmployee(input: CreateEmployeeInput!): EmployeeResponse!
-    updateEmployee(id: ID!, input: UpdateEmployeeInput!): EmployeeResponse!
-    deleteEmployee(id: ID!): EmployeeResponse!
+extend type Mutation {
+    createUser(input: CreateUser!): User!
+    updateUser(id: ID!, input: UpdateUser!): User!
+    deleteUser(id: ID!): User!
+}
+
+extend type Subscription {
+    userCreated: User!
+    userUpdated: User!
+    userDeleted: User!
 }
 ```
 

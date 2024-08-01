@@ -7,7 +7,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"gorm.io/gorm"
 	"net/http"
 	"time"
 )
@@ -19,15 +18,13 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	db  *gorm.DB
 	app *services.Application
 }
 
-func NewDefaultServer(db *gorm.DB, app *services.Application) *handler.Server {
+func NewDefaultServer(app *services.Application) *handler.Server {
 	srv := handler.New(NewExecutableSchema(
 		Config{
 			Resolvers: &Resolver{
-				db:  db,
 				app: app,
 			},
 		},

@@ -6,11 +6,11 @@ commands:
       type:
         required: true
     templates:
-      - template: templates/repository_interface.templ
+      - template: templates/repository_interface.gohtml
         output: internal/domain/{{ .Name }}/{{ .Name }}_repository.go
-      - template: templates/entity.templ
+      - template: templates/entity.gohtml
         output: internal/domain/{{ .Name }}/{{ .Name }}.go
-      - template: templates/service.templ
+      - template: templates/service.gohtml
         output: internal/app/services/{{ .Name }}_service.go
-      - template: templates/repository.templ
+      - template: templates/repository.gohtml
         output: internal/infrastracture/persistence/{{ .Name }}_repository.go
