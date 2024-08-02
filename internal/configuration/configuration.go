@@ -26,6 +26,7 @@ type Configuration struct {
 	OpenAIKey          string
 	UploadsPath        string
 	FrontendDomain     string
+	SidCookieKey       string
 }
 
 func Use() *Configuration {
@@ -66,5 +67,6 @@ func (c *Configuration) Load() error {
 	c.OpenAIKey = env.MustGetEnv("OPENAI_KEY")
 	c.UploadsPath = env.GetEnv("UPLOADS_PATH", "uploads")
 	c.FrontendDomain = env.GetEnv("FRONTEND_DOMAIN", "localhost")
+	c.SidCookieKey = env.GetEnv("SID_COOKIE_KEY", "sid")
 	return nil
 }

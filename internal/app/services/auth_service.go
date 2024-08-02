@@ -75,7 +75,7 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     "token",
+		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
