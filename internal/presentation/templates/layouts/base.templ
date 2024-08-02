@@ -1,0 +1,32 @@
+package layouts
+
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/assets"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+)
+
+var (
+	mainCss = "/assets/" + assets.FS.HashName("css/main.min.css")
+	favicon = "/assets/" + assets.FS.HashName("images/favicon.ico")
+)
+
+templ Base(pageCtx *types.PageContext) {
+	<!DOCTYPE html>
+	<html lang="en" class="system">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<link rel="icon" type="image/x-icon" href={ favicon }/>
+			<title>{ pageCtx.Title }</title>
+			<link rel="stylesheet" href={ mainCss }/>
+			// <link rel="manifest" href="/assets/app.webmanifest"/>
+			<link rel="preload" href="/assets/fonts/Inter.var.woff2" as="font" type="font/woff2"/>
+			// <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+			// <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fff"/>
+			// <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#18181b"/>
+		</head>
+		<body class="antialiased">
+			{ children... }
+		</body>
+	</html>
+}

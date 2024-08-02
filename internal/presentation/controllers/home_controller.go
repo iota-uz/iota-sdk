@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
@@ -21,7 +20,7 @@ func NewHomeController(app *services.Application) *HomeController {
 }
 
 func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("HELLO WORLD")
+	pathname := r.URL.Path
 	localizer, found := composables.UseLocalizer(r.Context())
 	if !found {
 		http.Error(w, "localizer not found", http.StatusInternalServerError)
@@ -29,6 +28,7 @@ func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
 	}
 	pageCtx := &types.PageContext{
 		Localizer: localizer,
+		Pathname:  pathname,
 	}
 	if err := home.Index(pageCtx).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

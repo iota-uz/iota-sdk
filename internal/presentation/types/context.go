@@ -6,6 +6,7 @@ type PageContext struct {
 	Title     string
 	Lang      string
 	Localizer *i18n.Localizer
+	Pathname  string
 }
 
 func (p *PageContext) T(k string) string {

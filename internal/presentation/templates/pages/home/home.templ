@@ -6,7 +6,5 @@ import (
 )
 
 templ Index(pageContext *types.PageContext) {
-  @layouts.Authenticated(pageContext) {
-    <div>Hello world 2</div>
-  }
+  @layouts.Authenticated(pageContext) {}
 }
