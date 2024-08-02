@@ -26,7 +26,7 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     "token",
+		Name:     conf.SidCookieKey,
 		Value:    session.Token,
 		Expires:  session.ExpiresAt,
 		HttpOnly: false,
