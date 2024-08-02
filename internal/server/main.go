@@ -6,10 +6,12 @@ import (
 	"net/http"
 
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/interfaces/graph"
+	"github.com/iota-agency/iota-erp/internal/presentation/assets"
 	"github.com/iota-agency/iota-erp/internal/presentation/controllers"
 	localMiddleware "github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/sdk/middleware"
@@ -90,6 +92,9 @@ func (s *Server) Start() error {
 	r.HandleFunc("/login", loginController.Login).Methods(http.MethodGet, http.MethodPost)
 	r.HandleFunc("/", homeController.Home).Methods(http.MethodGet)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
+	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
+	r.PathPrefix("/assets").Handler(http.StripPrefix("/assets", hashfs.FileServer(assets.FS)))
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", s.conf.ServerPort)
 	log.Fatal(http.ListenAndServe(s.conf.SocketAddress, r))

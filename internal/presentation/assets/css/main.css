@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  src: url(/assets/Inter.var.woff2) format('woff2-variations');
+  font-weight: 1 1000;
+}
+
+html {
+  /* Base */
+  --white: 100% 0 0;
+  --black: 18.67% 0 0; /* #131313 */
+  --transparent: 0 0 0 / 0;
+
+  /* Primary */
+  --primary-500: 58.73% 0.23 279.66; /* #695EFF */
+  --primary-600: 50% 0.192 279.97; /* #544BCC */
+  --primary-700: 45.57% 0.171 280.34; /* #4A42B2 */
+
+  /* Gray */
+  --gray-100: 98.03% 0.005 286.3; /* #F8F8FC */
+  --gray-200: 96.04% 0.011 286.2; /* #F1F1F9 */
+  --gray-300: 92.39% 0.009 286.21; /* #E5E5EC */
+  --gray-400: 71.07% 0.035 256.79; /* #94A3B8 */
+
+
+  /* Red */
+  --red-500: 59.16% 0.218 0.58;
+  --red-100: var(--red-500) / 10%;
+  --red-200: var(--red-500) / 20%;
+
+  /* Default btn */
+  --clr-btn-bg: var(--transparent);
+  --clr-btn-text: var(--black);
+  --clr-btn-border: var(--transaprent);
+  --clr-btn-hover: var(--gray-100);
+
+  /* Primary btn */
+}
+
+html.light {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+button {
+  cursor: default;
+}
+
+button:disabled {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.btn {
+  --text-color: var(--clr-btn-text);
+  --bg-color: var(--crl-btn-bg);
+  --events: all;
+  --size-x: 1rem;
+  --size-y: 0.75rem;
+  --font-size: 0.875rem;
+  --radius: 0.5rem;
+  background-color: oklch(var(--bg-color));
+}
