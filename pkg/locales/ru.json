@@ -7,8 +7,23 @@
   },
   "NavigationLinks": {
     "Dashboard": "Дашборд",
-    "Users": "Пользователи"
+    "Users": "Пользователи",
+    "BI-Chat": "BI-Chat",
+    "KnowledgeBase": "База знаний",
+    "Operations": "Операционка",
+    "Employees": "Сотрудники",
+    "Settings": "Настройки",
+    "Calendar": "Календарь",
+    "Enums": "Справочник",
+    "TaskTypes": "Тип задач",
+    "Positions": "Должности",
+    "CashFlow": "Денежный поток",
+    "Projects": "Проекты",
+    "ExpenseCategories": "Категории расходов",
+    "Payments": "Платежи",
+    "Reports": "Отчеты"
   },
+  "SignOut": "Выйти",
   "errors": {
     "message": "The requested resource could not be found."
   }

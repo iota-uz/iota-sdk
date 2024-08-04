@@ -4,6 +4,21 @@
   },
   "NavigationLinks": {
     "Dashboard": "Dashboard",
-    "Users": "Users"
-  }
+    "Users": "Users",
+    "BI-Chat": "BI-Chat",
+    "KnowledgeBase": "Knowledge Base",
+    "Operations": "Operations",
+    "Employees": "Employees",
+    "Settings": "Settings",
+    "Calendar": "Calendar",
+    "Enums": "Enums",
+    "TaskTypes": "Task Types",
+    "Positions": "Positions",
+    "CashFlow": "Cash Flow",
+    "Projects": "Projects",
+    "ExpenseCategories": "Expense Categories",
+    "Payments": "Payments",
+    "Reports": "Reports"
+  },
+  "SignOut": "Sign out"
 }

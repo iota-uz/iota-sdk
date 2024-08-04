@@ -1,11 +1,17 @@
 package layouts
 
 import (
-	"bytes"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/assets"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"bytes"
 )
 
+var (
+	iotaLogo = "/assets/" + assets.FS.HashName("images/iota-1c.png")
+)
 
 type sidebarItem struct {
 	name     string
@@ -17,25 +23,22 @@ type sidebarItem struct {
 type sidebarLink struct {
 	name     string
 	expanded bool
-	classes  string
+	class    string
 	href     string
 	icon     templ.Component
 }
 
 func newSidebarLink(name, href string, icon templ.Component, active bool) sidebarLink {
-	var classes bytes.Buffer
-	classes.WriteString("flex items-center gap-4 px-4 py-3 text-base font-medium hover:text-gray-200 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-50")
+	var class bytes.Buffer
+	class.WriteString("gap-2 w-full")
 	if active {
-		classes.WriteString("text-white hover:text-gray-100")
-	} else {
-		classes.WriteString("text-gray-400")
+		class.WriteString(" active")
 	}
-
 	return sidebarLink{
-		name:    name,
-		classes: classes.String(),
-		href:    href,
-		icon:    icon,
+		name: name,
+		href: href,
+		icon: icon,
+		class: class.String(),
 	}
 }
 
@@ -49,54 +52,90 @@ func newSidebarItem(name, href string, icon templ.Component, children []sidebarI
 }
 
 templ (l sidebarLink) render() {
-	<a class={ l.classes } href={ templ.URL(l.href) }>
-		@l.icon
+	@button.Sidebar(button.Props{Size: "md", Href: l.href, Class: l.class}) {
+		if l.icon != nil {
+			@l.icon
+		}
 		{ l.name }
-	</a>
+	}
 }
 
 templ (i sidebarItem) render(pathname string) {
-	<li class="rounded-md">
-		@newSidebarLink(i.name, i.href, i.icon, pathname == i.href).render()
+	<li>
 		if len(i.children) > 0 {
-			<ul>
-				for _, item := range i.children {
-					<div>{ item.name }</div>
-				}
-			</ul>
+			<details class="group">
+				<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
+					if i.icon != nil {
+						@i.icon
+					}
+					{ i.name }
+					@icons.CaretUp(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
+				</summary>
+				<ul class="ml-4 mt-2 flex flex-col gap-2">
+					for _, item := range i.children {
+						@newSidebarLink(item.name, item.href, item.icon, item.href == pathname).render()
+					}
+				</ul>
+			</details>
+		} else {
+			@newSidebarLink(i.name, i.href, i.icon, i.href == pathname).render()
 		}
 	</li>
 }
 
-templ sidebar(pathname string) {
-	<div key="1" className="flex w-full flex-col bg-gray-950 shadow-lg p-6">
-		<div className="flex h-16 items-center justify-center">
-			<a href="#" class="flex items-center gap-2">
-				<img src="/svg/iota-1c.png" alt="Logo" width="150" height="50"/>
+templ sidebar(pathname string, l *i18n.Localizer) {
+	<div class="flex w-full flex-col bg-black shadow-lg py-6">
+		<div class="flex h-16 items-center justify-center px-6">
+			<a href="/" class="flex items-center gap-2">
+				<img src={ iotaLogo } alt="Logo" width="150" height="50"/>
 			</a>
 		</div>
-		<nav className="flex-1 overflow-y-auto py-4">
-			<ul className="flex flex-col gap-2 h-full">
-				@newSidebarItem("Dashboard", "/", icons.Gauge(icons.Props{Size: "24"}), []sidebarItem{}).render(pathname)
-				@newSidebarItem("Users", "/users", icons.Users(icons.Props{Size: "24"}), []sidebarItem{}).render(pathname)
-				<div className="flex-grow"></div>
-				// <SidebarLink
-				//   className="mt-4"
-				//   name={t('logout')}
-				//   icon={Icons.SignOut}
-				//   href="/logout"
-				//   active={false}
-				//   isExpanded={false}
-				// />
+		<nav class="py-4 flex-1">
+			<ul class="flex flex-col gap-2 bg-black overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar">
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}), "/", icons.Gauge(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}), "/users", icons.Users(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.BI-Chat"}), "/bi-chat", icons.ChatCircle(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.KnowledgeBase"}), "/knowledge-base", icons.Book(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Operations"}), "#",
+					icons.Pulse(icons.Props{Size: "20"}),
+					[]sidebarItem{
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Employees"}), href: "/operations/employees"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Settings"}), href: "/settings"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Calendar"}), href: "/calendar"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Projects"}), href: "/projects"},
+					}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Enums"}), "#",
+					icons.CheckCircle(icons.Props{Size: "20"}),
+					[]sidebarItem{
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.TaskTypes"}), href: "/enums/task-types"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Positions"}), href: "/enums/positions"},
+					}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.CashFlow"}), "#",
+					icons.Money(icons.Props{Size: "20"}),
+					[]sidebarItem{
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}), href: "/cashflow/expense-categories"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Payments"}), href: "/cashflow/payments"},
+					}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Reports"}), "#",
+					icons.FileText(icons.Props{Size: "20"}),
+					[]sidebarItem{
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.CashFlow"}), href: "/reports/cash-flow"},
+					}).render(pathname)
 			</ul>
 		</nav>
+		<div class="px-6">
+			@button.Sidebar(button.Props{Size: "md", Class: "w-full gap-2"}) {
+				@icons.SignOut(icons.Props{Size: "20"})
+				{l.MustLocalize(&i18n.LocalizeConfig{MessageID: "SignOut"})}
+			}
+		</div>
 	</div>
 }
 
 templ Authenticated(pageCtx *types.PageContext) {
 	@Base(pageCtx) {
 		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
-			@sidebar(pageCtx.Pathname)
+			@sidebar(pageCtx.Pathname, pageCtx.Localizer)
 			{ children... }
 		</div>
 	}

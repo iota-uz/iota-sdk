@@ -1,0 +1,58 @@
+package button
+
+type BaseButtonProps struct {
+	Type string
+}
+
+templ BaseButton(props BaseButtonProps) {
+	<button
+		class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+		type={ props.Type }
+	>
+		{ children... }
+	</button>
+}
+
+type Props struct {
+	variant string
+	Size    string
+	Href    string
+	Class   string
+	Attrs   templ.Attributes
+}
+
+templ base(props Props) {
+	if len(props.Href) > 0 {
+		<a href={ templ.SafeURL(props.Href) } class={ "btn", "btn-" + props.variant, "btn-" + props.Size, props.Class } { props.Attrs... }>
+			{ children... }
+		</a>
+	} else {
+		<button class={ "btn", "btn-" + props.variant, "btn-" + props.Size, props.Class } { props.Attrs... }>
+			{ children... }
+		</button>
+	}
+}
+
+templ Primary(props Props) {
+	@base(Props{variant: "primary", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}) {
+		{ children... }
+	}
+}
+
+templ Secondary(props Props) {
+	@base(Props{variant: "secondary", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}) {
+		{ children... }
+	}
+}
+
+templ PrimaryOutline(props Props) {
+	@base(Props{variant: "primary-outline", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}) {
+		{ children... }
+	}
+}
+
+templ Sidebar(props Props) {
+	@base(Props{variant: "sidebar", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}) {
+		{ children... }
+	}
+}
