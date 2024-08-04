@@ -97,8 +97,7 @@ func (s *Server) Start() error {
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", s.conf.ServerPort)
-	log.Fatal(http.ListenAndServe(s.conf.SocketAddress, r))
-	return nil
+	return http.ListenAndServe(s.conf.SocketAddress, r)
 }
 
 func New() *Server {
