@@ -93,7 +93,7 @@ func (s *Server) Start() error {
 	r.HandleFunc("/", homeController.Home).Methods(http.MethodGet)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
-	r.PathPrefix("/assets").Handler(http.StripPrefix("/assets", hashfs.FileServer(assets.FS)))
+	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", s.conf.ServerPort)
