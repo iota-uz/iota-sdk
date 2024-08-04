@@ -33,6 +33,12 @@
   --red-100: var(--red-500) / 10%;
   --red-200: var(--red-500) / 20%;
 
+  /* Bg */
+  --bg: var(--gray-100);
+
+  /* Text */
+  --text-color: var(--black);
+
   /* Default btn */
   --clr-btn-bg: var(--transparent);
   --clr-btn-bg-active: var(--gray-200);
@@ -81,12 +87,20 @@
   color: rgb(var(--white));
 }
 
+html {
+  background-color: oklch(var(--bg));
+  color: oklch(var(--text-color));
+}
+
+
 html.light {
   color-scheme: light;
+  --text-color: var(--black);
 }
 
 html.dark {
   color-scheme: dark;
+  --text-color: var(--white);
 }
 
 button {

@@ -29,6 +29,7 @@ func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
 	pageCtx := &types.PageContext{
 		Localizer: localizer,
 		Pathname:  pathname,
+		Title:     "Dashboard",
 	}
 	if err := home.Index(pageCtx).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
