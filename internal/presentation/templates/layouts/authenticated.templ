@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"bytes"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 )
 
 var (
@@ -132,11 +133,38 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 	</div>
 }
 
+templ avatar() {
+	<summary class="w-9 h-9 rounded-full bg-primary-500/15 text-primary-500 font-medium flex items-center justify-center cursor-pointer">
+		Ш
+	</summary>
+}
+
+templ Navbar() {
+	<section class="h-16 shadow-b-lg border-b border-b-gray-500 w-full bg-white flex items-center justify-center px-8">
+		<div class="ml-auto">
+			@base.DetailsDropdown(avatar()) {
+				@base.DropdownItem(base.DropdownItemProps{ Href: "/account" }) {
+					Профиль
+				}
+				@base.DropdownItem(base.DropdownItemProps{ Href: "/settings" }) {
+					Настройки
+				}
+				@base.DropdownItem(base.DropdownItemProps{ Href: "/logout" }) {
+					Выйти
+				}
+			}
+		</div>
+	</section>
+}
+
 templ Authenticated(pageCtx *types.PageContext) {
 	@Base(pageCtx) {
 		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
 			@sidebar(pageCtx.Pathname, pageCtx.Localizer)
-			{ children... }
+			<div>
+				@Navbar()
+				{ children... }
+			</div>
 		</div>
 	}
 }
