@@ -96,7 +96,7 @@ func DetailsDropdown(summary templ.Component) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<details class=\"relative details-dropdown z-10 peer\" name=\"details-dropdown\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div><details class=\"relative details-dropdown z-10 peer\" name=\"details-dropdown\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -112,7 +112,7 @@ func DetailsDropdown(summary templ.Component) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</ul></details> <details class=\"hidden peer-open:block\" name=\"details-dropdown\"><summary class=\"fixed w-full h-full left-0 top-0\">Hello</summary></details>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</ul></details><details class=\"hidden peer-open:block\" name=\"details-dropdown\"><summary class=\"fixed w-full h-full left-0 top-0\">Hello</summary></details></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
