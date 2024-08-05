@@ -707,56 +707,28 @@ form:invalid .btn:not(.btn-enabled) {
   left: 0px;
 }
 
+.left-3 {
+  left: 0.75rem;
+}
+
 .right-0 {
   right: 0px;
-}
-
-.top-0 {
-  top: 0px;
-}
-
-.right-4 {
-  right: 1rem;
-}
-
-.top-1\/2 {
-  top: 50%;
-}
-
-.right-6 {
-  right: 1.5rem;
-}
-
-.left-6 {
-  left: 1.5rem;
-}
-
-.left-4 {
-  left: 1rem;
 }
 
 .right-3 {
   right: 0.75rem;
 }
 
-.left-3 {
-  left: 0.75rem;
+.top-0 {
+  top: 0px;
 }
 
-.-right-3 {
-  right: -0.75rem;
+.top-1\/2 {
+  top: 50%;
 }
 
 .z-10 {
   z-index: 10;
-}
-
-.-z-10 {
-  z-index: -10;
-}
-
-.mb-2 {
-  margin-bottom: 0.5rem;
 }
 
 .mb-4 {
@@ -777,10 +749,6 @@ form:invalid .btn:not(.btn-enabled) {
 
 .block {
   display: block;
-}
-
-.inline-block {
-  display: inline-block;
 }
 
 .flex {
@@ -823,10 +791,6 @@ form:invalid .btn:not(.btn-enabled) {
   height: 100vh;
 }
 
-.h-0 {
-  height: 0px;
-}
-
 .min-h-screen {
   min-height: 100vh;
 }
@@ -859,18 +823,13 @@ form:invalid .btn:not(.btn-enabled) {
   table-layout: auto;
 }
 
-.-translate-y-1\/2 {
-  --tw-translate-y: -50%;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-
 .-translate-x-3 {
   --tw-translate-x: -0.75rem;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
-.translate-x-3 {
-  --tw-translate-x: 0.75rem;
+.-translate-y-1\/2 {
+  --tw-translate-y: -50%;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
@@ -1004,12 +963,12 @@ form:invalid .btn:not(.btn-enabled) {
   padding: 0.5rem;
 }
 
-.p-6 {
-  padding: 1.5rem;
-}
-
 .p-4 {
   padding: 1rem;
+}
+
+.p-6 {
+  padding: 1.5rem;
 }
 
 .px-3 {
@@ -1040,14 +999,6 @@ form:invalid .btn:not(.btn-enabled) {
 .py-6 {
   padding-top: 1.5rem;
   padding-bottom: 1.5rem;
-}
-
-.pl-8 {
-  padding-left: 2rem;
-}
-
-.pr-8 {
-  padding-right: 2rem;
 }
 
 .pl-10 {
