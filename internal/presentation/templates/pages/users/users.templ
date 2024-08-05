@@ -1,22 +1,42 @@
 package users
 
 import (
-  "github.com/iota-agency/iota-erp/internal/presentation/types"
-  "github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
+type User struct {
+	Name    string
+	Address string
+}
+
+var users = []User{{Name: "Avazbek", Address: "Dom22"}}
 templ Index(pageContext *types.PageContext) {
-  @layouts.Authenticated(pageContext) {
-    <div class="p-6">
-      <h1 class="text-2xl font-medium">
-        {pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"})}
-      </h1>
-      <div class="border border-gray-500 p-4">
-        <section>
-        </section>
-      </div>
-    </div>
-  }
+	@layouts.Authenticated(pageContext) {
+		<div class="p-6">
+			<h1 class="text-2xl font-medium">
+				{ pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}) }
+			</h1>
+			<div class="mt-5 table-bg">
+				<section></section>
+        @base.Table([]*base.TableColumn{
+          {Label: "Name", Key: "name"},
+          {Label: "Address", Key: "address"},
+        }) {
+          for _, user := range users {
+            @base.TableRow() {
+              @base.TableCell() {
+                {user.Name}
+              }
+              @base.TableCell() {
+                {user.Address}
+              }
+            }
+          }
+        }
+			</div>
+		</div>
+	}
 }

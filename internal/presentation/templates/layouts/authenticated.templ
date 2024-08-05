@@ -12,6 +12,8 @@ import (
 
 var (
 	iotaLogo = "/assets/" + assets.FS.HashName("images/iota-1c.png")
+
+	navbarOnce = templ.NewOnceHandle()
 )
 
 type sidebarItem struct {
@@ -85,14 +87,14 @@ templ (i sidebarItem) render(pathname string) {
 }
 
 templ sidebar(pathname string, l *i18n.Localizer) {
-	<div class="flex w-full flex-col bg-black shadow-lg py-6">
+	<div class="flex w-full flex-col bg-primary shadow-lg py-6">
 		<div class="flex h-16 items-center justify-center px-6">
 			<a href="/" class="flex items-center gap-2">
 				<img src={ iotaLogo } alt="Logo" width="150" height="50"/>
 			</a>
 		</div>
 		<nav class="py-4 flex-1">
-			<ul class="flex flex-col gap-2 bg-black overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar">
+			<ul class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar">
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}), "/", icons.Gauge(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}), "/users", icons.Users(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.BI-Chat"}), "/bi-chat", icons.ChatCircle(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
@@ -134,14 +136,51 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 }
 
 templ avatar() {
-	<summary class="w-9 h-9 rounded-full bg-primary-500/15 text-primary-500 font-medium flex items-center justify-center cursor-pointer">
+	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
 		Ш
 	</summary>
 }
 
+script changeTheme() {
+}
+
 templ Navbar() {
-	<section class="h-16 shadow-b-lg border-b border-b-gray-500 w-full bg-white flex items-center justify-center px-8">
-		<div class="ml-auto">
+	@navbarOnce.Once() {
+		<script>
+			let THEME_STORAGE_KEY = "iota-theme";
+			let savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+			let initialTheme = savedTheme ?? "system";
+			let root = document.documentElement;
+			let previousTheme = initialTheme;
+			function changeTheme(theme) {
+				root.classList.remove(previousTheme);
+				if (!theme) theme = initialTheme;
+				window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+				root.classList.add(theme)
+				previousTheme = theme;
+			}
+			function onThemeChange(input) {
+				changeTheme(input.value);
+			}
+		</script>
+	}
+
+	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-navbar border-b-primary">
+		<div class="ml-auto flex items-center gap-8">
+			<div class="flex items-center justify-center">
+				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked />
+				<label for="theme-light" class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/system:visible">
+					@icons.Desktop(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/system:group-[]/system:scale-100"})
+				</label>
+				<input class="peer/light appearance-none absolute" type="radio" name="theme" value="light" id="theme-light" onchange="onThemeChange(this)"/>
+				<label for="theme-dark" class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/light:visible">
+					@icons.SunFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100"})
+				</label>
+				<input class="peer/dark appearance-none absolute" type="radio" name="theme" value="dark" id="theme-dark" onchange="onThemeChange(this)" />
+				<label for="theme-system" class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white invisible peer-checked/dark:visible">
+					@icons.MoonFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100"})
+				</label>
+			</div>
 			@base.DetailsDropdown(avatar()) {
 				@base.DropdownItem(base.DropdownItemProps{ Href: "/account" }) {
 					Профиль
