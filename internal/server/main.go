@@ -73,6 +73,7 @@ func (s *Server) Start() error {
 	allowOrigins := []string{"http://localhost:3000", "ws://localhost:3000"}
 	loginController := controllers.NewLoginController(application)
 	homeController := controllers.NewHomeController(application)
+	userController := controllers.NewUserController(application)
 
 	r := s.useRouter(
 		cors.New(cors.Options{
@@ -91,6 +92,7 @@ func (s *Server) Start() error {
 	r.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
 	r.HandleFunc("/login", loginController.Login).Methods(http.MethodGet, http.MethodPost)
 	r.HandleFunc("/", homeController.Home).Methods(http.MethodGet)
+	r.HandleFunc("/users", userController.Users).Methods(http.MethodGet)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))

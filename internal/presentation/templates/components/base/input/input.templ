@@ -1,0 +1,114 @@
+package input
+
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-erp/sdk/utils/random"
+)
+
+var passwordLockOnce = templ.NewOnceHandle()
+
+type addonPosition int
+
+const (
+	AddonRight = addonPosition(iota + 1)
+	AddonLeft
+)
+
+type Addon struct {
+	Render    func(props *Props) templ.Component
+	Component templ.Component
+	Position  addonPosition
+}
+
+type Props struct {
+	Placeholder string
+	Label       string
+	Class       string
+	Attrs       templ.Attributes
+	Addon       *Addon
+	id          string
+	typ         string
+}
+
+func newInput(props *Props) *Props {
+	id := random.String(12, random.LowerCharSet)
+	class := ""
+	if props.Addon != nil {
+		if props.Addon.Position == AddonLeft {
+			class += "pl-10"
+		} else if props.Addon.Position == AddonRight {
+			class += "pr-10"
+		}
+	}
+
+	return &Props{id: id, Label: props.Label, Class: class + " " + props.Class, Attrs: props.Attrs, Addon: props.Addon, typ: props.typ, Placeholder: props.Placeholder}
+}
+
+templ (p *Props) render() {
+	<div class="flex flex-col gap-2">
+		if len(p.Label) > 0 {
+			<label for={ p.id } class="form-control-label">{ p.Label }</label>
+		}
+		<div class="w-full relative">
+			if p.Addon != nil && p.Addon.Position == AddonLeft {
+				<div class="absolute left-3 top-1/2 -translate-y-1/2">
+					if p.Addon.Render != nil {
+						@p.Addon.Render(p)
+					} else if p.Addon.Component != nil {
+						@p.Addon.Component
+					}
+				</div>
+			}
+			<input id={ p.id } class={ "form-control w-full", p.Class } type={ p.typ } placeholder={ p.Placeholder } { p.Attrs... }/>
+			if p.Addon != nil && p.Addon.Position == AddonRight {
+				<div class="absolute -translate-x-3 right-3 top-1/2 -translate-y-1/2">
+					if p.Addon.Render != nil {
+						@p.Addon.Render(p)
+					} else if p.Addon.Component != nil {
+						@p.Addon.Component
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ Text(props *Props) {
+	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon}).render()
+}
+
+templ passwordLock(p *Props) {
+	@passwordLockOnce.Once() {
+		<script>
+			function onPasswordLockChange(checkbox) {
+				let inputId = checkbox.value;
+				let input = document.getElementById(inputId);
+				if (input) {
+					if (checkbox.checked) input.setAttribute("type", "text")
+					else input.setAttribute("type", "password")
+				}
+			}
+    </script>
+	}
+	<label class="flex items-center justify-center">
+		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } onchange="onPasswordLockChange(this)"/>
+		@icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"})
+		@icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"})
+	</label>
+}
+
+templ Password(props *Props) {
+	@newInput(&Props{
+		typ:         "password",
+		Class:       props.Class,
+		Label:       props.Label,
+		Attrs:       props.Attrs,
+		Placeholder: props.Placeholder,
+		Addon: &Addon{
+			Position: AddonRight,
+			Render: func(p *Props) templ.Component {
+				return passwordLock(p)
+			},
+		},
+	}).render()
+}
