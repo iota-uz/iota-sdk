@@ -1,0 +1,42 @@
+package base
+
+type TableColumn struct {
+	Label      string
+	Key        string
+	Width      int
+	DateFormat string
+	Duration   bool
+	Sortable   bool
+}
+
+templ TableRow() {
+	<tr>{ children... }
+</tr>
+}
+
+templ TableCell() {
+	<td class="p-4">{ children... }
+</td>
+}
+
+type TableProps struct {
+	Columns []*TableColumn
+	Class   string
+}
+
+templ Table(columns []*TableColumn) {
+	<div class="overflow-x-auto relative">
+		<table class="min-w-full table-auto border border-primary rounded-lg table bg-table text-sm">
+			<thead>
+        <tr class="bg-table-heading text-table-heading">
+          for _, col := range columns {
+            <th class="px-4 py-3 font-normal text-left border-r-0 border-b-0">{ col.Label }</th>
+          }
+        </tr>
+			</thead>
+			<tbody>
+				{ children... }
+			</tbody>
+		</table>
+	</div>
+}
