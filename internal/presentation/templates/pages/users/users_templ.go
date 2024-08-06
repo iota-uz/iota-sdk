@@ -9,20 +9,16 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"fmt"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"time"
 )
 
-type User struct {
-	Name    string
-	Address string
-}
-
-var users = []User{{Name: "Avazbek", Address: "Dom22"}}
-
-func Index(pageContext *types.PageContext) templ.Component {
+func Index(pageContext *types.PageContext, users []*user.User) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -59,7 +55,7 @@ func Index(pageContext *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 20, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 17, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -107,9 +103,9 @@ func Index(pageContext *types.PageContext) templ.Component {
 							}
 							ctx = templ.InitializeContext(ctx)
 							var templ_7745c5c3_Var7 string
-							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(user.Name)
+							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(user.FullName())
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 31, Col: 26}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 30, Col: 32}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 							if templ_7745c5c3_Err != nil {
@@ -137,18 +133,103 @@ func Index(pageContext *types.PageContext) templ.Component {
 								}()
 							}
 							ctx = templ.InitializeContext(ctx)
-							var templ_7745c5c3_Var9 string
-							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(user.Address)
-							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 34, Col: 29}
+							if v := user.LastAction; v != nil {
+								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div x-data=\"relativeformat\"><span x-text=\"")
+								if templ_7745c5c3_Err != nil {
+									return templ_7745c5c3_Err
+								}
+								var templ_7745c5c3_Var9 string
+								templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", v.Format(time.RFC3339)))
+								if templ_7745c5c3_Err != nil {
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 35, Col: 75}
+								}
+								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+								if templ_7745c5c3_Err != nil {
+									return templ_7745c5c3_Err
+								}
+								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"></span></div>")
+								if templ_7745c5c3_Err != nil {
+									return templ_7745c5c3_Err
+								}
+							} else {
+								var templ_7745c5c3_Var10 string
+								templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Unknown"}))
+								if templ_7745c5c3_Err != nil {
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 38, Col: 88}
+								}
+								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+								if templ_7745c5c3_Err != nil {
+									return templ_7745c5c3_Err
+								}
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+							return templ_7745c5c3_Err
+						})
+						templ_7745c5c3_Err = base.TableCell().Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Var11 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+							templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+							templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+							if !templ_7745c5c3_IsBuffer {
+								defer func() {
+									templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+									if templ_7745c5c3_Err == nil {
+										templ_7745c5c3_Err = templ_7745c5c3_BufErr
+									}
+								}()
+							}
+							ctx = templ.InitializeContext(ctx)
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div x-data=\"relativeformat\"><span x-text=\"")
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							var templ_7745c5c3_Var12 string
+							templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339)))
+							if templ_7745c5c3_Err != nil {
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 43, Col: 87}
+							}
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"></span></div>")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 							return templ_7745c5c3_Err
 						})
-						templ_7745c5c3_Err = base.TableCell().Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = base.TableCell().Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Var13 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+							templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+							templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+							if !templ_7745c5c3_IsBuffer {
+								defer func() {
+									templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+									if templ_7745c5c3_Err == nil {
+										templ_7745c5c3_Err = templ_7745c5c3_BufErr
+									}
+								}()
+							}
+							ctx = templ.InitializeContext(ctx)
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div>Edit</div>")
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							return templ_7745c5c3_Err
+						})
+						templ_7745c5c3_Err = base.TableCell().Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -162,8 +243,10 @@ func Index(pageContext *types.PageContext) templ.Component {
 				return templ_7745c5c3_Err
 			})
 			templ_7745c5c3_Err = base.Table([]*base.TableColumn{
-				{Label: "Name", Key: "name"},
-				{Label: "Address", Key: "address"},
+				{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FullName"}), Key: "fullName"},
+				{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastAction"}), Key: "lastAction"},
+				{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "UpdatedAt"}), Key: "updatedAt"},
+				{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Actions"})},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

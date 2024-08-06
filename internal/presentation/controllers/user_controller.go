@@ -32,5 +32,10 @@ func (c *UserController) Users(w http.ResponseWriter, r *http.Request) {
 		Pathname:  pathname,
 		Title:     "Users",
 	}
-	templ.Handler(users.Index(pageCtx), templ.WithStreaming()).ServeHTTP(w, r)
+	us, err := c.app.UserService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retreving users", http.StatusInternalServerError)
+		return
+	}
+	templ.Handler(users.Index(pageCtx, us), templ.WithStreaming()).ServeHTTP(w, r)
 }

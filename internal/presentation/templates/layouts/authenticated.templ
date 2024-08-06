@@ -141,30 +141,7 @@ templ avatar() {
 	</summary>
 }
 
-script changeTheme() {
-}
-
 templ Navbar() {
-	@navbarOnce.Once() {
-		<script>
-			let THEME_STORAGE_KEY = "iota-theme";
-			let savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-			let initialTheme = savedTheme ?? "system";
-			let root = document.documentElement;
-			let previousTheme = initialTheme;
-			function changeTheme(theme) {
-				root.classList.remove(previousTheme);
-				if (!theme) theme = initialTheme;
-				window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-				root.classList.add(theme)
-				previousTheme = theme;
-			}
-			function onThemeChange(input) {
-				changeTheme(input.value);
-			}
-		</script>
-	}
-
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-navbar border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center">
@@ -194,6 +171,31 @@ templ Navbar() {
 			}
 		</div>
 	</section>
+	@navbarOnce.Once() {
+		<script>
+			let THEME_STORAGE_KEY = "iota-theme";
+			let savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+			let initialTheme = savedTheme ?? "system";
+			let root = document.documentElement;
+			let previousTheme = initialTheme;
+			let radioInput = document.getElementById(`theme-${initialTheme}`);
+			function changeTheme(theme) {
+				root.classList.remove(previousTheme);
+				if (!theme) theme = initialTheme;
+				window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+				root.classList.add(theme)
+				previousTheme = theme;
+			}
+			function onThemeChange(input) {
+				changeTheme(input.value);
+			}
+			if (radioInput) {
+				radioInput.checked = true;
+				changeTheme(initialTheme);
+			}
+		</script>
+	}
+
 }
 
 templ Authenticated(pageCtx *types.PageContext) {

@@ -5,15 +5,12 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"time"
+	"fmt"
 )
 
-type User struct {
-	Name    string
-	Address string
-}
-
-var users = []User{{Name: "Avazbek", Address: "Dom22"}}
-templ Index(pageContext *types.PageContext) {
+templ Index(pageContext *types.PageContext, users []*user.User) {
 	@layouts.Authenticated(pageContext) {
 		<div class="p-6">
 			<h1 class="text-2xl font-medium">
@@ -22,16 +19,34 @@ templ Index(pageContext *types.PageContext) {
 			<div class="mt-5 table-bg">
 				<section></section>
         @base.Table([]*base.TableColumn{
-          {Label: "Name", Key: "name"},
-          {Label: "Address", Key: "address"},
+          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FullName"}), Key: "fullName"},
+          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastAction"}), Key: "lastAction"},
+          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "UpdatedAt"}), Key: "updatedAt"},
+          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Actions"})},
         }) {
           for _, user := range users {
             @base.TableRow() {
               @base.TableCell() {
-                {user.Name}
+                {user.FullName()}
               }
               @base.TableCell() {
-                {user.Address}
+								if v := user.LastAction; v != nil {
+									<div x-data="relativeformat">
+										<span x-text={fmt.Sprintf("format('%s')", v.Format(time.RFC3339))}></span>
+									</div>
+								} else {
+									{pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Unknown"})}
+								}
+              }
+              @base.TableCell() {
+								<div x-data="relativeformat">
+									<span x-text={fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339))}></span>
+								</div>
+              }
+              @base.TableCell() {
+								<div>
+									Edit
+								</div>
               }
             }
           }
