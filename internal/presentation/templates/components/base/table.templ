@@ -30,7 +30,7 @@ templ Table(columns []*TableColumn) {
 			<thead>
         <tr class="bg-table-heading text-table-heading">
           for _, col := range columns {
-            <th class="px-4 py-3 font-normal text-left border-r-0 border-b-0">{ col.Label }</th>
+            <th class="px-4 py-3 font-medium text-left border-r-0 border-b-0 uppercase text-xs">{ col.Label }</th>
           }
         </tr>
 			</thead>

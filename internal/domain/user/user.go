@@ -1,9 +1,11 @@
 package user
 
 import (
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"golang.org/x/crypto/bcrypt"
+	"bytes"
 	"time"
+
+	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -39,6 +41,22 @@ func (u *User) SetPassword(password string) error {
 	return nil
 }
 
+func (u *User) FullName() string {
+	out := new(bytes.Buffer)
+	if u.FirstName != "" {
+		out.WriteString(u.FirstName)
+	}
+	if v := u.MiddleName; v != nil && *v != "" {
+		pad(out, " ")
+		out.WriteString(*v)
+	}
+	if u.LastName != "" {
+		pad(out, " ")
+		out.WriteString(u.LastName)
+	}
+	return out.String()
+}
+
 func (u *User) ToGraph() *model.User {
 	return &model.User{
 		ID:         u.Id,
@@ -54,4 +72,11 @@ func (u *User) ToGraph() *model.User {
 		CreatedAt:  u.CreatedAt,
 		UpdatedAt:  u.UpdatedAt,
 	}
+}
+
+func pad(b *bytes.Buffer, str string) {
+	if b.Len() == 0 {
+		return
+	}
+	b.WriteString(str)
 }

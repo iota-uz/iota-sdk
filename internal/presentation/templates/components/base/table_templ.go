@@ -113,14 +113,14 @@ func Table(columns []*TableColumn) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, col := range columns {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<th class=\"px-4 py-3 font-normal text-left border-r-0 border-b-0\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<th class=\"px-4 py-3 font-medium text-left border-r-0 border-b-0 uppercase text-xs\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 33, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 33, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

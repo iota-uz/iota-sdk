@@ -899,10 +899,6 @@ form:invalid .btn:not(.btn-enabled) {
   z-index: 10;
 }
 
-.mb-4 {
-  margin-bottom: 1rem;
-}
-
 .ml-4 {
   margin-left: 1rem;
 }
@@ -1121,6 +1117,10 @@ form:invalid .btn:not(.btn-enabled) {
   background-color: oklch(var(--clr-avatar-bg));
 }
 
+.bg-black-950 {
+  background-color: oklch(var(--black-950));
+}
+
 .bg-content {
   background-color: oklch(var(--clr-content-bg));
 }
@@ -1148,14 +1148,6 @@ form:invalid .btn:not(.btn-enabled) {
 
 .bg-table-heading {
   background-color: oklch(var(--clr-table-heading-bg));
-}
-
-.bg-black {
-  background-color: oklch(var(--black));
-}
-
-.bg-black-950 {
-  background-color: oklch(var(--black-950));
 }
 
 .object-cover {
@@ -1241,12 +1233,25 @@ form:invalid .btn:not(.btn-enabled) {
   line-height: 1.25rem;
 }
 
+.text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
 .font-medium {
   font-weight: 500;
 }
 
 .font-normal {
   font-weight: 400;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.uppercase {
+  text-transform: uppercase;
 }
 
 .text-avatar {
@@ -1417,11 +1422,6 @@ form:invalid .btn:not(.btn-enabled) {
 }
 
 @media (prefers-color-scheme: dark) {
-  .dark\:bg-gray-800 {
-    --tw-bg-opacity: 1;
-    background-color: rgb(31 41 55 / var(--tw-bg-opacity));
-  }
-
   .dark\:text-gray-300 {
     --tw-text-opacity: 1;
     color: oklch(var(--gray-300) / var(--tw-text-opacity));

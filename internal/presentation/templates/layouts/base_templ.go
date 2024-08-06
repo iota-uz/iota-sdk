@@ -16,6 +16,7 @@ import (
 var (
 	mainCss = "/assets/" + assets.FS.HashName("css/main.min.css")
 	favicon = "/assets/" + assets.FS.HashName("images/favicon.ico")
+	alpine  = "/assets/" + assets.FS.HashName("js/alpine.js")
 )
 
 func Base(pageCtx *types.PageContext) templ.Component {
@@ -43,7 +44,7 @@ func Base(pageCtx *types.PageContext) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(favicon)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/base.templ`, Line: 19, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/base.templ`, Line: 20, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -56,7 +57,7 @@ func Base(pageCtx *types.PageContext) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/base.templ`, Line: 20, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/base.templ`, Line: 21, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -69,13 +70,26 @@ func Base(pageCtx *types.PageContext) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(mainCss)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/base.templ`, Line: 21, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/base.templ`, Line: 22, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"><link rel=\"preload\" href=\"/assets/fonts/Inter.var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin></head><body class=\"antialiased\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"><link rel=\"preload\" href=\"/assets/fonts/Inter.var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin><script defer type=\"module\" src=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(alpine)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/base.templ`, Line: 25, Col: 42}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"></script></head><body class=\"antialiased\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

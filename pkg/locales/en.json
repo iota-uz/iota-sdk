@@ -20,5 +20,10 @@
     "Payments": "Payments",
     "Reports": "Reports"
   },
+  "LastAction": "Last action",
+  "FullName": "Full name",
+  "UpdatedAt": "Updated at",
+  "Unknown": "Unknown",
+  "Actions": "Actions",
   "SignOut": "Sign out"
 }
