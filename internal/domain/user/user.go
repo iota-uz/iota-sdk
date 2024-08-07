@@ -10,8 +10,8 @@ import (
 
 type User struct {
 	Id         int64
-	FirstName  string
-	LastName   string
+	FirstName  string `json:"firstName"`
+	LastName   string `json:"lastName"`
 	MiddleName *string
 	Password   *string
 	Email      string

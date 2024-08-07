@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
-	"time"
 	"fmt"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
@@ -34,7 +33,7 @@ templ Index(pageContext *types.PageContext, users []*user.User) {
 							@base.TableCell() {
 								if v := user.LastAction; v != nil {
 									<div x-data="relativeformat">
-										<span x-text={fmt.Sprintf("format('%s')", v.Format(time.RFC3339))}></span>
+										<span x-text={fmt.Sprintf("format('%s')", v.String())}></span>
 									</div>
 								} else {
 									{pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Unknown"})}
@@ -42,7 +41,7 @@ templ Index(pageContext *types.PageContext, users []*user.User) {
 							}
 							@base.TableCell() {
 								<div x-data="relativeformat">
-									<span class="capitalize" x-text={fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339))}></span>
+									<span class="capitalize" x-text={fmt.Sprintf("format('%s')", user.UpdatedAt.String())}></span>
 								</div>
 							}
 							@base.TableCell() {

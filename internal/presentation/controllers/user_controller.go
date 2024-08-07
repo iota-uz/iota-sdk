@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/users"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
@@ -46,7 +48,6 @@ func (c *UserController) Users(w http.ResponseWriter, r *http.Request) {
 
 func (c *UserController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	pathname := r.URL.Path
-	fmt.Println(pathname)
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 	localizer, found := composables.UseLocalizer(r.Context())
 	if !found {
@@ -59,6 +60,12 @@ func (c *UserController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	us, err := c.app.UserService.GetByID(r.Context(), int64(id))
+	t, _ := time.Parse(time.RFC3339, "2024-08-07T18:04:41.962Z")
+	fmt.Printf("TIME:::: %s\n", t.UTC().Format(time.RFC3339))
+	fmt.Printf("HERERERERE")
+	fmt.Printf("Location: %v\n", us.UpdatedAt.Location())
+	fmt.Println("FORMAT: ", us.UpdatedAt.Format(time.RFC3339))
+	fmt.Println("STRING: ", us.UpdatedAt.String())
 	if err != nil {
 		http.Error(w, "Error retreving users", http.StatusInternalServerError)
 		return
@@ -69,6 +76,27 @@ func (c *UserController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EditUser"}),
 	}
 	templ.Handler(users.Edit(pageCtx, us, roles), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *UserController) PostEdit(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	action := r.FormValue("_action")
+	var err error
+	if action == "save" {
+		err = c.app.UserService.Update(r.Context(), &user.User{
+			Id:        int64(id),
+			FirstName: r.FormValue("firstName"),
+			LastName:  r.FormValue("lastName"),
+		})
+	} else if action == "delete" {
+		_, err = c.app.UserService.Delete(r.Context(), int64(id))
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	http.Redirect(w, r, "/users", http.StatusFound)
 }
 
 func (c *UserController) GetNew(w http.ResponseWriter, r *http.Request) {

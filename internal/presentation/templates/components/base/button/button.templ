@@ -46,7 +46,7 @@ templ base(props Props) {
 			{ children... }
 		</a>
 	} else {
-		<button class={ "btn", variants[props.variant], sizes[props.Size], props.Class } { props.Attrs... }>
+		<button class={ "btn", variants[props.variant], sizes[props.Size], templ.KV("btn-fixed", props.Fixed), props.Class } { props.Attrs... }>
 			{ children... }
 		</button>
 	}

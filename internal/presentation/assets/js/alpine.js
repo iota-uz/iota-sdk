@@ -2,7 +2,7 @@ import "./alpine.lib.min.js";
 
 let relativeFormat = () => ({
   format(dateStr = new Date().toISOString(), locale = "ru") {
-    let date = new Date(dateStr);
+    let date = new Date(dateStr)
     let timeMs = date.getTime();
     let delta = Math.round((timeMs - Date.now()) / 1000);
     let cutoffs = [60, 3600, 86400, 86400 * 7, 86400 * 30, 86400 * 365, Infinity];
