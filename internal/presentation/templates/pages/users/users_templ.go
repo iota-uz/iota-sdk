@@ -17,7 +17,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"time"
 )
 
 func Index(pageContext *types.PageContext, users []*user.User) templ.Component {
@@ -57,7 +56,7 @@ func Index(pageContext *types.PageContext, users []*user.User) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 19, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 18, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -107,7 +106,7 @@ func Index(pageContext *types.PageContext, users []*user.User) templ.Component {
 							var templ_7745c5c3_Var7 string
 							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(user.FullName())
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 32, Col: 24}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 31, Col: 24}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 							if templ_7745c5c3_Err != nil {
@@ -141,9 +140,9 @@ func Index(pageContext *types.PageContext, users []*user.User) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var9 string
-								templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", v.Format(time.RFC3339)))
+								templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", v.String()))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 37, Col: 75}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 36, Col: 63}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 								if templ_7745c5c3_Err != nil {
@@ -157,7 +156,7 @@ func Index(pageContext *types.PageContext, users []*user.User) templ.Component {
 								var templ_7745c5c3_Var10 string
 								templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Unknown"}))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 40, Col: 88}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 39, Col: 88}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 								if templ_7745c5c3_Err != nil {
@@ -191,9 +190,9 @@ func Index(pageContext *types.PageContext, users []*user.User) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var12 string
-							templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339)))
+							templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.UpdatedAt.String()))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 45, Col: 106}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 44, Col: 94}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 							if templ_7745c5c3_Err != nil {
