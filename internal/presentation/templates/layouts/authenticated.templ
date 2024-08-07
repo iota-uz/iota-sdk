@@ -8,6 +8,7 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"bytes"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"strings"
 )
 
 var (
@@ -55,12 +56,19 @@ func newSidebarItem(name, href string, icon templ.Component, children []sidebarI
 }
 
 templ (l sidebarLink) render() {
-	@button.Sidebar(button.Props{Size: "md", Href: l.href, Class: l.class}) {
+	@button.Sidebar(button.Props{Size: button.SizeMD, Href: l.href, Class: l.class}) {
 		if l.icon != nil {
 			@l.icon
 		}
 		{ l.name }
 	}
+}
+
+func isActiveLink(pathname, href string) bool {
+	if href == "/" {
+		return pathname == href
+	}
+	return strings.HasPrefix(pathname, href)
 }
 
 templ (i sidebarItem) render(pathname string) {
@@ -76,12 +84,12 @@ templ (i sidebarItem) render(pathname string) {
 				</summary>
 				<ul class="ml-4 mt-2 flex flex-col gap-2">
 					for _, item := range i.children {
-						@newSidebarLink(item.name, item.href, item.icon, item.href == pathname).render()
+						@newSidebarLink(item.name, item.href, item.icon, isActiveLink(pathname, item.href)).render()
 					}
 				</ul>
 			</details>
 		} else {
-			@newSidebarLink(i.name, i.href, i.icon, i.href == pathname).render()
+			@newSidebarLink(i.name, i.href, i.icon, isActiveLink(pathname, i.href)).render()
 		}
 	</li>
 }
@@ -127,7 +135,7 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 			</ul>
 		</nav>
 		<div class="px-6">
-			@button.Sidebar(button.Props{Size: "md", Class: "w-full gap-2"}) {
+			@button.Sidebar(button.Props{Size: button.SizeMD, Class: "w-full gap-2"}) {
 				@icons.SignOut(icons.Props{Size: "20"})
 				{l.MustLocalize(&i18n.LocalizeConfig{MessageID: "SignOut"})}
 			}
@@ -142,7 +150,7 @@ templ avatar() {
 }
 
 templ Navbar() {
-	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-navbar border-b-primary">
+	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-content border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center">
 				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked />
@@ -204,7 +212,9 @@ templ Authenticated(pageCtx *types.PageContext) {
 			@sidebar(pageCtx.Pathname, pageCtx.Localizer)
 			<div>
 				@Navbar()
-				{ children... }
+				<div class="h-[calc(100%-4rem)] overflow-y-auto">
+					{ children... }
+				</div>
 			</div>
 		</div>
 	}

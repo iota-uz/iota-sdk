@@ -8,28 +8,30 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"time"
 	"fmt"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 )
 
 templ Index(pageContext *types.PageContext, users []*user.User) {
 	@layouts.Authenticated(pageContext) {
-		<div class="p-6">
+		<div class="m-6">
 			<h1 class="text-2xl font-medium">
 				{ pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}) }
 			</h1>
 			<div class="mt-5 table-bg">
 				<section></section>
-        @base.Table([]*base.TableColumn{
-          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FullName"}), Key: "fullName"},
-          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastAction"}), Key: "lastAction"},
-          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "UpdatedAt"}), Key: "updatedAt"},
-          {Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Actions"})},
-        }) {
-          for _, user := range users {
-            @base.TableRow() {
-              @base.TableCell() {
-                {user.FullName()}
-              }
-              @base.TableCell() {
+				@base.Table([]*base.TableColumn{
+					{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FullName"}), Key: "fullName"},
+					{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastAction"}), Key: "lastAction"},
+					{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "UpdatedAt"}), Key: "updatedAt"},
+					{Label: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Actions"}), Class: "w-16"},
+				}) {
+					for _, user := range users {
+						@base.TableRow() {
+							@base.TableCell() {
+								{user.FullName()}
+							}
+							@base.TableCell() {
 								if v := user.LastAction; v != nil {
 									<div x-data="relativeformat">
 										<span x-text={fmt.Sprintf("format('%s')", v.Format(time.RFC3339))}></span>
@@ -37,20 +39,20 @@ templ Index(pageContext *types.PageContext, users []*user.User) {
 								} else {
 									{pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Unknown"})}
 								}
-              }
-              @base.TableCell() {
+							}
+							@base.TableCell() {
 								<div x-data="relativeformat">
-									<span x-text={fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339))}></span>
+									<span class="capitalize" x-text={fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339))}></span>
 								</div>
-              }
-              @base.TableCell() {
-								<div>
-									Edit
-								</div>
-              }
-            }
-          }
-        }
+							}
+							@base.TableCell() {
+								@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/users/%d", user.Id)}) {
+									@icons.Pencil(icons.Props{Size: "20"})
+								}
+							}
+						}
+					}
+				}
 			</div>
 		</div>
 	}

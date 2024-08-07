@@ -7,6 +7,7 @@ module.exports = {
         sans: ["Inter"]
       },
       backgroundColor: {
+        default: "oklch(var(--clr-default-bg))",
         content: "oklch(var(--clr-content-bg))",
         primary: "oklch(var(--clr-primary-bg))",
         navbar: "oklch(var(--clr-navbar-bg))",

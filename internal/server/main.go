@@ -93,6 +93,8 @@ func (s *Server) Start() error {
 	r.HandleFunc("/login", loginController.Login).Methods(http.MethodGet, http.MethodPost)
 	r.HandleFunc("/", homeController.Home).Methods(http.MethodGet)
 	r.HandleFunc("/users", userController.Users).Methods(http.MethodGet)
+	r.HandleFunc("/users/{id:[0-9]+}", userController.GetEdit).Methods(http.MethodGet)
+	r.HandleFunc("/users/new", userController.GetNew).Methods(http.MethodGet)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
