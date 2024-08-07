@@ -1,0 +1,56 @@
+package users
+
+import "github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+import "github.com/iota-agency/iota-erp/internal/presentation/types"
+import "github.com/iota-agency/iota-erp/internal/domain/user"
+import "github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+import "github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+import "github.com/nicksnyder/go-i18n/v2/i18n"
+import "github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+import "github.com/iota-agency/iota-erp/internal/domain/role"
+import "strconv"
+
+templ Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) {
+  @layouts.Authenticated(pageCtx) {
+    <div class="flex flex-col justify-between h-full">
+      @base.Card("grid grid-cols-3 gap-4 m-6") {
+        @input.Text(&input.Props{
+          Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FirstName"}),
+          Attrs: templ.Attributes{
+            "value": user.FirstName,
+          },
+        })
+        @input.Text(&input.Props{
+          Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastName"}),
+          Attrs: templ.Attributes{
+            "value": user.LastName,
+          },
+        })
+        @input.Text(&input.Props{Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PhoneNumber"})})
+        @input.Password(&input.Props{Label: 
+          pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Password"}),
+          Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EnterPassword"}),
+          Attrs: templ.Attributes{
+            "autocomplete": "new-password",
+          },
+        })
+        @base.Select(&base.SelectProps{
+          Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Role"}),
+          Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "SelectRole"}),
+        }) {
+          for _, role := range roles {
+            <option value={strconv.Itoa(int(role.Id))}>{role.Name}</option>
+          }
+        }
+      }
+      <div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-content border-t-primary mt-auto gap-4">
+        @button.Danger(button.Props{Size: button.SizeMD}) {
+          {pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"})}
+        }
+        @button.Primary(button.Props{Size: button.SizeMD}) {
+          {pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"})}
+        }
+      </div>
+    </div>
+  }
+}

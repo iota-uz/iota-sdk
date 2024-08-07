@@ -1,0 +1,12 @@
+package users
+
+import "github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+import "github.com/iota-agency/iota-erp/internal/presentation/types"
+
+templ New(pageCtx *types.PageContext) {
+  @layouts.Authenticated(pageCtx) {
+		<div class="p-6">
+      Single
+    </div>
+  }
+}

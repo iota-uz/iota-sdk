@@ -8,9 +8,41 @@ package button
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+type Variant int
+type Size int
+
+const (
+	VariantPrimary = Variant(iota + 1)
+	VariantSecondary
+	VariantPrimaryOutline
+	VariantSidebar
+	VariantDanger
+)
+
+const (
+	SizeNormal = Size(iota + 1)
+	SizeMD
+	SizeSM
+)
+
+var variants = map[Variant]string{
+	VariantPrimary:        "btn-primary",
+	VariantSecondary:      "btn-secondary",
+	VariantSidebar:        "btn-sidebar",
+	VariantPrimaryOutline: "btn-primary-outline",
+	VariantDanger:         "btn-danger",
+}
+
+var sizes = map[Size]string{
+	SizeNormal: "btn-normal",
+	SizeMD:     "btn-md",
+	SizeSM:     "btn-sm",
+}
+
 type Props struct {
-	variant string
-	Size    string
+	variant Variant
+	Size    Size
+	Fixed   bool
 	Href    string
 	Class   string
 	Attrs   templ.Attributes
@@ -35,7 +67,7 @@ func base(props Props) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(props.Href) > 0 {
-			var templ_7745c5c3_Var2 = []any{"btn", "btn-" + props.variant, "btn-" + props.Size, props.Class}
+			var templ_7745c5c3_Var2 = []any{"btn", variants[props.variant], sizes[props.Size], templ.KV("btn-fixed", props.Fixed), props.Class}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -83,7 +115,7 @@ func base(props Props) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			var templ_7745c5c3_Var5 = []any{"btn", "btn-" + props.variant, "btn-" + props.Size, props.Class}
+			var templ_7745c5c3_Var5 = []any{"btn", variants[props.variant], sizes[props.Size], props.Class}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var5...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -162,7 +194,7 @@ func Primary(props Props) templ.Component {
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = base(Props{variant: "primary", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = base(Props{variant: VariantPrimary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -206,7 +238,7 @@ func Secondary(props Props) templ.Component {
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = base(Props{variant: "secondary", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = base(Props{variant: VariantSecondary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -250,7 +282,7 @@ func PrimaryOutline(props Props) templ.Component {
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = base(Props{variant: "primary-outline", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = base(Props{variant: VariantPrimaryOutline, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -258,7 +290,7 @@ func PrimaryOutline(props Props) templ.Component {
 	})
 }
 
-func Sidebar(props Props) templ.Component {
+func Danger(props Props) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -294,7 +326,51 @@ func Sidebar(props Props) templ.Component {
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = base(Props{variant: "sidebar", Size: props.Size, Class: props.Class, Href: props.Href, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = base(Props{variant: VariantDanger, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return templ_7745c5c3_Err
+	})
+}
+
+func Sidebar(props Props) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var15 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var15 == nil {
+			templ_7745c5c3_Var15 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Var16 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = templ_7745c5c3_Var15.Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return templ_7745c5c3_Err
+		})
+		templ_7745c5c3_Err = base(Props{variant: VariantSidebar, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

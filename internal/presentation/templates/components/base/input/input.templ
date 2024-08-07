@@ -5,8 +5,6 @@ import (
 	"github.com/iota-agency/iota-erp/sdk/utils/random"
 )
 
-var passwordLockOnce = templ.NewOnceHandle()
-
 type addonPosition int
 
 const (
@@ -78,20 +76,8 @@ templ Text(props *Props) {
 }
 
 templ passwordLock(p *Props) {
-	@passwordLockOnce.Once() {
-		<script>
-			function onPasswordLockChange(checkbox) {
-				let inputId = checkbox.value;
-				let input = document.getElementById(inputId);
-				if (input) {
-					if (checkbox.checked) input.setAttribute("type", "text")
-					else input.setAttribute("type", "password")
-				}
-			}
-    </script>
-	}
-	<label class="flex items-center justify-center">
-		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } onchange="onPasswordLockChange(this)"/>
+	<label x-data="passwordVisibility" class="flex items-center justify-center">
+		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } @change="toggle" />
 		@icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"})
 		@icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"})
 	</label>

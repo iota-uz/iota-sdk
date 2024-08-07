@@ -20,10 +20,22 @@
     "Payments": "Payments",
     "Reports": "Reports"
   },
+  "EditUser": "Edit user",
+  "NewUser": "New user",
   "LastAction": "Last action",
   "FullName": "Full name",
+  "FirstName": "First name",
+  "LastName": "Last name",
+  "PhoneNumber": "Phone number",
+  "Password": "Password",
+  "Role": "Role",
+  "Email": "Email",
   "UpdatedAt": "Updated at",
   "Unknown": "Unknown",
   "Actions": "Actions",
-  "SignOut": "Sign out"
+  "SignOut": "Sign out",
+  "EnterPassword": "Enter password",
+  "SelectRole": "Select role",
+  "Delete": "Delete",
+  "Save": "Save"
 }

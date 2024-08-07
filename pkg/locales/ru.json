@@ -23,12 +23,24 @@
     "Payments": "Платежи",
     "Reports": "Отчеты"
   },
+  "EditUser": "Редактировать пользователя",
+  "NewUser": "Новый пользователь",
   "LastAction": "Последнее действие",
   "FullName": "Ф.И.О",
   "UpdatedAt": "Обновлен",
   "SignOut": "Выйти",
   "Unknown": "Неизвестно",
   "Actions": "Действия",
+  "FirstName": "Имя",
+  "LastName": "Фамилия",
+  "PhoneNumber": "Номер телефона",
+  "Password": "Пароль",
+  "Role": "Роль",
+  "Email": "Email",
+  "EnterPassword": "Введите пароль",
+  "SelectRole": "Выберите роль",
+  "Delete": "Удалить",
+  "Save": "Сохранить",
   "errors": {
     "message": "The requested resource could not be found."
   }

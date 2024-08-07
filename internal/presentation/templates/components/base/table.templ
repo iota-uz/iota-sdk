@@ -4,19 +4,22 @@ type TableColumn struct {
 	Label      string
 	Key        string
 	Width      int
+	Class      string
 	DateFormat string
 	Duration   bool
 	Sortable   bool
 }
 
 templ TableRow() {
-	<tr>{ children... }
-</tr>
+	<tr>
+		{ children... }
+	</tr>
 }
 
 templ TableCell() {
-	<td class="p-4">{ children... }
-</td>
+	<td class="p-4">
+		{ children... }
+	</td>
 }
 
 type TableProps struct {
@@ -28,11 +31,11 @@ templ Table(columns []*TableColumn) {
 	<div class="overflow-x-auto relative">
 		<table class="min-w-full table-auto border border-primary rounded-lg table bg-table text-sm">
 			<thead>
-        <tr class="bg-table-heading text-table-heading">
-          for _, col := range columns {
-            <th class="px-4 py-3 font-medium text-left border-r-0 border-b-0 uppercase text-xs">{ col.Label }</th>
-          }
-        </tr>
+				<tr class="bg-table-heading text-table-heading">
+					for _, col := range columns {
+						<th class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0 uppercase text-xs", col.Class }>{ col.Label }</th>
+					}
+				</tr>
 			</thead>
 			<tbody>
 				{ children... }
