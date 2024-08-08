@@ -31,7 +31,13 @@ templ Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) {
 						"name":  "lastName",
 					},
 				})
-				@input.Text(&input.Props{Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PhoneNumber"})})
+				@input.Email(&input.Props{
+					Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Email"}),
+					Attrs: templ.Attributes{
+						"value": user.Email,
+						"name":  "email",
+					},
+				})
 				@input.Password(&input.Props{Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Password"}),
 					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EnterPassword"}),
 					Attrs: templ.Attributes{

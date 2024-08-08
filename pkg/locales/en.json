@@ -31,11 +31,14 @@
   "Role": "Role",
   "Email": "Email",
   "UpdatedAt": "Updated at",
+  "CreatedAt": "Created at",
   "Unknown": "Unknown",
   "Actions": "Actions",
   "SignOut": "Sign out",
   "EnterPassword": "Enter password",
   "SelectRole": "Select role",
   "Delete": "Delete",
-  "Save": "Save"
+  "Save": "Save",
+  "Search": "Search",
+  "PerPage": "Per page"
 }

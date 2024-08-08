@@ -43,7 +43,7 @@ func newInput(props *Props) *Props {
 }
 
 templ (p *Props) render() {
-	<div class="flex flex-col gap-2">
+	<div class="flex flex-col gap-2 w-full">
 		if len(p.Label) > 0 {
 			<label for={ p.id } class="form-control-label">{ p.Label }</label>
 		}
@@ -75,9 +75,13 @@ templ Text(props *Props) {
 	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon}).render()
 }
 
+templ Email(props *Props) {
+	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon}).render()
+}
+
 templ passwordLock(p *Props) {
 	<label x-data="passwordVisibility" class="flex items-center justify-center">
-		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } @change="toggle" />
+		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } @change="toggle"/>
 		@icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"})
 		@icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"})
 	</label>

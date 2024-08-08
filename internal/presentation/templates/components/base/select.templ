@@ -1,40 +1,52 @@
 package base
 
-import "github.com/iota-agency/iota-erp/sdk/utils/random"
-import "github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-erp/sdk/utils/random"
+)
 
 type SelectProps struct {
 	Label       string
 	Class       string
 	Placeholder string
 	Attrs       templ.Attributes
+	Prefix      string
 	id          string
 }
 
 func newSelect(p *SelectProps) *SelectProps {
 	id := random.String(12, random.LowerCharSet)
-  return &SelectProps{id: id, Label: p.Label, Class: p.Class, Attrs: p.Attrs, Placeholder: p.Placeholder}
+	return &SelectProps{id: id, Label: p.Label, Class: p.Class, Attrs: p.Attrs, Placeholder: p.Placeholder, Prefix: p.Prefix}
 }
 
 templ (p *SelectProps) render() {
-	<div class="flex flex-col gap-2">
+	<div class="flex flex-col gap-2 shrink-0">
 		if len(p.Label) > 0 {
 			<label for={ p.id } class="form-control-label">{ p.Label }</label>
 		}
-    <div class="w-full relative">
-      <select class={"w-full form-control h-[2.6875rem] appearance-none", p.Class} id={p.id} {p.Attrs...}>
-        if p.Placeholder != "" {
-          <option disabled selected>{p.Placeholder}</option>
-        }
-        { children... }
-      </select>
-      @icons.CaretUp(icons.Props{Class: "absolute top-1/2 right-3 -translate-y-1/2 rotate-180 pointer-events-none", Size: "16"})
-    </div>
+		<div class="w-full relative flex items-center">
+			if p.Prefix != "" {
+				<label
+					class="inline-flex items-center justify-center text-secondary text-sm 
+                whitespace-nowrap h-[2.6875rem] border-l border-t border-b border-primary rounded-l-lg px-[var(--form-control-size-x)]"
+					for={ p.id }
+				>
+					{ p.Prefix }
+				</label>
+			}
+			<select class={ "min-w-20 w-full appearance-none form-control h-[2.6875rem] pr-8", templ.KV("rounded-l-none", p.Prefix != ""), p.Class } id={ p.id } { p.Attrs... }>
+				if p.Placeholder != "" {
+					<option disabled selected>{ p.Placeholder }</option>
+				}
+				{ children... }
+			</select>
+			@icons.CaretUp(icons.Props{Class: "absolute top-1/2 right-3 -translate-y-1/2 rotate-180 pointer-events-none", Size: "16"})
+		</div>
 	</div>
 }
 
 templ Select(p *SelectProps) {
-  @newSelect(p).render() {
-    {children...}
-  }
+	@newSelect(p).render() {
+		{ children... }
+	}
 }

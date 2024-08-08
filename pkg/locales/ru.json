@@ -28,6 +28,7 @@
   "LastAction": "Последнее действие",
   "FullName": "Ф.И.О",
   "UpdatedAt": "Обновлен",
+  "CreatedAt": "Создан",
   "SignOut": "Выйти",
   "Unknown": "Неизвестно",
   "Actions": "Действия",
@@ -41,6 +42,8 @@
   "SelectRole": "Выберите роль",
   "Delete": "Удалить",
   "Save": "Сохранить",
+  "Search": "Поиск",
+  "PerPage": "На страницу",
   "errors": {
     "message": "The requested resource could not be found."
   }

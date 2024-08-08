@@ -1,5 +1,5 @@
 /*
-! tailwindcss v3.4.7 | MIT License | https://tailwindcss.com
+! tailwindcss v3.4.8 | MIT License | https://tailwindcss.com
 */
 
 /*
@@ -485,6 +485,15 @@ video {
   --red-100: var(--red-500) / 10%;
   --red-200: var(--red-500) / 20%;
   --red-300: var(--red-500) / 30%;
+  /* Sizes */
+  --size-0: 0.25rem;
+  --size-1: 0.5rem;
+  --size-2: 0.75rem;
+  --size-3: 1rem;
+  --size-4: 1.25rem;
+  --size-5: 1.5rem;
+  /* Border */
+  --border-size-1: 1px;
   /* Default btn */
   --clr-btn-bg: var(--transparent);
   --clr-btn-bg-active: var(--gray-200);
@@ -539,6 +548,9 @@ video {
   --clr-form-control-text: var(--black);
   --clr-form-control-ring: var(--primary-650) / 20%;
   --clr-form-control-label: var(--gray-400);
+  --form-control-border-size: var(--border-size-1);
+  --form-control-size-x: calc(var(--size-2) - var(--form-control-border-size) * 2);
+  --form-control-size-y: calc(var(--size-2) - var(--form-control-border-size) * 2);
   /* Bg */
   --clr-default-bg: var(--gray-100);
   --clr-primary-bg: var(--black);
@@ -586,6 +598,7 @@ html.dark {
   --clr-navbar-bg: var(--black);
   /* Text */
   --clr-primary-text: var(--white);
+  --clr-secondary-text: var(--gray-300);
   /* Avatar */
   --clr-avatar-text: var(--primary-400);
   /* Border */
@@ -607,6 +620,8 @@ html.dark {
   --clr-secondary-btn-border: var(--black-800);
   --clr-secondary-btn-border-hover: var(--black-950);
   /* Form control */
+  --clr-form-control-bg: var(--black);
+  --clr-form-control-bg-active: var(--black);
   --clr-form-control-placeholder: var(--gray-100);
   --clr-form-control-border: var(--black-800);
   --clr-form-control-border-hover: var(--primary-500);
@@ -766,10 +781,11 @@ form:invalid .btn:not(.btn-enabled) {
   --text-color: var(--clr-form-control-text);
   --border-color: var(--clr-form-control-border);
   --border-hover: var(--clr-form-control-border-hover);
+  --border-size: var(--form-control-border-size);
   --ring-color: var(--transparent);
   --ring-color-active: var(--clr-form-control-ring);
-  --size-x: calc(1rem - 2px);
-  --size-y: calc(0.75rem - 2px);
+  --size-x: var(--form-control-size-x);
+  --size-y: var(--form-control-size-y);
   --font-size: 0.875rem;
   --radius: 0.5rem;
   --opacity: 1;
@@ -783,7 +799,7 @@ form:invalid .btn:not(.btn-enabled) {
   font-size: var(--font-size);
   border-radius: var(--radius);
   opacity: var(--opacity);
-  border: 1px solid oklch(var(--border-color));
+  border: var(--border-size) solid oklch(var(--border-color));
   transition-duration: 200ms;
   font-weight: 500;
 }
@@ -818,19 +834,20 @@ form:invalid .btn:not(.btn-enabled) {
   --bg-hover: var(--clr-btn-bg-hover);
   --border-color: var(--clr-btn-border);
   --border-hover: var(--crl-btn-border-hover);
-  --events: all;
-  --size-x: calc(1rem - 2px);
-  --size-y: calc(0.75rem - 2px);
+  --border-size: 1px;
+  --size-x: calc(1rem - var(--border-size) * 2);
+  --size-y: calc(0.75rem - var(--border-size) * 2);
   --font-size: 0.875rem;
   --radius: 0.5rem;
   --opacity: 1;
+  --events: all;
   background-color: oklch(var(--bg-color));
   color: oklch(var(--text-color));
   padding: var(--size-y) var(--size-x);
   font-size: var(--font-size);
   border-radius: var(--radius);
   opacity: var(--opacity);
-  border: 1px solid oklch(var(--border-color));
+  border: var(--border-size) solid oklch(var(--border-color));
   transition-duration: 200ms;
   font-weight: 500;
   position: relative;
@@ -908,6 +925,10 @@ form:invalid .btn:not(.btn-enabled) {
 
 .btn-fixed {
   --size-y: var(--size-x);
+}
+
+.btn-with-icon {
+  gap: 0.5rem;
 }
 
 .table {
@@ -1016,6 +1037,10 @@ form:invalid .btn:not(.btn-enabled) {
   display: flex;
 }
 
+.inline-flex {
+  display: inline-flex;
+}
+
 .table {
   display: table;
 }
@@ -1088,12 +1113,20 @@ form:invalid .btn:not(.btn-enabled) {
   width: 100%;
 }
 
+.min-w-20 {
+  min-width: 5rem;
+}
+
 .min-w-full {
   min-width: 100%;
 }
 
 .flex-1 {
   flex: 1 1 0%;
+}
+
+.shrink-0 {
+  flex-shrink: 0;
 }
 
 .table-auto {
@@ -1175,6 +1208,10 @@ form:invalid .btn:not(.btn-enabled) {
   gap: 0.5rem;
 }
 
+.gap-3 {
+  gap: 0.75rem;
+}
+
 .gap-4 {
   gap: 1rem;
 }
@@ -1199,6 +1236,10 @@ form:invalid .btn:not(.btn-enabled) {
   overflow-y: auto;
 }
 
+.whitespace-nowrap {
+  white-space: nowrap;
+}
+
 .rounded-full {
   border-radius: 9999px;
 }
@@ -1211,6 +1252,21 @@ form:invalid .btn:not(.btn-enabled) {
   border-radius: 0.375rem;
 }
 
+.rounded-b-lg {
+  border-bottom-right-radius: 0.5rem;
+  border-bottom-left-radius: 0.5rem;
+}
+
+.rounded-l-lg {
+  border-top-left-radius: 0.5rem;
+  border-bottom-left-radius: 0.5rem;
+}
+
+.rounded-l-none {
+  border-top-left-radius: 0px;
+  border-bottom-left-radius: 0px;
+}
+
 .border {
   border-width: 1px;
 }
@@ -1221,6 +1277,10 @@ form:invalid .btn:not(.btn-enabled) {
 
 .border-b-0 {
   border-bottom-width: 0px;
+}
+
+.border-l {
+  border-left-width: 1px;
 }
 
 .border-r-0 {
@@ -1325,6 +1385,11 @@ form:invalid .btn:not(.btn-enabled) {
   padding-right: 2rem;
 }
 
+.px-\[var\(--form-control-size-x\)\] {
+  padding-left: var(--form-control-size-x);
+  padding-right: var(--form-control-size-x);
+}
+
 .py-2 {
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
@@ -1351,6 +1416,14 @@ form:invalid .btn:not(.btn-enabled) {
 
 .pr-10 {
   padding-right: 2.5rem;
+}
+
+.pr-8 {
+  padding-right: 2rem;
+}
+
+.pr-6 {
+  padding-right: 1.5rem;
 }
 
 .text-left {
@@ -1380,10 +1453,6 @@ form:invalid .btn:not(.btn-enabled) {
   text-transform: uppercase;
 }
 
-.capitalize {
-  text-transform: capitalize;
-}
-
 .text-avatar {
   color: oklch(var(--clr-avatar-text));
 }
@@ -1404,6 +1473,10 @@ form:invalid .btn:not(.btn-enabled) {
 
 .text-primary {
   color: oklch(var(--clr-primary-text));
+}
+
+.text-secondary {
+  color: oklch(var(--clr-secondary-text));
 }
 
 .text-table-heading {
