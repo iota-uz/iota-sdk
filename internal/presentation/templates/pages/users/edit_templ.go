@@ -94,7 +94,13 @@ func Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) templ
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = input.Text(&input.Props{Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PhoneNumber"})}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = input.Email(&input.Props{
+					Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Email"}),
+					Attrs: templ.Attributes{
+						"value": user.Email,
+						"name":  "email",
+					},
+				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -136,7 +142,7 @@ func Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) templ
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(role.Id)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 50, Col: 48}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 56, Col: 48}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -149,7 +155,7 @@ func Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) templ
 						var templ_7745c5c3_Var6 string
 						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(role.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 50, Col: 62}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 56, Col: 62}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 						if templ_7745c5c3_Err != nil {
@@ -197,7 +203,7 @@ func Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) templ
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 63, Col: 80}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 69, Col: 80}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -231,7 +237,7 @@ func Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) templ
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 72, Col: 78}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 78, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {

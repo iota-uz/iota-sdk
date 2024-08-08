@@ -93,6 +93,7 @@ func (s *Server) Start() error {
 	r.HandleFunc("/login", loginController.Login).Methods(http.MethodGet, http.MethodPost)
 	r.HandleFunc("/", homeController.Home).Methods(http.MethodGet)
 	r.HandleFunc("/users", userController.Users).Methods(http.MethodGet)
+	r.HandleFunc("/users", userController.CreateUser).Methods(http.MethodPost)
 	r.HandleFunc("/users/{id:[0-9]+}", userController.GetEdit).Methods(http.MethodGet)
 	r.HandleFunc("/users/{id:[0-9]+}", userController.PostEdit).Methods(http.MethodPost)
 	r.HandleFunc("/users/new", userController.GetNew).Methods(http.MethodGet)

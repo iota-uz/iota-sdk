@@ -37,47 +37,54 @@ type Props struct {
 	Fixed   bool
 	Href    string
 	Class   string
+	Icon    templ.Component
 	Attrs   templ.Attributes
 }
 
 templ base(props Props) {
 	if len(props.Href) > 0 {
-		<a href={ templ.SafeURL(props.Href) } class={ "btn", variants[props.variant], sizes[props.Size], templ.KV("btn-fixed", props.Fixed), props.Class } { props.Attrs... }>
+		<a href={ templ.SafeURL(props.Href) } class={ "shrink-0 btn", variants[props.variant], sizes[props.Size], templ.KV("btn-fixed", props.Fixed), templ.KV("btn-with-icon", props.Icon != nil), props.Class } { props.Attrs... }>
+			if props.Icon != nil {
+				@props.Icon
+			}
 			{ children... }
 		</a>
 	} else {
-		<button class={ "btn", variants[props.variant], sizes[props.Size], templ.KV("btn-fixed", props.Fixed), props.Class } { props.Attrs... }>
+		<button class={ "shrink-0 btn", variants[props.variant], sizes[props.Size], templ.KV("btn-fixed", props.Fixed), props.Class } { props.Attrs... }>
+			if props.Icon != nil {
+				@props.Icon
+			}
 			{ children... }
 		</button>
 	}
 }
 
 templ Primary(props Props) {
-	@base(Props{variant: VariantPrimary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}) {
+	@base(Props{variant: VariantPrimary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs, Icon: props.Icon}) {
 		{ children... }
 	}
 }
 
 templ Secondary(props Props) {
-	@base(Props{variant: VariantSecondary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}) {
+	@base(Props{variant: VariantSecondary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs, Icon: props.Icon}) {
 		{ children... }
 	}
 }
 
 templ PrimaryOutline(props Props) {
-	@base(Props{variant: VariantPrimaryOutline, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}) {
+	@base(Props{variant: VariantPrimaryOutline, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs, Icon: props.Icon}) {
 		{ children... }
 	}
 }
 
 templ Danger(props Props) {
-	@base(Props{variant: VariantDanger, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}) {
+	@base(Props{variant: VariantDanger, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs, Icon: props.Icon}) {
 		{ children... }
 	}
 }
 
 templ Sidebar(props Props) {
-	@base(Props{variant: VariantSidebar, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs}) {
+	@base(Props{variant: VariantSidebar, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Attrs: props.Attrs, Icon: props.Icon}) {
 		{ children... }
 	}
 }

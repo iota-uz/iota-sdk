@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
@@ -48,6 +49,10 @@ func (s *UserService) Create(ctx context.Context, data *user.User) error {
 	}
 	if sess, err := composables.UseSession(ctx); err == nil {
 		ev.Session = sess
+	}
+
+	if err := data.SetPassword(*data.Password); err != nil {
+		return err
 	}
 	if err := s.Repo.Create(ctx, data); err != nil {
 		return err

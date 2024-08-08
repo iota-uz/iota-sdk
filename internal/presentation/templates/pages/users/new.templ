@@ -1,12 +1,60 @@
 package users
 
-import "github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-import "github.com/iota-agency/iota-erp/internal/presentation/types"
+import (
+	"github.com/iota-agency/iota-erp/internal/domain/role"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"strconv"
+)
 
-templ New(pageCtx *types.PageContext) {
-  @layouts.Authenticated(pageCtx) {
-		<div class="p-6">
-      Single
-    </div>
-  }
+templ New(pageCtx *types.PageContext, roles []*role.Role) {
+	@layouts.Authenticated(pageCtx) {
+		<form class="flex flex-col justify-between h-full" action="/users" method="post">
+			@base.Card("grid grid-cols-3 gap-4 m-6") {
+				@input.Text(&input.Props{
+					Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FirstName"}),
+					Attrs: templ.Attributes{"name": "firstName"},
+				})
+				@input.Text(&input.Props{
+					Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastName"}),
+					Attrs: templ.Attributes{"name": "lastName"},
+				})
+				@input.Email(&input.Props{
+					Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Email"}),
+					Attrs: templ.Attributes{
+						"name":  "email",
+					},
+				})
+				@input.Password(&input.Props{Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Password"}),
+					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EnterPassword"}),
+					Attrs: templ.Attributes{
+						"autocomplete": "new-password",
+						"name":         "password",
+					},
+				})
+				@base.Select(&base.SelectProps{
+					Label:       pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Role"}),
+					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "SelectRole"}),
+					Attrs: templ.Attributes{
+						"name": "roleId",
+					},
+				}) {
+					for _, role := range roles {
+						<option value={ strconv.Itoa(int(role.Id)) }>{ role.Name }</option>
+					}
+				}
+			}
+			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-content border-t-primary mt-auto gap-4">
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+				}) {
+					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}) }
+				}
+			</div>
+		</form>
+	}
 }
