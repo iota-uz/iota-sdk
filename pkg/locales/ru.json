@@ -44,6 +44,8 @@
   "Save": "Сохранить",
   "Search": "Поиск",
   "PerPage": "На страницу",
+  "Cancel": "Отменить",
+  "Back": "Назад",
   "errors": {
     "message": "The requested resource could not be found."
   }

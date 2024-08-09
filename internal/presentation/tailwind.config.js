@@ -7,25 +7,25 @@ module.exports = {
         sans: ["Inter"]
       },
       backgroundColor: {
-        default: "oklch(var(--clr-default-bg))",
-        content: "oklch(var(--clr-content-bg))",
-        primary: "oklch(var(--clr-primary-bg))",
-        navbar: "oklch(var(--clr-navbar-bg))",
+        surface: {
+          100: "oklch(var(--clr-surface-100))",
+          200: "oklch(var(--clr-surface-200))",
+          300: "oklch(var(--clr-surface-300))",
+          400: "oklch(var(--clr-surface-400))",
+          500: "oklch(var(--clr-surface-500))",
+          600: "oklch(var(--clr-surface-600))",
+        },
         avatar: "oklch(var(--clr-avatar-bg))",
-        dropdown: "oklch(var(--clr-dropdown-bg))",
-        table: "oklch(var(--clr-table-bg))",
-        "table-heading": "oklch(var(--clr-table-heading-bg))",
-        "dropdown-item-hover": "oklch(var(--clr-dropdown-item-hover))"
       },
       borderColor: {
         primary: "oklch(var(--clr-border-primary))",
         secondary: "oklch(var(--clr-border-secondary))",
       },
       colors: {
-        primary: "oklch(var(--clr-primary-text))",
-        secondary: "oklch(var(--clr-secondary-text))",
+        100: "oklch(var(--clr-text-100))",
+        200: "oklch(var(--clr-text-200))",
+        300: "oklch(var(--clr-text-300))",
         avatar: "oklch(var(--clr-avatar-text))",
-        "table-heading": "oklch(var(--clr-table-heading-text))",
         black: {
           DEFAULT: "oklch(var(--black))",
           950: "oklch(var(--black-950))",

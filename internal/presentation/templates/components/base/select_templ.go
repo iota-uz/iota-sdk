@@ -86,7 +86,7 @@ func (p *SelectProps) render() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if p.Prefix != "" {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<label class=\"inline-flex items-center justify-center text-secondary text-sm \n                whitespace-nowrap h-[2.6875rem] border-l border-t border-b border-primary rounded-l-lg px-[var(--form-control-size-x)]\" for=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<label class=\"inline-flex items-center justify-center text-300 text-sm \n                whitespace-nowrap h-[2.6875rem] border-l border-t border-b border-primary rounded-l-lg px-[var(--form-control-size-x)]\" for=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

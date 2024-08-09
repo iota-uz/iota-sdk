@@ -1,0 +1,55 @@
+package dialog
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+)
+
+type Props struct {
+	Icon      templ.Component
+	Heading   string
+	Text      string
+	Localizer *i18n.Localizer
+	Action    string
+	Attrs     templ.Attributes
+}
+
+templ Confirmation(p *Props) {
+	<div x-data="dialog" { templ.Attributes{fmt.Sprintf("@%s.window", p.Action): "toggle"}... }>
+		<dialog class="dialog shadow-lg" x-bind="dialog" { p.Attrs... }>
+			<form method="dialog">
+				<header class="flex items-center gap-3 justify-between px-4 py-3 border-b border-primary">
+					<h3 class="font-medium">{ p.Heading }</h3>
+					@button.Secondary(button.Props{Size: button.SizeSM, Fixed: true, Rounded: true}) {
+						@icons.XCircle(icons.Props{Size: "20"})
+					}
+				</header>
+				<article class="py-3 px-4 flex flex-col items-center justify-center gap-2 min-h-36">
+					if p.Icon != nil {
+						<div class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
+							@p.Icon
+						</div>
+					}
+					if p.Text != "" {
+						<p class="text-center">
+							{ p.Text }
+						</p>
+					}
+					{ children... }
+				</article>
+				<footer class="px-4 py-3">
+					<menu class="flex gap-3">
+						@button.Secondary(button.Props{Class: "flex-1 justify-center", Attrs: templ.Attributes{"value": "cancel"}}) {
+							{ p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Cancel"}) }
+						}
+						@button.Primary(button.Props{Class: "flex-1 justify-center", Attrs: templ.Attributes{"value": "confirm"}}) {
+							{ p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}) }
+						}
+					</menu>
+				</footer>
+			</form>
+		</dialog>
+	</div>
+}

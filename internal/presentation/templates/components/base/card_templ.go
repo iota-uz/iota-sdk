@@ -26,7 +26,7 @@ func Card(class string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var2 = []any{"bg-content p-4 rounded-lg border border-primary", class}
+		var templ_7745c5c3_Var2 = []any{"bg-surface-300 p-4 rounded-lg border border-primary", class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

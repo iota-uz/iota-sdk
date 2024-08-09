@@ -29,9 +29,9 @@ type TableProps struct {
 
 templ Table(columns []*TableColumn) {
 	<div class="overflow-x-auto relative">
-		<table class="min-w-full table-auto rounded-b-lg table bg-table text-sm">
+		<table class="min-w-full table-auto rounded-b-lg table bg-surface-600 text-sm">
 			<thead>
-				<tr class="bg-table-heading text-table-heading">
+				<tr class="bg-surface-500 text-200">
 					for _, col := range columns {
 						<th class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0 uppercase text-xs", col.Class }>{ col.Label }</th>
 					}
