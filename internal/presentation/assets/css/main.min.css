@@ -858,6 +858,7 @@ form:invalid .btn:not(.btn-enabled) {
   position: relative;
   display: inline-flex;
   align-items: center;
+  outline-color: oklch(var(--bg-active));
 }
 
 .btn:active, .btn.active {
@@ -978,8 +979,8 @@ form:invalid .btn:not(.btn-enabled) {
   border-radius: var(--radius);
   overflow: hidden;
   transition: opacity 500ms var(--ease-3);
-  animation: var(--animation-scale-down) forwards;
-  animation-timing-function: var(--ease-squish-3);
+  animation: var(--animation-slide-out-down) forwards;
+  animation-timing-function: var(--ease-squish-2);
 }
 
 .dialog:not([open]) {
@@ -1049,6 +1050,10 @@ form:invalid .btn:not(.btn-enabled) {
 
 .m-6 {
   margin: 1.5rem;
+}
+
+.mb-0 {
+  margin-bottom: 0px;
 }
 
 .ml-4 {
@@ -1313,6 +1318,11 @@ form:invalid .btn:not(.btn-enabled) {
 .rounded-b-lg {
   border-bottom-right-radius: 0.5rem;
   border-bottom-left-radius: 0.5rem;
+}
+
+.rounded-b-none {
+  border-bottom-right-radius: 0px;
+  border-bottom-left-radius: 0px;
 }
 
 .rounded-l-lg {
@@ -1588,6 +1598,13 @@ form:invalid .btn:not(.btn-enabled) {
   font-weight: 1 1000;
 }
 
+@media (min-width: 768px) {
+  .dialog {
+    animation: var(--animation-scale-down) forwards;
+    animation-timing-function: var(--ease-squish-3);
+  }
+}
+
 /* Keyframes */
 
 @keyframes slide-in-up {
@@ -1701,6 +1718,17 @@ form:invalid .btn:not(.btn-enabled) {
   --tw-scale-x: 1;
   --tw-scale-y: 1;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
+
+@media (min-width: 768px) {
+  .md\:mb-auto {
+    margin-bottom: auto;
+  }
+
+  .md\:rounded-b-lg {
+    border-bottom-right-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
