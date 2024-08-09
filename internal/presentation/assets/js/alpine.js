@@ -62,7 +62,7 @@ let dialog = () => ({
       }
     });
   }),
-  deleteObserver: new MutationObserver((mutations, observer) => {
+  deleteObserver: new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.removedNodes.forEach((removed) => {
         if (removed.nodeName === "DIALOG") {
@@ -83,6 +83,7 @@ let dialog = () => ({
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
     dialog.dispatchEvent(dialogEvents.closed);
+    this.open = false;
   },
   dialog: {
     ["x-effect"]() {

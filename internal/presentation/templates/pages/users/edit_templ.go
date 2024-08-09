@@ -60,7 +60,7 @@ func Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) templ
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/users/%d", user.Id))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 20, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 20, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -278,8 +278,8 @@ func Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) templ
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				Heading:   "Удалить пользователя",
-				Text:      "Вы уверены что хотите удалить пользователя?",
+				Heading:   "DeleteUser",
+				Text:      "DeleteUserConfirmation",
 				Localizer: pageCtx.Localizer,
 				Icon:      icons.Trash(icons.Props{Size: "20"}),
 				Action:    "open-delete-user-confirmation",
