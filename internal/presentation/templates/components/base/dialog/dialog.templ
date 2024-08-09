@@ -21,7 +21,7 @@ templ Confirmation(p *Props) {
 		<dialog class="dialog shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg" x-bind="dialog" { p.Attrs... }>
 			<form method="dialog">
 				<header class="flex items-center gap-3 justify-between px-4 py-3 border-b border-primary">
-					<h3 class="font-medium">{ p.Heading }</h3>
+					<h3 class="font-medium">{ p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: p.Heading}) }</h3>
 					@button.Secondary(button.Props{Size: button.SizeSM, Fixed: true, Rounded: true}) {
 						@icons.XCircle(icons.Props{Size: "20"})
 					}
@@ -34,7 +34,7 @@ templ Confirmation(p *Props) {
 					}
 					if p.Text != "" {
 						<p class="text-center">
-							{ p.Text }
+							{ p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: p.Text}) }
 						</p>
 					}
 					{ children... }

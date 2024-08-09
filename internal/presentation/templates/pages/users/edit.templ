@@ -1,6 +1,7 @@
 package users
 
 import (
+	"fmt"
 	"github.com/iota-agency/iota-erp/internal/domain/role"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
@@ -12,12 +13,11 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"strconv"
-	"fmt"
 )
 
 templ Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) {
 	@layouts.Authenticated(pageCtx) {
-		<form id="delete-form" hx-delete={fmt.Sprintf("/users/%d", user.Id)} hx-trigger="submit" hx-target="closest .content" hx-swap="innerHTML"></form>
+		<form id="delete-form" hx-delete={ fmt.Sprintf("/users/%d", user.Id) } hx-trigger="submit" hx-target="closest .content" hx-swap="innerHTML"></form>
 		<form class="flex flex-col justify-between h-full" method="post">
 			@base.Card("grid grid-cols-3 gap-4 m-6") {
 				@input.Text(&input.Props{
@@ -85,8 +85,8 @@ templ Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role) {
 			</div>
 		</form>
 		@dialog.Confirmation(&dialog.Props{
-			Heading:   "Удалить пользователя",
-			Text:      "Вы уверены что хотите удалить пользователя?",
+			Heading:   "DeleteUser",
+			Text:      "DeleteUserConfirmation",
 			Localizer: pageCtx.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
 			Action:    "open-delete-user-confirmation",

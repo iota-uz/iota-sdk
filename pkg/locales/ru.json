@@ -46,6 +46,8 @@
   "PerPage": "На страницу",
   "Cancel": "Отменить",
   "Back": "Назад",
+  "DeleteUser": "Удалить пользователя",
+  "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?",
   "errors": {
     "message": "The requested resource could not be found."
   }

@@ -42,5 +42,7 @@
   "Search": "Search",
   "PerPage": "Per page",
   "Cancel": "Cancel",
-  "Back": "Back"
+  "Back": "Back",
+  "DeleteUser": "DeleteUser",
+  "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
 }
