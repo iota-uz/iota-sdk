@@ -103,6 +103,7 @@ func (c *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EditUser"}),
 	}
 
+	w.Header().Add("HX-Push-Url", "/users")
 	templ.Handler(users.UsersContent(pageCtx, us), templ.WithStreaming()).ServeHTTP(w, r)
 }
 

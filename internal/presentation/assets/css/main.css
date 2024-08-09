@@ -41,7 +41,8 @@
     --red-300: var(--red-500) / 30%;
 
     /* Sizes */
-    --size-0: 0.25rem;
+    --size-00: 0.25rem;
+    --size-0: 0.4rem;
     --size-1: 0.5rem;
     --size-2: 0.75rem;
     --size-3: 1rem;
@@ -295,6 +296,7 @@
 
   .btn {
     --text-color: var(--clr-btn-text);
+    --loading-indicator-color: var(--clr-btn-text);
     --text-hover: var(--crl-btn-text-hover);
     --bg-color: var(--crl-btn-bg);
     --bg-active: var(--clr-btn-bg-active);
@@ -308,6 +310,7 @@
     --radius: 0.5rem;
     --opacity: 1;
     --events: all;
+    --user-select: auto;
     background-color: oklch(var(--bg-color));
     color: oklch(var(--text-color));
     padding: var(--size-y) var(--size-x);
@@ -321,14 +324,15 @@
     display: inline-flex;
     align-items: center;
     outline-color: oklch(var(--bg-active));
+    user-select: var(--user-select);
   }
 
-  .btn:active, .btn.active {
+  .btn:not(.btn-loading):not(.htmx-request):active, .btn:not(.btn-loading):not(.htmx-request).active {
     --bg-color: var(--bg-active);
     --text-color: var(--text-hover);
   }
 
-  .btn:hover {
+  .btn:not(.btn-loading):not(.htmx-request):hover {
     --bg-color: var(--bg-hover);
     --text-color: var(--text-hover);
     --border-hover: var(--border-hover);
@@ -341,6 +345,7 @@
     --border-color: var(--clr-primary-btn-border);
     --bg-hover: var(--clr-primary-btn-bg-hover);
     --text-hover: var(--clr-primary-btn-text-hover);
+    --loading-indicator-color: var(--clr-primary-btn-text);
     --border-hover: var(--clr-primary-btn-border-hover);
   }
 
@@ -358,6 +363,7 @@
     --bg-color: var(--clr-danger-btn-bg);
     --bg-active: var(--clr-danger-btn-bg-active);
     --text-color: var(--clr-danger-btn-text);
+    --loading-indicator-color: var(--clr-danger-btn-text);
     --border-color: var(--clr-danger-btn-border);
     --bg-hover: var(--clr-danger-btn-bg-hover);
     --text-hover: var(--clr-danger-btn-text-hover);
@@ -366,6 +372,7 @@
 
   .btn-primary-outline {
     --text-color: var(--clr-primary-outline-btn-text);
+    --loading-indicator-color: var(--clr-primary-outline-btn-text);
     --border-color: var(--clr-primary-outline-btn-border);
     --text-hover: var(--clr-primary-outline-btn-text-hover);
     --border-hover: var(--clr-primary-outline-btn-border-hover);
@@ -375,6 +382,7 @@
     --bg-color: var(--clr-sidebar-btn-bg);
     --bg-active: var(--clr-sidebar-btn-bg-active);
     --text-color: var(--clr-sidebar-btn-text);
+    --loading-indicator-color: var(--clr-sidebar-btn-text);
     --border-color: var(--clr-sidebar-btn-border);
     --bg-hover: var(--clr-sidebar-btn-bg-hover);
     --text-hover: var(--clr-sidebar-btn-text-hover);
@@ -401,6 +409,70 @@
 
   .btn-rounded {
     --radius: 9999px;
+  }
+
+  .btn-loading {
+    --text-color: var(--transparent);
+  }
+
+  .htmx-request .btn,
+  .htmx-request.btn {
+    --text-color: var(--transparent);
+    --user-select: none;
+  }
+
+  .btn-loading-indicator {
+    --size: var(--size-0);
+    --radius: 9999px;
+    --display: none;
+    --color: var(--loading-indicator-color);
+    width: var(--size);
+    height: var(--size);
+    border-radius: var(--radius);
+    background-color: oklch(var(--color));
+    color: oklch(var(--color));
+    animation: dot-flashing 1s infinite linear alternate;
+    animation-delay: 0.5s;
+    display: var(--display);
+    position: absolute;
+    opacity: 1;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .btn-loading-indicator::before, .btn-loading-indicator::after {
+    content: "";
+    display: inline-block;
+    position: absolute;
+    top: 0;
+  }
+
+  .btn-loading-indicator::before {
+    left: calc(-1 * var(--size) * 1.5);
+    width: var(--size);
+    height: var(--size);
+    border-radius: var(--radius);
+    background-color: oklch(var(--color));
+    color: oklch(var(--color));
+    animation: dot-flashing 1s infinite linear alternate;
+    animation-delay: 0s;
+  }
+
+  .btn-loading-indicator::after {
+    left: calc(var(--size) * 1.5);
+    width: var(--size);
+    height: var(--size);
+    border-radius: var(--radius);
+    background-color: oklch(var(--color));
+    color: oklch(var(--color));
+    animation: dot-flashing 1s infinite linear alternate;
+    animation-delay: 1s;
+  }
+
+  .btn-loading .btn-loading-indicator, 
+  .htmx-request .btn-loading-indicator,
+  .htmx-request.btn-loading-indicator {
+    --display: block;
   }
 
   .table {
@@ -483,4 +555,13 @@
 }
 @keyframes slide-out-down {
   to { transform: translateY(100%) }
+}
+
+@keyframes dot-flashing {
+  0% {
+    background-color: oklch(var(--color));
+  }
+  50%, 100% {
+    background-color: oklch(var(--color) / 30%);
+  }
 }
