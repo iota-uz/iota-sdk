@@ -78,6 +78,34 @@ func (c *UserController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(users.Edit(pageCtx, us, roles), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
+func (c *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+	pathname := r.URL.Path
+	localizer, found := composables.UseLocalizer(r.Context())
+	if !found {
+		http.Error(w, "localizer not found", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := c.app.UserService.Delete(r.Context(), int64(id)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	us, err := c.app.UserService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retreving users", http.StatusInternalServerError)
+		return
+	}
+
+	pageCtx := &types.PageContext{
+		Localizer: localizer,
+		Pathname:  pathname,
+		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EditUser"}),
+	}
+
+	templ.Handler(users.UsersContent(pageCtx, us), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
 func (c *UserController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 	action := r.FormValue("_action")

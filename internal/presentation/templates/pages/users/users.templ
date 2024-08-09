@@ -49,54 +49,58 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 	}
 }
 
-templ Index(pageContext *types.PageContext, users []*user.User) {
-	@layouts.Authenticated(pageContext) {
-		<div class="m-6">
-			<h1 class="text-2xl font-medium">
-				{ pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}) }
-			</h1>
-			<div class="mt-5 bg-table border border-primary rounded-lg">
-				<form
-					class="p-4 flex items-center gap-3"
-					hx-get="/users"
-					hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-					hx-target="table"
-					hx-swap="outerHTML"
-				>
-					@input.Text(&input.Props{
-						Addon: &input.Addon{
-							Position:  input.AddonLeft,
-							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-						},
-						Placeholder: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Search"}),
-						Attrs: templ.Attributes{
-							"name": "name",
-						},
-					})
-					@base.Select(&base.SelectProps{
-						Prefix: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PerPage"}),
-						Attrs: templ.Attributes{
-							"name": "limit",
-						},
-					}) {
-						<option>15</option>
-						<option>25</option>
-						<option>50</option>
-						<option>100</option>
-					}
-					@base.Select(&base.SelectProps{Placeholder: pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CreatedAt"})}) {
-						<option>Вчера</option>
-						<option>Позавчера</option>
-					}
-					@button.Primary(button.Props{
-						Size: button.SizeNormal, Href: "/users/new",
-						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					}) {
-						{ pageContext.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NewUser"}) }
-					}
-				</form>
-				@UsersTable(pageContext.Localizer, users)
-			</div>
+templ UsersContent(pageCtx * types.PageContext, users []*user.User) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}) }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/users"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target="table"
+				hx-swap="outerHTML"
+			>
+				@input.Text(&input.Props{
+					Addon: &input.Addon{
+						Position:  input.AddonLeft,
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Search"}),
+					Attrs: templ.Attributes{
+						"name": "name",
+					},
+				})
+				@base.Select(&base.SelectProps{
+					Prefix: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PerPage"}),
+					Attrs: templ.Attributes{
+						"name": "limit",
+					},
+				}) {
+					<option>15</option>
+					<option>25</option>
+					<option>50</option>
+					<option>100</option>
+				}
+				@base.Select(&base.SelectProps{Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CreatedAt"})}) {
+					<option>Вчера</option>
+					<option>Позавчера</option>
+				}
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/users/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NewUser"}) }
+				}
+			</form>
+			@UsersTable(pageCtx.Localizer, users)
 		</div>
+	</div>
+}
+
+templ Index(pageCtx *types.PageContext, users []*user.User) {
+	@layouts.Authenticated(pageCtx) {
+		@UsersContent(pageCtx, users)
 	}
 }

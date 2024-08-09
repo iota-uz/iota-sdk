@@ -95,7 +95,7 @@ templ (i sidebarItem) render(pathname string) {
 }
 
 templ sidebar(pathname string, l *i18n.Localizer) {
-	<div class="flex w-full flex-col bg-primary shadow-lg py-6">
+	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6">
 		<div class="flex h-16 items-center justify-center px-6">
 			<a href="/" class="flex items-center gap-2">
 				<img src={ iotaLogo } alt="Logo" width="150" height="50"/>
@@ -150,7 +150,7 @@ templ avatar() {
 }
 
 templ Navbar() {
-	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-content border-b-primary">
+	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center">
 				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked />
@@ -212,7 +212,7 @@ templ Authenticated(pageCtx *types.PageContext) {
 			@sidebar(pageCtx.Pathname, pageCtx.Localizer)
 			<div>
 				@Navbar()
-				<div class="h-[calc(100%-4rem)] overflow-y-auto">
+				<div class="h-[calc(100%-4rem)] overflow-y-auto content">
 					{ children... }
 				</div>
 			</div>

@@ -96,6 +96,7 @@ func (s *Server) Start() error {
 	r.HandleFunc("/users", userController.CreateUser).Methods(http.MethodPost)
 	r.HandleFunc("/users/{id:[0-9]+}", userController.GetEdit).Methods(http.MethodGet)
 	r.HandleFunc("/users/{id:[0-9]+}", userController.PostEdit).Methods(http.MethodPost)
+	r.HandleFunc("/users/{id:[0-9]+}", userController.DeleteUser).Methods(http.MethodDelete)
 	r.HandleFunc("/users/new", userController.GetNew).Methods(http.MethodGet)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
