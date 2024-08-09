@@ -37,6 +37,7 @@ type Props struct {
 	Fixed   bool
 	Href    string
 	Rounded bool
+	Loading bool
 	Class   string
 	Icon    templ.Component
 	Attrs   templ.Attributes
@@ -52,6 +53,7 @@ templ base(props Props) {
 			templ.KV("btn-fixed", props.Fixed), 
 			templ.KV("btn-rounded", props.Rounded), 
 			templ.KV("btn-with-icon", props.Icon != nil), 
+			templ.KV("btn-loading", props.Loading), 
 			props.Class }
 			{ props.Attrs... }
 		>
@@ -59,6 +61,7 @@ templ base(props Props) {
 				@props.Icon
 			}
 			{ children... }
+			<div class="btn-loading-indicator"></div>
 		</a>
 	} else {
 		<button
@@ -67,6 +70,8 @@ templ base(props Props) {
 				sizes[props.Size], 
 				templ.KV("btn-fixed", props.Fixed),
 				templ.KV("btn-rounded", props.Rounded),
+				templ.KV("btn-with-icon", props.Icon != nil), 
+				templ.KV("btn-loading", props.Loading), 
 				props.Class }
 			{ props.Attrs... }
 		>
@@ -74,36 +79,87 @@ templ base(props Props) {
 				@props.Icon
 			}
 			{ children... }
+			<div class="btn-loading-indicator"></div>
 		</button>
 	}
 }
 
 templ Primary(props Props) {
-	@base(Props{variant: VariantPrimary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Rounded: props.Rounded, Attrs: props.Attrs, Icon: props.Icon}) {
+	@base(Props{
+		variant: VariantPrimary,
+		Size:    props.Size,
+		Class:   props.Class,
+		Href:    props.Href,
+		Fixed:   props.Fixed,
+		Rounded: props.Rounded,
+		Attrs:   props.Attrs,
+		Icon:    props.Icon,
+		Loading: props.Loading,
+	}) {
 		{ children... }
 	}
 }
 
 templ Secondary(props Props) {
-	@base(Props{variant: VariantSecondary, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Rounded: props.Rounded, Attrs: props.Attrs, Icon: props.Icon}) {
+	@base(Props{
+		variant: VariantSecondary,
+		Size:    props.Size,
+		Class:   props.Class,
+		Href:    props.Href,
+		Fixed:   props.Fixed,
+		Rounded: props.Rounded,
+		Attrs:   props.Attrs,
+		Icon:    props.Icon,
+		Loading: props.Loading,
+	}) {
 		{ children... }
 	}
 }
 
 templ PrimaryOutline(props Props) {
-	@base(Props{variant: VariantPrimaryOutline, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Rounded: props.Rounded, Attrs: props.Attrs, Icon: props.Icon}) {
+	@base(Props{
+		variant: VariantPrimaryOutline,
+		Size:    props.Size,
+		Class:   props.Class,
+		Href:    props.Href,
+		Fixed:   props.Fixed,
+		Rounded: props.Rounded,
+		Attrs:   props.Attrs,
+		Icon:    props.Icon,
+		Loading: props.Loading,
+	}) {
 		{ children... }
 	}
 }
 
 templ Danger(props Props) {
-	@base(Props{variant: VariantDanger, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Rounded: props.Rounded, Attrs: props.Attrs, Icon: props.Icon}) {
+	@base(Props{
+		variant: VariantDanger,
+		Size:    props.Size,
+		Class:   props.Class,
+		Href:    props.Href,
+		Fixed:   props.Fixed,
+		Rounded: props.Rounded,
+		Attrs:   props.Attrs,
+		Icon:    props.Icon,
+		Loading: props.Loading,
+	}) {
 		{ children... }
 	}
 }
 
 templ Sidebar(props Props) {
-	@base(Props{variant: VariantSidebar, Size: props.Size, Class: props.Class, Href: props.Href, Fixed: props.Fixed, Rounded: props.Rounded, Attrs: props.Attrs, Icon: props.Icon}) {
+	@base(Props{
+		variant: VariantSidebar,
+		Size:    props.Size,
+		Class:   props.Class,
+		Href:    props.Href,
+		Fixed:   props.Fixed,
+		Rounded: props.Rounded,
+		Attrs:   props.Attrs,
+		Icon:    props.Icon,
+		Loading: props.Loading,
+	}) {
 		{ children... }
 	}
 }
