@@ -320,6 +320,7 @@
     position: relative;
     display: inline-flex;
     align-items: center;
+    outline-color: oklch(var(--bg-active));
   }
 
   .btn:active, .btn.active {
@@ -436,8 +437,8 @@
     border-radius: var(--radius);
     overflow: hidden;
     transition: opacity 500ms var(--ease-3);
-    animation: var(--animation-scale-down) forwards;
-    animation-timing-function: var(--ease-squish-3);
+    animation: var(--animation-slide-out-down) forwards;
+    animation-timing-function: var(--ease-squish-2);
   }
 
   .dialog:not([open]) {
@@ -462,6 +463,13 @@
 
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@media screen(md) {
+  .dialog {
+    animation: var(--animation-scale-down) forwards;
+    animation-timing-function: var(--ease-squish-3);
   }
 }
 
