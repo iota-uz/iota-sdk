@@ -1,6 +1,5 @@
 -- +migrate Up
 BEGIN;
-CREATE EXTENSION vector;
 
 CREATE TABLE uploads
 (
@@ -736,5 +735,4 @@ DROP TABLE IF EXISTS website_page_views CASCADE;
 DROP TABLE IF EXISTS website_pages CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 
-DROP EXTENSION IF EXISTS vector;
 COMMIT;

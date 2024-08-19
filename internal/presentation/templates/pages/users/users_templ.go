@@ -79,7 +79,7 @@ func UsersTable(localizer *i18n.Localizer, users []*user.User) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.FullName())
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 26, Col: 22}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 29, Col: 22}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -115,7 +115,7 @@ func UsersTable(localizer *i18n.Localizer, users []*user.User) templ.Component {
 							var templ_7745c5c3_Var7 string
 							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", v.Format(time.RFC3339)))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 31, Col: 73}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 34, Col: 73}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 							if templ_7745c5c3_Err != nil {
@@ -129,7 +129,7 @@ func UsersTable(localizer *i18n.Localizer, users []*user.User) templ.Component {
 							var templ_7745c5c3_Var8 string
 							templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Unknown"}))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 34, Col: 74}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 37, Col: 74}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 							if templ_7745c5c3_Err != nil {
@@ -165,7 +165,7 @@ func UsersTable(localizer *i18n.Localizer, users []*user.User) templ.Component {
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 39, Col: 85}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 42, Col: 85}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
@@ -234,11 +234,14 @@ func UsersTable(localizer *i18n.Localizer, users []*user.User) templ.Component {
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = base.Table([]*base.TableColumn{
-			{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FullName"}), Key: "fullName"},
-			{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastAction"}), Key: "lastAction"},
-			{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "UpdatedAt"}), Key: "updatedAt"},
-			{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Actions"}), Class: "w-16"},
+		templ_7745c5c3_Err = base.Table(&base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: "Users.List.FullName", Key: "fullName"},
+				{Label: "Users.List.LastAction", Key: "lastAction"},
+				{Label: "UpdatedAt", Key: "updatedAt"},
+				{Label: "Actions", Class: "w-16"},
+			},
+			Localizer: localizer,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -272,7 +275,7 @@ func UsersContent(pageCtx *types.PageContext, users []*user.User) templ.Componen
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 55, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 58, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -357,9 +360,9 @@ func UsersContent(pageCtx *types.PageContext, users []*user.User) templ.Componen
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var18 string
-			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NewUser"}))
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.List.NewUser"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 94, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/users.templ`, Line: 97, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {

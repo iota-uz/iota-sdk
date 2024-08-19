@@ -3,6 +3,8 @@ package input
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/sdk/utils/random"
+	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
+	"strings"
 )
 
 type addonPosition int
@@ -24,28 +26,30 @@ type Props struct {
 	Class       string
 	Attrs       templ.Attributes
 	Addon       *Addon
+	Error       string
 	id          string
 	typ         string
 }
 
 func newInput(props *Props) *Props {
 	id := random.String(12, random.LowerCharSet)
-	class := ""
+	class := new(strings.Builder)
 	if props.Addon != nil {
 		if props.Addon.Position == AddonLeft {
-			class += "pl-10"
+			class.WriteString("pl-10")
 		} else if props.Addon.Position == AddonRight {
-			class += "pr-10"
+			class.WriteString("pr-10")
 		}
 	}
-
-	return &Props{id: id, Label: props.Label, Class: class + " " + props.Class, Attrs: props.Attrs, Addon: props.Addon, typ: props.typ, Placeholder: props.Placeholder}
+	sequence.Pad(class, " ")
+	class.WriteString(props.Class)
+	return &Props{id: id, Label: props.Label, Class: class.String(), Attrs: props.Attrs, Addon: props.Addon, typ: props.typ, Placeholder: props.Placeholder, Error: props.Error}
 }
 
 templ (p *Props) render() {
-	<div class="flex flex-col gap-2 w-full">
+	<div class="flex flex-col w-full">
 		if len(p.Label) > 0 {
-			<label for={ p.id } class="form-control-label">{ p.Label }</label>
+			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
 		<div class="w-full relative">
 			if p.Addon != nil && p.Addon.Position == AddonLeft {
@@ -68,15 +72,18 @@ templ (p *Props) render() {
 				</div>
 			}
 		</div>
+		if p.Error != "" {
+			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+		}
 	</div>
 }
 
 templ Text(props *Props) {
-	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon}).render()
+	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
 }
 
 templ Email(props *Props) {
-	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon}).render()
+	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
 }
 
 templ passwordLock(p *Props) {
@@ -94,6 +101,7 @@ templ Password(props *Props) {
 		Label:       props.Label,
 		Attrs:       props.Attrs,
 		Placeholder: props.Placeholder,
+		Error:       props.Error,
 		Addon: &Addon{
 			Position: AddonRight,
 			Render: func(p *Props) templ.Component {

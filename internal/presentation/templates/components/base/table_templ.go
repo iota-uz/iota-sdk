@@ -8,6 +8,8 @@ package base
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "github.com/nicksnyder/go-i18n/v2/i18n"
+
 type TableColumn struct {
 	Label      string
 	Key        string
@@ -87,11 +89,11 @@ func TableCell() templ.Component {
 }
 
 type TableProps struct {
-	Columns []*TableColumn
-	Class   string
+	Columns   []*TableColumn
+	Localizer *i18n.Localizer
 }
 
-func Table(columns []*TableColumn) templ.Component {
+func Table(props *TableProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -113,7 +115,7 @@ func Table(columns []*TableColumn) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, col := range columns {
+		for _, col := range props.Columns {
 			var templ_7745c5c3_Var4 = []any{"px-4 py-3 font-medium text-left border-r-0 border-b-0 uppercase text-xs", col.Class}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 			if templ_7745c5c3_Err != nil {
@@ -137,9 +139,9 @@ func Table(columns []*TableColumn) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: col.Label}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 36, Col: 116}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 39, Col: 179}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

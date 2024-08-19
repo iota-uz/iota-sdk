@@ -29,6 +29,7 @@ type Configuration struct {
 	UploadsPath        string
 	FrontendDomain     string
 	PageSize           int
+	MaxPageSize        int
 }
 
 func Use() *Configuration {
@@ -69,6 +70,13 @@ func (c *Configuration) Load() error {
 	c.OpenAIKey = env.MustGetEnv("OPENAI_KEY")
 	c.UploadsPath = env.GetEnv("UPLOADS_PATH", "uploads")
 	c.FrontendDomain = env.GetEnv("FRONTEND_DOMAIN", "localhost")
-	c.PageSize, _ = strconv.Atoi(env.GetEnv("PAGE_SIZE", "25"))
+	c.PageSize, err = strconv.Atoi(env.GetEnv("PAGE_SIZE", "25"))
+	if err != nil {
+		return err
+	}
+	c.MaxPageSize, err = strconv.Atoi(env.GetEnv("MAX_PAGE_SIZE", "100"))
+	if err != nil {
+		return err
+	}
 	return nil
 }
