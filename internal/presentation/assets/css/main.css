@@ -10,6 +10,30 @@
   font-weight: 1 1000;
 }
 
+@font-face {
+  font-family: "Gilroy";
+  font-style: normal;
+  font-display: swap;
+  src: url(/assets/fonts/Gilroy/Gilroy-Regular.woff2) format('woff2');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  font-style: normal;
+  font-display: swap;
+  src: url(/assets/fonts/Gilroy/Gilroy-Medium.woff2) format('woff2');
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  font-style: normal;
+  font-display: swap;
+  src: url(/assets/fonts/Gilroy/Gilroy-Semibold.woff2) format('woff2');
+  font-weight: 600;
+}
+
 @layer base {
   :root {
     /* Base */

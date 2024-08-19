@@ -46,7 +46,7 @@ html,
   -o-tab-size: 4;
      tab-size: 4;
   /* 3 */
-  font-family: Inter;
+  font-family: Gilroy;
   /* 4 */
   font-feature-settings: normal;
   /* 5 */
@@ -1130,6 +1130,10 @@ form:invalid .btn:not(.btn-enabled) {
   margin-bottom: 0px;
 }
 
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
 .ml-4 {
   margin-left: 1rem;
 }
@@ -1152,10 +1156,6 @@ form:invalid .btn:not(.btn-enabled) {
 
 .mt-auto {
   margin-top: auto;
-}
-
-.mb-2 {
-  margin-bottom: 0.5rem;
 }
 
 .block {
@@ -1660,6 +1660,42 @@ form:invalid .btn:not(.btn-enabled) {
   src: url(/assets/fonts/Inter.var.woff2) format('woff2-variations');
 
   font-weight: 1 1000;
+}
+
+@font-face {
+  font-family: "Gilroy";
+
+  font-style: normal;
+
+  font-display: swap;
+
+  src: url(/assets/fonts/Gilroy/Gilroy-Regular.woff2) format('woff2');
+
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Gilroy";
+
+  font-style: normal;
+
+  font-display: swap;
+
+  src: url(/assets/fonts/Gilroy/Gilroy-Medium.woff2) format('woff2');
+
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: "Gilroy";
+
+  font-style: normal;
+
+  font-display: swap;
+
+  src: url(/assets/fonts/Gilroy/Gilroy-Semibold.woff2) format('woff2');
+
+  font-weight: 600;
 }
 
 @media (min-width: 768px) {

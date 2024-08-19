@@ -81,7 +81,7 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	hxRedirect(w, r, "/users")
+	redirect(w, r, "/users")
 }
 
 func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +128,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	hxRedirect(w, r, "/users")
+	redirect(w, r, "/users")
 }
 
 func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -175,5 +175,5 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	hxRedirect(w, r, "/users")
+	redirect(w, r, "/users")
 }
