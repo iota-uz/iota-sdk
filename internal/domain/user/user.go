@@ -1,10 +1,12 @@
 package user
 
 import (
-	"bytes"
+	"strings"
 	"time"
 
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,6 +24,13 @@ type User struct {
 	LastAction *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+}
+
+type UserUpdate struct {
+	FirstName string
+	LastName  string
+	Email     string
+	Password  string
 }
 
 func (u *User) CheckPassword(password string) bool {
@@ -42,19 +51,50 @@ func (u *User) SetPassword(password string) error {
 }
 
 func (u *User) FullName() string {
-	out := new(bytes.Buffer)
+	out := new(strings.Builder)
 	if u.FirstName != "" {
 		out.WriteString(u.FirstName)
 	}
 	if v := u.MiddleName; v != nil && *v != "" {
-		pad(out, " ")
+		sequence.Pad(out, " ")
 		out.WriteString(*v)
 	}
 	if u.LastName != "" {
-		pad(out, " ")
+		sequence.Pad(out, " ")
 		out.WriteString(u.LastName)
 	}
 	return out.String()
+}
+
+func (u *User) Ok(l *i18n.Localizer) (map[string]string, bool) {
+	errors := map[string]string{}
+	if strings.TrimSpace(u.FirstName) == "" {
+		errors["firstName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	if strings.TrimSpace(u.LastName) == "" {
+		errors["lastName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	if strings.TrimSpace(u.Email) == "" {
+		errors["email"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	if v := u.Password; v == nil || strings.TrimSpace(*v) == "" {
+		errors["password"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	return errors, len(errors) == 0
+}
+
+func (u *UserUpdate) Ok(l *i18n.Localizer) (map[string]string, bool) {
+	errors := map[string]string{}
+	if strings.TrimSpace(u.FirstName) == "" {
+		errors["firstName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	if strings.TrimSpace(u.FirstName) == "" {
+		errors["lastName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	if strings.TrimSpace(u.FirstName) == "" {
+		errors["email"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	return errors, len(errors) == 0
 }
 
 func (u *User) ToGraph() *model.User {
@@ -72,11 +112,4 @@ func (u *User) ToGraph() *model.User {
 		CreatedAt:  u.CreatedAt,
 		UpdatedAt:  u.UpdatedAt,
 	}
-}
-
-func pad(b *bytes.Buffer, str string) {
-	if b.Len() == 0 {
-		return
-	}
-	b.WriteString(str)
 }

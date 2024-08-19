@@ -11,33 +11,24 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/users"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-type UserController struct {
+type UsersController struct {
 	app *services.Application
 }
 
-func NewUserController(app *services.Application) *UserController {
-	return &UserController{
+func NewUsersController(app *services.Application) *UsersController {
+	return &UsersController{
 		app: app,
 	}
 }
 
-func (c *UserController) Users(w http.ResponseWriter, r *http.Request) {
-	pathname := r.URL.Path
-	localizer, found := composables.UseLocalizer(r.Context())
-	if !found {
-		http.Error(w, "localizer not found", http.StatusInternalServerError)
+func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
+	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.List.Title")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	pageCtx := &types.PageContext{
-		Localizer: localizer,
-		Pathname:  pathname,
-		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}),
-	}
-
 	params := composables.UsePaginated(r)
 	us, err := c.app.UserService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
@@ -46,49 +37,44 @@ func (c *UserController) Users(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("HX-Request")) > 0
 	if isHxRequest {
-		templ.Handler(users.UsersTable(localizer, us), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(users.UsersTable(pageCtx.Localizer, us), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(users.Index(pageCtx, us), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
-func (c *UserController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	pathname := r.URL.Path
+func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-	localizer, found := composables.UseLocalizer(r.Context())
-	if !found {
-		http.Error(w, "localizer not found", http.StatusInternalServerError)
+	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.Edit.Title")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	roles, err := c.app.RoleService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retreving roles", http.StatusInternalServerError)
 		return
 	}
+
 	us, err := c.app.UserService.GetByID(r.Context(), int64(id))
 	if err != nil {
 		http.Error(w, "Error retreving users", http.StatusInternalServerError)
 		return
 	}
-	pageCtx := &types.PageContext{
-		Localizer: localizer,
-		Pathname:  pathname,
-		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EditUser"}),
-	}
-	templ.Handler(users.Edit(pageCtx, us, roles), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(users.Edit(pageCtx, us, roles, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-	pathname := r.URL.Path
-	localizer, found := composables.UseLocalizer(r.Context())
-	if !found {
-		http.Error(w, "localizer not found", http.StatusInternalServerError)
+func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
 	if _, err := c.app.UserService.Delete(r.Context(), int64(id)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	us, err := c.app.UserService.GetAll(r.Context())
@@ -97,68 +83,102 @@ func (c *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx := &types.PageContext{
-		Localizer: localizer,
-		Pathname:  pathname,
-		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EditUser"}),
+	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.Edit.Title")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-
 	w.Header().Add("HX-Push-Url", "/users")
 	templ.Handler(users.UsersContent(pageCtx, us), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *UserController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 	action := r.FormValue("_action")
 	var err error
 	if action == "save" {
-		err = c.app.UserService.Update(r.Context(), &user.User{
-			Id:        int64(id),
+		upd := &user.UserUpdate{
 			FirstName: r.FormValue("firstName"),
 			LastName:  r.FormValue("lastName"),
 			Email:     r.FormValue("email"),
-		})
+		}
+		var pageCtx *types.PageContext
+		pageCtx, err = composables.UsePageCtx(r, "Users.Meta.Edit.Title")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if errors, ok := upd.Ok(pageCtx.Localizer); !ok {
+			roles, err := c.app.RoleService.GetAll(r.Context())
+			if err != nil {
+				http.Error(w, "Error retreving roles", http.StatusInternalServerError)
+				return
+			}
+
+			us, err := c.app.UserService.GetByID(r.Context(), int64(id))
+			if err != nil {
+				http.Error(w, "Error retreving users", http.StatusInternalServerError)
+				return
+			}
+
+			templ.Handler(users.EditForm(pageCtx.Localizer, us, roles, errors), templ.WithStreaming()).ServeHTTP(w, r)
+			return
+		}
+		err = c.app.UserService.Update(r.Context(), &user.User{Id: int64(id), FirstName: upd.FirstName, LastName: upd.LastName, Email: upd.Email})
 	} else if action == "delete" {
 		_, err = c.app.UserService.Delete(r.Context(), int64(id))
 	}
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-	http.Redirect(w, r, "/users", http.StatusFound)
-}
-
-func (c *UserController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pathname := r.URL.Path
-	localizer, found := composables.UseLocalizer(r.Context())
-	if !found {
-		http.Error(w, "localizer not found", http.StatusInternalServerError)
 		return
 	}
+	hxRedirect(w, r, "/users")
+}
+
+func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 	roles, err := c.app.RoleService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retreving roles", http.StatusInternalServerError)
 		return
 	}
-	pageCtx := &types.PageContext{
-		Localizer: localizer,
-		Pathname:  pathname,
-		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NewUser"}),
+	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.New.Title")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	templ.Handler(users.New(pageCtx, roles), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(users.New(pageCtx, roles, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
-	user := &user.User{
+func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
+	password := r.FormValue("password")
+	user := user.User{
 		FirstName: r.FormValue("firstName"),
 		LastName:  r.FormValue("lastName"),
 		Email:     r.FormValue("email"),
+		Password:  &password,
+	}
+
+	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.New.Title")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if errors, ok := user.Ok(pageCtx.Localizer); !ok {
+		roles, err := c.app.RoleService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Error retreving roles", http.StatusInternalServerError)
+			return
+		}
+		templ.Handler(users.CreateForm(pageCtx.Localizer, user, roles, errors), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
 
 	user.SetPassword(r.FormValue("password"))
-	if err := c.app.UserService.Create(r.Context(), user); err != nil {
+	if err := c.app.UserService.Create(r.Context(), &user); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	http.Redirect(w, r, "/users", http.StatusFound)
+	hxRedirect(w, r, "/users")
 }

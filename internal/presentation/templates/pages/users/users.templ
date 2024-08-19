@@ -14,11 +14,14 @@ import (
 )
 
 templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
-	@base.Table([]*base.TableColumn{
-		{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FullName"}), Key: "fullName"},
-		{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LastAction"}), Key: "lastAction"},
-		{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "UpdatedAt"}), Key: "updatedAt"},
-		{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Actions"}), Class: "w-16"},
+	@base.Table(&base.TableProps{
+		Columns: []*base.TableColumn{
+			{Label: "Users.List.FullName", Key: "fullName"},
+			{Label: "Users.List.LastAction", Key: "lastAction"},
+			{Label: "UpdatedAt", Key: "updatedAt"},
+			{Label: "Actions", Class: "w-16"},
+		},
+		Localizer: localizer,
 	}) {
 		for _, user := range users {
 			@base.TableRow() {
@@ -91,7 +94,7 @@ templ UsersContent(pageCtx * types.PageContext, users []*user.User) {
 					Size: button.SizeNormal, Href: "/users/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NewUser"}) }
+					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.List.NewUser"}) }
 				}
 			</form>
 			@UsersTable(pageCtx.Localizer, users)

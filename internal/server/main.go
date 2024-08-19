@@ -73,7 +73,7 @@ func (s *Server) Start() error {
 	allowOrigins := []string{"http://localhost:3000", "ws://localhost:3000"}
 	loginController := controllers.NewLoginController(application)
 	homeController := controllers.NewHomeController(application)
-	userController := controllers.NewUserController(application)
+	userController := controllers.NewUsersController(application)
 
 	r := s.useRouter(
 		cors.New(cors.Options{

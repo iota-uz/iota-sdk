@@ -20,29 +20,48 @@
     "Payments": "Payments",
     "Reports": "Reports"
   },
-  "EditUser": "Edit user",
-  "NewUser": "New user",
-  "LastAction": "Last action",
-  "FullName": "Full name",
-  "FirstName": "First name",
-  "LastName": "Last name",
-  "PhoneNumber": "Phone number",
-  "Password": "Password",
-  "Role": "Role",
-  "Email": "Email",
+  "Validations": {
+    "Required": "This field is required"
+  },
+  "Users": {
+    "Meta": {
+      "List": {
+        "Title": "Users"
+      },
+      "Edit": {
+        "Title": "Edit user"
+      },
+      "New": {
+        "Title": "New user"
+      }
+    },
+    "List": {
+      "NewUser": "New User",
+      "FullName": "Full name",
+      "LastAction": "Last action"
+    },
+    "Single": {
+      "EditUser": "Edit user",
+      "FirstName": "First name",
+      "LastName": "Last name",
+      "Email": "Email",
+      "Password": "Password",
+      "Role": "Role",
+      "SelectRole": "Select role",
+      "EnterPassword": "Enter password",
+      "DeleteUser": "DeleteUser",
+      "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
+    }
+  },
   "UpdatedAt": "Updated at",
   "CreatedAt": "Created at",
+  "SignOut": "Sign out",
   "Unknown": "Unknown",
   "Actions": "Actions",
-  "SignOut": "Sign out",
-  "EnterPassword": "Enter password",
-  "SelectRole": "Select role",
   "Delete": "Delete",
   "Save": "Save",
   "Search": "Search",
   "PerPage": "Per page",
   "Cancel": "Cancel",
-  "Back": "Back",
-  "DeleteUser": "DeleteUser",
-  "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
+  "Back": "Back"
 }
