@@ -16,7 +16,7 @@ templ Index(pageCtx *types.PageContext) {
 				<h1 class="text-2xl text-gray-950">
 					Вход
 				</h1>
-				<form class="flex flex-col gap-7 w-2/3">
+				<form class="flex flex-col gap-7 w-2/3" action="/login" method="post">
 					@input.Email(&input.Props{
 						Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Email"}),
 						Attrs: templ.Attributes{
