@@ -103,7 +103,7 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 		</div>
 		<nav class="py-4 flex-1">
 			<ul class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar">
-				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}), "/", icons.Gauge(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}), "/", icons.CirclesThreePlus(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}), "/users", icons.Users(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.BI-Chat"}), "/bi-chat", icons.ChatCircle(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.KnowledgeBase"}), "/knowledge-base", icons.Book(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname)

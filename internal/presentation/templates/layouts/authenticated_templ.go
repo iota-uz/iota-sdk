@@ -238,7 +238,7 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}), "/", icons.Gauge(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}), "/", icons.CirclesThreePlus(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
