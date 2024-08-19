@@ -116,7 +116,7 @@ func Table(props *TableProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, col := range props.Columns {
-			var templ_7745c5c3_Var4 = []any{"px-4 py-3 font-medium text-left border-r-0 border-b-0 uppercase text-xs", col.Class}
+			var templ_7745c5c3_Var4 = []any{"px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -141,7 +141,7 @@ func Table(props *TableProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: col.Label}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 39, Col: 179}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 39, Col: 161}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

@@ -1,44 +1,37 @@
 package login
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 )
 
 templ Index(pageCtx *types.PageContext) {
-	@layouts.Default(pageCtx) {
+	@layouts.Base(pageCtx) {
 		<div class="grid grid-cols-2 h-screen">
 			<div class="flex flex-col gap-16 justify-center items-center text-left">
 				<h1 class="text-2xl text-gray-950">
 					Вход
 				</h1>
 				<form class="flex flex-col gap-7 w-2/3">
-					<div>
-						@base.BaseLabel(base.BaseLabelProps{
-							Text: "Почта",
-						})
-						// @input.BaseInput(base.BaseInputProps{
-						// 	Type:        "email",
-						// 	Name:        "email",
-						// 	Placeholder: "",
-						// })
-					</div>
-					<div>
-						@base.BaseLabel(base.BaseLabelProps{
-							Text: "Пароль",
-						})
-						// @base.BaseInput(base.BaseInputProps{
-						// 	Type:        "password",
-						// 	Name:        "password",
-						// 	Placeholder: "",
-						// })
-					</div>
-					// @base.BaseButton(base.BaseButtonProps{
-          //               Type: "button",
-          //           }) {
-          //               Войти
-          //           }
+					@input.Email(&input.Props{
+						Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Email"}),
+						Attrs: templ.Attributes{
+							"name": "email",
+						},
+					})
+					@input.Password(&input.Props{
+						Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Password"}),
+						Attrs: templ.Attributes{
+							"name": "password",
+						},
+					})
+					@button.Primary(button.Props{Size: button.SizeMD, Class: "justify-center"}) {
+						{pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Login"})}
+					}
 				</form>
 			</div>
 			<div class="bg-primary-700">

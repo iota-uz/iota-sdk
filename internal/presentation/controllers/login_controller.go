@@ -5,7 +5,6 @@ import (
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/login"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
@@ -20,10 +19,11 @@ type LoginController struct {
 }
 
 func (c *LoginController) Login(w http.ResponseWriter, r *http.Request) {
-	pageCtx := &types.PageContext{}
-	_, found := composables.UseLocalizer(r.Context())
-	if !found {
-		http.Error(w, "localizer not found", http.StatusInternalServerError)
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{
+		Title: "Login.Meta.Title",
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := login.Index(pageCtx).Render(r.Context(), w); err != nil {
