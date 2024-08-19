@@ -24,7 +24,7 @@ func NewUsersController(app *services.Application) *UsersController {
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.List.Title")
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.List.Title"})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -45,7 +45,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 
 func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.Edit.Title")
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.Edit.Title"})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -76,20 +76,7 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	us, err := c.app.UserService.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, "Error retreving users", http.StatusInternalServerError)
-		return
-	}
-
-	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.Edit.Title")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Add("HX-Push-Url", "/users")
-	templ.Handler(users.UsersContent(pageCtx, us), templ.WithStreaming()).ServeHTTP(w, r)
+	hxRedirect(w, r, "/users")
 }
 
 func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +90,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			Email:     r.FormValue("email"),
 		}
 		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, "Users.Meta.Edit.Title")
+		pageCtx, err = composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.Edit.Title"})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -142,7 +129,7 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retreving roles", http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.New.Title")
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.New.Title"})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -159,7 +146,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Password:  &password,
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, "Users.Meta.New.Title")
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.New.Title"})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
