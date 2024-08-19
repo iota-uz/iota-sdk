@@ -30,6 +30,7 @@ type Configuration struct {
 	FrontendDomain     string
 	PageSize           int
 	MaxPageSize        int
+	SidCookieKey       string
 }
 
 func Use() *Configuration {
@@ -78,5 +79,6 @@ func (c *Configuration) Load() error {
 	if err != nil {
 		return err
 	}
+	c.SidCookieKey = env.GetEnv("SID_COOKIE_KEY", "sid")
 	return nil
 }
