@@ -9,9 +9,12 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 func Index(pageCtx *types.PageContext) templ.Component {
@@ -44,33 +47,62 @@ func Index(pageCtx *types.PageContext) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"grid grid-cols-2 h-screen\"><div class=\"flex flex-col gap-16 justify-center items-center text-left\"><h1 class=\"text-2xl text-gray-950\">Вход</h1><form class=\"flex flex-col gap-7 w-2/3\"><div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"grid grid-cols-2 h-screen\"><div class=\"flex flex-col gap-16 justify-center items-center text-left\"><h1 class=\"text-2xl text-gray-950\">Вход</h1><form class=\"flex flex-col gap-7 w-2/3\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = base.BaseLabel(base.BaseLabelProps{
-				Text: "Почта",
+			templ_7745c5c3_Err = input.Email(&input.Props{
+				Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Email"}),
+				Attrs: templ.Attributes{
+					"name": "email",
+				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = base.BaseLabel(base.BaseLabelProps{
-				Text: "Пароль",
+			templ_7745c5c3_Err = input.Password(&input.Props{
+				Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Password"}),
+				Attrs: templ.Attributes{
+					"name": "password",
+				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></form></div><div class=\"bg-primary-700\"><img src=\"/static/img/login.png\" alt=\"login\" class=\"w-full h-full object-cover\"></div></div>")
+			templ_7745c5c3_Var3 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+				if !templ_7745c5c3_IsBuffer {
+					defer func() {
+						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err == nil {
+							templ_7745c5c3_Err = templ_7745c5c3_BufErr
+						}
+					}()
+				}
+				ctx = templ.InitializeContext(ctx)
+				var templ_7745c5c3_Var4 string
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Login"}))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/login/index.templ`, Line: 33, Col: 85}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				return templ_7745c5c3_Err
+			})
+			templ_7745c5c3_Err = button.Primary(button.Props{Size: button.SizeMD, Class: "justify-center"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</form></div><div class=\"bg-primary-700\"><img src=\"/static/img/login.png\" alt=\"login\" class=\"w-full h-full object-cover\"></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = layouts.Default(pageCtx).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base(pageCtx).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

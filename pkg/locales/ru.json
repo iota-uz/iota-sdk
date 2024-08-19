@@ -50,6 +50,19 @@
       "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
     }
   },
+  "Login": {
+    "Meta": {
+      "Title": "Войти"
+    },
+    "Email": "Email",
+    "Password": "Пароль",
+    "Login": "Войти"
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Главная"
+    }
+  },
   "NewUser": "Новый пользователь",
   "UpdatedAt": "Обновлен",
   "CreatedAt": "Создан",

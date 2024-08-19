@@ -53,6 +53,19 @@
       "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
     }
   },
+  "Login": {
+    "Meta": {
+      "Title": "Log in"
+    },
+    "Email": "Email",
+    "Password": "Password",
+    "Login": "Login"
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Home"
+    }
+  },
   "UpdatedAt": "Updated at",
   "CreatedAt": "Created at",
   "SignOut": "Sign out",
