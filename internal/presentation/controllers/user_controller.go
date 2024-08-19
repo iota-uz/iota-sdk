@@ -44,7 +44,12 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+
 	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.Edit.Title"})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -80,9 +85,12 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
 	action := r.FormValue("_action")
-	var err error
 	if action == "save" {
 		upd := &user.UserUpdate{
 			FirstName: r.FormValue("firstName"),
