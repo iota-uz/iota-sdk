@@ -36,7 +36,12 @@ func UsePaginated(r *http.Request) PaginationParams {
 	}
 }
 
-func UsePageCtx(r *http.Request, title string) (*types.PageContext, error) {
+type PageData struct {
+	Title       string
+	Description string
+}
+
+func UsePageCtx(r *http.Request, pageData *PageData) (*types.PageContext, error) {
 	localizer, found := UseLocalizer(r.Context())
 	if !found {
 		return nil, errLocalizerNotFound
@@ -45,7 +50,7 @@ func UsePageCtx(r *http.Request, title string) (*types.PageContext, error) {
 	return &types.PageContext{
 		Pathname:  r.URL.Path,
 		Localizer: localizer,
-		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: title}),
+		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}),
 		Locale:    locale.String(),
 	}, nil
 }
