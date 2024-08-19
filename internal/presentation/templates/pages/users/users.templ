@@ -44,7 +44,7 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 				}
 				@base.TableCell() {
 					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/users/%d", user.Id)}) {
-						@icons.Pencil(icons.Props{Size: "20"})
+						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}
 			}
