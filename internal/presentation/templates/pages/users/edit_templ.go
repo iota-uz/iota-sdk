@@ -23,6 +23,15 @@ import (
 	"strconv"
 )
 
+func isRoleSelected(id int64, roles []*role.Role) bool {
+	for _, role := range roles {
+		if role.Id == id {
+			return true
+		}
+	}
+	return false
+}
+
 func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, errors map[string]string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -80,6 +89,7 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 					"name":  "lastName",
 					"form":  "save-form",
 				},
+				Error: errors["lastName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -95,6 +105,7 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 					"name":  "email",
 					"form":  "save-form",
 				},
+				Error: errors["email"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -138,20 +149,30 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(role.Id)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 63, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 75, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					if isRoleSelected(role.Id, user.Roles) {
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" selected")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(role.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 63, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 75, Col: 109}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -171,6 +192,7 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 					"name": "roleId",
 					"form": "save-form",
 				},
+				Error: errors["roleId"],
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -188,7 +210,7 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/users/%d", user.Id))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 70, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 82, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -213,7 +235,7 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 87, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 99, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -241,7 +263,7 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/users/%d", user.Id))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 90, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 102, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -266,7 +288,7 @@ func EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, er
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 99, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/edit.templ`, Line: 111, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
