@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
+	"github.com/iota-agency/iota-erp/internal/domain/role"
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/users"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
@@ -92,10 +93,17 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	action := r.FormValue("_action")
 	if action == "save" {
+		var roleId int
+		roleId, err = strconv.Atoi(r.FormValue("roleId"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		upd := &user.UserUpdate{
 			FirstName: r.FormValue("firstName"),
 			LastName:  r.FormValue("lastName"),
 			Email:     r.FormValue("email"),
+			RoleId:    int64(roleId),
 		}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.Edit.Title"})
@@ -119,7 +127,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(users.EditForm(pageCtx.Localizer, us, roles, errors), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.UserService.Update(r.Context(), &user.User{Id: int64(id), FirstName: upd.FirstName, LastName: upd.LastName, Email: upd.Email})
+		err = c.app.UserService.Update(r.Context(), &user.User{Id: int64(id), FirstName: upd.FirstName, LastName: upd.LastName, Email: upd.Email, Roles: []*role.Role{{Id: upd.RoleId}}})
 	} else if action == "delete" {
 		_, err = c.app.UserService.Delete(r.Context(), int64(id))
 	}
@@ -147,11 +155,19 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 
 func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
+	roleId, err := strconv.Atoi(r.FormValue("roleId"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	user := user.User{
 		FirstName: r.FormValue("firstName"),
 		LastName:  r.FormValue("lastName"),
 		Email:     r.FormValue("email"),
 		Password:  &password,
+		Roles: []*role.Role{
+			{Id: int64(roleId)},
+		},
 	}
 
 	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.New.Title"})
@@ -173,6 +189,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 	user.SetPassword(r.FormValue("password"))
 	if err := c.app.UserService.Create(r.Context(), &user); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	redirect(w, r, "/users")

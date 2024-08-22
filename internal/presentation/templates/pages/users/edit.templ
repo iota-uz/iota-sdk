@@ -15,6 +15,15 @@ import (
 	"strconv"
 )
 
+func isRoleSelected(id int64, roles []*role.Role) bool {
+	for _, role := range roles {
+		if role.Id == id {
+			return true;
+		}
+	}
+	return false
+}
+
 templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, errors map[string]string) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
@@ -34,6 +43,7 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 					"name":  "lastName",
 					"form":  "save-form",
 				},
+				Error: errors["lastName"],
 			})
 			@input.Email(&input.Props{
 				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Email"}),
@@ -42,6 +52,7 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 					"name":  "email",
 					"form":  "save-form",
 				},
+				Error: errors["email"],
 			})
 			@input.Password(&input.Props{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Password"}),
 				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.EnterPassword"}),
@@ -58,9 +69,10 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 					"name": "roleId",
 					"form": "save-form",
 				},
+				Error: errors["roleId"],
 			}) {
 				for _, role := range roles {
-					<option value={ strconv.Itoa(int(role.Id)) }>{ role.Name }</option>
+					<option value={ strconv.Itoa(int(role.Id)) } selected?={isRoleSelected(role.Id, user.Roles)}>{ role.Name }</option>
 				}
 			}
 		}

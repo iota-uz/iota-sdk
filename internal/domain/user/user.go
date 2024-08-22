@@ -4,11 +4,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iota-agency/iota-erp/internal/domain/role"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type UserRole struct {
+	RoleId int64
+	UserId int64
+	Role   role.Role
+}
 
 type User struct {
 	Id         int64
@@ -24,6 +31,7 @@ type User struct {
 	LastAction *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	Roles      []*role.Role `gorm:"many2many:user_roles"`
 }
 
 type UserUpdate struct {
@@ -31,6 +39,7 @@ type UserUpdate struct {
 	LastName  string
 	Email     string
 	Password  string
+	RoleId    int64
 }
 
 func (u *User) CheckPassword(password string) bool {
@@ -93,6 +102,9 @@ func (u *UserUpdate) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	}
 	if strings.TrimSpace(u.FirstName) == "" {
 		errors["email"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	}
+	if u.RoleId == 0 {
+		errors["roleId"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
 	}
 	return errors, len(errors) == 0
 }

@@ -12,17 +12,18 @@ type SelectProps struct {
 	Attrs       templ.Attributes
 	Prefix      string
 	id          string
+	Error       string
 }
 
 func newSelect(p *SelectProps) *SelectProps {
 	id := random.String(12, random.LowerCharSet)
-	return &SelectProps{id: id, Label: p.Label, Class: p.Class, Attrs: p.Attrs, Placeholder: p.Placeholder, Prefix: p.Prefix}
+	return &SelectProps{id: id, Label: p.Label, Class: p.Class, Attrs: p.Attrs, Placeholder: p.Placeholder, Prefix: p.Prefix, Error: p.Error}
 }
 
 templ (p *SelectProps) render() {
-	<div class="flex flex-col gap-2 shrink-0">
+	<div class="flex flex-col shrink-0">
 		if len(p.Label) > 0 {
-			<label for={ p.id } class="form-control-label">{ p.Label }</label>
+			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
 		<div class="w-full relative flex items-center">
 			if p.Prefix != "" {
@@ -42,6 +43,9 @@ templ (p *SelectProps) render() {
 			</select>
 			@icons.CaretUp(icons.Props{Class: "absolute top-1/2 right-3 -translate-y-1/2 rotate-180 pointer-events-none", Size: "16"})
 		</div>
+		if p.Error != "" {
+			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+		}
 	</div>
 }
 

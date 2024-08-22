@@ -1577,10 +1577,6 @@ form:invalid .btn:not(.btn-enabled) {
   font-weight: 500;
 }
 
-.uppercase {
-  text-transform: uppercase;
-}
-
 .text-100 {
   color: oklch(var(--clr-text-100));
 }
