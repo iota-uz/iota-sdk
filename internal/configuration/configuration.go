@@ -2,9 +2,11 @@ package configuration
 
 import (
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/iota-agency/iota-erp/sdk/configuration"
 	"github.com/iota-agency/iota-erp/sdk/utils/env"
-	"time"
 )
 
 var singleton *Configuration
@@ -26,6 +28,8 @@ type Configuration struct {
 	OpenAIKey          string
 	UploadsPath        string
 	FrontendDomain     string
+	PageSize           int
+	MaxPageSize        int
 	SidCookieKey       string
 }
 
@@ -67,6 +71,14 @@ func (c *Configuration) Load() error {
 	c.OpenAIKey = env.MustGetEnv("OPENAI_KEY")
 	c.UploadsPath = env.GetEnv("UPLOADS_PATH", "uploads")
 	c.FrontendDomain = env.GetEnv("FRONTEND_DOMAIN", "localhost")
+	c.PageSize, err = strconv.Atoi(env.GetEnv("PAGE_SIZE", "25"))
+	if err != nil {
+		return err
+	}
+	c.MaxPageSize, err = strconv.Atoi(env.GetEnv("MAX_PAGE_SIZE", "100"))
+	if err != nil {
+		return err
+	}
 	c.SidCookieKey = env.GetEnv("SID_COOKIE_KEY", "sid")
 	return nil
 }

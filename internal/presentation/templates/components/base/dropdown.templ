@@ -1,0 +1,30 @@
+package base
+
+type DropdownItemProps struct {
+	Href string
+}
+
+templ DropdownItem(props DropdownItemProps) {
+	<li>
+    if len(props.Href) > 0 {
+      <a href={templ.SafeURL(props.Href)} class="block p-2 duration-200 hover:bg-surface-400 rounded-md">{children...}</a>
+    } else {
+      <button class="block p-2 duration-200 hover:bg-surface-400 rounded-md">{children...}</button>
+    }
+	</li>
+}
+
+templ DetailsDropdown(summary templ.Component) {
+  <div>
+    <details class="relative z-10 peer" name="details-dropdown">
+      @summary
+      <ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
+        { children... }
+      </ul>
+    </details>
+    // This is a way to close main dropdown on click outside without using JavaScript
+    <details class="hidden peer-open:block" name="details-dropdown">
+      <summary class="fixed w-full h-full left-0 top-0">Hello</summary>
+    </details>
+  </div>
+}

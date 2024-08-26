@@ -1,5 +1,5 @@
 -- +migrate Up
-CREATE EXTENSION vector;
+BEGIN;
 
 CREATE TABLE uploads
 (
@@ -9,8 +9,8 @@ CREATE TABLE uploads
 --     uploader_id INT          REFERENCES users (id) ON DELETE SET NULL,
     mimetype   VARCHAR(255) NOT NULL,
     size       FLOAT        NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE currencies
@@ -19,8 +19,8 @@ CREATE TABLE currencies
     name       VARCHAR(255) NOT NULL, -- Russian Ruble
     code       VARCHAR(3)   NOT NULL, -- RUB
     symbol     VARCHAR(3)   NOT NULL, -- ₽
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE inventory
@@ -31,8 +31,8 @@ CREATE TABLE inventory
     currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
     price       NUMERIC(9, 2) NOT NULL,
     quantity    INT           NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE positions
@@ -40,8 +40,8 @@ CREATE TABLE positions
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
     description TEXT,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE difficulty_levels
@@ -50,8 +50,8 @@ CREATE TABLE difficulty_levels
     name        VARCHAR(255) NOT NULL,
     description TEXT,
     coefficient FLOAT        NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE task_types
@@ -60,8 +60,8 @@ CREATE TABLE task_types
     icon        VARCHAR(255),
     name        VARCHAR(255) NOT NULL,
     description TEXT,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE settings
@@ -71,7 +71,7 @@ CREATE TABLE settings
     default_margin  FLOAT NOT NULL,
     income_tax_rate FLOAT NOT NULL,
     social_tax_rate FLOAT NOT NULL,
-    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employees
@@ -88,8 +88,8 @@ CREATE TABLE employees
     coefficient        FLOAT         NOT NULL,
     position_id        INT           NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
     avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_meta
@@ -103,7 +103,7 @@ CREATE TABLE employee_meta
     birth_date         DATE,
     join_date          DATE,
     leave_date         DATE,
-    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE companies
@@ -114,8 +114,8 @@ CREATE TABLE companies
     address    VARCHAR(255),
     phone      VARCHAR(255),
     logo_id    INT,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE roles
@@ -123,8 +123,8 @@ CREATE TABLE roles
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE users
@@ -135,27 +135,27 @@ CREATE TABLE users
     middle_name VARCHAR(255),
     email       VARCHAR(255) NOT NULL UNIQUE,
     password    VARCHAR(255),
-    avatar_id   INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    last_login  TIMESTAMP    NULL,
-    last_ip     VARCHAR(255) NULL,
-    last_action TIMESTAMP    NULL,
-    employee_id INT          REFERENCES employees (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    avatar_id   INT           REFERENCES uploads (id) ON DELETE SET NULL,
+    last_login  TIMESTAMP     NULL,
+    last_ip     VARCHAR(255)  NULL,
+    last_action TIMESTAMP WITH TIME ZONE     NULL,
+    employee_id INT           REFERENCES employees (id) ON DELETE SET NULL,
+    created_at  TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE telegram_sessions
 (
     user_id    INT PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     session    TEXT NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE user_roles
 (
     user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     role_id    INT NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     PRIMARY KEY (user_id, role_id)
 );
 
@@ -165,7 +165,7 @@ CREATE TABLE prompts
     title       VARCHAR(255) NOT NULL,
     description TEXT         NOT NULL,
     prompt      TEXT         NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE expense_categories
@@ -175,17 +175,8 @@ CREATE TABLE expense_categories
     description        TEXT,
     amount             NUMERIC(9, 2) NOT NULL,
     amount_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
-    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE expenses
-(
-    id             SERIAL PRIMARY KEY,
-    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
-    category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
-    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_contacts
@@ -194,8 +185,8 @@ CREATE TABLE employee_contacts
     employee_id INT          NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
     type        VARCHAR(255) NOT NULL,
     value       VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE customers
@@ -207,8 +198,8 @@ CREATE TABLE customers
     email       VARCHAR(255),
     phone       VARCHAR(255),
     company_id  INT          REFERENCES companies (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE customer_contacts
@@ -217,8 +208,8 @@ CREATE TABLE customer_contacts
     customer_id INT          NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
     type        VARCHAR(255) NOT NULL,
     value       VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE projects
@@ -226,8 +217,8 @@ CREATE TABLE projects
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
     description TEXT,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE project_stages
@@ -237,10 +228,10 @@ CREATE TABLE project_stages
     name       VARCHAR(255)                NOT NULL,
     margin     FLOAT                       NOT NULL,
     risks      FLOAT                       NOT NULL,
-    start_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    end_date   TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_date   TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE project_tasks
@@ -252,8 +243,8 @@ CREATE TABLE project_tasks
     type_id     INT          NOT NULL REFERENCES task_types (id) ON DELETE CASCADE,
     level_id    INT          NOT NULL REFERENCES difficulty_levels (id) ON DELETE CASCADE,
     parent_id   INT REFERENCES project_tasks (id) ON DELETE CASCADE,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE estimates
@@ -262,8 +253,20 @@ CREATE TABLE estimates
     task_id     INT   NOT NULL REFERENCES project_tasks (id) ON DELETE CASCADE,
     employee_id INT   NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
     hours       FLOAT NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE money_accounts
+(
+    id                  SERIAL PRIMARY KEY,
+    name                VARCHAR(255)  NOT NULL,
+    account_number      VARCHAR(255)  NOT NULL,
+    description         TEXT,
+    balance             NUMERIC(9, 2) NOT NULL,
+    balance_currency_id INT           NOT NULL REFERENCES currencies (id) ON DELETE CASCADE,
+    created_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE transactions
@@ -275,7 +278,16 @@ CREATE TABLE transactions
     transaction_date   DATE          NOT NULL      DEFAULT CURRENT_DATE,
     accounting_period  DATE          NOT NULL      DEFAULT CURRENT_DATE,
     transaction_type   VARCHAR(255)  NOT NULL, -- income, expense, transfer
-    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE expenses
+(
+    id             SERIAL PRIMARY KEY,
+    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
+    category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE payments
@@ -283,8 +295,8 @@ CREATE TABLE payments
     id             SERIAL PRIMARY KEY,
     customer_id    INT REFERENCES customers (id) ON DELETE SET NULL,
     transaction_id INT REFERENCES transactions (id) ON DELETE SET NULL,
-    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE folders
@@ -293,8 +305,8 @@ CREATE TABLE folders
     name       VARCHAR(255) NOT NULL,
     icon_id    INT          REFERENCES uploads (id) ON DELETE SET NULL,
     parent_id  INT REFERENCES folders (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE articles
@@ -306,8 +318,8 @@ CREATE TABLE articles
     author_id   INT          REFERENCES users (id) ON DELETE SET NULL,
     picture_id  INT          REFERENCES uploads (id) ON DELETE SET NULL,
     folder_id   INT          REFERENCES folders (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE comments
@@ -316,8 +328,8 @@ CREATE TABLE comments
     article_id INT  NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
     user_id    INT  NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     content    TEXT NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE likes
@@ -325,8 +337,8 @@ CREATE TABLE likes
     id         SERIAL PRIMARY KEY,
     article_id INT NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
     user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE uploaded_images
@@ -337,20 +349,8 @@ CREATE TABLE uploaded_images
     size       FLOAT        NOT NULL,
     width      INT          NOT NULL,
     height     INT          NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE money_accounts
-(
-    id                  SERIAL PRIMARY KEY,
-    name                VARCHAR(255)  NOT NULL,
-    account_number      VARCHAR(255)  NOT NULL,
-    description         TEXT,
-    balance             NUMERIC(9, 2) NOT NULL,
-    balance_currency_id INT           NOT NULL REFERENCES currencies (id) ON DELETE CASCADE,
-    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE action_log
@@ -363,7 +363,7 @@ CREATE TABLE action_log
     before     JSON,
     user_agent VARCHAR(255) NOT NULL,
     ip         VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE dialogues
@@ -372,8 +372,8 @@ CREATE TABLE dialogues
     user_id    INT          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     label      VARCHAR(255) NOT NULL,
     messages   JSON         NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE permissions
@@ -406,10 +406,10 @@ CREATE TABLE sessions
     token      VARCHAR(255) NOT NULL UNIQUE PRIMARY KEY,
     user_id    INTEGER      NOT NULL
         CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
-    expires_at TIMESTAMP    NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE    NOT NULL,
     ip         VARCHAR(255) NOT NULL,
     user_agent VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE authentication_logs
@@ -419,7 +419,7 @@ CREATE TABLE authentication_logs
         CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
     ip         VARCHAR(255) NOT NULL,
     user_agent VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE vacancies
@@ -429,8 +429,8 @@ CREATE TABLE vacancies
     title      VARCHAR(255) NOT NULL,
     body       TEXT,
     hidden     BOOLEAN      NOT NULL       DEFAULT FALSE,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE salary_range
@@ -454,7 +454,7 @@ CREATE TABLE applicants
     phone               VARCHAR(255) NOT NULL,
     experience_in_month INT          NOT NULL,
     vacancy_id          INT          NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE,
-    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE skills
@@ -462,8 +462,8 @@ CREATE TABLE skills
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
     description TEXT,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employee_skills
@@ -486,7 +486,7 @@ CREATE TABLE applicant_comments
     applicant_id INT  NOT NULL REFERENCES applicants (id) ON DELETE CASCADE,
     user_id      INT  NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     content      TEXT NOT NULL,
-    created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at   TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE applications
@@ -494,7 +494,7 @@ CREATE TABLE applications
     id           SERIAL PRIMARY KEY,
     applicant_id INT NOT NULL REFERENCES applicants (id) ON DELETE CASCADE,
     vacancy_id   INT NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE,
-    created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at   TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE interview_questions
@@ -505,8 +505,8 @@ CREATE TABLE interview_questions
     type        VARCHAR(255) NOT NULL,
     language    VARCHAR(255) NOT NULL,
     difficulty  VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE interviews
@@ -514,8 +514,8 @@ CREATE TABLE interviews
     id             SERIAL PRIMARY KEY,
     application_id INT                         NOT NULL REFERENCES applications (id) ON DELETE CASCADE,
     interviewer_id INT                         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    date           TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    date           TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE interview_ratings
@@ -526,7 +526,7 @@ CREATE TABLE interview_ratings
     question_id    INT NOT NULL REFERENCES interview_questions (id) ON DELETE CASCADE,
     rating         INT NOT NULL,
     comment        TEXT,
-    created_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE contact_form_submissions
@@ -537,7 +537,7 @@ CREATE TABLE contact_form_submissions
     phone      VARCHAR(255),
     company    VARCHAR(255),
     message    TEXT,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE blog_posts
@@ -547,16 +547,16 @@ CREATE TABLE blog_posts
     content    TEXT         NOT NULL,
     author_id  INT          REFERENCES users (id) ON DELETE SET NULL,
     picture_id INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE blog_post_tags
 (
     id         SERIAL PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE blog_post_tag_relations
@@ -571,16 +571,16 @@ CREATE TABLE blog_comments
     id         SERIAL PRIMARY KEY,
     post_id    INT  NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
     content    TEXT NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE blog_likes
 (
     id         SERIAL PRIMARY KEY,
     post_id    INT NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE website_pages
@@ -593,8 +593,8 @@ CREATE TABLE website_pages
     seo_h1     VARCHAR(255),
     seo_h2     VARCHAR(255),
     seo_img    VARCHAR(255),
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE website_page_views
@@ -603,7 +603,7 @@ CREATE TABLE website_page_views
     page_id    INT NOT NULL REFERENCES website_pages (id) ON DELETE CASCADE,
     user_agent VARCHAR(255),
     ip         VARCHAR(255),
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE INDEX users_first_name_idx ON users (first_name);
@@ -735,4 +735,4 @@ DROP TABLE IF EXISTS website_page_views CASCADE;
 DROP TABLE IF EXISTS website_pages CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 
-DROP EXTENSION IF EXISTS vector;
+COMMIT;

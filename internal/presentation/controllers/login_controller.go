@@ -1,12 +1,12 @@
 package controllers
 
 import (
-	"fmt"
+	"net/http"
+
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/login"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"net/http"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 func NewLoginController(app *services.Application) *LoginController {
@@ -20,7 +20,14 @@ type LoginController struct {
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
-	pageCtx := &types.PageContext{}
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{
+		Title: "Login.Meta.Title",
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := login.Index(pageCtx).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -38,7 +45,6 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, session, err := c.app.AuthService.Authenticate(r.Context(), email, password)
-	fmt.Println(err)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
