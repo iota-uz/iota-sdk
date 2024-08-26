@@ -1,9 +1,11 @@
 package sequence
 
 import (
+	"reflect"
+	"strings"
+
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"reflect"
 )
 
 func Includes[T comparable](array []T, elem T) bool {
@@ -35,4 +37,11 @@ func Reverse[T any](array []T) []T {
 		result[length-1-i] = elem
 	}
 	return result
+}
+
+func Pad(b *strings.Builder, str string) {
+	if b.Len() == 0 {
+		return
+	}
+	b.WriteString(str)
 }

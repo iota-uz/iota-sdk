@@ -1,5 +1,80 @@
 {
   "errors": {
     "message": "The requested resource could not be found."
-  }
+  },
+  "NavigationLinks": {
+    "Dashboard": "Dashboard",
+    "Users": "Users",
+    "BI-Chat": "BI-Chat",
+    "KnowledgeBase": "Knowledge Base",
+    "Operations": "Operations",
+    "Employees": "Employees",
+    "Settings": "Settings",
+    "Calendar": "Calendar",
+    "Enums": "Enums",
+    "TaskTypes": "Task Types",
+    "Positions": "Positions",
+    "CashFlow": "Cash Flow",
+    "Projects": "Projects",
+    "ExpenseCategories": "Expense Categories",
+    "Payments": "Payments",
+    "Reports": "Reports"
+  },
+  "Validations": {
+    "Required": "This field is required"
+  },
+  "Users": {
+    "Meta": {
+      "List": {
+        "Title": "Users"
+      },
+      "Edit": {
+        "Title": "Edit user"
+      },
+      "New": {
+        "Title": "New user"
+      }
+    },
+    "List": {
+      "NewUser": "New User",
+      "FullName": "Full name",
+      "LastAction": "Last action"
+    },
+    "Single": {
+      "EditUser": "Edit user",
+      "FirstName": "First name",
+      "LastName": "Last name",
+      "Email": "Email",
+      "Password": "Password",
+      "Role": "Role",
+      "SelectRole": "Select role",
+      "EnterPassword": "Enter password",
+      "DeleteUser": "DeleteUser",
+      "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
+    }
+  },
+  "Login": {
+    "Meta": {
+      "Title": "Log in"
+    },
+    "Email": "Email",
+    "Password": "Password",
+    "Login": "Login"
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Home"
+    }
+  },
+  "UpdatedAt": "Updated at",
+  "CreatedAt": "Created at",
+  "SignOut": "Sign out",
+  "Unknown": "Unknown",
+  "Actions": "Actions",
+  "Delete": "Delete",
+  "Save": "Save",
+  "Search": "Search",
+  "PerPage": "Per page",
+  "Cancel": "Cancel",
+  "Back": "Back"
 }

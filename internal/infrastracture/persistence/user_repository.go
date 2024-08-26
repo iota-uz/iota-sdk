@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-erp/internal/domain/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
@@ -62,7 +63,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id int64) (*user.User,
 		return nil, service.ErrNoTx
 	}
 	u := &user.User{}
-	if err := tx.First(u, id).Error; err != nil {
+	if err := tx.Preload("Roles").First(u, id).Error; err != nil {
 		return nil, err
 	}
 	return u, nil
@@ -95,6 +96,9 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
+	}
+	if err := tx.Model(user).Association("Roles").Replace(user.Roles); err != nil {
+		return err
 	}
 	return tx.Save(user).Error
 }

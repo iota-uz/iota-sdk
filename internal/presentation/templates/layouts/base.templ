@@ -1,0 +1,38 @@
+package layouts
+
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/assets"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+)
+
+var (
+	mainCss = "/assets/" + assets.FS.HashName("css/main.min.css")
+	favicon = "/assets/" + assets.FS.HashName("images/favicon.ico")
+	alpine  = "/assets/" + assets.FS.HashName("js/alpine.js")
+	htmx    = "/assets/" + assets.FS.HashName("js/htmx.min.js")
+)
+
+templ Base(pageCtx *types.PageContext) {
+	<!DOCTYPE html>
+	<html lang="en" class="system bg-surface-100 text-100">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<link rel="icon" type="image/x-icon" href={ favicon }/>
+			<title>IOTA ERP - { pageCtx.Title }</title>
+			<link rel="stylesheet" href={ mainCss }/>
+			// <link rel="manifest" href="/assets/app.webmanifest"/>
+			<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Regular.woff2" as="font" type="font/woff2" crossorigin/>
+			<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Medium.woff2" as="font" type="font/woff2" crossorigin/>
+			<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Semibold.woff2" as="font" type="font/woff2" crossorigin/>
+			<script defer type="module" src={ alpine }></script>
+			<script defer async src={ htmx }></script>
+			// <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+			// <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fff"/>
+			// <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#18181b"/>
+		</head>
+		<body class="antialiased">
+			{ children... }
+		</body>
+	</html>
+}

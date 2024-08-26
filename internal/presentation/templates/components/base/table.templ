@@ -1,0 +1,48 @@
+package base
+
+import "github.com/nicksnyder/go-i18n/v2/i18n"
+
+type TableColumn struct {
+	Label      string
+	Key        string
+	Width      int
+	Class      string
+	DateFormat string
+	Duration   bool
+	Sortable   bool
+}
+
+templ TableRow() {
+	<tr>
+		{ children... }
+	</tr>
+}
+
+templ TableCell() {
+	<td class="p-4">
+		{ children... }
+	</td>
+}
+
+type TableProps struct {
+	Columns   []*TableColumn
+	Localizer *i18n.Localizer
+}
+
+templ Table(props *TableProps) {
+	<div class="overflow-x-auto relative">
+		<table class="min-w-full table-auto rounded-b-lg table bg-surface-600 text-sm">
+			<thead>
+				<tr class="bg-surface-500 text-200">
+					for _, col := range props.Columns {
+
+						<th class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }>{ props.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: col.Label}) }</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				{ children... }
+			</tbody>
+		</table>
+	</div>
+}

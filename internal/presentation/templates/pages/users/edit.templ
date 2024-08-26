@@ -1,0 +1,137 @@
+package users
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-erp/internal/domain/role"
+	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"strconv"
+)
+
+func isRoleSelected(id int64, roles []*role.Role) bool {
+	for _, role := range roles {
+		if role.Id == id {
+			return true;
+		}
+	}
+	return false
+}
+
+templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, errors map[string]string) {
+	<div class="flex flex-col justify-between h-full" id="edit-content">
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@input.Text(&input.Props{
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.FirstName"}),
+				Attrs: templ.Attributes{
+					"value": user.FirstName,
+					"name":  "firstName",
+					"form":  "save-form",
+				},
+				Error: errors["firstName"],
+			})
+			@input.Text(&input.Props{
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.LastName"}),
+				Attrs: templ.Attributes{
+					"value": user.LastName,
+					"name":  "lastName",
+					"form":  "save-form",
+				},
+				Error: errors["lastName"],
+			})
+			@input.Email(&input.Props{
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Email"}),
+				Attrs: templ.Attributes{
+					"value": user.Email,
+					"name":  "email",
+					"form":  "save-form",
+				},
+				Error: errors["email"],
+			})
+			@input.Password(&input.Props{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Password"}),
+				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.EnterPassword"}),
+				Attrs: templ.Attributes{
+					"autocomplete": "new-password",
+					"name":         "password",
+					"form":         "save-form",
+				},
+			})
+			@base.Select(&base.SelectProps{
+				Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Role"}),
+				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.SelectRole"}),
+				Attrs: templ.Attributes{
+					"name": "roleId",
+					"form": "save-form",
+				},
+				Error: errors["roleId"],
+			}) {
+				for _, role := range roles {
+					<option value={ strconv.Itoa(int(role.Id)) } selected?={isRoleSelected(role.Id, user.Roles)}>{ role.Name }</option>
+				}
+			}
+		}
+		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			<form
+				id="delete-form"
+				hx-delete={ fmt.Sprintf("/users/%d", user.Id) }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-user-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-user-confirmation')",
+						"id":     "delete-user-btn",
+					},
+				}) {
+					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}) }
+				}
+			</form>
+			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/users/%d", user.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}) }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role, errors map[string]string) {
+	@layouts.Authenticated(pageCtx) {
+		@EditForm(pageCtx.Localizer, user, roles, errors)
+		@dialog.Confirmation(&dialog.Props{
+			Heading:   "Users.Single.DeleteUser",
+			Text:      "Users.Single.DeleteUserConfirmation",
+			Localizer: pageCtx.Localizer,
+			Icon:      icons.Trash(icons.Props{Size: "20"}),
+			Action:    "open-delete-user-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+		})
+	}
+}

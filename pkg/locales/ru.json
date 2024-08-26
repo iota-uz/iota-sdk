@@ -1,11 +1,78 @@
 {
+  "NavigationLinks": {
+    "Dashboard": "Дашборд",
+    "Users": "Пользователи",
+    "BI-Chat": "BI-Chat",
+    "KnowledgeBase": "База знаний",
+    "Operations": "Операционка",
+    "Employees": "Сотрудники",
+    "Settings": "Настройки",
+    "Calendar": "Календарь",
+    "Enums": "Справочник",
+    "TaskTypes": "Тип задач",
+    "Positions": "Должности",
+    "CashFlow": "Денежный поток",
+    "Projects": "Проекты",
+    "ExpenseCategories": "Категории расходов",
+    "Payments": "Платежи",
+    "Reports": "Отчеты"
+  },
+  "Validations": {
+    "Required": "Обязательное поле для заполнения"
+  },
   "Users": {
-    "retry": "Повторить",
-    "errors": {
-      "load": "Ошибка загрузки пользователей"
+    "Meta": {
+      "List": {
+        "Title": "Пользователи"
+      },
+      "Edit": {
+        "Title": "Редактировать пользователя"
+      },
+      "New": {
+        "Title": "Новый пользователь"
+      }
+    },
+    "List": {
+      "NewUser": "Новый пользователь",
+      "FullName": "Ф.И.О",
+      "LastAction": "Последнее действие"
+    },
+    "Single": {
+      "EditUser": "Редактировать пользователя",
+      "FirstName": "Имя",
+      "LastName": "Фамилия",
+      "Email": "Email",
+      "Password": "Пароль",
+      "Role": "Роль",
+      "SelectRole": "Выберите роль",
+      "EnterPassword": "Введите пароль",
+      "DeleteUser": "Удалить пользователя",
+      "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
     }
   },
-  "errors": {
-    "message": "The requested resource could not be found."
-  }
+  "Login": {
+    "Meta": {
+      "Title": "Войти"
+    },
+    "Email": "Email",
+    "Password": "Пароль",
+    "Login": "Войти"
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Главная"
+    }
+  },
+  "NewUser": "Новый пользователь",
+  "UpdatedAt": "Обновлен",
+  "CreatedAt": "Создан",
+  "SignOut": "Выйти",
+  "Unknown": "Неизвестно",
+  "Actions": "Действия",
+  "Delete": "Удалить",
+  "Save": "Сохранить",
+  "Search": "Поиск",
+  "PerPage": "На страницу",
+  "Cancel": "Отменить",
+  "Back": "Назад"
 }
