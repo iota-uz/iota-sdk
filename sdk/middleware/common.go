@@ -28,16 +28,18 @@ func WithLogger(logger *log.Logger) mux.MiddlewareFunc {
 	})
 }
 
-func LogRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		logger, ok := composables.UseLogger(r.Context())
-		if !ok {
-			panic("logger not found. Add WithLogger middleware up the chain")
-		}
-		next.ServeHTTP(w, r)
-		logger.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
-	})
+func LogRequests() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			logger, ok := composables.UseLogger(r.Context())
+			if !ok {
+				panic("logger not found. Add WithLogger middleware up the chain")
+			}
+			next.ServeHTTP(w, r)
+			logger.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
+		})
+	}
 }
 
 func ContextKeyValue(key string, constructor GenericConstructor) mux.MiddlewareFunc {

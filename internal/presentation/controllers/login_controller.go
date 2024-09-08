@@ -1,15 +1,15 @@
 package controllers
 
 import (
+	"github.com/gorilla/mux"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/login"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
-func NewLoginController(app *services.Application) *LoginController {
+func NewLoginController(app *services.Application) Controller {
 	return &LoginController{
 		app: app,
 	}
@@ -19,11 +19,15 @@ type LoginController struct {
 	app *services.Application
 }
 
+func (c *LoginController) Register(r *mux.Router) {
+	r.HandleFunc("/login", c.Get).Methods(http.MethodGet)
+	r.HandleFunc("/login", c.Post).Methods(http.MethodPost)
+}
+
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{
 		Title: "Login.Meta.Title",
 	})
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -44,20 +48,9 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "email or password is empty", http.StatusBadRequest)
 		return
 	}
-	_, session, err := c.app.AuthService.Authenticate(r.Context(), email, password)
+	cookie, err := c.app.AuthService.CookieAuthenticate(r.Context(), email, password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	conf := configuration.Use()
-	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    session.Token,
-		Expires:  session.ExpiresAt,
-		HttpOnly: false,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   conf.GoAppEnvironment == "production",
-		Domain:   conf.FrontendDomain,
 	}
 	http.SetCookie(w, cookie)
 	http.Redirect(w, r, "/", http.StatusFound)

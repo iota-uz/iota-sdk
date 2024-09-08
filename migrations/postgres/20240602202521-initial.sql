@@ -44,6 +44,75 @@ CREATE TABLE positions
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
+CREATE TABLE warehouse_units
+(
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL, -- Kilogram, Piece, etc.
+    description TEXT,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE warehouse_positions
+(
+    id          SERIAL PRIMARY KEY,
+    title       VARCHAR(255) NOT NULL,
+    barcode     VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    unit_id     INT          REFERENCES warehouse_units (id) ON DELETE SET NULL,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE warehouse_position_images
+(
+    warehouse_position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE PRIMARY KEY,
+    upload_id             INT REFERENCES uploads (id) ON DELETE CASCADE PRIMARY KEY
+);
+
+CREATE TABLE warehouse_products
+(
+    id          SERIAL PRIMARY KEY,
+    position_id INT          NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    rfid        VARCHAR(255) NOT NULL UNIQUE,
+    status      VARCHAR(255) NOT NULL,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE inventory_checks
+(
+    id         SERIAL PRIMARY KEY,
+    status     VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE inventory_check_results
+(
+    id                 SERIAL PRIMARY KEY,
+    inventory_check_id INT NOT NULL REFERENCES inventory_checks (id) ON DELETE CASCADE,
+    position_id        INT NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    expected_quantity  INT NOT NULL,
+    actual_quantity    INT NOT NULL,
+    difference         INT NOT NULL,
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE warehouse_orders
+(
+    id         SERIAL PRIMARY KEY,
+    type       VARCHAR(255) NOT NULL,
+    status     VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE warehouse_order_items
+(
+    warehouse_order_id INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE PRIMARY KEY,
+    product_id         INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE PRIMARY KEY,
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE difficulty_levels
 (
     id          SERIAL PRIMARY KEY,
@@ -130,18 +199,18 @@ CREATE TABLE roles
 CREATE TABLE users
 (
     id          SERIAL PRIMARY KEY,
-    first_name  VARCHAR(255) NOT NULL,
-    last_name   VARCHAR(255) NOT NULL,
+    first_name  VARCHAR(255)             NOT NULL,
+    last_name   VARCHAR(255)             NOT NULL,
     middle_name VARCHAR(255),
-    email       VARCHAR(255) NOT NULL UNIQUE,
+    email       VARCHAR(255)             NOT NULL UNIQUE,
     password    VARCHAR(255),
-    avatar_id   INT           REFERENCES uploads (id) ON DELETE SET NULL,
-    last_login  TIMESTAMP     NULL,
-    last_ip     VARCHAR(255)  NULL,
-    last_action TIMESTAMP WITH TIME ZONE     NULL,
-    employee_id INT           REFERENCES employees (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    avatar_id   INT                      REFERENCES uploads (id) ON DELETE SET NULL,
+    last_login  TIMESTAMP                NULL,
+    last_ip     VARCHAR(255)             NULL,
+    last_action TIMESTAMP WITH TIME ZONE NULL,
+    employee_id INT                      REFERENCES employees (id) ON DELETE SET NULL,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE telegram_sessions
@@ -224,10 +293,10 @@ CREATE TABLE projects
 CREATE TABLE project_stages
 (
     id         SERIAL PRIMARY KEY,
-    project_id INT                         NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
-    name       VARCHAR(255)                NOT NULL,
-    margin     FLOAT                       NOT NULL,
-    risks      FLOAT                       NOT NULL,
+    project_id INT                      NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+    name       VARCHAR(255)             NOT NULL,
+    margin     FLOAT                    NOT NULL,
+    risks      FLOAT                    NOT NULL,
     start_date TIMESTAMP WITH TIME ZONE NOT NULL,
     end_date   TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
@@ -275,8 +344,8 @@ CREATE TABLE transactions
     amount             NUMERIC(9, 2) NOT NULL,
     amount_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
     money_account_id   INT           REFERENCES money_accounts (id) ON DELETE SET NULL,
-    transaction_date   DATE          NOT NULL      DEFAULT CURRENT_DATE,
-    accounting_period  DATE          NOT NULL      DEFAULT CURRENT_DATE,
+    transaction_date   DATE          NOT NULL   DEFAULT CURRENT_DATE,
+    accounting_period  DATE          NOT NULL   DEFAULT CURRENT_DATE,
     transaction_type   VARCHAR(255)  NOT NULL, -- income, expense, transfer
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -403,23 +472,23 @@ CREATE TABLE role_permissions
 
 CREATE TABLE sessions
 (
-    token      VARCHAR(255) NOT NULL UNIQUE PRIMARY KEY,
-    user_id    INTEGER      NOT NULL
+    token      VARCHAR(255)             NOT NULL UNIQUE PRIMARY KEY,
+    user_id    INTEGER                  NOT NULL
         CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
-    expires_at TIMESTAMP WITH TIME ZONE    NOT NULL,
-    ip         VARCHAR(255) NOT NULL,
-    user_agent VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    ip         VARCHAR(255)             NOT NULL,
+    user_agent VARCHAR(255)             NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE authentication_logs
 (
     id         SERIAL PRIMARY KEY,
-    user_id    INTEGER      NOT NULL
+    user_id    INTEGER                  NOT NULL
         CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
-    ip         VARCHAR(255) NOT NULL,
-    user_agent VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ip         VARCHAR(255)             NOT NULL,
+    user_agent VARCHAR(255)             NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE vacancies
@@ -428,7 +497,7 @@ CREATE TABLE vacancies
     url        VARCHAR(255) NOT NULL,
     title      VARCHAR(255) NOT NULL,
     body       TEXT,
-    hidden     BOOLEAN      NOT NULL       DEFAULT FALSE,
+    hidden     BOOLEAN      NOT NULL    DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -512,8 +581,8 @@ CREATE TABLE interview_questions
 CREATE TABLE interviews
 (
     id             SERIAL PRIMARY KEY,
-    application_id INT                         NOT NULL REFERENCES applications (id) ON DELETE CASCADE,
-    interviewer_id INT                         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    application_id INT                      NOT NULL REFERENCES applications (id) ON DELETE CASCADE,
+    interviewer_id INT                      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     date           TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -714,6 +783,16 @@ DROP TABLE IF EXISTS inventory CASCADE;
 DROP TABLE IF EXISTS likes CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS positions CASCADE;
+DROP TABLE IF EXISTS warehouse_position_images CASCADE;
+DROP TABLE IF EXISTS warehouse_positions CASCADE;
+DROP TABLE IF EXISTS warehouse_products CASCADE;
+DROP TABLE IF EXISTS inventory_checks CASCADE;
+DROP TABLE IF EXISTS inventory_check_results CASCADE;
+DROP TABLE IF EXISTS warehouse_orders CASCADE;
+DROP TABLE IF EXISTS warehouse_order_items CASCADE;
+DROP TABLE IF EXISTS warehouse_units CASCADE;
+DROP TABLE IF EXISTS salary_range CASCADE;
+DROP TABLE IF EXISTS money_accounts CASCADE;
 DROP TABLE IF EXISTS prompts CASCADE;
 DROP TABLE IF EXISTS project_stages CASCADE;
 DROP TABLE IF EXISTS project_tasks CASCADE;

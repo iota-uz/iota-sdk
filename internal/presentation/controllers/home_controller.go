@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/gorilla/mux"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -13,10 +14,14 @@ type HomeController struct {
 	app *services.Application
 }
 
-func NewHomeController(app *services.Application) *HomeController {
+func NewHomeController(app *services.Application) Controller {
 	return &HomeController{
 		app: app,
 	}
+}
+
+func (c *HomeController) Register(r *mux.Router) {
+	r.HandleFunc("/", c.Home).Methods(http.MethodGet)
 }
 
 func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
