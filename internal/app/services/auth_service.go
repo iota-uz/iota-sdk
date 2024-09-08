@@ -162,6 +162,24 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 	return s.authenticate(ctx, u.Id)
 }
 
+func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password string) (*http.Cookie, error) {
+	_, sess, err := s.Authenticate(ctx, email, password)
+	if err != nil {
+		return nil, err
+	}
+	conf := configuration.Use()
+	cookie := &http.Cookie{
+		Name:     conf.SidCookieKey,
+		Value:    sess.Token,
+		Expires:  sess.ExpiresAt,
+		HttpOnly: false,
+		SameSite: http.SameSiteNoneMode,
+		Secure:   conf.GoAppEnvironment == "production",
+		Domain:   conf.FrontendDomain,
+	}
+	return cookie, nil
+}
+
 func generateStateOauthCookie() (string, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)

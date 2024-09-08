@@ -71,9 +71,12 @@ func (s *Server) Start() error {
 	bundle := s.useBundle()
 	application := app.New(db)
 	allowOrigins := []string{"http://localhost:3000", "ws://localhost:3000"}
-	loginController := controllers.NewLoginController(application)
-	homeController := controllers.NewHomeController(application)
-	userController := controllers.NewUsersController(application)
+
+	controllerInstances := []controllers.Controller{
+		controllers.NewHomeController(application),
+		controllers.NewLoginController(application),
+		controllers.NewUsersController(application),
+	}
 
 	r := s.useRouter(
 		cors.New(cors.Options{
@@ -83,29 +86,24 @@ func (s *Server) Start() error {
 		}).Handler,
 		middleware.RequestParams(middleware.DefaultParamsConstructor),
 		middleware.WithLogger(log.Default()),
-		middleware.LogRequests,
+		middleware.LogRequests(),
 		middleware.Transactions(db),
 		localMiddleware.WithLocalizer(bundle),
 		localMiddleware.Authorization(application.AuthService),
 	)
+
+	for _, controller := range controllerInstances {
+		controller.Register(r)
+	}
+
 	r.Handle("/query", graph.NewDefaultServer(application))
 	r.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
-	r.HandleFunc("/", homeController.Home).Methods(http.MethodGet)
-	r.HandleFunc("/users", userController.Users).Methods(http.MethodGet)
-	r.HandleFunc("/users", userController.CreateUser).Methods(http.MethodPost)
-	r.HandleFunc("/users/{id:[0-9]+}", userController.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc("/users/{id:[0-9]+}", userController.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc("/users/{id:[0-9]+}", userController.DeleteUser).Methods(http.MethodDelete)
-	r.HandleFunc("/users/new", userController.GetNew).Methods(http.MethodGet)
-	r.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	r.HandleFunc("/login", loginController.Get).Methods(http.MethodGet)
-	r.HandleFunc("/login", loginController.Post).Methods(http.MethodPost)
 	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
 
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", s.conf.ServerPort)
+	log.Printf("connect to http://localhost:%s/playground for GraphQL playground", s.conf.ServerPort)
 	return http.ListenAndServe(s.conf.SocketAddress, r)
 }
 

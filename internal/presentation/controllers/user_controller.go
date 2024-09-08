@@ -18,10 +18,19 @@ type UsersController struct {
 	app *services.Application
 }
 
-func NewUsersController(app *services.Application) *UsersController {
+func NewUsersController(app *services.Application) Controller {
 	return &UsersController{
 		app: app,
 	}
+}
+
+func (c *UsersController) Register(r *mux.Router) {
+	r.HandleFunc("/users", c.Users).Methods(http.MethodGet)
+	r.HandleFunc("/users", c.CreateUser).Methods(http.MethodPost)
+	r.HandleFunc("/users/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	r.HandleFunc("/users/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	r.HandleFunc("/users/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
+	r.HandleFunc("/users/new", c.GetNew).Methods(http.MethodGet)
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +42,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	params := composables.UsePaginated(r)
 	us, err := c.app.UserService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
-		http.Error(w, "Error retreving users", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("HX-Request")) > 0
@@ -59,13 +68,13 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := c.app.RoleService.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, "Error retreving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
 
 	us, err := c.app.UserService.GetByID(r.Context(), int64(id))
 	if err != nil {
-		http.Error(w, "Error retreving users", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 	templ.Handler(users.Edit(pageCtx, us, roles, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
@@ -114,13 +123,13 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		if errors, ok := upd.Ok(pageCtx.Localizer); !ok {
 			roles, err := c.app.RoleService.GetAll(r.Context())
 			if err != nil {
-				http.Error(w, "Error retreving roles", http.StatusInternalServerError)
+				http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 				return
 			}
 
 			us, err := c.app.UserService.GetByID(r.Context(), int64(id))
 			if err != nil {
-				http.Error(w, "Error retreving users", http.StatusInternalServerError)
+				http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 				return
 			}
 
@@ -142,7 +151,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 	roles, err := c.app.RoleService.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, "Error retreving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
 	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.New.Title"})
@@ -160,7 +169,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	user := user.User{
+	userEntity := user.User{
 		FirstName: r.FormValue("firstName"),
 		LastName:  r.FormValue("lastName"),
 		Email:     r.FormValue("email"),
@@ -176,18 +185,21 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errors, ok := user.Ok(pageCtx.Localizer); !ok {
+	if errors, ok := userEntity.Ok(pageCtx.Localizer); !ok {
 		roles, err := c.app.RoleService.GetAll(r.Context())
 		if err != nil {
-			http.Error(w, "Error retreving roles", http.StatusInternalServerError)
+			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
-		templ.Handler(users.CreateForm(pageCtx.Localizer, user, roles, errors), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(users.CreateForm(pageCtx.Localizer, userEntity, roles, errors), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	user.SetPassword(r.FormValue("password"))
-	if err := c.app.UserService.Create(r.Context(), &user); err != nil {
+	if err := userEntity.SetPassword(password); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.app.UserService.Create(r.Context(), &userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
