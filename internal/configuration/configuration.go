@@ -2,7 +2,6 @@ package configuration
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/iota-agency/iota-erp/sdk/configuration"
@@ -13,15 +12,12 @@ var singleton *Configuration
 
 type Configuration struct {
 	DbOpts             string
-	DbHost             string
-	DbPort             int
-	DbUser             string
 	DbName             string
 	DbPassword         string
 	GoogleRedirectURL  string
 	GoogleClientID     string
 	GoogleClientSecret string
-	ServerPort         string
+	ServerPort         int
 	SessionDuration    time.Duration
 	GoAppEnvironment   string
 	SocketAddress      string
@@ -30,7 +26,7 @@ type Configuration struct {
 	FrontendDomain     string
 	PageSize           int
 	MaxPageSize        int
-	SidCookieKey       string
+	SidCookieKey       string // Session ID cookie key
 }
 
 func Use() *Configuration {
@@ -48,15 +44,21 @@ func (c *Configuration) Load() error {
 		return err
 	}
 
-	c.DbOpts = fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		env.GetEnv("DB_HOST", "localhost"), env.GetEnv("DB_PORT", "5432"),
+	c.DbOpts = fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+		env.GetEnv("DB_HOST", "localhost"),
+		env.GetEnv("DB_PORT", "5432"),
 		env.GetEnv("DB_USER", "postgres"),
-		env.GetEnv("DB_NAME", "iota_erp"), env.GetEnv("DB_PASSWORD", "postgres"))
+		env.GetEnv("DB_NAME", "iota_erp"),
+		env.GetEnv("DB_PASSWORD", "postgres"),
+	)
 
 	c.GoogleRedirectURL = env.MustGetEnv("GOOGLE_REDIRECT_URL")
 	c.GoogleClientID = env.MustGetEnv("GOOGLE_CLIENT_ID")
 	c.GoogleClientSecret = env.MustGetEnv("GOOGLE_CLIENT_SECRET")
-	c.ServerPort = env.GetEnv("PORT", "3200")
+	c.ServerPort = env.MustGetEnvInt("PORT", 3200)
+	c.PageSize = env.MustGetEnvInt("PAGE_SIZE", 25)
+	c.MaxPageSize = env.MustGetEnvInt("MAX_PAGE_SIZE", 100)
 	duration, err := configuration.ParseDuration(env.GetEnv("SESSION_DURATION", "1h"))
 	if err != nil {
 		return err
@@ -64,21 +66,13 @@ func (c *Configuration) Load() error {
 	c.SessionDuration = duration
 	c.GoAppEnvironment = env.GetEnv("GO_APP_ENV", "development")
 	if c.GoAppEnvironment == "production" {
-		c.SocketAddress = fmt.Sprintf(":%s", c.ServerPort)
+		c.SocketAddress = fmt.Sprintf(":%d", c.ServerPort)
 	} else {
-		c.SocketAddress = fmt.Sprintf("localhost:%s", c.ServerPort)
+		c.SocketAddress = fmt.Sprintf("localhost:%d", c.ServerPort)
 	}
 	c.OpenAIKey = env.MustGetEnv("OPENAI_KEY")
 	c.UploadsPath = env.GetEnv("UPLOADS_PATH", "uploads")
 	c.FrontendDomain = env.GetEnv("FRONTEND_DOMAIN", "localhost")
-	c.PageSize, err = strconv.Atoi(env.GetEnv("PAGE_SIZE", "25"))
-	if err != nil {
-		return err
-	}
-	c.MaxPageSize, err = strconv.Atoi(env.GetEnv("MAX_PAGE_SIZE", "100"))
-	if err != nil {
-		return err
-	}
 	c.SidCookieKey = env.GetEnv("SID_COOKIE_KEY", "sid")
 	return nil
 }

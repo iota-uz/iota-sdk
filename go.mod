@@ -79,5 +79,6 @@ require (
 	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	nhooyr.io/websocket v1.8.11 // indirect
+	rogchap.com/v8go v0.9.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
