@@ -66,8 +66,9 @@ CREATE TABLE warehouse_positions
 
 CREATE TABLE warehouse_position_images
 (
-    warehouse_position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE PRIMARY KEY,
-    upload_id             INT REFERENCES uploads (id) ON DELETE CASCADE PRIMARY KEY
+    warehouse_position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    upload_id             INT REFERENCES uploads (id) ON DELETE CASCADE,
+    PRIMARY KEY (upload_id, warehouse_position_id)
 );
 
 CREATE TABLE warehouse_products
@@ -108,9 +109,10 @@ CREATE TABLE warehouse_orders
 
 CREATE TABLE warehouse_order_items
 (
-    warehouse_order_id INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE PRIMARY KEY,
-    product_id         INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE PRIMARY KEY,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    warehouse_order_id INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
+    product_id         INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    PRIMARY KEY (warehouse_order_id, product_id)
 );
 
 CREATE TABLE difficulty_levels

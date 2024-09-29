@@ -53,6 +53,30 @@
       "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
     }
   },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Expense categories"
+      },
+      "Edit": {
+        "Title": "Edit category"
+      },
+      "New": {
+        "Title": "New category"
+      }
+    },
+    "List": {
+      "NewCategory": "New Category",
+      "Name": "Name"
+    },
+    "Single": {
+      "EditUser": "Edit user",
+      "Name": "Name",
+      "Amount": "Amount",
+      "DeleteCategory": "Delete category",
+      "DeleteCategoryConfirmation": "Are you sure you want to delete this expense category?"
+    }
+  },
   "Login": {
     "Meta": {
       "Title": "Log in"

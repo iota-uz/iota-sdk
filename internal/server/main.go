@@ -76,6 +76,7 @@ func (s *Server) Start() error {
 		controllers.NewHomeController(application),
 		controllers.NewLoginController(application),
 		controllers.NewUsersController(application),
+		controllers.NewExpenseCategoriesController(application),
 	}
 
 	r := s.useRouter(
@@ -103,7 +104,7 @@ func (s *Server) Start() error {
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
 
-	log.Printf("connect to http://localhost:%s/playground for GraphQL playground", s.conf.ServerPort)
+	log.Printf("connect to http://localhost:%d/playground for GraphQL playground", s.conf.ServerPort)
 	return http.ListenAndServe(s.conf.SocketAddress, r)
 }
 
