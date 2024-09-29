@@ -82,6 +82,10 @@ templ Text(props *Props) {
 	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
 }
 
+templ Number(props *Props) {
+	@newInput(&Props{typ: "number", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
+}
+
 templ Email(props *Props) {
 	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
 }
