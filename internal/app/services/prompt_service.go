@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/prompt"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/prompt"
 )
 
 type PromptService struct {

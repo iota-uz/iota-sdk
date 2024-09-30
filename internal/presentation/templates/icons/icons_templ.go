@@ -43,7 +43,7 @@ func svg(size, class string) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(size)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/icons/icons.templ`, Line: 10, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/icons/icons.templ`, Line: 9, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -56,7 +56,7 @@ func svg(size, class string) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(size)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/icons/icons.templ`, Line: 10, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/icons/icons.templ`, Line: 9, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {

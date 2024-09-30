@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/domain/upload"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/upload"
 	"io"
 	"os"
 	"path/filepath"

@@ -349,6 +349,7 @@ CREATE TABLE transactions
     transaction_date   DATE          NOT NULL   DEFAULT CURRENT_DATE,
     accounting_period  DATE          NOT NULL   DEFAULT CURRENT_DATE,
     transaction_type   VARCHAR(255)  NOT NULL, -- income, expense, transfer
+    comment            TEXT,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
@@ -364,8 +365,8 @@ CREATE TABLE expenses
 CREATE TABLE payments
 (
     id             SERIAL PRIMARY KEY,
-    customer_id    INT REFERENCES customers (id) ON DELETE SET NULL,
-    transaction_id INT REFERENCES transactions (id) ON DELETE SET NULL,
+    stage_id       INT REFERENCES project_stages (id) ON DELETE RESTRICT,
+    transaction_id INT REFERENCES transactions (id) ON DELETE RESTRICT,
     created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -424,7 +425,7 @@ CREATE TABLE uploaded_images
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE action_log
+CREATE TABLE action_logs
 (
     id         SERIAL PRIMARY KEY,
     method     VARCHAR(255) NOT NULL,
@@ -699,7 +700,7 @@ CREATE INDEX likes_user_id_idx ON likes (user_id);
 
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
-CREATE INDEX action_log_user_id_idx ON action_log (user_id);
+CREATE INDEX action_log_user_id_idx ON action_logs (user_id);
 
 CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
 
@@ -720,7 +721,7 @@ CREATE INDEX project_tasks_parent_id_idx ON project_tasks (parent_id);
 CREATE INDEX estimates_task_id_idx ON estimates (task_id);
 CREATE INDEX estimates_employee_id_idx ON estimates (employee_id);
 
-CREATE INDEX payments_customer_id_idx ON payments (customer_id);
+CREATE INDEX payments_staged_id_idx ON payments (stage_id);
 
 CREATE INDEX customers_company_id_idx ON customers (company_id);
 

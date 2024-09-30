@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/authlog"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/authlog"
 )
 
 type AuthLogService struct {

@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/position"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
 )
 
 type PositionService struct {

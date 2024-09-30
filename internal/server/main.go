@@ -2,49 +2,32 @@ package server
 
 import (
 	"encoding/json"
+	"gorm.io/gorm/logger"
 	"log"
 	"net/http"
 
-	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app"
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph"
-	"github.com/iota-agency/iota-erp/internal/presentation/assets"
 	"github.com/iota-agency/iota-erp/internal/presentation/controllers"
 	localMiddleware "github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/sdk/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"github.com/rs/cors"
 	"golang.org/x/text/language"
 )
 
-var (
-	AllowMethods = []string{
-		http.MethodConnect,
-		http.MethodOptions,
-		http.MethodGet,
-		http.MethodPost,
-		http.MethodHead,
-		http.MethodPatch,
-		http.MethodPut,
-		http.MethodDelete,
-	}
-)
-
 type Server struct {
-	conf *configuration.Configuration
+	conf        *configuration.Configuration
+	controllers []controllers.Controller
+	middlewares []mux.MiddlewareFunc
 }
 
 func (s *Server) init() error {
-	if err := s.conf.Load(); err != nil {
-		return err
-	}
+
 	return nil
 }
 
-func (s *Server) useBundle() *i18n.Bundle {
+func loadBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.MustLoadMessageFile("pkg/locales/en.json")
@@ -52,64 +35,44 @@ func (s *Server) useBundle() *i18n.Bundle {
 	return bundle
 }
 
-func (s *Server) useRouter(middlewares ...mux.MiddlewareFunc) *mux.Router {
-	r := mux.NewRouter()
-	r.Use(middlewares...)
-	return r
-}
-
 func (s *Server) Start() error {
-	if err := s.init(); err != nil {
-		return err
-	}
-
-	log.Println("Connecting to database:", s.conf.DbOpts)
-	db, err := ConnectDB(s.conf.DbOpts)
-	if err != nil {
-		return err
-	}
-	bundle := s.useBundle()
-	application := app.New(db)
-	allowOrigins := []string{"http://localhost:3000", "ws://localhost:3000"}
-
-	controllerInstances := []controllers.Controller{
-		controllers.NewHomeController(application),
-		controllers.NewLoginController(application),
-		controllers.NewUsersController(application),
-		controllers.NewExpenseCategoriesController(application),
-	}
-
-	r := s.useRouter(
-		cors.New(cors.Options{
-			AllowedOrigins:   allowOrigins,
-			AllowedMethods:   AllowMethods,
-			AllowCredentials: true,
-		}).Handler,
-		middleware.RequestParams(middleware.DefaultParamsConstructor),
-		middleware.WithLogger(log.Default()),
-		middleware.LogRequests(),
-		middleware.Transactions(db),
-		localMiddleware.WithLocalizer(bundle),
-		localMiddleware.Authorization(application.AuthService),
-	)
-
-	for _, controller := range controllerInstances {
+	r := mux.NewRouter()
+	r.Use(s.middlewares...)
+	for _, controller := range s.controllers {
 		controller.Register(r)
 	}
-
-	r.Handle("/query", graph.NewDefaultServer(application))
-	r.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
-	r.HandleFunc("/oauth/google/callback", application.AuthService.OauthGoogleCallback)
-	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
-	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
-
-	log.Printf("connect to http://localhost:%d/playground for GraphQL playground", s.conf.ServerPort)
 	return http.ListenAndServe(s.conf.SocketAddress, r)
 }
 
-func New() *Server {
+func DefaultServer() (*Server, error) {
+	conf := configuration.Use()
+	log.Println("Connecting to database:", conf.DbOpts)
+	db, err := ConnectDB(conf.DbOpts, logger.Error)
+	if err != nil {
+		return nil, err
+	}
+	CheckModels(db)
+	application := app.New(db)
+	bundle := loadBundle()
 	return &Server{
 		conf: configuration.Use(),
-	}
+		middlewares: []mux.MiddlewareFunc{
+			middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),
+			middleware.RequestParams(middleware.DefaultParamsConstructor),
+			middleware.WithLogger(log.Default()),
+			middleware.LogRequests(),
+			middleware.Transactions(db),
+			localMiddleware.WithLocalizer(bundle),
+			localMiddleware.Authorization(application.AuthService),
+		},
+		controllers: []controllers.Controller{
+			controllers.NewHomeController(application),
+			controllers.NewLoginController(application),
+			controllers.NewUsersController(application),
+			controllers.NewExpenseCategoriesController(application),
+			controllers.NewPaymentsController(application),
+			controllers.NewGraphQLController(application),
+			controllers.NewStaticFilesController(),
+		},
+	}, nil
 }

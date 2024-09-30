@@ -2,19 +2,20 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/{{ .Name }}"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/{{ .Name }}"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
+{{ $nameUpperCase := .Name | Title }}
 {{ $entityType := print .Name "." .Type }}
-{{ $serviceName := print "Gorm" .Name | Title "Repository" }}
+{{ $serviceName := print "Gorm" $nameUpperCase "Repository" }}
 
 type {{ $serviceName }} struct {
 }
 
-func New{{ .Name | Title }}Repository() {{ .Name }}.Repository {
+func New{{ $nameUpperCase }}Repository() {{ .Name }}.Repository {
 	return &{{ $serviceName }}{}
 }
 

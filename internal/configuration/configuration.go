@@ -32,14 +32,14 @@ type Configuration struct {
 func Use() *Configuration {
 	if singleton == nil {
 		singleton = &Configuration{}
-		if err := singleton.Load(); err != nil {
+		if err := singleton.load(); err != nil {
 			panic(err)
 		}
 	}
 	return singleton
 }
 
-func (c *Configuration) Load() error {
+func (c *Configuration) load() error {
 	if err := configuration.LoadEnv(); err != nil {
 		return err
 	}

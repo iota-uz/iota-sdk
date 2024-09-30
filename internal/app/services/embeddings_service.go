@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/iota-agency/iota-erp/internal/domain/embedding"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/embedding"
 	functions "github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
 	"net/http"
 )

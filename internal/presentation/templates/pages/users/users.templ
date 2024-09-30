@@ -2,7 +2,7 @@ package users
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -52,7 +52,7 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 	}
 }
 
-templ UsersContent(pageCtx * types.PageContext, users []*user.User) {
+templ UsersContent(pageCtx *types.PageContext, users []*user.User) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
 			{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}) }

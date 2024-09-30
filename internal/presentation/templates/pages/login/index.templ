@@ -1,12 +1,11 @@
 package login
 
 import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
-	
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 )
 
 templ Index(pageCtx *types.PageContext) {
@@ -30,16 +29,16 @@ templ Index(pageCtx *types.PageContext) {
 						},
 					})
 					@button.Primary(button.Props{Size: button.SizeMD, Class: "justify-center"}) {
-						{pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Login"})}
+						{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Login"}) }
 					}
 				</form>
 			</div>
 			<div class="bg-primary-700">
-			    <img
-			        src="/static/img/login.png"
-			        alt="login"
-			        class="w-full h-full object-cover"
-			    />
+				<img
+					src="/static/img/login.png"
+					alt="login"
+					class="w-full h-full object-cover"
+				/>
 			</div>
 		</div>
 	}

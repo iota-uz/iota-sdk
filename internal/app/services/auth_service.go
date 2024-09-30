@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/domain/session"
-	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 	"golang.org/x/oauth2"

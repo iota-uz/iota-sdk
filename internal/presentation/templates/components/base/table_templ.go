@@ -141,7 +141,7 @@ func Table(props *TableProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: col.Label}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 39, Col: 161}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/table.templ`, Line: 38, Col: 161}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

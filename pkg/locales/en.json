@@ -67,14 +67,38 @@
     },
     "List": {
       "NewCategory": "New Category",
-      "Name": "Name"
+      "Name": "Name",
+      "Amount": "Amount"
     },
     "Single": {
-      "EditUser": "Edit user",
+      "EditUser": "Edit category",
       "Name": "Name",
       "Amount": "Amount",
-      "DeleteCategory": "Delete category",
-      "DeleteCategoryConfirmation": "Are you sure you want to delete this expense category?"
+      "Description": "Description",
+      "Delete": "Delete category",
+      "DeleteConfirmation": "Are you sure you want to delete this expense category?"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "Payments"
+      },
+      "Edit": {
+        "Title": "Edit payment"
+      },
+      "New": {
+        "Title": "Add payment"
+      }
+    },
+    "List": {
+      "New": "Add payment",
+      "Amount": "Amount"
+    },
+    "Single": {
+      "EditUser": "Edit payment",
+      "Name": "Name",
+      "Amount": "Amount"
     }
   },
   "Login": {
