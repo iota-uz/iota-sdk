@@ -20,6 +20,7 @@ type LoginController struct {
 }
 
 func (c *LoginController) Register(r *mux.Router) {
+	r.HandleFunc("/oauth/google/callback", c.app.AuthService.OauthGoogleCallback)
 	r.HandleFunc("/login", c.Get).Methods(http.MethodGet)
 	r.HandleFunc("/login", c.Post).Methods(http.MethodPost)
 }

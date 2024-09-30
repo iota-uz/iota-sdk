@@ -7,9 +7,9 @@ commands:
         required: true
     templates:
       - template: templates/repository_interface.gohtml
-        output: internal/domain/{{ .Name }}/{{ .Name }}_repository.go
+        output: internal/domain/entities/{{ .Name }}/{{ .Name }}_repository.go
       - template: templates/entity.gohtml
-        output: internal/domain/{{ .Name }}/{{ .Name }}.go
+        output: internal/domain/entities/{{ .Name }}/{{ .Name }}.go
       - template: templates/service.gohtml
         output: internal/app/services/{{ .Name }}_service.go
       - template: templates/repository.gohtml

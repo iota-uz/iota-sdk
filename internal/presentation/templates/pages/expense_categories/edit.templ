@@ -2,7 +2,7 @@ package expense_categories
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/expense_category"
+	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -26,10 +26,10 @@ templ EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, er
 				Error: errors["name"],
 			})
 			@input.Number(&input.Props{
-            	Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
-                Attrs: templ.Attributes{"name": "amount", "value": category.Amount},
-                Error: errors["amount"],
-            })
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
+				Attrs: templ.Attributes{"name": "amount", "value": category.Amount},
+				Error: errors["amount"],
+			})
 		}
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form

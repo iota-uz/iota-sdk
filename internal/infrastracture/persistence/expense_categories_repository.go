@@ -2,19 +2,19 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/expense_category"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormExpenseCategoriesRepository struct {
+type GormExpenseCategoryRepository struct {
 }
 
-func NewExpenseCategoriesRepository() category.Repository {
-	return &GormExpenseCategoriesRepository{}
+func NewExpenseCategoryRepository() category.Repository {
+	return &GormExpenseCategoryRepository{}
 }
 
-func (g *GormExpenseCategoriesRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -30,7 +30,7 @@ func (g *GormExpenseCategoriesRepository) GetPaginated(ctx context.Context, limi
 	return categories, nil
 }
 
-func (g *GormExpenseCategoriesRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
@@ -42,7 +42,7 @@ func (g *GormExpenseCategoriesRepository) Count(ctx context.Context) (int64, err
 	return count, nil
 }
 
-func (g *GormExpenseCategoriesRepository) GetAll(ctx context.Context) ([]*category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -54,7 +54,7 @@ func (g *GormExpenseCategoriesRepository) GetAll(ctx context.Context) ([]*catego
 	return entities, nil
 }
 
-func (g *GormExpenseCategoriesRepository) GetByID(ctx context.Context, id int64) (*category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id int64) (*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -66,7 +66,7 @@ func (g *GormExpenseCategoriesRepository) GetByID(ctx context.Context, id int64)
 	return &entity, nil
 }
 
-func (g *GormExpenseCategoriesRepository) Create(ctx context.Context, data *category.ExpenseCategory) error {
+func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *category.ExpenseCategory) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -77,7 +77,7 @@ func (g *GormExpenseCategoriesRepository) Create(ctx context.Context, data *cate
 	return nil
 }
 
-func (g *GormExpenseCategoriesRepository) Update(ctx context.Context, data *category.ExpenseCategory) error {
+func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *category.ExpenseCategory) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -88,7 +88,7 @@ func (g *GormExpenseCategoriesRepository) Update(ctx context.Context, data *cate
 	return nil
 }
 
-func (g *GormExpenseCategoriesRepository) Delete(ctx context.Context, id int64) error {
+func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id int64) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

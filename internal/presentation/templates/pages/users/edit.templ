@@ -2,8 +2,8 @@ package users
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/role"
-	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -18,7 +18,7 @@ import (
 func isRoleSelected(id int64, roles []*role.Role) bool {
 	for _, role := range roles {
 		if role.Id == id {
-			return true;
+			return true
 		}
 	}
 	return false
@@ -72,7 +72,7 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 				Error: errors["roleId"],
 			}) {
 				for _, role := range roles {
-					<option value={ strconv.Itoa(int(role.Id)) } selected?={isRoleSelected(role.Id, user.Roles)}>{ role.Name }</option>
+					<option value={ strconv.Itoa(int(role.Id)) } selected?={ isRoleSelected(role.Id, user.Roles) }>{ role.Name }</option>
 				}
 			}
 		}

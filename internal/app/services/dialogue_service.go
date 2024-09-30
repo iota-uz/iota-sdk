@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/domain/dialogue"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/dialogue"
 	localComposables "github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
 	"github.com/sashabaranov/go-openai"

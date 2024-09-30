@@ -1,0 +1,51 @@
+package textarea
+
+import (
+	"github.com/iota-agency/iota-erp/sdk/utils/random"
+	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
+	"strings"
+)
+
+type Props struct {
+	Placeholder  string
+	Label        string
+	Class        string
+	WrapperClass string
+	Attrs        templ.Attributes
+	Error        string
+	id           string
+}
+
+func newTextArea(props *Props) *Props {
+	id := random.String(12, random.LowerCharSet)
+	class := new(strings.Builder)
+	sequence.Pad(class, " ")
+	class.WriteString(props.Class)
+	return &Props{
+		id:           id,
+		Label:        props.Label,
+		Class:        class.String(),
+		Attrs:        props.Attrs,
+		WrapperClass: props.WrapperClass,
+		Placeholder:  props.Placeholder,
+		Error:        props.Error,
+	}
+}
+
+templ (p *Props) render() {
+	<div class={ "flex flex-col w-full", p.WrapperClass }>
+		if len(p.Label) > 0 {
+			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
+		}
+		<div class="w-full relative">
+			<textarea id={ p.id } class={ "form-control w-full", p.Class } placeholder={ p.Placeholder } { p.Attrs... }></textarea>
+		</div>
+		if p.Error != "" {
+			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+		}
+	</div>
+}
+
+templ Basic(props *Props) {
+	@newTextArea(props).render()
+}

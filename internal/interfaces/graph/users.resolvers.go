@@ -7,7 +7,7 @@ package graph
 import (
 	"context"
 
-	"github.com/iota-agency/iota-erp/internal/domain/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 )

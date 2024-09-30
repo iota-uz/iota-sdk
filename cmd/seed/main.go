@@ -54,7 +54,7 @@ func createInitialUser(ctx context.Context, email, password string) error {
 
 func main() {
 	conf := configuration.Use()
-	if err := conf.Load(); err != nil {
+	if err := conf.load(); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("Connecting to database:", conf.DbOpts)

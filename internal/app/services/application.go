@@ -17,6 +17,7 @@ type Application struct {
 	AuthLogService         *AuthLogService
 	EmbeddingService       *EmbeddingService
 	EmployeeService        *EmployeeService
+	PaymentService         *PaymentService
 	RoleService            *RoleService
 	PositionService        *PositionService
 	ExpenseCategoryService *ExpenseCategoryService

@@ -1,27 +1,34 @@
 package expense_categories
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/expense_category"
+	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/textarea"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-templ CreateForm(localizer *i18n.Localizer, category category.ExpenseCategory, errors map[string]string) {
+templ CreateForm(localizer *i18n.Localizer, expenseCategory category.ExpenseCategory, errors map[string]string) {
 	<form class="flex flex-col justify-between h-full" hx-post="/finance/expense-categories" hx-swap="outerHTML" hx-indicator="#save-btn">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
 				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Name"}),
-				Attrs: templ.Attributes{"name": "name", "value": category.Name},
+				Attrs: templ.Attributes{"name": "name", "value": expenseCategory.Name},
 				Error: errors["name"],
 			})
 			@input.Number(&input.Props{
 				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
-    			Attrs: templ.Attributes{"name": "amount", "value": category.Amount},
-    			Error: errors["amount"],
+				Attrs: templ.Attributes{"name": "amount", "value": expenseCategory.Amount},
+				Error: errors["amount"],
+			})
+			@textarea.Basic(&textarea.Props{
+				Label:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Description"}),
+				Attrs:        templ.Attributes{"name": "description", "value": expenseCategory.Description},
+				WrapperClass: "col-span-3",
+				Error:        errors["description"],
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

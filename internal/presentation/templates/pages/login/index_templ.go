@@ -9,11 +9,10 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
@@ -84,7 +83,7 @@ func Index(pageCtx *types.PageContext) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Login"}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/login/index.templ`, Line: 33, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/login/index.templ`, Line: 32, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {

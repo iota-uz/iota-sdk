@@ -1,13 +1,13 @@
 package layouts
 
 import (
+	"bytes"
 	"github.com/iota-agency/iota-erp/internal/presentation/assets"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"bytes"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"strings"
 )
 
@@ -39,9 +39,9 @@ func newSidebarLink(name, href string, icon templ.Component, active bool) sideba
 		class.WriteString(" active")
 	}
 	return sidebarLink{
-		name: name,
-		href: href,
-		icon: icon,
+		name:  name,
+		href:  href,
+		icon:  icon,
 		class: class.String(),
 	}
 }
@@ -137,7 +137,7 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 		<div class="px-6">
 			@button.Sidebar(button.Props{Size: button.SizeMD, Class: "w-full gap-2"}) {
 				@icons.SignOut(icons.Props{Size: "20"})
-				{l.MustLocalize(&i18n.LocalizeConfig{MessageID: "SignOut"})}
+				{ l.MustLocalize(&i18n.LocalizeConfig{MessageID: "SignOut"}) }
 			}
 		</div>
 	</div>
@@ -153,7 +153,7 @@ templ Navbar() {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center">
-				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked />
+				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked/>
 				<label for="theme-light" class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/system:visible">
 					@icons.Desktop(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/system:group-[]/system:scale-100"})
 				</label>
@@ -161,19 +161,19 @@ templ Navbar() {
 				<label for="theme-dark" class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/light:visible">
 					@icons.SunFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100"})
 				</label>
-				<input class="peer/dark appearance-none absolute" type="radio" name="theme" value="dark" id="theme-dark" onchange="onThemeChange(this)" />
+				<input class="peer/dark appearance-none absolute" type="radio" name="theme" value="dark" id="theme-dark" onchange="onThemeChange(this)"/>
 				<label for="theme-system" class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white invisible peer-checked/dark:visible">
 					@icons.MoonFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100"})
 				</label>
 			</div>
 			@base.DetailsDropdown(avatar()) {
-				@base.DropdownItem(base.DropdownItemProps{ Href: "/account" }) {
+				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					Профиль
 				}
-				@base.DropdownItem(base.DropdownItemProps{ Href: "/settings" }) {
+				@base.DropdownItem(base.DropdownItemProps{Href: "/settings"}) {
 					Настройки
 				}
-				@base.DropdownItem(base.DropdownItemProps{ Href: "/logout" }) {
+				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
 					Выйти
 				}
 			}
@@ -203,7 +203,6 @@ templ Navbar() {
 			}
 		</script>
 	}
-
 }
 
 templ Authenticated(pageCtx *types.PageContext) {

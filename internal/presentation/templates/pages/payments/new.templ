@@ -1,0 +1,47 @@
+package payments
+
+import (
+	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+)
+
+templ CreateForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[string]string) {
+	<div class="flex flex-col justify-between h-full" id="new-content">
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@input.Number(&input.Props{
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Amount"}),
+				Attrs: templ.Attributes{
+					"value": payment.Amount,
+					"name":  "amount",
+					"form":  "save-form",
+				},
+				Error: errors["amount"],
+			})
+		}
+		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			<form id="save-form" method="post" hx-post="/payments" hx-indicator="#save-btn" hx-target="#new-content" hx-swap="outerHTML">
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}) }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ New(pageCtx *types.PageContext, errors map[string]string) {
+	@layouts.Authenticated(pageCtx) {
+		@CreateForm(pageCtx.Localizer, &payment.Payment{}, errors)
+	}
+}

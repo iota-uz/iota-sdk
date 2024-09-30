@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/iota-agency/iota-erp/internal/domain/role"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 )
 
 type RoleService struct {

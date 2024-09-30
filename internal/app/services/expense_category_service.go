@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/iota-agency/iota-erp/internal/domain/expense_category"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )

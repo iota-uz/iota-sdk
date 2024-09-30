@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/iota-agency/iota-erp/internal/domain/upload"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/upload"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 

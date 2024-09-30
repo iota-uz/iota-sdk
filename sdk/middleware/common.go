@@ -4,10 +4,24 @@ import (
 	"context"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/rs/cors"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"time"
+)
+
+var (
+	AllowMethods = []string{
+		http.MethodConnect,
+		http.MethodOptions,
+		http.MethodGet,
+		http.MethodPost,
+		http.MethodHead,
+		http.MethodPatch,
+		http.MethodPut,
+		http.MethodDelete,
+	}
 )
 
 type GenericConstructor func(r *http.Request, w http.ResponseWriter) interface{}
@@ -40,6 +54,14 @@ func LogRequests() mux.MiddlewareFunc {
 			logger.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
 		})
 	}
+}
+
+func Cors(allowOrigins []string) mux.MiddlewareFunc {
+	return cors.New(cors.Options{
+		AllowedOrigins:   allowOrigins,
+		AllowedMethods:   AllowMethods,
+		AllowCredentials: true,
+	}).Handler
 }
 
 func ContextKeyValue(key string, constructor GenericConstructor) mux.MiddlewareFunc {

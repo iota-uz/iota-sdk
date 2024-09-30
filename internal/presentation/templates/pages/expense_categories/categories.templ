@@ -2,7 +2,7 @@ package expense_categories
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/expense_category"
+	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -17,6 +17,7 @@ templ CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseC
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: "ExpenseCategories.List.Name", Key: "name"},
+			{Label: "ExpenseCategories.List.Amount", Key: "amount"},
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
@@ -26,6 +27,9 @@ templ CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseC
 			@base.TableRow() {
 				@base.TableCell() {
 					{ category.Name }
+				}
+				@base.TableCell() {
+					{ fmt.Sprintf("%f", category.Amount) }
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">

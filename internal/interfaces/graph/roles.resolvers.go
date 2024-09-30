@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/iota-agency/iota-erp/internal/domain/role"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 )

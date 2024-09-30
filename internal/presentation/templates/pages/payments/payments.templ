@@ -1,0 +1,96 @@
+package payments
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"time"
+)
+
+templ PaymentsTable(localizer *i18n.Localizer, payments []*payment.Payment) {
+	@base.Table(&base.TableProps{
+		Columns: []*base.TableColumn{
+			{Label: "Payments.List.Amount", Key: "amount"},
+			{Label: "UpdatedAt", Key: "updatedAt"},
+			{Label: "Actions", Class: "w-16"},
+		},
+		Localizer: localizer,
+	}) {
+		for _, payment := range payments {
+			@base.TableRow() {
+				@base.TableCell() {
+					<div x-data="relativeformat">
+						<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt.Format(time.RFC3339)) }></span>
+					</div>
+				}
+				@base.TableCell() {
+					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/payments/%d", payment.Id)}) {
+						@icons.PencilSimple(icons.Props{Size: "20"})
+					}
+				}
+			}
+		}
+	}
+}
+
+templ PaymentsContent(pageCtx *types.PageContext, payments []*payment.Payment) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Payments"}) }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/finance/payments"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target="table"
+				hx-swap="outerHTML"
+			>
+				@input.Text(&input.Props{
+					Addon: &input.Addon{
+						Position:  input.AddonLeft,
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Search"}),
+					Attrs: templ.Attributes{
+						"name": "name",
+					},
+				})
+				@base.Select(&base.SelectProps{
+					Prefix: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PerPage"}),
+					Attrs: templ.Attributes{
+						"name": "limit",
+					},
+				}) {
+					<option>15</option>
+					<option>25</option>
+					<option>50</option>
+					<option>100</option>
+				}
+				@base.Select(&base.SelectProps{Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CreatedAt"})}) {
+					<option>Вчера</option>
+					<option>Позавчера</option>
+				}
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/finance/payments/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.List.New"}) }
+				}
+			</form>
+			@PaymentsTable(pageCtx.Localizer, payments)
+		</div>
+	</div>
+}
+
+templ Index(pageCtx *types.PageContext, payments []*payment.Payment) {
+	@layouts.Authenticated(pageCtx) {
+		@PaymentsContent(pageCtx, payments)
+	}
+}
