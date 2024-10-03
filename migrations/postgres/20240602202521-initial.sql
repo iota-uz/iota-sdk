@@ -611,71 +611,71 @@ CREATE TABLE contact_form_submissions
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE blog_posts
-(
-    id         SERIAL PRIMARY KEY,
-    title      VARCHAR(255) NOT NULL,
-    content    TEXT         NOT NULL,
-    author_id  INT          REFERENCES users (id) ON DELETE SET NULL,
-    picture_id INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE blog_post_tags
-(
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE blog_post_tag_relations
-(
-    post_id INT NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
-    tag_id  INT NOT NULL REFERENCES blog_post_tags (id) ON DELETE CASCADE,
-    PRIMARY KEY (post_id, tag_id)
-);
-
-CREATE TABLE blog_comments
-(
-    id         SERIAL PRIMARY KEY,
-    post_id    INT  NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
-    content    TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE blog_likes
-(
-    id         SERIAL PRIMARY KEY,
-    post_id    INT NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE website_pages
-(
-    id         SERIAL PRIMARY KEY,
-    path       VARCHAR(255) NOT NULL,
-    seo_title  VARCHAR(255),
-    seo_desc   TEXT,
-    seo_keys   TEXT,
-    seo_h1     VARCHAR(255),
-    seo_h2     VARCHAR(255),
-    seo_img    VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE website_page_views
-(
-    id         SERIAL PRIMARY KEY,
-    page_id    INT NOT NULL REFERENCES website_pages (id) ON DELETE CASCADE,
-    user_agent VARCHAR(255),
-    ip         VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
+-- CREATE TABLE blog_posts
+-- (
+--     id         SERIAL PRIMARY KEY,
+--     title      VARCHAR(255) NOT NULL,
+--     content    TEXT         NOT NULL,
+--     author_id  INT          REFERENCES users (id) ON DELETE SET NULL,
+--     picture_id INT          REFERENCES uploads (id) ON DELETE SET NULL,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+-- );
+--
+-- CREATE TABLE blog_post_tags
+-- (
+--     id         SERIAL PRIMARY KEY,
+--     name       VARCHAR(255) NOT NULL,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+-- );
+--
+-- CREATE TABLE blog_post_tag_relations
+-- (
+--     post_id INT NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
+--     tag_id  INT NOT NULL REFERENCES blog_post_tags (id) ON DELETE CASCADE,
+--     PRIMARY KEY (post_id, tag_id)
+-- );
+--
+-- CREATE TABLE blog_comments
+-- (
+--     id         SERIAL PRIMARY KEY,
+--     post_id    INT  NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
+--     content    TEXT NOT NULL,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+-- );
+--
+-- CREATE TABLE blog_likes
+-- (
+--     id         SERIAL PRIMARY KEY,
+--     post_id    INT NOT NULL REFERENCES blog_posts (id) ON DELETE CASCADE,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+-- );
+--
+-- CREATE TABLE website_pages
+-- (
+--     id         SERIAL PRIMARY KEY,
+--     path       VARCHAR(255) NOT NULL,
+--     seo_title  VARCHAR(255),
+--     seo_desc   TEXT,
+--     seo_keys   TEXT,
+--     seo_h1     VARCHAR(255),
+--     seo_h2     VARCHAR(255),
+--     seo_img    VARCHAR(255),
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+-- );
+--
+-- CREATE TABLE website_page_views
+-- (
+--     id         SERIAL PRIMARY KEY,
+--     page_id    INT NOT NULL REFERENCES website_pages (id) ON DELETE CASCADE,
+--     user_agent VARCHAR(255),
+--     ip         VARCHAR(255),
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+-- );
 
 CREATE INDEX users_first_name_idx ON users (first_name);
 CREATE INDEX users_last_name_idx ON users (last_name);
@@ -738,16 +738,16 @@ CREATE INDEX interview_ratings_interview_id_idx ON interview_ratings (interview_
 CREATE INDEX interviews_application_id_idx ON interviews (application_id);
 CREATE INDEX interviews_interviewer_id_idx ON interviews (interviewer_id);
 
-CREATE INDEX blog_posts_author_id_idx ON blog_posts (author_id);
-CREATE INDEX blog_posts_picture_id_idx ON blog_posts (picture_id);
-
-CREATE INDEX blog_post_tag_relations_tag_id_idx ON blog_post_tag_relations (tag_id);
-
-CREATE INDEX blog_comments_post_id_idx ON blog_comments (post_id);
-
-CREATE INDEX blog_likes_post_id_idx ON blog_likes (post_id);
-
-CREATE INDEX website_page_views_page_id_idx ON website_page_views (page_id);
+-- CREATE INDEX blog_posts_author_id_idx ON blog_posts (author_id);
+-- CREATE INDEX blog_posts_picture_id_idx ON blog_posts (picture_id);
+--
+-- CREATE INDEX blog_post_tag_relations_tag_id_idx ON blog_post_tag_relations (tag_id);
+--
+-- CREATE INDEX blog_comments_post_id_idx ON blog_comments (post_id);
+--
+-- CREATE INDEX blog_likes_post_id_idx ON blog_likes (post_id);
+--
+-- CREATE INDEX website_page_views_page_id_idx ON website_page_views (page_id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS action_log CASCADE;
@@ -757,11 +757,11 @@ DROP TABLE IF EXISTS applicants CASCADE;
 DROP TABLE IF EXISTS applications CASCADE;
 DROP TABLE IF EXISTS articles CASCADE;
 DROP TABLE IF EXISTS authentication_logs CASCADE;
-DROP TABLE IF EXISTS blog_comments CASCADE;
-DROP TABLE IF EXISTS blog_likes CASCADE;
-DROP TABLE IF EXISTS blog_post_tag_relations CASCADE;
-DROP TABLE IF EXISTS blog_post_tags CASCADE;
-DROP TABLE IF EXISTS blog_posts CASCADE;
+-- DROP TABLE IF EXISTS blog_comments CASCADE;
+-- DROP TABLE IF EXISTS blog_likes CASCADE;
+-- DROP TABLE IF EXISTS blog_post_tag_relations CASCADE;
+-- DROP TABLE IF EXISTS blog_post_tags CASCADE;
+-- DROP TABLE IF EXISTS blog_posts CASCADE;
 DROP TABLE IF EXISTS companies CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
 DROP TABLE IF EXISTS contact_form_submissions CASCADE;
@@ -812,8 +812,8 @@ DROP TABLE IF EXISTS uploads CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS vacancies CASCADE;
-DROP TABLE IF EXISTS website_page_views CASCADE;
-DROP TABLE IF EXISTS website_pages CASCADE;
+-- DROP TABLE IF EXISTS website_page_views CASCADE;
+-- DROP TABLE IF EXISTS website_pages CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 
 COMMIT;
