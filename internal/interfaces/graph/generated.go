@@ -245,8 +245,8 @@ type ComplexityRoot struct {
 
 	Payment struct {
 		CreatedAt     func(childComplexity int) int
-		CustomerID    func(childComplexity int) int
 		ID            func(childComplexity int) int
+		StageID       func(childComplexity int) int
 		TransactionID func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
 	}
@@ -1507,19 +1507,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Payment.CreatedAt(childComplexity), true
 
-	case "Payment.customerId":
-		if e.complexity.Payment.CustomerID == nil {
-			break
-		}
-
-		return e.complexity.Payment.CustomerID(childComplexity), true
-
 	case "Payment.id":
 		if e.complexity.Payment.ID == nil {
 			break
 		}
 
 		return e.complexity.Payment.ID(childComplexity), true
+
+	case "Payment.stageId":
+		if e.complexity.Payment.StageID == nil {
+			break
+		}
+
+		return e.complexity.Payment.StageID(childComplexity), true
 
 	case "Payment.transactionId":
 		if e.complexity.Payment.TransactionID == nil {
@@ -7861,8 +7861,8 @@ func (ec *executionContext) fieldContext_Mutation_createPayment(ctx context.Cont
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Payment_id(ctx, field)
-			case "customerId":
-				return ec.fieldContext_Payment_customerId(ctx, field)
+			case "stageId":
+				return ec.fieldContext_Payment_stageId(ctx, field)
 			case "transactionId":
 				return ec.fieldContext_Payment_transactionId(ctx, field)
 			case "createdAt":
@@ -7928,8 +7928,8 @@ func (ec *executionContext) fieldContext_Mutation_updatePayment(ctx context.Cont
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Payment_id(ctx, field)
-			case "customerId":
-				return ec.fieldContext_Payment_customerId(ctx, field)
+			case "stageId":
+				return ec.fieldContext_Payment_stageId(ctx, field)
 			case "transactionId":
 				return ec.fieldContext_Payment_transactionId(ctx, field)
 			case "createdAt":
@@ -9262,8 +9262,8 @@ func (ec *executionContext) fieldContext_PaginatedPayments_data(_ context.Contex
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Payment_id(ctx, field)
-			case "customerId":
-				return ec.fieldContext_Payment_customerId(ctx, field)
+			case "stageId":
+				return ec.fieldContext_Payment_stageId(ctx, field)
 			case "transactionId":
 				return ec.fieldContext_Payment_transactionId(ctx, field)
 			case "createdAt":
@@ -10079,8 +10079,8 @@ func (ec *executionContext) fieldContext_Payment_id(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _Payment_customerId(ctx context.Context, field graphql.CollectedField, obj *model.Payment) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Payment_customerId(ctx, field)
+func (ec *executionContext) _Payment_stageId(ctx context.Context, field graphql.CollectedField, obj *model.Payment) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Payment_stageId(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10093,7 +10093,7 @@ func (ec *executionContext) _Payment_customerId(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.CustomerID, nil
+		return obj.StageID, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -10110,7 +10110,7 @@ func (ec *executionContext) _Payment_customerId(ctx context.Context, field graph
 	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Payment_customerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Payment_stageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Payment",
 		Field:      field,
@@ -12258,8 +12258,8 @@ func (ec *executionContext) fieldContext_Query_payment(ctx context.Context, fiel
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Payment_id(ctx, field)
-			case "customerId":
-				return ec.fieldContext_Payment_customerId(ctx, field)
+			case "stageId":
+				return ec.fieldContext_Payment_stageId(ctx, field)
 			case "transactionId":
 				return ec.fieldContext_Payment_transactionId(ctx, field)
 			case "createdAt":
@@ -14853,8 +14853,8 @@ func (ec *executionContext) fieldContext_Subscription_paymentCreated(_ context.C
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Payment_id(ctx, field)
-			case "customerId":
-				return ec.fieldContext_Payment_customerId(ctx, field)
+			case "stageId":
+				return ec.fieldContext_Payment_stageId(ctx, field)
 			case "transactionId":
 				return ec.fieldContext_Payment_transactionId(ctx, field)
 			case "createdAt":
@@ -14923,8 +14923,8 @@ func (ec *executionContext) fieldContext_Subscription_paymentUpdated(_ context.C
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Payment_id(ctx, field)
-			case "customerId":
-				return ec.fieldContext_Payment_customerId(ctx, field)
+			case "stageId":
+				return ec.fieldContext_Payment_stageId(ctx, field)
 			case "transactionId":
 				return ec.fieldContext_Payment_transactionId(ctx, field)
 			case "createdAt":
@@ -18325,20 +18325,20 @@ func (ec *executionContext) unmarshalInputCreatePayment(ctx context.Context, obj
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"customerId", "transactionId"}
+	fieldsInOrder := [...]string{"stageId", "transactionId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "customerId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerId"))
+		case "stageId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("stageId"))
 			data, err := ec.unmarshalNID2int64(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.CustomerID = data
+			it.StageID = data
 		case "transactionId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("transactionId"))
 			data, err := ec.unmarshalNID2int64(ctx, v)
@@ -18880,20 +18880,20 @@ func (ec *executionContext) unmarshalInputUpdatePayment(ctx context.Context, obj
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"customerId", "transactionId"}
+	fieldsInOrder := [...]string{"stageId", "transactionId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "customerId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerId"))
+		case "stageId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("stageId"))
 			data, err := ec.unmarshalOID2ᚖint64(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.CustomerID = data
+			it.StageID = data
 		case "transactionId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("transactionId"))
 			data, err := ec.unmarshalOID2ᚖint64(ctx, v)
@@ -20782,8 +20782,8 @@ func (ec *executionContext) _Payment(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "customerId":
-			out.Values[i] = ec._Payment_customerId(ctx, field, obj)
+		case "stageId":
+			out.Values[i] = ec._Payment_stageId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

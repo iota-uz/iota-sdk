@@ -42,7 +42,7 @@ func (g *GormPaymentRepository) GetPaginated(ctx context.Context, limit, offset 
 	}
 	var entities []*payment.Payment
 	for _, r := range rows {
-		if tr, ok := transactionMap[*r.TransactionID]; ok {
+		if tr, ok := transactionMap[r.TransactionID]; ok {
 			p, err := toDomainPayment(r, tr)
 			if err != nil {
 				return nil, err
@@ -70,9 +70,31 @@ func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment.Payment,
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entities []*payment.Payment
-	if err := tx.Find(&entities).Error; err != nil {
+	var rows []*models.Payment
+	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	var ids []uint
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
+	var transactionRows []*models.Transaction
+	if err := tx.Where("id IN ?", ids).Find(&transactionRows).Error; err != nil {
+		return nil, err
+	}
+	transactionMap := make(map[uint]*models.Transaction, len(transactionRows))
+	for _, tr := range transactionRows {
+		transactionMap[tr.ID] = tr
+	}
+	var entities []*payment.Payment
+	for _, r := range rows {
+		if tr, ok := transactionMap[r.TransactionID]; ok {
+			p, err := toDomainPayment(r, tr)
+			if err != nil {
+				return nil, err
+			}
+			entities = append(entities, p)
+		}
 	}
 	return entities, nil
 }

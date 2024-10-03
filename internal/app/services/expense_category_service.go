@@ -20,11 +20,11 @@ func NewExpenseCategoryService(repo category.Repository, app *Application) *Expe
 	}
 }
 
-func (s *ExpenseCategoryService) GetByID(ctx context.Context, id int64) (*category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
 	return s.Repo.GetByID(ctx, id)
 }
 
-func (s *ExpenseCategoryService) Count(ctx context.Context) (int64, error) {
+func (s *ExpenseCategoryService) Count(ctx context.Context) (uint, error) {
 	return s.Repo.Count(ctx)
 }
 
@@ -36,7 +36,7 @@ func (s *ExpenseCategoryService) GetPaginated(ctx context.Context, limit, offset
 	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.ExpenseCategory) error {
+func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.CreateDTO) error {
 	ev := &category.Created{
 		Data: &(*data),
 	}
@@ -46,16 +46,16 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.Expe
 	if sess, err := composables.UseSession(ctx); err == nil {
 		ev.Session = sess
 	}
-
-	if err := s.Repo.Create(ctx, data); err != nil {
+	entity := data.ToEntity()
+	if err := s.Repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	ev.Result = &(*data)
+	ev.Result = &(*entity)
 	s.Publisher.Publish(ev)
 	return nil
 }
 
-func (s *ExpenseCategoryService) Update(ctx context.Context, data *category.ExpenseCategory) error {
+func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *category.UpdateDTO) error {
 	evt := &category.Updated{
 		Data: &(*data),
 	}
@@ -65,15 +65,16 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, data *category.Expe
 	if sess, err := composables.UseSession(ctx); err == nil {
 		evt.Session = sess
 	}
-	if err := s.Repo.Update(ctx, data); err != nil {
+	entity := data.ToEntity(id)
+	if err := s.Repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	evt.Result = &(*data)
+	evt.Result = &(*entity)
 	s.Publisher.Publish(evt)
 	return nil
 }
 
-func (s *ExpenseCategoryService) Delete(ctx context.Context, id int64) (*category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
 	evt := &category.Deleted{}
 	if u, err := composables.UseUser(ctx); err == nil {
 		evt.Sender = u

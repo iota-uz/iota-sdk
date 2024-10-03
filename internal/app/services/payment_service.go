@@ -32,7 +32,7 @@ func (s *PaymentService) GetPaginated(ctx context.Context, limit, offset int, so
 	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *PaymentService) Create(ctx context.Context, data *payment.Payment) error {
+func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) error {
 	ev := &payment.Created{
 		Data: &(*data),
 	}
@@ -42,16 +42,16 @@ func (s *PaymentService) Create(ctx context.Context, data *payment.Payment) erro
 	if sess, err := composables.UseSession(ctx); err == nil {
 		ev.Session = sess
 	}
-
-	if err := s.Repo.Create(ctx, data); err != nil {
+	entity := data.ToEntity()
+	if err := s.Repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	ev.Result = &(*data)
+	ev.Result = &(*entity)
 	s.Publisher.Publish(ev)
 	return nil
 }
 
-func (s *PaymentService) Update(ctx context.Context, data *payment.Payment) error {
+func (s *PaymentService) Update(ctx context.Context, id uint, data *payment.UpdateDTO) error {
 	evt := &payment.Updated{
 		Data: &(*data),
 	}
@@ -61,10 +61,11 @@ func (s *PaymentService) Update(ctx context.Context, data *payment.Payment) erro
 	if sess, err := composables.UseSession(ctx); err == nil {
 		evt.Session = sess
 	}
-	if err := s.Repo.Update(ctx, data); err != nil {
+	entity := data.ToEntity(id)
+	if err := s.Repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	evt.Result = &(*data)
+	evt.Result = &(*entity)
 	s.Publisher.Publish(evt)
 	return nil
 }

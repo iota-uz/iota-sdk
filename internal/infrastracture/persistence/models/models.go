@@ -15,9 +15,8 @@ type Upload struct {
 }
 
 type Currency struct {
-	ID        uint
+	Code      string `gorm:"primary_key"`
 	Name      string
-	Code      string
 	Symbol    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -209,7 +208,6 @@ type ProjectStage struct {
 	EndDate   time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Project   Project
 }
 
 type ProjectTask struct {
@@ -254,8 +252,8 @@ type MoneyAccount struct {
 type Transaction struct {
 	ID               uint
 	Amount           float64
-	AmountCurrencyID *uint
-	MoneyAccountID   *uint
+	AmountCurrencyID string
+	MoneyAccountID   uint
 	TransactionDate  time.Time
 	AccountingPeriod time.Time
 	TransactionType  string
@@ -275,8 +273,8 @@ type Expense struct {
 
 type Payment struct {
 	ID            uint
-	StageID       *uint
-	TransactionID *uint
+	StageID       uint
+	TransactionID uint
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

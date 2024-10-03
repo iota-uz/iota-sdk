@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/gorilla/schema"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"net/http"
 	"strconv"
@@ -65,12 +66,12 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	category, err := c.app.ExpenseCategoryService.GetByID(r.Context(), int64(id))
+	entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), uint(id))
 	if err != nil {
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
-	templ.Handler(expense_categories.Edit(pageCtx, category, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expense_categories.Edit(pageCtx, entity, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +81,7 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), int64(id)); err != nil {
+	if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), uint(id)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -94,34 +95,36 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 		return
 	}
 	action := r.FormValue("_action")
+	r.Form.Del("_action")
+
 	if action == "save" {
-		amount, err := strconv.ParseFloat(r.FormValue("amount"), 64)
-		if err != nil {
-			http.Error(w, "amount is not a valid number", http.StatusInternalServerError)
-			return
-		}
-		upd := &category.ExpenseCategoryUpdate{
-			Name:   r.FormValue("name"),
-			Amount: amount,
-		}
+		dto := category.UpdateDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.Edit.Title"})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if errors, ok := upd.Ok(pageCtx.Localizer); !ok {
-			category, err := c.app.ExpenseCategoryService.GetByID(r.Context(), int64(id))
+		if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := validate.Struct(&dto); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
+			entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), uint(id))
 			if err != nil {
 				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 				return
 			}
-			templ.Handler(expense_categories.EditForm(pageCtx.Localizer, category, errors), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(expense_categories.EditForm(pageCtx.Localizer, entity, errors), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.ExpenseCategoryService.Update(r.Context(), &category.ExpenseCategory{Id: int64(id), Name: upd.Name})
+		err = c.app.ExpenseCategoryService.Update(r.Context(), uint(id), &dto)
 	} else if action == "delete" {
-		_, err = c.app.ExpenseCategoryService.Delete(r.Context(), int64(id))
+		_, err = c.app.ExpenseCategoryService.Delete(r.Context(), uint(id))
 	}
 
 	if err != nil {
@@ -141,14 +144,16 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
-	amount, err := strconv.ParseFloat(r.FormValue("amount"), 64)
-	if err != nil {
-		http.Error(w, "amount is not a valid number", http.StatusInternalServerError)
+	dto := category.CreateDTO{}
+
+	if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	category := category.ExpenseCategory{
-		Name:   r.FormValue("name"),
-		Amount: amount,
+
+	if err := validate.Struct(&dto); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.New.Title"})
@@ -157,12 +162,12 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if errors, ok := category.Ok(pageCtx.Localizer); !ok {
-		templ.Handler(expense_categories.CreateForm(pageCtx.Localizer, category, errors), templ.WithStreaming()).ServeHTTP(w, r)
+	if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
+		templ.Handler(expense_categories.CreateForm(pageCtx.Localizer, dto.ToEntity(), errors), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	if err := c.app.ExpenseCategoryService.Create(r.Context(), &category); err != nil {
+	if err := c.app.ExpenseCategoryService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

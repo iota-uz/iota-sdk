@@ -1,6 +1,6 @@
 type Payment {
     id: ID!
-    customerId: ID!
+    stageId: ID!
     transactionId: ID!
     createdAt: Time!
     updatedAt: Time!
@@ -17,12 +17,12 @@ extend type Query {
 }
 
 input CreatePayment {
-    customerId: ID!
+    stageId: ID!
     transactionId: ID!
 }
 
 input UpdatePayment {
-    customerId: ID
+    stageId: ID
     transactionId: ID
 }
 

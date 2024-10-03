@@ -90,6 +90,10 @@ templ Email(props *Props) {
 	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
 }
 
+templ Date(props *Props) {
+    @newInput(&Props{typ: "date", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
+}
+
 templ passwordLock(p *Props) {
 	<label x-data="passwordVisibility" class="flex items-center justify-center">
 		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } @change="toggle"/>
