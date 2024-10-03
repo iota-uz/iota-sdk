@@ -15,22 +15,24 @@ import (
 )
 
 type PaymentsController struct {
-	app *services.Application
+	app      *services.Application
+	basePath string
 }
 
 func NewPaymentsController(app *services.Application) Controller {
 	return &PaymentsController{
-		app: app,
+		app:      app,
+		basePath: "/finance/payments",
 	}
 }
 
 func (c *PaymentsController) Register(r *mux.Router) {
-	r.HandleFunc("/finance/payments", c.Payments).Methods(http.MethodGet)
-	r.HandleFunc("/finance/payments", c.CreatePayment).Methods(http.MethodPost)
-	r.HandleFunc("/finance/payments/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc("/finance/payments/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc("/finance/payments/{id:[0-9]+}", c.DeletePayment).Methods(http.MethodDelete)
-	r.HandleFunc("/finance/payments/new", c.GetNew).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath, c.Payments).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath, c.CreatePayment).Methods(http.MethodPost)
+	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.DeletePayment).Methods(http.MethodDelete)
 }
 
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +87,7 @@ func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, "/payments")
+	redirect(w, r, c.basePath)
 }
 
 func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +134,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, "/payments")
+	redirect(w, r, c.basePath)
 }
 
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -182,5 +184,5 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	redirect(w, r, "/finance/payments")
+	redirect(w, r, c.basePath)
 }
