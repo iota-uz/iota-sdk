@@ -244,7 +244,7 @@ CREATE TABLE expense_categories
     name               VARCHAR(255)  NOT NULL,
     description        TEXT,
     amount             NUMERIC(9, 2) NOT NULL,
-    amount_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
+    amount_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );

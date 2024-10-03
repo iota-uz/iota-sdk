@@ -153,7 +153,7 @@ type ExpenseCategory struct {
 	Name             string
 	Description      string
 	Amount           float64
-	AmountCurrencyID *uint
+	AmountCurrencyID string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	AmountCurrency   Currency
@@ -246,7 +246,6 @@ type MoneyAccount struct {
 	BalanceCurrencyID uint
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
-	BalanceCurrency   Currency
 }
 
 type Transaction struct {

@@ -3,6 +3,7 @@ package persistence
 import (
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
@@ -167,4 +168,20 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		CreatedAt:        dbPayment.CreatedAt,
 		UpdatedAt:        dbPayment.UpdatedAt,
 	}, nil
+}
+
+func toDbCurrency(entity *currency.Currency) *models.Currency {
+	return &models.Currency{
+		Code:   entity.Code,
+		Name:   entity.Name,
+		Symbol: entity.Symbol,
+	}
+}
+
+func toDomainCurrency(dbCurrency *models.Currency) *currency.Currency {
+	return &currency.Currency{
+		Code:   dbCurrency.Code,
+		Name:   dbCurrency.Name,
+		Symbol: dbCurrency.Symbol,
+	}
 }

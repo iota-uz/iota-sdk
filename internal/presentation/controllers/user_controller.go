@@ -15,22 +15,24 @@ import (
 )
 
 type UsersController struct {
-	app *services.Application
+	app      *services.Application
+	basePath string
 }
 
 func NewUsersController(app *services.Application) Controller {
 	return &UsersController{
-		app: app,
+		app:      app,
+		basePath: "/users",
 	}
 }
 
 func (c *UsersController) Register(r *mux.Router) {
-	r.HandleFunc("/users", c.Users).Methods(http.MethodGet)
-	r.HandleFunc("/users", c.CreateUser).Methods(http.MethodPost)
-	r.HandleFunc("/users/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc("/users/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc("/users/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
-	r.HandleFunc("/users/new", c.GetNew).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath, c.Users).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath, c.CreateUser).Methods(http.MethodPost)
+	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +93,7 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, "/users")
+	redirect(w, r, c.basePath)
 }
 
 func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +147,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, "/users")
+	redirect(w, r, c.basePath)
 }
 
 func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -204,5 +206,5 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirect(w, r, "/users")
+	redirect(w, r, c.basePath)
 }

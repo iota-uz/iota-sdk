@@ -1,30 +1,21 @@
-package payment
+package moneyAccount
 
 import (
-	"github.com/go-playground/validator/v10"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"time"
 
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-var (
-	validate = validator.New(validator.WithRequiredStructEnabled())
-)
-
-type Payment struct {
-	Id               uint
-	StageId          uint
-	Amount           float64
-	AmountCurrencyID string
-	MoneyAccountID   uint
-	TransactionDate  time.Time
-	AccountingPeriod time.Time
-	Comment          string
-	User             *user.User
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+type Account struct {
+	ID                uint
+	Name              string
+	AccountNumber     string
+	Description       string
+	Balance           float64
+	BalanceCurrencyID uint
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type CreateDTO struct {
@@ -57,8 +48,8 @@ func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (p *CreateDTO) ToEntity() *Payment {
-	return &Payment{
+func (p *CreateDTO) ToEntity() *Account {
+	return &Account{
 		StageId:          p.StageId,
 		Amount:           p.Amount,
 		AmountCurrencyID: p.AmountCurrencyID,
@@ -69,7 +60,7 @@ func (p *CreateDTO) ToEntity() *Payment {
 	}
 }
 
-func (p *Payment) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *Account) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
 	if p.Amount <= 0 {
 		errors["amount"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.PositiveAmount"})
@@ -79,18 +70,14 @@ func (p *Payment) Ok(l *i18n.Localizer) (map[string]string, bool) {
 
 func (p *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
-	err := validate.Struct(p)
-	if err == nil {
-		return errors, true
+	if p.Amount <= 0 {
+		errors["amount"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.PositiveAmount"})
 	}
-	//for _, _err := range err.(validator.ValidationErrors) {
-	//	errors[_err.Field()] = _err.Translate(l)
-	//}
 	return errors, len(errors) == 0
 }
 
-func (p *UpdateDTO) ToEntity(id uint) *Payment {
-	return &Payment{
+func (p *UpdateDTO) ToEntity(id uint) *Account {
+	return &Account{
 		Id:               id,
 		StageId:          p.StageId,
 		Amount:           p.Amount,
@@ -102,7 +89,7 @@ func (p *UpdateDTO) ToEntity(id uint) *Payment {
 	}
 }
 
-func (p *Payment) ToGraph() *model.Payment {
+func (p *Account) ToGraph() *model.Payment {
 	return &model.Payment{
 		ID:        int64(p.Id),
 		StageID:   int64(p.StageId),
