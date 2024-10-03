@@ -15,22 +15,24 @@ import (
 )
 
 type ExpenseCategoriesController struct {
-	app *services.Application
+	app      *services.Application
+	basePath string
 }
 
 func NewExpenseCategoriesController(app *services.Application) Controller {
 	return &ExpenseCategoriesController{
-		app: app,
+		app:      app,
+		basePath: "/finance/expense-categories",
 	}
 }
 
 func (c *ExpenseCategoriesController) Register(r *mux.Router) {
-	r.HandleFunc("/finance/expense-categories", c.List).Methods(http.MethodGet)
-	r.HandleFunc("/finance/expense-categories", c.Create).Methods(http.MethodPost)
-	r.HandleFunc("/finance/expense-categories/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc("/finance/expense-categories/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc("/finance/expense-categories/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-	r.HandleFunc("/finance/expense-categories/new", c.GetNew).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath, c.List).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath, c.Create).Methods(http.MethodPost)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
 }
 
 func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +87,7 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, "/expense-categories")
+	redirect(w, r, c.basePath)
 }
 
 func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +133,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, "/finance/expense-categories")
+	redirect(w, r, c.basePath)
 }
 
 func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -172,5 +174,5 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	redirect(w, r, "/finance/expense-categories")
+	redirect(w, r, c.basePath)
 }

@@ -1,0 +1,19 @@
+<div class=\"flex flex-col shrink-0\">
+<label for=\"
+\" class=\"form-control-label mb-2\">
+</label>
+<div class=\"w-full relative flex items-center\">
+<label class=\"inline-flex items-center justify-center text-300 text-sm \n                whitespace-nowrap h-[2.6875rem] border-l border-t border-b border-primary rounded-l-lg px-[var(--form-control-size-x)]\" for=\"
+\">
+</label> 
+<select class=\"
+\" id=\"
+\"
+>
+<option disabled selected>
+</option>
+</select>
+</div>
+<small class=\"text-xs text-red-500 mt-1\">
+</small>
+</div>

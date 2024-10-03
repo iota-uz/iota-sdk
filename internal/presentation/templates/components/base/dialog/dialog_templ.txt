@@ -1,0 +1,11 @@
+<div x-data=\"dialog\"
+><dialog class=\"dialog shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg\" x-bind=\"dialog\"
+><form method=\"dialog\"><header class=\"flex items-center gap-3 justify-between px-4 py-3 border-b border-primary\"><h3 class=\"font-medium\">
+</h3>
+</header><article class=\"py-3 px-4 flex flex-col items-center justify-center gap-2 min-h-36\">
+<div class=\"w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500\">
+</div>
+<p class=\"text-center\">
+</p>
+</article><footer class=\"px-4 py-3\"><menu class=\"flex gap-3\">
+</menu></footer></form></dialog></div>
