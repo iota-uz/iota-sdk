@@ -98,7 +98,11 @@
     "Single": {
       "EditUser": "Edit payment",
       "Name": "Name",
-      "Amount": "Amount"
+      "Amount": "Amount",
+      "Date": "Date",
+      "Comment": "Comment",
+      "Stage": "Stage",
+      "SelectStage": "Select stage"
     }
   },
   "Login": {

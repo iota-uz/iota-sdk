@@ -40,7 +40,7 @@ type CreateExpenseCategory struct {
 }
 
 type CreatePayment struct {
-	CustomerID    int64 `json:"customerId"`
+	StageID       int64 `json:"stageId"`
 	TransactionID int64 `json:"transactionId"`
 }
 
@@ -136,7 +136,7 @@ type Expense struct {
 }
 
 type ExpenseCategory struct {
-	ID          int64     `json:"id"`
+	ID          uint      `json:"id"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description,omitempty"`
 	Amount      float64   `json:"amount"`
@@ -240,7 +240,7 @@ type PaginatedUsers struct {
 
 type Payment struct {
 	ID            int64     `json:"id"`
-	CustomerID    int64     `json:"customerId"`
+	StageID       int64     `json:"stageId"`
 	TransactionID int64     `json:"transactionId"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -336,7 +336,7 @@ type UpdateExpenseCategory struct {
 }
 
 type UpdatePayment struct {
-	CustomerID    *int64 `json:"customerId,omitempty"`
+	StageID       *int64 `json:"stageId,omitempty"`
 	TransactionID *int64 `json:"transactionId,omitempty"`
 }
 

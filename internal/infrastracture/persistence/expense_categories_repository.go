@@ -30,7 +30,7 @@ func (g *GormExpenseCategoryRepository) GetPaginated(ctx context.Context, limit,
 	return categories, nil
 }
 
-func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
@@ -39,7 +39,7 @@ func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (int64, error
 	if err := tx.Model(&category.ExpenseCategory{}).Count(&count).Error; err != nil {
 		return 0, err
 	}
-	return count, nil
+	return uint(count), nil
 }
 
 func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category.ExpenseCategory, error) {
@@ -54,7 +54,7 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category
 	return entities, nil
 }
 
-func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id int64) (*category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -88,7 +88,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *catego
 	return nil
 }
 
-func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id int64) error {
+func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

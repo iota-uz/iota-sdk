@@ -20,6 +20,7 @@ func New(db *gorm.DB) *services.Application {
 	positionRepository := persistence.NewPositionRepository()
 	expenseCategoriesRepository := persistence.NewExpenseCategoryRepository()
 	paymentRepository := persistence.NewPaymentRepository()
+	stageRepository := persistence.NewProjectStageRepository()
 
 	app := &services.Application{
 		EventPublisher: eventPublisher,
@@ -37,6 +38,7 @@ func New(db *gorm.DB) *services.Application {
 	positionService := services.NewPositionService(positionRepository, app)
 	expenseCategoriesService := services.NewExpenseCategoryService(expenseCategoriesRepository, app)
 	paymentService := services.NewPaymentService(paymentRepository, app)
+	stageService := services.NewProjectStageService(stageRepository, app)
 
 	app.AuthService = authService
 	app.UserService = userService
@@ -51,5 +53,6 @@ func New(db *gorm.DB) *services.Application {
 	app.PositionService = positionService
 	app.ExpenseCategoryService = expenseCategoriesService
 	app.PaymentService = paymentService
+	app.ProjectStageService = stageService
 	return app
 }

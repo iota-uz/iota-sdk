@@ -31,6 +31,7 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [Docker](https://docs.docker.com/get-docker/)
 * [SQL-Migrate](https://github.com/rubenv/sql-migrate)
 * [Templ](https://templ.guide/)
+* [Tailwindcss](https://tailwindcss.com/docs/installation)
 
 ## Development
 
@@ -44,6 +45,12 @@ Install dependencies
 
 ```shell
 go get -u -d ./...
+```
+
+Install tailwindcss globally
+
+```shell
+pnpm install -g tailwindcss
 ```
 
 Run postgres
@@ -68,6 +75,13 @@ Run templ in watch mode
 
 ```shell
 templ generate -watch
+```
+
+Run tailwindcss in watch mode
+
+```shell
+cd internal/presentation
+tailwindcss -c tailwind.config.js -i assets/css/main.css -o assets/css/main.min.css --minify --watch
 ```
 
 Now open postman and explore the GraphQL schema at http://localhost:3200/query

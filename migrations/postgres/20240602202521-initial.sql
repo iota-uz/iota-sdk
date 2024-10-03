@@ -15,10 +15,9 @@ CREATE TABLE uploads
 
 CREATE TABLE currencies
 (
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL, -- Russian Ruble
-    code       VARCHAR(3)   NOT NULL, -- RUB
-    symbol     VARCHAR(3)   NOT NULL, -- ₽
+    code       VARCHAR(3)   NOT NULL PRIMARY KEY, -- RUB
+    name       VARCHAR(255) NOT NULL,             -- Russian Ruble
+    symbol     VARCHAR(3)   NOT NULL,             -- ₽
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -28,7 +27,7 @@ CREATE TABLE inventory
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255)  NOT NULL,
     description TEXT,
-    currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
+    currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     price       NUMERIC(9, 2) NOT NULL,
     quantity    INT           NOT NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
@@ -154,7 +153,7 @@ CREATE TABLE employees
     email              VARCHAR(255)  NOT NULL UNIQUE,
     phone              VARCHAR(255),
     salary             NUMERIC(9, 2) NOT NULL,
-    salary_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
+    salary_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     hourly_rate        NUMERIC(9, 2) NOT NULL,
     coefficient        FLOAT         NOT NULL,
     position_id        INT           NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
@@ -245,7 +244,7 @@ CREATE TABLE expense_categories
     name               VARCHAR(255)  NOT NULL,
     description        TEXT,
     amount             NUMERIC(9, 2) NOT NULL,
-    amount_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
+    amount_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -335,7 +334,7 @@ CREATE TABLE money_accounts
     account_number      VARCHAR(255)  NOT NULL,
     description         TEXT,
     balance             NUMERIC(9, 2) NOT NULL,
-    balance_currency_id INT           NOT NULL REFERENCES currencies (id) ON DELETE CASCADE,
+    balance_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -344,8 +343,8 @@ CREATE TABLE transactions
 (
     id                 SERIAL PRIMARY KEY,
     amount             NUMERIC(9, 2) NOT NULL,
-    amount_currency_id INT           REFERENCES currencies (id) ON DELETE SET NULL,
-    money_account_id   INT           REFERENCES money_accounts (id) ON DELETE SET NULL,
+    amount_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
+    money_account_id   INT           NOT NULL REFERENCES money_accounts (id) ON DELETE RESTRICT,
     transaction_date   DATE          NOT NULL   DEFAULT CURRENT_DATE,
     accounting_period  DATE          NOT NULL   DEFAULT CURRENT_DATE,
     transaction_type   VARCHAR(255)  NOT NULL, -- income, expense, transfer
@@ -365,8 +364,8 @@ CREATE TABLE expenses
 CREATE TABLE payments
 (
     id             SERIAL PRIMARY KEY,
-    stage_id       INT REFERENCES project_stages (id) ON DELETE RESTRICT,
-    transaction_id INT REFERENCES transactions (id) ON DELETE RESTRICT,
+    stage_id       INT NOT NULL REFERENCES project_stages (id) ON DELETE RESTRICT,
+    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
     created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -509,8 +508,8 @@ CREATE TABLE salary_range
 (
     min_salary             NUMERIC(9, 2)   NOT NULL,
     max_salary             NUMERIC(9, 2)   NOT NULL,
-    min_salary_currency_id INT             REFERENCES currencies (id) ON DELETE SET NULL,
-    max_salary_currency_id INT             REFERENCES currencies (id) ON DELETE SET NULL,
+    min_salary_currency_id VARCHAR(3)      REFERENCES currencies (code) ON DELETE SET NULL,
+    max_salary_currency_id VARCHAR(3)      REFERENCES currencies (code) ON DELETE SET NULL,
     vacancy_id             INT PRIMARY KEY NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE
 );
 

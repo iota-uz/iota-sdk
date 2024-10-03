@@ -1,4 +1,4 @@
-package category
+package project_stages
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
@@ -9,18 +9,18 @@ type Created struct {
 	Sender  *user.User
 	Session *session.Session
 	Data    *CreateDTO
-	Result  *ExpenseCategory
+	Result  *ProjectStage
 }
 
 type Updated struct {
 	Sender  *user.User
 	Session *session.Session
 	Data    *UpdateDTO
-	Result  *ExpenseCategory
+	Result  *ProjectStage
 }
 
 type Deleted struct {
 	Sender  *user.User
 	Session *session.Session
-	Result  *ExpenseCategory
+	Result  *ProjectStage
 }

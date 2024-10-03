@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/textarea"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
@@ -27,14 +28,27 @@ templ EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, er
 			})
 			@input.Number(&input.Props{
 				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
-				Attrs: templ.Attributes{"name": "amount", "value": category.Amount},
+				Attrs: templ.Attributes{
+				    "name": "amount",
+				    "value": fmt.Sprintf("%.2f", category.Amount),
+				    "form": "save-form",
+				},
 				Error: errors["amount"],
 			})
+			@textarea.Basic(&textarea.Props{
+                Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Description"}),
+                Attrs: templ.Attributes{
+                    "name": "description",
+                    "value": *category.Description,
+                    "form": "save-form",
+                },
+                WrapperClass: "col-span-3",
+            })
 		}
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/expense-categories/%d", category.Id) }
+				hx-delete={ fmt.Sprintf("/finance/expense-categories/%d", category.Id) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -74,8 +88,8 @@ templ Edit(pageCtx *types.PageContext, category *category.ExpenseCategory, error
 	@layouts.Authenticated(pageCtx) {
 		@EditForm(pageCtx.Localizer, category, errors)
 		@dialog.Confirmation(&dialog.Props{
-			Heading:   "ExpenseCategories.Single.DeleteCategory",
-			Text:      "ExpenseCategories.Single.DeleteCategoryConfirmation",
+			Heading:   "ExpenseCategories.Single.Delete",
+			Text:      "ExpenseCategories.Single.DeleteConfirmation",
 			Localizer: pageCtx.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
 			Action:    "open-delete-category-confirmation",

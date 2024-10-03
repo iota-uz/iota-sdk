@@ -1,12 +1,13 @@
 package controllers
 
 import (
+	"github.com/gorilla/schema"
+	"github.com/iota-agency/iota-erp/internal/app/services"
 	"net/http"
 	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/payments"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
@@ -94,14 +95,17 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := r.FormValue("_action")
+	r.Form.Del("_action")
+
 	if action == "save" {
-		amount, err := strconv.ParseFloat(r.FormValue("amount"), 64)
-		if err != nil {
-			http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		dto := payment.UpdateDTO{}
+		if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		upd := &payment.PaymentUpdate{
-			Amount: amount,
+		if err := validate.Struct(&dto); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.Edit.Title"})
@@ -109,7 +113,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if errors, ok := upd.Ok(pageCtx.Localizer); !ok {
+		if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
 			ps, err := c.app.PaymentService.GetByID(r.Context(), uint(id))
 			if err != nil {
 				http.Error(w, "Error retrieving payment", http.StatusInternalServerError)
@@ -119,10 +123,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(payments.EditForm(pageCtx.Localizer, ps, errors), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.PaymentService.Update(r.Context(), &payment.Payment{
-			Id:     uint(id),
-			Amount: upd.Amount,
-		})
+		err = c.app.PaymentService.Update(r.Context(), uint(id), &dto)
 	} else if action == "delete" {
 		_, err = c.app.PaymentService.Delete(r.Context(), uint(id))
 	}
@@ -140,17 +141,24 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	templ.Handler(payments.New(pageCtx, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
-}
-
-func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
-	amount, err := strconv.ParseFloat(r.FormValue("amount"), 64)
+	stages, err := c.app.ProjectStageService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	paymentEntity := &payment.Payment{
-		Amount: amount,
+
+	templ.Handler(payments.New(pageCtx, stages, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
+	dto := payment.CreateDTO{}
+	if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validate.Struct(&dto); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.New.Title"})
@@ -158,16 +166,21 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	if errors, ok := paymentEntity.Ok(pageCtx.Localizer); !ok {
-		templ.Handler(payments.CreateForm(pageCtx.Localizer, paymentEntity, errors), templ.WithStreaming()).ServeHTTP(w, r)
-		return
-	}
-
-	if err := c.app.PaymentService.Create(r.Context(), paymentEntity); err != nil {
+	stages, err := c.app.ProjectStageService.GetAll(r.Context())
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	redirect(w, r, "/payments")
+	if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
+		templ.Handler(payments.CreateForm(pageCtx.Localizer, dto.ToEntity(), stages, errors), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	if err := c.app.PaymentService.Create(r.Context(), &dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	redirect(w, r, "/finance/payments")
 }
