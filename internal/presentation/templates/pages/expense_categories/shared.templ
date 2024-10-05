@@ -2,7 +2,6 @@ package expense_categories
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 )
@@ -11,20 +10,17 @@ type CurrencySelectProps struct {
 	*types.PageContext
 	Value      string
 	Currencies []*currency.Currency
-	Category   *category.ExpenseCategory
+	Attrs      templ.Attributes
 }
 
 templ CurrencySelect(props *CurrencySelectProps) {
 	@base.Select(&base.SelectProps{
 		Label:       props.T("ExpenseCategories.Single.Currency"),
 		Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
-		Attrs: templ.Attributes{
-			"name": "CurrencyCode",
-			"form": "save-form",
-		},
+		Attrs:       props.Attrs,
 	}) {
 		for _, currency := range props.Currencies {
-			if currency.Code.String() == props.Category.Currency.Code.String() {
+			if currency.Code.String() == props.Value {
 				<option value={ currency.Code.String() } selected>
 					{ currency.Symbol.String() }
 					{ currency.Name }
