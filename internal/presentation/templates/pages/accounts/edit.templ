@@ -3,7 +3,6 @@ package accounts
 import (
 	"fmt"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -16,7 +15,7 @@ import (
 
 type EditPageProps struct {
 	*types.PageContext
-	Category   *category.ExpenseCategory
+	Account    *Account
 	Currencies []*currency.Currency
 	Errors     map[string]string
 }
@@ -25,39 +24,48 @@ templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Name"),
+				Label: props.T("Accounts.Single.Name"),
 				Attrs: templ.Attributes{
-					"value": props.Category.Name,
+					"value": props.Account.Name,
 					"name":  "Name",
 					"form":  "save-form",
 				},
 				Error: props.Errors["Name"],
 			})
 			@input.Number(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Amount"),
+				Label: props.T("Accounts.Single.Balance"),
 				Attrs: templ.Attributes{
-					"name":  "Amount",
-					"value": fmt.Sprintf("%.2f", props.Category.Amount),
+					"name":  "Balance",
+					"value": fmt.Sprintf("%.2f", props.Account.Balance),
 					"form":  "save-form",
 				},
-				Error: props.Errors["Amount"],
+				Error: props.Errors["Balance"],
 			})
 			@CurrencySelect(&CurrencySelectProps{
 				PageContext: props.PageContext,
-				Value:       props.Category.Currency.Code.String(),
+				Value:       props.Account.Currency.Code.String(),
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
 					"name": "CurrencyCode",
 					"form": "save-form",
 				},
 			})
+			@input.Text(&input.Props{
+				Label: props.T("Accounts.Single.AccountNumber"),
+				Attrs: templ.Attributes{
+					"value": props.Account.AccountNumber,
+					"name":  "AccountNumber",
+					"form":  "save-form",
+				},
+				Error: props.Errors["AccountNumber"],
+			})
 			@textarea.Basic(&textarea.Props{
-				Label: props.T("ExpenseCategories.Single.Description"),
+				Label: props.T("Accounts.Single.Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
 				},
-				Value:        props.Category.Description,
+				Value:        props.Account.Description,
 				WrapperClass: "col-span-3",
 				Error:        props.Errors["Description"],
 			})
@@ -65,11 +73,11 @@ templ EditForm(props *EditPageProps) {
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id) }
+				hx-delete={ fmt.Sprintf("/finance/accounts/%d", props.Account.ID) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
-				hx-indicator="#delete-category-btn"
+				hx-indicator="#delete-account-btn"
 				hx-disabled-elt="find button"
 			>
 				@button.Danger(button.Props{
@@ -78,14 +86,14 @@ templ EditForm(props *EditPageProps) {
 						"name":   "_action",
 						"value":  "delete",
 						"type":   "button",
-						"@click": "$dispatch('open-delete-category-confirmation')",
-						"id":     "delete-category-btn",
+						"@click": "$dispatch('open-delete-account-confirmation')",
+						"id":     "delete-account-btn",
 					},
 				}) {
 					{ props.T("Delete") }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/accounts/%d", props.Account.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
@@ -105,11 +113,11 @@ templ Edit(props *EditPageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading:   "ExpenseCategories.Single.Delete",
-			Text:      "ExpenseCategories.Single.DeleteConfirmation",
+			Heading:   "Accounts.Single.Delete",
+			Text:      "Accounts.Single.DeleteConfirmation",
 			Localizer: props.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
-			Action:    "open-delete-category-confirmation",
+			Action:    "open-delete-account-confirmation",
 			Attrs: templ.Attributes{
 				"@closing": `({target}) => {
 					if (target.returnValue === "confirm") {

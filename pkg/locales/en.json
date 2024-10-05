@@ -130,7 +130,7 @@
       "Edit": "Edit account",
       "Name": "Name",
       "Balance": "Balance",
-      "Date": "Date"
+      "AccountNumber": "Account number"
     }
   },
   "Login": {

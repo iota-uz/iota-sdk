@@ -2,7 +2,6 @@ package accounts
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -14,22 +13,22 @@ import (
 type CreatePageProps struct {
 	*types.PageContext
 	Currencies []*currency.Currency
-	Category   *category.ExpenseCategory
+	Account    *Account
 	Errors     map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
-	<form class="flex flex-col justify-between h-full" hx-post="/finance/expense-categories" hx-swap="outerHTML" hx-indicator="#save-btn">
+	<form class="flex flex-col justify-between h-full" hx-post="/finance/accounts" hx-swap="outerHTML" hx-indicator="#save-btn">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Name"),
-				Attrs: templ.Attributes{"name": "Name", "value": props.Category.Name},
+				Label: props.T("Accounts.Single.Name"),
+				Attrs: templ.Attributes{"name": "Name", "value": props.Account.Name},
 				Error: props.Errors["Name"],
 			})
 			@input.Number(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Amount"),
-				Attrs: templ.Attributes{"name": "Amount", "value": props.Category.Amount},
-				Error: props.Errors["Amount"],
+				Label: props.T("Accounts.Single.Balance"),
+				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance},
+				Error: props.Errors["Balance"],
 			})
 			@CurrencySelect(&CurrencySelectProps{
 				PageContext: props.PageContext,
@@ -37,11 +36,16 @@ templ CreateForm(props *CreatePageProps) {
 				Currencies:  props.Currencies,
 				Attrs:       templ.Attributes{"name": "CurrencyCode"},
 			})
+			@input.Text(&input.Props{
+				Label: props.T("Accounts.Single.AccountNumber"),
+				Attrs: templ.Attributes{"name": "AccountNumber", "value": props.Account.AccountNumber},
+				Error: props.Errors["AccountNumber"],
+			})
 			@textarea.Basic(&textarea.Props{
-				Label:        props.T("ExpenseCategories.Single.Description"),
+				Label:        props.T("Accounts.Single.Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
-				Value:        props.Category.Description,
+				Value:        props.Account.Description,
 				Error:        props.Errors["Description"],
 			})
 		}
