@@ -121,7 +121,7 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.TaskTypes"}), href: "/enums/task-types"},
 						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Positions"}), href: "/enums/positions"},
 					}).render(pathname)
-				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.CashFlow"}), "#",
+				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}), "#",
 					icons.Money(icons.Props{Size: "20"}),
 					[]sidebarItem{
 						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}), href: "/finance/expense-categories"},
@@ -130,7 +130,7 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Reports"}), "#",
 					icons.FileText(icons.Props{Size: "20"}),
 					[]sidebarItem{
-						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.CashFlow"}), href: "/reports/cash-flow"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}), href: "/reports/cash-flow"},
 					}).render(pathname)
 			</ul>
 		</nav>
