@@ -110,7 +110,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		upd := &user.UserUpdate{
+		upd := &user.UpdateDTO{
 			FirstName: r.FormValue("firstName"),
 			LastName:  r.FormValue("lastName"),
 			Email:     r.FormValue("email"),

@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"github.com/gorilla/schema"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"net/http"
 	"strconv"
@@ -107,15 +106,11 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
+		if err := decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if err := validate.Struct(&dto); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
+		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
 			entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), uint(id))
 			if err != nil {
 				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
@@ -142,18 +137,22 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	templ.Handler(expense_categories.New(pageCtx, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
+	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	templ.Handler(expense_categories.New(pageCtx, currencies, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
-	dto := category.CreateDTO{}
-
-	if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
+	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := validate.Struct(&dto); err != nil {
+	dto := category.CreateDTO{}
+	if err := decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -164,8 +163,14 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
-		templ.Handler(expense_categories.CreateForm(pageCtx.Localizer, dto.ToEntity(), errors), templ.WithStreaming()).ServeHTTP(w, r)
+	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		templ.Handler(expense_categories.CreateForm(pageCtx.Localizer, dto.ToEntity(), currencies, errors), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

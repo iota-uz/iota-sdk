@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
+	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
@@ -45,10 +46,10 @@ func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.OrderItem) 
 	}, dbItems
 }
 
-func toDomainOrder(dbOrder *models.WarehouseOrder, dbItems []*models.OrderItem, dbProduct []*models.Product) (*order.Order, error) {
+func toDomainOrder(dbOrder *models.WarehouseOrder, dbItems []*models.OrderItem, dbProduct []*models.WarehouseProduct) (*order.Order, error) {
 	var items []*order.Item
 	for _, item := range dbItems {
-		var orderProduct *models.Product
+		var orderProduct *models.WarehouseProduct
 		for _, p := range dbProduct {
 			if p.ID == item.ProductID {
 				orderProduct = p
@@ -83,8 +84,8 @@ func toDomainOrder(dbOrder *models.WarehouseOrder, dbItems []*models.OrderItem, 
 	}, nil
 }
 
-func toDBProduct(entity *product.Product) *models.Product {
-	return &models.Product{
+func toDBProduct(entity *product.Product) *models.WarehouseProduct {
+	return &models.WarehouseProduct{
 		ID:         entity.ID,
 		PositionID: entity.PositionID,
 		Rfid:       entity.Rfid,
@@ -94,7 +95,7 @@ func toDBProduct(entity *product.Product) *models.Product {
 	}
 }
 
-func toDomainProduct(dbProduct *models.Product) (*product.Product, error) {
+func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, error) {
 	status, err := product.NewStatus(dbProduct.Status)
 	if err != nil {
 		return nil, err
@@ -146,8 +147,8 @@ func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction)
 		Comment:          entity.Comment,
 		AccountingPeriod: entity.AccountingPeriod,
 		TransactionDate:  entity.TransactionDate,
-		MoneyAccountID:   entity.MoneyAccountID,
-		AmountCurrencyID: entity.AmountCurrencyID,
+		MoneyAccountID:   entity.AccountId,
+		AmountCurrencyID: entity.CurrencyCode,
 	}
 	return dbPayment, dbTransaction
 }
@@ -163,8 +164,8 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		Comment:          t.Comment,
 		TransactionDate:  t.TransactionDate,
 		AccountingPeriod: t.AccountingPeriod,
-		MoneyAccountID:   t.MoneyAccountID,
-		AmountCurrencyID: t.AmountCurrencyID,
+		AccountId:        t.MoneyAccountID,
+		CurrencyCode:     t.AmountCurrencyID,
 		CreatedAt:        dbPayment.CreatedAt,
 		UpdatedAt:        dbPayment.UpdatedAt,
 	}, nil
@@ -172,16 +173,48 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 
 func toDbCurrency(entity *currency.Currency) *models.Currency {
 	return &models.Currency{
-		Code:   entity.Code,
+		Code:   entity.Code.String(),
 		Name:   entity.Name,
-		Symbol: entity.Symbol,
+		Symbol: entity.Symbol.String(),
 	}
 }
 
-func toDomainCurrency(dbCurrency *models.Currency) *currency.Currency {
-	return &currency.Currency{
-		Code:   dbCurrency.Code,
-		Name:   dbCurrency.Name,
-		Symbol: dbCurrency.Symbol,
+func toDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
+	code, err := currency.NewCode(dbCurrency.Code)
+	if err != nil {
+		return nil, err
 	}
+	symbol, err := currency.NewSymbol(dbCurrency.Symbol)
+	if err != nil {
+		return nil, err
+	}
+	return &currency.Currency{
+		Code:   code,
+		Name:   dbCurrency.Name,
+		Symbol: symbol,
+	}, nil
+}
+
+func toDbExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCategory {
+	return &models.ExpenseCategory{
+		ID:               entity.Id,
+		Name:             entity.Name,
+		Description:      &entity.Description,
+		Amount:           entity.Amount,
+		AmountCurrencyID: entity.CurrencyCode,
+		CreatedAt:        entity.CreatedAt,
+		UpdatedAt:        entity.UpdatedAt,
+	}
+}
+
+func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.ExpenseCategory, error) {
+	return &category.ExpenseCategory{
+		Id:           dbCategory.ID,
+		Name:         dbCategory.Name,
+		Description:  *dbCategory.Description,
+		Amount:       dbCategory.Amount,
+		CurrencyCode: dbCategory.AmountCurrencyID,
+		CreatedAt:    dbCategory.CreatedAt,
+		UpdatedAt:    dbCategory.UpdatedAt,
+	}, nil
 }

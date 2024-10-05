@@ -34,7 +34,7 @@ type User struct {
 	Roles      []*role.Role `gorm:"many2many:user_roles"`
 }
 
-type UserUpdate struct {
+type UpdateDTO struct {
 	FirstName string
 	LastName  string
 	Email     string
@@ -92,7 +92,7 @@ func (u *User) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (u *UserUpdate) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (u *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
 	if strings.TrimSpace(u.FirstName) == "" {
 		errors["firstName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})

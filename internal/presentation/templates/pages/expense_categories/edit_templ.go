@@ -63,7 +63,7 @@ func EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, err
 					"name":  "name",
 					"form":  "save-form",
 				},
-				Error: errors["name"],
+				Error: errors["Name"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -75,11 +75,11 @@ func EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, err
 			templ_7745c5c3_Err = input.Number(&input.Props{
 				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
 				Attrs: templ.Attributes{
-					"name":  "amount",
+					"name":  "Amount",
 					"value": fmt.Sprintf("%.2f", category.Amount),
 					"form":  "save-form",
 				},
-				Error: errors["amount"],
+				Error: errors["Amount"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -91,11 +91,12 @@ func EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, err
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
 				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Description"}),
 				Attrs: templ.Attributes{
-					"name":  "description",
-					"value": *category.Description,
+					"name":  "Description",
+					"value": category.Description,
 					"form":  "save-form",
 				},
 				WrapperClass: "col-span-3",
+				Error:        errors["Description"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -113,7 +114,7 @@ func EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, err
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%d", category.Id))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 51, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 52, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -138,7 +139,7 @@ func EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, err
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 68, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 69, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -166,7 +167,7 @@ func EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, err
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%d", category.Id))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 71, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 72, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -191,7 +192,7 @@ func EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, err
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 80, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 81, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

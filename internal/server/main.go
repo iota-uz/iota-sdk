@@ -46,7 +46,6 @@ func (s *Server) Start() error {
 
 func DefaultServer() (*Server, error) {
 	conf := configuration.Use()
-	log.Println("Connecting to database:", conf.DbOpts)
 	db, err := ConnectDB(conf.DbOpts, logger.Error)
 	if err != nil {
 		return nil, err
@@ -63,6 +62,7 @@ func DefaultServer() (*Server, error) {
 			middleware.LogRequests(),
 			middleware.Transactions(db),
 			localMiddleware.WithLocalizer(bundle),
+			localMiddleware.WithUniLocalizer(),
 			localMiddleware.Authorization(application.AuthService),
 		},
 		controllers: []controllers.Controller{

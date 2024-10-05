@@ -30,7 +30,11 @@ func (g *GormCurrencyRepository) GetPaginated(ctx context.Context, limit, offset
 	}
 	var entities []*currency.Currency
 	for _, r := range rows {
-		entities = append(entities, toDomainCurrency(r))
+		c, err := toDomainCurrency(r)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, c)
 	}
 	return entities, nil
 }
@@ -58,7 +62,11 @@ func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency.Curren
 	}
 	var entities []*currency.Currency
 	for _, r := range rows {
-		entities = append(entities, toDomainCurrency(r))
+		c, err := toDomainCurrency(r)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, c)
 	}
 	return entities, nil
 }
@@ -72,7 +80,7 @@ func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currenc
 	if err := tx.First(&entity, id).Error; err != nil {
 		return nil, err
 	}
-	return toDomainCurrency(&entity), nil
+	return toDomainCurrency(&entity)
 }
 
 func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
@@ -81,10 +89,7 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Cu
 		return service.ErrNoTx
 	}
 	row := toDbCurrency(entity)
-	if err := tx.Create(row).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Create(row).Error
 }
 
 func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Currency) error {
@@ -93,10 +98,16 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Cu
 		return service.ErrNoTx
 	}
 	row := toDbCurrency(entity)
-	if err := tx.Save(row).Error; err != nil {
-		return err
+	return tx.Save(row).Error
+}
+
+func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency.Currency) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
 	}
-	return nil
+	row := toDbCurrency(currency)
+	return tx.Save(row).Error
 }
 
 func (g *GormCurrencyRepository) Delete(ctx context.Context, id uint) error {

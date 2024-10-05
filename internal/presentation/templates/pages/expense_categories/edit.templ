@@ -24,25 +24,26 @@ templ EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, er
 					"name":  "name",
 					"form":  "save-form",
 				},
-				Error: errors["name"],
+				Error: errors["Name"],
 			})
 			@input.Number(&input.Props{
 				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
 				Attrs: templ.Attributes{
-				    "name": "amount",
+				    "name": "Amount",
 				    "value": fmt.Sprintf("%.2f", category.Amount),
 				    "form": "save-form",
 				},
-				Error: errors["amount"],
+				Error: errors["Amount"],
 			})
 			@textarea.Basic(&textarea.Props{
                 Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Description"}),
                 Attrs: templ.Attributes{
-                    "name": "description",
-                    "value": *category.Description,
+                    "name": "Description",
+                    "value": category.Description,
                     "form": "save-form",
                 },
                 WrapperClass: "col-span-3",
+                Error: errors["Description"],
             })
 		}
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

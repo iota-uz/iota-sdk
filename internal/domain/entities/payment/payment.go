@@ -17,8 +17,8 @@ type Payment struct {
 	Id               uint
 	StageId          uint
 	Amount           float64
-	AmountCurrencyID string
-	MoneyAccountID   uint
+	CurrencyCode     string
+	AccountId        uint
 	TransactionDate  time.Time
 	AccountingPeriod time.Time
 	Comment          string
@@ -28,31 +28,37 @@ type Payment struct {
 }
 
 type CreateDTO struct {
-	Amount           float64   `schema:"amount,required"`
-	AmountCurrencyID string    `schema:"amount_currency_id,required"`
-	MoneyAccountID   uint      `schema:"money_account_id,required"`
-	TransactionDate  time.Time `schema:"transaction_date,required"`
-	AccountingPeriod time.Time `schema:"accounting_period,required"`
-	Comment          string    `schema:"comment"`
-	UserId           uint      `schema:"user_id,required"`
-	StageId          uint      `schema:"stage_id,required"`
+	Amount           float64   `validate:"required,gt=0"`
+	CurrencyCode     string    `validate:"required,len=3"`
+	AccountId        uint      `validate:"required"`
+	TransactionDate  time.Time `validate:"required"`
+	AccountingPeriod time.Time `validate:"required"`
+	Comment          string
+	UserId           uint `validate:"required"`
+	StageId          uint `validate:"required"`
 }
 
 type UpdateDTO struct {
-	Amount           float64   `schema:"amount"`
-	AmountCurrencyID string    `schema:"amount_currency_id"`
-	MoneyAccountID   uint      `schema:"money_account_id"`
-	TransactionDate  time.Time `schema:"transaction_date"`
-	AccountingPeriod time.Time `schema:"accounting_period"`
-	Comment          string    `schema:"comment"`
-	UserId           uint      `schema:"user_id"`
-	StageId          uint      `schema:"stage_id"`
+	Amount           float64 `validate:"gt=0"`
+	CurrencyCode     string  `validate:"len=3"`
+	AccountID        uint
+	TransactionDate  time.Time
+	AccountingPeriod time.Time
+	Comment          string
+	UserId           uint
+	StageId          uint
 }
+
+// TODO: translate error messages
 
 func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
-	if p.Amount <= 0 {
-		errors["amount"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.PositiveAmount"})
+	err := validate.Struct(p)
+	if err == nil {
+		return errors, true
+	}
+	for _, _err := range err.(validator.ValidationErrors) {
+		errors[_err.Field()] = _err.Error()
 	}
 	return errors, len(errors) == 0
 }
@@ -61,8 +67,8 @@ func (p *CreateDTO) ToEntity() *Payment {
 	return &Payment{
 		StageId:          p.StageId,
 		Amount:           p.Amount,
-		AmountCurrencyID: p.AmountCurrencyID,
-		MoneyAccountID:   p.MoneyAccountID,
+		CurrencyCode:     p.CurrencyCode,
+		AccountId:        p.AccountId,
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
 		Comment:          p.Comment,
@@ -71,8 +77,12 @@ func (p *CreateDTO) ToEntity() *Payment {
 
 func (p *Payment) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
-	if p.Amount <= 0 {
-		errors["amount"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.PositiveAmount"})
+	err := validate.Struct(p)
+	if err == nil {
+		return errors, true
+	}
+	for _, _err := range err.(validator.ValidationErrors) {
+		errors[_err.Field()] = _err.Error()
 	}
 	return errors, len(errors) == 0
 }
@@ -83,9 +93,9 @@ func (p *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	if err == nil {
 		return errors, true
 	}
-	//for _, _err := range err.(validator.ValidationErrors) {
-	//	errors[_err.Field()] = _err.Translate(l)
-	//}
+	for _, _err := range err.(validator.ValidationErrors) {
+		errors[_err.Field()] = _err.Error()
+	}
 	return errors, len(errors) == 0
 }
 
@@ -94,8 +104,8 @@ func (p *UpdateDTO) ToEntity(id uint) *Payment {
 		Id:               id,
 		StageId:          p.StageId,
 		Amount:           p.Amount,
-		AmountCurrencyID: p.AmountCurrencyID,
-		MoneyAccountID:   p.MoneyAccountID,
+		CurrencyCode:     p.CurrencyCode,
+		AccountId:        p.AccountID,
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
 		Comment:          p.Comment,
