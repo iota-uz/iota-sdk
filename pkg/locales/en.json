@@ -74,6 +74,8 @@
       "EditUser": "Edit category",
       "Name": "Name",
       "Amount": "Amount",
+      "Currency": "Currency",
+      "SelectCurrency": "Select currency",
       "Description": "Description",
       "Delete": "Delete category",
       "DeleteConfirmation": "Are you sure you want to delete this expense category?"

@@ -92,7 +92,7 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id int64) (*order.Ord
 	for _, item := range orderItems {
 		ids = append(ids, item.ProductID)
 	}
-	var products []*models.Product
+	var products []*models.WarehouseProduct
 	if err := tx.Where("id = ?", entity.ID).Find(&products, ids).Error; err != nil {
 		return nil, err
 	}

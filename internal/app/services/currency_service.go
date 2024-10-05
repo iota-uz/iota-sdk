@@ -42,7 +42,10 @@ func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) 
 	if sess, err := composables.UseSession(ctx); err == nil {
 		ev.Session = sess
 	}
-	entity := data.ToEntity()
+	entity, err := data.ToEntity()
+	if err != nil {
+		return err
+	}
 	if err := s.Repo.Create(ctx, entity); err != nil {
 		return err
 	}
@@ -63,7 +66,10 @@ func (s *CurrencyService) Update(ctx context.Context, id string, data *currency.
 	if sess, err := composables.UseSession(ctx); err == nil {
 		evt.Session = sess
 	}
-	entity := data.ToEntity()
+	entity, err := data.ToEntity()
+	if err != nil {
+		return err
+	}
 	if err := s.Repo.Update(ctx, entity); err != nil {
 		return err
 	}

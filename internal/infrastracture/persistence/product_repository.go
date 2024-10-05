@@ -26,7 +26,7 @@ func (g *GormProductRepository) GetPaginated(ctx context.Context, limit, offset 
 	if err != nil {
 		return nil, err
 	}
-	var entities []*models.Product
+	var entities []*models.WarehouseProduct
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (g *GormProductRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.Product{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&models.WarehouseProduct{}).Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -58,7 +58,7 @@ func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product,
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entities []*models.Product
+	var entities []*models.WarehouseProduct
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (g *GormProductRepository) GetByID(ctx context.Context, id int64) (*product
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entity models.Product
+	var entity models.WarehouseProduct
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}

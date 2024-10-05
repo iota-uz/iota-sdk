@@ -8,7 +8,7 @@ import (
 type Role struct {
 	Id          int64
 	Name        string
-	Description *string
+	Description string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -17,7 +17,7 @@ func (r *Role) ToGraph() *model.Role {
 	return &model.Role{
 		ID:          r.Id,
 		Name:        r.Name,
-		Description: r.Description,
+		Description: &r.Description,
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
 	}

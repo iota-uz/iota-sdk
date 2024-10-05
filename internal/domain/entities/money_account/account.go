@@ -1,99 +1,87 @@
 package moneyAccount
 
 import (
+	"github.com/go-playground/validator/v10"
 	"time"
 
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
+var (
+	validate = validator.New(validator.WithRequiredStructEnabled())
+)
+
 type Account struct {
-	ID                uint
-	Name              string
-	AccountNumber     string
-	Description       string
-	Balance           float64
-	BalanceCurrencyID uint
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID            uint
+	Name          string
+	AccountNumber string
+	Description   string
+	Balance       float64
+	CurrencyCode  string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type CreateDTO struct {
-	Amount           float64   `schema:"amount,required"`
-	AmountCurrencyID string    `schema:"amount_currency_id,required"`
-	MoneyAccountID   uint      `schema:"money_account_id,required"`
-	TransactionDate  time.Time `schema:"transaction_date,required"`
-	AccountingPeriod time.Time `schema:"accounting_period,required"`
-	Comment          string    `schema:"comment"`
-	UserId           uint      `schema:"user_id,required"`
-	StageId          uint      `schema:"stage_id,required"`
+	Name          string  `validate:"required"`
+	Balance       float64 `validate:"required,gte=0"`
+	AccountNumber string
+	CurrencyCode  string `validate:"required,len=3"`
+	Description   string
 }
 
 type UpdateDTO struct {
-	Amount           float64   `schema:"amount"`
-	AmountCurrencyID string    `schema:"amount_currency_id"`
-	MoneyAccountID   uint      `schema:"money_account_id"`
-	TransactionDate  time.Time `schema:"transaction_date"`
-	AccountingPeriod time.Time `schema:"accounting_period"`
-	Comment          string    `schema:"comment"`
-	UserId           uint      `schema:"user_id"`
-	StageId          uint      `schema:"stage_id"`
+	Name          string  `validate:"required,lte=255"`
+	Balance       float64 `validate:"gte=0"`
+	AccountNumber string
+	CurrencyCode  string `validate:"required,len=3"`
+	Description   string
 }
+
+// TODO: Add validations
 
 func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
-	if p.Amount <= 0 {
-		errors["amount"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.PositiveAmount"})
-	}
 	return errors, len(errors) == 0
 }
 
 func (p *CreateDTO) ToEntity() *Account {
-	return &Account{
-		StageId:          p.StageId,
-		Amount:           p.Amount,
-		AmountCurrencyID: p.AmountCurrencyID,
-		MoneyAccountID:   p.MoneyAccountID,
-		TransactionDate:  p.TransactionDate,
-		AccountingPeriod: p.AccountingPeriod,
-		Comment:          p.Comment,
-	}
+	return &Account{}
 }
+
+// TODO: Add localization
 
 func (p *Account) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
-	if p.Amount <= 0 {
-		errors["amount"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.PositiveAmount"})
+	err := validate.Struct(p)
+	if err == nil {
+		return errors, true
+	}
+	for _, _err := range err.(validator.ValidationErrors) {
+		errors[_err.Field()] = _err.Error()
 	}
 	return errors, len(errors) == 0
 }
 
 func (p *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	errors := map[string]string{}
-	if p.Amount <= 0 {
-		errors["amount"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.PositiveAmount"})
+	err := validate.Struct(p)
+	if err == nil {
+		return errors, true
+	}
+	for _, _err := range err.(validator.ValidationErrors) {
+		errors[_err.Field()] = _err.Error()
 	}
 	return errors, len(errors) == 0
 }
 
 func (p *UpdateDTO) ToEntity(id uint) *Account {
 	return &Account{
-		Id:               id,
-		StageId:          p.StageId,
-		Amount:           p.Amount,
-		AmountCurrencyID: p.AmountCurrencyID,
-		MoneyAccountID:   p.MoneyAccountID,
-		TransactionDate:  p.TransactionDate,
-		AccountingPeriod: p.AccountingPeriod,
-		Comment:          p.Comment,
-	}
-}
-
-func (p *Account) ToGraph() *model.Payment {
-	return &model.Payment{
-		ID:        int64(p.Id),
-		StageID:   int64(p.StageId),
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
+		ID:            id,
+		Name:          p.Name,
+		AccountNumber: p.AccountNumber,
+		Balance:       p.Balance,
+		CurrencyCode:  p.CurrencyCode,
+		Description:   p.Description,
 	}
 }

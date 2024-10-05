@@ -68,15 +68,20 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role.Role,
 	return &entity, nil
 }
 
+func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(data).Error
+}
+
 func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(data).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Create(data).Error
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
@@ -84,10 +89,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Save(data).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Save(data).Error
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id int64) error {

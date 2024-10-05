@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"github.com/gorilla/schema"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"net/http"
 	"strconv"
@@ -101,11 +100,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 	if action == "save" {
 		dto := payment.UpdateDTO{}
-		if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if err := validate.Struct(&dto); err != nil {
+		if err := decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -154,11 +149,7 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 
 func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	dto := payment.CreateDTO{}
-	if err := schema.NewDecoder().Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := validate.Struct(&dto); err != nil {
+	if err := decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

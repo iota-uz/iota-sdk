@@ -81,6 +81,14 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	return u, nil
 }
 
+func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(user).Error
+}
+
 func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

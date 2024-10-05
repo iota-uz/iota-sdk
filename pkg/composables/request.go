@@ -46,11 +46,16 @@ func UsePageCtx(r *http.Request, pageData *PageData) (*types.PageContext, error)
 	if !found {
 		return nil, errLocalizerNotFound
 	}
+	uniTranlator, found := UseUniLocalizer(r.Context())
+	if !found {
+		return nil, errLocalizerNotFound
+	}
 	locale := composables.UseLocale(r.Context(), language.English)
 	return &types.PageContext{
-		Pathname:  r.URL.Path,
-		Localizer: localizer,
-		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}),
-		Locale:    locale.String(),
+		Pathname:      r.URL.Path,
+		Localizer:     localizer,
+		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}),
+		Locale:        locale.String(),
+		UniTranslator: uniTranlator,
 	}, nil
 }

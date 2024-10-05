@@ -151,7 +151,7 @@ type Prompt struct {
 type ExpenseCategory struct {
 	ID               uint
 	Name             string
-	Description      string
+	Description      *string
 	Amount           float64
 	AmountCurrencyID string
 	CreatedAt        time.Time
@@ -616,7 +616,7 @@ type WarehousePosition struct {
 	UpdatedAt time.Time
 }
 
-type Product struct {
+type WarehouseProduct struct {
 	ID         int64
 	PositionID int64
 	Rfid       string

@@ -37,7 +37,7 @@ func ConnectDB(dbOpts string, level logger.LogLevel) (*gorm.DB, error) {
 }
 
 func CheckModels(db *gorm.DB) {
-	models := []interface{}{
+	registeredModels := []interface{}{
 		&models.Upload{},
 		&models.User{},
 		&models.Payment{},
@@ -49,9 +49,12 @@ func CheckModels(db *gorm.DB) {
 		&models.Role{},
 		&models.Dialogue{},
 		&models.ActionLog{},
+		&models.Currency{},
+		&models.Transaction{},
+		&models.WarehouseProduct{},
 	}
 	var errs []error
-	for _, model := range models {
+	for _, model := range registeredModels {
 		if err := helpers.CheckModelIsInSync(db, model); err != nil {
 			errs = append(errs, err)
 		}

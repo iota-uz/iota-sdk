@@ -7,23 +7,23 @@ import (
 )
 
 type Currency struct {
-	Code      string
+	Code      Code
 	Name      string
-	Symbol    string
+	Symbol    Symbol
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type CreateDTO struct {
-	Code   string `schema:"amount,required"`
-	Name   string `schema:"amount_currency_id,required"`
-	Symbol string `schema:"money_account_id,required"`
+	Code   string `validate:"required"`
+	Name   string `validate:"required"`
+	Symbol string `validate:"required"`
 }
 
 type UpdateDTO struct {
-	Code   string `schema:"amount"`
-	Name   string `schema:"amount_currency_id"`
-	Symbol string `schema:"money_account_id"`
+	Code   string `validate:"len=3"`
+	Name   string
+	Symbol string
 }
 
 func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
@@ -32,12 +32,20 @@ func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (p *CreateDTO) ToEntity() *Currency {
-	return &Currency{
-		Code:   p.Code,
-		Name:   p.Name,
-		Symbol: p.Symbol,
+func (p *CreateDTO) ToEntity() (*Currency, error) {
+	c, err := NewCode(p.Code)
+	if err != nil {
+		return nil, err
 	}
+	s, err := NewSymbol(p.Symbol)
+	if err != nil {
+		return nil, err
+	}
+	return &Currency{
+		Code:   c,
+		Name:   p.Name,
+		Symbol: s,
+	}, nil
 }
 
 func (p *Currency) Ok(l *i18n.Localizer) (map[string]string, bool) {
@@ -52,10 +60,18 @@ func (p *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (p *UpdateDTO) ToEntity() *Currency {
-	return &Currency{
-		Code:   p.Code,
-		Name:   p.Name,
-		Symbol: p.Symbol,
+func (p *UpdateDTO) ToEntity() (*Currency, error) {
+	c, err := NewCode(p.Code)
+	if err != nil {
+		return nil, err
 	}
+	s, err := NewSymbol(p.Symbol)
+	if err != nil {
+		return nil, err
+	}
+	return &Currency{
+		Code:   c,
+		Name:   p.Name,
+		Symbol: s,
+	}, nil
 }
