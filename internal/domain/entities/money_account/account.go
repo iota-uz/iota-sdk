@@ -1,10 +1,10 @@
 package moneyAccount
 
 import (
+	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"time"
-
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 var (
@@ -17,7 +17,7 @@ type Account struct {
 	AccountNumber string
 	Description   string
 	Balance       float64
-	CurrencyCode  string
+	Currency      currency.Currency
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -31,17 +31,24 @@ type CreateDTO struct {
 }
 
 type UpdateDTO struct {
-	Name          string  `validate:"required,lte=255"`
+	Name          string  `validate:"lte=255"`
 	Balance       float64 `validate:"gte=0"`
 	AccountNumber string
-	CurrencyCode  string `validate:"required,len=3"`
+	CurrencyCode  string `validate:"len=3"`
 	Description   string
 }
 
 // TODO: Add validations
 
-func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
+	errs := validate.Struct(p)
+	if errs == nil {
+		return errors, true
+	}
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
+	}
 	return errors, len(errors) == 0
 }
 
@@ -51,37 +58,41 @@ func (p *CreateDTO) ToEntity() *Account {
 
 // TODO: Add localization
 
-func (p *Account) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *Account) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	err := validate.Struct(p)
-	if err == nil {
+	errs := validate.Struct(p)
+	if errs == nil {
 		return errors, true
 	}
-	for _, _err := range err.(validator.ValidationErrors) {
-		errors[_err.Field()] = _err.Error()
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
 	}
 	return errors, len(errors) == 0
 }
 
-func (p *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	err := validate.Struct(p)
-	if err == nil {
+	errs := validate.Struct(p)
+	if errs == nil {
 		return errors, true
 	}
-	for _, _err := range err.(validator.ValidationErrors) {
-		errors[_err.Field()] = _err.Error()
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
 	}
 	return errors, len(errors) == 0
 }
 
-func (p *UpdateDTO) ToEntity(id uint) *Account {
+func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
+	code, err := currency.NewCode(p.CurrencyCode)
+	if err != nil {
+		return nil, err
+	}
 	return &Account{
 		ID:            id,
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,
-		CurrencyCode:  p.CurrencyCode,
+		Currency:      currency.Currency{Code: code},
 		Description:   p.Description,
-	}
+	}, nil
 }

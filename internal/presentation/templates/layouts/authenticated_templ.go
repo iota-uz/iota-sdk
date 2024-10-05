@@ -279,6 +279,8 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 			[]sidebarItem{
 				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}), href: "/finance/expense-categories"},
 				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Payments"}), href: "/finance/payments"},
+				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Expenses"}), href: "/finance/expenses"},
+				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Accounts"}), href: "/finance/accounts"},
 			}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -318,7 +320,7 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "SignOut"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 140, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 142, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

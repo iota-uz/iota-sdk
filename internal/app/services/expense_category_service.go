@@ -20,7 +20,7 @@ func NewExpenseCategoryService(repo category.Repository, app *Application) *Expe
 	}
 }
 
-func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (*category.category, error) {
+func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
 	return s.Repo.GetByID(ctx, id)
 }
 

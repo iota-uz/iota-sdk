@@ -126,6 +126,8 @@ templ sidebar(pathname string, l *i18n.Localizer) {
 					[]sidebarItem{
 						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}), href: "/finance/expense-categories"},
 						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Payments"}), href: "/finance/payments"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Expenses"}), href: "/finance/expenses"},
+						{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Accounts"}), href: "/finance/accounts"},
 					}).render(pathname)
 				@newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Reports"}), "#",
 					icons.FileText(icons.Props{Size: "20"}),

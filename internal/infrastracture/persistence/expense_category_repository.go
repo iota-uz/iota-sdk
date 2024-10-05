@@ -15,7 +15,7 @@ func NewExpenseCategoryRepository() category.Repository {
 	return &GormExpenseCategoryRepository{}
 }
 
-func (g *GormExpenseCategoryRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*category.category, error) {
+func (g *GormExpenseCategoryRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
