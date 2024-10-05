@@ -47,8 +47,8 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	viewCategories := make([]*view_models.ExpenseCategory, 0, len(categories))
-	for _, category := range categories {
-		viewCategories = append(viewCategories, mappers.ExpenseCategoryToViewModel(category))
+	for _, entity := range categories {
+		viewCategories = append(viewCategories, mappers.ExpenseCategoryToViewModel(entity))
 	}
 	isHxRequest := len(r.Header.Get("HX-Request")) > 0
 	props := &expense_categories.IndexPageProps{

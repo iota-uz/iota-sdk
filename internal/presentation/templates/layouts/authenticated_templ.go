@@ -274,7 +274,7 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.CashFlow"}), "#",
+		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}), "#",
 			icons.Money(icons.Props{Size: "20"}),
 			[]sidebarItem{
 				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}), href: "/finance/expense-categories"},
@@ -286,7 +286,7 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Reports"}), "#",
 			icons.FileText(icons.Props{Size: "20"}),
 			[]sidebarItem{
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.CashFlow"}), href: "/reports/cash-flow"},
+				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}), href: "/reports/cash-flow"},
 			}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
