@@ -46,7 +46,10 @@ templ EditForm(props *EditPageProps) {
 				PageContext: props.PageContext,
 				Value:       props.Category.Currency.Code.String(),
 				Currencies:  props.Currencies,
-				Category:    props.Category,
+				Attrs: templ.Attributes{
+					"name": "CurrencyCode",
+					"form": "save-form",
+				},
 			})
 			@textarea.Basic(&textarea.Props{
 				Label: props.T("ExpenseCategories.Single.Description"),

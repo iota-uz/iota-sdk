@@ -172,7 +172,13 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	templ.Handler(expense_categories.New(pageCtx, currencies, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
+	props := &expense_categories.CreatePageProps{
+		PageContext: pageCtx,
+		Currencies:  currencies,
+		Errors:      map[string]string{},
+		Category:    &category.ExpenseCategory{},
+	}
+	templ.Handler(expense_categories.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
@@ -193,19 +199,24 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	currencies, err := c.app.CurrencyService.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		currencies, err := c.app.CurrencyService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		entity, err := dto.ToEntity()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		templ.Handler(expense_categories.CreateForm(pageCtx.Localizer, entity, currencies, errors), templ.WithStreaming()).ServeHTTP(w, r)
+		props := &expense_categories.CreatePageProps{
+			PageContext: pageCtx,
+			Currencies:  currencies,
+			Errors:      errors,
+			Category:    entity,
+		}
+		templ.Handler(expense_categories.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

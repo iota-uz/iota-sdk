@@ -10,7 +10,6 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 )
@@ -19,7 +18,7 @@ type CurrencySelectProps struct {
 	*types.PageContext
 	Value      string
 	Currencies []*currency.Currency
-	Category   *category.ExpenseCategory
+	Attrs      templ.Attributes
 }
 
 func CurrencySelect(props *CurrencySelectProps) templ.Component {
@@ -53,7 +52,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			for _, currency := range props.Currencies {
-				if currency.Code.String() == props.Category.Currency.Code.String() {
+				if currency.Code.String() == props.Value {
 					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -61,7 +60,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Code.String())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 28, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 24, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -74,7 +73,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Symbol.String())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 29, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 25, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -87,7 +86,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 30, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 26, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -105,7 +104,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Code.String())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 33, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 29, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -118,7 +117,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Symbol.String())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 34, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 30, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -131,7 +130,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 35, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/shared.templ`, Line: 31, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -148,10 +147,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
 			Label:       props.T("ExpenseCategories.Single.Currency"),
 			Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
-			Attrs: templ.Attributes{
-				"name": "CurrencyCode",
-				"form": "save-form",
-			},
+			Attrs:       props.Attrs,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

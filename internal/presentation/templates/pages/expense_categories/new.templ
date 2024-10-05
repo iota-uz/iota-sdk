@@ -9,38 +9,40 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/textarea"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-templ CreateForm(localizer *i18n.Localizer, expenseCategory *category.ExpenseCategory, currencies []*currency.Currency, errors map[string]string) {
+type CreatePageProps struct {
+	*types.PageContext
+	Currencies []*currency.Currency
+	Category   *category.ExpenseCategory
+	Errors     map[string]string
+}
+
+templ CreateForm(props *CreatePageProps) {
 	<form class="flex flex-col justify-between h-full" hx-post="/finance/expense-categories" hx-swap="outerHTML" hx-indicator="#save-btn">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Name"}),
-				Attrs: templ.Attributes{"name": "Name", "value": expenseCategory.Name},
-				Error: errors["Name"],
+				Label: props.T("ExpenseCategories.Single.Name"),
+				Attrs: templ.Attributes{"name": "Name", "value": props.Category.Name},
+				Error: props.Errors["Name"],
 			})
 			@input.Number(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
-				Attrs: templ.Attributes{"name": "Amount", "value": expenseCategory.Amount},
-				Error: errors["Amount"],
+				Label: props.T("ExpenseCategories.Single.Amount"),
+				Attrs: templ.Attributes{"name": "Amount", "value": props.Category.Amount},
+				Error: props.Errors["Amount"],
 			})
-			@base.Select(&base.SelectProps{
-				Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Currency"}),
-				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.SelectCurrency"}),
-				Attrs: templ.Attributes{
-					"name": "CurrencyCode",
-				},
-			}) {
-				for _, currency := range currencies {
-					<option value={ currency.Code.String() }>{ currency.Code.String() }</option>
-				}
-			}
+			@CurrencySelect(&CurrencySelectProps{
+				PageContext: props.PageContext,
+				Value:       "",
+				Currencies:  props.Currencies,
+				Attrs:       templ.Attributes{"name": "CurrencyCode"},
+			})
 			@textarea.Basic(&textarea.Props{
-				Label:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Description"}),
-				Attrs:        templ.Attributes{"name": "Description", "value": expenseCategory.Description},
+				Label:        props.T("ExpenseCategories.Single.Description"),
+				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
-				Error:        errors["Description"],
+				Value:        props.Category.Description,
+				Error:        props.Errors["Description"],
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
@@ -50,14 +52,14 @@ templ CreateForm(localizer *i18n.Localizer, expenseCategory *category.ExpenseCat
 					"id": "save-btn",
 				},
 			}) {
-				{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}) }
+				{ props.T("Save") }
 			}
 		</div>
 	</form>
 }
 
-templ New(pageCtx *types.PageContext, currencies []*currency.Currency, errors map[string]string) {
-	@layouts.Authenticated(pageCtx) {
-		@CreateForm(pageCtx.Localizer, &category.ExpenseCategory{}, currencies, errors)
+templ New(props *CreatePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
 	}
 }
