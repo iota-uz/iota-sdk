@@ -13,6 +13,7 @@ type Props struct {
 	WrapperClass string
 	Attrs        templ.Attributes
 	Error        string
+	Value        string
 	id           string
 }
 
@@ -29,6 +30,7 @@ func newTextArea(props *Props) *Props {
 		WrapperClass: props.WrapperClass,
 		Placeholder:  props.Placeholder,
 		Error:        props.Error,
+		Value:        props.Value,
 	}
 }
 
@@ -38,7 +40,9 @@ templ (p *Props) render() {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
 		<div class="w-full relative">
-			<textarea id={ p.id } class={ "form-control w-full", p.Class } placeholder={ p.Placeholder } { p.Attrs... }></textarea>
+			<textarea id={ p.id } class={ "form-control w-full", p.Class } placeholder={ p.Placeholder } { p.Attrs... }>
+				{ p.Value }
+			</textarea>
 		</div>
 		if p.Error != "" {
 			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>

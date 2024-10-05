@@ -2,6 +2,7 @@ package expense_categories
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -11,45 +12,57 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-templ EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, errors map[string]string) {
+type EditPageProps struct {
+	*types.PageContext
+	Category   *category.ExpenseCategory
+	Currencies []*currency.Currency
+	Errors     map[string]string
+}
+
+templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Name"}),
+				Label: props.T("ExpenseCategories.Single.Name"),
 				Attrs: templ.Attributes{
-					"value": category.Name,
-					"name":  "name",
+					"value": props.Category.Name,
+					"name":  "Name",
 					"form":  "save-form",
 				},
-				Error: errors["Name"],
+				Error: props.Errors["Name"],
 			})
 			@input.Number(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Amount"}),
+				Label: props.T("ExpenseCategories.Single.Amount"),
 				Attrs: templ.Attributes{
-				    "name": "Amount",
-				    "value": fmt.Sprintf("%.2f", category.Amount),
-				    "form": "save-form",
+					"name":  "Amount",
+					"value": fmt.Sprintf("%.2f", props.Category.Amount),
+					"form":  "save-form",
 				},
-				Error: errors["Amount"],
+				Error: props.Errors["Amount"],
+			})
+			@CurrencySelect(&CurrencySelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Category.Currency.Code.String(),
+				Currencies:  props.Currencies,
+				Category:    props.Category,
 			})
 			@textarea.Basic(&textarea.Props{
-                Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Description"}),
-                Attrs: templ.Attributes{
-                    "name": "Description",
-                    "value": category.Description,
-                    "form": "save-form",
-                },
-                WrapperClass: "col-span-3",
-                Error: errors["Description"],
-            })
+				Label: props.T("ExpenseCategories.Single.Description"),
+				Attrs: templ.Attributes{
+					"name": "Description",
+					"form": "save-form",
+				},
+				Value:        props.Category.Description,
+				WrapperClass: "col-span-3",
+				Error:        props.Errors["Description"],
+			})
 		}
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/expense-categories/%d", category.Id) }
+				hx-delete={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -66,10 +79,10 @@ templ EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, er
 						"id":     "delete-category-btn",
 					},
 				}) {
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}) }
+					{ props.T("Delete") }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/expense-categories/%d", category.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
@@ -78,20 +91,20 @@ templ EditForm(localizer *i18n.Localizer, category *category.ExpenseCategory, er
 						"id":    "save-btn",
 					},
 				}) {
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}) }
+					{ props.T("Save") }
 				}
 			</form>
 		</div>
 	</div>
 }
 
-templ Edit(pageCtx *types.PageContext, category *category.ExpenseCategory, errors map[string]string) {
-	@layouts.Authenticated(pageCtx) {
-		@EditForm(pageCtx.Localizer, category, errors)
+templ Edit(props *EditPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
 			Heading:   "ExpenseCategories.Single.Delete",
 			Text:      "ExpenseCategories.Single.DeleteConfirmation",
-			Localizer: pageCtx.Localizer,
+			Localizer: props.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
 			Action:    "open-delete-category-confirmation",
 			Attrs: templ.Attributes{

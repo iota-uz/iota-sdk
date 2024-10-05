@@ -2,18 +2,21 @@ package expense_categories
 
 import (
 	"fmt"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"time"
+	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
 )
 
-templ CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCategory) {
+type IndexPageProps struct {
+	*types.PageContext
+	Categories []*view_models.ExpenseCategory
+}
+
+templ CategoriesTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: "ExpenseCategories.List.Name", Key: "name"},
@@ -21,23 +24,23 @@ templ CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseC
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
-		Localizer: localizer,
+		Localizer: props.Localizer,
 	}) {
-		for _, category := range categories {
+		for _, category := range props.Categories {
 			@base.TableRow() {
 				@base.TableCell() {
 					{ category.Name }
 				}
 				@base.TableCell() {
-					{ fmt.Sprintf("%f", category.Amount) }
+					{ category.AmountWithCurrency }
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">
-						<span x-text={ fmt.Sprintf("format('%s')", category.UpdatedAt.Format(time.RFC3339)) }></span>
+						<span x-text={ fmt.Sprintf("format('%s')", category.UpdatedAt) }></span>
 					</div>
 				}
 				@base.TableCell() {
-					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expense-categories/%d", category.Id)}) {
+					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expense-categories/%s", category.Id)}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}
@@ -46,10 +49,10 @@ templ CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseC
 	}
 }
 
-templ CategoriesContent(pageCtx *types.PageContext, categories []*category.ExpenseCategory) {
+templ CategoriesContent(props *IndexPageProps) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}) }
+			{ props.T("NavigationLinks.ExpenseCategories") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -64,13 +67,13 @@ templ CategoriesContent(pageCtx *types.PageContext, categories []*category.Expen
 						Position:  input.AddonLeft,
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
-					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Search"}),
+					Placeholder: props.T("Search"),
 					Attrs: templ.Attributes{
 						"name": "name",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PerPage"}),
+					Prefix: props.T("PerPage"),
 					Attrs: templ.Attributes{
 						"name": "limit",
 					},
@@ -80,7 +83,7 @@ templ CategoriesContent(pageCtx *types.PageContext, categories []*category.Expen
 					<option>50</option>
 					<option>100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CreatedAt"})}) {
+				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
 					<option>Вчера</option>
 					<option>Позавчера</option>
 				}
@@ -88,16 +91,16 @@ templ CategoriesContent(pageCtx *types.PageContext, categories []*category.Expen
 					Size: button.SizeNormal, Href: "/finance/expense-categories/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.List.NewCategory"}) }
+					{ props.T("ExpenseCategories.List.NewCategory") }
 				}
 			</form>
-			@CategoriesTable(pageCtx.Localizer, categories)
+			@CategoriesTable(props)
 		</div>
 	</div>
 }
 
-templ Index(pageCtx *types.PageContext, categories []*category.ExpenseCategory) {
-	@layouts.Authenticated(pageCtx) {
-		@CategoriesContent(pageCtx, categories)
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CategoriesContent(props)
 	}
 }

@@ -10,18 +10,21 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"time"
+	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
 )
 
-func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCategory) templ.Component {
+type IndexPageProps struct {
+	*types.PageContext
+	Categories []*view_models.ExpenseCategory
+}
+
+func CategoriesTable(props *IndexPageProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -51,7 +54,7 @@ func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCa
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			for _, category := range categories {
+			for _, category := range props.Categories {
 				templ_7745c5c3_Var3 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -79,7 +82,7 @@ func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCa
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(category.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 29, Col: 20}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 32, Col: 20}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -108,9 +111,9 @@ func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCa
 						}
 						ctx = templ.InitializeContext(ctx)
 						var templ_7745c5c3_Var7 string
-						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%f", category.Amount))
+						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(category.AmountWithCurrency)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 32, Col: 41}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 35, Col: 34}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -143,9 +146,9 @@ func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCa
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var9 string
-						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", category.UpdatedAt.Format(time.RFC3339)))
+						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", category.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 36, Col: 89}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 39, Col: 68}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -195,7 +198,7 @@ func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCa
 							}
 							return templ_7745c5c3_Err
 						})
-						templ_7745c5c3_Err = button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expense-categories/%d", category.Id)}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expense-categories/%s", category.Id)}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -221,7 +224,7 @@ func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCa
 				{Label: "UpdatedAt", Key: "updatedAt"},
 				{Label: "Actions", Class: "w-16"},
 			},
-			Localizer: localizer,
+			Localizer: props.Localizer,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -230,7 +233,7 @@ func CategoriesTable(localizer *i18n.Localizer, categories []*category.ExpenseCa
 	})
 }
 
-func CategoriesContent(pageCtx *types.PageContext, categories []*category.ExpenseCategory) templ.Component {
+func CategoriesContent(props *IndexPageProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -253,9 +256,9 @@ func CategoriesContent(pageCtx *types.PageContext, categories []*category.Expens
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}))
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.ExpenseCategories"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 52, Col: 105}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 55, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -270,7 +273,7 @@ func CategoriesContent(pageCtx *types.PageContext, categories []*category.Expens
 				Position:  input.AddonLeft,
 				Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 			},
-			Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Search"}),
+			Placeholder: props.T("Search"),
 			Attrs: templ.Attributes{
 				"name": "name",
 			},
@@ -297,7 +300,7 @@ func CategoriesContent(pageCtx *types.PageContext, categories []*category.Expens
 			return templ_7745c5c3_Err
 		})
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Prefix: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PerPage"}),
+			Prefix: props.T("PerPage"),
 			Attrs: templ.Attributes{
 				"name": "limit",
 			},
@@ -323,7 +326,7 @@ func CategoriesContent(pageCtx *types.PageContext, categories []*category.Expens
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = base.Select(&base.SelectProps{Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CreatedAt"})}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -340,9 +343,9 @@ func CategoriesContent(pageCtx *types.PageContext, categories []*category.Expens
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var17 string
-			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.List.NewCategory"}))
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("ExpenseCategories.List.NewCategory"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 91, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/categories.templ`, Line: 94, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -361,7 +364,7 @@ func CategoriesContent(pageCtx *types.PageContext, categories []*category.Expens
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = CategoriesTable(pageCtx.Localizer, categories).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = CategoriesTable(props).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -373,7 +376,7 @@ func CategoriesContent(pageCtx *types.PageContext, categories []*category.Expens
 	})
 }
 
-func Index(pageCtx *types.PageContext, categories []*category.ExpenseCategory) templ.Component {
+func Index(props *IndexPageProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -403,13 +406,13 @@ func Index(pageCtx *types.PageContext, categories []*category.ExpenseCategory) t
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = CategoriesContent(pageCtx, categories).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = CategoriesContent(props).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(pageCtx).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -91,7 +91,7 @@ templ Email(props *Props) {
 }
 
 templ Date(props *Props) {
-    @newInput(&Props{typ: "date", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
+	@newInput(&Props{typ: "date", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
 }
 
 templ passwordLock(p *Props) {

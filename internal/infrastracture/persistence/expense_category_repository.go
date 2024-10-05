@@ -25,7 +25,7 @@ func (g *GormExpenseCategoryRepository) GetPaginated(ctx context.Context, limit,
 		q = q.Order(s)
 	}
 	var rows []*models.ExpenseCategory
-	if err := q.Find(&rows).Error; err != nil {
+	if err := q.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	var categories []*category.ExpenseCategory
@@ -57,7 +57,7 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category
 		return nil, service.ErrNoTx
 	}
 	var rows []*models.ExpenseCategory
-	if err := tx.Find(&rows).Error; err != nil {
+	if err := tx.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	var entities []*category.ExpenseCategory
@@ -76,11 +76,11 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entity category.ExpenseCategory
-	if err := tx.First(&entity, id).Error; err != nil {
+	var entity models.ExpenseCategory
+	if err := tx.Preload("AmountCurrency").First(&entity, id).Error; err != nil {
 		return nil, err
 	}
-	return &entity, nil
+	return toDomainExpenseCategory(&entity)
 }
 
 func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *category.ExpenseCategory) error {

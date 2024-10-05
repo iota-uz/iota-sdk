@@ -154,9 +154,9 @@ type ExpenseCategory struct {
 	Description      *string
 	Amount           float64
 	AmountCurrencyID string
+	AmountCurrency   Currency `gorm:"foreignKey:AmountCurrencyID;references:Code"`
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
-	AmountCurrency   Currency
 }
 
 type EmployeeContact struct {

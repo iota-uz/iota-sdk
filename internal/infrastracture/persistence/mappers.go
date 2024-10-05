@@ -201,20 +201,24 @@ func toDbExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCatego
 		Name:             entity.Name,
 		Description:      &entity.Description,
 		Amount:           entity.Amount,
-		AmountCurrencyID: entity.CurrencyCode,
+		AmountCurrencyID: entity.Currency.Code.String(),
 		CreatedAt:        entity.CreatedAt,
 		UpdatedAt:        entity.UpdatedAt,
 	}
 }
 
 func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.ExpenseCategory, error) {
+	currencyEntity, err := toDomainCurrency(&dbCategory.AmountCurrency)
+	if err != nil {
+		return nil, err
+	}
 	return &category.ExpenseCategory{
-		Id:           dbCategory.ID,
-		Name:         dbCategory.Name,
-		Description:  *dbCategory.Description,
-		Amount:       dbCategory.Amount,
-		CurrencyCode: dbCategory.AmountCurrencyID,
-		CreatedAt:    dbCategory.CreatedAt,
-		UpdatedAt:    dbCategory.UpdatedAt,
+		Id:          dbCategory.ID,
+		Name:        dbCategory.Name,
+		Description: *dbCategory.Description,
+		Amount:      dbCategory.Amount,
+		Currency:    *currencyEntity,
+		CreatedAt:   dbCategory.CreatedAt,
+		UpdatedAt:   dbCategory.UpdatedAt,
 	}, nil
 }
