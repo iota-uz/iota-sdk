@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
@@ -20,7 +20,7 @@ func NewExpenseCategoryService(repo category.Repository, app *Application) *Expe
 	}
 }
 
-func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (*category.category, error) {
 	return s.Repo.GetByID(ctx, id)
 }
 
