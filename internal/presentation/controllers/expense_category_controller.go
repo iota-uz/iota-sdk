@@ -176,7 +176,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Category:    &category.category{},
+		Category:    &category.ExpenseCategory{},
 	}
 	templ.Handler(expense_categories.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

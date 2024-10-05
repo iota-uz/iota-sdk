@@ -1,0 +1,11 @@
+ 
+ 
+<div x-data=\"relativeformat\"><span x-text=\"
+\"></span></div>
+ 
+<div class=\"m-6\"><h1 class=\"text-2xl font-medium\">
+</h1><div class=\"mt-5 bg-surface-600 border border-primary rounded-lg\"><form class=\"p-4 flex items-center gap-3\" hx-get=\"/finance/expense-categories\" hx-trigger=\"keyup changed delay:500ms from:(form input), change changed from:(form select)\" hx-target=\"table\" hx-swap=\"outerHTML\">
+<option>15</option> <option>25</option> <option>50</option> <option>100</option>
+<option>Вчера</option> <option>Позавчера</option>
+</form>
+</div></div>
