@@ -1,8 +1,8 @@
 package expense_categories
 
 import (
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
+	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -25,17 +25,17 @@ templ CreateForm(localizer *i18n.Localizer, expenseCategory *category.ExpenseCat
 				Attrs: templ.Attributes{"name": "Amount", "value": expenseCategory.Amount},
 				Error: errors["Amount"],
 			})
-            @base.Select(&base.SelectProps{
-                Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Currency"}),
-                Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.SelectCurrency"}),
-                Attrs: templ.Attributes{
-                    "name": "CurrencyCode",
-                },
-            }) {
-                for _, currency := range currencies {
-                    <option value={ currency.Code.String() }>{ currency.Code.String() }</option>
-                }
-            }
+			@base.Select(&base.SelectProps{
+				Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Currency"}),
+				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.SelectCurrency"}),
+				Attrs: templ.Attributes{
+					"name": "CurrencyCode",
+				},
+			}) {
+				for _, currency := range currencies {
+					<option value={ currency.Code.String() }>{ currency.Code.String() }</option>
+				}
+			}
 			@textarea.Basic(&textarea.Props{
 				Label:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ExpenseCategories.Single.Description"}),
 				Attrs:        templ.Attributes{"name": "Description", "value": expenseCategory.Description},

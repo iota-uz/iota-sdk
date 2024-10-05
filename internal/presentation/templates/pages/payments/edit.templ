@@ -17,33 +17,33 @@ import (
 templ EditForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[string]string) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
-            @input.Number(&input.Props{
-                Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Amount"}),
-                Attrs: templ.Attributes{
-                    "value": payment.Amount,
-                    "name":  "amount",
-                    "form":  "save-form",
-                },
-                Error: errors["amount"],
-            })
-            @input.Date(&input.Props{
-                Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Date"}),
-                Attrs: templ.Attributes{
-                    "value": payment.TransactionDate,
-                    "name":  "date",
-                    "form":  "save-form",
-                },
-                Error: errors["date"],
-            })
-            @textarea.Basic(&textarea.Props{
-                Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Comment"}),
-                Attrs: templ.Attributes{
-                    "value": payment.Comment,
-                    "name":  "comment",
-                    "form":  "save-form",
-                },
-                WrapperClass: "col-span-3",
-            })
+			@input.Number(&input.Props{
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Amount"}),
+				Attrs: templ.Attributes{
+					"value": payment.Amount,
+					"name":  "amount",
+					"form":  "save-form",
+				},
+				Error: errors["amount"],
+			})
+			@input.Date(&input.Props{
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Date"}),
+				Attrs: templ.Attributes{
+					"value": payment.TransactionDate,
+					"name":  "date",
+					"form":  "save-form",
+				},
+				Error: errors["date"],
+			})
+			@textarea.Basic(&textarea.Props{
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Comment"}),
+				Attrs: templ.Attributes{
+					"value": payment.Comment,
+					"name":  "comment",
+					"form":  "save-form",
+				},
+				WrapperClass: "col-span-3",
+			})
 		}
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form

@@ -1,16 +1,16 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"net/http"
-	"strconv"
-
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
+	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expense_categories"
+	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
 	"github.com/iota-agency/iota-erp/pkg/composables"
+	"net/http"
 )
 
 type ExpenseCategoriesController struct {
@@ -46,16 +46,24 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
 		return
 	}
+	viewCategories := make([]*view_models.ExpenseCategory, 0, len(categories))
+	for _, category := range categories {
+		viewCategories = append(viewCategories, mappers.ExpenseCategoryToViewModel(category))
+	}
 	isHxRequest := len(r.Header.Get("HX-Request")) > 0
+	props := &expense_categories.IndexPageProps{
+		PageContext: pageCtx,
+		Categories:  viewCategories,
+	}
 	if isHxRequest {
-		templ.Handler(expense_categories.CategoriesTable(pageCtx.Localizer, categories), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expense_categories.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(expense_categories.Index(pageCtx, categories), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expense_categories.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
 func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := parseId(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -67,22 +75,33 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), uint(id))
+	entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
-	templ.Handler(expense_categories.Edit(pageCtx, entity, map[string]string{}), templ.WithStreaming()).ServeHTTP(w, r)
+	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := &expense_categories.EditPageProps{
+		PageContext: pageCtx,
+		Category:    entity,
+		Currencies:  currencies,
+		Errors:      map[string]string{},
+	}
+	templ.Handler(expense_categories.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := parseId(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
-	if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), uint(id)); err != nil {
+	if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -90,7 +109,7 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := parseId(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -111,17 +130,28 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 			return
 		}
 		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), uint(id))
+			entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 				return
 			}
-			templ.Handler(expense_categories.EditForm(pageCtx.Localizer, entity, errors), templ.WithStreaming()).ServeHTTP(w, r)
+			currencies, err := c.app.CurrencyService.GetAll(r.Context())
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			props := &expense_categories.EditPageProps{
+				PageContext: pageCtx,
+				Category:    entity,
+				Currencies:  currencies,
+				Errors:      errors,
+			}
+			templ.Handler(expense_categories.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.ExpenseCategoryService.Update(r.Context(), uint(id), &dto)
+		err = c.app.ExpenseCategoryService.Update(r.Context(), id, &dto)
 	} else if action == "delete" {
-		_, err = c.app.ExpenseCategoryService.Delete(r.Context(), uint(id))
+		_, err = c.app.ExpenseCategoryService.Delete(r.Context(), id)
 	}
 
 	if err != nil {
@@ -170,7 +200,12 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 	}
 
 	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		templ.Handler(expense_categories.CreateForm(pageCtx.Localizer, dto.ToEntity(), currencies, errors), templ.WithStreaming()).ServeHTTP(w, r)
+		entity, err := dto.ToEntity()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		templ.Handler(expense_categories.CreateForm(pageCtx.Localizer, entity, currencies, errors), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

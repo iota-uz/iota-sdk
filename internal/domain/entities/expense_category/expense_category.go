@@ -3,19 +3,20 @@ package category
 import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"time"
 )
 
 type ExpenseCategory struct {
-	Id           uint
-	Name         string
-	Description  string
-	Amount       float64
-	CurrencyCode string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	Id          uint
+	Name        string
+	Description string
+	Amount      float64
+	Currency    currency.Currency
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type CreateDTO struct {
@@ -69,23 +70,32 @@ func (e *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (e *CreateDTO) ToEntity() *ExpenseCategory {
-	return &ExpenseCategory{
-		Name:         e.Name,
-		Amount:       e.Amount,
-		CurrencyCode: e.CurrencyCode,
-		Description:  e.Description,
+func (e *CreateDTO) ToEntity() (*ExpenseCategory, error) {
+	code, err := currency.NewCode(e.CurrencyCode)
+	if err != nil {
+		return nil, err
 	}
+
+	return &ExpenseCategory{
+		Name:        e.Name,
+		Amount:      e.Amount,
+		Currency:    currency.Currency{Code: code},
+		Description: e.Description,
+	}, nil
 }
 
-func (e *UpdateDTO) ToEntity(id uint) *ExpenseCategory {
-	return &ExpenseCategory{
-		Id:           id,
-		Name:         e.Name,
-		Amount:       e.Amount,
-		CurrencyCode: e.CurrencyCode,
-		Description:  e.Description,
+func (e *UpdateDTO) ToEntity(id uint) (*ExpenseCategory, error) {
+	code, err := currency.NewCode(e.CurrencyCode)
+	if err != nil {
+		return nil, err
 	}
+	return &ExpenseCategory{
+		Id:          id,
+		Name:        e.Name,
+		Amount:      e.Amount,
+		Currency:    currency.Currency{Code: code},
+		Description: e.Description,
+	}, nil
 }
 
 func (e *ExpenseCategory) ToGraph() *model.ExpenseCategory {

@@ -14,5 +14,5 @@ type PageContext struct {
 }
 
 func (p *PageContext) T(k string) string {
-	return k
+	return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: k})
 }

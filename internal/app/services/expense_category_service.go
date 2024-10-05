@@ -46,7 +46,10 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.Crea
 	if sess, err := composables.UseSession(ctx); err == nil {
 		ev.Session = sess
 	}
-	entity := data.ToEntity()
+	entity, err := data.ToEntity()
+	if err != nil {
+		return err
+	}
 	if err := s.Repo.Create(ctx, entity); err != nil {
 		return err
 	}
@@ -65,7 +68,10 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *cate
 	if sess, err := composables.UseSession(ctx); err == nil {
 		evt.Session = sess
 	}
-	entity := data.ToEntity(id)
+	entity, err := data.ToEntity(id)
+	if err != nil {
+		return err
+	}
 	if err := s.Repo.Update(ctx, entity); err != nil {
 		return err
 	}

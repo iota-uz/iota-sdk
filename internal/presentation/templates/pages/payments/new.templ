@@ -9,8 +9,8 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/textarea"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"strconv"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"strconv"
 )
 
 templ CreateForm(localizer *i18n.Localizer, payment *payment.Payment, stages []*stage.ProjectStage, errors map[string]string) {
@@ -26,33 +26,33 @@ templ CreateForm(localizer *i18n.Localizer, payment *payment.Payment, stages []*
 				Error: errors["amount"],
 			})
 			@input.Date(&input.Props{
-                Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Date"}),
-                Attrs: templ.Attributes{
-                    "value": payment.TransactionDate,
-                    "name":  "date",
-                    "form":  "save-form",
-                },
-                Error: errors["date"],
-            })
-            @base.Select(&base.SelectProps{
-                Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Stage"}),
-                Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.SelectStage"}),
-                Attrs: templ.Attributes{
-                    "name": "stageId",
-                },
-            }) {
-                for _, stage := range stages {
-                    <option value={ strconv.Itoa(int(stage.Id)) }>{ stage.Name }</option>
-                }
-            }
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Date"}),
+				Attrs: templ.Attributes{
+					"value": payment.TransactionDate,
+					"name":  "date",
+					"form":  "save-form",
+				},
+				Error: errors["date"],
+			})
+			@base.Select(&base.SelectProps{
+				Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Stage"}),
+				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.SelectStage"}),
+				Attrs: templ.Attributes{
+					"name": "stageId",
+				},
+			}) {
+				for _, stage := range stages {
+					<option value={ strconv.Itoa(int(stage.Id)) }>{ stage.Name }</option>
+				}
+			}
 			@textarea.Basic(&textarea.Props{
-			    Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Comment"}),
-                Attrs: templ.Attributes{
-                    "value": payment.Comment,
-                    "name":  "comment",
-                    "form":  "save-form",
-                },
-			    WrapperClass: "col-span-3",
+				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Comment"}),
+				Attrs: templ.Attributes{
+					"value": payment.Comment,
+					"name":  "comment",
+					"form":  "save-form",
+				},
+				WrapperClass: "col-span-3",
 			})
 		}
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

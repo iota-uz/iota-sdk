@@ -8,7 +8,8 @@
 \" class=\"
 \" placeholder=\"
 \"
-></textarea></div>
+>
+</textarea></div>
 <small class=\"text-xs text-red-500 mt-1\">
 </small>
 </div>
