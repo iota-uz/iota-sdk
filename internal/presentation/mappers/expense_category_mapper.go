@@ -2,7 +2,7 @@ package mappers
 
 import (
 	"fmt"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
 	"time"
 )
