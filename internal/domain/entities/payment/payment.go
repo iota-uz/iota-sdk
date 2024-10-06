@@ -19,6 +19,7 @@ type Payment struct {
 	Amount           float64
 	CurrencyCode     string
 	AccountId        uint
+	TransactionId    uint
 	TransactionDate  time.Time
 	AccountingPeriod time.Time
 	Comment          string

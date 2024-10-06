@@ -2,6 +2,7 @@ package accounts
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -13,7 +14,7 @@ import (
 type CreatePageProps struct {
 	*types.PageContext
 	Currencies []*currency.Currency
-	Account    *Account
+	Account    *moneyAccount.Account
 	Errors     map[string]string
 }
 

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  erp:
+    restart: always
+    build:
+      context: .
+    environment:
+      GO_APP_ENV: testing
+      DB_NAME: iota_erp
+      DB_HOST: erp_db
+      DB_PORT: 5432
+      DB_PASSWORD: postgres
+      DOMAIN: iota.uz
+      SESSION_DURATION: 30d
+    depends_on:
+      - erp_db
+
+
+  erp_db:
+    image: postgres:15.1
+    restart: always
+    hostname: erp_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: iota_erp
+

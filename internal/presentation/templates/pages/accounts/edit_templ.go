@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -24,7 +24,7 @@ import (
 
 type EditPageProps struct {
 	*types.PageContext
-	Category   *category.ExpenseCategory
+	Account    *moneyAccount.Account
 	Currencies []*currency.Currency
 	Errors     map[string]string
 }
@@ -64,9 +64,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Name"),
+				Label: props.T("Accounts.Single.Name"),
 				Attrs: templ.Attributes{
-					"value": props.Category.Name,
+					"value": props.Account.Name,
 					"name":  "Name",
 					"form":  "save-form",
 				},
@@ -80,13 +80,13 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Amount"),
+				Label: props.T("Accounts.Single.Balance"),
 				Attrs: templ.Attributes{
-					"name":  "Amount",
-					"value": fmt.Sprintf("%.2f", props.Category.Amount),
+					"name":  "Balance",
+					"value": fmt.Sprintf("%.2f", props.Account.Balance),
 					"form":  "save-form",
 				},
-				Error: props.Errors["Amount"],
+				Error: props.Errors["Balance"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -97,7 +97,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = CurrencySelect(&CurrencySelectProps{
 				PageContext: props.PageContext,
-				Value:       props.Category.Currency.Code.String(),
+				Value:       props.Account.Currency.Code.String(),
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
 					"name": "CurrencyCode",
@@ -111,13 +111,29 @@ func EditForm(props *EditPageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			templ_7745c5c3_Err = input.Text(&input.Props{
+				Label: props.T("Accounts.Single.AccountNumber"),
+				Attrs: templ.Attributes{
+					"value": props.Account.AccountNumber,
+					"name":  "AccountNumber",
+					"form":  "save-form",
+				},
+				Error: props.Errors["AccountNumber"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label: props.T("ExpenseCategories.Single.Description"),
+				Label: props.T("Accounts.Single.Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
 				},
-				Value:        props.Category.Description,
+				Value:        props.Account.Description,
 				WrapperClass: "col-span-3",
 				Error:        props.Errors["Description"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -130,20 +146,20 @@ func EditForm(props *EditPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/accounts/%d", props.Account.Id))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 68, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 77, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -162,7 +178,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 85, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 94, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -176,27 +192,27 @@ func EditForm(props *EditPageProps) templ.Component {
 				"name":   "_action",
 				"value":  "delete",
 				"type":   "button",
-				"@click": "$dispatch('open-delete-category-confirmation')",
-				"id":     "delete-category-btn",
+				"@click": "$dispatch('open-delete-account-confirmation')",
+				"id":     "delete-account-btn",
 			},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 8)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id))
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/accounts/%d", props.Account.Id))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 88, Col: 112}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 97, Col: 101}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 8)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 9)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -215,7 +231,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 97, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/edit.templ`, Line: 106, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -234,7 +250,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 9)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 10)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -276,16 +292,16 @@ func Edit(props *EditPageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 10)
+			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 11)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				Heading:   "ExpenseCategories.Single.Delete",
-				Text:      "ExpenseCategories.Single.DeleteConfirmation",
+				Heading:   "Accounts.Single.Delete",
+				Text:      "Accounts.Single.DeleteConfirmation",
 				Localizer: props.Localizer,
 				Icon:      icons.Trash(icons.Props{Size: "20"}),
-				Action:    "open-delete-category-confirmation",
+				Action:    "open-delete-account-confirmation",
 				Attrs: templ.Attributes{
 					"@closing": `({target}) => {
 					if (target.returnValue === "confirm") {

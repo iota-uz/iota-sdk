@@ -2,6 +2,8 @@ package configuration
 
 import (
 	"fmt"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/iota-agency/iota-erp/sdk/configuration"
@@ -32,16 +34,20 @@ type Configuration struct {
 func Use() *Configuration {
 	if singleton == nil {
 		singleton = &Configuration{}
-		if err := singleton.load(); err != nil {
+		if err := singleton.load([]string{".env", ".env.local"}); err != nil {
 			panic(err)
 		}
 	}
 	return singleton
 }
 
-func (c *Configuration) load() error {
-	if err := configuration.LoadEnv(); err != nil {
+func (c *Configuration) load(envFiles []string) error {
+	n, err := configuration.LoadEnv(envFiles)
+	if err != nil {
 		return err
+	}
+	if n == 0 {
+		log.Printf("No .env files found. Tried: %s\n", strings.Join(envFiles, ", "))
 	}
 
 	c.DbOpts = fmt.Sprintf(

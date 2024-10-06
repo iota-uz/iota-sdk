@@ -10,22 +10,26 @@ import (
 	"time"
 )
 
-func LoadEnv() error {
-	envExists := fs.FileExists(".env")
-	envLocalExists := fs.FileExists(".env.local")
-
-	if envExists && envLocalExists {
-		return godotenv.Load(".env", ".env.local")
+func LoadEnv(envFiles []string) (int, error) {
+	exists := make([]bool, len(envFiles))
+	for i, file := range envFiles {
+		if fs.FileExists(file) {
+			exists[i] = true
+		}
 	}
 
-	if envExists {
-		return godotenv.Load(".env")
+	existingFiles := make([]string, 0, len(envFiles))
+	for i, file := range envFiles {
+		if exists[i] {
+			existingFiles = append(existingFiles, file)
+		}
 	}
 
-	if envLocalExists {
-		return godotenv.Load(".env.local")
+	if len(existingFiles) == 0 {
+		return 0, nil
 	}
-	return fmt.Errorf("no .env or .env.local file found")
+
+	return len(existingFiles), godotenv.Load(existingFiles...)
 }
 
 func parseDuration(value, unit string) (time.Duration, error) {

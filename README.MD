@@ -32,6 +32,7 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [SQL-Migrate](https://github.com/rubenv/sql-migrate)
 * [Templ](https://templ.guide/)
 * [Tailwindcss](https://tailwindcss.com/docs/installation)
+* [golangcli-lint](https://golangci-lint.run/welcome/install/)
 
 ## Development
 
@@ -51,6 +52,8 @@ Install tailwindcss globally
 
 ```shell
 pnpm install -g tailwindcss
+# or
+npm install -g tailwindcss
 ```
 
 Run postgres
@@ -108,15 +111,12 @@ query Users {
 }
 ```
 
-## CLI
-
-Generate a new entity, service & repository
-
-```shell
-go run cli/cmd/generate/main.go service -f --type Message --name message
-```
-
 ## Reference commands
+
+Run linter
+```shell
+golangci-lint run
+```
 
 Regenerate from GraphQL schema
 
