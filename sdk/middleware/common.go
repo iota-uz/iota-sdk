@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/sdk/constants"
 	"github.com/rs/cors"
 	"gorm.io/gorm"
 	"log"
@@ -37,7 +38,7 @@ func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composabl
 }
 
 func WithLogger(logger *log.Logger) mux.MiddlewareFunc {
-	return ContextKeyValue("logger", func(r *http.Request, w http.ResponseWriter) interface{} {
+	return ContextKeyValue(constants.LoggerKey, func(r *http.Request, w http.ResponseWriter) interface{} {
 		return logger
 	})
 }
@@ -64,7 +65,7 @@ func Cors(allowOrigins []string) mux.MiddlewareFunc {
 	}).Handler
 }
 
-func ContextKeyValue(key string, constructor GenericConstructor) mux.MiddlewareFunc {
+func ContextKeyValue(key interface{}, constructor GenericConstructor) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), key, constructor(r, w))
@@ -74,7 +75,7 @@ func ContextKeyValue(key string, constructor GenericConstructor) mux.MiddlewareF
 }
 
 func RequestParams(constructor ParamsConstructor) mux.MiddlewareFunc {
-	return ContextKeyValue("params", func(r *http.Request, w http.ResponseWriter) interface{} {
+	return ContextKeyValue(constants.ParamsKey, func(r *http.Request, w http.ResponseWriter) interface{} {
 		return constructor(r, w)
 	})
 }
@@ -83,7 +84,7 @@ func Transactions(db *gorm.DB) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			err := db.Transaction(func(tx *gorm.DB) error {
-				ctx := context.WithValue(r.Context(), "tx", tx)
+				ctx := context.WithValue(r.Context(), constants.TxKey, tx)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return nil
 			})

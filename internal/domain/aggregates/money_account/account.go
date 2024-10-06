@@ -4,7 +4,7 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
+	"github.com/iota-agency/iota-erp/pkg/constants"
 	"time"
 )
 
@@ -39,7 +39,7 @@ type UpdateDTO struct {
 
 func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	errs := middleware.Validate.Struct(p)
+	errs := constants.Validate.Struct(p)
 	if errs == nil {
 		return errors, true
 	}
@@ -57,7 +57,7 @@ func (p *CreateDTO) ToEntity() *Account {
 
 func (p *Account) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	errs := middleware.Validate.Struct(p)
+	errs := constants.Validate.Struct(p)
 	if errs == nil {
 		return errors, true
 	}
@@ -69,7 +69,7 @@ func (p *Account) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (p *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	errs := middleware.Validate.Struct(p)
+	errs := constants.Validate.Struct(p)
 	if errs == nil {
 		return errors, true
 	}

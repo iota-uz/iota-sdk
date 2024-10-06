@@ -4,7 +4,6 @@ import (
 	"context"
 
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
-	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -37,50 +36,37 @@ func (s *ProjectStageService) GetPaginated(ctx context.Context, limit, offset in
 }
 
 func (s *ProjectStageService) Create(ctx context.Context, data *stage.CreateDTO) error {
-	ev := &stage.Created{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = sess
+	createdEvent, err := stage.NewCreatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	ev.Result = entity
-	s.publisher.Publish(ev)
+	createdEvent.Result = *entity
+	s.publisher.Publish(createdEvent)
 	return nil
 }
 
 func (s *ProjectStageService) Update(ctx context.Context, id uint, data *stage.UpdateDTO) error {
-	ev := &stage.Updated{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = sess
+	updatedEvent, err := stage.NewUpdatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity := data.ToEntity(id)
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	ev.Result = entity
-	s.publisher.Publish(ev)
+	updatedEvent.Result = *entity
+	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *ProjectStageService) Delete(ctx context.Context, id uint) (*stage.ProjectStage, error) {
-	ev := &stage.Deleted{}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = sess
+	deletedEvent, err := stage.NewDeletedEvent(ctx)
+	if err != nil {
+		return nil, err
 	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -89,7 +75,7 @@ func (s *ProjectStageService) Delete(ctx context.Context, id uint) (*stage.Proje
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	ev.Result = entity
-	s.publisher.Publish(ev)
+	deletedEvent.Result = *entity
+	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }

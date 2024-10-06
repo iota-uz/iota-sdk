@@ -7,6 +7,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	en_translations "github.com/go-playground/validator/v10/translations/en"
 	ru_translations "github.com/go-playground/validator/v10/translations/ru"
+	"github.com/iota-agency/iota-erp/pkg/constants"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -21,7 +22,6 @@ var (
 		"en": en_translations.RegisterDefaultTranslations,
 		"ru": ru_translations.RegisterDefaultTranslations,
 	}
-	Validate = validator.New(validator.WithRequiredStructEnabled())
 )
 
 func loadUniTranslator() *ut.UniversalTranslator {
@@ -43,7 +43,7 @@ func WithUniLocalizer() mux.MiddlewareFunc {
 		locale, _ := composables.UseLocale(r.Context(), language.English).Base()
 		trans, _ := uni.GetTranslator(locale.String())
 		if register, ok := registerTranslations[locale.String()]; ok {
-			if err := register(Validate, trans); err != nil {
+			if err := register(constants.Validate, trans); err != nil {
 				panic(err)
 			}
 		} else {

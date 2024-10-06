@@ -5,7 +5,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
+	"github.com/iota-agency/iota-erp/pkg/constants"
 	"time"
 )
 
@@ -35,7 +35,7 @@ type UpdateDTO struct {
 
 func (e *ExpenseCategory) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	err := middleware.Validate.Struct(e)
+	err := constants.Validate.Struct(e)
 	if err == nil {
 		return errors, true
 	}
@@ -47,7 +47,7 @@ func (e *ExpenseCategory) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (e *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	errs := middleware.Validate.Struct(e)
+	errs := constants.Validate.Struct(e)
 	if errs == nil {
 		return errors, true
 	}
@@ -60,7 +60,7 @@ func (e *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (e *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	errs := middleware.Validate.Struct(e)
+	errs := constants.Validate.Struct(e)
 	if errs == nil {
 		return errors, true
 	}
