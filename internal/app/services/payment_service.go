@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
-	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -33,50 +32,37 @@ func (s *PaymentService) GetPaginated(ctx context.Context, limit, offset int, so
 }
 
 func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) error {
-	ev := &payment.Created{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = sess
+	createdEvent, err := payment.NewCreatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity := data.ToEntity()
 	if err := s.Repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	ev.Result = &(*entity)
-	s.Publisher.Publish(ev)
+	createdEvent.Result = *entity
+	s.Publisher.Publish(createdEvent)
 	return nil
 }
 
 func (s *PaymentService) Update(ctx context.Context, id uint, data *payment.UpdateDTO) error {
-	evt := &payment.Updated{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	updatedEvent, err := payment.NewUpdatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity := data.ToEntity(id)
 	if err := s.Repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	evt.Result = &(*entity)
-	s.Publisher.Publish(evt)
+	updatedEvent.Result = *entity
+	s.Publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment.Payment, error) {
-	evt := &payment.Deleted{}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	deletedEvent, err := payment.NewDeletedEvent(ctx)
+	if err != nil {
+		return nil, err
 	}
 	entity, err := s.Repo.GetByID(ctx, id)
 	if err != nil {
@@ -85,7 +71,7 @@ func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment.Payment,
 	if err := s.Repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	evt.Result = entity
-	s.Publisher.Publish(evt)
+	deletedEvent.Result = *entity
+	s.Publisher.Publish(deletedEvent)
 	return entity, nil
 }
