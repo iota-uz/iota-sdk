@@ -14,7 +14,6 @@ import (
 
 var (
 	errLocalizerNotFound = errors.New("localizer not found")
-	config               = configuration.Use()
 )
 
 type PaginationParams struct {
@@ -23,6 +22,7 @@ type PaginationParams struct {
 }
 
 func UsePaginated(r *http.Request) PaginationParams {
+	config := configuration.Use()
 	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil || limit > config.MaxPageSize {
 		limit = config.PageSize

@@ -2,8 +2,8 @@ package functions
 
 import (
 	"encoding/json"
-	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
 	"gorm.io/gorm"
+	"slices"
 )
 
 type Ref struct {
@@ -84,7 +84,7 @@ func GetTables(db *gorm.DB) ([]string, error) {
 	}
 	result := []string{}
 	for _, table := range tables {
-		if sequence.Includes(exclude, table.Tablename) {
+		if slices.Contains(exclude, table.Tablename) {
 			continue
 		}
 		result = append(result, table.Tablename)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
@@ -140,7 +141,9 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 
 func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction) {
 	dbPayment := &models.Payment{
-		ID: entity.Id,
+		ID:            entity.Id,
+		StageID:       entity.StageId,
+		TransactionID: entity.TransactionId,
 	}
 	dbTransaction := &models.Transaction{
 		Amount:           entity.Amount,
@@ -164,6 +167,8 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		Comment:          t.Comment,
 		TransactionDate:  t.TransactionDate,
 		AccountingPeriod: t.AccountingPeriod,
+		StageId:          dbPayment.StageID,
+		TransactionId:    dbPayment.TransactionID,
 		AccountId:        t.MoneyAccountID,
 		CurrencyCode:     t.AmountCurrencyID,
 		CreatedAt:        dbPayment.CreatedAt,
@@ -220,5 +225,25 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.Expe
 		Currency:    *currencyEntity,
 		CreatedAt:   dbCategory.CreatedAt,
 		UpdatedAt:   dbCategory.UpdatedAt,
+	}, nil
+}
+
+func toDomainProject(dbProject *models.Project) (*project.Project, error) {
+	return &project.Project{
+		Id:          dbProject.ID,
+		Name:        dbProject.Name,
+		Description: dbProject.Description,
+		CreatedAt:   dbProject.CreatedAt,
+		UpdatedAt:   dbProject.UpdatedAt,
+	}, nil
+}
+
+func toDbProject(entity *project.Project) (*models.Project, error) {
+	return &models.Project{
+		ID:          entity.Id,
+		Name:        entity.Name,
+		Description: entity.Description,
+		CreatedAt:   entity.CreatedAt,
+		UpdatedAt:   entity.UpdatedAt,
 	}, nil
 }

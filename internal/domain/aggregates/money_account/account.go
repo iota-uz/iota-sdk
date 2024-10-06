@@ -9,7 +9,7 @@ import (
 )
 
 type Account struct {
-	ID            uint
+	Id            uint
 	Name          string
 	AccountNumber string
 	Description   string
@@ -85,7 +85,7 @@ func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
 		return nil, err
 	}
 	return &Account{
-		ID:            id,
+		Id:            id,
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,

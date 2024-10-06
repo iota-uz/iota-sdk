@@ -2,6 +2,7 @@ package accounts
 
 import (
 	"fmt"
+	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -15,7 +16,7 @@ import (
 
 type EditPageProps struct {
 	*types.PageContext
-	Account    *Account
+	Account    *moneyAccount.Account
 	Currencies []*currency.Currency
 	Errors     map[string]string
 }
@@ -73,7 +74,7 @@ templ EditForm(props *EditPageProps) {
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/accounts/%d", props.Account.ID) }
+				hx-delete={ fmt.Sprintf("/finance/accounts/%d", props.Account.Id) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"

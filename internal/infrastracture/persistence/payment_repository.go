@@ -66,6 +66,7 @@ func (g *GormPaymentRepository) Count(ctx context.Context) (uint, error) {
 }
 
 func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment.Payment, error) {
+	// TODO: use joins
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -116,10 +117,12 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data *payment.Paymen
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(data).Error; err != nil {
+	entity, transactionEntity := toDBPayment(data)
+	if err := tx.Create(entity).Error; err != nil {
 		return err
 	}
-	return nil
+	transactionEntity.ID = entity.TransactionID
+	return tx.Create(transactionEntity).Error
 }
 
 func (g *GormPaymentRepository) Update(ctx context.Context, data *payment.Payment) error {
@@ -127,10 +130,7 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data *payment.Paymen
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Save(data).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Save(data).Error
 }
 
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
@@ -138,8 +138,5 @@ func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&payment.Payment{}, id).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Delete(&payment.Payment{}, id).Error
 }

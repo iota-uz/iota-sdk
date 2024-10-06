@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	category "github.com/iota-agency/iota-erp/internal/domain/entities/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -22,7 +22,7 @@ import (
 type CreatePageProps struct {
 	*types.PageContext
 	Currencies []*currency.Currency
-	Category   *category.ExpenseCategory
+	Account    *moneyAccount.Account
 	Errors     map[string]string
 }
 
@@ -61,8 +61,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Name"),
-				Attrs: templ.Attributes{"name": "Name", "value": props.Category.Name},
+				Label: props.T("Accounts.Single.Name"),
+				Attrs: templ.Attributes{"name": "Name", "value": props.Account.Name},
 				Error: props.Errors["Name"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -73,9 +73,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Amount"),
-				Attrs: templ.Attributes{"name": "Amount", "value": props.Category.Amount},
-				Error: props.Errors["Amount"],
+				Label: props.T("Accounts.Single.Balance"),
+				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance},
+				Error: props.Errors["Balance"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -97,11 +97,23 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			templ_7745c5c3_Err = input.Text(&input.Props{
+				Label: props.T("Accounts.Single.AccountNumber"),
+				Attrs: templ.Attributes{"name": "AccountNumber", "value": props.Account.AccountNumber},
+				Error: props.Errors["AccountNumber"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label:        props.T("ExpenseCategories.Single.Description"),
+				Label:        props.T("Accounts.Single.Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
-				Value:        props.Category.Description,
+				Value:        props.Account.Description,
 				Error:        props.Errors["Description"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -113,7 +125,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -132,7 +144,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/new.templ`, Line: 55, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/accounts/new.templ`, Line: 60, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -149,7 +161,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
