@@ -13,11 +13,11 @@ func (s StatusEnum) IsValid() bool {
 }
 
 func NewStatus(value string) (*Status, error) {
-	s := &Status{}
-	if err := s.Set(StatusEnum(value)); err != nil {
-		return nil, err
+	status := StatusEnum(value)
+	if !status.IsValid() {
+		return nil, InvalidStatus
 	}
-	return s, nil
+	return &Status{value: status}, nil
 }
 
 type Status struct {
@@ -26,14 +26,6 @@ type Status struct {
 
 func (s Status) Get() StatusEnum {
 	return s.value
-}
-
-func (s Status) Set(value StatusEnum) error {
-	if !value.IsValid() {
-		return InvalidStatus
-	}
-	s.value = value
-	return nil
 }
 
 func (s Status) String() string {

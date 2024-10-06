@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
@@ -123,16 +122,16 @@ func ApplySort(query *gorm.DB, sortBy []string, model interface{}) (*gorm.DB, er
 	for _, s := range sortBy {
 		parts := strings.Split(s, " ")
 		if len(parts) != 2 {
-			return nil, errors.New(fmt.Sprintf("invalid sort field %s", s))
+			return nil, fmt.Errorf("invalid sort field %s", s)
 		}
 		sortByField := sequence.Title(parts[0])
 		order := parts[1]
 		if order != "asc" && order != "desc" {
-			return nil, errors.New(fmt.Sprintf("invalid sort order %s", order))
+			return nil, fmt.Errorf("invalid sort order %s", order)
 		}
 		field, ok := mapping[sortByField]
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("field %s not found", s))
+			return nil, fmt.Errorf("field %s not found", s)
 		}
 		query = query.Order(fmt.Sprintf("%s %s", field.DBName, order))
 	}

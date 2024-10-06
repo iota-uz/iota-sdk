@@ -12,11 +12,11 @@ func (s StatusEnum) IsValid() bool {
 }
 
 func NewStatus(value string) (*Status, error) {
-	s := &Status{}
-	if err := s.Set(StatusEnum(value)); err != nil {
-		return nil, err
+	status := StatusEnum(value)
+	if !status.IsValid() {
+		return nil, ErrInvalidStatus
 	}
-	return s, nil
+	return &Status{value: status}, nil
 }
 
 type Status struct {
@@ -29,14 +29,6 @@ func (s Status) Is(value StatusEnum) bool {
 
 func (s Status) Get() StatusEnum {
 	return s.value
-}
-
-func (s Status) Set(value StatusEnum) error {
-	if value.IsValid() {
-		return ErrInvalidStatus
-	}
-	s.value = value
-	return nil
 }
 
 func (s Status) String() string {
@@ -57,11 +49,11 @@ func (t TypeEnum) IsValid() bool {
 }
 
 func NewType(value string) (*Type, error) {
-	t := &Type{}
-	if err := t.Set(TypeEnum(value)); err != nil {
-		return nil, err
+	_type := TypeEnum(value)
+	if !_type.IsValid() {
+		return nil, ErrInvalidType
 	}
-	return t, nil
+	return &Type{value: _type}, nil
 }
 
 type Type struct {
@@ -74,14 +66,6 @@ func (t Type) Is(value TypeEnum) bool {
 
 func (t Type) Get() TypeEnum {
 	return t.value
-}
-
-func (t Type) Set(value TypeEnum) error {
-	if !value.IsValid() {
-		return ErrInvalidType
-	}
-	t.value = value
-	return nil
 }
 
 func (t Type) String() string {

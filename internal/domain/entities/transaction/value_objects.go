@@ -18,11 +18,11 @@ func (s TypeEnum) IsValid() bool {
 }
 
 func NewType(value string) (Type, error) {
-	s := Type{}
-	if err := s.Set(TypeEnum(value)); err != nil {
-		return Type{}, err
+	t := TypeEnum(value)
+	if !t.IsValid() {
+		return Type{}, InvalidType
 	}
-	return s, nil
+	return Type{value: t}, nil
 }
 
 type Type struct {
@@ -31,14 +31,6 @@ type Type struct {
 
 func (p Type) Get() TypeEnum {
 	return p.value
-}
-
-func (p Type) Set(value TypeEnum) error {
-	if !value.IsValid() {
-		return InvalidType
-	}
-	p.value = value
-	return nil
 }
 
 func (p Type) String() string {

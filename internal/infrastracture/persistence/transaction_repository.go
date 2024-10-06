@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
+	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
@@ -61,11 +62,11 @@ func (g *GormTransactionRepository) GetByID(ctx context.Context, id int64) (*tra
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entity transaction.Transaction
+	var entity models.Transaction
 	if err := tx.First(&entity, id).Error; err != nil {
 		return nil, err
 	}
-	return &entity, nil
+	return toDomainTransaction(&entity)
 }
 
 func (g *GormTransactionRepository) Create(ctx context.Context, data *transaction.Transaction) error {
@@ -73,10 +74,8 @@ func (g *GormTransactionRepository) Create(ctx context.Context, data *transactio
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(data).Error; err != nil {
-		return err
-	}
-	return nil
+	entity := toDBTransaction(data)
+	return tx.Create(entity).Error
 }
 
 func (g *GormTransactionRepository) Update(ctx context.Context, data *transaction.Transaction) error {
@@ -84,10 +83,8 @@ func (g *GormTransactionRepository) Update(ctx context.Context, data *transactio
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Save(data).Error; err != nil {
-		return err
-	}
-	return nil
+	entity := toDBTransaction(data)
+	return tx.Save(entity).Error
 }
 
 func (g *GormTransactionRepository) Delete(ctx context.Context, id int64) error {
@@ -95,8 +92,5 @@ func (g *GormTransactionRepository) Delete(ctx context.Context, id int64) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&transaction.Transaction{}, id).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Delete(&transaction.Transaction{}, id).Error
 }

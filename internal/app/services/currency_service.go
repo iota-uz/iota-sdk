@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 
-	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -33,14 +32,9 @@ func (s *CurrencyService) GetPaginated(ctx context.Context, limit, offset int, s
 }
 
 func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) error {
-	ev := &currency.Created{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = sess
+	createdEvent, err := currency.NewCreatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity, err := data.ToEntity()
 	if err != nil {
@@ -49,22 +43,17 @@ func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) 
 	if err := s.Repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	ev.Result = &(*entity)
-	s.Publisher.Publish(ev)
+	createdEvent.Result = *entity
+	s.Publisher.Publish(createdEvent)
 	return nil
 }
 
 // TODO: deal with id
 
 func (s *CurrencyService) Update(ctx context.Context, id string, data *currency.UpdateDTO) error {
-	evt := &currency.Updated{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	updatedEvent, err := currency.NewUpdatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity, err := data.ToEntity()
 	if err != nil {
@@ -73,18 +62,15 @@ func (s *CurrencyService) Update(ctx context.Context, id string, data *currency.
 	if err := s.Repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	evt.Result = &(*entity)
-	s.Publisher.Publish(evt)
+	updatedEvent.Result = *entity
+	s.Publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *CurrencyService) Delete(ctx context.Context, id uint) (*currency.Currency, error) {
-	evt := &currency.Deleted{}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	deletedEvent, err := currency.NewDeletedEvent(ctx)
+	if err != nil {
+		return nil, err
 	}
 	entity, err := s.Repo.GetByID(ctx, id)
 	if err != nil {
@@ -93,7 +79,7 @@ func (s *CurrencyService) Delete(ctx context.Context, id uint) (*currency.Curren
 	if err := s.Repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	evt.Result = entity
-	s.Publisher.Publish(evt)
+	deletedEvent.Result = *entity
+	s.Publisher.Publish(deletedEvent)
 	return entity, nil
 }

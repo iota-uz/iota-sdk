@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 
-	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -37,14 +36,9 @@ func (s *ExpenseCategoryService) GetPaginated(ctx context.Context, limit, offset
 }
 
 func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.CreateDTO) error {
-	ev := &category.Created{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = sess
+	createdEvent, err := category.NewCreatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity, err := data.ToEntity()
 	if err != nil {
@@ -53,20 +47,15 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.Crea
 	if err := s.Repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	ev.Result = &(*entity)
-	s.Publisher.Publish(ev)
+	createdEvent.Result = *entity
+	s.Publisher.Publish(createdEvent)
 	return nil
 }
 
 func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *category.UpdateDTO) error {
-	evt := &category.Updated{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	updatedEvent, err := category.NewUpdatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	entity, err := data.ToEntity(id)
 	if err != nil {
@@ -75,18 +64,15 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *cate
 	if err := s.Repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	evt.Result = &(*entity)
-	s.Publisher.Publish(evt)
+	updatedEvent.Result = *entity
+	s.Publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
-	evt := &category.Deleted{}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	deletedEvent, err := category.NewDeletedEvent(ctx)
+	if err != nil {
+		return nil, err
 	}
 	entity, err := s.Repo.GetByID(ctx, id)
 	if err != nil {
@@ -95,7 +81,7 @@ func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category
 	if err := s.Repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	evt.Result = entity
-	s.Publisher.Publish(evt)
+	deletedEvent.Result = *entity
+	s.Publisher.Publish(deletedEvent)
 	return entity, nil
 }
