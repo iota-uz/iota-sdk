@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
-	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -41,24 +40,18 @@ func (s *UserService) GetPaginated(ctx context.Context, limit, offset int, sortB
 }
 
 func (s *UserService) Create(ctx context.Context, data *user.User) error {
-	ev := &user.Created{
-		Data: &(*data),
+	createdEvent, err := user.NewCreatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = sess
-	}
-
 	if err := data.SetPassword(*data.Password); err != nil {
 		return err
 	}
 	if err := s.Repo.Create(ctx, data); err != nil {
 		return err
 	}
-	ev.Result = &(*data)
-	s.Publisher.Publish(ev)
+	createdEvent.Result = *data
+	s.Publisher.Publish(createdEvent)
 	return nil
 }
 
@@ -71,30 +64,22 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id int64) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data *user.User) error {
-	evt := &user.Updated{
-		Data: &(*data),
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	updatedEvent, err := user.NewUpdatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	if err := s.Repo.Update(ctx, data); err != nil {
 		return err
 	}
-	evt.Result = &(*data)
-	s.Publisher.Publish(evt)
+	updatedEvent.Result = *data
+	s.Publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id int64) (*user.User, error) {
-	evt := &user.Deleted{}
-	if u, err := composables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	deletedEvent, err := user.NewDeletedEvent(ctx)
+	if err != nil {
+		return nil, err
 	}
 	entity, err := s.Repo.GetByID(ctx, id)
 	if err != nil {
@@ -103,7 +88,7 @@ func (s *UserService) Delete(ctx context.Context, id int64) (*user.User, error) 
 	if err := s.Repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	evt.Result = entity
-	s.Publisher.Publish(evt)
+	deletedEvent.Result = *entity
+	s.Publisher.Publish(deletedEvent)
 	return entity, nil
 }

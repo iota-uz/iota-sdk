@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	localComposables "github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"net/http"
 )
@@ -47,8 +48,8 @@ func Authorization(authService AuthService) mux.MiddlewareFunc {
 				panic("params not found. Add RequestParams middleware up the chain")
 			}
 			params.Authenticated = true
-			ctx = context.WithValue(ctx, "user", u)
-			next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, "session", sess)))
+			ctx = context.WithValue(ctx, constants.UserKey, u)
+			next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, constants.SessionKey, sess)))
 		})
 	}
 }

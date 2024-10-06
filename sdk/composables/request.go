@@ -4,6 +4,7 @@ package composables
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/sdk/constants"
 	"log"
 	"net/http"
 
@@ -23,13 +24,13 @@ type Params struct {
 // UseParams returns the request parameters from the context.
 // If the parameters are not found, the second return value will be false.
 func UseParams(ctx context.Context) (*Params, bool) {
-	params, ok := ctx.Value("params").(*Params)
+	params, ok := ctx.Value(constants.ParamsKey).(*Params)
 	return params, ok
 }
 
 // WithParams returns a new context with the request parameters.
 func WithParams(ctx context.Context, params *Params) context.Context {
-	return context.WithValue(ctx, "params", params)
+	return context.WithValue(ctx, constants.ParamsKey, params)
 }
 
 // UseRequest returns the request from the context.
@@ -45,7 +46,7 @@ func UseRequest(ctx context.Context) (*http.Request, bool) {
 // UseLogger returns the logger from the context.
 // If the logger is not found, the second return value will be false.
 func UseLogger(ctx context.Context) (*log.Logger, bool) {
-	logger, ok := ctx.Value("logger").(*log.Logger)
+	logger, ok := ctx.Value(constants.LoggerKey).(*log.Logger)
 	if !ok {
 		return nil, false
 	}
@@ -64,13 +65,13 @@ func UseMeta(ctx context.Context) (map[string]interface{}, bool) {
 
 // WithTx returns a new context with the database transaction.
 func WithTx(ctx context.Context, tx *gorm.DB) context.Context {
-	return context.WithValue(ctx, "tx", tx)
+	return context.WithValue(ctx, constants.TxKey, tx)
 }
 
 // UseTx returns the database transaction from the context.
 // If the transaction is not found, the second return value will be false.
 func UseTx(ctx context.Context) (*gorm.DB, bool) {
-	tx, ok := ctx.Value("tx").(*gorm.DB)
+	tx, ok := ctx.Value(constants.TxKey).(*gorm.DB)
 	if !ok {
 		return nil, false
 	}
