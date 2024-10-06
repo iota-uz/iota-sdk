@@ -60,7 +60,10 @@ func (s *Server) Start() {
 		}
 
 		api := client.API()
-		api.MessagesGetChats(ctx, []int64{1})
+		_, err = api.MessagesGetChats(ctx, []int64{1})
+		if err != nil {
+			return err
+		}
 
 		//messages, err := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 		//	Channel: &tg.InputChannel{

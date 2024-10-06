@@ -10,7 +10,6 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"io"
 	"log"
-	"time"
 )
 
 type DialogueService struct {
@@ -125,20 +124,20 @@ func (s *DialogueService) streamCompletions(
 	return ch, nil
 }
 
-func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error) {
-	ch := make(chan openai.ChatCompletionMessage)
-	msg := "Hello, how can I help you?"
-	go func() {
-		for i, _ := range msg {
-			ch <- openai.ChatCompletionMessage{
-				Role:    openai.ChatMessageRoleAssistant,
-				Content: msg[:i+1],
-			}
-			time.Sleep(40 * time.Millisecond)
-		}
-	}()
-	return ch, nil
-}
+//func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error) {
+//	ch := make(chan openai.ChatCompletionMessage)
+//	msg := "Hello, how can I help you?"
+//	go func() {
+//		for i, _ := range msg {
+//			ch <- openai.ChatCompletionMessage{
+//				Role:    openai.ChatMessageRoleAssistant,
+//				Content: msg[:i+1],
+//			}
+//			time.Sleep(40 * time.Millisecond)
+//		}
+//	}()
+//	return ch, nil
+//}
 
 func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialogue, model string) error {
 	for i := 0; i < 10; i++ {

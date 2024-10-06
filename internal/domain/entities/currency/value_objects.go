@@ -8,16 +8,16 @@ type CodeEnum string
 
 const (
 	UsdCode CodeEnum = "USD"
-	EurCode          = "EUR"
-	GbpCode          = "GBP"
-	AudCode          = "AUD"
-	CadCode          = "CAD"
-	ChfCode          = "CHF"
-	CnyCode          = "CNY"
-	JpyCode          = "JPY"
-	RubCode          = "RUB"
-	TryCode          = "TRY"
-	SomCode          = "SOM"
+	EurCode CodeEnum = "EUR"
+	GbpCode CodeEnum = "GBP"
+	AudCode CodeEnum = "AUD"
+	CadCode CodeEnum = "CAD"
+	ChfCode CodeEnum = "CHF"
+	CnyCode CodeEnum = "CNY"
+	JpyCode CodeEnum = "JPY"
+	RubCode CodeEnum = "RUB"
+	TryCode CodeEnum = "TRY"
+	SomCode CodeEnum = "SOM"
 )
 
 func (s CodeEnum) IsValid() bool {
@@ -48,16 +48,16 @@ type SymbolEnum string
 
 const (
 	UsdSymbol SymbolEnum = "$"
-	EurSymbol            = "€"
-	GbpSymbol            = "£"
-	AudSymbol            = "A$"
-	CadSymbol            = "C$"
-	ChfSymbol            = "CHF"
-	CnySymbol            = "¥"
-	JpySymbol            = "¥"
-	RubSymbol            = "₽"
-	TrySymbol            = "₺"
-	SomSymbol            = "S"
+	EurSymbol SymbolEnum = "€"
+	GbpSymbol SymbolEnum = "£"
+	AudSymbol SymbolEnum = "A$"
+	CadSymbol SymbolEnum = "C$"
+	ChfSymbol SymbolEnum = "CHF"
+	CnySymbol SymbolEnum = "¥"
+	JpySymbol SymbolEnum = "¥"
+	RubSymbol SymbolEnum = "₽"
+	TrySymbol SymbolEnum = "₺"
+	SomSymbol SymbolEnum = "S"
 )
 
 func (s SymbolEnum) IsValid() bool {

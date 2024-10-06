@@ -171,5 +171,5 @@ func UnitConversion(amount float64, from string, to string) (float64, error) {
 			return amount * unitMap[from] / unitMap[to], nil
 		}
 	}
-	return 0, errors.New(fmt.Sprintf("Cannot convert from %s to %s", from, to))
+	return 0, fmt.Errorf("cannot convert from %s to %s", from, to)
 }
