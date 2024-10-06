@@ -1,4 +1,4 @@
-name: Test & Build
+name: Test, lint & build
 
 on:
   - push
@@ -8,9 +8,8 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Build, test && lint
-        run: docker compose -f docker-compose.testing.yml up --build --abort-on-container-exit
-
+      - name: Test, lint & build
+        run: docker compose -f docker-compose.testing.yml up --build --exit-code-from erp

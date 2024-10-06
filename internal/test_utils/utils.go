@@ -8,13 +8,16 @@ import (
 	"github.com/rubenv/sql-migrate"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"log"
 )
 
 func SqlOpen(dbOpts string) (*sql.DB, error) {
+	log.Println("dbOpts: ", dbOpts)
 	return sql.Open("postgres", dbOpts)
 }
 
 func RunMigrations(db *sql.DB) error {
+	log.Println("Run migrations")
 	migrations := &migrate.FileMigrationSource{
 		Dir: "migrations",
 	}
