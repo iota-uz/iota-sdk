@@ -151,8 +151,8 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 		})
 		for m := range ch {
 			data.Messages[len(data.Messages)-1] = m
-			s.app.EventPublisher.Publish(dialogue.Updated{
-				Result: data,
+			s.app.EventPublisher.Publish(dialogue.UpdatedEvent{
+				Result: *data,
 			})
 		}
 		msg := data.Messages[len(data.Messages)-1]
@@ -236,16 +236,12 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err := s.repo.Create(ctx, data); err != nil {
 		return nil, err
 	}
-	sess, err := localComposables.UseSession(ctx)
+	createdEvent, err := dialogue.NewCreatedEvent(ctx, *data)
 	if err != nil {
 		return nil, err
 	}
-	s.app.EventPublisher.Publish(dialogue.Created{
-		Data:    data,
-		Result:  data,
-		Sender:  u,
-		Session: sess,
-	})
+	createdEvent.Result = *data
+	s.app.EventPublisher.Publish(createdEvent)
 	if err := s.ChatComplete(ctx, data, model); err != nil {
 		return nil, err
 	}
@@ -253,36 +249,29 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 }
 
 func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) error {
-	evt := &dialogue.Updated{
-		Data: &(*data),
-	}
-	if u, err := localComposables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := localComposables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	updatedEvent, err := dialogue.NewUpdatedEvent(ctx, *data)
+	if err != nil {
+		return err
 	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	evt.Result = &(*data)
-	s.app.EventPublisher.Publish(evt)
+	updatedEvent.Result = *data
+	s.app.EventPublisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
-	evt := &dialogue.Deleted{}
-	if u, err := localComposables.UseUser(ctx); err == nil {
-		evt.Sender = u
-	}
-	if sess, err := localComposables.UseSession(ctx); err == nil {
-		evt.Session = sess
+	evt := &dialogue.DeletedEvent{}
+	deletedEvent, err := dialogue.NewDeletedEvent(ctx)
+	if err != nil {
+		return nil, err
 	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	evt.Result = entity
+	deletedEvent.Result = *entity
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
