@@ -2,9 +2,10 @@ package seed
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 )
 

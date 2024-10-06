@@ -2,14 +2,16 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
+	"log"
+	"os"
+	"time"
+
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
 )
 
 func newLogger(level logger.LogLevel) logger.Interface {
@@ -36,7 +38,7 @@ func ConnectDB(dbOpts string, level logger.LogLevel) (*gorm.DB, error) {
 	return db, nil
 }
 
-func CheckModels(db *gorm.DB) {
+func CheckModels(db *gorm.DB) error {
 	registeredModels := []interface{}{
 		&models.Upload{},
 		&models.User{},
@@ -52,6 +54,7 @@ func CheckModels(db *gorm.DB) {
 		&models.Currency{},
 		&models.Transaction{},
 		&models.WarehouseProduct{},
+		&models.MoneyAccount{},
 	}
 	var errs []error
 	for _, model := range registeredModels {
@@ -59,7 +62,8 @@ func CheckModels(db *gorm.DB) {
 			errs = append(errs, err)
 		}
 	}
-	if len(errs) > 0 {
-		log.Fatalf("models are out of sync: %v", errors.Join(errs...))
+	if len(errs) == 0 {
+		return nil
 	}
+	return fmt.Errorf("models are out of sync: %v", errors.Join(errs...))
 }

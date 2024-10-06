@@ -4,19 +4,19 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/urfave/cli/v2"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"text/template"
+
+	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v3"
 )
 
 func New() *App {
 	return &App{}
 }
 
-type App struct {
-}
+type App struct{}
 
 type Arg struct {
 	Name     string `yaml:"name"`

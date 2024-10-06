@@ -1,17 +1,18 @@
 package transaction
 
+import "fmt"
+
 type TypeEnum string
 
-// income, expense, transfer
 const (
-	Income   TypeEnum = "income"
-	Expense  TypeEnum = "expense"
-	Transfer TypeEnum = "transfer"
+	IncomeType   TypeEnum = "income"
+	ExpenseType  TypeEnum = "expense"
+	TransferType TypeEnum = "transfer"
 )
 
 func (s TypeEnum) IsValid() bool {
 	switch s {
-	case Income, Expense, Transfer:
+	case IncomeType, ExpenseType, TransferType:
 		return true
 	}
 	return false
@@ -20,7 +21,7 @@ func (s TypeEnum) IsValid() bool {
 func NewType(value string) (Type, error) {
 	t := TypeEnum(value)
 	if !t.IsValid() {
-		return Type{}, InvalidType
+		return Type{}, fmt.Errorf("invalid type: %s", value)
 	}
 	return Type{value: t}, nil
 }

@@ -3,19 +3,20 @@ package tgServer
 import (
 	"context"
 	"fmt"
+	"strconv"
+
 	"github.com/gotd/td/telegram"
 	"github.com/iota-agency/iota-erp/sdk/utils/env"
 	"github.com/jmoiron/sqlx"
-	"strconv"
 )
 
 type Server struct {
-	Db *sqlx.DB
+	DB *sqlx.DB
 }
 
 func New(db *sqlx.DB) *Server {
 	return &Server{
-		Db: db,
+		DB: db,
 	}
 }
 
@@ -25,14 +26,14 @@ func (s *Server) Start() {
 		panic(err)
 	}
 	appHash := env.GetEnv("TELEGRAM_APP_HASH", "")
-	//log, err := zap.NewDevelopment()
+	// log, err := zap.NewDevelopment()
 	//if err != nil {
 	//	panic(err)
 	//}
 	//
 	client := telegram.NewClient(appId, appHash, telegram.Options{
-		SessionStorage: NewDbSession(s.Db, 1),
-		//Logger:         log,
+		SessionStorage: NewDbSession(s.DB, 1),
+		// Logger:         log,
 	})
 	if err := client.Run(context.Background(), func(ctx context.Context) error {
 		status, err := client.Auth().Status(ctx)
@@ -41,7 +42,7 @@ func (s *Server) Start() {
 		}
 		if !status.Authorized {
 			return fmt.Errorf("not authorized")
-			//phone := utils.GetEnv("TELEGRAM_PHONE", "")
+			// phone := utils.GetEnv("TELEGRAM_PHONE", "")
 			//password := utils.GetEnv("TELEGRAM_PASSWORD", "")
 			//codePrompt := func(ctx context.Context, sentCode *tg.AuthSentCode) (string, error) {
 			//	fmt.Print("Enter code: ")
@@ -65,7 +66,7 @@ func (s *Server) Start() {
 			return err
 		}
 
-		//messages, err := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
+		// messages, err := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 		//	Channel: &tg.InputChannel{
 		//		AccessHash: -1001266437419,
 		//		ChannelID:  -1001266437419,

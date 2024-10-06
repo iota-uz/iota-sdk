@@ -3,13 +3,14 @@ package services
 import (
 	"context"
 	"errors"
+	"io"
+	"log"
+
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/dialogue"
 	localComposables "github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
+	functions "github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
 	"github.com/sashabaranov/go-openai"
-	"io"
-	"log"
 )
 
 type DialogueService struct {
@@ -25,9 +26,9 @@ var (
 
 func NewDialogueService(repo dialogue.Repository, app *Application) *DialogueService {
 	chatFuncs := functions.New()
-	//chatFuncs.Add(functions.NewGetSchema(app.Db))
+
 	//chatFuncs.Add(chatfuncs.NewCurrencyConvert())
-	//chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.Db))
+	//chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.DB))
 	chatFuncs.Add(NewSearchKnowledgeBase(app.EmbeddingService))
 	return &DialogueService{
 		repo:      repo,
@@ -124,7 +125,7 @@ func (s *DialogueService) streamCompletions(
 	return ch, nil
 }
 
-//func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error) {
+// func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error) {
 //	ch := make(chan openai.ChatCompletionMessage)
 //	msg := "Hello, how can I help you?"
 //	go func() {
@@ -164,7 +165,7 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 		}
 		for _, call := range msg.ToolCalls {
 			funcName := call.Function.Name
-			//if funcName == "do_sql_query" && !tools.HasCalledMethod("get_schema") {
+			// if funcName == "do_sql_query" && !tools.HasCalledMethod("get_schema") {
 			//	messages = append(messages, openai.ChatCompletionMessage{
 			//		Role:    openai.ChatMessageRoleTool,
 			//		Content: `{"error": "You must call 'get_schema' first."}`,

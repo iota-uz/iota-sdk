@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"gorm.io/gorm/logger"
 	"log"
 	"net/http"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/iota-agency/iota-erp/sdk/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
+	"gorm.io/gorm/logger"
 )
 
 type Server struct {
@@ -23,7 +23,6 @@ type Server struct {
 }
 
 func (s *Server) init() error {
-
 	return nil
 }
 
@@ -50,7 +49,9 @@ func DefaultServer() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	CheckModels(db)
+	if err := CheckModels(db); err != nil {
+		return nil, err
+	}
 	application := app.New(db)
 	bundle := loadBundle()
 	return &Server{

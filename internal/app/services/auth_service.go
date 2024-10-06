@@ -96,7 +96,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (*user.User, 
 		return nil, nil, err
 	}
 	// TODO: update last action
-	//if err := s.app.UserService.UpdateLastAction(ctx, u.Id); err != nil {
+	// if err := s.app.UserService.UpdateLastAction(ctx, u.Id); err != nil {
 	//	return nil, nil, err
 	//}
 	return u, sess, nil

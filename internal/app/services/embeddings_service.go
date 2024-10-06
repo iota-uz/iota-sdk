@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+
 	"github.com/iota-agency/iota-erp/internal/domain/entities/embedding"
 	functions "github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
-	"net/http"
 )
 
 type EmbeddingService struct {
@@ -96,7 +97,7 @@ func (s searchKnowledgeBase) Execute(args map[string]interface{}) (string, error
 }
 
 //
-//func (s *EmbeddingService) GetByUUID(ctx context.Context, uuid string) (*composables.Embedding, error) {
+// func (s *EmbeddingService) GetByUUID(ctx context.Context, uuid string) (*composables.Embedding, error) {
 //	return s.app.Embeddings.GetByUUID(ctx, uuid)
 //}
 //

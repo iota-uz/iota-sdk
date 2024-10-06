@@ -3,20 +3,21 @@ package helpers
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"reflect"
-	"strings"
-	"sync"
 )
 
 type FieldsFilter func(f *schema.Field) bool
 
 // GetGormFields returns a map of fields of a model that are readable and match the filter
 // The key of the map is the alias of the field in the graphql schema
-// The value is the field itself
+// The value is the field itself.
 func GetGormFields(model interface{}, filter FieldsFilter) (map[string]*schema.Field, error) {
 	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
@@ -65,7 +66,6 @@ func CheckModelIsInSync(db *gorm.DB, model interface{}) error {
 				modelType.Name(),
 			)
 		}
-
 	}
 	for _, field := range fields {
 		if !db.Migrator().HasColumn(model, field.DBName) {

@@ -13,8 +13,7 @@ func NewUserRepository() user.Repository {
 	return &GormUserRepository{}
 }
 
-type GormUserRepository struct {
-}
+type GormUserRepository struct{}
 
 func (g *GormUserRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*user.User, error) {
 	tx, ok := composables.UseTx(ctx)

@@ -2,10 +2,10 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
@@ -13,8 +13,7 @@ func NewProjectStageRepository() stage.Repository {
 	return &GormStageRepository{}
 }
 
-type GormStageRepository struct {
-}
+type GormStageRepository struct{}
 
 func (g *GormStageRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*stage.ProjectStage, error) {
 	tx, ok := composables.UseTx(ctx)

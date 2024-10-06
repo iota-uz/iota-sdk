@@ -1,9 +1,10 @@
 package employee
 
 import (
+	"time"
+
 	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"time"
 )
 
 type Meta struct {

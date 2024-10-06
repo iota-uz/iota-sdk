@@ -9,6 +9,4 @@ const (
 	SessionKey UserContextKey = "session"
 )
 
-var (
-	Validate = validator.New(validator.WithRequiredStructEnabled())
-)
+var Validate = validator.New(validator.WithRequiredStructEnabled())

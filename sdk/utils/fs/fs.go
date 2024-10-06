@@ -22,5 +22,5 @@ func MkDirIfNone(dir string) error {
 	if DirExists(dir) {
 		return nil
 	}
-	return os.Mkdir(dir, 0755)
+	return os.Mkdir(dir, 0o755)
 }

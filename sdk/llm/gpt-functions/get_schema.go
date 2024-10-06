@@ -40,7 +40,8 @@ func GetFkRelations(db *gorm.DB, tn string) ([]struct {
 	ColumnName        string `db:"column_name"`
 	ForeignTableName  string `db:"foreign_table_name"`
 	ForeignColumnName string `db:"foreign_column_name"`
-}, error) {
+}, error,
+) {
 	var relations []struct {
 		ColumnName        string `db:"column_name"`
 		ForeignTableName  string `db:"foreign_table_name"`

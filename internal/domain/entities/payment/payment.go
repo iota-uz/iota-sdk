@@ -1,17 +1,15 @@
 package payment
 
 import (
-	"github.com/go-playground/validator/v10"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"time"
 
+	"github.com/go-playground/validator/v10"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-var (
-	validate = validator.New(validator.WithRequiredStructEnabled())
-)
+var validate = validator.New(validator.WithRequiredStructEnabled())
 
 type Payment struct {
 	Id               uint

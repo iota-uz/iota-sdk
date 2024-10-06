@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
+
+	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormExpenseCategoryRepository struct {
-}
+type GormExpenseCategoryRepository struct{}
 
 func NewExpenseCategoryRepository() category.Repository {
 	return &GormExpenseCategoryRepository{}

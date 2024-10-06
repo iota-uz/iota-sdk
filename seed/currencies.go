@@ -2,8 +2,9 @@ package seed
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 )
 
 func CreateCurrencies(ctx context.Context) error {

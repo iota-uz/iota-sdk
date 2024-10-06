@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
@@ -9,7 +11,6 @@ import (
 	localComposables "github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/sdk/composables"
-	"net/http"
 )
 
 type AuthService interface {

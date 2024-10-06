@@ -1,7 +1,7 @@
 package permission
 
 import (
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
 type Permission struct {

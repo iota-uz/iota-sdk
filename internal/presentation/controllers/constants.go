@@ -2,6 +2,4 @@ package controllers
 
 import "github.com/go-playground/form"
 
-var (
-	decoder = form.NewDecoder()
-)
+var decoder = form.NewDecoder()

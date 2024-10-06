@@ -12,9 +12,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-var (
-	errLocalizerNotFound = errors.New("localizer not found")
-)
+var errLocalizerNotFound = errors.New("localizer not found")
 
 type PaginationParams struct {
 	Limit  int

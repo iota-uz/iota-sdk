@@ -1,8 +1,9 @@
 package authlog
 
 import (
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"time"
+
+	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
 type AuthenticationLog struct {

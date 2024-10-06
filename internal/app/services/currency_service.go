@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 
+	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 

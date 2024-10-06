@@ -2,13 +2,13 @@ package persistence
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormPositionRepository struct {
-}
+type GormPositionRepository struct{}
 
 func NewPositionRepository() position.Repository {
 	return &GormPositionRepository{}
