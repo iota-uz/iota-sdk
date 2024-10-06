@@ -2,15 +2,15 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
+
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormProjectRepository struct {
-}
+type GormProjectRepository struct{}
 
 func NewProjectRepository() project.Repository {
 	return &GormProjectRepository{}

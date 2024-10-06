@@ -1,5 +1,7 @@
 package inventory
 
+import "fmt"
+
 type StatusEnum string
 
 const (
@@ -15,7 +17,7 @@ func (s StatusEnum) IsValid() bool {
 func NewStatus(value string) (*Status, error) {
 	status := StatusEnum(value)
 	if !status.IsValid() {
-		return nil, InvalidStatus
+		return nil, fmt.Errorf("invalid status: %s", value)
 	}
 	return &Status{value: status}, nil
 }

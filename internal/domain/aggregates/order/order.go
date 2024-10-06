@@ -1,8 +1,9 @@
 package order
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
 	"time"
+
+	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
 )
 
 type Order struct {

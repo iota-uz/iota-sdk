@@ -243,7 +243,8 @@ type MoneyAccount struct {
 	AccountNumber     string
 	Description       string
 	Balance           float64
-	BalanceCurrencyID uint
+	BalanceCurrencyID string
+	Currency          Currency `gorm:"foreignKey:BalanceCurrencyID;references:Code"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
@@ -274,6 +275,7 @@ type Payment struct {
 	ID            uint
 	StageID       uint
 	TransactionID uint
+	Transaction   Transaction `gorm:"foreignKey:TransactionID;references:ID"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

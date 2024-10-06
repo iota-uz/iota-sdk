@@ -1,5 +1,7 @@
 package order
 
+import "fmt"
+
 type StatusEnum string
 
 const (
@@ -14,7 +16,7 @@ func (s StatusEnum) IsValid() bool {
 func NewStatus(value string) (*Status, error) {
 	status := StatusEnum(value)
 	if !status.IsValid() {
-		return nil, ErrInvalidStatus
+		return nil, fmt.Errorf("invalid status: %s", value)
 	}
 	return &Status{value: status}, nil
 }
@@ -51,7 +53,7 @@ func (t TypeEnum) IsValid() bool {
 func NewType(value string) (*Type, error) {
 	_type := TypeEnum(value)
 	if !_type.IsValid() {
-		return nil, ErrInvalidType
+		return nil, fmt.Errorf("invalid type: %s", value)
 	}
 	return &Type{value: _type}, nil
 }

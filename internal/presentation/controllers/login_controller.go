@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"github.com/gorilla/mux"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/login"
 	"github.com/iota-agency/iota-erp/pkg/composables"

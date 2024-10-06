@@ -2,8 +2,8 @@ package composables
 
 import (
 	"context"
-	ut "github.com/go-playground/universal-translator"
 
+	ut "github.com/go-playground/universal-translator"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

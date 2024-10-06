@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"github.com/gorilla/mux"
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/home"
 	"github.com/iota-agency/iota-erp/pkg/composables"

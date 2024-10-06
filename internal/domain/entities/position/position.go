@@ -1,8 +1,9 @@
 package position
 
 import (
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"time"
+
+	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
 type Position struct {

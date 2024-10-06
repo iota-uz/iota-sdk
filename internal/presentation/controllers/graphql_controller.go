@@ -1,12 +1,13 @@
 package controllers
 
 import (
+	"log"
+
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/interfaces/graph"
-	"log"
 )
 
 type GraphQLController struct {

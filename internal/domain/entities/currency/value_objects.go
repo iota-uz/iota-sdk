@@ -1,6 +1,7 @@
 package currency
 
 import (
+	"fmt"
 	"slices"
 )
 
@@ -27,7 +28,7 @@ func (s CodeEnum) IsValid() bool {
 func NewCode(value string) (Code, error) {
 	c := CodeEnum(value)
 	if !c.IsValid() {
-		return Code{}, InvalidCode
+		return Code{}, fmt.Errorf("invalid currency code: %s", value)
 	}
 	return Code{value: c}, nil
 }
@@ -67,7 +68,7 @@ func (s SymbolEnum) IsValid() bool {
 func NewSymbol(value string) (Symbol, error) {
 	s := SymbolEnum(value)
 	if !s.IsValid() {
-		return Symbol{}, InvalidSymbol
+		return Symbol{}, fmt.Errorf("invalid currency symbol: %s", value)
 	}
 	return Symbol{value: s}, nil
 }

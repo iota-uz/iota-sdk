@@ -1,9 +1,10 @@
 package controllers
 
 import (
-	"github.com/gorilla/mux"
 	"net/http"
 	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
 func parseId(r *http.Request) (uint, error) {

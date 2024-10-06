@@ -2,15 +2,15 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
+
+	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormUnitsRepository struct {
-}
+type GormUnitsRepository struct{}
 
 func NewUnitsRepository() unit.Repository {
 	return &GormUnitsRepository{}

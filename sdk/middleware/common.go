@@ -2,31 +2,32 @@ package middleware
 
 import (
 	"context"
+	"log"
+	"net/http"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/constants"
 	"github.com/rs/cors"
 	"gorm.io/gorm"
-	"log"
-	"net/http"
-	"time"
 )
 
-var (
-	AllowMethods = []string{
-		http.MethodConnect,
-		http.MethodOptions,
-		http.MethodGet,
-		http.MethodPost,
-		http.MethodHead,
-		http.MethodPatch,
-		http.MethodPut,
-		http.MethodDelete,
-	}
-)
+var AllowMethods = []string{
+	http.MethodConnect,
+	http.MethodOptions,
+	http.MethodGet,
+	http.MethodPost,
+	http.MethodHead,
+	http.MethodPatch,
+	http.MethodPut,
+	http.MethodDelete,
+}
 
-type GenericConstructor func(r *http.Request, w http.ResponseWriter) interface{}
-type ParamsConstructor func(r *http.Request, w http.ResponseWriter) *composables.Params
+type (
+	GenericConstructor func(r *http.Request, w http.ResponseWriter) interface{}
+	ParamsConstructor  func(r *http.Request, w http.ResponseWriter) *composables.Params
+)
 
 func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composables.Params {
 	return &composables.Params{

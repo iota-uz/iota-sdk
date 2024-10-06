@@ -1,14 +1,14 @@
 package graph
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
-	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"net/http"
-	"time"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -43,11 +43,12 @@ func NewDefaultServer(app *services.Application) *handler.Server {
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.MultipartForm{})
 
-	srv.SetQueryCache(lru.New(1000))
+	// TODO: make LRU work
+	// srv.SetQueryCache(lru.New(1000))
 
 	srv.Use(extension.Introspection{})
-	srv.Use(extension.AutomaticPersistedQuery{
-		Cache: lru.New(100),
-	})
+	//srv.Use(extension.AutomaticPersistedQuery{
+	//	Cache: lru.New(100),
+	//})
 	return srv
 }

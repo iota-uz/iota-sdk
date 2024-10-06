@@ -2,6 +2,7 @@ package functions
 
 import (
 	"encoding/json"
+
 	"github.com/sashabaranov/go-openai"
 	"gorm.io/gorm"
 )

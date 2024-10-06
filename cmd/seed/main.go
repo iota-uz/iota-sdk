@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/seed"

@@ -1,9 +1,10 @@
 package main
 
 import (
+	"log"
+
 	"github.com/iota-agency/iota-erp/internal/server"
 	_ "github.com/lib/pq"
-	"log"
 )
 
 func main() {

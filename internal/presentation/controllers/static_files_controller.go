@@ -1,14 +1,14 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/presentation/assets"
-	"net/http"
 )
 
-type StaticFilesController struct {
-}
+type StaticFilesController struct{}
 
 func (s *StaticFilesController) Register(r *mux.Router) {
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))

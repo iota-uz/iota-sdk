@@ -2,12 +2,13 @@ package configuration
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/sdk/utils/fs"
-	"github.com/joho/godotenv"
 	"log"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/iota-agency/iota-erp/sdk/utils/fs"
+	"github.com/joho/godotenv"
 )
 
 func LoadEnv(envFiles []string) (int, error) {
@@ -70,7 +71,7 @@ func parseDuration(value, unit string) (time.Duration, error) {
 // Example: 1y
 // Example: 30d
 // Example: 1w
-// Example: 1M
+// Example: 1M.
 func ParseDuration(d string) (time.Duration, error) {
 	valueUnitRegex := regexp.MustCompile(`(\d+)([smhdwMy])`)
 	matches := valueUnitRegex.FindAllStringSubmatch(d, -1)

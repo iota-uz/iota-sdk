@@ -2,13 +2,13 @@ package persistence
 
 import (
 	"context"
+
 	dialogue2 "github.com/iota-agency/iota-erp/internal/domain/entities/dialogue"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormDialogueRepository struct {
-}
+type GormDialogueRepository struct{}
 
 func NewDialogueRepository() dialogue2.Repository {
 	return &GormDialogueRepository{}

@@ -1,16 +1,17 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
+	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"net/http"
 )
 
 type ExpenseCategoriesController struct {

@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
+
 	employee2 "github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormEmployeeRepository struct {
-}
+type GormEmployeeRepository struct{}
 
 func NewEmployeeRepository() employee2.Repository {
 	return &GormEmployeeRepository{}

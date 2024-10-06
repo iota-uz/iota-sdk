@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormSessionRepository struct {
-}
+type GormSessionRepository struct{}
 
 func NewSessionRepository() session.Repository {
 	return &GormSessionRepository{}

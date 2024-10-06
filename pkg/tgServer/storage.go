@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
+
 	"github.com/gotd/td/session"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/telegram_session"
 	"github.com/jmoiron/sqlx"
-	"sync"
 )
 
 func NewDbSession(db *sqlx.DB, userId int) *DbSession {

@@ -1,11 +1,12 @@
 package moneyAccount
 
 import (
+	"time"
+
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/pkg/constants"
-	"time"
 )
 
 type Account struct {

@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/sashabaranov/go-openai"
 	"time"
 )
 
 type Messages []openai.ChatCompletionMessage
 
-// Scan scan value into Jsonb, implements sql.Scanner interface
+// Scan scan value into Jsonb, implements sql.Scanner interface.
 func (j *Messages) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)
 	if !ok {
@@ -25,7 +25,7 @@ func (j *Messages) Scan(value interface{}) error {
 	return err
 }
 
-// Value return json value, implement driver.Valuer interface
+// Value return json value, implement driver.Valuer interface.
 func (j Messages) Value() (driver.Value, error) {
 	if len(j) == 0 {
 		return nil, nil
