@@ -1,22 +1,16 @@
-FROM golang:1.21.4 as build-stage
-
-ENV GO111MODULE=auto \
-    CGO_ENABLED=1 \
-    GOOS=linux
+FROM golang:1.23.2 as install-stage
 
 WORKDIR /build
 
-COPY go.mod .
-COPY go.sum .
+COPY go.mod go.sum ./
 RUN go mod download
 
+FROM install-stage as production
 COPY . .
-
 RUN go build -o run_server cmd/server/main.go
-
-
-FROM build-stage as production-stage
 CMD sql-migrate up -env="production" && /build/run_server
 
-FROM build-stage as test-stage
-CMD golangcli-lint run && go test -v ./...
+FROM install-stage as testing
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
+COPY . .
+CMD golangci-lint run --timeout 1000s && go test -v ./...

@@ -5,6 +5,7 @@ services:
     restart: always
     build:
       context: .
+      target: testing
     environment:
       GO_APP_ENV: testing
       DB_NAME: iota_erp
