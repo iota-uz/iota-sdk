@@ -125,7 +125,7 @@ func (r *queryResolver) Prompts(ctx context.Context, offset int, limit int, sort
 // DialogueCreated is the resolver for the dialogueCreated field.
 func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *model.Dialogue, error) {
 	ch := make(chan *model.Dialogue)
-	r.app.EventPublisher.Subscribe(func(evt *dialogue.Created) {
+	r.app.EventPublisher.Subscribe(func(evt *dialogue.CreatedEvent) {
 		res, err := evt.Result.ToGraph()
 		if err == nil {
 			ch <- res
@@ -137,7 +137,7 @@ func (r *subscriptionResolver) DialogueCreated(ctx context.Context) (<-chan *mod
 // DialogueUpdated is the resolver for the dialogueUpdated field.
 func (r *subscriptionResolver) DialogueUpdated(ctx context.Context) (<-chan *model.Dialogue, error) {
 	ch := make(chan *model.Dialogue)
-	r.app.EventPublisher.Subscribe(func(evt *dialogue.Updated) {
+	r.app.EventPublisher.Subscribe(func(evt *dialogue.UpdatedEvent) {
 		res, err := evt.Result.ToGraph()
 		if err == nil {
 			ch <- res
@@ -149,7 +149,7 @@ func (r *subscriptionResolver) DialogueUpdated(ctx context.Context) (<-chan *mod
 // DialogueDeleted is the resolver for the dialogueDeleted field.
 func (r *subscriptionResolver) DialogueDeleted(ctx context.Context) (<-chan *model.Dialogue, error) {
 	ch := make(chan *model.Dialogue)
-	r.app.EventPublisher.Subscribe(func(evt *dialogue.Deleted) {
+	r.app.EventPublisher.Subscribe(func(evt *dialogue.DeletedEvent) {
 		res, err := evt.Result.ToGraph()
 		if err == nil {
 			ch <- res
