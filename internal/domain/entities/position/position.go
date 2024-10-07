@@ -7,7 +7,7 @@ import (
 )
 
 type Position struct {
-	Id          int64
+	ID          int64
 	Name        string
 	Description *string
 	CreatedAt   *time.Time
@@ -16,7 +16,7 @@ type Position struct {
 
 func (p *Position) ToGraph() *model.Position {
 	return &model.Position{
-		ID:          p.Id,
+		ID:          p.ID,
 		Name:        p.Name,
 		Description: p.Description,
 		CreatedAt:   *p.CreatedAt,

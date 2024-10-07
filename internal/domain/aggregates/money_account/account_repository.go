@@ -1,4 +1,4 @@
-package moneyAccount
+package moneyaccount
 
 import (
 	"context"

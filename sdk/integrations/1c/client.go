@@ -1,4 +1,4 @@
-package client_1c
+package client1c
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 func NewClient(url string) *Client {
 	return &Client{
-		client: &http.Client{},
+		client: &http.Client{}, //nolint:exhaustruct
 		url:    url,
 	}
 }
@@ -21,7 +21,7 @@ type Client struct {
 
 func (c *Client) GetOdataServices(infoBase string) (*OdataServices, error) {
 	url := c.url + fmt.Sprintf("/%s/odata/standard.odata?$format=json", infoBase)
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}

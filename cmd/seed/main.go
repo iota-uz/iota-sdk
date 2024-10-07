@@ -14,7 +14,7 @@ type SeedFunc func(ctx context.Context) error
 
 func main() {
 	conf := configuration.Use()
-	db, err := gorm.Open(postgres.Open(conf.DBOpts), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(conf.DBOpts), &gorm.Config{}) //nolint:exhaustruct
 	if err != nil {
 		panic(err)
 	}

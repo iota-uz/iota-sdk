@@ -1,17 +1,15 @@
 package currency
 
 import (
-	"time"
-
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator/v10"
+	"github.com/iota-agency/iota-erp/pkg/constants"
 )
 
 type Currency struct {
-	Code      Code
-	Name      string
-	Symbol    Symbol
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Code   Code
+	Name   string
+	Symbol Symbol
 }
 
 type CreateDTO struct {
@@ -26,9 +24,15 @@ type UpdateDTO struct {
 	Symbol string
 }
 
-func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	// TODO: Add validations
+	errs := constants.Validate.Struct(p)
+	if errs == nil {
+		return errors, true
+	}
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
+	}
 	return errors, len(errors) == 0
 }
 
@@ -48,15 +52,27 @@ func (p *CreateDTO) ToEntity() (*Currency, error) {
 	}, nil
 }
 
-func (p *Currency) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *Currency) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	// TODO: Add validations
+	errs := constants.Validate.Struct(p)
+	if errs == nil {
+		return errors, true
+	}
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
+	}
 	return errors, len(errors) == 0
 }
 
-func (p *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	// TODO: Add validations
+	errs := constants.Validate.Struct(p)
+	if errs == nil {
+		return errors, true
+	}
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
+	}
 	return errors, len(errors) == 0
 }
 

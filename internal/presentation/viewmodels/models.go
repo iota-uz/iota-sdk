@@ -1,9 +1,9 @@
-package view_models
+package viewmodels
 
 import "time"
 
 type ExpenseCategory struct {
-	Id                 string
+	ID                 string
 	Name               string
 	Amount             string
 	AmountWithCurrency string
@@ -13,7 +13,7 @@ type ExpenseCategory struct {
 }
 
 type Account struct {
-	Id            string
+	ID            string
 	Name          string
 	AccountNumber string
 	Description   string

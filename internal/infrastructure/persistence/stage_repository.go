@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/sdk/composables"
@@ -29,9 +30,13 @@ func (g *GormStageRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	var stages []*stage.ProjectStage
-	if err := q.Find(&stages).Error; err != nil {
+	var rows []*models.ProjectStage
+	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	stages := make([]*stage.ProjectStage, len(rows))
+	for i, row := range rows {
+		stages[i] = toDomainProjectStage(row)
 	}
 	return stages, nil
 }
@@ -42,7 +47,7 @@ func (g *GormStageRepository) Count(ctx context.Context) (uint, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&stage.ProjectStage{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&models.ProjectStage{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil
@@ -53,9 +58,13 @@ func (g *GormStageRepository) GetAll(ctx context.Context) ([]*stage.ProjectStage
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var stages []*stage.ProjectStage
-	if err := tx.Find(&stages).Error; err != nil {
+	var rows []*models.ProjectStage
+	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	stages := make([]*stage.ProjectStage, len(rows))
+	for i, row := range rows {
+		stages[i] = toDomainProjectStage(row)
 	}
 	return stages, nil
 }
@@ -65,19 +74,19 @@ func (g *GormStageRepository) GetByID(ctx context.Context, id uint) (*stage.Proj
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	entity := &stage.ProjectStage{} //nolint:exhaustruct
+	entity := &models.ProjectStage{} //nolint:exhaustruct
 	if err := tx.First(entity, id).Error; err != nil {
 		return nil, err
 	}
-	return entity, nil
+	return toDomainProjectStage(entity), nil
 }
 
-func (g *GormStageRepository) Create(ctx context.Context, stage *stage.ProjectStage) error {
+func (g *GormStageRepository) Create(ctx context.Context, entity *stage.ProjectStage) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(stage).Error; err != nil {
+	if err := tx.Create(toDBProjectStage(entity)).Error; err != nil {
 		return err
 	}
 	return nil
@@ -88,7 +97,7 @@ func (g *GormStageRepository) Update(ctx context.Context, entity *stage.ProjectS
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(entity).Error
+	return tx.Save(toDBProjectStage(entity)).Error
 }
 
 func (g *GormStageRepository) Delete(ctx context.Context, id uint) error {
@@ -96,7 +105,7 @@ func (g *GormStageRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&stage.ProjectStage{}, id).Error; err != nil {
+	if err := tx.Delete(&models.ProjectStage{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

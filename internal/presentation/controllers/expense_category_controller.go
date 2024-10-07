@@ -10,7 +10,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
@@ -50,7 +50,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
 		return
 	}
-	viewCategories := make([]*view_models.ExpenseCategory, 0, len(categories))
+	viewCategories := make([]*viewmodels.ExpenseCategory, 0, len(categories))
 	for _, entity := range categories {
 		viewCategories = append(viewCategories, mappers.ExpenseCategoryToViewModel(entity))
 	}

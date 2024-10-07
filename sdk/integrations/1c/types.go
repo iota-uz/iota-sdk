@@ -1,4 +1,4 @@
-package client_1c
+package client1c
 
 type OdataService struct {
 	Name string `json:"name"`

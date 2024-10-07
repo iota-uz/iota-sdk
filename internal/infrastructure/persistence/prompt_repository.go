@@ -25,7 +25,7 @@ func (g *GormPromptRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &prompt.Prompt{})
+	q, err := helpers.ApplySort(q, sortBy, &prompt.Prompt{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (g *GormPromptRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&prompt.Prompt{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&prompt.Prompt{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -99,7 +99,7 @@ func (g *GormPromptRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&prompt.Prompt{}, id).Error; err != nil {
+	if err := tx.Delete(&prompt.Prompt{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

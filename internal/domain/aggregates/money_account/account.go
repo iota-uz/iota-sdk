@@ -1,4 +1,4 @@
-package moneyAccount
+package moneyaccount
 
 import (
 	"time"
@@ -50,8 +50,24 @@ func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (p *CreateDTO) ToEntity() *Account {
-	return &Account{}
+func (p *CreateDTO) ToEntity() (*Account, error) {
+	c, err := currency.NewCode(p.CurrencyCode)
+	if err != nil {
+		return nil, err
+	}
+	return &Account{
+		Name:          p.Name,
+		AccountNumber: p.AccountNumber,
+		Balance:       p.Balance,
+		Currency: currency.Currency{
+			Name:   "",
+			Code:   c,
+			Symbol: currency.Symbol{},
+		},
+		Description: p.Description,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}, nil
 }
 
 // TODO: Add localization
@@ -92,5 +108,7 @@ func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
 		Balance:       p.Balance,
 		Currency:      currency.Currency{Code: code},
 		Description:   p.Description,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}, nil
 }

@@ -74,7 +74,7 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 	conf := configuration.Use()
-	cookie := &http.Cookie{
+	cookie := &http.Cookie{ //nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
@@ -97,7 +97,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (*user.User, 
 	}
 	// TODO: update last action
 	// if err := s.app.UserService.UpdateLastAction(ctx, u.ID); err != nil {
-	//	  return nil, nil, err
+	//	   return nil, nil, err
 	//}
 	return u, sess, nil
 }
@@ -107,7 +107,7 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Delete(&session.Session{}, "token = ?", token).Error
+	return tx.Delete(&session.Session{}, "token = ?", token).Error //nolint:exhaustruct
 }
 
 func (s *AuthService) newSessionToken() (string, error) {
@@ -169,7 +169,7 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		return nil, err
 	}
 	conf := configuration.Use()
-	cookie := &http.Cookie{
+	cookie := &http.Cookie{ //nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,

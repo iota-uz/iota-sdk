@@ -48,7 +48,7 @@ func TestStrictMappingWithPointers(t *testing.T) {
 		Field2: Pointer(1),
 	}
 
-	target := &Target{}
+	target := &Target{} //nolint:exhaustruct
 
 	err := StrictMapping(source, target)
 	if err != nil {

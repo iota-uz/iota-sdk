@@ -16,12 +16,12 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type IndexPageProps struct {
 	*types.PageContext
-	Categories []*view_models.ExpenseCategory
+	Categories []*viewmodels.ExpenseCategory
 }
 
 func CategoriesTable(props *IndexPageProps) templ.Component {
@@ -198,7 +198,7 @@ func CategoriesTable(props *IndexPageProps) templ.Component {
 							}
 							return templ_7745c5c3_Err
 						})
-						templ_7745c5c3_Err = button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expense-categories/%s", category.Id)}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expense-categories/%s", category.ID)}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

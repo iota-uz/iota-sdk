@@ -10,14 +10,14 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
-	"github.com/iota-agency/iota-erp/internal/test_utils"
+	"github.com/iota-agency/iota-erp/internal/testutils"
 )
 
 func TestMain(m *testing.M) {
 	if err := os.Chdir("../../../"); err != nil {
 		panic(err)
 	}
-	db, err := test_utils.DBSetup()
+	db, err := testutils.DBSetup()
 	if err != nil {
 		panic(err)
 	}
@@ -35,7 +35,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	projectRepository := NewProjectRepository()
 	stageRepository := NewProjectStageRepository()
 	paymentRepository := NewPaymentRepository()
-	ctx, tx, err := test_utils.GetTestContext(configuration.Use().DBOpts)
+	ctx, tx, err := testutils.GetTestContext(configuration.Use().DBOpts)
 	if err != nil {
 		t.Fatal(err)
 	}

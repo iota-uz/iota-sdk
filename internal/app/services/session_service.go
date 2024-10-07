@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/authlog"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
@@ -31,7 +32,11 @@ func (s *SessionService) GetByToken(ctx context.Context, id string) (*session.Se
 	return s.repo.GetByToken(ctx, id)
 }
 
-func (s *SessionService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*session.Session, error) {
+func (s *SessionService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*session.Session, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
@@ -39,10 +44,11 @@ func (s *SessionService) Create(ctx context.Context, data *session.Session) erro
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	log := &authlog.AuthenticationLog{
+	log := &authlog.AuthenticationLog{ //nolint:exhaustruct
 		UserID:    data.UserID,
 		IP:        data.IP,
 		UserAgent: data.UserAgent,
+		CreatedAt: time.Now(),
 	}
 	if err := s.app.AuthLogService.Create(ctx, log); err != nil {
 		return err

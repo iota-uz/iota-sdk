@@ -29,14 +29,14 @@ func loadUniTranslator() *ut.UniversalTranslator {
 }
 
 func WithLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc {
-	return middleware.ContextKeyValue("localizer", func(r *http.Request, w http.ResponseWriter) interface{} {
+	return middleware.ContextKeyValue("localizer", func(r *http.Request, _ http.ResponseWriter) interface{} {
 		locale := composables.UseLocale(r.Context(), language.English)
 		return i18n.NewLocalizer(bundle, locale.String())
 	})
 }
 
 func WithUniLocalizer() mux.MiddlewareFunc {
-	return middleware.ContextKeyValue("uni_localizer", func(r *http.Request, w http.ResponseWriter) interface{} {
+	return middleware.ContextKeyValue("uni_localizer", func(r *http.Request, _ http.ResponseWriter) interface{} {
 		uni := loadUniTranslator()
 		locale, _ := composables.UseLocale(r.Context(), language.English).Base()
 		trans, _ := uni.GetTranslator(locale.String())

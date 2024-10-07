@@ -8,7 +8,7 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
-func NewCreatedEvent(ctx context.Context, data Dialogue) (*CreatedEvent, error) {
+func NewCreatedEvent(ctx context.Context, data Dialogue, result Dialogue) (*CreatedEvent, error) {
 	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -21,10 +21,11 @@ func NewCreatedEvent(ctx context.Context, data Dialogue) (*CreatedEvent, error) 
 		Sender:  *sender,
 		Session: *sess,
 		Data:    data,
+		Result:  result,
 	}, nil
 }
 
-func NewUpdatedEvent(ctx context.Context, data Dialogue) (*UpdatedEvent, error) {
+func NewUpdatedEvent(ctx context.Context, data Dialogue, result Dialogue) (*UpdatedEvent, error) {
 	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -37,10 +38,11 @@ func NewUpdatedEvent(ctx context.Context, data Dialogue) (*UpdatedEvent, error) 
 		Sender:  *sender,
 		Session: *sess,
 		Data:    data,
+		Result:  result,
 	}, nil
 }
 
-func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
+func NewDeletedEvent(ctx context.Context, result Dialogue) (*DeletedEvent, error) {
 	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -52,6 +54,7 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 	return &DeletedEvent{
 		Sender:  *sender,
 		Session: *sess,
+		Result:  result,
 	}, nil
 }
 

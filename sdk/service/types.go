@@ -19,6 +19,6 @@ type FindParams struct {
 }
 
 type GetParams[T comparable] struct {
-	Id    T
+	ID    T
 	Joins []string
 }

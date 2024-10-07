@@ -26,7 +26,7 @@ func (c *LoginController) Register(r *mux.Router) {
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{ //nolint:exhaustruct
 		Title: "Login.Meta.Title",
 	})
 	if err != nil {

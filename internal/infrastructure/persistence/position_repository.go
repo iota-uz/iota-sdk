@@ -14,7 +14,11 @@ func NewPositionRepository() position.Repository {
 	return &GormPositionRepository{}
 }
 
-func (g *GormPositionRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*position.Position, error) {
+func (g *GormPositionRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*position.Position, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -36,7 +40,7 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&position.Position{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&position.Position{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -71,10 +75,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(data).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Create(data).Error
 }
 
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
@@ -82,10 +83,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Save(data).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Save(data).Error
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id int64) error {
@@ -93,8 +91,5 @@ func (g *GormPositionRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&position.Position{}, id).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Delete(&position.Position{}, id).Error //nolint:exhaustruct
 }

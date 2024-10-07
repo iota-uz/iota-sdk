@@ -193,7 +193,7 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 
 func (s *DialogueService) ReplyToDialogue(
 	ctx context.Context,
-	dialogueId int64,
+	dialogueID int64,
 	message, model string,
 ) (*dialogue.Dialogue, error) {
 	if len(message) > 1000 {
@@ -202,7 +202,7 @@ func (s *DialogueService) ReplyToDialogue(
 	if model == "" {
 		return nil, ErrModelRequired
 	}
-	data, err := s.GetByID(ctx, dialogueId)
+	data, err := s.GetByID(ctx, dialogueID)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err != nil {
 		return nil, err
 	}
-	data := &dialogue.Dialogue{
+	data := &dialogue.Dialogue{ //nolint:exhaustruct
 		UserID: u.ID,
 		Messages: dialogue.Messages{
 			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt}, //nolint:exhaustruct
@@ -245,11 +245,10 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err := s.repo.Create(ctx, data); err != nil {
 		return nil, err
 	}
-	createdEvent, err := dialogue.NewCreatedEvent(ctx, *data)
+	createdEvent, err := dialogue.NewCreatedEvent(ctx, *data, *data)
 	if err != nil {
 		return nil, err
 	}
-	createdEvent.Result = *data
 	s.app.EventPublisher.Publish(createdEvent)
 	if err := s.ChatComplete(ctx, data, model); err != nil {
 		return nil, err
@@ -258,32 +257,30 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 }
 
 func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) error {
-	updatedEvent, err := dialogue.NewUpdatedEvent(ctx, *data)
-	if err != nil {
-		return err
-	}
+	tmp := *data
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	updatedEvent.Result = *data
+	updatedEvent, err := dialogue.NewUpdatedEvent(ctx, tmp, *data)
+	if err != nil {
+		return err
+	}
 	s.app.EventPublisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
-	evt := &dialogue.DeletedEvent{} //nolint:exhaustruct
-	deletedEvent, err := dialogue.NewDeletedEvent(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = *entity
+	deletedEvent, err := dialogue.NewDeletedEvent(ctx, *entity)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	s.app.EventPublisher.Publish(evt)
+	s.app.EventPublisher.Publish(deletedEvent)
 	return entity, nil
 }

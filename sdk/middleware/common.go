@@ -30,7 +30,7 @@ type (
 )
 
 func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composables.Params {
-	return &composables.Params{
+	return &composables.Params{ //nolint:exhaustruct
 		Request:   r,
 		Writer:    w,
 		Ip:        r.RemoteAddr,
@@ -39,7 +39,7 @@ func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composabl
 }
 
 func WithLogger(logger *log.Logger) mux.MiddlewareFunc {
-	return ContextKeyValue(constants.LoggerKey, func(r *http.Request, w http.ResponseWriter) interface{} {
+	return ContextKeyValue(constants.LoggerKey, func(*http.Request, http.ResponseWriter) interface{} {
 		return logger
 	})
 }
@@ -59,7 +59,7 @@ func LogRequests() mux.MiddlewareFunc {
 }
 
 func Cors(allowOrigins []string) mux.MiddlewareFunc {
-	return cors.New(cors.Options{
+	return cors.New(cors.Options{ //nolint:exhaustruct
 		AllowedOrigins:   allowOrigins,
 		AllowedMethods:   AllowMethods,
 		AllowCredentials: true,
@@ -84,7 +84,7 @@ func RequestParams(constructor ParamsConstructor) mux.MiddlewareFunc {
 func Transactions(db *gorm.DB) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			err := db.Transaction(func(tx *gorm.DB) error {
+			err := db.Transaction(func(tx *gorm.DB) error { //nolint:contextcheck
 				ctx := context.WithValue(r.Context(), constants.TxKey, tx)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return nil
