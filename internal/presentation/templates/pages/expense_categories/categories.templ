@@ -8,12 +8,12 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type IndexPageProps struct {
 	*types.PageContext
-	Categories []*view_models.ExpenseCategory
+	Categories []*viewmodels.ExpenseCategory
 }
 
 templ CategoriesTable(props *IndexPageProps) {
@@ -40,7 +40,12 @@ templ CategoriesTable(props *IndexPageProps) {
 					</div>
 				}
 				@base.TableCell() {
-					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expense-categories/%s", category.Id)}) {
+					@button.Secondary(button.Props{
+						Fixed: true,
+						Size:  button.SizeSM,
+						Class: "btn-fixed",
+						Href:  fmt.Sprintf("/finance/expense-categories/%s", category.ID),
+					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}
@@ -88,7 +93,8 @@ templ CategoriesContent(props *IndexPageProps) {
 					<option>Позавчера</option>
 				}
 				@button.Primary(button.Props{
-					Size: button.SizeNormal, Href: "/finance/expense-categories/new",
+					Size: button.SizeNormal,
+					Href: "/finance/expense-categories/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
 					{ props.T("ExpenseCategories.List.NewCategory") }

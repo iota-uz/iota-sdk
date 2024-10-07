@@ -10,7 +10,7 @@ import (
 )
 
 type Expense struct {
-	Id               uint
+	ID               uint
 	Amount           float64
 	Account          moneyAccount.Account
 	Currency         currency.Currency
@@ -28,9 +28,9 @@ func (e *Expense) category2Graph() *model.ExpenseCategory {
 
 func (e *Expense) ToGraph() *model.Expense {
 	return &model.Expense{
-		ID:         int64(e.Id),
+		ID:         int64(e.ID),
 		Amount:     e.Amount,
-		CategoryID: int64(e.Category.Id),
+		CategoryID: int64(e.Category.ID),
 		Category:   e.category2Graph(),
 		Date:       e.Date,
 		CreatedAt:  e.CreatedAt,

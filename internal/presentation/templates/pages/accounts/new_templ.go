@@ -9,7 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
+	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -22,7 +22,7 @@ import (
 type CreatePageProps struct {
 	*types.PageContext
 	Currencies []*currency.Currency
-	Account    *moneyaccount.Account
+	Account    *moneyAccount.Account
 	Errors     map[string]string
 }
 

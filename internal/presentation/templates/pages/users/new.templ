@@ -49,7 +49,7 @@ templ CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, 
 				},
 			}) {
 				for _, role := range roles {
-					<option value={ strconv.Itoa(int(role.Id)) }>{ role.Name }</option>
+					<option value={ strconv.Itoa(int(role.ID)) }>{ role.Name }</option>
 				}
 			}
 		}
