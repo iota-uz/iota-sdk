@@ -47,16 +47,16 @@ func (e *ExpenseCategory) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (e *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
+	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(e)
 	if errs == nil {
-		return errors, true
+		return errorMessages, true
 	}
 
 	for _, err := range errs.(validator.ValidationErrors) {
-		errors[err.Field()] = err.Translate(l)
+		errorMessages[err.Field()] = err.Translate(l)
 	}
-	return errors, len(errors) == 0
+	return errorMessages, len(errorMessages) == 0
 }
 
 func (e *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {

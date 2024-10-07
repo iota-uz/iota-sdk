@@ -30,7 +30,11 @@ func (s *PromptService) GetByID(ctx context.Context, id string) (*prompt.Prompt,
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *PromptService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*prompt.Prompt, error) {
+func (s *PromptService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*prompt.Prompt, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 

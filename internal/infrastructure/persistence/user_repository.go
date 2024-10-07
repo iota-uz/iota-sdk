@@ -15,13 +15,17 @@ func NewUserRepository() user.Repository {
 
 type GormUserRepository struct{}
 
-func (g *GormUserRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*user.User, error) {
+func (g *GormUserRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*user.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &user.User{})
+	q, err := helpers.ApplySort(q, sortBy, &user.User{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +42,7 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&user.User{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&user.User{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -61,7 +65,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id int64) (*user.User,
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	u := &user.User{}
+	u := &user.User{} //nolint:exhaustruct
 	if err := tx.Preload("Roles").First(u, id).Error; err != nil {
 		return nil, err
 	}

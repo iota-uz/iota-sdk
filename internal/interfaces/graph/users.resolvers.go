@@ -117,7 +117,7 @@ func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan *model.U
 // Avatar is the resolver for the avatar field.
 func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Media, error) {
 	if obj.AvatarID == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 	upload, err := r.app.UploadService.GetUploadByID(ctx, *obj.AvatarID)
 	if err != nil {

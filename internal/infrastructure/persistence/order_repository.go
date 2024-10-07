@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
@@ -16,13 +16,16 @@ func NewGormOrderRepository() order.Repository {
 	return &GormOrderRepository{}
 }
 
-func (g *GormOrderRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*order.Order, error) {
+func (g *GormOrderRepository) GetPaginated(
+	ctx context.Context, limit, offset int,
+	sortBy []string,
+) ([]*order.Order, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &order.Order{})
+	q, err := helpers.ApplySort(q, sortBy, &order.Order{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -30,14 +33,14 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, limit, offset in
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	var orders []*order.Order
-	for _, entity := range entities {
+	orders := make([]*order.Order, len(entities))
+	for i, entity := range entities {
 		// TODO: proper implementation
 		o, err := g.GetByID(ctx, entity.ID)
 		if err != nil {
 			return nil, err
 		}
-		orders = append(orders, o)
+		orders[i] = o
 	}
 	return orders, nil
 }
@@ -48,7 +51,7 @@ func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.WarehouseOrder{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&models.WarehouseOrder{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -64,14 +67,14 @@ func (g *GormOrderRepository) GetAll(ctx context.Context) ([]*order.Order, error
 		return nil, err
 	}
 
-	var orders []*order.Order
-	for _, entity := range entities {
+	orders := make([]*order.Order, len(entities))
+	for i, entity := range entities {
 		// TODO: proper implementation
 		o, err := g.GetByID(ctx, entity.ID)
 		if err != nil {
 			return nil, err
 		}
-		orders = append(orders, o)
+		orders[i] = o
 	}
 	return orders, nil
 }
@@ -89,9 +92,9 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id int64) (*order.Ord
 	if err := tx.Where("order_id = ?", entity.ID).Find(&orderItems).Error; err != nil {
 		return nil, err
 	}
-	var ids []int64
-	for _, item := range orderItems {
-		ids = append(ids, item.ProductID)
+	ids := make([]int64, len(orderItems))
+	for i, item := range orderItems {
+		ids[i] = item.ProductID
 	}
 	var products []*models.WarehouseProduct
 	if err := tx.Where("id = ?", entity.ID).Find(&products, ids).Error; err != nil {
@@ -130,7 +133,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) err
 	if err := tx.Save(or).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("order_id = ?", or.ID).Delete(&models.OrderItem{}).Error; err != nil {
+	if err := tx.Where("order_id = ?", or.ID).Delete(&models.OrderItem{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	for _, item := range orderItems {
@@ -146,7 +149,7 @@ func (g *GormOrderRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Where("id = ?", id).Delete(&models.WarehouseOrder{}).Error; err != nil {
+	if err := tx.Where("id = ?", id).Delete(&models.WarehouseOrder{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

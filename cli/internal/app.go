@@ -103,26 +103,26 @@ func (a *App) Run() error {
 	commands := make([]*cli.Command, 0, len(config.Commands))
 	for name, command := range config.Commands {
 		flags := []cli.Flag{
-			&cli.BoolFlag{
+			&cli.BoolFlag{ //nolint:exhaustruct
 				Name:    "force",
 				Aliases: []string{"f"},
 			},
 		}
 		for argName, arg := range command.Args {
-			flags = append(flags, &cli.StringFlag{
+			flags = append(flags, &cli.StringFlag{ //nolint:exhaustruct
 				Name:     argName,
 				Aliases:  []string{argName[:1]},
 				Required: arg.Required,
 			})
 		}
-		cmd := &cli.Command{
+		cmd := &cli.Command{ //nolint:exhaustruct
 			Name:   name,
 			Action: CommandAction(command),
 			Flags:  flags,
 		}
 		commands = append(commands, cmd)
 	}
-	app := &cli.App{
+	app := &cli.App{ //nolint:exhaustruct
 		Commands: commands,
 	}
 	return app.Run(os.Args)

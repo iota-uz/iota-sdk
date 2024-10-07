@@ -1,11 +1,12 @@
 package expense
 
 import (
+	"time"
+
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"time"
 )
 
 type Expense struct {

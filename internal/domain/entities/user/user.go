@@ -4,29 +4,31 @@ import (
 	"strings"
 	"time"
 
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UserRole struct {
-	RoleId int64
-	UserId int64
+	RoleID int64
+	UserID int64
 	Role   role.Role
 }
 
 type User struct {
-	Id         int64
-	FirstName  string `json:"firstName"`
-	LastName   string `json:"lastName"`
+	ID         int64
+	FirstName  string `validate:"required"`
+	LastName   string `validate:"required"`
 	MiddleName *string
 	Password   *string
-	Email      string
+	Email      string `validate:"required,email"`
 	AvatarID   *int64
 	EmployeeID *int64
-	LastIp     *string
+	LastIP     *string
 	LastLogin  *time.Time
 	LastAction *time.Time
 	CreatedAt  time.Time
@@ -39,7 +41,7 @@ type UpdateDTO struct {
 	LastName  string
 	Email     string
 	Password  string
-	RoleId    int64
+	RoleID    int64
 }
 
 func (u *User) CheckPassword(password string) bool {
@@ -75,50 +77,40 @@ func (u *User) FullName() string {
 	return out.String()
 }
 
-func (u *User) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (u *User) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	if strings.TrimSpace(u.FirstName) == "" {
-		errors["firstName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	errs := constants.Validate.Struct(u)
+	if errs == nil {
+		return errors, true
 	}
-	if strings.TrimSpace(u.LastName) == "" {
-		errors["lastName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
-	}
-	if strings.TrimSpace(u.Email) == "" {
-		errors["email"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
-	}
-	if v := u.Password; v == nil || strings.TrimSpace(*v) == "" {
-		errors["password"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
 	}
 	return errors, len(errors) == 0
 }
 
-func (u *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (u *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	if strings.TrimSpace(u.FirstName) == "" {
-		errors["firstName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	errs := constants.Validate.Struct(u)
+	if errs == nil {
+		return errors, true
 	}
-	if strings.TrimSpace(u.FirstName) == "" {
-		errors["lastName"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
-	}
-	if strings.TrimSpace(u.FirstName) == "" {
-		errors["email"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
-	}
-	if u.RoleId == 0 {
-		errors["roleId"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Validations.Required"})
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
 	}
 	return errors, len(errors) == 0
 }
 
 func (u *User) ToGraph() *model.User {
 	return &model.User{
-		ID:         u.Id,
+		ID:         u.ID,
 		FirstName:  u.FirstName,
 		LastName:   u.LastName,
 		MiddleName: u.MiddleName,
 		Email:      u.Email,
 		AvatarID:   u.AvatarID,
 		EmployeeID: u.EmployeeID,
-		LastIP:     u.LastIp,
+		LastIP:     u.LastIP,
 		LastLogin:  u.LastLogin,
 		LastAction: u.LastAction,
 		CreatedAt:  u.CreatedAt,

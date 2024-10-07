@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
@@ -15,7 +15,10 @@ func NewPaymentRepository() payment.Repository {
 	return &GormPaymentRepository{}
 }
 
-func (g *GormPaymentRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*payment.Payment, error) {
+func (g *GormPaymentRepository) GetPaginated(
+	ctx context.Context, limit, offset int,
+	sortBy []string,
+) ([]*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -28,13 +31,13 @@ func (g *GormPaymentRepository) GetPaginated(ctx context.Context, limit, offset 
 	if err := q.Preload("Transaction").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*payment.Payment
-	for _, r := range rows {
+	entities := make([]*payment.Payment, len(rows))
+	for i, r := range rows {
 		p, err := toDomainPayment(r)
 		if err != nil {
 			return nil, err
 		}
-		entities = append(entities, p)
+		entities[i] = p
 	}
 	return entities, nil
 }
@@ -45,7 +48,7 @@ func (g *GormPaymentRepository) Count(ctx context.Context) (uint, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.Payment{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&models.Payment{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil
@@ -60,13 +63,13 @@ func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment.Payment,
 	if err := tx.Preload("Transaction").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*payment.Payment
-	for _, r := range rows {
+	entities := make([]*payment.Payment, len(rows))
+	for i, r := range rows {
 		p, err := toDomainPayment(r)
 		if err != nil {
 			return nil, err
 		}
-		entities = append(entities, p)
+		entities[i] = p
 	}
 	return entities, nil
 }
@@ -113,5 +116,5 @@ func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Delete(&models.Payment{}, id).Error
+	return tx.Delete(&models.Payment{}, id).Error //nolint:exhaustruct
 }

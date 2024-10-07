@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"errors"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
@@ -13,6 +12,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 )
 
 func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {
@@ -26,15 +26,16 @@ func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 
 func toDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	return &unit.Unit{
-		ID:        dbUnit.ID,
-		Name:      dbUnit.Name,
-		CreatedAt: dbUnit.CreatedAt,
-		UpdatedAt: dbUnit.UpdatedAt,
+		ID:          dbUnit.ID,
+		Name:        dbUnit.Name,
+		Description: dbUnit.Description,
+		CreatedAt:   dbUnit.CreatedAt,
+		UpdatedAt:   dbUnit.UpdatedAt,
 	}
 }
 
 func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.OrderItem) {
-	var dbItems []*models.OrderItem
+	dbItems := make([]*models.OrderItem, 0, len(data.Items))
 	for _, item := range data.Items {
 		dbItems = append(dbItems, &models.OrderItem{
 			ProductID: item.Product.ID,
@@ -49,8 +50,12 @@ func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.OrderItem) 
 	}, dbItems
 }
 
-func toDomainOrder(dbOrder *models.WarehouseOrder, dbItems []*models.OrderItem, dbProduct []*models.WarehouseProduct) (*order.Order, error) {
-	var items []*order.Item
+func toDomainOrder(
+	dbOrder *models.WarehouseOrder,
+	dbItems []*models.OrderItem,
+	dbProduct []*models.WarehouseProduct,
+) (*order.Order, error) {
+	items := make([]*order.Item, 0, len(dbItems))
 	for _, item := range dbItems {
 		var orderProduct *models.WarehouseProduct
 		for _, p := range dbProduct {
@@ -146,9 +151,9 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 
 func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction) {
 	dbPayment := &models.Payment{
-		ID:            entity.Id,
-		StageID:       entity.StageId,
-		TransactionID: entity.TransactionId,
+		ID:            entity.ID,
+		StageID:       entity.StageID,
+		TransactionID: entity.TransactionID,
 		CreatedAt:     entity.CreatedAt,
 		UpdatedAt:     entity.UpdatedAt,
 	}
@@ -157,7 +162,7 @@ func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction)
 		Comment:          entity.Comment,
 		AccountingPeriod: entity.AccountingPeriod,
 		TransactionDate:  entity.TransactionDate,
-		MoneyAccountID:   entity.AccountId,
+		MoneyAccountID:   entity.AccountID,
 		AmountCurrencyID: entity.CurrencyCode,
 		TransactionType:  transaction.Income.String(),
 	}
@@ -170,21 +175,21 @@ func toDomainPayment(dbPayment *models.Payment) (*payment.Payment, error) {
 		return nil, err
 	}
 	return &payment.Payment{
-		Id:               dbPayment.ID,
+		ID:               dbPayment.ID,
 		Amount:           t.Amount,
 		Comment:          t.Comment,
 		TransactionDate:  t.TransactionDate,
 		AccountingPeriod: t.AccountingPeriod,
-		StageId:          dbPayment.StageID,
-		TransactionId:    dbPayment.TransactionID,
-		AccountId:        t.MoneyAccountID,
+		StageID:          dbPayment.StageID,
+		TransactionID:    dbPayment.TransactionID,
+		AccountID:        t.MoneyAccountID,
 		CurrencyCode:     t.AmountCurrencyID,
 		CreatedAt:        dbPayment.CreatedAt,
 		UpdatedAt:        dbPayment.UpdatedAt,
 	}, nil
 }
 
-func toDbCurrency(entity *currency.Currency) *models.Currency {
+func toDBCurrency(entity *currency.Currency) *models.Currency {
 	return &models.Currency{
 		Code:   entity.Code.String(),
 		Name:   entity.Name,
@@ -208,7 +213,7 @@ func toDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
 	}, nil
 }
 
-func toDbExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCategory {
+func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
 		ID:               entity.Id,
 		Name:             entity.Name,
@@ -236,24 +241,24 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.Expe
 	}, nil
 }
 
-func toDomainProject(dbProject *models.Project) (*project.Project, error) {
+func toDomainProject(dbProject *models.Project) *project.Project {
 	return &project.Project{
 		Id:          dbProject.ID,
 		Name:        dbProject.Name,
 		Description: dbProject.Description,
 		CreatedAt:   dbProject.CreatedAt,
 		UpdatedAt:   dbProject.UpdatedAt,
-	}, nil
+	}
 }
 
-func toDbProject(entity *project.Project) (*models.Project, error) {
+func toDBProject(entity *project.Project) *models.Project {
 	return &models.Project{
 		ID:          entity.Id,
 		Name:        entity.Name,
 		Description: entity.Description,
 		CreatedAt:   entity.CreatedAt,
 		UpdatedAt:   entity.UpdatedAt,
-	}, nil
+	}
 }
 
 func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyAccount.Account, error) {
@@ -273,7 +278,7 @@ func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyAccount.Account
 	}, nil
 }
 
-func toDBMoneyAccount(entity *moneyAccount.Account) (*models.MoneyAccount, error) {
+func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
 	return &models.MoneyAccount{
 		ID:                entity.Id,
 		Name:              entity.Name,
@@ -283,5 +288,5 @@ func toDBMoneyAccount(entity *moneyAccount.Account) (*models.MoneyAccount, error
 		Description:       entity.Description,
 		CreatedAt:         entity.CreatedAt,
 		UpdatedAt:         entity.UpdatedAt,
-	}, nil
+	}
 }

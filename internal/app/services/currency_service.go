@@ -27,7 +27,11 @@ func (s *CurrencyService) GetAll(ctx context.Context) ([]*currency.Currency, err
 	return s.Repo.GetAll(ctx)
 }
 
-func (s *CurrencyService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*currency.Currency, error) {
+func (s *CurrencyService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*currency.Currency, error) {
 	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
@@ -48,9 +52,7 @@ func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) 
 	return nil
 }
 
-// TODO: deal with id
-
-func (s *CurrencyService) Update(ctx context.Context, id string, data *currency.UpdateDTO) error {
+func (s *CurrencyService) Update(ctx context.Context, data *currency.UpdateDTO) error {
 	updatedEvent, err := currency.NewUpdatedEvent(ctx, *data)
 	if err != nil {
 		return err

@@ -2,7 +2,7 @@ package app
 
 import (
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/sdk/event"
 	"gorm.io/gorm"
 )
@@ -24,6 +24,7 @@ func New(db *gorm.DB) *services.Application {
 	currencyRepository := persistence.NewCurrencyRepository()
 
 	app := &services.Application{
+		DD:             db,
 		EventPublisher: eventPublisher,
 	}
 	authService := services.NewAuthService(app)

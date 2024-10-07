@@ -42,7 +42,7 @@ func DefaultMapping(source interface{}, target interface{}, behaviour Behaviour)
 		return errors.New("both arguments must be pointers to structs")
 	}
 
-	for i := 0; i < sourceValue.NumField(); i++ {
+	for i := range sourceValue.NumField() {
 		sourceField := sourceValue.Field(i)
 		targetField := targetValue.FieldByName(sourceValue.Type().Field(i).Name)
 		if !targetField.IsValid() {

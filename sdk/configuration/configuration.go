@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -76,19 +77,19 @@ func ParseDuration(d string) (time.Duration, error) {
 	valueUnitRegex := regexp.MustCompile(`(\d+)([smhdwMy])`)
 	matches := valueUnitRegex.FindAllStringSubmatch(d, -1)
 	if len(matches) == 0 {
-		return 0, fmt.Errorf("invalid duration format")
+		return 0, errors.New("invalid duration format")
 	}
 	matched := ""
 	for _, match := range matches {
 		matched += match[0]
 	}
 	if matched != d {
-		return 0, fmt.Errorf("invalid duration format")
+		return 0, errors.New("invalid duration format")
 	}
 	var total time.Duration
 	for _, match := range matches {
 		if len(match) != 3 {
-			return 0, fmt.Errorf("invalid duration format")
+			return 0, errors.New("invalid duration format")
 		}
 		dur, err := parseDuration(match[1], match[2])
 		if err != nil {

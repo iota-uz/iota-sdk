@@ -27,7 +27,11 @@ func (s *PaymentService) GetAll(ctx context.Context) ([]*payment.Payment, error)
 	return s.Repo.GetAll(ctx)
 }
 
-func (s *PaymentService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*payment.Payment, error) {
+func (s *PaymentService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*payment.Payment, error) {
 	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 

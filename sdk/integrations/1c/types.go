@@ -2,7 +2,7 @@ package client_1c
 
 type OdataService struct {
 	Name string `json:"name"`
-	Url  string `json:"url"`
+	URL  string `json:"url"`
 }
 
 type OdataServices struct {

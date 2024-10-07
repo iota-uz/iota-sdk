@@ -27,8 +27,8 @@ var (
 func NewDialogueService(repo dialogue.Repository, app *Application) *DialogueService {
 	chatFuncs := functions.New()
 
-	//chatFuncs.Add(chatfuncs.NewCurrencyConvert())
-	//chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.DB))
+	// chatFuncs.Add(chatfuncs.NewCurrencyConvert())
+	// chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.DB))
 	chatFuncs.Add(NewSearchKnowledgeBase(app.EmbeddingService))
 	return &DialogueService{
 		repo:      repo,
@@ -53,7 +53,11 @@ func (s *DialogueService) GetByID(ctx context.Context, id int64) (*dialogue.Dial
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *DialogueService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*dialogue.Dialogue, error) {
+func (s *DialogueService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*dialogue.Dialogue, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
@@ -63,7 +67,7 @@ func (s *DialogueService) streamCompletions(
 	model string,
 ) (chan openai.ChatCompletionMessage, error) {
 	client := openai.NewClient(configuration.Use().OpenAIKey)
-	stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
+	stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{ //nolint:exhaustruct
 		Model:    model,
 		Messages: messages,
 		Tools:    s.chatFuncs.OpenAiTools(),
@@ -73,7 +77,7 @@ func (s *DialogueService) streamCompletions(
 		return nil, err
 	}
 	ch := make(chan openai.ChatCompletionMessage)
-	response := openai.ChatCompletionMessage{
+	response := openai.ChatCompletionMessage{ //nolint:exhaustruct
 		Role:    openai.ChatMessageRoleAssistant,
 		Content: "",
 	}
@@ -141,18 +145,18 @@ func (s *DialogueService) streamCompletions(
 //}
 
 func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialogue, model string) error {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		ch, err := s.streamCompletions(ctx, data.Messages, model)
 		if err != nil {
 			return err
 		}
-		data.AddMessage(openai.ChatCompletionMessage{
+		data.AddMessage(openai.ChatCompletionMessage{ //nolint:exhaustruct
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: "",
 		})
 		for m := range ch {
 			data.Messages[len(data.Messages)-1] = m
-			s.app.EventPublisher.Publish(dialogue.UpdatedEvent{
+			s.app.EventPublisher.Publish(dialogue.UpdatedEvent{ //nolint:exhaustruct
 				Result: *data,
 			})
 		}
@@ -177,7 +181,7 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 			if err != nil {
 				return err
 			}
-			data.AddMessage(openai.ChatCompletionMessage{
+			data.AddMessage(openai.ChatCompletionMessage{ //nolint:exhaustruct
 				Role:       openai.ChatMessageRoleTool,
 				ToolCallID: call.ID,
 				Content:    result,
@@ -187,7 +191,11 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 	return nil
 }
 
-func (s *DialogueService) ReplyToDialogue(ctx context.Context, dialogueId int64, message string, model string) (*dialogue.Dialogue, error) {
+func (s *DialogueService) ReplyToDialogue(
+	ctx context.Context,
+	dialogueId int64,
+	message, model string,
+) (*dialogue.Dialogue, error) {
 	if len(message) > 1000 {
 		return nil, ErrMessageTooLong
 	}
@@ -198,7 +206,7 @@ func (s *DialogueService) ReplyToDialogue(ctx context.Context, dialogueId int64,
 	if err != nil {
 		return nil, err
 	}
-	data.AddMessage(openai.ChatCompletionMessage{
+	data.AddMessage(openai.ChatCompletionMessage{ //nolint:exhaustruct
 		Role:    openai.ChatMessageRoleUser,
 		Content: message,
 	})
@@ -227,10 +235,10 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 		return nil, err
 	}
 	data := &dialogue.Dialogue{
-		UserID: u.Id,
+		UserID: u.ID,
 		Messages: dialogue.Messages{
-			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt},
-			{Role: openai.ChatMessageRoleUser, Content: message},
+			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt}, //nolint:exhaustruct
+			{Role: openai.ChatMessageRoleUser, Content: message},         //nolint:exhaustruct
 		},
 		Label: "Новый чат",
 	}
@@ -263,7 +271,7 @@ func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) e
 }
 
 func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
-	evt := &dialogue.DeletedEvent{}
+	evt := &dialogue.DeletedEvent{} //nolint:exhaustruct
 	deletedEvent, err := dialogue.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err

@@ -36,7 +36,10 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 }
 
 func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.List.Title"})
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		&composables.PageData{Title: "ExpenseCategories.Meta.List.Title"}, //nolint:exhaustruct
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -51,7 +54,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 	for _, entity := range categories {
 		viewCategories = append(viewCategories, mappers.ExpenseCategoryToViewModel(entity))
 	}
-	isHxRequest := len(r.Header.Get("HX-Request")) > 0
+	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expense_categories.IndexPageProps{
 		PageContext: pageCtx,
 		Categories:  viewCategories,
@@ -64,13 +67,16 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseId(r)
+	id, err := parseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.Edit.Title"})
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		&composables.PageData{Title: "ExpenseCategories.Meta.Edit.Title"}, //nolint:exhaustruct
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -96,7 +102,7 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := parseId(r)
+	id, err := parseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -110,18 +116,31 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseId(r)
+	id, err := parseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := r.FormValue("_action")
+	action := FormAction(r.FormValue("_action"))
+	if !action.IsValid() {
+		http.Error(w, "Invalid action", http.StatusBadRequest)
+		return
+	}
 	r.Form.Del("_action")
 
-	if action == "save" {
-		dto := category.UpdateDTO{}
+	switch action {
+	case FormActionDelete:
+		if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	case FormActionSave:
+		dto := category.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.Edit.Title"})
+		pageCtx, err = composables.UsePageCtx(
+			r,
+			&composables.PageData{Title: "ExpenseCategories.Meta.Edit.Title"}, //nolint:exhaustruct
+		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -150,20 +169,19 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 			templ.Handler(expense_categories.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.ExpenseCategoryService.Update(r.Context(), id, &dto)
-	} else if action == "delete" {
-		_, err = c.app.ExpenseCategoryService.Delete(r.Context(), id)
-	}
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		if err := c.app.ExpenseCategoryService.Update(r.Context(), id, &dto); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	redirect(w, r, c.basePath)
 }
 
 func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.New.Title"})
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		&composables.PageData{Title: "ExpenseCategories.Meta.New.Title"}, //nolint:exhaustruct
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -177,7 +195,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Category:    &category.ExpenseCategory{},
+		Category:    &category.ExpenseCategory{}, //nolint:exhaustruct
 	}
 	templ.Handler(expense_categories.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -188,13 +206,13 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	dto := category.CreateDTO{}
+	dto := category.CreateDTO{} //nolint:exhaustruct
 	if err := decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.New.Title"})
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.New.Title"}) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

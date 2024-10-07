@@ -31,7 +31,11 @@ func (s *ProjectStageService) GetByID(ctx context.Context, id uint) (*stage.Proj
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ProjectStageService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*stage.ProjectStage, error) {
+func (s *ProjectStageService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*stage.ProjectStage, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 

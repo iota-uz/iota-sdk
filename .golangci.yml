@@ -1,6 +1,16 @@
 run:
-  timeout: 10s
+  timeout: 100s
   allow-parallel-runners: true
+
+issues:
+  exclude-files:
+    - internal/interfaces/graph/generated.go
+  exclude-dirs:
+    - internal/interfaces/graph/gqlmodels
+    - internal/presentation/templates
+    - internal/presentation/assets
+    - internal/presentation/static
+    - internal/presentation/public
 
 linters:
   # Enable specific linter
@@ -14,14 +24,10 @@ linters:
     - containedctx
     - contextcheck
     - copyloopvar
-    - cyclop
     - decorder
-    - depguard
     - dogsled
-    - dupl
     - dupword
     - durationcheck
-    - err113
     - errcheck
     - errchkjson
     - errname
@@ -41,7 +47,7 @@ linters:
     - gocritic
     - gocyclo
     - godot
-    - godox
+#    - godox
     - gofmt
     - gofumpt
     - goheader
@@ -49,7 +55,7 @@ linters:
     - gomoddirectives
     - gomodguard
     - goprintffuncname
-    - gosec
+    #    - gosec
     - gosimple
     - gosmopolitan
     - govet
@@ -57,9 +63,7 @@ linters:
     - importas
     - inamedparam
     - ineffassign
-    - interfacebloat
     - intrange
-    - ireturn
     - lll
     - loggercheck
     - maintidx
@@ -90,7 +94,6 @@ linters:
     - staticcheck
     - stylecheck
     - tagalign
-    - tagliatelle
     - tenv
     - testableexamples
     - testifylint

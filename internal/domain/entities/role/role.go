@@ -3,11 +3,11 @@ package role
 import (
 	"time"
 
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
 type Role struct {
-	Id          int64
+	ID          int64
 	Name        string
 	Description string
 	CreatedAt   time.Time
@@ -16,7 +16,7 @@ type Role struct {
 
 func (r *Role) ToGraph() *model.Role {
 	return &model.Role{
-		ID:          r.Id,
+		ID:          r.ID,
 		Name:        r.Name,
 		Description: &r.Description,
 		CreatedAt:   r.CreatedAt,
@@ -25,6 +25,6 @@ func (r *Role) ToGraph() *model.Role {
 }
 
 type UserRole struct {
-	UserId int64 `gorm:"primaryKey"`
-	RoleId int64 `gorm:"primaryKey"`
+	UserID int64 `gorm:"primaryKey"`
+	RoleID int64 `gorm:"primaryKey"`
 }

@@ -45,7 +45,7 @@ func (s *Server) Start() error {
 
 func DefaultServer() (*Server, error) {
 	conf := configuration.Use()
-	db, err := ConnectDB(conf.DbOpts, logger.Error)
+	db, err := ConnectDB(conf.DBOpts, logger.Error)
 	if err != nil {
 		return nil, err
 	}

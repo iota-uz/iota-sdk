@@ -3,21 +3,21 @@ package payment
 import (
 	"time"
 
+	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 var validate = validator.New(validator.WithRequiredStructEnabled())
 
 type Payment struct {
-	Id               uint
-	StageId          uint
+	ID               uint
+	StageID          uint
 	Amount           float64
 	CurrencyCode     string
-	AccountId        uint
-	TransactionId    uint
+	AccountID        uint
+	TransactionID    uint
 	TransactionDate  time.Time
 	AccountingPeriod time.Time
 	Comment          string
@@ -29,12 +29,12 @@ type Payment struct {
 type CreateDTO struct {
 	Amount           float64   `validate:"required,gt=0"`
 	CurrencyCode     string    `validate:"required,len=3"`
-	AccountId        uint      `validate:"required"`
+	AccountID        uint      `validate:"required"`
 	TransactionDate  time.Time `validate:"required"`
 	AccountingPeriod time.Time `validate:"required"`
 	Comment          string
-	UserId           uint `validate:"required"`
-	StageId          uint `validate:"required"`
+	UserID           uint `validate:"required"`
+	StageID          uint `validate:"required"`
 }
 
 type UpdateDTO struct {
@@ -44,77 +44,81 @@ type UpdateDTO struct {
 	TransactionDate  time.Time
 	AccountingPeriod time.Time
 	Comment          string
-	UserId           uint
-	StageId          uint
+	UserID           uint
+	StageID          uint
 }
 
 // TODO: translate error messages
 
-func (p *CreateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
 	err := validate.Struct(p)
 	if err == nil {
 		return errors, true
 	}
 	for _, _err := range err.(validator.ValidationErrors) {
-		errors[_err.Field()] = _err.Error()
+		errors[_err.Field()] = _err.Translate(l)
 	}
 	return errors, len(errors) == 0
 }
 
 func (p *CreateDTO) ToEntity() *Payment {
 	return &Payment{
-		StageId:          p.StageId,
+		StageID:          p.StageID,
 		Amount:           p.Amount,
 		CurrencyCode:     p.CurrencyCode,
-		AccountId:        p.AccountId,
+		AccountID:        p.AccountID,
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
 		Comment:          p.Comment,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 }
 
-func (p *Payment) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *Payment) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	err := validate.Struct(p)
-	if err == nil {
+	errs := validate.Struct(p)
+	if errs == nil {
 		return errors, true
 	}
-	for _, _err := range err.(validator.ValidationErrors) {
-		errors[_err.Field()] = _err.Error()
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
 	}
 	return errors, len(errors) == 0
 }
 
-func (p *UpdateDTO) Ok(l *i18n.Localizer) (map[string]string, bool) {
+func (p *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
-	err := validate.Struct(p)
-	if err == nil {
+	errs := validate.Struct(p)
+	if errs == nil {
 		return errors, true
 	}
-	for _, _err := range err.(validator.ValidationErrors) {
-		errors[_err.Field()] = _err.Error()
+	for _, err := range errs.(validator.ValidationErrors) {
+		errors[err.Field()] = err.Translate(l)
 	}
 	return errors, len(errors) == 0
 }
 
 func (p *UpdateDTO) ToEntity(id uint) *Payment {
 	return &Payment{
-		Id:               id,
-		StageId:          p.StageId,
+		ID:               id,
+		StageID:          p.StageID,
 		Amount:           p.Amount,
 		CurrencyCode:     p.CurrencyCode,
-		AccountId:        p.AccountID,
+		AccountID:        p.AccountID,
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
 		Comment:          p.Comment,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 }
 
 func (p *Payment) ToGraph() *model.Payment {
 	return &model.Payment{
-		ID:        int64(p.Id),
-		StageID:   int64(p.StageId),
+		ID:        int64(p.ID),
+		StageID:   int64(p.StageID),
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
 	}

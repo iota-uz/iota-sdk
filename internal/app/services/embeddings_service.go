@@ -27,7 +27,16 @@ func (s *EmbeddingService) Search(ctx context.Context, query string) ([]*embeddi
 	if err != nil {
 		return nil, err
 	}
-	response, err := http.DefaultClient.Post("http://localhost:8000/embeddings/search", "application/json", body)
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		"http://localhost:8000/embeddings/search",
+		body,
+	)
+	if err != nil {
+		return nil, err
+	}
+	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -83,11 +92,11 @@ func (s searchKnowledgeBase) Execute(args map[string]interface{}) (string, error
 	if err != nil {
 		return "", err
 	}
-	var records []map[string]interface{}
-	for _, result := range results {
-		records = append(records, map[string]interface{}{
+	records := make([]map[string]interface{}, len(results))
+	for i, result := range results {
+		records[i] = map[string]interface{}{
 			"text": result.Text,
-		})
+		}
 	}
 	jsonBytes, err := json.Marshal(records)
 	if err != nil {
@@ -101,6 +110,6 @@ func (s searchKnowledgeBase) Execute(args map[string]interface{}) (string, error
 //	return s.app.Embeddings.GetByUUID(ctx, uuid)
 //}
 //
-//func (s *EmbeddingService) Create(ctx context.Context, embedding *composables.Embedding) error {
+// func (s *EmbeddingService) Create(ctx context.Context, embedding *composables.Embedding) error {
 //	return s.app.Embeddings.Create(ctx, embedding)
 //}

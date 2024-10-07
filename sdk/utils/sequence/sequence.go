@@ -15,7 +15,7 @@ func Title(str string) string {
 func ReverseInPlace[T any](array []T) []T {
 	length := len(array)
 	swap := reflect.Swapper(array)
-	for i := 0; i < length/2; i++ {
+	for i := range length / 2 {
 		swap(i, length-1-i)
 	}
 	return array

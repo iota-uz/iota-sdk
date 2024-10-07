@@ -30,7 +30,11 @@ func (s *TransactionService) GetByID(ctx context.Context, id int64) (*transactio
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *TransactionService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*transaction.Transaction, error) {
+func (s *TransactionService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*transaction.Transaction, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 

@@ -1,8 +1,8 @@
-package tgServer
+package tgserver
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strconv"
 
 	"github.com/gotd/td/telegram"
@@ -21,18 +21,18 @@ func New(db *sqlx.DB) *Server {
 }
 
 func (s *Server) Start() {
-	appId, err := strconv.Atoi(env.GetEnv("TELEGRAM_APP_ID", ""))
+	appID, err := strconv.Atoi(env.GetEnv("TELEGRAM_APP_ID", ""))
 	if err != nil {
 		panic(err)
 	}
 	appHash := env.GetEnv("TELEGRAM_APP_HASH", "")
 	// log, err := zap.NewDevelopment()
-	//if err != nil {
+	// if err != nil {
 	//	panic(err)
 	//}
 	//
-	client := telegram.NewClient(appId, appHash, telegram.Options{
-		SessionStorage: NewDbSession(s.DB, 1),
+	client := telegram.NewClient(appID, appHash, telegram.Options{
+		SessionStorage: NewDBSession(s.DB, 1),
 		// Logger:         log,
 	})
 	if err := client.Run(context.Background(), func(ctx context.Context) error {
@@ -41,10 +41,10 @@ func (s *Server) Start() {
 			return err
 		}
 		if !status.Authorized {
-			return fmt.Errorf("not authorized")
+			return errors.New("not authorized")
 			// phone := utils.GetEnv("TELEGRAM_PHONE", "")
-			//password := utils.GetEnv("TELEGRAM_PASSWORD", "")
-			//codePrompt := func(ctx context.Context, sentCode *tg.AuthSentCode) (string, error) {
+			// password := utils.GetEnv("TELEGRAM_PASSWORD", "")
+			// codePrompt := func(ctx context.Context, sentCode *tg.AuthSentCode) (string, error) {
 			//	fmt.Print("Enter code: ")
 			//	code, err := bufio.NewReader(os.Stdin).ReadString('\n')
 			//	if err != nil {
@@ -52,10 +52,10 @@ func (s *Server) Start() {
 			//	}
 			//	return strings.TrimSpace(code), nil
 			//}
-			//if err := auth.NewFlow(
+			// if err := auth.NewFlow(
 			//	auth.Constant(phone, password, auth.CodeAuthenticatorFunc(codePrompt)),
 			//	auth.SendCodeOptions{},
-			//).Run(ctx, client.Auth()); err != nil {
+			// ).Run(ctx, client.Auth()); err != nil {
 			//	panic(err)
 			//}
 		}
@@ -71,16 +71,16 @@ func (s *Server) Start() {
 		//		AccessHash: -1001266437419,
 		//		ChannelID:  -1001266437419,
 		//	},
-		//})
-		//if err != nil {
+		// })
+		// if err != nil {
+		//	 return err
+		// }
+		// buf := &bin.Buffer{}
+		// if err := messages.Decode(buf); err != nil {
 		//	return err
-		//}
-		//buf := &bin.Buffer{}
-		//if err := messages.Decode(buf); err != nil {
-		//	return err
-		//}
-		//fmt.Println(string(buf.Raw()))
-		//fmt.Println(messages.String())
+		// }
+		// fmt.Println(string(buf.Raw()))
+		// fmt.Println(messages.String())
 
 		return nil
 	}); err != nil {

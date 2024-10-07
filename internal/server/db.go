@@ -3,10 +3,11 @@ package server
 import (
 	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 	"log"
 	"os"
 	"time"
+
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"gorm.io/driver/postgres"
@@ -28,7 +29,7 @@ func newLogger(level logger.LogLevel) logger.Interface {
 }
 
 func ConnectDB(dbOpts string, level logger.LogLevel) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(dbOpts), &gorm.Config{
+	db, err := gorm.Open(postgres.Open(dbOpts), &gorm.Config{ //nolint:exhaustruct
 		Logger:                 newLogger(level),
 		SkipDefaultTransaction: true,
 	})
@@ -40,21 +41,21 @@ func ConnectDB(dbOpts string, level logger.LogLevel) (*gorm.DB, error) {
 
 func CheckModels(db *gorm.DB) error {
 	registeredModels := []interface{}{
-		&models.Upload{},
-		&models.User{},
-		&models.Payment{},
-		&models.ExpenseCategory{},
-		&models.Expense{},
-		&models.WarehouseUnit{},
-		&models.WarehouseOrder{},
-		&models.Session{},
-		&models.Role{},
-		&models.Dialogue{},
-		&models.ActionLog{},
-		&models.Currency{},
-		&models.Transaction{},
-		&models.WarehouseProduct{},
-		&models.MoneyAccount{},
+		&models.Upload{},           //nolint:exhaustruct
+		&models.User{},             //nolint:exhaustruct
+		&models.Payment{},          //nolint:exhaustruct
+		&models.ExpenseCategory{},  //nolint:exhaustruct
+		&models.Expense{},          //nolint:exhaustruct
+		&models.WarehouseUnit{},    //nolint:exhaustruct
+		&models.WarehouseOrder{},   //nolint:exhaustruct
+		&models.Session{},          //nolint:exhaustruct
+		&models.Role{},             //nolint:exhaustruct
+		&models.Dialogue{},         //nolint:exhaustruct
+		&models.ActionLog{},        //nolint:exhaustruct
+		&models.Currency{},         //nolint:exhaustruct
+		&models.Transaction{},      //nolint:exhaustruct
+		&models.WarehouseProduct{}, //nolint:exhaustruct
+		&models.MoneyAccount{},     //nolint:exhaustruct
 	}
 	var errs []error
 	for _, model := range registeredModels {
@@ -65,5 +66,5 @@ func CheckModels(db *gorm.DB) error {
 	if len(errs) == 0 {
 		return nil
 	}
-	return fmt.Errorf("models are out of sync: %v", errors.Join(errs...))
+	return fmt.Errorf("models are out of sync: %w", errors.Join(errs...))
 }

@@ -19,7 +19,7 @@ type FieldsFilter func(f *schema.Field) bool
 // The key of the map is the alias of the field in the graphql schema
 // The value is the field itself.
 func GetGormFields(model interface{}, filter FieldsFilter) (map[string]*schema.Field, error) {
-	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -38,14 +38,14 @@ func CheckModelIsInSync(db *gorm.DB, model interface{}) error {
 	modelType := reflect.TypeOf(model).Elem()
 	columns, err := db.Migrator().ColumnTypes(model)
 	if err != nil {
-		return fmt.Errorf("error retrieving columns: %v", err)
+		return fmt.Errorf("error retrieving columns: %w", err)
 	}
 
 	columnsMap := make(map[string]bool, len(columns))
 	for _, column := range columns {
 		columnsMap[column.Name()] = true
 	}
-	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{}) //nolint:exhaustruct
 	if err != nil {
 		return err
 	}
@@ -96,13 +96,22 @@ func HasAssociation(preloads []string, association string) bool {
 	return false
 }
 
-func GetNestedPreloads(ctx *graphql.OperationContext, fields []graphql.CollectedField, prefix string) (preloads []string) {
+func GetNestedPreloads(
+	ctx *graphql.OperationContext,
+	fields []graphql.CollectedField,
+	prefix string,
+) []string {
+	var preloads []string
 	for _, column := range fields {
 		prefixColumn := GetPreloadString(prefix, column.Name)
 		preloads = append(preloads, prefixColumn)
-		preloads = append(preloads, GetNestedPreloads(ctx, graphql.CollectFields(ctx, column.Selections, nil), prefixColumn)...)
+		preloads = append(preloads, GetNestedPreloads(
+			ctx,
+			graphql.CollectFields(ctx, column.Selections, nil),
+			prefixColumn)...,
+		)
 	}
-	return
+	return preloads
 }
 
 func GetPreloadString(prefix, name string) string {

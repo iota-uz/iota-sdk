@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
@@ -15,7 +15,11 @@ func NewCurrencyRepository() currency.Repository {
 	return &GormCurrencyRepository{}
 }
 
-func (g *GormCurrencyRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*currency.Currency, error) {
+func (g *GormCurrencyRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*currency.Currency, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -28,7 +32,7 @@ func (g *GormCurrencyRepository) GetPaginated(ctx context.Context, limit, offset
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*currency.Currency
+	entities := make([]*currency.Currency, 0, len(rows))
 	for _, r := range rows {
 		c, err := toDomainCurrency(r)
 		if err != nil {
@@ -60,7 +64,7 @@ func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency.Curren
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*currency.Currency
+	entities := make([]*currency.Currency, 0, len(rows))
 	for _, r := range rows {
 		c, err := toDomainCurrency(r)
 		if err != nil {
@@ -88,7 +92,7 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Cu
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDbCurrency(entity)
+	row := toDBCurrency(entity)
 	return tx.Create(row).Error
 }
 
@@ -97,7 +101,7 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Cu
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDbCurrency(entity)
+	row := toDBCurrency(entity)
 	return tx.Save(row).Error
 }
 
@@ -106,7 +110,7 @@ func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *c
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDbCurrency(currency)
+	row := toDBCurrency(currency)
 	return tx.Save(row).Error
 }
 
@@ -115,7 +119,7 @@ func (g *GormCurrencyRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&currency.Currency{}, id).Error; err != nil {
+	if err := tx.Delete(&currency.Currency{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

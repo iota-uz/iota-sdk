@@ -3,7 +3,7 @@ package upload
 import (
 	"time"
 
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
 type Upload struct {
