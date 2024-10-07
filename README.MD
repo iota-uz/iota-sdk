@@ -114,6 +114,7 @@ query Users {
 ## Reference commands
 
 Run linter
+
 ```shell
 golangci-lint run
 ```
@@ -152,6 +153,13 @@ Running tests
 
 ```shell
 go test -v ./...
+```
+
+Running tests with coverage
+
+```shell
+go test -coverprofile coverage/coverage.out ./... 
+go tool cover -html=coverage/coverage.out
 ```
 
 Running the server

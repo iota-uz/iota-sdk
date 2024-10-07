@@ -5,3 +5,4 @@ postgres-data/
 tmp/
 .env
 .env.local
+coverage
