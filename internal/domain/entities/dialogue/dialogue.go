@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
+
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/sashabaranov/go-openai"
-	"time"
 )
 
 type Messages []openai.ChatCompletionMessage
@@ -28,7 +29,7 @@ func (j *Messages) Scan(value interface{}) error {
 // Value return json value, implement driver.Valuer interface.
 func (j Messages) Value() (driver.Value, error) {
 	if len(j) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 	return json.Marshal(j)
 }
@@ -47,7 +48,7 @@ func (d *Dialogue) AddMessage(msg openai.ChatCompletionMessage) {
 }
 
 func (d *Dialogue) ToGraph() (*model.Dialogue, error) {
-	var messages []*model.Message
+	messages := make([]*model.Message, 0, len(d.Messages))
 	for _, m := range d.Messages {
 		if m.Role == openai.ChatMessageRoleSystem {
 			continue

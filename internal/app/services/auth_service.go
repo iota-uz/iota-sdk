@@ -42,12 +42,12 @@ func NewAuthService(app *Application) *AuthService {
 
 func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (*user.User, *session.Session, error) {
 	// Use code to get token and get user info from Google.
-	token, err := s.oAuthConfig.Exchange(context.Background(), code)
+	token, err := s.oAuthConfig.Exchange(ctx, code)
 	if err != nil {
 		return nil, nil, err
 	}
-	client := s.oAuthConfig.Client(context.Background(), token)
-	svc, err := people.NewService(context.Background(), option.WithHTTPClient(client))
+	client := s.oAuthConfig.Client(ctx, token)
+	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,7 +59,7 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (*use
 	if err != nil {
 		return nil, nil, err
 	}
-	return s.authenticate(ctx, u.Id)
+	return s.authenticate(ctx, u.ID)
 }
 
 func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
@@ -91,13 +91,13 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (*user.User, 
 	if err != nil {
 		return nil, nil, err
 	}
-	u, err := s.app.UserService.GetByID(ctx, sess.UserId)
+	u, err := s.app.UserService.GetByID(ctx, sess.UserID)
 	if err != nil {
 		return nil, nil, err
 	}
 	// TODO: update last action
-	// if err := s.app.UserService.UpdateLastAction(ctx, u.Id); err != nil {
-	//	return nil, nil, err
+	// if err := s.app.UserService.UpdateLastAction(ctx, u.ID); err != nil {
+	//	  return nil, nil, err
 	//}
 	return u, sess, nil
 }
@@ -134,15 +134,16 @@ func (s *AuthService) authenticate(ctx context.Context, id int64) (*user.User, *
 	}
 	sess := &session.Session{
 		Token:     token,
-		UserId:    u.Id,
-		Ip:        ip,
+		UserID:    u.ID,
+		IP:        ip,
 		UserAgent: userAgent,
 		ExpiresAt: time.Now().Add(duration),
+		CreatedAt: time.Now(),
 	}
-	if err := s.app.UserService.UpdateLastLogin(ctx, u.Id); err != nil {
+	if err := s.app.UserService.UpdateLastLogin(ctx, u.ID); err != nil {
 		return nil, nil, err
 	}
-	if err := s.app.UserService.UpdateLastAction(ctx, u.Id); err != nil {
+	if err := s.app.UserService.UpdateLastAction(ctx, u.ID); err != nil {
 		return nil, nil, err
 	}
 	if err := s.app.SessionService.Create(ctx, sess); err != nil {
@@ -159,7 +160,7 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 	if !u.CheckPassword(password) {
 		return nil, nil, service.ErrInvalidPassword
 	}
-	return s.authenticate(ctx, u.Id)
+	return s.authenticate(ctx, u.ID)
 }
 
 func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password string) (*http.Cookie, error) {
@@ -190,7 +191,7 @@ func generateStateOauthCookie() (string, error) {
 	return state, nil
 }
 
-func (s *AuthService) GoogleAuthenticate(ctx context.Context) (string, error) {
+func (s *AuthService) GoogleAuthenticate() (string, error) {
 	oauthState, err := generateStateOauthCookie()
 	if err != nil {
 		return "", err

@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
@@ -15,7 +15,10 @@ func NewMoneyAccountRepository() moneyAccount.Repository {
 	return &GormMoneyAccountRepository{}
 }
 
-func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*moneyAccount.Account, error) {
+func (g *GormMoneyAccountRepository) GetPaginated(
+	ctx context.Context, limit, offset int,
+	sortBy []string,
+) ([]*moneyAccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -28,13 +31,13 @@ func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, limit, of
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*moneyAccount.Account
-	for _, r := range rows {
+	entities := make([]*moneyAccount.Account, len(rows))
+	for i, r := range rows {
 		p, err := toDomainMoneyAccount(r)
 		if err != nil {
 			return nil, err
 		}
-		entities = append(entities, p)
+		entities[i] = p
 	}
 	return entities, nil
 }
@@ -45,7 +48,7 @@ func (g *GormMoneyAccountRepository) Count(ctx context.Context) (uint, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&moneyAccount.Account{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&moneyAccount.Account{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil
@@ -60,13 +63,13 @@ func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyAccoun
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*moneyAccount.Account
-	for _, r := range rows {
+	entities := make([]*moneyAccount.Account, len(rows))
+	for i, r := range rows {
 		p, err := toDomainMoneyAccount(r)
 		if err != nil {
 			return nil, err
 		}
-		entities = append(entities, p)
+		entities[i] = p
 	}
 	return entities, nil
 }
@@ -88,10 +91,7 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyAcco
 	if !ok {
 		return service.ErrNoTx
 	}
-	row, err := toDBMoneyAccount(data)
-	if err != nil {
-		return err
-	}
+	row := toDBMoneyAccount(data)
 	return tx.Create(row).Error
 }
 
@@ -100,10 +100,7 @@ func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyAcco
 	if !ok {
 		return service.ErrNoTx
 	}
-	row, err := toDBMoneyAccount(data)
-	if err != nil {
-		return err
-	}
+	row := toDBMoneyAccount(data)
 	return tx.Save(row).Error
 }
 

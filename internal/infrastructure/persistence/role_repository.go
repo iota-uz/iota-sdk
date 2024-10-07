@@ -15,13 +15,17 @@ func NewRoleRepository() role.Repository {
 	return &GormRoleRepository{}
 }
 
-func (g *GormRoleRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*role.Role, error) {
+func (g *GormRoleRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*role.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &role.Role{})
+	q, err := helpers.ApplySort(q, sortBy, &role.Role{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +42,7 @@ func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&role.Role{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&role.Role{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -97,7 +101,7 @@ func (g *GormRoleRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&role.Role{}, id).Error; err != nil {
+	if err := tx.Delete(&role.Role{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

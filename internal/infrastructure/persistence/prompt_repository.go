@@ -3,72 +3,76 @@ package persistence
 import (
 	"context"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/prompt"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
-type GormSessionRepository struct{}
+type GormPromptRepository struct{}
 
-func NewSessionRepository() session.Repository {
-	return &GormSessionRepository{}
+func NewPromptRepository() prompt.Repository {
+	return &GormPromptRepository{}
 }
 
-func (g *GormSessionRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*session.Session, error) {
+func (g *GormPromptRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*prompt.Prompt, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &session.Session{})
+	q, err := helpers.ApplySort(q, sortBy, &prompt.Prompt{})
 	if err != nil {
 		return nil, err
 	}
-	var entities []*session.Session
+	var entities []*prompt.Prompt
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
-func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormPromptRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&session.Session{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&prompt.Prompt{}).Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
+func (g *GormPromptRepository) GetAll(ctx context.Context) ([]*prompt.Prompt, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entities []*session.Session
+	var entities []*prompt.Prompt
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
-func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
+func (g *GormPromptRepository) GetByID(ctx context.Context, id string) (*prompt.Prompt, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entity session.Session
-	if err := tx.First(&entity, "token = ?", token).Error; err != nil {
+	var entity prompt.Prompt
+	if err := tx.First(&entity, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &entity, nil
 }
 
-func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
+func (g *GormPromptRepository) Create(ctx context.Context, data *prompt.Prompt) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -79,7 +83,7 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 	return nil
 }
 
-func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
+func (g *GormPromptRepository) Update(ctx context.Context, data *prompt.Prompt) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -90,12 +94,12 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 	return nil
 }
 
-func (g *GormSessionRepository) Delete(ctx context.Context, id int64) error {
+func (g *GormPromptRepository) Delete(ctx context.Context, id int64) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&session.Session{}, id).Error; err != nil {
+	if err := tx.Delete(&prompt.Prompt{}, id).Error; err != nil {
 		return err
 	}
 	return nil

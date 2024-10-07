@@ -1,6 +1,7 @@
 package client_1c
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -20,7 +21,7 @@ type Client struct {
 
 func (c *Client) GetOdataServices(infoBase string) (*OdataServices, error) {
 	url := c.url + fmt.Sprintf("/%s/odata/standard.odata?$format=json", infoBase)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}

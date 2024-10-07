@@ -13,8 +13,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func DbSetup() (*sql.DB, error) {
-	db, err := SqlOpen(configuration.Use().DbOpts)
+func DBSetup() (*sql.DB, error) {
+	db, err := SQLOpen(configuration.Use().DBOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -27,11 +27,11 @@ func DbSetup() (*sql.DB, error) {
 	return db, nil
 }
 
-func DbTeardown(db *sql.DB) error {
+func DBTeardown(db *sql.DB) error {
 	return RollbackMigrations(db)
 }
 
-func SqlOpen(dbOpts string) (*sql.DB, error) {
+func SQLOpen(dbOpts string) (*sql.DB, error) {
 	return sql.Open("postgres", dbOpts)
 }
 

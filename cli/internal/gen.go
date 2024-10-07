@@ -2,6 +2,7 @@ package internal
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/format"
 	"os"
@@ -49,7 +50,7 @@ func GenerateFromTemplate(src, dst string, data interface{}, force bool) error {
 func (a *App) Generate(c *cli.Context) error {
 	name := c.Args().First()
 	if name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 	return nil
 }

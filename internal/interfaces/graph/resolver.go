@@ -23,32 +23,32 @@ type Resolver struct {
 
 func NewDefaultServer(app *services.Application) *handler.Server {
 	srv := handler.New(NewExecutableSchema(
-		Config{
+		Config{ //nolint:exhaustruct
 			Resolvers: &Resolver{
 				app: app,
 			},
 		},
 	))
-	srv.AddTransport(transport.Websocket{
+	srv.AddTransport(transport.Websocket{ //nolint:exhaustruct
 		KeepAlivePingInterval: 10 * time.Second,
-		Upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				// TODO: Add origin check
+		Upgrader: websocket.Upgrader{ //nolint:exhaustruct
+			// TODO: Add origin check
+			CheckOrigin: func(_ *http.Request) bool {
 				return true
 			},
 		},
 	})
-	srv.AddTransport(transport.Options{})
-	srv.AddTransport(transport.GET{})
-	srv.AddTransport(transport.POST{})
-	srv.AddTransport(transport.MultipartForm{})
+	srv.AddTransport(transport.Options{})       //nolint:exhaustruct
+	srv.AddTransport(transport.GET{})           //nolint:exhaustruct
+	srv.AddTransport(transport.POST{})          //nolint:exhaustruct
+	srv.AddTransport(transport.MultipartForm{}) //nolint:exhaustruct
 
 	// TODO: make LRU work
 	// srv.SetQueryCache(lru.New(1000))
 
 	srv.Use(extension.Introspection{})
-	//srv.Use(extension.AutomaticPersistedQuery{
+	// srv.Use(extension.AutomaticPersistedQuery{
 	//	Cache: lru.New(100),
-	//})
+	// })
 	return srv
 }

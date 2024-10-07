@@ -35,7 +35,10 @@ func (c *PaymentsController) Register(r *mux.Router) {
 }
 
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.List.Title"})
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		&composables.PageData{Title: "Payments.Meta.List.Title"}, //nolint:exhaustruct
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -46,7 +49,7 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving payments", http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := len(r.Header.Get("HX-Request")) > 0
+	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	if isHxRequest {
 		templ.Handler(payments.PaymentsTable(pageCtx.Localizer, ps), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
@@ -61,7 +64,10 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.Edit.Title"})
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		&composables.PageData{Title: "Payments.Meta.Edit.Title"}, //nolint:exhaustruct
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -95,22 +101,32 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := r.FormValue("_action")
+	action := FormAction(r.FormValue("_action"))
+	if !action.IsValid() {
+		http.Error(w, "Invalid action", http.StatusBadRequest)
+		return
+	}
 	r.Form.Del("_action")
 
-	if action == "save" {
-		dto := payment.UpdateDTO{}
+	switch action {
+	case FormActionDelete:
+		_, err = c.app.PaymentService.Delete(r.Context(), uint(id))
+	case FormActionSave:
+		dto := payment.UpdateDTO{} //nolint:exhaustruct
 		if err := decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.Edit.Title"})
+		pageCtx, err = composables.UsePageCtx(
+			r,
+			&composables.PageData{Title: "Payments.Meta.Edit.Title"}, //nolint:exhaustruct
+		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
+		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
 			ps, err := c.app.PaymentService.GetByID(r.Context(), uint(id))
 			if err != nil {
 				http.Error(w, "Error retrieving payment", http.StatusInternalServerError)
@@ -121,10 +137,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = c.app.PaymentService.Update(r.Context(), uint(id), &dto)
-	} else if action == "delete" {
-		_, err = c.app.PaymentService.Delete(r.Context(), uint(id))
 	}
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -133,7 +146,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.New.Title"})
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.New.Title"}) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -148,13 +161,13 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
-	dto := payment.CreateDTO{}
+	dto := payment.CreateDTO{} //nolint:exhaustruct
 	if err := decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.New.Title"})
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Payments.Meta.New.Title"}) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -165,8 +178,11 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if errors, ok := dto.Ok(pageCtx.Localizer); !ok {
-		templ.Handler(payments.CreateForm(pageCtx.Localizer, dto.ToEntity(), stages, errors), templ.WithStreaming()).ServeHTTP(w, r)
+	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		templ.Handler(
+			payments.CreateForm(pageCtx.Localizer, dto.ToEntity(), stages, errors),
+			templ.WithStreaming(),
+		).ServeHTTP(w, r)
 		return
 	}
 

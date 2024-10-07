@@ -1,12 +1,14 @@
 package chatfuncs
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+
 	functions "github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
 	"gorm.io/gorm"
-	"net/http"
 )
 
 var SupportedUnits = []string{
@@ -20,11 +22,21 @@ var SupportedUnits = []string{
 }
 
 func GetExchangeRate(from string, to string) (float64, error) {
-	response, err := http.Get("https://www.cbr-xml-daily.ru/latest.js")
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"https://www.cbr-xml-daily.ru/latest.js",
+		nil,
+	)
 	if err != nil {
 		return 0, err
 	}
-	if response.StatusCode != 200 {
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
 		return 0, errors.New("failed to get exchange rates")
 	}
 	var responseData struct {

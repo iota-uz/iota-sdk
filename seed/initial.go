@@ -14,7 +14,7 @@ func CreateInitialUser(ctx context.Context) error {
 	roleRepository := persistence.NewRoleRepository()
 	tx, _ := composables.UseTx(ctx)
 	r := &role.Role{
-		Id:          1,
+		ID:          1,
 		Name:        "admin",
 		Description: "Administrator",
 	}
@@ -22,7 +22,7 @@ func CreateInitialUser(ctx context.Context) error {
 		return err
 	}
 	u := &user.User{
-		Id:        1,
+		ID:        1,
 		FirstName: "Admin",
 		LastName:  "User",
 		Email:     "test@gmail.com",
@@ -34,8 +34,8 @@ func CreateInitialUser(ctx context.Context) error {
 		return err
 	}
 	userRole := &role.UserRole{
-		UserId: u.Id,
-		RoleId: r.Id,
+		UserID: u.ID,
+		RoleID: r.ID,
 	}
 	return tx.Save(userRole).Error
 }

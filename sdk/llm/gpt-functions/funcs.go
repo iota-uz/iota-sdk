@@ -10,7 +10,7 @@ import (
 type CompletionFunc func(args map[string]interface{}) (string, error)
 
 func New() *ChatTools {
-	return &ChatTools{}
+	return &ChatTools{} //nolint:exhaustruct
 }
 
 func Default(db *gorm.DB) *ChatTools {
@@ -30,11 +30,11 @@ func (c *ChatTools) Add(def ChatFunctionDefinition) {
 }
 
 func (c *ChatTools) OpenAiTools() []openai.Tool {
-	var tools []openai.Tool
+	tools := make([]openai.Tool, 0, len(c.Definitions))
 	for _, def := range c.Definitions {
 		tools = append(tools, openai.Tool{
 			Type: "function",
-			Function: &openai.FunctionDefinition{
+			Function: &openai.FunctionDefinition{ //nolint:exhaustruct
 				Name:        def.Name(),
 				Description: def.Description(),
 				Parameters:  def.Arguments(),

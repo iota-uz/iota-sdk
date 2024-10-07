@@ -1,4 +1,4 @@
-package tgServer
+package tgserver
 
 import (
 	"context"
@@ -11,22 +11,22 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-func NewDbSession(db *sqlx.DB, userId int) *DbSession {
-	return &DbSession{
-		userId: userId,
+func NewDBSession(db *sqlx.DB, userID int) *DBSession {
+	return &DBSession{
+		userID: userID,
 		db:     db,
 		mux:    sync.RWMutex{},
 	}
 }
 
-type DbSession struct {
-	userId int
+type DBSession struct {
+	userID int
 	db     *sqlx.DB
 	mux    sync.RWMutex
 }
 
 // LoadSession loads session from memory.
-func (s *DbSession) LoadSession(context.Context) ([]byte, error) {
+func (s *DBSession) LoadSession(context.Context) ([]byte, error) {
 	if s == nil {
 		return nil, session.ErrNotFound
 	}
@@ -34,8 +34,8 @@ func (s *DbSession) LoadSession(context.Context) ([]byte, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 
-	dest := &telegram_session.TelegramSession{}
-	if err := s.db.Get(dest, "SELECT session FROM telegram_sessions WHERE user_id = $1", s.userId); err != nil {
+	dest := &telegram_session.TelegramSession{} //nolint:exhaustruct
+	if err := s.db.Get(dest, "SELECT session FROM telegram_sessions WHERE user_id = $1", s.userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, session.ErrNotFound
 		}
@@ -45,9 +45,13 @@ func (s *DbSession) LoadSession(context.Context) ([]byte, error) {
 }
 
 // StoreSession stores session to memory.
-func (s *DbSession) StoreSession(ctx context.Context, data []byte) error {
+func (s *DBSession) StoreSession(_ context.Context, data []byte) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	_, err := s.db.Exec("INSERT INTO telegram_sessions (user_id, session) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET session = $2", s.userId, data)
+	_, err := s.db.Exec(
+		"INSERT INTO telegram_sessions (user_id, session) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET session = $2",
+		s.userID,
+		data,
+	)
 	return err
 }

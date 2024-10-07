@@ -40,7 +40,7 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 
 // GoogleAuthenticate is the resolver for the googleAuthenticate field.
 func (r *mutationResolver) GoogleAuthenticate(ctx context.Context) (string, error) {
-	return r.app.AuthService.GoogleAuthenticate(ctx)
+	return r.app.AuthService.GoogleAuthenticate()
 }
 
 // DeleteSession is the resolver for the deleteSession field.

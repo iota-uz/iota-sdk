@@ -17,7 +17,7 @@ import (
 
 func isRoleSelected(id int64, roles []*role.Role) bool {
 	for _, role := range roles {
-		if role.Id == id {
+		if role.ID == id {
 			return true
 		}
 	}
@@ -72,14 +72,14 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 				Error: errors["roleId"],
 			}) {
 				for _, role := range roles {
-					<option value={ strconv.Itoa(int(role.Id)) } selected?={ isRoleSelected(role.Id, user.Roles) }>{ role.Name }</option>
+					<option value={ strconv.Itoa(int(role.ID)) } selected?={ isRoleSelected(role.ID, user.Roles) }>{ role.Name }</option>
 				}
 			}
 		}
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/users/%d", user.Id) }
+				hx-delete={ fmt.Sprintf("/users/%d", user.ID) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -99,7 +99,7 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}) }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/users/%d", user.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/users/%d", user.ID) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{

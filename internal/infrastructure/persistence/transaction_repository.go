@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
@@ -16,7 +16,11 @@ func NewTransactionRepository() transaction.Repository {
 	return &GormTransactionRepository{}
 }
 
-func (g *GormTransactionRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*transaction.Transaction, error) {
+func (g *GormTransactionRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*transaction.Transaction, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx

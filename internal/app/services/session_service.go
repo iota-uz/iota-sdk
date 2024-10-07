@@ -40,8 +40,8 @@ func (s *SessionService) Create(ctx context.Context, data *session.Session) erro
 		return err
 	}
 	log := &authlog.AuthenticationLog{
-		UserID:    data.UserId,
-		IP:        data.Ip,
+		UserID:    data.UserID,
+		IP:        data.IP,
 		UserAgent: data.UserAgent,
 	}
 	if err := s.app.AuthLogService.Create(ctx, log); err != nil {

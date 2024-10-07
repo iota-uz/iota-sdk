@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
@@ -15,7 +15,10 @@ func NewExpenseCategoryRepository() category.Repository {
 	return &GormExpenseCategoryRepository{}
 }
 
-func (g *GormExpenseCategoryRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetPaginated(
+	ctx context.Context, limit, offset int,
+	sortBy []string,
+) ([]*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -28,13 +31,13 @@ func (g *GormExpenseCategoryRepository) GetPaginated(ctx context.Context, limit,
 	if err := q.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var categories []*category.ExpenseCategory
-	for _, row := range rows {
+	categories := make([]*category.ExpenseCategory, len(rows))
+	for i, row := range rows {
 		e, err := toDomainExpenseCategory(row)
 		if err != nil {
 			return nil, err
 		}
-		categories = append(categories, e)
+		categories[i] = e
 	}
 	return categories, nil
 }
@@ -45,7 +48,7 @@ func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (uint, error)
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.ExpenseCategory{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&models.ExpenseCategory{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil
@@ -60,13 +63,13 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category
 	if err := tx.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*category.ExpenseCategory
-	for _, row := range rows {
+	entities := make([]*category.ExpenseCategory, len(rows))
+	for i, row := range rows {
 		e, err := toDomainExpenseCategory(row)
 		if err != nil {
 			return nil, err
 		}
-		entities = append(entities, e)
+		entities[i] = e
 	}
 	return entities, nil
 }
@@ -88,7 +91,7 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *catego
 	if !ok {
 		return service.ErrNoTx
 	}
-	entity := toDbExpenseCategory(data)
+	entity := toDBExpenseCategory(data)
 	if err := tx.Create(entity).Error; err != nil {
 		return err
 	}
@@ -100,7 +103,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *catego
 	if !ok {
 		return service.ErrNoTx
 	}
-	entity := toDbExpenseCategory(data)
+	entity := toDBExpenseCategory(data)
 	if err := tx.Save(entity).Error; err != nil {
 		return err
 	}
@@ -112,7 +115,7 @@ func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) err
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&models.ExpenseCategory{}, id).Error; err != nil {
+	if err := tx.Delete(&models.ExpenseCategory{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

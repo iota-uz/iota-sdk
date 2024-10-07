@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
@@ -16,13 +16,17 @@ func NewUnitsRepository() unit.Repository {
 	return &GormUnitsRepository{}
 }
 
-func (g *GormUnitsRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*unit.Unit, error) {
+func (g *GormUnitsRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*unit.Unit, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &unit.Unit{})
+	q, err := helpers.ApplySort(q, sortBy, &unit.Unit{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +34,9 @@ func (g *GormUnitsRepository) GetPaginated(ctx context.Context, limit, offset in
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	var units []*unit.Unit
-	for _, entity := range entities {
-		units = append(units, toDomainUnit(entity))
+	units := make([]*unit.Unit, len(entities))
+	for i, entity := range entities {
+		units[i] = toDomainUnit(entity)
 	}
 	return units, nil
 }
@@ -43,7 +47,7 @@ func (g *GormUnitsRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.WarehouseUnit{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&models.WarehouseUnit{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -58,9 +62,9 @@ func (g *GormUnitsRepository) GetAll(ctx context.Context) ([]*unit.Unit, error) 
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	var units []*unit.Unit
-	for _, entity := range entities {
-		units = append(units, toDomainUnit(entity))
+	units := make([]*unit.Unit, len(entities))
+	for i, entity := range entities {
+		units[i] = toDomainUnit(entity)
 	}
 	return units, nil
 }

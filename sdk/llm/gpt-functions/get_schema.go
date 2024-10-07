@@ -2,8 +2,9 @@ package functions
 
 import (
 	"encoding/json"
-	"gorm.io/gorm"
 	"slices"
+
+	"gorm.io/gorm"
 )
 
 type Ref struct {
@@ -24,7 +25,7 @@ type Table struct {
 	Columns     map[string]Column `json:"columns"`
 }
 
-type DbColumn struct {
+type DBColumn struct {
 	ColumnName string `db:"column_name"`
 	DataType   string `db:"data_type"`
 	UdtName    string `db:"udt_name"`
@@ -65,9 +66,12 @@ func GetFkRelations(db *gorm.DB, tn string) ([]struct {
 	return relations, nil
 }
 
-func GetColumns(db *gorm.DB, tn string) ([]*DbColumn, error) {
-	var columns []*DbColumn
-	err := db.Raw("SELECT column_name, data_type, udt_name, is_nullable FROM information_schema.columns WHERE table_name = $1", tn).Scan(&columns).Error
+func GetColumns(db *gorm.DB, tn string) ([]*DBColumn, error) {
+	var columns []*DBColumn
+	err := db.Raw(
+		"SELECT column_name, data_type, udt_name, is_nullable FROM information_schema.columns WHERE table_name = $1",
+		tn,
+	).Scan(&columns).Error
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +87,7 @@ func GetTables(db *gorm.DB) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := []string{}
+	result := make([]string, 0, len(tables))
 	for _, table := range tables {
 		if slices.Contains(exclude, table.Tablename) {
 			continue
@@ -113,7 +117,7 @@ func (g getSchema) Arguments() map[string]interface{} {
 	return map[string]interface{}{}
 }
 
-func (g getSchema) Execute(args map[string]interface{}) (string, error) {
+func (g getSchema) Execute(map[string]interface{}) (string, error) {
 	tableNames, err := GetTables(g.db)
 	if err != nil {
 		return "", err
@@ -122,7 +126,7 @@ func (g getSchema) Execute(args map[string]interface{}) (string, error) {
 		"float8": "float",
 		"int4":   "int",
 	}
-	var tables []*Table
+	tables := make([]*Table, 0, len(tableNames))
 	for _, name := range tableNames {
 		columns, err := GetColumns(g.db, name)
 		if err != nil {
@@ -134,7 +138,7 @@ func (g getSchema) Execute(args map[string]interface{}) (string, error) {
 			if !ok {
 				t = column.DataType
 			}
-			col := Column{
+			col := Column{ //nolint:exhaustruct
 				Type:     t,
 				Nullable: column.IsNullable == "YES",
 			}
@@ -163,7 +167,7 @@ func (g getSchema) Execute(args map[string]interface{}) (string, error) {
 				Column: relation.ForeignColumnName,
 			}
 		}
-		tables = append(tables, &Table{
+		tables = append(tables, &Table{ //nolint:exhaustruct
 			Name:    name,
 			Columns: result,
 		})

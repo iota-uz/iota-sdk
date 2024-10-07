@@ -30,7 +30,11 @@ func (s *PositionService) GetByID(ctx context.Context, id int64) (*position.Posi
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *PositionService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*position.Position, error) {
+func (s *PositionService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*position.Position, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 

@@ -48,7 +48,7 @@ templ EditForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[s
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/payments/%d", payment.Id) }
+				hx-delete={ fmt.Sprintf("/finance/payments/%d", payment.ID) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -68,7 +68,7 @@ templ EditForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[s
 					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}) }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/payments/%d", payment.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/payments/%d", payment.ID) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{

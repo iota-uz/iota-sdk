@@ -13,9 +13,9 @@ import (
 var singleton *Configuration
 
 type Configuration struct {
-	DbOpts             string
-	DbName             string
-	DbPassword         string
+	DBOpts             string
+	DBName             string
+	DBPassword         string
 	GoogleRedirectURL  string
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -50,7 +50,7 @@ func (c *Configuration) load(envFiles []string) error {
 		log.Printf("No .env files found. Tried: %s\n", strings.Join(envFiles, ", "))
 	}
 
-	c.DbOpts = fmt.Sprintf(
+	c.DBOpts = fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
 		env.GetEnv("DB_HOST", "localhost"),
 		env.GetEnv("DB_PORT", "5432"),

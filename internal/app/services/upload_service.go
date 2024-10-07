@@ -34,7 +34,11 @@ func (s *UploadService) GetUploadByID(ctx context.Context, id int64) (*upload.Up
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *UploadService) GetUploadsPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*upload.Upload, error) {
+func (s *UploadService) GetUploadsPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*upload.Upload, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 

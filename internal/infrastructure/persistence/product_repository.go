@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/infrastracture/persistence/models"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
@@ -16,7 +16,10 @@ func NewProductRepository() product.Repository {
 	return &GormProductRepository{}
 }
 
-func (g *GormProductRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*product.Product, error) {
+func (g *GormProductRepository) GetPaginated(
+	ctx context.Context, limit, offset int,
+	sortBy []string,
+) ([]*product.Product, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -30,13 +33,13 @@ func (g *GormProductRepository) GetPaginated(ctx context.Context, limit, offset 
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	var products []*product.Product
-	for _, entity := range entities {
+	products := make([]*product.Product, len(entities))
+	for i, entity := range entities {
 		p, err := toDomainProduct(entity)
 		if err != nil {
 			return nil, err
 		}
-		products = append(products, p)
+		products[i] = p
 	}
 	return products, nil
 }
@@ -47,7 +50,7 @@ func (g *GormProductRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.WarehouseProduct{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&models.WarehouseProduct{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -62,13 +65,13 @@ func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product,
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	var products []*product.Product
-	for _, entity := range entities {
+	products := make([]*product.Product, len(entities))
+	for i, entity := range entities {
 		p, err := toDomainProduct(entity)
 		if err != nil {
 			return nil, err
 		}
-		products = append(products, p)
+		products[i] = p
 	}
 	return products, nil
 }

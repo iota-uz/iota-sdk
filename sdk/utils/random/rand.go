@@ -13,8 +13,8 @@ const (
 
 func String(length int, chatSet string) string {
 	var password string
-	for i := 0; i < length; i++ {
-		password += string(chatSet[rand.Intn(len(chatSet))])
+	for range length {
+		password += string(chatSet[rand.Intn(len(chatSet))]) //nolint:gosec
 	}
 	return password
 }

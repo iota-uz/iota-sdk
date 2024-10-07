@@ -30,7 +30,11 @@ func (s *AuthLogService) GetByID(ctx context.Context, id int64) (*authlog.Authen
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *AuthLogService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*authlog.AuthenticationLog, error) {
+func (s *AuthLogService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*authlog.AuthenticationLog, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 

@@ -15,13 +15,17 @@ func NewProjectStageRepository() stage.Repository {
 
 type GormStageRepository struct{}
 
-func (g *GormStageRepository) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*stage.ProjectStage, error) {
+func (g *GormStageRepository) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*stage.ProjectStage, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &stage.ProjectStage{})
+	q, err := helpers.ApplySort(q, sortBy, &stage.ProjectStage{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +42,7 @@ func (g *GormStageRepository) Count(ctx context.Context) (uint, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&stage.ProjectStage{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&stage.ProjectStage{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil
@@ -61,7 +65,7 @@ func (g *GormStageRepository) GetByID(ctx context.Context, id uint) (*stage.Proj
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	entity := &stage.ProjectStage{}
+	entity := &stage.ProjectStage{} //nolint:exhaustruct
 	if err := tx.First(entity, id).Error; err != nil {
 		return nil, err
 	}

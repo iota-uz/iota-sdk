@@ -17,23 +17,25 @@ func TestMain(m *testing.M) {
 	if err := os.Chdir("../../../"); err != nil {
 		panic(err)
 	}
-	db, err := test_utils.DbSetup()
+	db, err := test_utils.DBSetup()
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
 
 	code := m.Run()
+	if err := db.Close(); err != nil {
+		panic(err)
+	}
 	os.Exit(code)
 }
 
-func TestGormPaymentRepository_CRUD(t *testing.T) {
+func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	currencyRepository := NewCurrencyRepository()
 	accountRepository := NewMoneyAccountRepository()
 	projectRepository := NewProjectRepository()
 	stageRepository := NewProjectStageRepository()
 	paymentRepository := NewPaymentRepository()
-	ctx, tx, err := test_utils.GetTestContext(configuration.Use().DbOpts)
+	ctx, tx, err := test_utils.GetTestContext(configuration.Use().DBOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,16 +67,16 @@ func TestGormPaymentRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := paymentRepository.Create(ctx, &payment.Payment{
-		Id:           1,
+		ID:           1,
 		CurrencyCode: string(currency.UsdCode),
-		StageId:      1,
+		StageID:      1,
 		Amount:       100,
-		AccountId:    1,
+		AccountID:    1,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	t.Run("Count", func(t *testing.T) {
+	t.Run("Count", func(t *testing.T) { //nolint:paralleltest
 		count, err := paymentRepository.Count(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -84,7 +86,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("GetPaginated", func(t *testing.T) {
+	t.Run("GetPaginated", func(t *testing.T) { //nolint:paralleltest
 		payments, err := paymentRepository.GetPaginated(ctx, 1, 0, []string{})
 		if err != nil {
 			t.Fatal(err)
@@ -97,7 +99,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("GetAll", func(t *testing.T) {
+	t.Run("GetAll", func(t *testing.T) { //nolint:paralleltest
 		payments, err := paymentRepository.GetAll(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -110,7 +112,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("GetByID", func(t *testing.T) {
+	t.Run("GetByID", func(t *testing.T) { //nolint:paralleltest
 		paymentEntity, err := paymentRepository.GetByID(ctx, 1)
 		if err != nil {
 			t.Fatal(err)
@@ -125,7 +127,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) {
 
 	// t.Run("Update", func(t *testing.T) {
 	//	if err := paymentRepository.Update(ctx, &payment.Payment{
-	//		Id:     1,
+	//		ID:     1,
 	//		Amount: 200,
 	//	}); err != nil {
 	//		t.Fatal(err)
@@ -140,5 +142,5 @@ func TestGormPaymentRepository_CRUD(t *testing.T) {
 	//	if paymentEntity.CurrencyCode != string(currency.UsdCode) {
 	//		t.Errorf("expected %s, got %s", currency.UsdCode, paymentEntity.CurrencyCode)
 	//	}
-	//})
+	// })
 }

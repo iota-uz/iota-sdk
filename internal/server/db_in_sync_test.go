@@ -11,19 +11,22 @@ func TestMain(m *testing.M) {
 	if err := os.Chdir("../../"); err != nil {
 		panic(err)
 	}
-	db, err := test_utils.DbSetup()
+	db, err := test_utils.DBSetup()
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
 
 	code := m.Run()
+
+	if err := db.Close(); err != nil {
+		panic(err)
+	}
 
 	os.Exit(code)
 }
 
-func TestCheckModels(t *testing.T) {
-	db, err := test_utils.GormOpen(configuration.Use().DbOpts)
+func TestCheckModels(t *testing.T) { //nolint:paralleltest
+	db, err := test_utils.GormOpen(configuration.Use().DBOpts)
 	if err != nil {
 		t.Fatal(err)
 	}

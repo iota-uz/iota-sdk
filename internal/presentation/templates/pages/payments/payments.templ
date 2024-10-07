@@ -30,7 +30,7 @@ templ PaymentsTable(localizer *i18n.Localizer, payments []*payment.Payment) {
 					</div>
 				}
 				@base.TableCell() {
-					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/payments/%d", payment.Id)}) {
+					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/payments/%d", payment.ID)}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}

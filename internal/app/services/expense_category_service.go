@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
+	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -31,7 +31,11 @@ func (s *ExpenseCategoryService) GetAll(ctx context.Context) ([]*category.Expens
 	return s.Repo.GetAll(ctx)
 }
 
-func (s *ExpenseCategoryService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*category.ExpenseCategory, error) {
 	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
