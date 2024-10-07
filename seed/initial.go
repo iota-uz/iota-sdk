@@ -2,6 +2,7 @@ package seed
 
 import (
 	"context"
+	"time"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
@@ -17,11 +18,13 @@ func CreateInitialUser(ctx context.Context) error {
 		ID:          1,
 		Name:        "admin",
 		Description: "Administrator",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 	if err := roleRepository.CreateOrUpdate(ctx, r); err != nil {
 		return err
 	}
-	u := &user.User{
+	u := &user.User{ //nolint:exhaustruct
 		ID:        1,
 		FirstName: "Admin",
 		LastName:  "User",

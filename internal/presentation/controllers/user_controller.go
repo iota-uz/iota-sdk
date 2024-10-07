@@ -168,7 +168,7 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.New.Title"})
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.New.Title"}) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

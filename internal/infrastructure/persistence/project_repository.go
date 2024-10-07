@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
@@ -46,7 +45,7 @@ func (g *GormProjectRepository) Count(ctx context.Context) (uint, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&payment.Payment{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&models.Project{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil
@@ -103,5 +102,5 @@ func (g *GormProjectRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Delete(&payment.Payment{}, id).Error
+	return tx.Delete(&models.Project{}, id).Error //nolint:exhaustruct
 }

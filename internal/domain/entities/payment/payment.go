@@ -70,6 +70,7 @@ func (p *CreateDTO) ToEntity() *Payment {
 		AccountID:        p.AccountID,
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
+		User:             &user.User{ID: int64(p.UserID)},
 		Comment:          p.Comment,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
@@ -110,6 +111,7 @@ func (p *UpdateDTO) ToEntity(id uint) *Payment {
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
 		Comment:          p.Comment,
+		User:             &user.User{ID: int64(p.UserID)},
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}
@@ -117,9 +119,10 @@ func (p *UpdateDTO) ToEntity(id uint) *Payment {
 
 func (p *Payment) ToGraph() *model.Payment {
 	return &model.Payment{
-		ID:        int64(p.ID),
-		StageID:   int64(p.StageID),
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
+		ID:            int64(p.ID),
+		StageID:       int64(p.StageID),
+		TransactionID: int64(p.TransactionID),
+		CreatedAt:     p.CreatedAt,
+		UpdatedAt:     p.UpdatedAt,
 	}
 }

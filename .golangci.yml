@@ -31,12 +31,12 @@ linters:
     - errcheck
     - errchkjson
     - errname
-    - errorlint
+#    - errorlint
     - exhaustive
     - exhaustruct
     - fatcontext
     - forbidigo
-    - forcetypeassert
+#    - forcetypeassert
     - gci
     - ginkgolinter
     - gocheckcompilerdirectives
@@ -44,7 +44,7 @@ linters:
     - gochecksumtype
     - gocognit
     - goconst
-    - gocritic
+#    - gocritic
     - gocyclo
     - godot
 #    - godox

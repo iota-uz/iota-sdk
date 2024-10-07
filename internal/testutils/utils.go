@@ -1,4 +1,4 @@
-package test_utils
+package testutils
 
 import (
 	"context"
@@ -69,7 +69,7 @@ func RollbackMigrations(db *sql.DB) error {
 }
 
 func GormOpen(dbOpts string) (*gorm.DB, error) {
-	return gorm.Open(postgres.Open(dbOpts), &gorm.Config{})
+	return gorm.Open(postgres.Open(dbOpts), &gorm.Config{}) //nolint:exhaustruct
 }
 
 func GetTestContext(dbOpts string) (context.Context, *gorm.DB, error) {

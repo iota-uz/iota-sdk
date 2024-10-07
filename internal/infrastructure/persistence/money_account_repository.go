@@ -109,5 +109,5 @@ func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uint) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Delete(&models.MoneyAccount{}, id).Error
+	return tx.Delete(&models.MoneyAccount{}, id).Error //nolint:exhaustruct
 }

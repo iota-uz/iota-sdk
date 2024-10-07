@@ -1,9 +1,9 @@
-package task_type
+package tasktype
 
 import "time"
 
 type TaskType struct {
-	Id          int64
+	ID          int64
 	Icon        *string
 	Name        string
 	Description *string

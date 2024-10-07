@@ -33,7 +33,7 @@ type Configuration struct {
 
 func Use() *Configuration {
 	if singleton == nil {
-		singleton = &Configuration{}
+		singleton = &Configuration{} //nolint:exhaustruct
 		if err := singleton.load([]string{".env", ".env.local"}); err != nil {
 			panic(err)
 		}

@@ -1,4 +1,4 @@
-package moneyAccount
+package moneyaccount
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"

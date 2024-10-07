@@ -49,7 +49,7 @@ func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.Currency{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&models.Currency{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil

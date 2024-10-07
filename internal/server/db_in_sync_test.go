@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/test_utils"
+	"github.com/iota-agency/iota-erp/internal/testutils"
 	"os"
 	"testing"
 )
@@ -11,7 +11,7 @@ func TestMain(m *testing.M) {
 	if err := os.Chdir("../../"); err != nil {
 		panic(err)
 	}
-	db, err := test_utils.DBSetup()
+	db, err := testutils.DBSetup()
 	if err != nil {
 		panic(err)
 	}
@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCheckModels(t *testing.T) { //nolint:paralleltest
-	db, err := test_utils.GormOpen(configuration.Use().DBOpts)
+	db, err := testutils.GormOpen(configuration.Use().DBOpts)
 	if err != nil {
 		t.Fatal(err)
 	}

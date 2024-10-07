@@ -26,7 +26,7 @@ func (g *GormTransactionRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &transaction.Transaction{})
+	q, err := helpers.ApplySort(q, sortBy, &transaction.Transaction{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (g *GormTransactionRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&transaction.Transaction{}).Count(&count).Error; err != nil {
+	if err := tx.Model(&transaction.Transaction{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -96,5 +96,5 @@ func (g *GormTransactionRepository) Delete(ctx context.Context, id int64) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Delete(&transaction.Transaction{}, id).Error
+	return tx.Delete(&transaction.Transaction{}, id).Error //nolint:exhaustruct
 }

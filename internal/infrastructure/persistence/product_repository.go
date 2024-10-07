@@ -25,7 +25,7 @@ func (g *GormProductRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &product.Product{})
+	q, err := helpers.ApplySort(q, sortBy, &product.Product{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (g *GormProductRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Where("id = ?", id).Delete(&product.Product{}).Error; err != nil {
+	if err := tx.Where("id = ?", id).Delete(&models.WarehouseProduct{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

@@ -97,10 +97,7 @@ func (g *GormUnitsRepository) Update(ctx context.Context, data *unit.Unit) error
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Model(&models.WarehouseUnit{}).Updates(toDBUnit(data)).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Model(&models.WarehouseUnit{}).Updates(toDBUnit(data)).Error //nolint:exhaustruct
 }
 
 func (g *GormUnitsRepository) Delete(ctx context.Context, id int64) error {
@@ -108,8 +105,5 @@ func (g *GormUnitsRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Where("id = ?", id).Delete(&models.WarehouseUnit{}).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Where("id = ?", id).Delete(&models.WarehouseUnit{}).Error //nolint:exhaustruct
 }

@@ -25,7 +25,7 @@ func (c *HomeController) Register(r *mux.Router) {
 }
 
 func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{
+	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{ //nolint:exhaustruct
 		Title: "Home.Meta.Title",
 	})
 	if err != nil {

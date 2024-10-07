@@ -8,7 +8,7 @@ import (
 )
 
 type Meta struct {
-	EmployeeId        int64
+	EmployeeID        int64
 	PrimaryLanguage   *string
 	SecondaryLanguage *string
 	Tin               *string
@@ -16,13 +16,13 @@ type Meta struct {
 	JoinDate          *time.Time
 	LeaveDate         *time.Time
 	GeneralInfo       *string
-	YtProfileId       string
+	YtProfileID       string
 	UpdatedAt         *time.Time
 }
 
 func (e *Meta) ToGraph() *model.EmployeeMeta {
 	return &model.EmployeeMeta{
-		EmployeeID:        e.EmployeeId,
+		EmployeeID:        e.EmployeeID,
 		PrimaryLanguage:   e.PrimaryLanguage,
 		SecondaryLanguage: e.SecondaryLanguage,
 		Tin:               e.Tin,
@@ -30,13 +30,13 @@ func (e *Meta) ToGraph() *model.EmployeeMeta {
 		JoinDate:          e.JoinDate,
 		LeaveDate:         e.LeaveDate,
 		GeneralInfo:       e.GeneralInfo,
-		YtProfileID:       &e.YtProfileId,
+		YtProfileID:       &e.YtProfileID,
 		UpdatedAt:         *e.UpdatedAt,
 	}
 }
 
 type Employee struct {
-	Id          int64
+	ID          int64
 	FirstName   string
 	LastName    string
 	MiddleName  *string
@@ -44,18 +44,18 @@ type Employee struct {
 	Phone       *string
 	Salary      float64
 	HourlyRate  float64
-	PositionId  int64
+	PositionID  int64
 	Coefficient float64
 	Meta        *Meta
 	Position    *position.Position
-	AvatarId    *int64
+	AvatarID    *int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
 func (e *Employee) ToGraph() *model.Employee {
 	return &model.Employee{
-		ID:          e.Id,
+		ID:          e.ID,
 		FirstName:   e.FirstName,
 		LastName:    e.LastName,
 		MiddleName:  e.MiddleName,
@@ -66,7 +66,7 @@ func (e *Employee) ToGraph() *model.Employee {
 		Position:    e.Position.ToGraph(),
 		Coefficient: e.Coefficient,
 		Meta:        e.Meta.ToGraph(),
-		AvatarID:    e.AvatarId,
+		AvatarID:    e.AvatarID,
 		CreatedAt:   e.CreatedAt,
 		UpdatedAt:   e.UpdatedAt,
 	}

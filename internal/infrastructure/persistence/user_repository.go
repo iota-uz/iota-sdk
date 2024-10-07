@@ -65,11 +65,11 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id int64) (*user.User,
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	u := &user.User{} //nolint:exhaustruct
-	if err := tx.Preload("Roles").First(u, id).Error; err != nil {
+	var entity user.User
+	if err := tx.Preload("Roles").First(&entity, id).Error; err != nil {
 		return nil, err
 	}
-	return u, nil
+	return &entity, nil
 }
 
 func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
@@ -77,11 +77,11 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	u := &user.User{}
-	if err := tx.First(u, "email = ?", email).Error; err != nil {
+	var entity user.User
+	if err := tx.First(&entity, "email = ?", email).Error; err != nil {
 		return nil, err
 	}
-	return u, nil
+	return &entity, nil
 }
 
 func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User) error {
@@ -97,10 +97,7 @@ func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(user).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Create(user).Error
 }
 
 func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error {
@@ -119,7 +116,7 @@ func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id int64) erro
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Model(&user.User{}).Where("id = ?", id).Update("last_login", "NOW()").Error
+	return tx.Model(&user.User{}).Where("id = ?", id).Update("last_login", "NOW()").Error //nolint:exhaustruct
 }
 
 func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id int64) error {
@@ -127,7 +124,7 @@ func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id int64) err
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Model(&user.User{}).Where("id = ?", id).Update("last_action", "NOW()").Error
+	return tx.Model(&user.User{}).Where("id = ?", id).Update("last_action", "NOW()").Error //nolint:exhaustruct
 }
 
 func (g *GormUserRepository) Delete(ctx context.Context, id int64) error {
@@ -135,8 +132,5 @@ func (g *GormUserRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&user.User{}, id).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Delete(&user.User{}, id).Error //nolint:exhaustruct
 }
