@@ -2,8 +2,8 @@ package expense_categories
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -65,7 +65,7 @@ templ EditForm(props *EditPageProps) {
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id) }
+				hx-delete={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.ID) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -85,7 +85,7 @@ templ EditForm(props *EditPageProps) {
 					{ props.T("Delete") }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.Id) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.ID) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{

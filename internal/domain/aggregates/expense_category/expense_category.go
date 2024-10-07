@@ -11,7 +11,7 @@ import (
 )
 
 type ExpenseCategory struct {
-	Id          uint
+	ID          uint
 	Name        string
 	Description string
 	Amount      float64
@@ -91,7 +91,7 @@ func (e *UpdateDTO) ToEntity(id uint) (*ExpenseCategory, error) {
 		return nil, err
 	}
 	return &ExpenseCategory{
-		Id:          id,
+		ID:          id,
 		Name:        e.Name,
 		Amount:      e.Amount,
 		Currency:    currency.Currency{Code: code},
@@ -101,7 +101,7 @@ func (e *UpdateDTO) ToEntity(id uint) (*ExpenseCategory, error) {
 
 func (e *ExpenseCategory) ToGraph() *model.ExpenseCategory {
 	return &model.ExpenseCategory{
-		ID:          e.Id,
+		ID:          e.ID,
 		Name:        e.Name,
 		Amount:      e.Amount,
 		Description: &e.Description,

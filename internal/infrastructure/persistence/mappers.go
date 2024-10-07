@@ -227,7 +227,7 @@ func toDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
 
 func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
-		ID:               entity.Id,
+		ID:               entity.ID,
 		Name:             entity.Name,
 		Description:      &entity.Description,
 		Amount:           entity.Amount,
@@ -243,7 +243,7 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.Expe
 		return nil, err
 	}
 	return &category.ExpenseCategory{
-		Id:          dbCategory.ID,
+		ID:          dbCategory.ID,
 		Name:        dbCategory.Name,
 		Description: *dbCategory.Description,
 		Amount:      dbCategory.Amount,
