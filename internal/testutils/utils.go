@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	_ "github.com/lib/pq"
@@ -13,26 +12,25 @@ import (
 	"gorm.io/gorm"
 )
 
-func DBSetup() (*sql.DB, error) {
-	db, err := SQLOpen(configuration.Use().DBOpts)
-	if err != nil {
-		return nil, err
-	}
+type TestContext struct {
+	SqlDB   *sql.DB
+	GormDB  *gorm.DB
+	Context context.Context
+	Tx      *gorm.DB
+}
+
+func DBSetup(db *sql.DB) error {
 	if err := DropPublicSchema(db); err != nil {
-		return nil, err
+		return err
 	}
 	if err := RunMigrations(db); err != nil {
-		return nil, err
+		return err
 	}
-	return db, nil
+	return nil
 }
 
 func DBTeardown(db *sql.DB) error {
 	return RollbackMigrations(db)
-}
-
-func SQLOpen(dbOpts string) (*sql.DB, error) {
-	return sql.Open("postgres", dbOpts)
 }
 
 func DropPublicSchema(db *sql.DB) error {
@@ -68,15 +66,29 @@ func RollbackMigrations(db *sql.DB) error {
 	return nil
 }
 
-func GormOpen(dbOpts string) (*gorm.DB, error) {
-	return gorm.Open(postgres.Open(dbOpts), &gorm.Config{}) //nolint:exhaustruct
+func GormOpen() *gorm.DB {
+	dbOpts := configuration.Use().DBOpts
+	db, err := gorm.Open(postgres.Open(dbOpts), &gorm.Config{}) //nolint:exhaustruct
+	if err != nil {
+		panic(err)
+	}
+	return db
 }
 
-func GetTestContext(dbOpts string) (context.Context, *gorm.DB, error) {
-	db, err := GormOpen(dbOpts)
-	if err != nil {
-		return nil, nil, err
-	}
+func GetTestContext() *TestContext {
+	db := GormOpen()
 	tx := db.Begin()
-	return composables.WithTx(context.Background(), tx), tx, nil
+	sqlDB, err := tx.DB()
+	if err != nil {
+		panic(err)
+	}
+	if err := DBSetup(sqlDB); err != nil {
+		panic(err)
+	}
+	return &TestContext{
+		SqlDB:   sqlDB,
+		GormDB:  db,
+		Tx:      tx,
+		Context: composables.WithTx(context.Background(), tx),
+	}
 }

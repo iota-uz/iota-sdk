@@ -1,49 +1,35 @@
 package persistence
 
 import (
-	"os"
-	"testing"
-
-	"github.com/iota-agency/iota-erp/internal/configuration"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/testutils"
+	"os"
+	"testing"
 )
 
 func TestMain(m *testing.M) {
 	if err := os.Chdir("../../../"); err != nil {
 		panic(err)
 	}
-	db, err := testutils.DBSetup()
-	if err != nil {
-		panic(err)
-	}
-
-	code := m.Run()
-	if err := db.Close(); err != nil {
-		panic(err)
-	}
-	os.Exit(code)
+	os.Exit(m.Run())
 }
 
 func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
+	ctx := testutils.GetTestContext()
 	currencyRepository := NewCurrencyRepository()
 	accountRepository := NewMoneyAccountRepository()
 	projectRepository := NewProjectRepository()
 	stageRepository := NewProjectStageRepository()
 	paymentRepository := NewPaymentRepository()
-	ctx, tx, err := testutils.GetTestContext(configuration.Use().DBOpts)
-	if err != nil {
+
+	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Commit()
-	if err := currencyRepository.Create(ctx, &currency.USD); err != nil {
-		t.Fatal(err)
-	}
-	if err := accountRepository.Create(ctx, &moneyAccount.Account{
+	if err := accountRepository.Create(ctx.Context, &moneyAccount.Account{
 		Id:            1,
 		Name:          "test",
 		AccountNumber: "123",
@@ -52,7 +38,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := projectRepository.Create(ctx, &project.Project{
+	if err := projectRepository.Create(ctx.Context, &project.Project{
 		Id:   1,
 		Name: "test",
 	}); err != nil {
@@ -63,10 +49,10 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		Name:      "test",
 		ProjectID: 1,
 	}
-	if err := stageRepository.Create(ctx, stageEntity); err != nil {
+	if err := stageRepository.Create(ctx.Context, stageEntity); err != nil {
 		t.Fatal(err)
 	}
-	if err := paymentRepository.Create(ctx, &payment.Payment{
+	if err := paymentRepository.Create(ctx.Context, &payment.Payment{
 		ID:           1,
 		CurrencyCode: string(currency.UsdCode),
 		StageID:      1,
@@ -77,7 +63,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	}
 
 	t.Run("Count", func(t *testing.T) { //nolint:paralleltest
-		count, err := paymentRepository.Count(ctx)
+		count, err := paymentRepository.Count(ctx.Context)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +73,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	})
 
 	t.Run("GetPaginated", func(t *testing.T) { //nolint:paralleltest
-		payments, err := paymentRepository.GetPaginated(ctx, 1, 0, []string{})
+		payments, err := paymentRepository.GetPaginated(ctx.Context, 1, 0, []string{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +86,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	})
 
 	t.Run("GetAll", func(t *testing.T) { //nolint:paralleltest
-		payments, err := paymentRepository.GetAll(ctx)
+		payments, err := paymentRepository.GetAll(ctx.Context)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,7 +99,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	})
 
 	t.Run("GetByID", func(t *testing.T) { //nolint:paralleltest
-		paymentEntity, err := paymentRepository.GetByID(ctx, 1)
+		paymentEntity, err := paymentRepository.GetByID(ctx.Context, 1)
 		if err != nil {
 			t.Fatal(err)
 		}

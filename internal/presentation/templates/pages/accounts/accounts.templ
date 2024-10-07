@@ -8,12 +8,12 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/iota-agency/iota-erp/internal/presentation/view_models"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type IndexPageProps struct {
 	*types.PageContext
-	Accounts []*view_models.Account
+	Accounts []*viewmodels.Account
 }
 
 templ CategoriesTable(props *IndexPageProps) {
@@ -40,7 +40,7 @@ templ CategoriesTable(props *IndexPageProps) {
 					</div>
 				}
 				@base.TableCell() {
-					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/accounts/%s", account.Id)}) {
+					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/accounts/%s", account.ID)}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}
