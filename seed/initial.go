@@ -24,7 +24,8 @@ func CreateInitialUser(ctx context.Context) error {
 	if err := roleRepository.CreateOrUpdate(ctx, r); err != nil {
 		return err
 	}
-	u := &user.User{ //nolint:exhaustruct
+	u := &user.User{
+		//nolint:exhaustruct
 		ID:        1,
 		FirstName: "Admin",
 		LastName:  "User",

@@ -40,11 +40,13 @@ func toDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.OrderItem) {
 	dbItems := make([]*models.OrderItem, 0, len(data.Items))
 	for _, item := range data.Items {
-		dbItems = append(dbItems, &models.OrderItem{
-			ProductID: item.Product.ID,
-			OrderID:   data.ID,
-			CreatedAt: data.CreatedAt,
-		})
+		dbItems = append(
+			dbItems, &models.OrderItem{
+				ProductID: item.Product.ID,
+				OrderID:   data.ID,
+				CreatedAt: data.CreatedAt,
+			},
+		)
 	}
 	return &models.WarehouseOrder{
 		ID:        data.ID,
@@ -75,10 +77,12 @@ func toDomainOrder(
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, &order.Item{
-			Product:   p,
-			CreatedAt: item.CreatedAt,
-		})
+		items = append(
+			items, &order.Item{
+				Product:   p,
+				CreatedAt: item.CreatedAt,
+			},
+		)
 	}
 	status, err := order.NewStatus(dbOrder.Status)
 	if err != nil {
@@ -129,6 +133,7 @@ func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
 		Amount:           entity.Amount,
 		Comment:          entity.Comment,
 		AccountingPeriod: entity.AccountingPeriod,
+		AmountCurrencyID: entity.AmountCurrencyID,
 		TransactionDate:  entity.TransactionDate,
 		MoneyAccountID:   entity.MoneyAccountID,
 		TransactionType:  entity.TransactionType.String(),
@@ -171,7 +176,7 @@ func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction)
 		ID:            entity.ID,
 		StageID:       entity.StageID,
 		TransactionID: entity.TransactionID,
-		Transaction:   *dbTransaction,
+		Transaction:   dbTransaction,
 		CreatedAt:     entity.CreatedAt,
 		UpdatedAt:     entity.UpdatedAt,
 	}
@@ -179,7 +184,10 @@ func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction)
 }
 
 func toDomainPayment(dbPayment *models.Payment) (*payment.Payment, error) {
-	t, err := toDomainTransaction(&dbPayment.Transaction)
+	if dbPayment.Transaction == nil {
+		return nil, errors.New("transaction is nil")
+	}
+	t, err := toDomainTransaction(dbPayment.Transaction)
 	if err != nil {
 		return nil, err
 	}

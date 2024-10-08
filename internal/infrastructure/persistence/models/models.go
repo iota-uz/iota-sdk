@@ -275,7 +275,7 @@ type Payment struct {
 	ID            uint
 	StageID       uint
 	TransactionID uint
-	Transaction   Transaction `gorm:"foreignKey:TransactionID;references:ID"`
+	Transaction   *Transaction `gorm:"foreignKey:TransactionID;references:ID"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
