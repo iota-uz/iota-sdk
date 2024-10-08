@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
@@ -104,11 +103,18 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data *payment.Paymen
 	if !ok {
 		return service.ErrNoTx
 	}
-	entity, transaction := toDBPayment(data)
-	if err := tx.Save(entity).Error; err != nil {
+	// TODO: a nicer solution
+	var transactionID uint
+	model := &models.Payment{} // nolint:exhaustruct
+	if err := tx.Model(model).Select("transaction_id").First(&transactionID, data.ID).Error; err != nil {
 		return err
 	}
-	return tx.Save(transaction).Error
+	dbPayment, dbTransaction := toDBPayment(data)
+	dbTransaction.ID = transactionID
+	if err := tx.Updates(dbPayment).Error; err != nil {
+		return err
+	}
+	return tx.Updates(dbTransaction).Error
 }
 
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {

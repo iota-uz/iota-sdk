@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
@@ -104,10 +103,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *catego
 		return service.ErrNoTx
 	}
 	entity := toDBExpenseCategory(data)
-	if err := tx.Save(entity).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Updates(entity).Error
 }
 
 func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
