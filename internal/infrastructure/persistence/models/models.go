@@ -244,7 +244,7 @@ type MoneyAccount struct {
 	Description       string
 	Balance           float64
 	BalanceCurrencyID string
-	Currency          Currency `gorm:"foreignKey:BalanceCurrencyID;references:Code"`
+	Currency          *Currency `gorm:"foreignKey:BalanceCurrencyID;references:Code"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }

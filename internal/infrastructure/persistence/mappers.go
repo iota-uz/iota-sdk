@@ -282,12 +282,12 @@ func toDBProject(entity *project.Project) *models.Project {
 }
 
 func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyAccount.Account, error) {
-	currencyEntity, err := toDomainCurrency(&dbAccount.Currency)
+	currencyEntity, err := toDomainCurrency(dbAccount.Currency)
 	if err != nil {
 		return nil, err
 	}
 	return &moneyAccount.Account{
-		Id:            dbAccount.ID,
+		ID:            dbAccount.ID,
 		Name:          dbAccount.Name,
 		AccountNumber: dbAccount.AccountNumber,
 		Balance:       dbAccount.Balance,
@@ -300,11 +300,12 @@ func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyAccount.Account
 
 func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
 	return &models.MoneyAccount{
-		ID:                entity.Id,
+		ID:                entity.ID,
 		Name:              entity.Name,
 		AccountNumber:     entity.AccountNumber,
 		Balance:           entity.Balance,
 		BalanceCurrencyID: entity.Currency.Code.String(),
+		Currency:          toDBCurrency(&entity.Currency),
 		Description:       entity.Description,
 		CreatedAt:         entity.CreatedAt,
 		UpdatedAt:         entity.UpdatedAt,

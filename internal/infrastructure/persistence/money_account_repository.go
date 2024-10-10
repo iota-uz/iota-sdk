@@ -28,7 +28,7 @@ func (g *GormMoneyAccountRepository) GetPaginated(
 	for _, s := range sortBy {
 		q = q.Order(s)
 	}
-	if err := q.Find(&rows).Error; err != nil {
+	if err := q.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	entities := make([]*moneyAccount.Account, len(rows))
@@ -48,7 +48,7 @@ func (g *GormMoneyAccountRepository) Count(ctx context.Context) (uint, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&moneyAccount.Account{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&models.MoneyAccount{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return uint(count), nil
@@ -60,7 +60,7 @@ func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyAccoun
 		return nil, service.ErrNoTx
 	}
 	var rows []*models.MoneyAccount
-	if err := tx.Find(&rows).Error; err != nil {
+	if err := tx.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	entities := make([]*moneyAccount.Account, len(rows))
@@ -79,11 +79,11 @@ func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*mon
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entity moneyAccount.Account
-	if err := tx.First(&entity, id).Error; err != nil {
+	var entity models.MoneyAccount
+	if err := tx.Preload("Currency").First(&entity, id).Error; err != nil {
 		return nil, err
 	}
-	return &entity, nil
+	return toDomainMoneyAccount(&entity)
 }
 
 func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyAccount.Account) error {
@@ -91,8 +91,7 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyAcco
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDBMoneyAccount(data)
-	return tx.Create(row).Error
+	return tx.Create(toDBMoneyAccount(data)).Error
 }
 
 func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyAccount.Account) error {
@@ -100,8 +99,7 @@ func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyAcco
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDBMoneyAccount(data)
-	return tx.Save(row).Error
+	return tx.Updates(toDBMoneyAccount(data)).Error
 }
 
 func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uint) error {

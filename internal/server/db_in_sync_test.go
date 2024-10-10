@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/iota-agency/iota-erp/internal/testutils"
+	"github.com/iota-agency/iota-erp/pkg/dbutils"
 	"os"
 	"testing"
 )
@@ -15,7 +16,7 @@ func TestMain(m *testing.M) {
 
 func TestCheckModels(t *testing.T) { //nolint:paralleltest
 	ctx := testutils.GetTestContext()
-	if err := CheckModels(ctx.GormDB); err != nil {
+	if err := dbutils.CheckModels(ctx.GormDB, RegisteredModels); err != nil {
 		t.Fatal(err)
 	}
 }

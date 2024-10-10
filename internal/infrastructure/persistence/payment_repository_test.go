@@ -8,17 +8,9 @@ import (
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/internal/testutils"
-	"os"
 	"testing"
 	"time"
 )
-
-func TestMain(m *testing.M) {
-	if err := os.Chdir("../../../"); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
-}
 
 func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	ctx := testutils.GetTestContext()
@@ -34,7 +26,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	}
 	if err := accountRepository.Create(
 		ctx.Context, &moneyAccount.Account{
-			Id:            1,
+			ID:            1,
 			Name:          "test",
 			AccountNumber: "123",
 			Currency:      currency.USD,
