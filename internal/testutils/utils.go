@@ -36,12 +36,14 @@ func DBTeardown(db *sql.DB) error {
 }
 
 func DropPublicSchema(db *sql.DB) error {
-	q := strings.Join([]string{
-		"DROP SCHEMA IF EXISTS public CASCADE",
-		"CREATE SCHEMA public",
-		"GRANT ALL ON SCHEMA public TO postgres",
-		"GRANT ALL ON SCHEMA public TO public;",
-	}, ";")
+	q := strings.Join(
+		[]string{
+			"DROP SCHEMA IF EXISTS public CASCADE",
+			"CREATE SCHEMA public",
+			"GRANT ALL ON SCHEMA public TO postgres",
+			"GRANT ALL ON SCHEMA public TO public;",
+		}, ";",
+	)
 	_, err := db.Exec(q)
 	return err
 }
@@ -87,10 +89,23 @@ func GetTestContext() *TestContext {
 	if err := DBSetup(sqlDB); err != nil {
 		panic(err)
 	}
+	ctx := composables.WithTx(context.Background(), tx)
+	ctx = composables.WithParams(
+		ctx,
+		&composables.Params{
+			Ip:            "",
+			UserAgent:     "",
+			Authenticated: true,
+			Request:       nil,
+			Writer:        nil,
+			Meta:          nil,
+		},
+	)
+
 	return &TestContext{
 		SQLDB:   sqlDB,
 		GormDB:  db,
 		Tx:      tx,
-		Context: composables.WithTx(context.Background(), tx),
+		Context: ctx,
 	}
 }

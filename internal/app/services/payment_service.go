@@ -8,14 +8,20 @@ import (
 )
 
 type PaymentService struct {
-	repo      payment.Repository
-	publisher event.Publisher
+	repo           payment.Repository
+	publisher      event.Publisher
+	accountService *MoneyAccountService
 }
 
-func NewPaymentService(repo payment.Repository, publisher event.Publisher) *PaymentService {
+func NewPaymentService(
+	repo payment.Repository,
+	publisher event.Publisher,
+	accountService *MoneyAccountService,
+) *PaymentService {
 	return &PaymentService{
-		repo:      repo,
-		publisher: publisher,
+		repo:           repo,
+		publisher:      publisher,
+		accountService: accountService,
 	}
 }
 
@@ -36,38 +42,38 @@ func (s *PaymentService) GetPaginated(
 }
 
 func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) error {
-	createdEvent, err := payment.NewCreatedEvent(ctx, *data)
-	if err != nil {
-		return err
-	}
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent.Result = *entity
+	createdEvent, err := payment.NewCreatedEvent(ctx, *data, *entity)
+	if err != nil {
+		return err
+	}
+	if err := s.accountService.RecalculateBalance(ctx, entity.AccountID); err != nil {
+		return err
+	}
 	s.publisher.Publish(createdEvent)
 	return nil
 }
 
 func (s *PaymentService) Update(ctx context.Context, id uint, data *payment.UpdateDTO) error {
-	updatedEvent, err := payment.NewUpdatedEvent(ctx, *data)
-	if err != nil {
-		return err
-	}
 	entity := data.ToEntity(id)
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent.Result = *entity
+	updatedEvent, err := payment.NewUpdatedEvent(ctx, *data, *entity)
+	if err != nil {
+		return err
+	}
+	if err := s.accountService.RecalculateBalance(ctx, entity.AccountID); err != nil {
+		return err
+	}
 	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment.Payment, error) {
-	deletedEvent, err := payment.NewDeletedEvent(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -75,7 +81,10 @@ func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment.Payment,
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = *entity
+	deletedEvent, err := payment.NewDeletedEvent(ctx, *entity)
+	if err != nil {
+		return nil, err
+	}
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }
