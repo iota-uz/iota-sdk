@@ -2,19 +2,20 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/sdk/event"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
 )
 
 type PositionService struct {
-	repo position.Repository
-	app  *Application
+	repo      position.Repository
+	publisher event.Publisher
 }
 
-func NewPositionService(repo position.Repository, app *Application) *PositionService {
+func NewPositionService(repo position.Repository, publisher event.Publisher) *PositionService {
 	return &PositionService{
-		repo: repo,
-		app:  app,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -42,7 +43,7 @@ func (s *PositionService) Create(ctx context.Context, data *position.Position) e
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("position.created", data)
+	s.publisher.Publish("position.created", data)
 	return nil
 }
 
@@ -50,7 +51,7 @@ func (s *PositionService) Update(ctx context.Context, data *position.Position) e
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("position.updated", data)
+	s.publisher.Publish("position.updated", data)
 	return nil
 }
 
@@ -58,6 +59,6 @@ func (s *PositionService) Delete(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("position.deleted", id)
+	s.publisher.Publish("position.deleted", id)
 	return nil
 }

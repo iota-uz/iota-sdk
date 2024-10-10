@@ -2,19 +2,20 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/sdk/event"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/prompt"
 )
 
 type PromptService struct {
-	repo prompt.Repository
-	app  *Application
+	repo      prompt.Repository
+	publisher event.Publisher
 }
 
-func NewPromptService(repo prompt.Repository, app *Application) *PromptService {
+func NewPromptService(repo prompt.Repository, publisher event.Publisher) *PromptService {
 	return &PromptService{
-		repo: repo,
-		app:  app,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -42,7 +43,7 @@ func (s *PromptService) Create(ctx context.Context, data *prompt.Prompt) error {
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("prompt.created", data)
+	s.publisher.Publish("prompt.created", data)
 	return nil
 }
 
@@ -50,7 +51,7 @@ func (s *PromptService) Update(ctx context.Context, data *prompt.Prompt) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("prompt.updated", data)
+	s.publisher.Publish("prompt.updated", data)
 	return nil
 }
 
@@ -58,6 +59,6 @@ func (s *PromptService) Delete(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("prompt.deleted", id)
+	s.publisher.Publish("prompt.deleted", id)
 	return nil
 }

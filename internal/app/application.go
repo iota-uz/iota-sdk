@@ -9,54 +9,28 @@ import (
 
 func New(db *gorm.DB) *services.Application {
 	eventPublisher := event.NewEventPublisher()
-	userRepository := persistence.NewUserRepository()
-	uploadRepository := persistence.NewUploadRepository()
-	dialogueRepository := persistence.NewDialogueRepository()
-	promptRepository := persistence.NewPromptRepository()
-	sessionRepository := persistence.NewSessionRepository()
-	authLogRepository := persistence.NewAuthLogRepository()
-	employeeRepository := persistence.NewEmployeeRepository()
-	roleRepository := persistence.NewRoleRepository()
-	positionRepository := persistence.NewPositionRepository()
-	expenseCategoriesRepository := persistence.NewExpenseCategoryRepository()
-	paymentRepository := persistence.NewPaymentRepository()
-	stageRepository := persistence.NewProjectStageRepository()
-	currencyRepository := persistence.NewCurrencyRepository()
 
 	app := &services.Application{
-		DD:             db,
-		EventPublisher: eventPublisher,
+		DD:                  db,
+		EventPublisher:      eventPublisher,
+		SessionService:      services.NewSessionService(persistence.NewSessionRepository(), eventPublisher),
+		UploadService:       services.NewUploadService(persistence.NewUploadRepository(), eventPublisher),
+		UserService:         services.NewUserService(persistence.NewUserRepository(), eventPublisher),
+		RoleService:         services.NewRoleService(persistence.NewRoleRepository(), eventPublisher),
+		PaymentService:      services.NewPaymentService(persistence.NewPaymentRepository(), eventPublisher),
+		ProjectStageService: services.NewProjectStageService(persistence.NewProjectStageRepository(), eventPublisher),
+		CurrencyService:     services.NewCurrencyService(persistence.NewCurrencyRepository(), eventPublisher),
+		ExpenseCategoryService: services.NewExpenseCategoryService(
+			persistence.NewExpenseCategoryRepository(),
+			eventPublisher,
+		),
+		PositionService: services.NewPositionService(persistence.NewPositionRepository(), eventPublisher),
+		EmployeeService: services.NewEmployeeService(persistence.NewEmployeeRepository(), eventPublisher),
+		AuthLogService:  services.NewAuthLogService(persistence.NewAuthLogRepository(), eventPublisher),
+		PromptService:   services.NewPromptService(persistence.NewPromptRepository(), eventPublisher),
 	}
-	authService := services.NewAuthService(app)
-	userService := services.NewUserService(userRepository, app)
-	uploadService := services.NewUploadService(uploadRepository, app)
-	dialogueService := services.NewDialogueService(dialogueRepository, app)
-	promptService := services.NewPromptService(promptRepository, app)
-	sessionService := services.NewSessionService(sessionRepository, app)
-	authLogService := services.NewAuthLogService(authLogRepository, app)
-	employeeService := services.NewEmployeeService(employeeRepository, app)
-	embeddingService := services.NewEmbeddingService(app)
-	roleService := services.NewRoleService(roleRepository, app)
-	positionService := services.NewPositionService(positionRepository, app)
-	expenseCategoriesService := services.NewExpenseCategoryService(expenseCategoriesRepository, app)
-	paymentService := services.NewPaymentService(paymentRepository, app)
-	stageService := services.NewProjectStageService(stageRepository, app)
-	currencyService := services.NewCurrencyService(currencyRepository, app)
-
-	app.AuthService = authService
-	app.UserService = userService
-	app.UploadService = uploadService
-	app.DialogueService = dialogueService
-	app.PromptService = promptService
-	app.SessionService = sessionService
-	app.AuthLogService = authLogService
-	app.EmbeddingService = embeddingService
-	app.EmployeeService = employeeService
-	app.RoleService = roleService
-	app.PositionService = positionService
-	app.ExpenseCategoryService = expenseCategoriesService
-	app.PaymentService = paymentService
-	app.ProjectStageService = stageService
-	app.CurrencyService = currencyService
+	app.AuthService = services.NewAuthService(app)
+	app.DialogueService = services.NewDialogueService(persistence.NewDialogueRepository(), app)
+	app.EmbeddingService = services.NewEmbeddingService(app)
 	return app
 }

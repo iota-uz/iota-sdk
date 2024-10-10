@@ -8,27 +8,27 @@ import (
 )
 
 type ExpenseCategoryService struct {
-	Repo      category.Repository
-	Publisher *event.Publisher
+	repo      category.Repository
+	publisher event.Publisher
 }
 
-func NewExpenseCategoryService(repo category.Repository, app *Application) *ExpenseCategoryService {
+func NewExpenseCategoryService(repo category.Repository, publisher event.Publisher) *ExpenseCategoryService {
 	return &ExpenseCategoryService{
-		Repo:      repo,
-		Publisher: app.EventPublisher,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
 func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
-	return s.Repo.GetByID(ctx, id)
+	return s.repo.GetByID(ctx, id)
 }
 
 func (s *ExpenseCategoryService) Count(ctx context.Context) (uint, error) {
-	return s.Repo.Count(ctx)
+	return s.repo.Count(ctx)
 }
 
 func (s *ExpenseCategoryService) GetAll(ctx context.Context) ([]*category.ExpenseCategory, error) {
-	return s.Repo.GetAll(ctx)
+	return s.repo.GetAll(ctx)
 }
 
 func (s *ExpenseCategoryService) GetPaginated(
@@ -36,7 +36,7 @@ func (s *ExpenseCategoryService) GetPaginated(
 	limit, offset int,
 	sortBy []string,
 ) ([]*category.ExpenseCategory, error) {
-	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
 func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.CreateDTO) error {
@@ -48,11 +48,11 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.Crea
 	if err != nil {
 		return err
 	}
-	if err := s.Repo.Create(ctx, entity); err != nil {
+	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
 	createdEvent.Result = *entity
-	s.Publisher.Publish(createdEvent)
+	s.publisher.Publish(createdEvent)
 	return nil
 }
 
@@ -65,11 +65,11 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *cate
 	if err != nil {
 		return err
 	}
-	if err := s.Repo.Update(ctx, entity); err != nil {
+	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
 	updatedEvent.Result = *entity
-	s.Publisher.Publish(updatedEvent)
+	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
@@ -78,14 +78,14 @@ func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category
 	if err != nil {
 		return nil, err
 	}
-	entity, err := s.Repo.GetByID(ctx, id)
+	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = *entity
-	s.Publisher.Publish(deletedEvent)
+	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }

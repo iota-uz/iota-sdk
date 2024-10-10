@@ -9,13 +9,13 @@ import (
 
 type ProjectStageService struct {
 	repo      stage.Repository
-	publisher *event.Publisher
+	publisher event.Publisher
 }
 
-func NewProjectStageService(repo stage.Repository, app *Application) *ProjectStageService {
+func NewProjectStageService(repo stage.Repository, publisher event.Publisher) *ProjectStageService {
 	return &ProjectStageService{
 		repo:      repo,
-		publisher: app.EventPublisher,
+		publisher: publisher,
 	}
 }
 

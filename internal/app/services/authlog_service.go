@@ -2,19 +2,20 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/sdk/event"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/authlog"
 )
 
 type AuthLogService struct {
-	repo authlog.Repository
-	app  *Application
+	repo      authlog.Repository
+	publisher event.Publisher
 }
 
-func NewAuthLogService(repo authlog.Repository, app *Application) *AuthLogService {
+func NewAuthLogService(repo authlog.Repository, publisher event.Publisher) *AuthLogService {
 	return &AuthLogService{
-		repo: repo,
-		app:  app,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -42,7 +43,7 @@ func (s *AuthLogService) Create(ctx context.Context, data *authlog.Authenticatio
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("authlog.created", data)
+	s.publisher.Publish("authlog.created", data)
 	return nil
 }
 
@@ -50,7 +51,7 @@ func (s *AuthLogService) Update(ctx context.Context, data *authlog.Authenticatio
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("authlog.updated", data)
+	s.publisher.Publish("authlog.updated", data)
 	return nil
 }
 
@@ -58,6 +59,6 @@ func (s *AuthLogService) Delete(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("authlog.deleted", id)
+	s.publisher.Publish("authlog.deleted", id)
 	return nil
 }

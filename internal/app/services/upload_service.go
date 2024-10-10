@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/sdk/event"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,14 +12,14 @@ import (
 )
 
 type UploadService struct {
-	repo upload.Repository
-	app  *Application
+	repo      upload.Repository
+	publisher event.Publisher
 }
 
-func NewUploadService(repo upload.Repository, app *Application) *UploadService {
+func NewUploadService(repo upload.Repository, publisher event.Publisher) *UploadService {
 	return &UploadService{
-		repo: repo,
-		app:  app,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -61,7 +62,7 @@ func (s *UploadService) CreateUpload(ctx context.Context, upload *upload.Upload)
 	if err := s.repo.Create(ctx, upload); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("upload.created", upload)
+	s.publisher.Publish("upload.created", upload)
 	return nil
 }
 
@@ -69,7 +70,7 @@ func (s *UploadService) UpdateUpload(ctx context.Context, upload *upload.Upload)
 	if err := s.repo.Update(ctx, upload); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("upload.updated", upload)
+	s.publisher.Publish("upload.updated", upload)
 	return nil
 }
 
@@ -77,6 +78,6 @@ func (s *UploadService) DeleteUpload(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("upload.deleted", id)
+	s.publisher.Publish("upload.deleted", id)
 	return nil
 }

@@ -9,13 +9,13 @@ import (
 
 type CurrencyService struct {
 	Repo      currency.Repository
-	Publisher *event.Publisher
+	Publisher event.Publisher
 }
 
-func NewCurrencyService(repo currency.Repository, app *Application) *CurrencyService {
+func NewCurrencyService(repo currency.Repository, publisher event.Publisher) *CurrencyService {
 	return &CurrencyService{
 		Repo:      repo,
-		Publisher: app.EventPublisher,
+		Publisher: publisher,
 	}
 }
 
