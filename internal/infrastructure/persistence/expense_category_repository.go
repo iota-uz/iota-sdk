@@ -90,11 +90,7 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *catego
 	if !ok {
 		return service.ErrNoTx
 	}
-	entity := toDBExpenseCategory(data)
-	if err := tx.Create(entity).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Create(toDBExpenseCategory(data)).Error
 }
 
 func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *category.ExpenseCategory) error {
@@ -102,8 +98,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *catego
 	if !ok {
 		return service.ErrNoTx
 	}
-	entity := toDBExpenseCategory(data)
-	return tx.Updates(entity).Error
+	return tx.Updates(toDBExpenseCategory(data)).Error
 }
 
 func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
@@ -111,8 +106,5 @@ func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) err
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&models.ExpenseCategory{}, id).Error; err != nil { //nolint:exhaustruct
-		return err
-	}
-	return nil
+	return tx.Delete(&models.ExpenseCategory{}, id).Error //nolint:exhaustruct
 }

@@ -2,19 +2,20 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/sdk/event"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 )
 
 type EmployeeService struct {
-	repo employee.Repository
-	app  *Application
+	repo      employee.Repository
+	publisher event.Publisher
 }
 
-func NewEmployeeService(repo employee.Repository, app *Application) *EmployeeService {
+func NewEmployeeService(repo employee.Repository, publisher event.Publisher) *EmployeeService {
 	return &EmployeeService{
-		repo: repo,
-		app:  app,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -46,7 +47,7 @@ func (s *EmployeeService) Create(ctx context.Context, data *employee.Employee) e
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("employee.created", data)
+	s.publisher.Publish("employee.created", data)
 	return nil
 }
 
@@ -54,7 +55,7 @@ func (s *EmployeeService) Update(ctx context.Context, data *employee.Employee) e
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("employee.updated", data)
+	s.publisher.Publish("employee.updated", data)
 	return nil
 }
 
@@ -62,6 +63,6 @@ func (s *EmployeeService) Delete(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("employee.deleted", id)
+	s.publisher.Publish("employee.deleted", id)
 	return nil
 }

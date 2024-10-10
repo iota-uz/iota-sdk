@@ -7,7 +7,7 @@ import (
 
 type Application struct {
 	DD                     *gorm.DB
-	EventPublisher         *event.Publisher
+	EventPublisher         event.Publisher
 	AuthService            *AuthService
 	UserService            *UserService
 	UploadService          *UploadService

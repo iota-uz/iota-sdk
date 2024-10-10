@@ -2,19 +2,20 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/sdk/event"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 )
 
 type RoleService struct {
-	repo role.Repository
-	app  *Application
+	repo      role.Repository
+	publisher event.Publisher
 }
 
-func NewRoleService(repo role.Repository, app *Application) *RoleService {
+func NewRoleService(repo role.Repository, publisher event.Publisher) *RoleService {
 	return &RoleService{
-		repo: repo,
-		app:  app,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -38,7 +39,7 @@ func (s *RoleService) Create(ctx context.Context, data *role.Role) error {
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("role.created", data)
+	s.publisher.Publish("role.created", data)
 	return nil
 }
 
@@ -46,7 +47,7 @@ func (s *RoleService) Update(ctx context.Context, data *role.Role) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("role.updated", data)
+	s.publisher.Publish("role.updated", data)
 	return nil
 }
 
@@ -54,6 +55,6 @@ func (s *RoleService) Delete(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("role.deleted", id)
+	s.publisher.Publish("role.deleted", id)
 	return nil
 }

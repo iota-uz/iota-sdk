@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/iota-agency/iota-erp/internal/configuration"
 	"time"
 
 	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
@@ -13,6 +14,22 @@ type Session struct {
 	UserAgent string
 	ExpiresAt time.Time
 	CreatedAt time.Time
+}
+
+type CreateDTO struct {
+	UserID    int64
+	IP        string
+	UserAgent string
+}
+
+func (d *CreateDTO) ToEntity() *Session {
+	return &Session{
+		UserID:    d.UserID,
+		IP:        d.IP,
+		UserAgent: d.UserAgent,
+		ExpiresAt: time.Now().Add(configuration.Use().SessionDuration),
+		CreatedAt: time.Now(),
+	}
 }
 
 func (s *Session) IsExpired() bool {

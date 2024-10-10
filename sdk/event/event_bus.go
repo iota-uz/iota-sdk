@@ -11,15 +11,23 @@ type Subscriber struct {
 	Handler interface{}
 }
 
-type Publisher struct {
+type Publisher interface {
+	Publish(args ...interface{})
+	Subscribe(handler interface{})
+	Unsubscribe(handler interface{})
+	Clear()
+	SubscribersCount() int
+}
+
+type publisherImpl struct {
 	Subscribers []Subscriber
 }
 
-func NewEventPublisher() *Publisher {
-	return &Publisher{}
+func NewEventPublisher() Publisher {
+	return &publisherImpl{}
 }
 
-func (p *Publisher) checkSignature(handler interface{}, args []interface{}) bool {
+func (p *publisherImpl) checkSignature(handler interface{}, args []interface{}) bool {
 	t := reflect.TypeOf(handler)
 	if t.Kind() != reflect.Func {
 		return false
@@ -35,7 +43,7 @@ func (p *Publisher) checkSignature(handler interface{}, args []interface{}) bool
 	return true
 }
 
-func (p *Publisher) Publish(args ...interface{}) {
+func (p *publisherImpl) Publish(args ...interface{}) {
 	for _, subscriber := range p.Subscribers {
 		v := reflect.ValueOf(subscriber.Handler)
 		if !p.checkSignature(subscriber.Handler, args) {
@@ -49,7 +57,7 @@ func (p *Publisher) Publish(args ...interface{}) {
 	}
 }
 
-func (p *Publisher) Subscribe(handler interface{}) {
+func (p *publisherImpl) Subscribe(handler interface{}) {
 	t := reflect.TypeOf(handler)
 	if t.Kind() != reflect.Func {
 		panic("handler must be a function")
@@ -60,7 +68,7 @@ func (p *Publisher) Subscribe(handler interface{}) {
 	)
 }
 
-func (p *Publisher) Unsubscribe(handler interface{}) {
+func (p *publisherImpl) Unsubscribe(handler interface{}) {
 	for i, subscriber := range p.Subscribers {
 		if subscriber.Handler == handler {
 			p.Subscribers = append(p.Subscribers[:i], p.Subscribers[i+1:]...)
@@ -69,10 +77,10 @@ func (p *Publisher) Unsubscribe(handler interface{}) {
 	}
 }
 
-func (p *Publisher) Clear() {
+func (p *publisherImpl) Clear() {
 	p.Subscribers = []Subscriber{}
 }
 
-func (p *Publisher) SubscribersCount() int {
+func (p *publisherImpl) SubscribersCount() int {
 	return len(p.Subscribers)
 }

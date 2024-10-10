@@ -2,21 +2,19 @@ package services
 
 import (
 	"context"
-	"time"
-
-	"github.com/iota-agency/iota-erp/internal/domain/entities/authlog"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
+	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
 type SessionService struct {
-	repo session.Repository
-	app  *Application
+	repo      session.Repository
+	publisher event.Publisher
 }
 
-func NewSessionService(repo session.Repository, app *Application) *SessionService {
+func NewSessionService(repo session.Repository, publisher event.Publisher) *SessionService {
 	return &SessionService{
-		repo: repo,
-		app:  app,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -40,20 +38,16 @@ func (s *SessionService) GetPaginated(
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *SessionService) Create(ctx context.Context, data *session.Session) error {
-	if err := s.repo.Create(ctx, data); err != nil {
+func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
+	entity := data.ToEntity()
+	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	log := &authlog.AuthenticationLog{ //nolint:exhaustruct
-		UserID:    data.UserID,
-		IP:        data.IP,
-		UserAgent: data.UserAgent,
-		CreatedAt: time.Now(),
-	}
-	if err := s.app.AuthLogService.Create(ctx, log); err != nil {
+	createdEvent, err := session.NewCreatedEvent(ctx, *data, *entity)
+	if err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("session.created", data)
+	s.publisher.Publish(createdEvent)
 	return nil
 }
 
@@ -61,7 +55,7 @@ func (s *SessionService) Update(ctx context.Context, data *session.Session) erro
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("session.updated", data)
+	s.publisher.Publish("session.updated", data)
 	return nil
 }
 
@@ -69,6 +63,6 @@ func (s *SessionService) Delete(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("session.deleted", id)
+	s.publisher.Publish("session.deleted", id)
 	return nil
 }
