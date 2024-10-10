@@ -1,14 +1,18 @@
 package services_test
 
 import (
+	"context"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/internal/testutils"
+	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/sdk/event"
 	"testing"
 	"time"
@@ -16,6 +20,8 @@ import (
 
 func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	ctx := testutils.GetTestContext()
+	ctx.Context = context.WithValue(ctx.Context, constants.UserKey, &user.User{})
+	ctx.Context = context.WithValue(ctx.Context, constants.SessionKey, &session.Session{})
 	defer ctx.Tx.Commit()
 
 	publisher := event.NewEventPublisher()
@@ -24,7 +30,8 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	projectRepository := persistence.NewProjectRepository()
 	stageRepository := persistence.NewProjectStageRepository()
 	paymentRepository := persistence.NewPaymentRepository()
-	paymentsService := services.NewPaymentService(paymentRepository, publisher)
+	accountService := services.NewMoneyAccountService(accountRepository, publisher)
+	paymentsService := services.NewPaymentService(paymentRepository, publisher, accountService)
 
 	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
 		t.Fatal(err)
@@ -68,5 +75,13 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 		},
 	); err != nil {
 		t.Fatal(err)
+	}
+
+	accountEntity, err := accountRepository.GetByID(ctx.Context, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accountEntity.Balance != 200 {
+		t.Fatalf("expected balance to be 200, got %f", accountEntity.Balance)
 	}
 }

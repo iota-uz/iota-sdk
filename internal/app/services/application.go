@@ -23,4 +23,5 @@ type Application struct {
 	ExpenseCategoryService *ExpenseCategoryService
 	ProjectStageService    *ProjectStageService
 	CurrencyService        *CurrencyService
+	MoneyAccountService    *MoneyAccountService
 }

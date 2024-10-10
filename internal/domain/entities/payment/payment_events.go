@@ -8,41 +8,55 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
-func NewCreatedEvent(ctx context.Context, data CreateDTO) (*Created, error) {
+func NewCreatedEvent(ctx context.Context, data CreateDTO, result Payment) (*Created, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sess, err := composables.UseSession(ctx)
+	if err != nil {
+		return nil, err
+	}
 	ev := &Created{
-		Data: data,
-	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = *u
-	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = *sess
+		Data:    data,
+		Result:  result,
+		Sender:  *u,
+		Session: *sess,
 	}
 	return ev, nil
 }
 
-func NewUpdatedEvent(ctx context.Context, data UpdateDTO) (*Updated, error) {
-	ev := &Updated{
-		Data: data,
+func NewUpdatedEvent(ctx context.Context, data UpdateDTO, result Payment) (*Updated, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
 	}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = *u
+	sess, err := composables.UseSession(ctx)
+	if err != nil {
+		return nil, err
 	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = *sess
-	}
-	return ev, nil
+	return &Updated{
+		Data:    data,
+		Sender:  *u,
+		Session: *sess,
+		Result:  result,
+	}, nil
 }
 
-func NewDeletedEvent(ctx context.Context) (*Deleted, error) {
-	ev := &Deleted{}
-	if u, err := composables.UseUser(ctx); err == nil {
-		ev.Sender = *u
+func NewDeletedEvent(ctx context.Context, result Payment) (*Deleted, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
 	}
-	if sess, err := composables.UseSession(ctx); err == nil {
-		ev.Session = *sess
+	sess, err := composables.UseSession(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return ev, nil
+	return &Deleted{
+		Session: *sess,
+		Sender:  *u,
+		Result:  result,
+	}, nil
 }
 
 type Created struct {

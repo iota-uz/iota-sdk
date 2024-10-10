@@ -96,7 +96,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (*user.User, 
 	}
 	// TODO: update last action
 	// if err := s.app.UserService.UpdateLastAction(ctx, u.ID); err != nil {
-	//	   return nil, nil, err
+	//	  return nil, nil, err
 	//}
 	return u, sess, nil
 }
@@ -184,8 +184,7 @@ func generateStateOauthCookie() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	state := base64.URLEncoding.EncodeToString(b)
-	return state, nil
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 func (s *AuthService) GoogleAuthenticate() (string, error) {

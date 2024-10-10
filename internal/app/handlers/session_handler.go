@@ -18,7 +18,7 @@ type SessionEventsHandler struct {
 	authLogService *services.AuthLogService
 }
 
-func NewSessionEventsHandler(
+func RegisterSessionEventHandlers(
 	db *gorm.DB,
 	publisher event.Publisher,
 	authLogService *services.AuthLogService,
@@ -28,13 +28,14 @@ func NewSessionEventsHandler(
 		publisher:      publisher,
 		authLogService: authLogService,
 	}
-	publisher.Subscribe(handler.OnSessionCreated)
+	publisher.Subscribe(handler.onSessionCreated)
 	return handler
 }
 
-func (h *SessionEventsHandler) OnSessionCreated(event session.CreatedEvent) {
-	sess := event.Session
+func (h *SessionEventsHandler) onSessionCreated(event session.CreatedEvent) {
+	sess := event.Result
 	logEntity := &authlog.AuthenticationLog{
+		ID:        0,
 		UserID:    sess.UserID,
 		IP:        sess.IP,
 		UserAgent: sess.UserAgent,

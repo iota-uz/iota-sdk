@@ -2,11 +2,12 @@ package persistence
 
 import (
 	"context"
-
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
+	"time"
 )
 
 type GormMoneyAccountRepository struct{}
@@ -86,12 +87,44 @@ func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*mon
 	return toDomainMoneyAccount(&entity)
 }
 
+func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id uint) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	var balance float64
+	q := tx.Model(&models.Transaction{}).Where("money_account_id = ?", id).Select("sum(amount)") //nolint:exhaustruct
+	if err := q.Row().Scan(&balance); err != nil {
+		return err
+	}
+	return tx.Model(&models.MoneyAccount{}).Where("id = ?", id).Update("balance", balance).Error //nolint:exhaustruct
+}
+
 func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyAccount.Account) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Create(toDBMoneyAccount(data)).Error
+	entity := toDBMoneyAccount(data)
+	if err := tx.Create(entity).Error; err != nil {
+		return err
+	}
+	if err := tx.Create(
+		&models.Transaction{
+			ID:               0,
+			MoneyAccountID:   entity.ID,
+			Amount:           data.Balance,
+			Comment:          "Initial balance",
+			CreatedAt:        data.CreatedAt,
+			AccountingPeriod: time.Now(),
+			TransactionDate:  time.Now(),
+			TransactionType:  string(transaction.IncomeType),
+			AmountCurrencyID: data.Currency.Code.String(),
+		},
+	).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyAccount.Account) error {
