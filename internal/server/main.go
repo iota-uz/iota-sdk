@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/iota-agency/iota-erp/pkg/dbutils"
 	"log"
 	"net/http"
 
@@ -45,11 +46,11 @@ func (s *Server) Start() error {
 
 func DefaultServer() (*Server, error) {
 	conf := configuration.Use()
-	db, err := ConnectDB(conf.DBOpts, logger.Error)
+	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Info)
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckModels(db); err != nil {
+	if err := dbutils.CheckModels(db, RegisteredModels); err != nil {
 		return nil, err
 	}
 	application := app.New(db)

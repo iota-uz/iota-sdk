@@ -5,15 +5,17 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/configuration"
+	"github.com/iota-agency/iota-erp/pkg/dbutils"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	_ "github.com/lib/pq"
 	migrate "github.com/rubenv/sql-migrate"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"strings"
 )
 
 type TestContext struct {
-	SqlDB   *sql.DB
+	SQLDB   *sql.DB
 	GormDB  *gorm.DB
 	Context context.Context
 	Tx      *gorm.DB
@@ -34,7 +36,13 @@ func DBTeardown(db *sql.DB) error {
 }
 
 func DropPublicSchema(db *sql.DB) error {
-	_, err := db.Exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+	q := strings.Join([]string{
+		"DROP SCHEMA IF EXISTS public CASCADE",
+		"CREATE SCHEMA public",
+		"GRANT ALL ON SCHEMA public TO postgres",
+		"GRANT ALL ON SCHEMA public TO public;",
+	}, ";")
+	_, err := db.Exec(q)
 	return err
 }
 
@@ -66,17 +74,11 @@ func RollbackMigrations(db *sql.DB) error {
 	return nil
 }
 
-func GormOpen() *gorm.DB {
-	dbOpts := configuration.Use().DBOpts
-	db, err := gorm.Open(postgres.Open(dbOpts), &gorm.Config{}) //nolint:exhaustruct
+func GetTestContext() *TestContext {
+	db, err := dbutils.ConnectDB(configuration.Use().DBOpts, logger.Warn)
 	if err != nil {
 		panic(err)
 	}
-	return db
-}
-
-func GetTestContext() *TestContext {
-	db := GormOpen()
 	tx := db.Begin()
 	sqlDB, err := tx.DB()
 	if err != nil {
@@ -86,7 +88,7 @@ func GetTestContext() *TestContext {
 		panic(err)
 	}
 	return &TestContext{
-		SqlDB:   sqlDB,
+		SQLDB:   sqlDB,
 		GormDB:  db,
 		Tx:      tx,
 		Context: composables.WithTx(context.Background(), tx),
