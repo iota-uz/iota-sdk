@@ -43,7 +43,7 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := session.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := session.NewCreatedEvent(*data, *entity)
 	if err != nil {
 		return err
 	}

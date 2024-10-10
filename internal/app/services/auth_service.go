@@ -4,9 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"net/http"
-	"time"
-
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
@@ -16,6 +13,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
+	"net/http"
 )
 
 type AuthService struct {
@@ -74,7 +72,8 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 	conf := configuration.Use()
-	cookie := &http.Cookie{ //nolint:exhaustruct
+	cookie := &http.Cookie{
+		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
@@ -127,18 +126,15 @@ func (s *AuthService) authenticate(ctx context.Context, id int64) (*user.User, *
 	}
 	ip, _ := composables.UseIp(ctx)
 	userAgent, _ := composables.UseUserAgent(ctx)
-	duration := configuration.Use().SessionDuration
 	token, err := s.newSessionToken()
 	if err != nil {
 		return nil, nil, err
 	}
-	sess := &session.Session{
+	sess := &session.CreateDTO{
 		Token:     token,
 		UserID:    u.ID,
 		IP:        ip,
 		UserAgent: userAgent,
-		ExpiresAt: time.Now().Add(duration),
-		CreatedAt: time.Now(),
 	}
 	if err := s.app.UserService.UpdateLastLogin(ctx, u.ID); err != nil {
 		return nil, nil, err
@@ -149,7 +145,7 @@ func (s *AuthService) authenticate(ctx context.Context, id int64) (*user.User, *
 	if err := s.app.SessionService.Create(ctx, sess); err != nil {
 		return nil, nil, err
 	}
-	return u, sess, nil
+	return u, sess.ToEntity(), nil
 }
 
 func (s *AuthService) Authenticate(ctx context.Context, email, password string) (*user.User, *session.Session, error) {
@@ -169,7 +165,8 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		return nil, err
 	}
 	conf := configuration.Use()
-	cookie := &http.Cookie{ //nolint:exhaustruct
+	cookie := &http.Cookie{
+		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,

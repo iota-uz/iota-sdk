@@ -17,6 +17,7 @@ type Session struct {
 }
 
 type CreateDTO struct {
+	Token     string
 	UserID    int64
 	IP        string
 	UserAgent string
@@ -24,6 +25,7 @@ type CreateDTO struct {
 
 func (d *CreateDTO) ToEntity() *Session {
 	return &Session{
+		Token:     d.Token,
 		UserID:    d.UserID,
 		IP:        d.IP,
 		UserAgent: d.UserAgent,
