@@ -111,15 +111,15 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyAcco
 	}
 	if err := tx.Create(
 		&models.Transaction{
-			ID:               0,
-			MoneyAccountID:   entity.ID,
-			Amount:           data.Balance,
-			Comment:          "Initial balance",
-			CreatedAt:        data.CreatedAt,
-			AccountingPeriod: time.Now(),
-			TransactionDate:  time.Now(),
-			TransactionType:  string(transaction.IncomeType),
-			AmountCurrencyID: data.Currency.Code.String(),
+			ID:                   0,
+			OriginAccountID:      nil,
+			DestinationAccountID: &entity.ID,
+			Amount:               data.Balance,
+			Comment:              "Initial balance",
+			CreatedAt:            data.CreatedAt,
+			AccountingPeriod:     time.Now(),
+			TransactionDate:      time.Now(),
+			TransactionType:      string(transaction.IncomeType),
 		},
 	).Error; err != nil {
 		return err

@@ -100,6 +100,8 @@
       "Amount": "Amount"
     },
     "Single": {
+      "Account": "Account",
+      "SelectAccount": "Select account",
       "EditUser": "Edit payment",
       "Name": "Name",
       "Amount": "Amount",
@@ -130,6 +132,7 @@
       "Edit": "Edit account",
       "Name": "Name",
       "Balance": "Balance",
+      "Description": "Description",
       "AccountNumber": "Account number"
     }
   },

@@ -46,7 +46,7 @@ func (s *Server) Start() error {
 
 func DefaultServer() (*Server, error) {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Info)
+	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Error)
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +68,7 @@ func DefaultServer() (*Server, error) {
 			localMiddleware.Authorization(application.AuthService),
 		},
 		controllers: []controllers.Controller{
+			controllers.NewAccountController(application),
 			controllers.NewHomeController(application),
 			controllers.NewLoginController(application),
 			controllers.NewUsersController(application),

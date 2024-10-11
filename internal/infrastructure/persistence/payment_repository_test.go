@@ -2,9 +2,9 @@ package persistence_test
 
 import (
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/internal/testutils"
@@ -47,7 +47,7 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		t.Fatal(err)
 	}
 	stageEntity := &stage.ProjectStage{
-		Id:        1,
+		ID:        1,
 		Name:      "test",
 		ProjectID: 1,
 	}
@@ -66,7 +66,8 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		t.Fatal(err)
 	}
 
-	t.Run( //nolint:paralleltest
+	t.Run(
+		//nolint:paralleltest
 		"Count", func(t *testing.T) {
 			count, err := paymentRepository.Count(ctx.Context)
 			if err != nil {
@@ -78,7 +79,8 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
+		//nolint:paralleltest
 		"GetPaginated", func(t *testing.T) {
 			payments, err := paymentRepository.GetPaginated(ctx.Context, 1, 0, []string{})
 			if err != nil {
@@ -93,7 +95,8 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
+		//nolint:paralleltest
 		"GetAll", func(t *testing.T) {
 			payments, err := paymentRepository.GetAll(ctx.Context)
 			if err != nil {
@@ -108,7 +111,8 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
+		//nolint:paralleltest
 		"GetByID", func(t *testing.T) {
 			paymentEntity, err := paymentRepository.GetByID(ctx.Context, 1)
 			if err != nil {
@@ -123,7 +127,8 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
+		//nolint:paralleltest
 		"Update", func(t *testing.T) {
 			if err := paymentRepository.Update(
 				ctx.Context, &payment.Payment{

@@ -250,15 +250,15 @@ type MoneyAccount struct {
 }
 
 type Transaction struct {
-	ID               uint
-	Amount           float64
-	AmountCurrencyID string
-	MoneyAccountID   uint
-	TransactionDate  time.Time
-	AccountingPeriod time.Time
-	TransactionType  string
-	Comment          string
-	CreatedAt        time.Time
+	ID                   uint
+	Amount               float64
+	OriginAccountID      *uint
+	DestinationAccountID *uint
+	TransactionDate      time.Time
+	AccountingPeriod     time.Time
+	TransactionType      string
+	Comment              string
+	CreatedAt            time.Time
 }
 
 type Expense struct {
@@ -272,12 +272,13 @@ type Expense struct {
 }
 
 type Payment struct {
-	ID            uint
-	StageID       uint
-	TransactionID uint
-	Transaction   *Transaction `gorm:"foreignKey:TransactionID;references:ID"`
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID             uint
+	StageID        uint
+	TransactionID  uint
+	CounterpartyID uint
+	Transaction    *Transaction `gorm:"foreignKey:TransactionID;references:ID"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type Folder struct {

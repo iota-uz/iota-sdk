@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -50,7 +50,7 @@ func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) er
 	if err != nil {
 		return err
 	}
-	if err := s.accountService.RecalculateBalance(ctx, entity.AccountID); err != nil {
+	if err := s.accountService.RecalculateBalance(ctx, entity.Account.ID); err != nil {
 		return err
 	}
 	s.publisher.Publish(createdEvent)
@@ -66,7 +66,7 @@ func (s *PaymentService) Update(ctx context.Context, id uint, data *payment.Upda
 	if err != nil {
 		return err
 	}
-	if err := s.accountService.RecalculateBalance(ctx, entity.AccountID); err != nil {
+	if err := s.accountService.RecalculateBalance(ctx, entity.Account.ID); err != nil {
 		return err
 	}
 	s.publisher.Publish(updatedEvent)

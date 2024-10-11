@@ -1,6 +1,31 @@
 -- +migrate Up
 BEGIN;
 
+CREATE TABLE counterparty
+(
+    id            SERIAL PRIMARY KEY,
+    tin           VARCHAR(20),
+    name          VARCHAR(255) NOT NULL,
+    type          VARCHAR(255) NOT NULL, -- customer, supplier, individual
+    legal_type    VARCHAR(255) NOT NULL, -- LLC, JSC, etc.
+    legal_address VARCHAR(255),
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE counterparty_contacts
+(
+    id              SERIAL PRIMARY KEY,
+    counterparty_id INT          NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
+    first_name      VARCHAR(255) NOT NULL,
+    last_name       VARCHAR(255) NOT NULL,
+    middle_name     VARCHAR(255) NULL,
+    email           VARCHAR(255),
+    phone           VARCHAR(255),
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE uploads
 (
     id         SERIAL PRIMARY KEY,
@@ -259,28 +284,6 @@ CREATE TABLE employee_contacts
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE customers
-(
-    id          SERIAL PRIMARY KEY,
-    first_name  VARCHAR(255) NOT NULL,
-    last_name   VARCHAR(255) NOT NULL,
-    middle_name VARCHAR(255) NULL,
-    email       VARCHAR(255),
-    phone       VARCHAR(255),
-    company_id  INT          REFERENCES companies (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE customer_contacts
-(
-    id          SERIAL PRIMARY KEY,
-    customer_id INT          NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
-    type        VARCHAR(255) NOT NULL,
-    value       VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
 
 CREATE TABLE projects
 (
@@ -341,15 +344,15 @@ CREATE TABLE money_accounts
 
 CREATE TABLE transactions
 (
-    id                 SERIAL PRIMARY KEY,
-    amount             NUMERIC(9, 2) NOT NULL,
-    amount_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
-    money_account_id   INT           NOT NULL REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    transaction_date   DATE          NOT NULL   DEFAULT CURRENT_DATE,
-    accounting_period  DATE          NOT NULL   DEFAULT CURRENT_DATE,
-    transaction_type   VARCHAR(255)  NOT NULL, -- income, expense, transfer
-    comment            TEXT,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    id                     SERIAL PRIMARY KEY,
+    amount                 NUMERIC(9, 2) NOT NULL,
+    origin_account_id      INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
+    destination_account_id INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
+    transaction_date       DATE          NOT NULL   DEFAULT CURRENT_DATE,
+    accounting_period      DATE          NOT NULL   DEFAULT CURRENT_DATE,
+    transaction_type       VARCHAR(255)  NOT NULL, -- income, expense, transfer
+    comment                TEXT,
+    created_at             TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE expenses
@@ -363,11 +366,12 @@ CREATE TABLE expenses
 
 CREATE TABLE payments
 (
-    id             SERIAL PRIMARY KEY,
-    stage_id       INT NOT NULL REFERENCES project_stages (id) ON DELETE RESTRICT,
-    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    id              SERIAL PRIMARY KEY,
+    stage_id        INT NOT NULL REFERENCES project_stages (id) ON DELETE RESTRICT,
+    transaction_id  INT NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
+    counterparty_id INT NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE folders
@@ -656,10 +660,6 @@ CREATE INDEX estimates_employee_id_idx ON estimates (employee_id);
 
 CREATE INDEX payments_staged_id_idx ON payments (stage_id);
 
-CREATE INDEX customers_company_id_idx ON customers (company_id);
-
-CREATE INDEX customer_contacts_customer_id_idx ON customer_contacts (customer_id);
-
 CREATE INDEX vacancies_salary_range_id_idx ON vacancies (id);
 
 CREATE INDEX applicants_vacancy_id_idx ON applicants (vacancy_id);
@@ -685,8 +685,7 @@ DROP TABLE IF EXISTS companies CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
 DROP TABLE IF EXISTS contact_form_submissions CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
-DROP TABLE IF EXISTS customer_contacts CASCADE;
-DROP TABLE IF EXISTS customers CASCADE;
+DROP TABLE IF EXISTS counterparty_contacts CASCADE;
 DROP TABLE IF EXISTS dialogues CASCADE;
 DROP TABLE IF EXISTS difficulty_levels CASCADE;
 DROP TABLE IF EXISTS employee_contacts CASCADE;
