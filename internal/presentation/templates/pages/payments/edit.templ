@@ -2,7 +2,6 @@ package payments
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -11,35 +10,41 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
-templ EditForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[string]string) {
+type EditPageProps struct {
+	*types.PageContext
+	Payment *viewmodels.Payment
+	Errors  map[string]string
+}
+
+templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Number(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Amount"}),
+				Label: props.T("Payments.Single.Amount"),
 				Attrs: templ.Attributes{
-					"value": payment.Amount,
-					"name":  "amount",
+					"value": props.Payment.Amount,
+					"name":  "Amount",
 					"form":  "save-form",
 				},
-				Error: errors["amount"],
+				Error: props.Errors["Amount"],
 			})
 			@input.Date(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Date"}),
+				Label: props.T("Payments.Single.Date"),
 				Attrs: templ.Attributes{
-					"value": payment.TransactionDate,
-					"name":  "date",
+					"value": props.Payment.TransactionDate,
+					"name":  "Date",
 					"form":  "save-form",
 				},
-				Error: errors["date"],
+				Error: props.Errors["Date"],
 			})
 			@textarea.Basic(&textarea.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.Single.Comment"}),
+				Label: props.T("Payments.Single.Comment"),
 				Attrs: templ.Attributes{
-					"value": payment.Comment,
-					"name":  "comment",
+					"value": props.Payment.Comment,
+					"name":  "Comment",
 					"form":  "save-form",
 				},
 				WrapperClass: "col-span-3",
@@ -48,7 +53,7 @@ templ EditForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[s
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/payments/%d", payment.ID) }
+				hx-delete={ fmt.Sprintf("/finance/payments/%s", props.Payment.ID) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -65,10 +70,17 @@ templ EditForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[s
 						"id":     "delete-payment-btn",
 					},
 				}) {
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}) }
+					{ props.T("Delete") }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/payments/%d", payment.ID) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ fmt.Sprintf("/finance/payments/%s", props.Payment.ID) }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
@@ -77,20 +89,20 @@ templ EditForm(localizer *i18n.Localizer, payment *payment.Payment, errors map[s
 						"id":    "save-btn",
 					},
 				}) {
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}) }
+					{ props.T("Save") }
 				}
 			</form>
 		</div>
 	</div>
 }
 
-templ Edit(pageCtx *types.PageContext, payment *payment.Payment, errors map[string]string) {
-	@layouts.Authenticated(pageCtx) {
-		@EditForm(pageCtx.Localizer, payment, errors)
+templ Edit(props *EditPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
 			Heading:   "Payments.Single.DeletePayment",
 			Text:      "Payments.Single.DeletePaymentConfirmation",
-			Localizer: pageCtx.Localizer,
+			Localizer: props.PageContext.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
 			Action:    "open-delete-payment-confirmation",
 			Attrs: templ.Attributes{

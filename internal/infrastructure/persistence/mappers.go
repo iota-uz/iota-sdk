@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"errors"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
@@ -129,15 +129,15 @@ func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, erro
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
 	return &models.Transaction{
-		ID:               entity.ID,
-		Amount:           entity.Amount,
-		Comment:          entity.Comment,
-		AccountingPeriod: entity.AccountingPeriod,
-		AmountCurrencyID: entity.AmountCurrencyID,
-		TransactionDate:  entity.TransactionDate,
-		MoneyAccountID:   entity.MoneyAccountID,
-		TransactionType:  entity.TransactionType.String(),
-		CreatedAt:        entity.CreatedAt,
+		ID:                   entity.ID,
+		Amount:               entity.Amount,
+		Comment:              entity.Comment,
+		AccountingPeriod:     entity.AccountingPeriod,
+		TransactionDate:      entity.TransactionDate,
+		DestinationAccountID: entity.DestinationAccountID,
+		OriginAccountID:      entity.OriginAccountID,
+		TransactionType:      entity.TransactionType.String(),
+		CreatedAt:            entity.CreatedAt,
 	}
 }
 
@@ -148,29 +148,29 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 	}
 
 	return &transaction.Transaction{
-		ID:               dbTransaction.ID,
-		Amount:           dbTransaction.Amount,
-		TransactionType:  _type,
-		Comment:          dbTransaction.Comment,
-		AccountingPeriod: dbTransaction.AccountingPeriod,
-		TransactionDate:  dbTransaction.TransactionDate,
-		MoneyAccountID:   dbTransaction.MoneyAccountID,
-		AmountCurrencyID: dbTransaction.AmountCurrencyID,
-		CreatedAt:        dbTransaction.CreatedAt,
+		ID:                   dbTransaction.ID,
+		Amount:               dbTransaction.Amount,
+		TransactionType:      _type,
+		Comment:              dbTransaction.Comment,
+		AccountingPeriod:     dbTransaction.AccountingPeriod,
+		TransactionDate:      dbTransaction.TransactionDate,
+		DestinationAccountID: dbTransaction.DestinationAccountID,
+		OriginAccountID:      dbTransaction.OriginAccountID,
+		CreatedAt:            dbTransaction.CreatedAt,
 	}, nil
 }
 
 func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction) {
 	dbTransaction := &models.Transaction{
-		ID:               entity.TransactionID,
-		Amount:           entity.Amount,
-		Comment:          entity.Comment,
-		AccountingPeriod: entity.AccountingPeriod,
-		TransactionDate:  entity.TransactionDate,
-		MoneyAccountID:   entity.AccountID,
-		AmountCurrencyID: entity.CurrencyCode,
-		TransactionType:  transaction.Income.String(),
-		CreatedAt:        entity.CreatedAt,
+		ID:                   entity.TransactionID,
+		Amount:               entity.Amount,
+		Comment:              entity.Comment,
+		AccountingPeriod:     entity.AccountingPeriod,
+		TransactionDate:      entity.TransactionDate,
+		OriginAccountID:      nil,
+		DestinationAccountID: &entity.Account.ID,
+		TransactionType:      transaction.Income.String(),
+		CreatedAt:            entity.CreatedAt,
 	}
 	dbPayment := &models.Payment{
 		ID:            entity.ID,
@@ -200,8 +200,7 @@ func toDomainPayment(dbPayment *models.Payment) (*payment.Payment, error) {
 		StageID:          dbPayment.StageID,
 		User:             &user.User{},
 		TransactionID:    dbPayment.TransactionID,
-		AccountID:        t.MoneyAccountID,
-		CurrencyCode:     t.AmountCurrencyID,
+		Account:          moneyAccount.Account{ID: *t.DestinationAccountID},
 		CreatedAt:        dbPayment.CreatedAt,
 		UpdatedAt:        dbPayment.UpdatedAt,
 	}, nil
@@ -314,7 +313,7 @@ func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
 
 func toDomainProjectStage(dbStage *models.ProjectStage) *stage.ProjectStage {
 	return &stage.ProjectStage{
-		Id:        dbStage.ID,
+		ID:        dbStage.ID,
 		Name:      dbStage.Name,
 		CreatedAt: dbStage.CreatedAt,
 		UpdatedAt: dbStage.UpdatedAt,
@@ -323,7 +322,7 @@ func toDomainProjectStage(dbStage *models.ProjectStage) *stage.ProjectStage {
 
 func toDBProjectStage(entity *stage.ProjectStage) *models.ProjectStage {
 	return &models.ProjectStage{
-		ID:        entity.Id,
+		ID:        entity.ID,
 		Name:      entity.Name,
 		ProjectID: entity.ProjectID,
 		CreatedAt: entity.CreatedAt,

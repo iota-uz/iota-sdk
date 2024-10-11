@@ -5,6 +5,7 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
@@ -15,9 +16,8 @@ type Payment struct {
 	ID               uint
 	StageID          uint
 	Amount           float64
-	CurrencyCode     string
-	AccountID        uint
 	TransactionID    uint
+	Account          moneyAccount.Account
 	TransactionDate  time.Time
 	AccountingPeriod time.Time
 	Comment          string
@@ -28,7 +28,6 @@ type Payment struct {
 
 type CreateDTO struct {
 	Amount           float64   `validate:"required,gt=0"`
-	CurrencyCode     string    `validate:"required,len=3"`
 	AccountID        uint      `validate:"required"`
 	TransactionDate  time.Time `validate:"required"`
 	AccountingPeriod time.Time `validate:"required"`
@@ -39,7 +38,6 @@ type CreateDTO struct {
 
 type UpdateDTO struct {
 	Amount           float64 `validate:"gt=0"`
-	CurrencyCode     string  `validate:"len=3"`
 	AccountID        uint
 	TransactionDate  time.Time
 	AccountingPeriod time.Time
@@ -47,8 +45,6 @@ type UpdateDTO struct {
 	UserID           uint
 	StageID          uint
 }
-
-// TODO: translate error messages
 
 func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
@@ -64,13 +60,14 @@ func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (p *CreateDTO) ToEntity() *Payment {
 	return &Payment{
+		ID:               0,
+		TransactionID:    0,
 		StageID:          p.StageID,
 		Amount:           p.Amount,
-		CurrencyCode:     p.CurrencyCode,
-		AccountID:        p.AccountID,
+		Account:          moneyAccount.Account{ID: p.AccountID}, //nolint:exhaustruct
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
-		User:             &user.User{ID: int64(p.UserID)},
+		User:             &user.User{ID: int64(p.UserID)}, //nolint:exhaustruct
 		Comment:          p.Comment,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
@@ -106,12 +103,12 @@ func (p *UpdateDTO) ToEntity(id uint) *Payment {
 		ID:               id,
 		StageID:          p.StageID,
 		Amount:           p.Amount,
-		CurrencyCode:     p.CurrencyCode,
-		AccountID:        p.AccountID,
+		Account:          moneyAccount.Account{ID: p.AccountID}, //nolint:exhaustruct
 		TransactionDate:  p.TransactionDate,
+		TransactionID:    0,
 		AccountingPeriod: p.AccountingPeriod,
 		Comment:          p.Comment,
-		User:             &user.User{ID: int64(p.UserID)},
+		User:             &user.User{ID: int64(p.UserID)}, //nolint:exhaustruct
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}

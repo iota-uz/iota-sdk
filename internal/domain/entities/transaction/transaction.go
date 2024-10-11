@@ -5,13 +5,14 @@ import (
 )
 
 type Transaction struct {
-	ID               uint
-	Amount           float64
-	AmountCurrencyID string
-	MoneyAccountID   uint
-	TransactionDate  time.Time
-	AccountingPeriod time.Time
-	TransactionType  Type
-	Comment          string
-	CreatedAt        time.Time
+	ID                   uint
+	Amount               float64
+	AmountCurrencyID     string
+	OriginAccountID      *uint
+	DestinationAccountID *uint
+	TransactionDate      time.Time
+	AccountingPeriod     time.Time
+	TransactionType      Type
+	Comment              string
+	CreatedAt            time.Time
 }

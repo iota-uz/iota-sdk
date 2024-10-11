@@ -36,8 +36,6 @@ type UpdateDTO struct {
 	Description   string
 }
 
-// TODO: Add validations
-
 func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errors := map[string]string{}
 	errs := constants.Validate.Struct(p)
@@ -56,6 +54,7 @@ func (p *CreateDTO) ToEntity() (*Account, error) {
 		return nil, err
 	}
 	return &Account{
+		ID:            0,
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,

@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
@@ -59,7 +59,7 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 		t.Fatal(err)
 	}
 	stageEntity := &stage.ProjectStage{
-		Id:        1,
+		ID:        1,
 		Name:      "test",
 		ProjectID: 1,
 	}

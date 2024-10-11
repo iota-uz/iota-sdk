@@ -3,7 +3,7 @@ package project_stages
 import "time"
 
 type ProjectStage struct {
-	Id        uint
+	ID        uint
 	ProjectID uint
 	Name      string
 	Margin    float64
@@ -45,7 +45,7 @@ func (p *CreateDTO) ToEntity() *ProjectStage {
 
 func (p *UpdateDTO) ToEntity(id uint) *ProjectStage {
 	return &ProjectStage{
-		Id:        id,
+		ID:        id,
 		ProjectID: p.ProjectID,
 		Name:      p.Name,
 		Margin:    p.Margin,

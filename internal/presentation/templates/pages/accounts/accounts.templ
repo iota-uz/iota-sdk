@@ -16,11 +16,11 @@ type IndexPageProps struct {
 	Accounts []*viewmodels.Account
 }
 
-templ CategoriesTable(props *IndexPageProps) {
+templ AccountsTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: "Accounts.List.Name", Key: "name"},
-			{Label: "Accounts.List.Amount", Key: "amount"},
+			{Label: "Accounts.List.Balance", Key: "balance"},
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
@@ -49,15 +49,15 @@ templ CategoriesTable(props *IndexPageProps) {
 	}
 }
 
-templ CategoriesContent(props *IndexPageProps) {
+templ AccountsContent(props *IndexPageProps) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.ExpenseCategories") }
+			{ props.T("NavigationLinks.Accounts") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
-				hx-get="/finance/expense-categories"
+				hx-get="/finance/accounts"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target="table"
 				hx-swap="outerHTML"
@@ -94,13 +94,13 @@ templ CategoriesContent(props *IndexPageProps) {
 					{ props.T("Accounts.List.New") }
 				}
 			</form>
-			@CategoriesTable(props)
+			@AccountsTable(props)
 		</div>
 	</div>
 }
 
 templ Index(props *IndexPageProps) {
 	@layouts.Authenticated(props.PageContext) {
-		@CategoriesContent(props)
+		@AccountsContent(props)
 	}
 }

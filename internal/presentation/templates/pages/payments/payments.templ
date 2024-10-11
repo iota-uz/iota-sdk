@@ -2,35 +2,43 @@ package payments
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/payment"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"time"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
-templ PaymentsTable(localizer *i18n.Localizer, payments []*payment.Payment) {
+type IndexPageProps struct {
+	*types.PageContext
+	Payments []*viewmodels.Payment
+}
+
+templ PaymentsTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: "Payments.List.Amount", Key: "amount"},
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
-		Localizer: localizer,
+		Localizer: props.PageContext.Localizer,
 	}) {
-		for _, payment := range payments {
+		for _, payment := range props.Payments {
 			@base.TableRow() {
 				@base.TableCell() {
 					<div x-data="relativeformat">
-						<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt.Format(time.RFC3339)) }></span>
+						<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt) }></span>
 					</div>
 				}
 				@base.TableCell() {
-					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/payments/%d", payment.ID)}) {
+					@button.Secondary(button.Props{
+						Fixed: true,
+						Size:  button.SizeSM,
+						Class: "btn-fixed",
+						Href:  fmt.Sprintf("/finance/payments/%d", payment.ID),
+					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}
@@ -39,10 +47,10 @@ templ PaymentsTable(localizer *i18n.Localizer, payments []*payment.Payment) {
 	}
 }
 
-templ PaymentsContent(pageCtx *types.PageContext, payments []*payment.Payment) {
+templ PaymentsContent(props *IndexPageProps) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Payments"}) }
+			{ props.T("NavigationLinks.Payments") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -57,13 +65,13 @@ templ PaymentsContent(pageCtx *types.PageContext, payments []*payment.Payment) {
 						Position:  input.AddonLeft,
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
-					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Search"}),
+					Placeholder: props.T("Search"),
 					Attrs: templ.Attributes{
 						"name": "name",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PerPage"}),
+					Prefix: props.T("PerPage"),
 					Attrs: templ.Attributes{
 						"name": "limit",
 					},
@@ -73,24 +81,25 @@ templ PaymentsContent(pageCtx *types.PageContext, payments []*payment.Payment) {
 					<option>50</option>
 					<option>100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CreatedAt"})}) {
+				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
 					<option>Вчера</option>
 					<option>Позавчера</option>
 				}
 				@button.Primary(button.Props{
-					Size: button.SizeNormal, Href: "/finance/payments/new",
+					Size: button.SizeNormal,
+					Href: "/finance/payments/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Payments.List.New"}) }
+					{ props.T("Payments.List.New") }
 				}
 			</form>
-			@PaymentsTable(pageCtx.Localizer, payments)
+			@PaymentsTable(props)
 		</div>
 	</div>
 }
 
-templ Index(pageCtx *types.PageContext, payments []*payment.Payment) {
-	@layouts.Authenticated(pageCtx) {
-		@PaymentsContent(pageCtx, payments)
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@PaymentsContent(props)
 	}
 }

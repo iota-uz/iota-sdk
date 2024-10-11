@@ -39,6 +39,13 @@ type PageData struct {
 	Description string
 }
 
+func NewPageData(title string, description string) *PageData {
+	return &PageData{
+		Title:       title,
+		Description: description,
+	}
+}
+
 func UsePageCtx(r *http.Request, pageData *PageData) (*types.PageContext, error) {
 	localizer, found := UseLocalizer(r.Context())
 	if !found {

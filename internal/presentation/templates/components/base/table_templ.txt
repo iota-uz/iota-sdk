@@ -1,0 +1,10 @@
+<tr>
+</tr>
+<td class=\"p-4\">
+</td>
+<div class=\"overflow-x-auto relative\"><table class=\"min-w-full table-auto rounded-b-lg table bg-surface-600 text-sm\"><thead><tr class=\"bg-surface-500 text-200\">
+<th class=\"
+\">
+</th>
+</tr></thead> <tbody>
+</tbody></table></div>
