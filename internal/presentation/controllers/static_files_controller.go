@@ -11,9 +11,12 @@ import (
 type StaticFilesController struct{}
 
 func (s *StaticFilesController) Register(r *mux.Router) {
-	r.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("internal/presentation/static"))))
+	r.PathPrefix("/static").Handler(
+		http.StripPrefix(
+			"/static", http.FileServer(http.Dir("internal/presentation/static")),
+		),
+	)
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir("internal/presentation/public")))
 }
 
 func NewStaticFilesController() Controller {

@@ -13,7 +13,7 @@ import (
 
 type IndexPageProps struct {
 	*types.PageContext
-	Accounts []*viewmodels.Account
+	Accounts []*viewmodels.MoneyAccount
 }
 
 templ AccountsTable(props *IndexPageProps) {
@@ -32,7 +32,7 @@ templ AccountsTable(props *IndexPageProps) {
 					{ account.Name }
 				}
 				@base.TableCell() {
-					{ account.Balance }
+					{ account.BalanceWithCurrency }
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">

@@ -64,10 +64,10 @@ func DefaultServer() (*Server, error) {
 			middleware.LogRequests(),
 			middleware.Transactions(db),
 			localMiddleware.WithLocalizer(bundle),
-			localMiddleware.WithUniLocalizer(),
 			localMiddleware.Authorization(application.AuthService),
 		},
 		controllers: []controllers.Controller{
+			controllers.NewErrorController(application),
 			controllers.NewAccountController(application),
 			controllers.NewHomeController(application),
 			controllers.NewLoginController(application),
