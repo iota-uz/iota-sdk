@@ -2,6 +2,7 @@ package user
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"strings"
 	"time"
@@ -44,6 +45,15 @@ func (u *User) CheckPassword(password string) bool {
 		return false
 	}
 	return bcrypt.CompareHashAndPassword([]byte(*u.Password), []byte(password)) == nil
+}
+
+func (u *User) Can(perm permission.Permission) bool {
+	for _, r := range u.Roles {
+		if r.Can(perm) {
+			return true
+		}
+	}
+	return false
 }
 
 func (u *User) SetPassword(password string) error {
