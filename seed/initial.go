@@ -14,13 +14,13 @@ func CreateInitialUser(ctx context.Context) error {
 	roleRepository := persistence.NewRoleRepository()
 
 	for _, p := range permission.Permissions {
-		if err := permissionRepository.Create(ctx, &p); err != nil {
+		if err := permissionRepository.CreateOrUpdate(ctx, &p); err != nil {
 			return err
 		}
 	}
 
 	for _, r := range role.Roles {
-		if err := roleRepository.Create(ctx, &r); err != nil {
+		if err := roleRepository.CreateOrUpdate(ctx, &r); err != nil {
 			return err
 		}
 	}
@@ -31,6 +31,9 @@ func CreateInitialUser(ctx context.Context) error {
 		FirstName: "Admin",
 		LastName:  "User",
 		Email:     "test@gmail.com",
+		Roles: []*role.Role{
+			&role.CEO,
+		},
 	}
 	if err := u.SetPassword("TestPass123!"); err != nil {
 		return err

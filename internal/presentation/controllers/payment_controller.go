@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/pkg/middleware"
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
@@ -11,7 +14,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"net/http"
 )
 
 type PaymentsController struct {
@@ -27,12 +29,14 @@ func NewPaymentsController(app *services.Application) Controller {
 }
 
 func (c *PaymentsController) Register(r *mux.Router) {
-	r.HandleFunc(c.basePath, c.Payments).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath, c.CreatePayment).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.DeletePayment).Methods(http.MethodDelete)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(middleware.RequireAuthorization())
+	router.HandleFunc("", c.Payments).Methods(http.MethodGet)
+	router.HandleFunc("", c.CreatePayment).Methods(http.MethodPost)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.DeletePayment).Methods(http.MethodDelete)
 }
 
 func (c *PaymentsController) viewModelPayments(r *http.Request) ([]*viewmodels.Payment, error) {
