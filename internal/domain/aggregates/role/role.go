@@ -27,9 +27,9 @@ func (r *Role) AddPermission(p permission.Permission) *Role {
 	}
 }
 
-func (r *Role) Can(resource permission.Resource, action permission.Action) bool {
+func (r *Role) Can(perm permission.Permission) bool {
 	for _, p := range r.Permissions {
-		if p.Resource == resource && p.Action == action {
+		if p.Equals(perm) {
 			return true
 		}
 	}

@@ -3,6 +3,9 @@ package services
 import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/sdk/service"
 
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
@@ -26,10 +29,24 @@ func NewPaymentService(
 }
 
 func (s *PaymentService) GetByID(ctx context.Context, id uint) (*payment.Payment, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !u.Can(permission.PaymentRead) {
+		return nil, service.ErrForbidden
+	}
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *PaymentService) GetAll(ctx context.Context) ([]*payment.Payment, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !u.Can(permission.PaymentRead) {
+		return nil, service.ErrForbidden
+	}
 	return s.repo.GetAll(ctx)
 }
 
@@ -38,10 +55,24 @@ func (s *PaymentService) GetPaginated(
 	limit, offset int,
 	sortBy []string,
 ) ([]*payment.Payment, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !u.Can(permission.PaymentRead) {
+		return nil, service.ErrForbidden
+	}
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
 func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) error {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return err
+	}
+	if !u.Can(permission.PaymentCreate) {
+		return service.ErrForbidden
+	}
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
@@ -58,6 +89,13 @@ func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) er
 }
 
 func (s *PaymentService) Update(ctx context.Context, id uint, data *payment.UpdateDTO) error {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return err
+	}
+	if !u.Can(permission.PaymentUpdate) {
+		return service.ErrForbidden
+	}
 	entity := data.ToEntity(id)
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
@@ -74,6 +112,13 @@ func (s *PaymentService) Update(ctx context.Context, id uint, data *payment.Upda
 }
 
 func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment.Payment, error) {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !u.Can(permission.PaymentDelete) {
+		return nil, service.ErrForbidden
+	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
