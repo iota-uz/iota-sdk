@@ -1,12 +1,12 @@
 package payment
 
 import (
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
@@ -67,7 +67,7 @@ func (p *CreateDTO) ToEntity() *Payment {
 		Account:          moneyAccount.Account{ID: p.AccountID}, //nolint:exhaustruct
 		TransactionDate:  p.TransactionDate,
 		AccountingPeriod: p.AccountingPeriod,
-		User:             &user.User{ID: int64(p.UserID)}, //nolint:exhaustruct
+		User:             &user.User{ID: p.UserID}, //nolint:exhaustruct
 		Comment:          p.Comment,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
@@ -108,7 +108,7 @@ func (p *UpdateDTO) ToEntity(id uint) *Payment {
 		TransactionID:    0,
 		AccountingPeriod: p.AccountingPeriod,
 		Comment:          p.Comment,
-		User:             &user.User{ID: int64(p.UserID)}, //nolint:exhaustruct
+		User:             &user.User{ID: p.UserID}, //nolint:exhaustruct
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}

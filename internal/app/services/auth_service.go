@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"github.com/iota-agency/iota-erp/internal/configuration"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 	"golang.org/x/oauth2"
@@ -119,7 +119,7 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
-func (s *AuthService) authenticate(ctx context.Context, id int64) (*user.User, *session.Session, error) {
+func (s *AuthService) authenticate(ctx context.Context, id uint) (*user.User, *session.Session, error) {
 	u, err := s.app.UserService.GetByID(ctx, id)
 	if err != nil {
 		return nil, nil, err

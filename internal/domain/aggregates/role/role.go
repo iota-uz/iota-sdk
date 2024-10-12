@@ -1,9 +1,9 @@
 package role
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"time"
 
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
@@ -11,12 +11,12 @@ type Role struct {
 	ID          uint
 	Name        string
 	Description string
-	Permissions []*permission.Permission
+	Permissions []permission.Permission
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
-func (r *Role) AddPermission(p *permission.Permission) *Role {
+func (r *Role) AddPermission(p permission.Permission) *Role {
 	return &Role{
 		ID:          r.ID,
 		Name:        r.Name,

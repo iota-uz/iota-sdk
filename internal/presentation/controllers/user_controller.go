@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"net/http"
 	"strconv"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/users"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
@@ -38,7 +38,7 @@ func (c *UsersController) Register(r *mux.Router) {
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
-		r, &composables.PageData{Title: "Users.Meta.List.Title"},
+		r, composables.NewPageData("Users.Meta.List.Title", ""),
 	) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -59,15 +59,15 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := parseID(r)
 	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	pageCtx, err := composables.UsePageCtx(
-		r, &composables.PageData{Title: "Users.Meta.Edit.Title"},
-	) //nolint:exhaustruct
+		r, composables.NewPageData("Users.Meta.Edit.Title", ""),
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -79,7 +79,7 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	us, err := c.app.UserService.GetByID(r.Context(), int64(id))
+	us, err := c.app.UserService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
@@ -88,13 +88,13 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := parseID(r)
 	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if _, err := c.app.UserService.Delete(r.Context(), int64(id)); err != nil {
+	if _, err := c.app.UserService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -102,9 +102,9 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	id, err := parseID(r)
 	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	action := FormAction(r.FormValue("_action"))
@@ -114,7 +114,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	switch action {
 	case FormActionDelete:
-		_, err = c.app.UserService.Delete(r.Context(), int64(id))
+		_, err = c.app.UserService.Delete(r.Context(), id)
 	case FormActionSave:
 		var roleID int
 		roleID, err = strconv.Atoi(r.FormValue("roleID"))
@@ -144,7 +144,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			us, err := c.app.UserService.GetByID(r.Context(), int64(id))
+			us, err := c.app.UserService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 				return
@@ -156,7 +156,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		err = c.app.UserService.Update(
 			r.Context(), &user.User{
 				//nolint:exhaustruct
-				ID:        int64(id),
+				ID:        id,
 				FirstName: upd.FirstName,
 				LastName:  upd.LastName,
 				Email:     upd.Email,
@@ -178,7 +178,7 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.New.Title"}) //nolint:exhaustruct
+	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Users.Meta.New.Title", "")) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

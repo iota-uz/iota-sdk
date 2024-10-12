@@ -36,7 +36,7 @@ func (j Messages) Value() (driver.Value, error) {
 
 type Dialogue struct {
 	Id        int64
-	UserID    int64
+	UserID    uint
 	Label     string
 	Messages  Messages `gorm:"type:jsonb"`
 	CreatedAt time.Time
@@ -55,21 +55,25 @@ func (d *Dialogue) ToGraph() (*model.Dialogue, error) {
 		}
 		var toolCalls []*model.ToolCall
 		for _, tc := range m.ToolCalls {
-			toolCalls = append(toolCalls, &model.ToolCall{
-				ID:    tc.ID,
-				Index: *(tc.Index),
-				Type:  string(tc.Type),
-			})
+			toolCalls = append(
+				toolCalls, &model.ToolCall{
+					ID:    tc.ID,
+					Index: *(tc.Index),
+					Type:  string(tc.Type),
+				},
+			)
 		}
-		messages = append(messages, &model.Message{
-			Role:      m.Role,
-			Content:   m.Content,
-			ToolCalls: toolCalls,
-		})
+		messages = append(
+			messages, &model.Message{
+				Role:      m.Role,
+				Content:   m.Content,
+				ToolCalls: toolCalls,
+			},
+		)
 	}
 	return &model.Dialogue{
 		ID:        d.Id,
-		UserID:    d.UserID,
+		UserID:    int64(d.UserID),
 		Label:     d.Label,
 		Messages:  messages,
 		CreatedAt: d.CreatedAt,

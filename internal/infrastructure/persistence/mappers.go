@@ -4,9 +4,9 @@ import (
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"time"
 
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
@@ -20,18 +20,56 @@ import (
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 )
 
+func toDomainUser(dbUser *models.User) *user.User {
+	roles := make([]*role.Role, len(dbUser.Roles))
+	for i, r := range dbUser.Roles {
+		roles[i] = toDomainRole(&r)
+	}
+	return &user.User{
+		ID:         dbUser.ID,
+		FirstName:  dbUser.FirstName,
+		LastName:   dbUser.LastName,
+		MiddleName: dbUser.MiddleName,
+		Email:      dbUser.Email,
+		Password:   dbUser.Password,
+		AvatarID:   dbUser.AvatarID,
+		EmployeeID: dbUser.EmployeeID,
+		LastIP:     dbUser.LastIP,
+		LastLogin:  dbUser.LastLogin,
+		LastAction: dbUser.LastAction,
+		CreatedAt:  dbUser.CreatedAt,
+		UpdatedAt:  dbUser.UpdatedAt,
+		Roles:      roles,
+	}
+}
+
+func toDBUser(entity *user.User) *models.User {
+	roles := make([]models.Role, len(entity.Roles))
+	for i, r := range entity.Roles {
+		roles[i] = *toDBRole(r)
+	}
+	return &models.User{
+		ID:         entity.ID,
+		FirstName:  entity.FirstName,
+		LastName:   entity.LastName,
+		MiddleName: entity.MiddleName,
+		Email:      entity.Email,
+		Password:   entity.Password,
+		AvatarID:   entity.AvatarID,
+		EmployeeID: entity.EmployeeID,
+		LastIP:     entity.LastIP,
+		LastLogin:  entity.LastLogin,
+		LastAction: entity.LastAction,
+		CreatedAt:  entity.CreatedAt,
+		UpdatedAt:  entity.UpdatedAt,
+		Roles:      roles,
+	}
+}
+
 func toDomainRole(dbRole *models.Role) *role.Role {
-	permissions := make([]*permission.Permission, 0, len(dbRole.Permissions))
-	for _, p := range dbRole.Permissions {
-		permissions = append(
-			permissions, &permission.Permission{
-				ID:          p.ID,
-				Resource:    permission.Resource(p.Resource),
-				Action:      permission.Action(p.Action),
-				Description: p.Description,
-				Modifier:    p.Modifier,
-			},
-		)
+	permissions := make([]permission.Permission, len(dbRole.Permissions))
+	for i, p := range dbRole.Permissions {
+		permissions[i] = toDomainPermission(p)
 	}
 	return &role.Role{
 		ID:          dbRole.ID,
@@ -44,17 +82,9 @@ func toDomainRole(dbRole *models.Role) *role.Role {
 }
 
 func toDBRole(entity *role.Role) *models.Role {
-	permissions := make([]models.Permission, 0, len(entity.Permissions))
-	for _, p := range entity.Permissions {
-		permissions = append(
-			permissions, models.Permission{
-				ID:          p.ID,
-				Resource:    string(p.Resource),
-				Action:      string(p.Action),
-				Description: p.Description,
-				Modifier:    p.Modifier,
-			},
-		)
+	permissions := make([]models.Permission, len(entity.Permissions))
+	for i, p := range entity.Permissions {
+		permissions[i] = toDBPermission(p)
 	}
 	return &models.Role{
 		ID:          entity.ID,
@@ -63,6 +93,26 @@ func toDBRole(entity *role.Role) *models.Role {
 		Permissions: permissions,
 		CreatedAt:   entity.CreatedAt,
 		UpdatedAt:   entity.UpdatedAt,
+	}
+}
+
+func toDBPermission(entity permission.Permission) models.Permission {
+	return models.Permission{
+		ID:       entity.ID,
+		Name:     entity.Name,
+		Resource: string(entity.Resource),
+		Action:   string(entity.Action),
+		Modifier: string(entity.Modifier),
+	}
+}
+
+func toDomainPermission(dbPermission models.Permission) permission.Permission {
+	return permission.Permission{
+		ID:       dbPermission.ID,
+		Name:     dbPermission.Name,
+		Resource: permission.Resource(dbPermission.Resource),
+		Action:   permission.Action(dbPermission.Action),
+		Modifier: permission.Modifier(dbPermission.Modifier),
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 
 type AuthenticationLog struct {
 	ID        int64
-	UserID    int64
+	UserID    uint
 	IP        string
 	UserAgent string
 	CreatedAt time.Time
@@ -17,7 +17,7 @@ type AuthenticationLog struct {
 func (r *AuthenticationLog) ToGraph() *model.AuthenticationLog {
 	return &model.AuthenticationLog{
 		ID:        r.ID,
-		UserID:    r.UserID,
+		UserID:    int64(r.UserID),
 		IP:        r.IP,
 		UserAgent: r.UserAgent,
 		CreatedAt: r.CreatedAt,
