@@ -1,6 +1,9 @@
 package role
 
-import "github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+import (
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+	"time"
+)
 
 var (
 	CEO = Role{
@@ -33,6 +36,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	Owner = Role{
 		ID:          2,
@@ -60,6 +65,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	CCO = Role{
 		ID:          3,
@@ -91,6 +98,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	CFO = Role{
 		ID:          4,
@@ -122,6 +131,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	CPO = Role{
 		ID:          5,
@@ -153,6 +164,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	CMO = Role{
 		ID:          6,
@@ -184,6 +197,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	COO = Role{
 		ID:          7,
@@ -215,6 +230,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	CTO = Role{
 		ID:          8,
@@ -242,6 +259,8 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	ProjectManager = Role{
 		ID:          9,
@@ -269,5 +288,21 @@ var (
 			permission.StageUpdate,
 			permission.StageDelete,
 		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+)
+
+var (
+	Roles = []Role{
+		CEO,
+		Owner,
+		CCO,
+		CFO,
+		CPO,
+		CMO,
+		COO,
+		CTO,
+		ProjectManager,
 	}
 )

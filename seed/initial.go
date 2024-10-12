@@ -4,26 +4,27 @@ import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"time"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
-	"github.com/iota-agency/iota-erp/sdk/composables"
 )
 
 func CreateInitialUser(ctx context.Context) error {
-	userRepository := persistence.NewUserRepository()
+	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
-	tx, _ := composables.UseTx(ctx)
-	r := &role.Role{
-		ID:          1,
-		Name:        "admin",
-		Description: "Administrator",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+
+	for _, p := range permission.Permissions {
+		if err := permissionRepository.Create(ctx, &p); err != nil {
+			return err
+		}
 	}
-	if err := roleRepository.CreateOrUpdate(ctx, r); err != nil {
-		return err
+
+	for _, r := range role.Roles {
+		if err := roleRepository.Create(ctx, &r); err != nil {
+			return err
+		}
 	}
+	userRepository := persistence.NewUserRepository()
 	u := &user.User{
 		//nolint:exhaustruct
 		ID:        1,
@@ -34,12 +35,5 @@ func CreateInitialUser(ctx context.Context) error {
 	if err := u.SetPassword("TestPass123!"); err != nil {
 		return err
 	}
-	if err := userRepository.CreateOrUpdate(ctx, u); err != nil {
-		return err
-	}
-	userRole := &role.UserRole{
-		UserID: u.ID,
-		RoleID: r.ID,
-	}
-	return tx.Save(userRole).Error
+	return userRepository.CreateOrUpdate(ctx, u)
 }

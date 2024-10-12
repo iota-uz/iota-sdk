@@ -39,7 +39,7 @@ func (c *UsersController) Register(r *mux.Router) {
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r, composables.NewPageData("Users.Meta.List.Title", ""),
-	) //nolint:exhaustruct
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -131,8 +131,8 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
-			r, &composables.PageData{Title: "Users.Meta.Edit.Title"},
-		) //nolint:exhaustruct
+			r, composables.NewPageData("Users.Meta.Edit.Title", ""),
+		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

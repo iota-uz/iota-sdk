@@ -94,7 +94,7 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(user).Error
+	return tx.Save(toDBUser(user)).Error
 }
 
 func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {
@@ -110,10 +110,10 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Model(user).Association("Roles").Replace(user.Roles); err != nil {
+	if err := tx.Model(&models.User{}).Association("Roles").Replace(user.Roles); err != nil {
 		return err
 	}
-	return tx.Save(user).Error
+	return tx.Save(toDBUser(user)).Error
 }
 
 func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
