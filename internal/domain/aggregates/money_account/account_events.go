@@ -2,8 +2,8 @@ package moneyaccount
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 

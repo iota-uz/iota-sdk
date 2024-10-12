@@ -2,6 +2,7 @@ package user
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"strings"
 	"time"
 
@@ -13,27 +14,21 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type UserRole struct {
-	RoleID int64
-	UserID int64
-	Role   role.Role
-}
-
 type User struct {
-	ID         int64
+	ID         uint
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
 	MiddleName *string
 	Password   *string
 	Email      string `validate:"required,email"`
-	AvatarID   *int64
-	EmployeeID *int64
+	AvatarID   *uint
+	EmployeeID *uint
 	LastIP     *string
 	LastLogin  *time.Time
 	LastAction *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	Roles      []*role.Role `gorm:"many2many:user_roles"`
+	Roles      []*role.Role
 }
 
 type UpdateDTO struct {
@@ -103,13 +98,13 @@ func (u *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (u *User) ToGraph() *model.User {
 	return &model.User{
-		ID:         u.ID,
+		ID:         int64(u.ID),
 		FirstName:  u.FirstName,
 		LastName:   u.LastName,
 		MiddleName: u.MiddleName,
 		Email:      u.Email,
-		AvatarID:   u.AvatarID,
-		EmployeeID: u.EmployeeID,
+		AvatarID:   mapper.Pointer(int64(*u.AvatarID)),
+		EmployeeID: mapper.Pointer(int64(*u.EmployeeID)),
 		LastIP:     u.LastIP,
 		LastLogin:  u.LastLogin,
 		LastAction: u.LastAction,

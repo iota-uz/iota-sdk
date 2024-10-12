@@ -6,8 +6,8 @@ package graph
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 )
@@ -31,7 +31,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model.UpdateUser) (*model.User, error) {
-	entity, err := r.app.UserService.GetByID(ctx, id)
+	entity, err := r.app.UserService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model
 
 // DeleteUser is the resolver for the deleteUser field.
 func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (*model.User, error) {
-	entity, err := r.app.UserService.Delete(ctx, id)
+	entity, err := r.app.UserService.Delete(ctx, uint(id))
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (*model.Use
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
-	entity, err := r.app.UserService.GetByID(ctx, id)
+	entity, err := r.app.UserService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,9 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 }
 
 // Users is the resolver for the users field.
-func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error) {
+func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []string) (
+	*model.PaginatedUsers, error,
+) {
 	entities, err := r.app.UserService.GetPaginated(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, err
@@ -90,27 +92,33 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 // UserCreated is the resolver for the userCreated field.
 func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe(func(evt *user.CreatedEvent) {
-		ch <- evt.Result.ToGraph()
-	})
+	r.app.EventPublisher.Subscribe(
+		func(evt *user.CreatedEvent) {
+			ch <- evt.Result.ToGraph()
+		},
+	)
 	return ch, nil
 }
 
 // UserUpdated is the resolver for the userUpdated field.
 func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe(func(evt *user.UpdatedEvent) {
-		ch <- evt.Result.ToGraph()
-	})
+	r.app.EventPublisher.Subscribe(
+		func(evt *user.UpdatedEvent) {
+			ch <- evt.Result.ToGraph()
+		},
+	)
 	return ch, nil
 }
 
 // UserDeleted is the resolver for the userDeleted field.
 func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe(func(evt *user.DeletedEvent) {
-		ch <- evt.Result.ToGraph()
-	})
+	r.app.EventPublisher.Subscribe(
+		func(evt *user.DeletedEvent) {
+			ch <- evt.Result.ToGraph()
+		},
+	)
 	return ch, nil
 }
 

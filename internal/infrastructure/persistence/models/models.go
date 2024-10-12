@@ -115,18 +115,17 @@ type User struct {
 	ID         uint
 	FirstName  string
 	LastName   string
-	MiddleName string
+	MiddleName *string
 	Email      string
-	Password   string
+	Password   *string
 	AvatarID   *uint
-	LastLogin  time.Time
-	LastIP     string
-	LastAction time.Time
+	LastLogin  *time.Time
+	LastIP     *string
+	LastAction *time.Time
 	EmployeeID *uint
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	Avatar     Upload
-	Employee   Employee
+	Roles      []Role `gorm:"many2many:user_roles;"`
 }
 
 type TelegramSession struct {
@@ -364,12 +363,11 @@ type Dialogue struct {
 }
 
 type Permission struct {
-	ID          uint
-	Name        string
-	Resource    string
-	Action      string
-	Modifier    string
-	Description string
+	ID       uint
+	Name     string
+	Resource string
+	Action   string
+	Modifier string
 }
 
 type RolePermission struct {

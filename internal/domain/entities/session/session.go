@@ -9,7 +9,7 @@ import (
 
 type Session struct {
 	Token     string `gorm:"primaryKey"`
-	UserID    int64
+	UserID    uint
 	IP        string
 	UserAgent string
 	ExpiresAt time.Time
@@ -18,7 +18,7 @@ type Session struct {
 
 type CreateDTO struct {
 	Token     string
-	UserID    int64
+	UserID    uint
 	IP        string
 	UserAgent string
 }
@@ -41,7 +41,7 @@ func (s *Session) IsExpired() bool {
 func (s *Session) ToGraph() *model.Session {
 	return &model.Session{
 		Token:     s.Token,
-		UserID:    s.UserID,
+		UserID:    int64(s.UserID),
 		IP:        s.IP,
 		UserAgent: s.UserAgent,
 		ExpiresAt: s.ExpiresAt,

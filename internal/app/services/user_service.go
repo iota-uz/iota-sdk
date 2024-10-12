@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
@@ -31,7 +31,7 @@ func (s *UserService) GetAll(ctx context.Context) ([]*user.User, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *UserService) GetByID(ctx context.Context, id int64) (*user.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id uint) (*user.User, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -55,11 +55,11 @@ func (s *UserService) Create(ctx context.Context, data *user.User) error {
 	return nil
 }
 
-func (s *UserService) UpdateLastAction(ctx context.Context, id int64) error {
+func (s *UserService) UpdateLastAction(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastAction(ctx, id)
 }
 
-func (s *UserService) UpdateLastLogin(ctx context.Context, id int64) error {
+func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastLogin(ctx, id)
 }
 
@@ -76,7 +76,7 @@ func (s *UserService) Update(ctx context.Context, data *user.User) error {
 	return nil
 }
 
-func (s *UserService) Delete(ctx context.Context, id int64) (*user.User, error) {
+func (s *UserService) Delete(ctx context.Context, id uint) (*user.User, error) {
 	deletedEvent, err := user.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
