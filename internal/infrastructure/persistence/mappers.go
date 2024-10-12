@@ -69,7 +69,7 @@ func toDBUser(entity *user.User) *models.User {
 func toDomainRole(dbRole *models.Role) *role.Role {
 	permissions := make([]permission.Permission, len(dbRole.Permissions))
 	for i, p := range dbRole.Permissions {
-		permissions[i] = toDomainPermission(p)
+		permissions[i] = *toDomainPermission(&p)
 	}
 	return &role.Role{
 		ID:          dbRole.ID,
@@ -84,7 +84,7 @@ func toDomainRole(dbRole *models.Role) *role.Role {
 func toDBRole(entity *role.Role) *models.Role {
 	permissions := make([]models.Permission, len(entity.Permissions))
 	for i, p := range entity.Permissions {
-		permissions[i] = toDBPermission(p)
+		permissions[i] = *toDBPermission(&p)
 	}
 	return &models.Role{
 		ID:          entity.ID,
@@ -96,8 +96,8 @@ func toDBRole(entity *role.Role) *models.Role {
 	}
 }
 
-func toDBPermission(entity permission.Permission) models.Permission {
-	return models.Permission{
+func toDBPermission(entity *permission.Permission) *models.Permission {
+	return &models.Permission{
 		ID:       entity.ID,
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
@@ -106,8 +106,8 @@ func toDBPermission(entity permission.Permission) models.Permission {
 	}
 }
 
-func toDomainPermission(dbPermission models.Permission) permission.Permission {
-	return permission.Permission{
+func toDomainPermission(dbPermission *models.Permission) *permission.Permission {
+	return &permission.Permission{
 		ID:       dbPermission.ID,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),

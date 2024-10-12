@@ -191,3 +191,30 @@ var (
 		Modifier: ModifierAll,
 	}
 )
+
+var Permissions = []Permission{
+	PaymentCreate,
+	PaymentRead,
+	PaymentUpdate,
+	PaymentDelete,
+	UserCreate,
+	UserRead,
+	UserUpdate,
+	UserDelete,
+	RoleCreate,
+	RoleRead,
+	RoleUpdate,
+	RoleDelete,
+	AccountCreate,
+	AccountRead,
+	AccountUpdate,
+	AccountDelete,
+	ProjectCreate,
+	ProjectRead,
+	ProjectUpdate,
+	ProjectDelete,
+	StageCreate,
+	StageRead,
+	StageUpdate,
+	StageDelete,
+}
