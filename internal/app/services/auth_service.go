@@ -171,7 +171,7 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteStrictMode,
 		Secure:   conf.GoAppEnvironment == "production",
 		Domain:   conf.FrontendDomain,
 	}

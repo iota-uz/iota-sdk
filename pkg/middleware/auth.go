@@ -8,27 +8,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
-	localComposables "github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 )
 
 type AuthService interface {
 	Authorize(ctx context.Context, token string) (*user.User, *session.Session, error)
-}
-
-func PermissionCheck() mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				_, err := localComposables.UseSession(r.Context())
-				if err != nil {
-					next.ServeHTTP(w, r)
-					return
-				}
-			},
-		)
-	}
 }
 
 func Authorization(authService AuthService) mux.MiddlewareFunc {
@@ -54,6 +39,24 @@ func Authorization(authService AuthService) mux.MiddlewareFunc {
 				params.Authenticated = true
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 				next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, constants.SessionKey, sess)))
+			},
+		)
+	}
+}
+
+func RequireAuthorization() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				params, ok := composables.UseParams(r.Context())
+				if !ok {
+					panic("params not found. Add RequestParams middleware up the chain")
+				}
+				if !params.Authenticated {
+					http.Redirect(w, r, "/login", http.StatusFound)
+					return
+				}
+				next.ServeHTTP(w, r)
 			},
 		)
 	}

@@ -25,7 +25,7 @@ func (g *GormUserRepository) GetPaginated(
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	q := tx.Limit(limit).Offset(offset)
+	q := tx.Preload("Roles").Preload("Roles.Permissions").Limit(limit).Offset(offset)
 	q, err := helpers.ApplySort(q, sortBy, &models.User{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&user.User{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&models.User{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -58,11 +58,15 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var users []*user.User
+	var users []*models.User
 	if err := tx.Find(&users).Error; err != nil {
 		return nil, err
 	}
-	return users, nil
+	entities := make([]*user.User, len(users))
+	for i, row := range users {
+		entities[i] = toDomainUser(row)
+	}
+	return entities, nil
 }
 
 func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
@@ -71,7 +75,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, 
 		return nil, service.ErrNoTx
 	}
 	var row models.User
-	if err := tx.Preload("Roles").First(&row, id).Error; err != nil {
+	if err := tx.Preload("Roles").Preload("Roles.Permissions").First(&row, id).Error; err != nil {
 		return nil, err
 	}
 	return toDomainUser(&row), nil
@@ -83,7 +87,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 		return nil, service.ErrNoTx
 	}
 	var row models.User
-	if err := tx.First(&row, "email = ?", email).Error; err != nil {
+	if err := tx.Preload("Roles").Preload("Roles.Permissions").First(&row, "email = ?", email).Error; err != nil {
 		return nil, err
 	}
 	return toDomainUser(&row), nil

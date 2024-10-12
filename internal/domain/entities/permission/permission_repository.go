@@ -8,6 +8,7 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]*Permission, error)
 	GetByID(ctx context.Context, id uint) (*Permission, error)
 	Create(ctx context.Context, p *Permission) error
+	CreateOrUpdate(ctx context.Context, p *Permission) error
 	Update(ctx context.Context, p *Permission) error
 	Delete(ctx context.Context, id uint) error
 }
