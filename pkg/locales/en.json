@@ -133,7 +133,9 @@
       "Name": "Name",
       "Balance": "Balance",
       "Description": "Description",
-      "AccountNumber": "Account number"
+      "AccountNumber": "Account number",
+      "Delete": "Delete account",
+      "DeleteConfirmation": "Are you sure you want to delete this account?"
     }
   },
   "Login": {

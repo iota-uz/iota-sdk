@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 	"strconv"
 
@@ -28,12 +29,14 @@ func NewUsersController(app *services.Application) Controller {
 }
 
 func (c *UsersController) Register(r *mux.Router) {
-	r.HandleFunc(c.basePath, c.Users).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath, c.CreateUser).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(middleware.RequireAuthorization())
+	router.HandleFunc("", c.Users).Methods(http.MethodGet)
+	router.HandleFunc("", c.CreateUser).Methods(http.MethodPost)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {

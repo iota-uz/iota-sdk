@@ -2,9 +2,26 @@ package composables
 
 import (
 	"context"
+	"github.com/go-playground/locales/en"
+	"github.com/go-playground/locales/ru"
+	"github.com/go-playground/validator/v10"
+	en_translations "github.com/go-playground/validator/v10/translations/en"
+	ru_translations "github.com/go-playground/validator/v10/translations/ru"
+	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-erp/sdk/composables"
+	"golang.org/x/text/language"
+	"sync"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+)
+
+var (
+	registerTranslations = map[string]func(v *validator.Validate, trans ut.Translator) error{
+		"en": en_translations.RegisterDefaultTranslations,
+		"ru": ru_translations.RegisterDefaultTranslations,
+	}
+	translationLock = sync.Mutex{}
 )
 
 // UseLocalizer returns the localizer from the context.
@@ -17,12 +34,26 @@ func UseLocalizer(ctx context.Context) (*i18n.Localizer, bool) {
 	return l, true
 }
 
+func loadUniTranslator() *ut.UniversalTranslator {
+	enLocale := en.New()
+	ruLocale := ru.New()
+	return ut.New(enLocale, enLocale, ruLocale)
+}
+
 func UseUniLocalizer(ctx context.Context) (ut.Translator, bool) {
-	l, ok := ctx.Value("uni_localizer").(ut.Translator)
+	uni := loadUniTranslator()
+	locale, _ := composables.UseLocale(ctx, language.English).Base()
+	trans, _ := uni.GetTranslator(locale.String())
+	translationLock.Lock()
+	defer translationLock.Unlock()
+	register, ok := registerTranslations[locale.String()]
 	if !ok {
 		return nil, false
 	}
-	return l, true
+	if err := register(constants.Validate, trans); err != nil {
+		return nil, false
+	}
+	return trans, true
 }
 
 func UseLocalizedOrFallback(ctx context.Context, key string, fallback string) string {
@@ -30,10 +61,14 @@ func UseLocalizedOrFallback(ctx context.Context, key string, fallback string) st
 	if !ok {
 		return fallback
 	}
-	return l.MustLocalize(&i18n.LocalizeConfig{ //nolint:exhaustruct
-		MessageID: key,
-		DefaultMessage: &i18n.Message{ //nolint:exhaustruct
-			ID: fallback,
+	return l.MustLocalize(
+		&i18n.LocalizeConfig{
+			//nolint:exhaustruct
+			MessageID: key,
+			DefaultMessage: &i18n.Message{
+				//nolint:exhaustruct
+				ID: fallback,
+			},
 		},
-	})
+	)
 }
