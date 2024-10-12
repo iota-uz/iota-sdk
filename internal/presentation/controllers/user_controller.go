@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"net/http"
 	"strconv"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/users"
 	"github.com/iota-agency/iota-erp/pkg/composables"
@@ -37,7 +37,9 @@ func (c *UsersController) Register(r *mux.Router) {
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.List.Title"}) //nolint:exhaustruct
+	pageCtx, err := composables.UsePageCtx(
+		r, &composables.PageData{Title: "Users.Meta.List.Title"},
+	) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -63,7 +65,9 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.Edit.Title"}) //nolint:exhaustruct
+	pageCtx, err := composables.UsePageCtx(
+		r, &composables.PageData{Title: "Users.Meta.Edit.Title"},
+	) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -118,14 +122,17 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		upd := &user.UpdateDTO{ //nolint:exhaustruct
+		upd := &user.UpdateDTO{
+			//nolint:exhaustruct
 			FirstName: r.FormValue("firstName"),
 			LastName:  r.FormValue("lastName"),
 			Email:     r.FormValue("email"),
-			RoleID:    int64(roleID),
+			RoleID:    uint(roleID),
 		}
 		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, &composables.PageData{Title: "Users.Meta.Edit.Title"}) //nolint:exhaustruct
+		pageCtx, err = composables.UsePageCtx(
+			r, &composables.PageData{Title: "Users.Meta.Edit.Title"},
+		) //nolint:exhaustruct
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -146,13 +153,16 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(users.EditForm(pageCtx.Localizer, us, roles, errors), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.UserService.Update(r.Context(), &user.User{ //nolint:exhaustruct
-			ID:        int64(id),
-			FirstName: upd.FirstName,
-			LastName:  upd.LastName,
-			Email:     upd.Email,
-			Roles:     []*role.Role{{ID: upd.RoleID}},
-		})
+		err = c.app.UserService.Update(
+			r.Context(), &user.User{
+				//nolint:exhaustruct
+				ID:        int64(id),
+				FirstName: upd.FirstName,
+				LastName:  upd.LastName,
+				Email:     upd.Email,
+				Roles:     []*role.Role{{ID: upd.RoleID}},
+			},
+		)
 	}
 
 	if err != nil {
@@ -183,13 +193,14 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	userEntity := user.User{ //nolint:exhaustruct
+	userEntity := user.User{
+		//nolint:exhaustruct
 		FirstName: r.FormValue("firstName"),
 		LastName:  r.FormValue("lastName"),
 		Email:     r.FormValue("email"),
 		Password:  &password,
 		Roles: []*role.Role{
-			{ID: int64(roleID)},
+			{ID: uint(roleID)},
 		},
 	}
 
@@ -205,7 +216,9 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
-		templ.Handler(users.CreateForm(pageCtx.Localizer, userEntity, roles, errors), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(
+			users.CreateForm(pageCtx.Localizer, userEntity, roles, errors), templ.WithStreaming(),
+		).ServeHTTP(w, r)
 		return
 	}
 

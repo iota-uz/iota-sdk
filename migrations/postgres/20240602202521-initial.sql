@@ -455,9 +455,9 @@ CREATE TABLE permissions
 (
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL UNIQUE,
-    resource    VARCHAR(255) NOT NULL,
-    module      VARCHAR(255) NOT NULL,
-    modifier    VARCHAR(255) NOT NULL,
+    resource    VARCHAR(255) NOT NULL, -- roles, users, etc.
+    action      VARCHAR(255) NOT NULL, -- create, read, update, delete
+    modifier    VARCHAR(255) NOT NULL, -- all / own
     description TEXT
 );
 

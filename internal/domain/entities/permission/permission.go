@@ -5,31 +5,19 @@ import (
 )
 
 type Permission struct {
-	ID          int64
+	ID          uint
+	Resource    Resource
+	Action      Action
 	Description string
-	Resource    string
-	Action      string
 	Modifier    string
 }
 
 func (p *Permission) ToGraph() *model.Permission {
 	return &model.Permission{
-		ID:          p.ID,
+		ID:          int64(p.ID),
 		Description: &p.Description,
-		Resource:    &p.Resource,
-		Action:      &p.Action,
+		Resource:    (*string)(&p.Resource),
+		Action:      (*string)(&p.Action),
 		Modifier:    &p.Modifier,
-	}
-}
-
-type RolePermissions struct {
-	PermissionID int64
-	RoleID       int64
-}
-
-func (rp *RolePermissions) ToGraph() *RolePermissions {
-	return &RolePermissions{
-		PermissionID: rp.PermissionID,
-		RoleID:       rp.RoleID,
 	}
 }
