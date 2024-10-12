@@ -106,6 +106,7 @@ type Role struct {
 	ID          uint
 	Name        string
 	Description string
+	Permissions []Permission `gorm:"many2many:role_permissions;"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -366,7 +367,7 @@ type Permission struct {
 	ID          uint
 	Name        string
 	Resource    string
-	Module      string
+	Action      string
 	Modifier    string
 	Description string
 }

@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -23,7 +23,7 @@ import (
 	"strconv"
 )
 
-func isRoleSelected(id int64, roles []*role.Role) bool {
+func isRoleSelected(id uint, roles []*role.Role) bool {
 	for _, role := range roles {
 		if role.ID == id {
 			return true

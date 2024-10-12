@@ -2,8 +2,9 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
@@ -42,7 +43,7 @@ func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&role.Role{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&models.Role{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -53,9 +54,13 @@ func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entities []*role.Role
-	if err := tx.Find(&entities).Error; err != nil {
+	var rows []*models.Role
+	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	var entities []*role.Role
+	for _, row := range rows {
+		entities = append(entities, toDomainRole(row))
 	}
 	return entities, nil
 }

@@ -7,8 +7,8 @@ package graph
 import (
 	"context"
 	"fmt"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/sdk/mapper"
 )
@@ -49,7 +49,9 @@ func (r *mutationResolver) DeleteRole(ctx context.Context, id int64) (bool, erro
 }
 
 // CreateRolePermission is the resolver for the createRolePermission field.
-func (r *mutationResolver) CreateRolePermission(ctx context.Context, input model.CreateRolePermission) (*model.RolePermissions, error) {
+func (r *mutationResolver) CreateRolePermission(
+	ctx context.Context, input model.CreateRolePermission,
+) (*model.RolePermissions, error) {
 	panic(fmt.Errorf("not implemented: CreateRolePermission - createRolePermission"))
 }
 
@@ -63,7 +65,9 @@ func (r *queryResolver) Role(ctx context.Context, id int64) (*model.Role, error)
 }
 
 // Roles is the resolver for the roles field.
-func (r *queryResolver) Roles(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedRoles, error) {
+func (r *queryResolver) Roles(ctx context.Context, offset int, limit int, sortBy []string) (
+	*model.PaginatedRoles, error,
+) {
 	entities, err := r.app.RoleService.GetPaginated(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, err
@@ -93,17 +97,23 @@ func (r *queryResolver) Permission(ctx context.Context, id int64) (*model.Permis
 }
 
 // Permissions is the resolver for the permissions field.
-func (r *queryResolver) Permissions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPermissions, error) {
+func (r *queryResolver) Permissions(
+	ctx context.Context, offset int, limit int, sortBy []string,
+) (*model.PaginatedPermissions, error) {
 	panic(fmt.Errorf("not implemented: Permissions - permissions"))
 }
 
 // RolePermission is the resolver for the rolePermission field.
-func (r *queryResolver) RolePermission(ctx context.Context, roleID int64, permissionID int64) (*model.RolePermissions, error) {
+func (r *queryResolver) RolePermission(ctx context.Context, roleID int64, permissionID int64) (
+	*model.RolePermissions, error,
+) {
 	panic(fmt.Errorf("not implemented: RolePermission - rolePermission"))
 }
 
 // RolePermissions is the resolver for the rolePermissions field.
-func (r *queryResolver) RolePermissions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedRolePermissions, error) {
+func (r *queryResolver) RolePermissions(
+	ctx context.Context, offset int, limit int, sortBy []string,
+) (*model.PaginatedRolePermissions, error) {
 	panic(fmt.Errorf("not implemented: RolePermissions - rolePermissions"))
 }
 

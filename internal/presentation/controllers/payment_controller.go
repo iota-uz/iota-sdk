@@ -40,9 +40,9 @@ func (c *PaymentsController) viewModelPayments(r *http.Request) ([]*viewmodels.P
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving payments")
 	}
-	var vms []*viewmodels.Payment
-	for _, p := range ps {
-		vms = append(vms, mappers.PaymentToViewModel(p))
+	vms := make([]*viewmodels.Payment, len(ps))
+	for i, p := range ps {
+		vms[i] = mappers.PaymentToViewModel(p)
 	}
 	return vms, nil
 }
@@ -64,9 +64,9 @@ func (c *PaymentsController) viewModelStages(r *http.Request) ([]*viewmodels.Pro
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving stages")
 	}
-	var vms []*viewmodels.ProjectStage
-	for _, s := range stages {
-		vms = append(vms, mappers.ProjectStageToViewModel(s))
+	vms := make([]*viewmodels.ProjectStage, len(stages))
+	for i, s := range stages {
+		vms[i] = mappers.ProjectStageToViewModel(s)
 	}
 	return vms, nil
 }
@@ -160,7 +160,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r,
-			&composables.PageData{Title: "Payments.Meta.Edit.Title"}, //nolint:exhaustruct
+			composables.NewPageData("Payments.Meta.Edit.Title", ""),
 		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -191,7 +191,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
-		r, &composables.PageData{Title: "Payments.Meta.New.Title"}, //nolint:exhaustruct
+		r, composables.NewPageData("Payments.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -1,12 +1,12 @@
 package user
 
 import (
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"strings"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/role"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
@@ -41,7 +41,7 @@ type UpdateDTO struct {
 	LastName  string
 	Email     string
 	Password  string
-	RoleID    int64
+	RoleID    uint
 }
 
 func (u *User) CheckPassword(password string) bool {

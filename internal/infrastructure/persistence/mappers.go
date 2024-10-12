@@ -3,6 +3,8 @@ package persistence
 import (
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"time"
@@ -17,6 +19,52 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 )
+
+func toDomainRole(dbRole *models.Role) *role.Role {
+	permissions := make([]*permission.Permission, 0, len(dbRole.Permissions))
+	for _, p := range dbRole.Permissions {
+		permissions = append(
+			permissions, &permission.Permission{
+				ID:          p.ID,
+				Resource:    permission.Resource(p.Resource),
+				Action:      permission.Action(p.Action),
+				Description: p.Description,
+				Modifier:    p.Modifier,
+			},
+		)
+	}
+	return &role.Role{
+		ID:          dbRole.ID,
+		Name:        dbRole.Name,
+		Description: dbRole.Description,
+		Permissions: permissions,
+		CreatedAt:   dbRole.CreatedAt,
+		UpdatedAt:   dbRole.UpdatedAt,
+	}
+}
+
+func toDBRole(entity *role.Role) *models.Role {
+	permissions := make([]models.Permission, 0, len(entity.Permissions))
+	for _, p := range entity.Permissions {
+		permissions = append(
+			permissions, models.Permission{
+				ID:          p.ID,
+				Resource:    string(p.Resource),
+				Action:      string(p.Action),
+				Description: p.Description,
+				Modifier:    p.Modifier,
+			},
+		)
+	}
+	return &models.Role{
+		ID:          entity.ID,
+		Name:        entity.Name,
+		Description: entity.Description,
+		Permissions: permissions,
+		CreatedAt:   entity.CreatedAt,
+		UpdatedAt:   entity.UpdatedAt,
+	}
+}
 
 func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 	return &models.WarehouseUnit{
