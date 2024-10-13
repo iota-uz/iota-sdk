@@ -7,6 +7,7 @@ const (
 	ResourceAccount Resource = "account"
 	ResourceStage   Resource = "stage"
 	ResourceProject Resource = "project"
+	ResourceExpense Resource = "expense"
 )
 
 const (
@@ -190,6 +191,34 @@ var (
 		Action:   ActionDelete,
 		Modifier: ModifierAll,
 	}
+	ExpenseCreate = Permission{
+		ID:       25,
+		Name:     "Expense.Create",
+		Resource: ResourceExpense,
+		Action:   ActionCreate,
+		Modifier: ModifierAll,
+	}
+	ExpenseRead = Permission{
+		ID:       26,
+		Name:     "Expense.Read",
+		Resource: ResourceExpense,
+		Action:   ActionRead,
+		Modifier: ModifierAll,
+	}
+	ExpenseUpdate = Permission{
+		ID:       27,
+		Name:     "Expense.Update",
+		Resource: ResourceExpense,
+		Action:   ActionUpdate,
+		Modifier: ModifierAll,
+	}
+	ExpenseDelete = Permission{
+		ID:       28,
+		Name:     "Expense.Delete",
+		Resource: ResourceExpense,
+		Action:   ActionDelete,
+		Modifier: ModifierAll,
+	}
 )
 
 var Permissions = []Permission{
@@ -217,4 +246,8 @@ var Permissions = []Permission{
 	StageRead,
 	StageUpdate,
 	StageDelete,
+	ExpenseCreate,
+	ExpenseRead,
+	ExpenseUpdate,
+	ExpenseDelete,
 }

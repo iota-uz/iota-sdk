@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"errors"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
@@ -426,4 +427,45 @@ func toDBProjectStage(entity *stage.ProjectStage) *models.ProjectStage {
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
 	}
+}
+
+func toDomainExpense(dbExpense *models.Expense) (*expense.Expense, error) {
+	categoryEntity, err := toDomainExpenseCategory(&dbExpense.Category)
+	if err != nil {
+		return nil, err
+	}
+	return &expense.Expense{
+		ID:               dbExpense.ID,
+		Amount:           dbExpense.Transaction.Amount,
+		Category:         *categoryEntity,
+		Comment:          dbExpense.Transaction.Comment,
+		TransactionID:    dbExpense.TransactionID,
+		AccountingPeriod: dbExpense.Transaction.AccountingPeriod,
+		Date:             dbExpense.Transaction.TransactionDate,
+		CreatedAt:        dbExpense.CreatedAt,
+		UpdatedAt:        dbExpense.UpdatedAt,
+	}, nil
+}
+
+func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction) {
+	dbTransaction := &models.Transaction{
+		ID:                   entity.TransactionID,
+		Amount:               entity.Amount,
+		Comment:              entity.Comment,
+		AccountingPeriod:     entity.AccountingPeriod,
+		TransactionDate:      entity.Date,
+		OriginAccountID:      &entity.Account.ID,
+		DestinationAccountID: nil,
+		TransactionType:      transaction.Expense.String(),
+		CreatedAt:            entity.CreatedAt,
+	}
+	dbExpense := &models.Expense{
+		ID:            entity.ID,
+		CategoryID:    entity.Category.ID,
+		TransactionID: entity.TransactionID,
+		Transaction:   *dbTransaction,
+		CreatedAt:     entity.CreatedAt,
+		UpdatedAt:     entity.UpdatedAt,
+	}
+	return dbExpense, dbTransaction
 }
