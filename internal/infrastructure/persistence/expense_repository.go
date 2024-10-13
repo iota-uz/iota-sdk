@@ -39,15 +39,15 @@ func (g *GormExpenseRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	categories := make([]*expense.Expense, len(rows))
+	entities := make([]*expense.Expense, len(rows))
 	for i, row := range rows {
 		e, err := toDomainExpense(row)
 		if err != nil {
 			return nil, err
 		}
-		categories[i] = e
+		entities[i] = e
 	}
-	return categories, nil
+	return entities, nil
 }
 
 func (g *GormExpenseRepository) Count(ctx context.Context) (uint, error) {

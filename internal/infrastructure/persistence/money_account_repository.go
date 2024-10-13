@@ -93,7 +93,9 @@ func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id 
 		return service.ErrNoTx
 	}
 	var balance float64
-	q := tx.Model(&models.Transaction{}).Where("money_account_id = ?", id).Select("sum(amount)") //nolint:exhaustruct
+	q := tx.Model(&models.Transaction{}).Where("origin_account_id = ?", id).Or(
+		"destination_account_id = ?", id,
+	).Select("sum(amount)") //nolint:exhaustruct
 	if err := q.Row().Scan(&balance); err != nil {
 		return err
 	}

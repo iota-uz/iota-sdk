@@ -430,14 +430,15 @@ func toDBProjectStage(entity *stage.ProjectStage) *models.ProjectStage {
 }
 
 func toDomainExpense(dbExpense *models.Expense) (*expense.Expense, error) {
-	categoryEntity, err := toDomainExpenseCategory(&dbExpense.Category)
+	categoryEntity, err := toDomainExpenseCategory(dbExpense.Category)
 	if err != nil {
 		return nil, err
 	}
 	return &expense.Expense{
 		ID:               dbExpense.ID,
-		Amount:           dbExpense.Transaction.Amount,
+		Amount:           -1 * dbExpense.Transaction.Amount,
 		Category:         *categoryEntity,
+		Account:          moneyAccount.Account{ID: *dbExpense.Transaction.OriginAccountID},
 		Comment:          dbExpense.Transaction.Comment,
 		TransactionID:    dbExpense.TransactionID,
 		AccountingPeriod: dbExpense.Transaction.AccountingPeriod,
@@ -450,7 +451,7 @@ func toDomainExpense(dbExpense *models.Expense) (*expense.Expense, error) {
 func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction) {
 	dbTransaction := &models.Transaction{
 		ID:                   entity.TransactionID,
-		Amount:               entity.Amount,
+		Amount:               -1 * entity.Amount,
 		Comment:              entity.Comment,
 		AccountingPeriod:     entity.AccountingPeriod,
 		TransactionDate:      entity.Date,
@@ -463,7 +464,7 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction)
 		ID:            entity.ID,
 		CategoryID:    entity.Category.ID,
 		TransactionID: entity.TransactionID,
-		Transaction:   *dbTransaction,
+		Transaction:   nil,
 		CreatedAt:     entity.CreatedAt,
 		UpdatedAt:     entity.UpdatedAt,
 	}
