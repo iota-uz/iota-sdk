@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-erp/sdk/service"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/pkg/constants"
@@ -21,6 +23,17 @@ func UseUser(ctx context.Context) (*user.User, error) {
 		return nil, ErrNoUserFound
 	}
 	return u, nil
+}
+
+func CanUser(ctx context.Context, permission permission.Permission) error {
+	u, err := UseUser(ctx)
+	if err != nil {
+		return err
+	}
+	if !u.Can(permission) {
+		return service.ErrForbidden
+	}
+	return nil
 }
 
 // UseSession returns the session from the context.
