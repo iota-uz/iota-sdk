@@ -2,6 +2,13 @@
   "errors": {
     "message": "The requested resource could not be found."
   },
+  "ErrorPages": {
+    "NotFound": {
+      "Title": "404",
+      "Message": "Page not found",
+      "Home": "Home"
+    }
+  },
   "NavigationLinks": {
     "Dashboard": "Dashboard",
     "Users": "Users",

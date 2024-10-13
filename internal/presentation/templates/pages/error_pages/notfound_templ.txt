@@ -1,3 +1,2 @@
-<div class=\"flex flex-col items-center justify-center h-full\"><div class=\"text-center\"><h1 class=\"text-9xl font-bold text-primary\">404</h1><h2 class=\"text-3xl font-bold text-primary\">Page not found</h2><p class=\"text-lg text-gray-500 mt-4\">
-</p><div class=\"mt-6\">
-</div></div></div>
+<div class=\"flex flex-col items-center justify-center h-full\"><div class=\"flex flex-col items-center\"><img src=\"/assets/images/search.svg\" class=\"w-32 h-32\" alt=\"404\"><h1 class=\"text-2xl font-bold text-primary\">404</h1><h2 class=\"text-lg font-bold text-primary\">
+</h2><p class=\"text-lg text-gray-500 mt-4\"></p></div></div>

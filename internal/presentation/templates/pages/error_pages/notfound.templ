@@ -11,19 +11,16 @@ type NotFoundPageProps struct {
 }
 
 templ NotFoundContent(props *NotFoundPageProps) {
-	@layouts.Default(props.PageContext) {
+	@layouts.Authenticated(props.PageContext) {
 		<div class="flex flex-col items-center justify-center h-full">
-			<div class="text-center">
-				<h1 class="text-9xl font-bold text-primary">404</h1>
-				<h2 class="text-3xl font-bold text-primary">Page not found</h2>
+			<div class="flex flex-col items-center">
+			    <img src="/assets/images/search.svg" class="w-32 h-32" alt="404" />
+				<h1 class="text-2xl font-bold text-primary">404</h1>
+				<h2 class="text-lg font-bold text-primary">
+					{ props.T("ErrorPages.NotFound.Message") }
+				</h2>
 				<p class="text-lg text-gray-500 mt-4">
-					{ props.T("ErrorPages.NotFound.Description") }
 				</p>
-				<div class="mt-6">
-					@button.Primary(button.Props{Size: button.SizeMD, Class: "justify-center"}) {
-						{ props.T("Login.Login") }
-					}
-				</div>
 			</div>
 		</div>
 	}
