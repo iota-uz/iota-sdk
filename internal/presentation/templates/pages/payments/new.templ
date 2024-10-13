@@ -14,6 +14,7 @@ type CreatePageProps struct {
 	*types.PageContext
 	Payment *viewmodels.Payment
 	Stages  []*viewmodels.ProjectStage
+	Accounts []*viewmodels.MoneyAccount
 	Errors  map[string]string
 }
 
@@ -50,6 +51,7 @@ templ CreateForm(props *CreatePageProps) {
 			@AccountSelect(&AccountSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Payment.AccountID,
+				Accounts:    props.Accounts,
 				Attrs: templ.Attributes{
 					"name": "AccountId",
 					"form": "save-form",

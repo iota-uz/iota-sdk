@@ -75,6 +75,18 @@ func (c *PaymentsController) viewModelStages(r *http.Request) ([]*viewmodels.Pro
 	return vms, nil
 }
 
+func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.MoneyAccount, error) {
+	accounts, err := c.app.MoneyAccountService.GetAll(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving accounts")
+	}
+	vms := make([]*viewmodels.MoneyAccount, len(accounts))
+	for i, a := range accounts {
+		vms[i] = mappers.MoneyAccountToViewModel(a)
+	}
+	return vms, nil
+}
+
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -116,10 +128,22 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	stages, err := c.viewModelStages(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	accounts, err := c.viewModelAccounts(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	props := &payments.EditPageProps{
 		PageContext: pageCtx,
 		Payment:     paymentViewModel,
+		Stages:      stages,
+		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
 	templ.Handler(payments.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -176,9 +200,21 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			stages, err := c.viewModelStages(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			accounts, err := c.viewModelAccounts(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			props := &payments.EditPageProps{
 				PageContext: pageCtx,
 				Payment:     paymentViewModel,
+				Stages:      stages,
+				Accounts:    accounts,
 				Errors:      errorsMap,
 			}
 			templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -206,11 +242,17 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	accounts, err := c.viewModelAccounts(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	props := &payments.CreatePageProps{
 		PageContext: pageCtx,
 		Stages:      stages,
 		Payment:     &viewmodels.Payment{}, //nolint:exhaustruct
+		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
 	templ.Handler(payments.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -230,16 +272,22 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	stages, err := c.viewModelStages(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		stages, err := c.viewModelStages(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		accounts, err := c.viewModelAccounts(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		props := &payments.CreatePageProps{
 			PageContext: pageCtx,
 			Payment:     mappers.PaymentToViewModel(dto.ToEntity()),
+			Accounts:    accounts,
 			Errors:      errorsMap,
 			Stages:      stages,
 		}
