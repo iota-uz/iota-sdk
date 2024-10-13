@@ -9,6 +9,7 @@ import (
 type CurrencySelectProps struct {
 	*types.PageContext
 	Value      string
+	Error      string
 	Currencies []*viewmodels.Currency
 	Attrs      templ.Attributes
 }
@@ -18,6 +19,7 @@ templ CurrencySelect(props *CurrencySelectProps) {
 		Label:       props.T("ExpenseCategories.Single.Currency"),
 		Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
 		Attrs:       props.Attrs,
+		Error:       props.Error,
 	}) {
 		for _, currency := range props.Currencies {
 			if currency.Code == props.Value {

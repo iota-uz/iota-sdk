@@ -1,6 +1,8 @@
 package expense_categories
 
 import (
+	"fmt"
+	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -13,7 +15,7 @@ import (
 type CreatePageProps struct {
 	*types.PageContext
 	Currencies []*viewmodels.Currency
-	Category   *viewmodels.ExpenseCategory
+	Category   category.CreateDTO
 	Errors     map[string]string
 }
 
@@ -27,13 +29,14 @@ templ CreateForm(props *CreatePageProps) {
 			})
 			@input.Number(&input.Props{
 				Label: props.T("ExpenseCategories.Single.Amount"),
-				Attrs: templ.Attributes{"name": "Amount", "value": props.Category.Amount},
+				Attrs: templ.Attributes{"name": "Amount", "value": fmt.Sprintf("%.2f", props.Category.Amount)},
 				Error: props.Errors["Amount"],
 			})
 			@CurrencySelect(&CurrencySelectProps{
 				PageContext: props.PageContext,
 				Value:       "",
 				Currencies:  props.Currencies,
+				Error:       props.Errors["CurrencyCode"],
 				Attrs:       templ.Attributes{"name": "CurrencyCode"},
 			})
 			@textarea.Basic(&textarea.Props{

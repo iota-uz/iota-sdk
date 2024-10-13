@@ -62,7 +62,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
 		return
 	}
-	viewCategories := make([]*viewmodels.ExpenseCategory, 0, len(categories))
+	viewCategories := make([]*viewmodels.ExpenseCategory, len(categories))
 	for i, entity := range categories {
 		viewCategories[i] = mappers.ExpenseCategoryToViewModel(entity)
 	}
@@ -207,7 +207,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Category:    mappers.ExpenseCategoryToViewModel(&category.ExpenseCategory{}), //nolint:exhaustruct
+		Category:    category.CreateDTO{}, //nolint:exhaustruct
 	}
 	templ.Handler(expense_categories.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -225,8 +225,8 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 	}
 
 	pageCtx, err := composables.UsePageCtx(
-		r, &composables.PageData{Title: "ExpenseCategories.Meta.New.Title"},
-	) //nolint:exhaustruct
+		r, composables.NewPageData("ExpenseCategories.Meta.New.Title", ""),
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -238,16 +238,11 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		entity, err := dto.ToEntity()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		props := &expense_categories.CreatePageProps{
 			PageContext: pageCtx,
 			Currencies:  currencies,
 			Errors:      errorsMap,
-			Category:    mappers.ExpenseCategoryToViewModel(entity),
+			Category:    dto,
 		}
 		templ.Handler(expense_categories.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
