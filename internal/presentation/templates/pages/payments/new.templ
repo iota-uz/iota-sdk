@@ -12,10 +12,10 @@ import (
 
 type CreatePageProps struct {
 	*types.PageContext
-	Payment *viewmodels.Payment
-	Stages  []*viewmodels.ProjectStage
+	Payment  *viewmodels.Payment
+	Stages   []*viewmodels.ProjectStage
 	Accounts []*viewmodels.MoneyAccount
-	Errors  map[string]string
+	Errors   map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
