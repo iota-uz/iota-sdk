@@ -20,9 +20,10 @@ import (
 
 type CreatePageProps struct {
 	*types.PageContext
-	Payment *viewmodels.Payment
-	Stages  []*viewmodels.ProjectStage
-	Errors  map[string]string
+	Payment  *viewmodels.Payment
+	Stages   []*viewmodels.ProjectStage
+	Accounts []*viewmodels.MoneyAccount
+	Errors   map[string]string
 }
 
 func CreateForm(props *CreatePageProps) templ.Component {
@@ -110,6 +111,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Err = AccountSelect(&AccountSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Payment.AccountID,
+				Accounts:    props.Accounts,
 				Attrs: templ.Attributes{
 					"name": "AccountId",
 					"form": "save-form",
@@ -159,7 +161,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/payments/new.templ`, Line: 88, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/payments/new.templ`, Line: 90, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
