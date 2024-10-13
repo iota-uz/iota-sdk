@@ -13,13 +13,12 @@ templ NotFoundContent(props *NotFoundPageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		<div class="flex flex-col items-center justify-center h-full">
 			<div class="flex flex-col items-center">
-			    <img src="/assets/images/search.svg" class="w-32 h-32" alt="404" />
+				<img src="/assets/images/search.svg" class="w-32 h-32" alt="404"/>
 				<h1 class="text-2xl font-bold text-primary">404</h1>
 				<h2 class="text-lg font-bold text-primary">
 					{ props.T("ErrorPages.NotFound.Message") }
 				</h2>
-				<p class="text-lg text-gray-500 mt-4">
-				</p>
+				<p class="text-lg text-gray-500 mt-4"></p>
 			</div>
 		</div>
 	}

@@ -15,10 +15,10 @@ import (
 
 type EditPageProps struct {
 	*types.PageContext
-	Payment *viewmodels.Payment
-	Stages  []*viewmodels.ProjectStage
+	Payment  *viewmodels.Payment
+	Stages   []*viewmodels.ProjectStage
 	Accounts []*viewmodels.MoneyAccount
-	Errors  map[string]string
+	Errors   map[string]string
 }
 
 templ EditForm(props *EditPageProps) {
@@ -42,24 +42,24 @@ templ EditForm(props *EditPageProps) {
 				},
 				Error: props.Errors["Date"],
 			})
-            @StageSelect(&StageSelectProps{
-                PageContext: props.PageContext,
-                Value:       props.Payment.StageID,
-                Stages:      props.Stages,
-                Attrs: templ.Attributes{
-                    "name": "StageId",
-                    "form": "save-form",
-                },
-            })
-            @AccountSelect(&AccountSelectProps{
-                PageContext: props.PageContext,
-                Value:       props.Payment.AccountID,
-                Accounts:    props.Accounts,
-                Attrs: templ.Attributes{
-                    "name": "AccountId",
-                    "form": "save-form",
-                },
-            })
+			@StageSelect(&StageSelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Payment.StageID,
+				Stages:      props.Stages,
+				Attrs: templ.Attributes{
+					"name": "StageId",
+					"form": "save-form",
+				},
+			})
+			@AccountSelect(&AccountSelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Payment.AccountID,
+				Accounts:    props.Accounts,
+				Attrs: templ.Attributes{
+					"name": "AccountId",
+					"form": "save-form",
+				},
+			})
 			@textarea.Basic(&textarea.Props{
 				Label: props.T("Payments.Single.Comment"),
 				Attrs: templ.Attributes{

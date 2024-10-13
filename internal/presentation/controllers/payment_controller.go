@@ -1,12 +1,11 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-erp/pkg/middleware"
-	"net/http"
-
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"net/http"
+
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
@@ -14,6 +13,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/pkg/middleware"
 )
 
 type PaymentsController struct {
