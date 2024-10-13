@@ -5,82 +5,58 @@ import (
 	"slices"
 )
 
-type CodeEnum string
+type Code string
 
 const (
-	UsdCode CodeEnum = "USD"
-	EurCode CodeEnum = "EUR"
-	GbpCode CodeEnum = "GBP"
-	AudCode CodeEnum = "AUD"
-	CadCode CodeEnum = "CAD"
-	ChfCode CodeEnum = "CHF"
-	CnyCode CodeEnum = "CNY"
-	JpyCode CodeEnum = "JPY"
-	RubCode CodeEnum = "RUB"
-	TryCode CodeEnum = "TRY"
-	SomCode CodeEnum = "SOM"
+	UsdCode Code = "USD"
+	EurCode Code = "EUR"
+	GbpCode Code = "GBP"
+	AudCode Code = "AUD"
+	CadCode Code = "CAD"
+	ChfCode Code = "CHF"
+	CnyCode Code = "CNY"
+	JpyCode Code = "JPY"
+	RubCode Code = "RUB"
+	TryCode Code = "TRY"
+	SomCode Code = "SOM"
 )
 
-func (s CodeEnum) IsValid() bool {
+func (s Code) IsValid() bool {
 	return slices.Contains(ValidCodes, s)
 }
 
 func NewCode(value string) (Code, error) {
-	c := CodeEnum(value)
+	c := Code(value)
 	if !c.IsValid() {
-		return Code{}, fmt.Errorf("invalid currency code: %s", value)
+		return c, fmt.Errorf("invalid currency code: %s", value)
 	}
-	return Code{value: c}, nil
+	return c, nil
 }
 
-type Code struct {
-	value CodeEnum
-}
-
-func (p Code) Get() CodeEnum {
-	return p.value
-}
-
-func (p Code) String() string {
-	return string(p.value)
-}
-
-type SymbolEnum string
+type Symbol string
 
 const (
-	UsdSymbol SymbolEnum = "$"
-	EurSymbol SymbolEnum = "€"
-	GbpSymbol SymbolEnum = "£"
-	AudSymbol SymbolEnum = "A$"
-	CadSymbol SymbolEnum = "C$"
-	ChfSymbol SymbolEnum = "CHF"
-	CnySymbol SymbolEnum = "¥"
-	JpySymbol SymbolEnum = "¥"
-	RubSymbol SymbolEnum = "₽"
-	TrySymbol SymbolEnum = "₺"
-	SomSymbol SymbolEnum = "S"
+	UsdSymbol Symbol = "$"
+	EurSymbol Symbol = "€"
+	GbpSymbol Symbol = "£"
+	AudSymbol Symbol = "A$"
+	CadSymbol Symbol = "C$"
+	ChfSymbol Symbol = "CHF"
+	CnySymbol Symbol = "¥"
+	JpySymbol Symbol = "¥"
+	RubSymbol Symbol = "₽"
+	TrySymbol Symbol = "₺"
+	SomSymbol Symbol = "S"
 )
 
-func (s SymbolEnum) IsValid() bool {
+func (s Symbol) IsValid() bool {
 	return slices.Contains(ValidSymbols, s)
 }
 
 func NewSymbol(value string) (Symbol, error) {
-	s := SymbolEnum(value)
+	s := Symbol(value)
 	if !s.IsValid() {
-		return Symbol{}, fmt.Errorf("invalid currency symbol: %s", value)
+		return s, fmt.Errorf("invalid currency symbol: %s", value)
 	}
-	return Symbol{value: s}, nil
-}
-
-type Symbol struct {
-	value SymbolEnum
-}
-
-func (p Symbol) Get() SymbolEnum {
-	return p.value
-}
-
-func (p Symbol) String() string {
-	return string(p.value)
+	return s, nil
 }

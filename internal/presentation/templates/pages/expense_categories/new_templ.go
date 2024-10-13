@@ -9,20 +9,19 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/textarea"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type CreatePageProps struct {
 	*types.PageContext
-	Currencies []*currency.Currency
-	Category   *category.ExpenseCategory
+	Currencies []*viewmodels.Currency
+	Category   *viewmodels.ExpenseCategory
 	Errors     map[string]string
 }
 
@@ -132,7 +131,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/new.templ`, Line: 55, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/new.templ`, Line: 54, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

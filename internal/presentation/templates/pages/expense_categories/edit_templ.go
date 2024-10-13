@@ -10,8 +10,6 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -20,12 +18,13 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type EditPageProps struct {
 	*types.PageContext
-	Category   *category.ExpenseCategory
-	Currencies []*currency.Currency
+	Category   *viewmodels.ExpenseCategory
+	Currencies []*viewmodels.Currency
 	Errors     map[string]string
 }
 
@@ -97,7 +96,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = CurrencySelect(&CurrencySelectProps{
 				PageContext: props.PageContext,
-				Value:       props.Category.Currency.Code.String(),
+				Value:       props.Category.CurrencyCode,
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
 					"name": "CurrencyCode",
@@ -135,9 +134,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%d", props.Category.ID))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%s", props.Category.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 68, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 67, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -162,7 +161,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 85, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 84, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -190,7 +189,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%d", props.Category.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 88, Col: 112}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 87, Col: 112}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -215,7 +214,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 97, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expense_categories/edit.templ`, Line: 96, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

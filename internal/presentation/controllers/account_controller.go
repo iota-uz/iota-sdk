@@ -38,6 +38,18 @@ func (c *AccountController) Register(r *mux.Router) {
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 }
 
+func (c *AccountController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
+	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	if err != nil {
+		return nil, err
+	}
+	viewCurrencies := make([]*viewmodels.Currency, 0, len(currencies))
+	for _, currency := range currencies {
+		viewCurrencies = append(viewCurrencies, mappers.CurrencyToViewModel(currency))
+	}
+	return viewCurrencies, nil
+}
+
 func (c *AccountController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -90,14 +102,14 @@ func (c *AccountController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 		return
 	}
-	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	props := &accounts.EditPageProps{
 		PageContext: pageCtx,
-		Account:     entity,
+		Account:     mappers.MoneyAccountToViewModel(entity),
 		Currencies:  currencies,
 		Errors:      map[string]string{},
 	}
@@ -155,14 +167,14 @@ func (c *AccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 				return
 			}
-			currencies, err := c.app.CurrencyService.GetAll(r.Context())
+			currencies, err := c.viewModelCurrencies(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			props := &accounts.EditPageProps{
 				PageContext: pageCtx,
-				Account:     entity,
+				Account:     mappers.MoneyAccountToViewModel(entity),
 				Currencies:  currencies,
 				Errors:      errors,
 			}
@@ -183,7 +195,7 @@ func (c *AccountController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -192,7 +204,7 @@ func (c *AccountController) GetNew(w http.ResponseWriter, r *http.Request) {
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Account:     &moneyAccount.Account{}, //nolint:exhaustruct
+		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}), //nolint:exhaustruct
 	}
 	templ.Handler(accounts.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -215,8 +227,8 @@ func (c *AccountController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -229,8 +241,8 @@ func (c *AccountController) Create(w http.ResponseWriter, r *http.Request) {
 		props := &accounts.CreatePageProps{
 			PageContext: pageCtx,
 			Currencies:  currencies,
-			Errors:      errors,
-			Account:     entity,
+			Errors:      errorsMap,
+			Account:     mappers.MoneyAccountToViewModel(entity),
 		}
 		templ.Handler(accounts.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

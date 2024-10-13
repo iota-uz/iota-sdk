@@ -2,66 +2,71 @@ package currency
 
 var (
 	USD = Currency{
-		Code:   Code{UsdCode},
+		Code:   UsdCode,
 		Name:   "US Dollar",
-		Symbol: Symbol{UsdSymbol},
+		Symbol: UsdSymbol,
 	}
 	EUR = Currency{
-		Code:   Code{EurCode},
+		Code:   EurCode,
 		Name:   "Euro",
-		Symbol: Symbol{EurSymbol},
+		Symbol: EurSymbol,
 	}
 	TRY = Currency{
-		Code:   Code{TryCode},
+		Code:   TryCode,
 		Name:   "Turkish Lira",
-		Symbol: Symbol{TrySymbol},
+		Symbol: TrySymbol,
 	}
 	GBP = Currency{
-		Code:   Code{GbpCode},
+		Code:   GbpCode,
 		Name:   "British Pound",
-		Symbol: Symbol{GbpSymbol},
+		Symbol: GbpSymbol,
 	}
 	RUB = Currency{
-		Code:   Code{RubCode},
+		Code:   RubCode,
 		Name:   "Russian Ruble",
-		Symbol: Symbol{RubSymbol},
+		Symbol: RubSymbol,
 	}
 	JPY = Currency{
-		Code:   Code{JpyCode},
+		Code:   JpyCode,
 		Name:   "Japanese Yen",
-		Symbol: Symbol{JpySymbol},
+		Symbol: JpySymbol,
 	}
 	CNY = Currency{
-		Code:   Code{CnyCode},
+		Code:   CnyCode,
 		Name:   "Chinese Yuan",
-		Symbol: Symbol{CnySymbol},
+		Symbol: CnySymbol,
 	}
 	SOM = Currency{
-		Code:   Code{SomCode},
+		Code:   SomCode,
 		Name:   "Som",
-		Symbol: Symbol{SomSymbol},
+		Symbol: SomSymbol,
 	}
 	AUD = Currency{
-		Code:   Code{AudCode},
+		Code:   AudCode,
 		Name:   "Australian Dollar",
-		Symbol: Symbol{AudSymbol},
+		Symbol: AudSymbol,
 	}
 	CAD = Currency{
-		Code:   Code{CadCode},
+		Code:   CadCode,
 		Name:   "Canadian Dollar",
-		Symbol: Symbol{CadSymbol},
+		Symbol: CadSymbol,
 	}
 	CHF = Currency{
-		Code:   Code{ChfCode},
+		Code:   ChfCode,
 		Name:   "Swiss Franc",
-		Symbol: Symbol{ChfSymbol},
+		Symbol: ChfSymbol,
 	}
 )
 
 var (
-	ValidCodes   = []CodeEnum{UsdCode, EurCode, RubCode, TryCode, SomCode, GbpCode, AudCode, CadCode, ChfCode, CnyCode, JpyCode}
-	ValidSymbols = []SymbolEnum{UsdSymbol, EurSymbol, RubSymbol, TrySymbol, SomSymbol, GbpSymbol, AudSymbol, CadSymbol, ChfSymbol, CnySymbol, JpySymbol}
-	Currencies   = []Currency{
+	ValidCodes = []Code{
+		UsdCode, EurCode, RubCode, TryCode, SomCode, GbpCode, AudCode, CadCode, ChfCode, CnyCode, JpyCode,
+	}
+	ValidSymbols = []Symbol{
+		UsdSymbol, EurSymbol, RubSymbol, TrySymbol, SomSymbol, GbpSymbol, AudSymbol, CadSymbol, ChfSymbol, CnySymbol,
+		JpySymbol,
+	}
+	Currencies = []Currency{
 		USD,
 		EUR,
 		TRY,

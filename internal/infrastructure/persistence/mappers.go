@@ -307,9 +307,9 @@ func toDomainPayment(dbPayment *models.Payment) (*payment.Payment, error) {
 
 func toDBCurrency(entity *currency.Currency) *models.Currency {
 	return &models.Currency{
-		Code:      entity.Code.String(),
+		Code:      string(entity.Code),
 		Name:      entity.Name,
-		Symbol:    entity.Symbol.String(),
+		Symbol:    string(entity.Symbol),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -337,7 +337,7 @@ func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCatego
 		Name:             entity.Name,
 		Description:      &entity.Description,
 		Amount:           entity.Amount,
-		AmountCurrencyID: entity.Currency.Code.String(),
+		AmountCurrencyID: string(entity.Currency.Code),
 		CreatedAt:        entity.CreatedAt,
 		UpdatedAt:        entity.UpdatedAt,
 	}
@@ -402,7 +402,7 @@ func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
 		Name:              entity.Name,
 		AccountNumber:     entity.AccountNumber,
 		Balance:           entity.Balance,
-		BalanceCurrencyID: entity.Currency.Code.String(),
+		BalanceCurrencyID: string(entity.Currency.Code),
 		Currency:          toDBCurrency(&entity.Currency),
 		Description:       entity.Description,
 		CreatedAt:         entity.CreatedAt,

@@ -35,6 +35,18 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
 }
 
+func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
+	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	if err != nil {
+		return nil, err
+	}
+	viewCurrencies := make([]*viewmodels.Currency, len(currencies))
+	for i, currency := range currencies {
+		viewCurrencies[i] = mappers.CurrencyToViewModel(currency)
+	}
+	return viewCurrencies, nil
+}
+
 func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -51,8 +63,8 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	viewCategories := make([]*viewmodels.ExpenseCategory, 0, len(categories))
-	for _, entity := range categories {
-		viewCategories = append(viewCategories, mappers.ExpenseCategoryToViewModel(entity))
+	for i, entity := range categories {
+		viewCategories[i] = mappers.ExpenseCategoryToViewModel(entity)
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expense_categories.IndexPageProps{
@@ -87,14 +99,14 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
-	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	props := &expense_categories.EditPageProps{
 		PageContext: pageCtx,
-		Category:    entity,
+		Category:    mappers.ExpenseCategoryToViewModel(entity),
 		Currencies:  currencies,
 		Errors:      map[string]string{},
 	}
@@ -155,14 +167,14 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 				return
 			}
-			currencies, err := c.app.CurrencyService.GetAll(r.Context())
+			currencies, err := c.viewModelCurrencies(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			props := &expense_categories.EditPageProps{
 				PageContext: pageCtx,
-				Category:    entity,
+				Category:    mappers.ExpenseCategoryToViewModel(entity),
 				Currencies:  currencies,
 				Errors:      errors,
 			}
@@ -186,7 +198,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -195,7 +207,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Category:    &category.ExpenseCategory{}, //nolint:exhaustruct
+		Category:    mappers.ExpenseCategoryToViewModel(&category.ExpenseCategory{}), //nolint:exhaustruct
 	}
 	templ.Handler(expense_categories.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -212,14 +224,16 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{Title: "ExpenseCategories.Meta.New.Title"}) //nolint:exhaustruct
+	pageCtx, err := composables.UsePageCtx(
+		r, &composables.PageData{Title: "ExpenseCategories.Meta.New.Title"},
+	) //nolint:exhaustruct
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -232,8 +246,8 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		props := &expense_categories.CreatePageProps{
 			PageContext: pageCtx,
 			Currencies:  currencies,
-			Errors:      errors,
-			Category:    entity,
+			Errors:      errorsMap,
+			Category:    mappers.ExpenseCategoryToViewModel(entity),
 		}
 		templ.Handler(expense_categories.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

@@ -2,8 +2,6 @@ package accounts
 
 import (
 	"fmt"
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -12,12 +10,13 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type EditPageProps struct {
 	*types.PageContext
-	Account    *moneyAccount.Account
-	Currencies []*currency.Currency
+	Account    *viewmodels.MoneyAccount
+	Currencies []*viewmodels.Currency
 	Errors     map[string]string
 }
 
@@ -44,7 +43,7 @@ templ EditForm(props *EditPageProps) {
 			})
 			@CurrencySelect(&CurrencySelectProps{
 				PageContext: props.PageContext,
-				Value:       props.Account.Currency.Code.String(),
+				Value:       props.Account.CurrencyCode,
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
 					"name": "CurrencyCode",
