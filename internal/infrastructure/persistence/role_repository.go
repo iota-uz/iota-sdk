@@ -82,7 +82,11 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(toDBRole(data)).Error
+	entity := toDBRole(data)
+	if err := tx.Model(entity).Association("Permissions").Replace(entity.Permissions); err != nil {
+		return err
+	}
+	return tx.Save(entity).Error
 }
 
 func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {

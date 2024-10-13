@@ -61,6 +61,7 @@ func (d *CreateDTO) ToEntity() (*Expense, error) {
 		Comment:          d.Comment,
 		AccountingPeriod: d.AccountingPeriod,
 		Date:             d.Date,
+		TransactionID:    0,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}, nil
@@ -75,6 +76,8 @@ func (d *UpdateDTO) ToEntity(id uint) (*Expense, error) {
 		Comment:          d.Comment,
 		AccountingPeriod: d.AccountingPeriod,
 		Date:             d.Date,
+		TransactionID:    0,
+		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}, nil
 }

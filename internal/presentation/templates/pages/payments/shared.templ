@@ -27,7 +27,7 @@ templ AccountSelect(props *AccountSelectProps) {
 		Attrs:       props.Attrs,
 	}) {
 		for _, account := range props.Accounts {
-			if account.CurrencyCode == props.Value {
+			if account.ID == props.Value {
 				<option value={ account.ID } selected>
 					{ account.Name }
 					{ account.CurrencySymbol }

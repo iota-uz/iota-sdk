@@ -59,7 +59,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			for _, account := range props.Accounts {
-				if account.CurrencyCode == props.Value {
+				if account.ID == props.Value {
 					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
