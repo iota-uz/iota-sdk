@@ -48,13 +48,13 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@AccountSelect(&AccountSelectProps{
-                PageContext: props.PageContext,
-                Value:       props.Payment.AccountID,
-                Attrs: templ.Attributes{
-                    "name": "AccountId",
-                    "form": "save-form",
-                },
-            })
+				PageContext: props.PageContext,
+				Value:       props.Payment.AccountID,
+				Attrs: templ.Attributes{
+					"name": "AccountId",
+					"form": "save-form",
+				},
+			})
 			@textarea.Basic(&textarea.Props{
 				Label: props.T("Payments.Single.Comment"),
 				Attrs: templ.Attributes{

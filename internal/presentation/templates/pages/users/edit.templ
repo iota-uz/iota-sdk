@@ -2,8 +2,8 @@ package users
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/user"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -11,75 +11,68 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"strconv"
 )
 
-func isRoleSelected(id uint, roles []*role.Role) bool {
-	for _, role := range roles {
-		if role.ID == id {
-			return true
-		}
-	}
-	return false
+type EditFormProps struct {
+	*types.PageContext
+	User   *user.User
+	Roles  []*role.Role
+	Errors map[string]string
 }
 
-templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, errors map[string]string) {
+templ EditForm(props *EditFormProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.FirstName"}),
+				Label: props.T("Users.Single.FirstName"),
 				Attrs: templ.Attributes{
-					"value": user.FirstName,
-					"name":  "firstName",
+					"value": props.User.FirstName,
+					"name":  "FirstName",
 					"form":  "save-form",
 				},
-				Error: errors["firstName"],
+				Error: props.Errors["FirstName"],
 			})
 			@input.Text(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.LastName"}),
+				Label: props.T("Users.Single.LastName"),
 				Attrs: templ.Attributes{
-					"value": user.LastName,
-					"name":  "lastName",
+					"value": props.User.LastName,
+					"name":  "LastName",
 					"form":  "save-form",
 				},
-				Error: errors["lastName"],
+				Error: props.Errors["LastName"],
 			})
 			@input.Email(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Email"}),
+				Label: props.T("Users.Single.Email"),
 				Attrs: templ.Attributes{
-					"value": user.Email,
-					"name":  "email",
+					"value": props.User.Email,
+					"name":  "Email",
 					"form":  "save-form",
 				},
-				Error: errors["email"],
+				Error: props.Errors["email"],
 			})
-			@input.Password(&input.Props{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Password"}),
-				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.EnterPassword"}),
+			@input.Password(&input.Props{
+				Label:       props.T("Users.Single.Password"),
+				Placeholder: props.T("Users.Single.EnterPassword"),
 				Attrs: templ.Attributes{
 					"autocomplete": "new-password",
-					"name":         "password",
+					"name":         "Password",
 					"form":         "save-form",
 				},
 			})
-			@base.Select(&base.SelectProps{
-				Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Role"}),
-				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.SelectRole"}),
-				Attrs: templ.Attributes{
-					"name": "roleId",
-					"form": "save-form",
-				},
-				Error: errors["roleId"],
-			}) {
-				for _, role := range roles {
-					<option value={ strconv.Itoa(int(role.ID)) } selected?={ isRoleSelected(role.ID, user.Roles) }>{ role.Name }</option>
-				}
-			}
+			@RoleSelect(&RoleSelectProps{
+				PageContext: props.PageContext,
+				Roles:       props.Roles,
+				Selected:    props.User.Roles,
+				Error:       props.Errors["RoleID"],
+			})
 		}
-		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/users/%d", user.ID) }
+				hx-delete={ fmt.Sprintf("/users/%d", props.User.ID) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -96,10 +89,17 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 						"id":     "delete-user-btn",
 					},
 				}) {
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Delete"}) }
+					{ props.T("Delete") }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/users/%d", user.ID) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ fmt.Sprintf("/users/%d", props.User.ID) }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
@@ -108,20 +108,20 @@ templ EditForm(localizer *i18n.Localizer, user *user.User, roles []*role.Role, e
 						"id":    "save-btn",
 					},
 				}) {
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}) }
+					{ props.T("Save") }
 				}
 			</form>
 		</div>
 	</div>
 }
 
-templ Edit(pageCtx *types.PageContext, user *user.User, roles []*role.Role, errors map[string]string) {
-	@layouts.Authenticated(pageCtx) {
-		@EditForm(pageCtx.Localizer, user, roles, errors)
+templ Edit(props *EditFormProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
 			Heading:   "Users.Single.DeleteUser",
 			Text:      "Users.Single.DeleteUserConfirmation",
-			Localizer: pageCtx.Localizer,
+			Localizer: props.PageContext.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
 			Action:    "open-delete-user-confirmation",
 			Attrs: templ.Attributes{
