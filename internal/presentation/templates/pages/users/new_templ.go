@@ -5,24 +5,27 @@ package users
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"github.com/a-h/templ"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-)
+import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"strconv"
 )
 
-func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, errors map[string]string) templ.Component {
+type CreateFormProps struct {
+	*types.PageContext
+	User   user.User
+	Roles  []*role.Role
+	Errors map[string]string
+}
+
+func CreateForm(props *CreateFormProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -57,9 +60,9 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.FirstName"}),
-				Attrs: templ.Attributes{"name": "firstName", "value": user.FirstName},
-				Error: errors["firstName"],
+				Label: props.T("Users.Single.FirstName"),
+				Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},
+				Error: props.Errors["FirstName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -69,9 +72,9 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.LastName"}),
-				Attrs: templ.Attributes{"name": "lastName", "value": user.LastName},
-				Error: errors["lastName"],
+				Label: props.T("Users.Single.LastName"),
+				Attrs: templ.Attributes{"name": "LastName", "value": props.User.LastName},
+				Error: props.Errors["LastName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -81,12 +84,12 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Email(&input.Props{
-				Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Email"}),
+				Label: props.T("Users.Single.Email"),
 				Attrs: templ.Attributes{
-					"name":  "email",
-					"value": user.Email,
+					"name":  "Email",
+					"value": props.User.Email,
 				},
-				Error: errors["email"],
+				Error: props.Errors["Email"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -95,13 +98,14 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = input.Password(&input.Props{Label: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Password"}),
-				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.EnterPassword"}),
+			templ_7745c5c3_Err = input.Password(&input.Props{
+				Label:       props.T("Users.Single.Password"),
+				Placeholder: props.T("Users.Single.EnterPassword"),
 				Attrs: templ.Attributes{
 					"autocomplete": "new-password",
-					"name":         "password",
+					"name":         "Password",
 				},
-				Error: errors["password"],
+				Error: props.Errors["Password"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -110,59 +114,11 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Var3 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-				if !templ_7745c5c3_IsBuffer {
-					defer func() {
-						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-						if templ_7745c5c3_Err == nil {
-							templ_7745c5c3_Err = templ_7745c5c3_BufErr
-						}
-					}()
-				}
-				ctx = templ.InitializeContext(ctx)
-				for _, role := range roles {
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var4 string
-					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(role.ID)))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/new.templ`, Line: 52, Col: 47}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(role.Name)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/new.templ`, Line: 52, Col: 61}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 8)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				return templ_7745c5c3_Err
-			})
-			templ_7745c5c3_Err = base.Select(&base.SelectProps{
-				Label:       localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.Role"}),
-				Placeholder: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.Single.SelectRole"}),
-				Attrs: templ.Attributes{
-					"name": "roleId",
-				},
-			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = RoleSelect(&RoleSelectProps{
+				PageContext: props.PageContext,
+				Roles:       props.Roles,
+				Error:       props.Errors["RoleID"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -172,11 +128,11 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 9)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var3 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -188,12 +144,12 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}))
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/new.templ`, Line: 63, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/users/new.templ`, Line: 63, Col: 21}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -204,11 +160,11 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 			Attrs: templ.Attributes{
 				"id": "save-btn",
 			},
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 10)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -216,7 +172,7 @@ func CreateForm(localizer *i18n.Localizer, user user.User, roles []*role.Role, e
 	})
 }
 
-func New(pageCtx *types.PageContext, roles []*role.Role, errors map[string]string) templ.Component {
+func New(props *CreateFormProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -229,12 +185,12 @@ func New(pageCtx *types.PageContext, roles []*role.Role, errors map[string]strin
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var8 == nil {
-			templ_7745c5c3_Var8 = templ.NopComponent
+		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var5 == nil {
+			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var9 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -246,13 +202,13 @@ func New(pageCtx *types.PageContext, roles []*role.Role, errors map[string]strin
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = CreateForm(pageCtx.Localizer, user.User{}, roles, errors).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = CreateForm(props).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(pageCtx).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

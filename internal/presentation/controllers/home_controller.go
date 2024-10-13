@@ -22,12 +22,15 @@ func NewHomeController(app *services.Application) Controller {
 
 func (c *HomeController) Register(r *mux.Router) {
 	r.HandleFunc("/", c.Home).Methods(http.MethodGet)
+	//router := r.Methods(http.MethodGet).Subrouter()
+	//router.HandleFunc("", c.Home)
+	//router.Use(middleware.RequireAuthorization())
 }
 
 func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{ //nolint:exhaustruct
-		Title: "Home.Meta.Title",
-	})
+	pageCtx, err := composables.UsePageCtx(
+		r, composables.NewPageData("Home.Meta.Title", ""),
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -27,12 +28,14 @@ func NewAccountController(app *services.Application) Controller {
 }
 
 func (c *AccountController) Register(r *mux.Router) {
-	r.HandleFunc(c.basePath, c.List).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath, c.Create).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(middleware.RequireAuthorization())
+	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 }
 
 func (c *AccountController) List(w http.ResponseWriter, r *http.Request) {
