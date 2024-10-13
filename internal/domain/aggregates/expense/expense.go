@@ -14,6 +14,7 @@ type Expense struct {
 	Account          moneyAccount.Account
 	Category         category.ExpenseCategory
 	Comment          string
+	TransactionID    uint
 	AccountingPeriod time.Time
 	Date             time.Time
 	CreatedAt        time.Time
