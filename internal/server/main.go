@@ -41,6 +41,14 @@ func (s *Server) Start() error {
 	for _, controller := range s.controllers {
 		controller.Register(r)
 	}
+	var notFoundHandler http.Handler = controllers.NotFound()
+	var notAllowedHandler http.Handler = controllers.MethodNotAllowed()
+	for i := len(s.middlewares) - 1; i >= 0; i-- {
+		notFoundHandler = s.middlewares[i](notFoundHandler)
+		notAllowedHandler = s.middlewares[i](notAllowedHandler)
+	}
+	r.NotFoundHandler = notFoundHandler
+	r.MethodNotAllowedHandler = notAllowedHandler
 	return http.ListenAndServe(s.conf.SocketAddress, r)
 }
 
@@ -67,7 +75,6 @@ func DefaultServer() (*Server, error) {
 			localMiddleware.Authorization(application.AuthService),
 		},
 		controllers: []controllers.Controller{
-			controllers.NewErrorController(application),
 			controllers.NewAccountController(application),
 			controllers.NewHomeController(application),
 			controllers.NewLoginController(application),
