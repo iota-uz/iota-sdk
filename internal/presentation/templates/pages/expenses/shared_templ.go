@@ -202,7 +202,7 @@ func CategorySelect(props *CategorySelectProps) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(category.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 53, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 53, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -215,7 +215,7 @@ func CategorySelect(props *CategorySelectProps) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(category.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 54, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 54, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -233,7 +233,7 @@ func CategorySelect(props *CategorySelectProps) templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(category.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 57, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 57, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -246,7 +246,7 @@ func CategorySelect(props *CategorySelectProps) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(category.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 58, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/expenses/shared.templ`, Line: 58, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {

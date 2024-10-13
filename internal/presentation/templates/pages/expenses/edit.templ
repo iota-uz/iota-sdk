@@ -15,10 +15,10 @@ import (
 
 type EditPageProps struct {
 	*types.PageContext
-	Expense  *viewmodels.Expense
-	Accounts []*viewmodels.MoneyAccount
+	Expense    *viewmodels.Expense
+	Accounts   []*viewmodels.MoneyAccount
 	Categories []*viewmodels.ExpenseCategory
-	Errors   map[string]string
+	Errors     map[string]string
 }
 
 templ EditForm(props *EditPageProps) {
@@ -43,14 +43,14 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@CategorySelect(&CategorySelectProps{
-                PageContext: props.PageContext,
-                Value:       props.Expense.CategoryID,
-                Categories:  props.Categories,
-                Attrs: templ.Attributes{
-                    "name": "CategoryID",
-                    "form": "save-form",
-                },
-            })
+				PageContext: props.PageContext,
+				Value:       props.Expense.CategoryID,
+				Categories:  props.Categories,
+				Attrs: templ.Attributes{
+					"name": "CategoryID",
+					"form": "save-form",
+				},
+			})
 			@textarea.Basic(&textarea.Props{
 				Label: props.T("Expenses.Single.Comment"),
 				Attrs: templ.Attributes{

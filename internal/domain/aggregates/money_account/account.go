@@ -61,7 +61,7 @@ func (p *CreateDTO) ToEntity() (*Account, error) {
 		Currency: currency.Currency{
 			Name:   "",
 			Code:   c,
-			Symbol: currency.Symbol{},
+			Symbol: "",
 		},
 		Description: p.Description,
 		CreatedAt:   time.Now(),

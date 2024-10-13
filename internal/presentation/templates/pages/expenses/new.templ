@@ -12,10 +12,10 @@ import (
 
 type CreatePageProps struct {
 	*types.PageContext
-	Accounts []*viewmodels.MoneyAccount
+	Accounts   []*viewmodels.MoneyAccount
 	Categories []*viewmodels.ExpenseCategory
-	Expense  *viewmodels.Expense
-	Errors   map[string]string
+	Expense    *viewmodels.Expense
+	Errors     map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
@@ -33,11 +33,11 @@ templ CreateForm(props *CreatePageProps) {
 				Attrs:       templ.Attributes{"name": "AccountID"},
 			})
 			@CategorySelect(&CategorySelectProps{
-                PageContext: props.PageContext,
-                Value:       "",
-                Categories:  props.Categories,
-                Attrs:       templ.Attributes{"name": "CategoryID"},
-            })
+				PageContext: props.PageContext,
+				Value:       "",
+				Categories:  props.Categories,
+				Attrs:       templ.Attributes{"name": "CategoryID"},
+			})
 			@textarea.Basic(&textarea.Props{
 				Label:        props.T("Expenses.Single.Comment"),
 				Attrs:        templ.Attributes{"name": "Comment"},

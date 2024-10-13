@@ -1,15 +1,15 @@
 package accounts
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type CurrencySelectProps struct {
 	*types.PageContext
 	Value      string
-	Currencies []*currency.Currency
+	Currencies []*viewmodels.Currency
 	Attrs      templ.Attributes
 }
 
@@ -20,14 +20,14 @@ templ CurrencySelect(props *CurrencySelectProps) {
 		Attrs:       props.Attrs,
 	}) {
 		for _, currency := range props.Currencies {
-			if currency.Code.String() == props.Value {
-				<option value={ currency.Code.String() } selected>
-					{ currency.Symbol.String() }
+			if currency.Code == props.Value {
+				<option value={ currency.Code } selected>
+					{ currency.Symbol }
 					{ currency.Name }
 				</option>
 			} else {
-				<option value={ currency.Code.String() }>
-					{ currency.Symbol.String() }
+				<option value={ currency.Code }>
+					{ currency.Symbol }
 					{ currency.Name }
 				</option>
 			}

@@ -2,8 +2,6 @@ package expense_categories
 
 import (
 	"fmt"
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -12,12 +10,13 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type EditPageProps struct {
 	*types.PageContext
-	Category   *category.ExpenseCategory
-	Currencies []*currency.Currency
+	Category   *viewmodels.ExpenseCategory
+	Currencies []*viewmodels.Currency
 	Errors     map[string]string
 }
 
@@ -44,7 +43,7 @@ templ EditForm(props *EditPageProps) {
 			})
 			@CurrencySelect(&CurrencySelectProps{
 				PageContext: props.PageContext,
-				Value:       props.Category.Currency.Code.String(),
+				Value:       props.Category.CurrencyCode,
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
 					"name": "CurrencyCode",
@@ -65,7 +64,7 @@ templ EditForm(props *EditPageProps) {
 		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.ID) }
+				hx-delete={ fmt.Sprintf("/finance/expense-categories/%s", props.Category.ID) }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"

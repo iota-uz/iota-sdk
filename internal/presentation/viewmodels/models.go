@@ -5,6 +5,7 @@ type ExpenseCategory struct {
 	Name               string
 	Amount             string
 	AmountWithCurrency string
+	CurrencyCode       string
 	Description        string
 	CreatedAt          string
 	UpdatedAt          string
@@ -60,4 +61,10 @@ type Expense struct {
 	Date               string
 	CreatedAt          string
 	UpdatedAt          string
+}
+
+type Currency struct {
+	Code   string
+	Name   string
+	Symbol string
 }

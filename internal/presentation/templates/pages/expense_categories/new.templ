@@ -1,20 +1,19 @@
 package expense_categories
 
 import (
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/textarea"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type CreatePageProps struct {
 	*types.PageContext
-	Currencies []*currency.Currency
-	Category   *category.ExpenseCategory
+	Currencies []*viewmodels.Currency
+	Category   *viewmodels.ExpenseCategory
 	Errors     map[string]string
 }
 
