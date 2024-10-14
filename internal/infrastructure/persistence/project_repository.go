@@ -52,7 +52,6 @@ func (g *GormProjectRepository) Count(ctx context.Context) (uint, error) {
 }
 
 func (g *GormProjectRepository) GetAll(ctx context.Context) ([]*project.Project, error) {
-	// TODO: use joins
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -73,11 +72,11 @@ func (g *GormProjectRepository) GetByID(ctx context.Context, id uint) (*project.
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entity project.Project
-	if err := tx.First(&entity, id).Error; err != nil {
+	var row models.Project
+	if err := tx.First(&row, id).Error; err != nil {
 		return nil, err
 	}
-	return &entity, nil
+	return toDomainProject(&row), nil
 }
 
 func (g *GormProjectRepository) Create(ctx context.Context, data *project.Project) error {
@@ -94,7 +93,8 @@ func (g *GormProjectRepository) Update(ctx context.Context, data *project.Projec
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(data).Error
+	entity := toDBProject(data)
+	return tx.Save(entity).Error
 }
 
 func (g *GormProjectRepository) Delete(ctx context.Context, id uint) error {
