@@ -39,6 +39,7 @@ func New(db *gorm.DB) *services.Application {
 		ExpenseService: services.NewExpenseService(
 			persistence.NewExpenseRepository(), eventPublisher, moneyAccountService,
 		),
+		ProjectService: services.NewProjectService(persistence.NewProjectRepository(), eventPublisher),
 	}
 
 	handlers.RegisterSessionEventHandlers(db, eventPublisher, app.AuthLogService)

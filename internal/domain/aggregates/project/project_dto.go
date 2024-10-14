@@ -43,22 +43,22 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (d *CreateDTO) ToEntity() (*Project, error) {
+func (d *CreateDTO) ToEntity() *Project {
 	return &Project{
 		ID:          0,
 		Name:        d.Name,
 		Description: d.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
-	}, nil
+	}
 }
 
-func (d *UpdateDTO) ToEntity(id uint) (*Project, error) {
+func (d *UpdateDTO) ToEntity(id uint) *Project {
 	return &Project{
 		ID:          id,
 		Name:        d.Name,
 		Description: d.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
-	}, nil
+	}
 }

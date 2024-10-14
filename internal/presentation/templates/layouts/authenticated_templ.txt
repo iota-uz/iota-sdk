@@ -1,6 +1,8 @@
  
 <li>
-<details class=\"group\"><summary class=\"btn btn-sidebar btn-md gap-2 w-full cursor-pointer\">
+<details class=\"group\"
+ open
+><summary class=\"btn btn-sidebar btn-md gap-2 w-full cursor-pointer\">
 </summary><ul class=\"ml-4 mt-2 flex flex-col gap-2\">
 </ul></details>
 </li>
