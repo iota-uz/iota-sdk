@@ -71,10 +71,19 @@ func isActiveLink(pathname, href string) bool {
 	return strings.HasPrefix(pathname, href)
 }
 
+func isAnyChildrenActive(pathname string, children []sidebarItem) bool {
+	for _, item := range children {
+		if item.href == pathname {
+			return true
+		}
+	}
+	return false
+}
+
 templ (i sidebarItem) render(pathname string) {
 	<li>
 		if len(i.children) > 0 {
-			<details class="group">
+			<details class="group" open?={ isAnyChildrenActive(pathname, i.children) }>
 				<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
 					if i.icon != nil {
 						@i.icon
