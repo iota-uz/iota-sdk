@@ -93,7 +93,7 @@ func GetTestContext() *TestContext {
 	ctx = composables.WithParams(
 		ctx,
 		&composables.Params{
-			Ip:            "",
+			IP:            "",
 			UserAgent:     "",
 			Authenticated: true,
 			Request:       nil,

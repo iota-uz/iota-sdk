@@ -124,7 +124,7 @@ func (s *AuthService) authenticate(ctx context.Context, id uint) (*user.User, *s
 	if err != nil {
 		return nil, nil, err
 	}
-	ip, _ := composables.UseIp(ctx)
+	ip, _ := composables.UseIP(ctx)
 	userAgent, _ := composables.UseUserAgent(ctx)
 	token, err := s.newSessionToken()
 	if err != nil {

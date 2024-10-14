@@ -1,4 +1,5 @@
-// Package composables provides a set of composable functions that can be used to access request parameters in a type-safe way.
+// Package composables provides a set of composable
+// functions that can be used to access request parameters in a type-safe way.
 // This package is inspired by the React hooks API and aims to provide a similar experience for server side code.
 package composables
 
@@ -13,7 +14,7 @@ import (
 )
 
 type Params struct {
-	Ip            string
+	IP            string
 	UserAgent     string
 	Authenticated bool
 	Request       *http.Request
@@ -88,14 +89,14 @@ func UseAuthenticated(ctx context.Context) bool {
 	return params.Authenticated
 }
 
-// UseIp returns the IP address from the context.
+// UseIP returns the IP address from the context.
 // If the IP address is not found, the second return value will be false.
-func UseIp(ctx context.Context) (string, bool) {
+func UseIP(ctx context.Context) (string, bool) {
 	params, ok := UseParams(ctx)
 	if !ok {
 		return "", false
 	}
-	return params.Ip, true
+	return params.IP, true
 }
 
 // UseUserAgent returns the user agent from the context.
