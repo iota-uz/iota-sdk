@@ -50,7 +50,7 @@ func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*v
 func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "ExpenseCategories.Meta.List.Title"}, //nolint:exhaustruct
+		composables.NewPageData("ExpenseCategories.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -208,6 +208,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		Currencies:  currencies,
 		Errors:      map[string]string{},
 		Category:    category.CreateDTO{}, //nolint:exhaustruct
+		PostPath:    c.basePath,
 	}
 	templ.Handler(expense_categories.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -243,6 +244,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 			Currencies:  currencies,
 			Errors:      errorsMap,
 			Category:    dto,
+			PostPath:    c.basePath,
 		}
 		templ.Handler(expense_categories.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

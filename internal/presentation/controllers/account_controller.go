@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"fmt"
+	"github.com/go-faster/errors"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 
@@ -53,7 +55,7 @@ func (c *AccountController) viewModelCurrencies(r *http.Request) ([]*viewmodels.
 func (c *AccountController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "Accounts.Meta.List.Title"}, //nolint:exhaustruct
+		composables.NewPageData("Accounts.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -62,7 +64,7 @@ func (c *AccountController) List(w http.ResponseWriter, r *http.Request) {
 	params := composables.UsePaginated(r)
 	accountEntities, err := c.app.MoneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
-		http.Error(w, "Error retrieving accounts", http.StatusInternalServerError)
+		http.Error(w, errors.Wrap(err, "Error retrieving accounts").Error(), http.StatusInternalServerError)
 		return
 	}
 	viewAccounts := make([]*viewmodels.MoneyAccount, 0, len(accountEntities))
@@ -90,7 +92,7 @@ func (c *AccountController) GetEdit(w http.ResponseWriter, r *http.Request) {
 
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "Accounts.Meta.Edit.Title"}, //nolint:exhaustruct
+		composables.NewPageData("Accounts.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -109,9 +111,11 @@ func (c *AccountController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &accounts.EditPageProps{
 		PageContext: pageCtx,
-		Account:     mappers.MoneyAccountToViewModel(entity),
+		Account:     mappers.MoneyAccountToViewUpdateModel(entity),
 		Currencies:  currencies,
 		Errors:      map[string]string{},
+		PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
+		DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(accounts.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -133,7 +137,7 @@ func (c *AccountController) Delete(w http.ResponseWriter, r *http.Request) {
 func (c *AccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	action := FormAction(r.FormValue("_action"))
@@ -174,9 +178,11 @@ func (c *AccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			}
 			props := &accounts.EditPageProps{
 				PageContext: pageCtx,
-				Account:     mappers.MoneyAccountToViewModel(entity),
+				Account:     mappers.MoneyAccountToViewUpdateModel(entity),
 				Currencies:  currencies,
 				Errors:      errors,
+				PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
+				DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
 			}
 			templ.Handler(accounts.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
@@ -205,6 +211,7 @@ func (c *AccountController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Currencies:  currencies,
 		Errors:      map[string]string{},
 		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}), //nolint:exhaustruct
+		PostPath:    c.basePath,
 	}
 	templ.Handler(accounts.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -243,6 +250,7 @@ func (c *AccountController) Create(w http.ResponseWriter, r *http.Request) {
 			Currencies:  currencies,
 			Errors:      errorsMap,
 			Account:     mappers.MoneyAccountToViewModel(entity),
+			PostPath:    c.basePath,
 		}
 		templ.Handler(accounts.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

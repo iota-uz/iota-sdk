@@ -17,10 +17,16 @@ type CreatePageProps struct {
 	Currencies []*viewmodels.Currency
 	Category   category.CreateDTO
 	Errors     map[string]string
+	PostPath   string
 }
 
 templ CreateForm(props *CreatePageProps) {
-	<form class="flex flex-col justify-between h-full" hx-post="/finance/expense-categories" hx-swap="outerHTML" hx-indicator="#save-btn">
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.PostPath }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
 				Label: props.T("ExpenseCategories.Single.Name"),

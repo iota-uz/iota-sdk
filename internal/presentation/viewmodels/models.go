@@ -24,6 +24,14 @@ type MoneyAccount struct {
 	UpdatedAt           string
 }
 
+type MoneyAccountUpdateDTO struct {
+	Name          string
+	Description   string
+	AccountNumber string
+	Balance       string
+	CurrencyCode  string
+}
+
 type Payment struct {
 	ID                 string
 	StageID            string
