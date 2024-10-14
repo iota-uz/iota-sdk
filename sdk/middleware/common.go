@@ -30,68 +30,84 @@ type (
 )
 
 func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composables.Params {
-	return &composables.Params{ //nolint:exhaustruct
+	return &composables.Params{
+		//nolint:exhaustruct
 		Request:   r,
 		Writer:    w,
-		Ip:        r.RemoteAddr,
+		IP:        r.RemoteAddr,
 		UserAgent: r.UserAgent(),
 	}
 }
 
 func WithLogger(logger *log.Logger) mux.MiddlewareFunc {
-	return ContextKeyValue(constants.LoggerKey, func(*http.Request, http.ResponseWriter) interface{} {
-		return logger
-	})
+	return ContextKeyValue(
+		constants.LoggerKey, func(*http.Request, http.ResponseWriter) interface{} {
+			return logger
+		},
+	)
 }
 
 func LogRequests() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
-			logger, ok := composables.UseLogger(r.Context())
-			if !ok {
-				panic("logger not found. Add WithLogger middleware up the chain")
-			}
-			next.ServeHTTP(w, r)
-			logger.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
-		})
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				start := time.Now()
+				logger, ok := composables.UseLogger(r.Context())
+				if !ok {
+					panic("logger not found. Add WithLogger middleware up the chain")
+				}
+				next.ServeHTTP(w, r)
+				logger.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
+			},
+		)
 	}
 }
 
 func Cors(allowOrigins []string) mux.MiddlewareFunc {
-	return cors.New(cors.Options{ //nolint:exhaustruct
-		AllowedOrigins:   allowOrigins,
-		AllowedMethods:   AllowMethods,
-		AllowCredentials: true,
-	}).Handler
+	return cors.New(
+		cors.Options{
+			//nolint:exhaustruct
+			AllowedOrigins:   allowOrigins,
+			AllowedMethods:   AllowMethods,
+			AllowCredentials: true,
+		},
+	).Handler
 }
 
 func ContextKeyValue(key interface{}, constructor GenericConstructor) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), key, constructor(r, w))
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				ctx := context.WithValue(r.Context(), key, constructor(r, w))
+				next.ServeHTTP(w, r.WithContext(ctx))
+			},
+		)
 	}
 }
 
 func RequestParams(constructor ParamsConstructor) mux.MiddlewareFunc {
-	return ContextKeyValue(constants.ParamsKey, func(r *http.Request, w http.ResponseWriter) interface{} {
-		return constructor(r, w)
-	})
+	return ContextKeyValue(
+		constants.ParamsKey, func(r *http.Request, w http.ResponseWriter) interface{} {
+			return constructor(r, w)
+		},
+	)
 }
 
 func Transactions(db *gorm.DB) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			err := db.Transaction(func(tx *gorm.DB) error { //nolint:contextcheck
-				ctx := context.WithValue(r.Context(), constants.TxKey, tx)
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return nil
-			})
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		})
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				err := db.Transaction(
+					func(tx *gorm.DB) error { //nolint:contextcheck
+						ctx := context.WithValue(r.Context(), constants.TxKey, tx)
+						next.ServeHTTP(w, r.WithContext(ctx))
+						return nil
+					},
+				)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			},
+		)
 	}
 }
