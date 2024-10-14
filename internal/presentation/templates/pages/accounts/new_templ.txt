@@ -1,4 +1,5 @@
-<form class=\"flex flex-col justify-between h-full\" hx-post=\"/finance/accounts\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\">
+<form class=\"flex flex-col justify-between h-full\" hx-post=\"
+\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\">
  
  
  

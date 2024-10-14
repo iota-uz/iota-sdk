@@ -1,7 +1,6 @@
 package accounts
 
 import (
-	"fmt"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
@@ -15,9 +14,11 @@ import (
 
 type EditPageProps struct {
 	*types.PageContext
-	Account    *viewmodels.MoneyAccount
+	Account    *viewmodels.MoneyAccountUpdateDTO
 	Currencies []*viewmodels.Currency
 	Errors     map[string]string
+	PostPath   string
+	DeletePath string
 }
 
 templ EditForm(props *EditPageProps) {
@@ -36,7 +37,7 @@ templ EditForm(props *EditPageProps) {
 				Label: props.T("Accounts.Single.Balance"),
 				Attrs: templ.Attributes{
 					"name":  "Balance",
-					"value": fmt.Sprintf("%.2f", props.Account.Balance),
+					"value": props.Account.Balance,
 					"form":  "save-form",
 				},
 				Error: props.Errors["Balance"],
@@ -76,7 +77,7 @@ templ EditForm(props *EditPageProps) {
 		>
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/finance/accounts/%d", props.Account.ID) }
+				hx-delete={ props.DeletePath }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -99,7 +100,7 @@ templ EditForm(props *EditPageProps) {
 			<form
 				id="save-form"
 				method="post"
-				hx-post={ fmt.Sprintf("/finance/accounts/%d", props.Account.ID) }
+				hx-post={ props.PostPath }
 				hx-indicator="#save-btn"
 				hx-target="#edit-content"
 				hx-swap="outerHTML"
