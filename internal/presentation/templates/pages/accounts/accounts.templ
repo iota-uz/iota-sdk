@@ -40,7 +40,12 @@ templ AccountsTable(props *IndexPageProps) {
 					</div>
 				}
 				@base.TableCell() {
-					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/accounts/%s", account.ID)}) {
+					@button.Secondary(button.Props{
+						Fixed: true,
+						Size:  button.SizeSM,
+						Class: "btn-fixed",
+						Href:  account.EditURL,
+					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}

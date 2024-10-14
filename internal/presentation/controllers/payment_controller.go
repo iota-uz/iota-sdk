@@ -82,7 +82,7 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 	}
 	vms := make([]*viewmodels.MoneyAccount, len(accounts))
 	for i, a := range accounts {
-		vms[i] = mappers.MoneyAccountToViewModel(a)
+		vms[i] = mappers.MoneyAccountToViewModel(a, "")
 	}
 	return vms, nil
 }
@@ -90,7 +90,7 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "Payments.Meta.List.Title"}, //nolint:exhaustruct
+		composables.NewPageData("Payments.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -116,7 +116,7 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "Payments.Meta.Edit.Title"}, //nolint:exhaustruct
+		composables.NewPageData("Payments.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

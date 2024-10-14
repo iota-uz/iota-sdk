@@ -25,7 +25,7 @@ func ExpenseCategoryToViewModel(entity *category.ExpenseCategory) *viewmodels.Ex
 	}
 }
 
-func MoneyAccountToViewModel(entity *moneyaccount.Account) *viewmodels.MoneyAccount {
+func MoneyAccountToViewModel(entity *moneyaccount.Account, editURL string) *viewmodels.MoneyAccount {
 	return &viewmodels.MoneyAccount{
 		ID:                  strconv.FormatUint(uint64(entity.ID), 10),
 		Name:                entity.Name,
@@ -37,6 +37,17 @@ func MoneyAccountToViewModel(entity *moneyaccount.Account) *viewmodels.MoneyAcco
 		Description:         entity.Description,
 		UpdatedAt:           entity.UpdatedAt.Format(time.RFC3339),
 		CreatedAt:           entity.CreatedAt.Format(time.RFC3339),
+		EditURL:             editURL,
+	}
+}
+
+func MoneyAccountToViewUpdateModel(entity *moneyaccount.Account) *viewmodels.MoneyAccountUpdateDTO {
+	return &viewmodels.MoneyAccountUpdateDTO{
+		Name:          entity.Name,
+		Description:   entity.Description,
+		AccountNumber: entity.AccountNumber,
+		Balance:       fmt.Sprintf("%.2f", entity.Balance),
+		CurrencyCode:  string(entity.Currency.Code),
 	}
 }
 
@@ -84,16 +95,6 @@ func ExpenseToViewModel(entity *expense.Expense) *viewmodels.Expense {
 		Date:               entity.Date.Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt.Format(time.RFC3339),
-	}
-}
-
-func MoneyAccountToViewUpdateModel(entity *moneyaccount.Account) *viewmodels.MoneyAccountUpdateDTO {
-	return &viewmodels.MoneyAccountUpdateDTO{
-		Name:          entity.Name,
-		Description:   entity.Description,
-		AccountNumber: entity.AccountNumber,
-		Balance:       fmt.Sprintf("%.2f", entity.Balance),
-		CurrencyCode:  string(entity.Currency.Code),
 	}
 }
 
