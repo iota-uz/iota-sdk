@@ -52,7 +52,7 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	}
 	if err := projectRepository.Create(
 		ctx.Context, &project.Project{
-			Id:   1,
+			ID:   1,
 			Name: "test",
 		},
 	); err != nil {

@@ -361,7 +361,7 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.Expe
 
 func toDomainProject(dbProject *models.Project) *project.Project {
 	return &project.Project{
-		Id:          dbProject.ID,
+		ID:          dbProject.ID,
 		Name:        dbProject.Name,
 		Description: dbProject.Description,
 		CreatedAt:   dbProject.CreatedAt,
@@ -371,7 +371,7 @@ func toDomainProject(dbProject *models.Project) *project.Project {
 
 func toDBProject(entity *project.Project) *models.Project {
 	return &models.Project{
-		ID:          entity.Id,
+		ID:          entity.ID,
 		Name:        entity.Name,
 		Description: entity.Description,
 		CreatedAt:   entity.CreatedAt,
