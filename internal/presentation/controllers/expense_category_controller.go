@@ -84,7 +84,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
