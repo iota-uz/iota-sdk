@@ -119,7 +119,7 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -164,7 +164,13 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
+		if ok {
+			if err := c.app.ExpenseCategoryService.Update(r.Context(), id, &dto); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
 			entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
@@ -179,13 +185,9 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 				PageContext: pageCtx,
 				Category:    mappers.ExpenseCategoryToViewModel(entity),
 				Currencies:  currencies,
-				Errors:      errors,
+				Errors:      errorsMap,
 			}
 			templ.Handler(expense_categories.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-		if err := c.app.ExpenseCategoryService.Update(r.Context(), id, &dto); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
