@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"net/http"
-
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"net/http"
+
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
@@ -12,6 +12,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/pkg/middleware"
 )
 
 type ExpenseCategoriesController struct {
@@ -27,12 +28,14 @@ func NewExpenseCategoriesController(app *services.Application) Controller {
 }
 
 func (c *ExpenseCategoriesController) Register(r *mux.Router) {
-	r.HandleFunc(c.basePath, c.List).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath, c.Create).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	r.HandleFunc(c.basePath+"/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-	r.HandleFunc(c.basePath+"/new", c.GetNew).Methods(http.MethodGet)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(middleware.RequireAuthorization())
+	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 }
 
 func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
@@ -151,7 +154,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r,
-			&composables.PageData{Title: "ExpenseCategories.Meta.Edit.Title"}, //nolint:exhaustruct
+			composables.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
 		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -192,7 +195,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "ExpenseCategories.Meta.New.Title"}, //nolint:exhaustruct
+		composables.NewPageData("ExpenseCategories.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

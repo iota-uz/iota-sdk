@@ -22,6 +22,16 @@ type MoneyAccount struct {
 	CurrencySymbol      string
 	CreatedAt           string
 	UpdatedAt           string
+
+	EditURL string
+}
+
+type MoneyAccountCreateDTO struct {
+	Name          string
+	Description   string
+	AccountNumber string
+	Balance       string
+	CurrencyCode  string
 }
 
 type MoneyAccountUpdateDTO struct {

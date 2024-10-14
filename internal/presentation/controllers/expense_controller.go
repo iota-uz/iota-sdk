@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
@@ -46,7 +47,9 @@ func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.Mo
 	}
 	viewAccounts := make([]*viewmodels.MoneyAccount, len(accounts))
 	for i, account := range accounts {
-		viewAccounts[i] = mappers.MoneyAccountToViewModel(account)
+		viewAccounts[i] = mappers.MoneyAccountToViewModel(
+			account, fmt.Sprintf("%s/finance/accounts/%d", c.basePath, account.ID),
+		)
 	}
 	return viewAccounts, nil
 }
@@ -79,7 +82,7 @@ func (c *ExpenseController) viewModelCategories(r *http.Request) ([]*viewmodels.
 func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "Expenses.Meta.List.Title"}, //nolint:exhaustruct
+		composables.NewPageData("Expenses.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

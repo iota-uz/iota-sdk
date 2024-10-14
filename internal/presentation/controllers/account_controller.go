@@ -67,9 +67,9 @@ func (c *AccountController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errors.Wrap(err, "Error retrieving accounts").Error(), http.StatusInternalServerError)
 		return
 	}
-	viewAccounts := make([]*viewmodels.MoneyAccount, 0, len(accountEntities))
-	for _, entity := range accountEntities {
-		viewAccounts = append(viewAccounts, mappers.MoneyAccountToViewModel(entity))
+	viewAccounts := make([]*viewmodels.MoneyAccount, len(accountEntities))
+	for i, entity := range accountEntities {
+		viewAccounts[i] = mappers.MoneyAccountToViewModel(entity, fmt.Sprintf("%s/%d", c.basePath, entity.ID))
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &accounts.IndexPageProps{
@@ -165,7 +165,13 @@ func (c *AccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
+		if ok {
+			if err := c.app.MoneyAccountService.Update(r.Context(), id, &dto); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
 			entity, err := c.app.MoneyAccountService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving account", http.StatusInternalServerError)
@@ -180,15 +186,11 @@ func (c *AccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				PageContext: pageCtx,
 				Account:     mappers.MoneyAccountToViewUpdateModel(entity),
 				Currencies:  currencies,
-				Errors:      errors,
+				Errors:      errorsMap,
 				PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
 				DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
 			}
 			templ.Handler(accounts.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-		if err := c.app.MoneyAccountService.Update(r.Context(), id, &dto); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -210,7 +212,7 @@ func (c *AccountController) GetNew(w http.ResponseWriter, r *http.Request) {
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}), //nolint:exhaustruct
+		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}, ""), //nolint:exhaustruct
 		PostPath:    c.basePath,
 	}
 	templ.Handler(accounts.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -249,7 +251,7 @@ func (c *AccountController) Create(w http.ResponseWriter, r *http.Request) {
 			PageContext: pageCtx,
 			Currencies:  currencies,
 			Errors:      errorsMap,
-			Account:     mappers.MoneyAccountToViewModel(entity),
+			Account:     mappers.MoneyAccountToViewModel(entity, ""),
 			PostPath:    c.basePath,
 		}
 		templ.Handler(accounts.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
