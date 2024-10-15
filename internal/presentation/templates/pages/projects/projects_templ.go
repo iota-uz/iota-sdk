@@ -203,7 +203,7 @@ func ProjectsTable(props *IndexPageProps) templ.Component {
 							Fixed: true,
 							Size:  button.SizeSM,
 							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/finance/projects/%s", project.ID),
+							Href:  fmt.Sprintf("/projects/%s", project.ID),
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err

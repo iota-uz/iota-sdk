@@ -62,7 +62,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = input.Number(&input.Props{
+			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: props.T("Projects.Single.Name"),
 				Attrs: templ.Attributes{
 					"name":  "Name",

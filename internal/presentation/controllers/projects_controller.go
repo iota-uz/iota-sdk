@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
@@ -8,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
@@ -89,13 +89,15 @@ func (c *ProjectsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 
 	entity, err := c.app.ProjectService.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving project", http.StatusInternalServerError)
 		return
 	}
 	props := &projects.EditPageProps{
 		PageContext: pageCtx,
 		Project:     mappers.ProjectToViewModel(entity),
 		Errors:      map[string]string{},
+		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(projects.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -157,13 +159,15 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		} else {
 			entity, err := c.app.ProjectService.GetByID(r.Context(), id)
 			if err != nil {
-				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
+				http.Error(w, "Error retrieving project", http.StatusInternalServerError)
 				return
 			}
 			props := &projects.EditPageProps{
 				PageContext: pageCtx,
 				Project:     mappers.ProjectToViewModel(entity),
 				Errors:      errorsMap,
+				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 			}
 			templ.Handler(projects.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
@@ -184,7 +188,7 @@ func (c *ProjectsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &projects.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Project:     mappers.ProjectToViewModel(&project.Project{}),
+		Project:     mappers.ProjectToViewModel(&project.Project{}), //nolint:exhaustruct
 		SaveURL:     c.basePath,
 	}
 	templ.Handler(projects.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -196,7 +200,7 @@ func (c *ProjectsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := category.CreateDTO{} //nolint:exhaustruct
+	dto := project.CreateDTO{} //nolint:exhaustruct
 	if err := decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -211,17 +215,18 @@ func (c *ProjectsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		fmt.Println(errorsMap)
 		props := &projects.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
-			Project:     mappers.ProjectToViewModel(&project.Project{}),
+			Project:     mappers.ProjectToViewModel(&project.Project{}), //nolint:exhaustruct
 			SaveURL:     c.basePath,
 		}
 		templ.Handler(projects.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	if err := c.app.ExpenseCategoryService.Create(r.Context(), &dto); err != nil {
+	if err := c.app.ProjectService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

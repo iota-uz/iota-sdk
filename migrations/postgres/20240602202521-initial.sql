@@ -290,7 +290,7 @@ CREATE TABLE projects
     id              SERIAL PRIMARY KEY,
     name            VARCHAR(255) NOT NULL,
     description     TEXT,
---     counterparty_id INT          NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
+    counterparty_id INT          NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
