@@ -287,11 +287,12 @@ CREATE TABLE employee_contacts
 
 CREATE TABLE projects
 (
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL,
+    description     TEXT,
+--     counterparty_id INT          NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE project_stages

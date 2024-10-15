@@ -80,6 +80,7 @@ func DefaultServer() (*Server, error) {
 			controllers.NewLoginController(application),
 			controllers.NewUsersController(application),
 			controllers.NewExpenseCategoriesController(application),
+			controllers.NewProjectsController(application),
 			controllers.NewPaymentsController(application),
 			controllers.NewExpensesController(application),
 			controllers.NewGraphQLController(application),
