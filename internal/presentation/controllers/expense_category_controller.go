@@ -90,7 +90,7 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		&composables.PageData{Title: "ExpenseCategories.Meta.Edit.Title"}, //nolint:exhaustruct
+		composables.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

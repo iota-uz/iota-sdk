@@ -149,6 +149,31 @@
       "DeleteConfirmation": "Are you sure you want to delete this expense?"
     }
   },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Projects"
+      },
+      "Edit": {
+        "Title": "Edit project"
+      },
+      "New": {
+        "Title": "Add project"
+      }
+    },
+    "List": {
+      "New": "Add Project",
+      "Description": "Description",
+      "Name": "Name"
+    },
+    "Single": {
+      "Edit": "Edit project",
+      "Name": "Name",
+      "Description": "Description",
+      "Delete": "Delete project",
+      "DeleteConfirmation": "Are you sure you want to delete this project?"
+    }
+  },
   "Accounts": {
     "Meta": {
       "List": {

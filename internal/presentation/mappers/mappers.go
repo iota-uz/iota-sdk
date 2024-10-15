@@ -6,6 +6,7 @@ import (
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
@@ -103,5 +104,15 @@ func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
 		Code:   string(entity.Code),
 		Name:   entity.Name,
 		Symbol: string(entity.Symbol),
+	}
+}
+
+func ProjectToViewModel(entity *project.Project) *viewmodels.Project {
+	return &viewmodels.Project{
+		ID:          strconv.FormatUint(uint64(entity.ID), 10),
+		Name:        entity.Name,
+		Description: entity.Description,
+		UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
+		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
 	}
 }

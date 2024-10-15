@@ -66,6 +66,14 @@ type ProjectStage struct {
 	UpdatedAt string
 }
 
+type Project struct {
+	ID          string
+	Name        string
+	Description string
+	CreatedAt   string
+	UpdatedAt   string
+}
+
 type Expense struct {
 	ID                 string
 	Amount             string
