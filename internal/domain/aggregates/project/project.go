@@ -5,8 +5,9 @@ import (
 )
 
 type Project struct {
-	ID          uint
-	Name        string
+	ID   uint
+	Name string
+	// Counterparty
 	Description string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time

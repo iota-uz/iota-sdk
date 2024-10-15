@@ -45,7 +45,7 @@ templ ProjectsTable(props *IndexPageProps) {
 						Fixed: true,
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/finance/projects/%s", project.ID),
+						Href:  fmt.Sprintf("/projects/%s", project.ID),
 					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
@@ -63,7 +63,7 @@ templ ProjectsContent(props *IndexPageProps) {
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
-				hx-get="/finance/expenses"
+				hx-get="/projects"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target="table"
 				hx-swap="outerHTML"
