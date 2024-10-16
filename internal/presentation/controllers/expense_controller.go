@@ -48,7 +48,7 @@ func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.Mo
 	viewAccounts := make([]*viewmodels.MoneyAccount, len(accounts))
 	for i, account := range accounts {
 		viewAccounts[i] = mappers.MoneyAccountToViewModel(
-			account, fmt.Sprintf("%s/finance/accounts/%d", c.basePath, account.ID),
+			account, fmt.Sprintf("%s/%d", c.basePath, account.ID),
 		)
 	}
 	return viewAccounts, nil

@@ -265,20 +265,11 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.BI-Chat"}), "/bi-chat", icons.ChatCircle(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.KnowledgeBase"}), "/knowledge-base", icons.Book(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
 		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Operations"}), "#",
 			icons.Pulse(icons.Props{Size: "20"}),
 			[]sidebarItem{
 				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Employees"}), href: "/operations/employees"},
 				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Settings"}), href: "/settings"},
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Calendar"}), href: "/calendar"},
 				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Projects"}), href: "/projects"},
 			}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -339,7 +330,7 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "SignOut"}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 151, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 148, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
