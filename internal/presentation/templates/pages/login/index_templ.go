@@ -13,7 +13,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 func Index(pageCtx *types.PageContext) templ.Component {
@@ -51,7 +50,7 @@ func Index(pageCtx *types.PageContext) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Email(&input.Props{
-				Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Email"}),
+				Label: pageCtx.T("Login.Email"),
 				Attrs: templ.Attributes{
 					"name": "email",
 				},
@@ -60,7 +59,7 @@ func Index(pageCtx *types.PageContext) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Password(&input.Props{
-				Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Password"}),
+				Label: pageCtx.T("Login.Password"),
 				Attrs: templ.Attributes{
 					"name": "password",
 				},
@@ -81,9 +80,9 @@ func Index(pageCtx *types.PageContext) templ.Component {
 				}
 				ctx = templ.InitializeContext(ctx)
 				var templ_7745c5c3_Var4 string
-				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Login"}))
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Login.Login"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/login/index.templ`, Line: 32, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/login/index.templ`, Line: 37, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -91,7 +90,13 @@ func Index(pageCtx *types.PageContext) templ.Component {
 				}
 				return templ_7745c5c3_Err
 			})
-			templ_7745c5c3_Err = button.Primary(button.Props{Size: button.SizeMD, Class: "justify-center"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = button.Primary(button.Props{
+				Size:  button.SizeMD,
+				Class: "justify-center",
+				Attrs: templ.Attributes{
+					"type": "submit",
+				},
+			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
