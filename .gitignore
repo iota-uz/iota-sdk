@@ -6,3 +6,4 @@ tmp/
 .env
 .env.local
 coverage
+node_modules
