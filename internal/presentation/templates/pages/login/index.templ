@@ -5,7 +5,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 templ Index(pageCtx *types.PageContext) {
@@ -17,19 +16,25 @@ templ Index(pageCtx *types.PageContext) {
 				</h1>
 				<form class="flex flex-col gap-7 w-2/3" action="/login" method="post">
 					@input.Email(&input.Props{
-						Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Email"}),
+						Label: pageCtx.T("Login.Email"),
 						Attrs: templ.Attributes{
 							"name": "email",
 						},
 					})
 					@input.Password(&input.Props{
-						Label: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Password"}),
+						Label: pageCtx.T("Login.Password"),
 						Attrs: templ.Attributes{
 							"name": "password",
 						},
 					})
-					@button.Primary(button.Props{Size: button.SizeMD, Class: "justify-center"}) {
-						{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Login.Login"}) }
+					@button.Primary(button.Props{
+						Size:  button.SizeMD,
+						Class: "justify-center",
+						Attrs: templ.Attributes{
+							"type": "submit",
+						},
+					}) {
+						{ pageCtx.T("Login.Login") }
 					}
 				</form>
 			</div>
