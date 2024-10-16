@@ -84,6 +84,7 @@ func DefaultServer() (*Server, error) {
 			controllers.NewPaymentsController(application),
 			controllers.NewExpensesController(application),
 			controllers.NewGraphQLController(application),
+			controllers.NewLogoutController(application),
 			controllers.NewStaticFilesController(),
 		},
 	}, nil
