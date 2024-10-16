@@ -15,7 +15,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"strings"
 )
 
@@ -106,7 +105,7 @@ func (l sidebarLink) render() templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(l.name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 63, Col: 10}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 62, Col: 10}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -184,7 +183,7 @@ func (i sidebarItem) render(pathname string) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i.name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 91, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 90, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -222,7 +221,7 @@ func (i sidebarItem) render(pathname string) templ.Component {
 	})
 }
 
-func sidebar(pathname string, l *i18n.Localizer) templ.Component {
+func sidebar(pageCtx *types.PageContext) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -247,7 +246,7 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(iotaLogo)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 110, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 109, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -257,49 +256,49 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}), "/", icons.CirclesThreePlus(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Dashboard"), "/", icons.CirclesThreePlus(icons.Props{Size: "20"}), []sidebarItem{}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}), "/users", icons.Users(icons.Props{Size: "20"}), []sidebarItem{}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Users"), "/users", icons.Users(icons.Props{Size: "20"}), []sidebarItem{}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Operations"}), "#",
+		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Operations"), "#",
 			icons.Pulse(icons.Props{Size: "20"}),
 			[]sidebarItem{
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Employees"}), href: "/operations/employees"},
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Settings"}), href: "/settings"},
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Projects"}), href: "/projects"},
-			}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
+				{name: pageCtx.T("NavigationLinks.Employees"), href: "/operations/employees"},
+				{name: pageCtx.T("NavigationLinks.Settings"), href: "/settings"},
+				{name: pageCtx.T("NavigationLinks.Projects"), href: "/projects"},
+			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Enums"}), "#",
+		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Enums"), "#",
 			icons.CheckCircle(icons.Props{Size: "20"}),
 			[]sidebarItem{
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.TaskTypes"}), href: "/enums/task-types"},
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Positions"}), href: "/enums/positions"},
-			}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
+				{name: pageCtx.T("NavigationLinks.TaskTypes"), href: "/enums/task-types"},
+				{name: pageCtx.T("NavigationLinks.Positions"), href: "/enums/positions"},
+			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}), "#",
+		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Finances"), "#",
 			icons.Money(icons.Props{Size: "20"}),
 			[]sidebarItem{
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}), href: "/finance/expense-categories"},
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Payments"}), href: "/finance/payments"},
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Expenses"}), href: "/finance/expenses"},
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Accounts"}), href: "/finance/accounts"},
-			}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
+				{name: pageCtx.T("NavigationLinks.ExpenseCategories"), href: "/finance/expense-categories"},
+				{name: pageCtx.T("NavigationLinks.Payments"), href: "/finance/payments"},
+				{name: pageCtx.T("NavigationLinks.Expenses"), href: "/finance/expenses"},
+				{name: pageCtx.T("NavigationLinks.Accounts"), href: "/finance/accounts"},
+			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Reports"}), "#",
+		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Reports"), "#",
 			icons.FileText(icons.Props{Size: "20"}),
 			[]sidebarItem{
-				{name: l.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}), href: "/reports/cash-flow"},
-			}).render(pathname).Render(ctx, templ_7745c5c3_Buffer)
+				{name: pageCtx.T("NavigationLinks.Finances"), href: "/reports/cash-flow"},
+			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -328,9 +327,9 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(l.MustLocalize(&i18n.LocalizeConfig{MessageID: "SignOut"}))
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SignOut"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 148, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 147, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -338,7 +337,7 @@ func sidebar(pathname string, l *i18n.Localizer) templ.Component {
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = button.Sidebar(button.Props{Size: button.SizeMD, Class: "w-full gap-2"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = button.Sidebar(button.Props{Size: button.SizeMD, Class: "w-full gap-2", Href: "/logout"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -578,7 +577,7 @@ func Authenticated(pageCtx *types.PageContext) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = sidebar(pageCtx.Pathname, pageCtx.Localizer).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = sidebar(pageCtx).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
