@@ -41,4 +41,4 @@ services:
 networks:
   app:
     name: app
-#    external: true
+    external: true
