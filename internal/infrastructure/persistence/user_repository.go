@@ -98,7 +98,11 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(toDBUser(user)).Error
+	dbUser, dbRoles := toDBUser(user)
+	if err := tx.Save(dbUser).Error; err != nil {
+		return err
+	}
+	return tx.Model(dbUser).Association("Roles").Replace(dbRoles)
 }
 
 func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {
@@ -106,7 +110,11 @@ func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Create(toDBUser(user)).Error
+	dbUser, dbRoles := toDBUser(user)
+	if err := tx.Create(dbUser).Error; err != nil {
+		return err
+	}
+	return tx.Model(dbUser).Association("Roles").Append(dbRoles)
 }
 
 func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error {
@@ -114,10 +122,11 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Model(&models.User{}).Association("Roles").Replace(user.Roles); err != nil {
+	dbUser, dbRoles := toDBUser(user)
+	if err := tx.Updates(dbUser).Error; err != nil {
 		return err
 	}
-	return tx.Save(toDBUser(user)).Error
+	return tx.Model(&models.User{}).Association("Roles").Replace(dbRoles)
 }
 
 func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
