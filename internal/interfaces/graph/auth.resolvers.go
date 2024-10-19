@@ -32,7 +32,7 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 		HttpOnly: false,
 		SameSite: http.SameSiteDefaultMode,
 		Secure:   false,
-		Domain:   conf.FrontendDomain,
+		Domain:   conf.Domain,
 	}
 	http.SetCookie(writer, cookie)
 	return session.ToGraph(), nil
@@ -54,7 +54,9 @@ func (r *queryResolver) AuthenticationLog(ctx context.Context, id int64) (*model
 }
 
 // AuthenticationLogs is the resolver for the authenticationLogs field.
-func (r *queryResolver) AuthenticationLogs(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedAuthenticationLogs, error) {
+func (r *queryResolver) AuthenticationLogs(
+	ctx context.Context, offset int, limit int, sortBy []string,
+) (*model.PaginatedAuthenticationLogs, error) {
 	panic(fmt.Errorf("not implemented: AuthenticationLogs - authenticationLogs"))
 }
 
@@ -64,7 +66,9 @@ func (r *queryResolver) Session(ctx context.Context, token string) (*model.Sessi
 }
 
 // Sessions is the resolver for the sessions field.
-func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedSessions, error) {
+func (r *queryResolver) Sessions(ctx context.Context, offset int, limit int, sortBy []string) (
+	*model.PaginatedSessions, error,
+) {
 	panic(fmt.Errorf("not implemented: Sessions - sessions"))
 }
 
