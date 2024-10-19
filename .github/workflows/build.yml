@@ -1,4 +1,4 @@
-name: Test, lint & build
+name: Build & deploy staging
 
 on:
   push:
@@ -8,12 +8,12 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: [gcidp]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Test, lint & build
+      - name: Build & run
         run: docker compose -f docker-compose.yml up -d --build
 
       - name: Cleanup

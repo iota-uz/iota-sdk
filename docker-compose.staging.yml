@@ -20,6 +20,8 @@ services:
       - "traefik.http.routers.erp.tls=true"
       - "traefik.http.routers.erp.tls.certresolver=letsencrypt"
       - "traefik.http.services.erp.loadbalancer.server.port=3200"
+    depends_on:
+      - erp_db
     networks:
       - app
 
