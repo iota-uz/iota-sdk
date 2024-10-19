@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/NYTimes/gziphandler"
 	"github.com/iota-agency/iota-erp/pkg/dbutils"
 	"log"
 	"net/http"
@@ -49,12 +50,12 @@ func (s *Server) Start() error {
 	}
 	r.NotFoundHandler = notFoundHandler
 	r.MethodNotAllowedHandler = notAllowedHandler
-	return http.ListenAndServe(s.conf.SocketAddress, r)
+	return http.ListenAndServe(s.conf.SocketAddress, gziphandler.GzipHandler(r))
 }
 
 func DefaultServer() (*Server, error) {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Error)
+	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Info)
 	if err != nil {
 		return nil, err
 	}
