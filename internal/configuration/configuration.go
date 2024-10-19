@@ -25,7 +25,7 @@ type Configuration struct {
 	SocketAddress      string
 	OpenAIKey          string
 	UploadsPath        string
-	FrontendDomain     string
+	Domain             string
 	PageSize           int
 	MaxPageSize        int
 	SidCookieKey       string // Session ID cookie key
@@ -78,7 +78,7 @@ func (c *Configuration) load(envFiles []string) error {
 	}
 	c.OpenAIKey = env.MustGetEnv("OPENAI_KEY")
 	c.UploadsPath = env.GetEnv("UPLOADS_PATH", "uploads")
-	c.FrontendDomain = env.GetEnv("FRONTEND_DOMAIN", "localhost")
+	c.Domain = env.GetEnv("DOMAIN", "localhost")
 	c.SidCookieKey = env.GetEnv("SID_COOKIE_KEY", "sid")
 	return nil
 }

@@ -80,7 +80,7 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		HttpOnly: false,
 		SameSite: http.SameSiteNoneMode,
 		Secure:   false,
-		Domain:   conf.FrontendDomain,
+		Domain:   conf.Domain,
 	}
 	http.SetCookie(w, cookie)
 }
@@ -173,7 +173,7 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		HttpOnly: false,
 		SameSite: http.SameSiteStrictMode,
 		Secure:   conf.GoAppEnvironment == "production",
-		Domain:   conf.FrontendDomain,
+		Domain:   conf.Domain,
 	}
 	return cookie, nil
 }
