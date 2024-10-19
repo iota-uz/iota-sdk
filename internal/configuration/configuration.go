@@ -82,5 +82,10 @@ func (c *Configuration) load(envFiles []string) error {
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
 		c.DBHost, c.DBPort, c.DBUser, c.DBName, c.DBPassword,
 	)
+	if c.GoAppEnvironment == "production" {
+		c.SocketAddress = fmt.Sprintf(":%d", c.ServerPort)
+	} else {
+		c.SocketAddress = fmt.Sprintf("localhost:%d", c.ServerPort)
+	}
 	return nil
 }
