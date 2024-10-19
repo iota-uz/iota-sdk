@@ -82,11 +82,14 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 	if !ok {
 		return service.ErrNoTx
 	}
-	entity := toDBRole(data)
-	if err := tx.Model(entity).Association("Permissions").Replace(entity.Permissions); err != nil {
+	entity, permissions := toDBRole(data)
+	if err := tx.Save(entity).Error; err != nil {
 		return err
 	}
-	return tx.Save(entity).Error
+	if err := tx.Model(entity).Association("Permissions").Replace(permissions); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
@@ -94,7 +97,14 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Create(toDBRole(data)).Error
+	entity, permissions := toDBRole(data)
+	if err := tx.Create(entity).Error; err != nil {
+		return err
+	}
+	if err := tx.Model(entity).Association("Permissions").Append(permissions); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
@@ -102,7 +112,14 @@ func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(toDBRole(data)).Error
+	entity, permissions := toDBRole(data)
+	if err := tx.Updates(entity).Error; err != nil {
+		return err
+	}
+	if err := tx.Model(entity).Association("Permissions").Replace(permissions); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id int64) error {

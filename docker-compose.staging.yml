@@ -5,7 +5,7 @@ services:
     restart: always
     build:
       context: .
-      target: production
+      target: staging
     environment:
       GO_APP_ENV: production
       DB_NAME: iota_erp
@@ -41,4 +41,4 @@ services:
 networks:
   app:
     name: app
-    external: true
+#    external: true

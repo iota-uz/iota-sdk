@@ -44,10 +44,11 @@ func toDomainUser(dbUser *models.User) *user.User {
 	}
 }
 
-func toDBUser(entity *user.User) *models.User {
+func toDBUser(entity *user.User) (*models.User, []models.Role) {
 	roles := make([]models.Role, len(entity.Roles))
 	for i, r := range entity.Roles {
-		roles[i] = *toDBRole(r)
+		dbRole, _ := toDBRole(r)
+		roles[i] = *dbRole
 	}
 	return &models.User{
 		ID:         entity.ID,
@@ -63,8 +64,8 @@ func toDBUser(entity *user.User) *models.User {
 		LastAction: entity.LastAction,
 		CreatedAt:  entity.CreatedAt,
 		UpdatedAt:  entity.UpdatedAt,
-		Roles:      roles,
-	}
+		Roles:      nil,
+	}, roles
 }
 
 func toDomainRole(dbRole *models.Role) *role.Role {
@@ -82,7 +83,7 @@ func toDomainRole(dbRole *models.Role) *role.Role {
 	}
 }
 
-func toDBRole(entity *role.Role) *models.Role {
+func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
 	permissions := make([]models.Permission, len(entity.Permissions))
 	for i, p := range entity.Permissions {
 		permissions[i] = *toDBPermission(&p)
@@ -91,10 +92,10 @@ func toDBRole(entity *role.Role) *models.Role {
 		ID:          entity.ID,
 		Name:        entity.Name,
 		Description: entity.Description,
-		Permissions: permissions,
+		Permissions: nil,
 		CreatedAt:   entity.CreatedAt,
 		UpdatedAt:   entity.UpdatedAt,
-	}
+	}, permissions
 }
 
 func toDBPermission(entity *permission.Permission) *models.Permission {
