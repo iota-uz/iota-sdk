@@ -24,10 +24,6 @@ type Server struct {
 	middlewares []mux.MiddlewareFunc
 }
 
-func (s *Server) init() error {
-	return nil
-}
-
 func loadBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
@@ -55,7 +51,7 @@ func (s *Server) Start() error {
 
 func DefaultServer() (*Server, error) {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Info)
+	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Error)
 	if err != nil {
 		return nil, err
 	}
