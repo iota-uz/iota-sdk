@@ -1,0 +1,20 @@
+name: Test, lint & build
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Test, lint & build
+        run: docker compose -f docker-compose.yml up -d --build
+
+      - name: Cleanup
+        run: docker system prune -f
