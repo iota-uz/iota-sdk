@@ -13,7 +13,7 @@ services:
       DB_PORT: 5432
       DB_PASSWORD: postgres
       DOMAIN: iota.uz
-      SESSION_DURATION: 30d
+      SESSION_DURATION: 720h
     depends_on:
       - erp_db
 

@@ -13,7 +13,7 @@ services:
       DB_PORT: 5432
       DB_PASSWORD: 2dP9L9d6gB9597
       DOMAIN: apollos.studio
-      SESSION_DURATION: 30d
+      SESSION_DURATION: 720h
       INITIAL_USER_EMAIL: diyor_khaydarov@apollos.studio
       INITIAL_USER_PASSWORD: gSgnIInjB430
     labels:
