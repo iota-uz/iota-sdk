@@ -13,7 +13,7 @@ services:
       DB_PORT: 5432
       DB_PASSWORD: 2dP9L9d6gB9597
       DOMAIN: erp.ci.iota.uz
-      SESSION_DURATION: 30d
+      SESSION_DURATION: 720h
       GOOGLE_CLIENT_ID: 1234567890.apps.googleusercontent.com # TODO: Change this
       GOOGLE_CLIENT_SECRET: 123456789
       GOOGLE_REDIRECT_URL: https://erp.ci.iota.uz/auth/google/callback

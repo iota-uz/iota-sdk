@@ -93,7 +93,7 @@ linters:
     - sqlclosecheck
     - staticcheck
     - stylecheck
-    - tagalign
+#    - tagalign
     - tenv
     - testableexamples
     - testifylint

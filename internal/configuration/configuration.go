@@ -2,33 +2,59 @@ package configuration
 
 import (
 	"fmt"
+	"github.com/caarlos0/env/v11"
+	"github.com/iota-agency/iota-erp/sdk/utils/fs"
+	"github.com/joho/godotenv"
 	"log"
 	"strings"
 	"time"
-
-	"github.com/iota-agency/iota-erp/sdk/configuration"
-	"github.com/iota-agency/iota-erp/sdk/utils/env"
 )
 
 var singleton *Configuration
 
+func LoadEnv(envFiles []string) (int, error) {
+	exists := make([]bool, len(envFiles))
+	for i, file := range envFiles {
+		if fs.FileExists(file) {
+			exists[i] = true
+		}
+	}
+
+	existingFiles := make([]string, 0, len(envFiles))
+	for i, file := range envFiles {
+		if exists[i] {
+			existingFiles = append(existingFiles, file)
+		}
+	}
+
+	if len(existingFiles) == 0 {
+		return 0, nil
+	}
+
+	return len(existingFiles), godotenv.Load(existingFiles...)
+}
+
 type Configuration struct {
-	DBOpts             string
-	DBName             string
-	DBPassword         string
-	GoogleRedirectURL  string
-	GoogleClientID     string
-	GoogleClientSecret string
-	ServerPort         int
-	SessionDuration    time.Duration
-	GoAppEnvironment   string
-	SocketAddress      string
-	OpenAIKey          string
-	UploadsPath        string
-	Domain             string
-	PageSize           int
-	MaxPageSize        int
-	SidCookieKey       string // Session ID cookie key
+	DBOpts             string        `env:"-"`
+	DBName             string        `env:"DB_NAME" envDefault:"iota_erp"`
+	DBHost             string        `env:"DB_HOST" envDefault:"localhost"`
+	DBPort             string        `env:"DB_PORT" envDefault:"5432"`
+	DBUser             string        `env:"DB_USER" envDefault:"postgres"`
+	DBPassword         string        `env:"DB_PASSWORD" envDefault:"postgres"`
+	GoogleRedirectURL  string        `env:"GOOGLE_REDIRECT_URL"`
+	GoogleClientID     string        `env:"GOOGLE_CLIENT_ID"`
+	GoogleClientSecret string        `env:"GOOGLE_CLIENT_SECRET"`
+	ServerPort         int           `env:"PORT" envDefault:"3200"`
+	SessionDuration    time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
+	GoAppEnvironment   string        `env:"GO_APP_ENV" envDefault:"development"`
+	SocketAddress      string        `env:"-"`
+	OpenAIKey          string        `env:"OPENAI_KEY"`
+	UploadsPath        string        `env:"UPLOADS_PATH" envDefault:"uploads"`
+	Domain             string        `env:"DOMAIN" envDefault:"localhost"`
+	PageSize           int           `env:"PAGE_SIZE" envDefault:"25"`
+	MaxPageSize        int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
+	// Session ID cookie key
+	SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 }
 
 func Use() *Configuration {
@@ -42,43 +68,19 @@ func Use() *Configuration {
 }
 
 func (c *Configuration) load(envFiles []string) error {
-	n, err := configuration.LoadEnv(envFiles)
+	n, err := LoadEnv(envFiles)
 	if err != nil {
 		return err
 	}
 	if n == 0 {
 		log.Printf("No .env files found. Tried: %s\n", strings.Join(envFiles, ", "))
 	}
-
-	c.DBOpts = fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		env.GetEnv("DB_HOST", "localhost"),
-		env.GetEnv("DB_PORT", "5432"),
-		env.GetEnv("DB_USER", "postgres"),
-		env.GetEnv("DB_NAME", "iota_erp"),
-		env.GetEnv("DB_PASSWORD", "postgres"),
-	)
-
-	c.GoogleRedirectURL = env.MustGetEnv("GOOGLE_REDIRECT_URL")
-	c.GoogleClientID = env.MustGetEnv("GOOGLE_CLIENT_ID")
-	c.GoogleClientSecret = env.MustGetEnv("GOOGLE_CLIENT_SECRET")
-	c.ServerPort = env.MustGetEnvInt("PORT", 3200)
-	c.PageSize = env.MustGetEnvInt("PAGE_SIZE", 25)
-	c.MaxPageSize = env.MustGetEnvInt("MAX_PAGE_SIZE", 100)
-	duration, err := configuration.ParseDuration(env.GetEnv("SESSION_DURATION", "1h"))
-	if err != nil {
+	if err := env.Parse(c); err != nil {
 		return err
 	}
-	c.SessionDuration = duration
-	c.GoAppEnvironment = env.GetEnv("GO_APP_ENV", "development")
-	if c.GoAppEnvironment == "production" {
-		c.SocketAddress = fmt.Sprintf(":%d", c.ServerPort)
-	} else {
-		c.SocketAddress = fmt.Sprintf("localhost:%d", c.ServerPort)
-	}
-	c.OpenAIKey = env.MustGetEnv("OPENAI_KEY")
-	c.UploadsPath = env.GetEnv("UPLOADS_PATH", "uploads")
-	c.Domain = env.GetEnv("DOMAIN", "localhost")
-	c.SidCookieKey = env.GetEnv("SID_COOKIE_KEY", "sid")
+	c.DBOpts = fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+		c.DBHost, c.DBPort, c.DBUser, c.DBName, c.DBPassword,
+	)
 	return nil
 }
