@@ -1,6 +1,7 @@
 package employee
 
 import (
+	"github.com/iota-agency/iota-erp/sdk/mapper"
 	"time"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
@@ -8,7 +9,7 @@ import (
 )
 
 type Meta struct {
-	EmployeeID        int64
+	EmployeeID        uint
 	PrimaryLanguage   *string
 	SecondaryLanguage *string
 	Tin               *string
@@ -22,7 +23,7 @@ type Meta struct {
 
 func (e *Meta) ToGraph() *model.EmployeeMeta {
 	return &model.EmployeeMeta{
-		EmployeeID:        e.EmployeeID,
+		EmployeeID:        int64(e.EmployeeID),
 		PrimaryLanguage:   e.PrimaryLanguage,
 		SecondaryLanguage: e.SecondaryLanguage,
 		Tin:               e.Tin,
@@ -36,37 +37,37 @@ func (e *Meta) ToGraph() *model.EmployeeMeta {
 }
 
 type Employee struct {
-	ID          int64
+	ID          uint
 	FirstName   string
 	LastName    string
-	MiddleName  *string
+	MiddleName  string
 	Email       string
-	Phone       *string
+	Phone       string
 	Salary      float64
 	HourlyRate  float64
-	PositionID  int64
+	PositionID  uint
 	Coefficient float64
 	Meta        *Meta
 	Position    *position.Position
-	AvatarID    *int64
+	AvatarID    uint
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
 func (e *Employee) ToGraph() *model.Employee {
 	return &model.Employee{
-		ID:          e.ID,
+		ID:          int64(e.ID),
 		FirstName:   e.FirstName,
 		LastName:    e.LastName,
-		MiddleName:  e.MiddleName,
+		MiddleName:  &e.MiddleName,
 		Email:       e.Email,
-		Phone:       e.Phone,
+		Phone:       &e.Phone,
 		Salary:      e.Salary,
 		HourlyRate:  e.HourlyRate,
 		Position:    e.Position.ToGraph(),
 		Coefficient: e.Coefficient,
 		Meta:        e.Meta.ToGraph(),
-		AvatarID:    e.AvatarID,
+		AvatarID:    mapper.Pointer(int64(e.AvatarID)),
 		CreatedAt:   e.CreatedAt,
 		UpdatedAt:   e.UpdatedAt,
 	}
