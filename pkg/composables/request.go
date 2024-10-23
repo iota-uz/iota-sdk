@@ -13,6 +13,10 @@ import (
 	"golang.org/x/text/language"
 )
 
+var (
+	errLocalizerNotFound = errors.New("localizer not found")
+)
+
 type PageContext struct {
 	Title         string
 	Locale        string
@@ -25,8 +29,6 @@ type PageContext struct {
 func (p *PageContext) T(k string) string {
 	return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: k})
 }
-
-var errLocalizerNotFound = errors.New("localizer not found")
 
 type PaginationParams struct {
 	Limit  int
@@ -69,6 +71,10 @@ func UsePageCtx(r *http.Request, pageData *PageData) (*PageContext, error) {
 	if !found {
 		return nil, errLocalizerNotFound
 	}
+	u, err := UseUser(r.Context())
+	if err != nil {
+		return nil, err
+	}
 	locale := composables.UseLocale(r.Context(), language.English)
 	return &PageContext{
 		Pathname:      r.URL.Path,
@@ -76,5 +82,6 @@ func UsePageCtx(r *http.Request, pageData *PageData) (*PageContext, error) {
 		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}), //nolint:exhaustruct
 		Locale:        locale.String(),
 		UniTranslator: uniTranlator,
+		User:          u,
 	}, nil
 }

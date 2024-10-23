@@ -2,6 +2,8 @@ package layouts
 
 import (
 	"bytes"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"github.com/iota-agency/iota-erp/internal/presentation/assets"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -17,10 +19,23 @@ var (
 )
 
 type SidebarItem struct {
-	name     string
-	href     string
-	children []SidebarItem
-	icon     templ.Component
+	name        string
+	href        string
+	children    []SidebarItem
+	icon        templ.Component
+	permissions []permission.Permission
+}
+
+func (s SidebarItem) HasPermission(user *user.User) bool {
+	if s.permissions == nil {
+		return true
+	}
+	for _, perm := range s.permissions {
+		if !user.Can(perm) {
+			return false
+		}
+	}
+	return true
 }
 
 type sidebarLink struct {
@@ -42,15 +57,6 @@ func newSidebarLink(name, href string, icon templ.Component, active bool) sideba
 		href:  href,
 		icon:  icon,
 		class: class.String(),
-	}
-}
-
-func newSidebarItem(name, href string, icon templ.Component, children []SidebarItem) SidebarItem {
-	return SidebarItem{
-		name:     name,
-		href:     href,
-		children: children,
-		icon:     icon,
 	}
 }
 

@@ -1,13 +1,15 @@
 package permission
 
 const (
-	ResourcePayment Resource = "payment"
-	ResourceUser    Resource = "user"
-	ResourceRole    Resource = "role"
-	ResourceAccount Resource = "account"
-	ResourceStage   Resource = "stage"
-	ResourceProject Resource = "project"
-	ResourceExpense Resource = "expense"
+	ResourcePayment  Resource = "payment"
+	ResourceUser     Resource = "user"
+	ResourceRole     Resource = "role"
+	ResourceAccount  Resource = "account"
+	ResourceStage    Resource = "stage"
+	ResourceProject  Resource = "project"
+	ResourceExpense  Resource = "expense"
+	ResourceEmployee Resource = "employee"
+	ResourceSetting  Resource = "setting"
 )
 
 const (
@@ -219,6 +221,48 @@ var (
 		Action:   ActionDelete,
 		Modifier: ModifierAll,
 	}
+	EmployeeCreate = Permission{
+		ID:       29,
+		Name:     "Employee.Create",
+		Resource: ResourceEmployee,
+		Action:   ActionCreate,
+		Modifier: ModifierAll,
+	}
+	EmployeeRead = Permission{
+		ID:       30,
+		Name:     "Employee.Read",
+		Resource: ResourceEmployee,
+		Action:   ActionRead,
+		Modifier: ModifierAll,
+	}
+	EmployeeUpdate = Permission{
+		ID:       31,
+		Name:     "Employee.Update",
+		Resource: ResourceEmployee,
+		Action:   ActionUpdate,
+		Modifier: ModifierAll,
+	}
+	EmployeeDelete = Permission{
+		ID:       32,
+		Name:     "Employee.Delete",
+		Resource: ResourceEmployee,
+		Action:   ActionDelete,
+		Modifier: ModifierAll,
+	}
+	SettingsUpdate = Permission{
+		ID:       33,
+		Name:     "Settings.Update",
+		Resource: ResourceSetting,
+		Action:   ActionCreate,
+		Modifier: ModifierAll,
+	}
+	SettingsRead = Permission{
+		ID:       34,
+		Name:     "Setting.Read",
+		Resource: ResourceSetting,
+		Action:   ActionRead,
+		Modifier: ModifierAll,
+	}
 )
 
 var Permissions = []Permission{
@@ -250,4 +294,10 @@ var Permissions = []Permission{
 	ExpenseRead,
 	ExpenseUpdate,
 	ExpenseDelete,
+	EmployeeCreate,
+	EmployeeRead,
+	EmployeeUpdate,
+	EmployeeDelete,
+	SettingsUpdate,
+	SettingsRead,
 }
