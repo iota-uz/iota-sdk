@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	"github.com/iota-agency/iota-erp/sdk/composables"
@@ -24,16 +25,20 @@ func (g *GormEmployeeRepository) GetPaginated(
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var uploads []*employee.Employee
+	var rows []*models.Employee
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &employee.Employee{}) //nolint:exhaustruct
+	q, err := helpers.ApplySort(q, sortBy, &models.Employee{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
-	if err := q.Find(&uploads).Error; err != nil {
+	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return uploads, nil
+	entities := make([]*employee.Employee, len(rows))
+	for i, r := range rows {
+		entities[i] = toDomainEmployee(r)
+	}
+	return entities, nil
 }
 
 func (g *GormEmployeeRepository) Count(ctx context.Context) (int64, error) {
@@ -42,7 +47,7 @@ func (g *GormEmployeeRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&employee.Employee{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&models.Employee{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
@@ -53,9 +58,13 @@ func (g *GormEmployeeRepository) GetAll(ctx context.Context) ([]*employee.Employ
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entities []*employee.Employee
-	if err := tx.Find(&entities).Error; err != nil {
+	var rows []*models.Employee
+	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	entities := make([]*employee.Employee, len(rows))
+	for i, r := range rows {
+		entities[i] = toDomainEmployee(r)
 	}
 	return entities, nil
 }
@@ -65,23 +74,11 @@ func (g *GormEmployeeRepository) GetByID(ctx context.Context, id int64) (*employ
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entity employee.Employee
+	var entity models.Employee
 	if err := tx.First(&entity, id).Error; err != nil {
 		return nil, err
 	}
-	return &entity, nil
-}
-
-func (g *GormEmployeeRepository) GetEmployeeMeta(ctx context.Context, id int64) (*employee.Meta, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, service.ErrNoTx
-	}
-	var entity employee.Meta
-	if err := tx.First(&entity, id).Error; err != nil {
-		return nil, err
-	}
-	return &entity, nil
+	return toDomainEmployee(&entity), nil
 }
 
 func (g *GormEmployeeRepository) Create(ctx context.Context, data *employee.Employee) error {
@@ -89,7 +86,12 @@ func (g *GormEmployeeRepository) Create(ctx context.Context, data *employee.Empl
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(data).Error; err != nil {
+	employeeEntity, metaEntity := toDBEmployee(data)
+	if err := tx.Create(employeeEntity).Error; err != nil {
+		return err
+	}
+	metaEntity.EmployeeID = employeeEntity.ID
+	if err := tx.Create(metaEntity).Error; err != nil {
 		return err
 	}
 	return nil
@@ -100,7 +102,11 @@ func (g *GormEmployeeRepository) Update(ctx context.Context, data *employee.Empl
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Save(data).Error; err != nil {
+	employeeEntity, metaEntity := toDBEmployee(data)
+	if err := tx.Save(employeeEntity).Error; err != nil {
+		return err
+	}
+	if err := tx.Save(metaEntity).Error; err != nil {
 		return err
 	}
 	return nil
@@ -111,7 +117,7 @@ func (g *GormEmployeeRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&employee.Employee{}, id).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Delete(&models.Employee{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"time"
@@ -470,4 +471,38 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction)
 		UpdatedAt:     entity.UpdatedAt,
 	}
 	return dbExpense, dbTransaction
+}
+
+func toDomainEmployee(dbEmployee *models.Employee) *employee.Employee {
+	return &employee.Employee{
+		ID:         dbEmployee.ID,
+		FirstName:  dbEmployee.FirstName,
+		LastName:   dbEmployee.LastName,
+		Email:      dbEmployee.Email,
+		Phone:      dbEmployee.Phone,
+		CreatedAt:  dbEmployee.CreatedAt,
+		UpdatedAt:  dbEmployee.UpdatedAt,
+		PositionID: dbEmployee.PositionID,
+		Meta: &employee.Meta{
+			EmployeeID: dbEmployee.ID,
+		},
+	}
+}
+
+func toDBEmployee(entity *employee.Employee) (*models.Employee, *models.EmployeeMeta) {
+	dbEmployee := &models.Employee{
+		ID:         entity.ID,
+		FirstName:  entity.FirstName,
+		LastName:   entity.LastName,
+		Email:      entity.Email,
+		Phone:      entity.Phone,
+		CreatedAt:  entity.CreatedAt,
+		UpdatedAt:  entity.UpdatedAt,
+		PositionID: entity.PositionID,
+	}
+	dbEmployeeMeta := &models.EmployeeMeta{
+		EmployeeID: entity.ID,
+		UpdatedAt:  entity.UpdatedAt,
+	}
+	return dbEmployee, dbEmployeeMeta
 }
