@@ -1,0 +1,68 @@
+package account
+
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/pkg/composables"
+)
+
+type ProfilePageProps struct {
+	*composables.PageContext
+	PostPath string
+}
+
+templ ProfileForm(props *ProfilePageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.PostPath }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		<h1 class="text-2xl font-medium pl-6 pt-6">
+			{ props.User.FirstName } { props.User.LastName }
+		</h1>
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@input.Text(&input.Props{
+				Placeholder: props.T("Account.FirstName"),
+				Attrs: templ.Attributes{
+					"name": "firstname",
+				},
+			})
+			@input.Text(&input.Props{
+				Placeholder: props.T("Account.LastName"),
+				Attrs: templ.Attributes{
+					"name": "lastname",
+				},
+			})
+			@input.Text(&input.Props{
+				Placeholder: props.T("Account.MiddleName"),
+				Attrs: templ.Attributes{
+					"name": "middlename",
+				},
+			})
+			@input.Text(&input.Props{
+				Placeholder: props.T("Account.Email"),
+				Attrs: templ.Attributes{
+					"name": "email",
+				},
+			})
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Attrs: templ.Attributes{
+					"type": "submit",
+				}},
+			) {
+				{ props.T("Account.Save") }
+			}
+		</div>
+	</form>
+}
+
+templ Index(props *ProfilePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@ProfileForm(props)
+	}
+}
