@@ -40,6 +40,7 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &account.ProfilePageProps{
 		PageContext: pageCtx,
+		PostPath:    c.basePath,
 	}
 	templ.Handler(account.Index(props)).ServeHTTP(w, r)
 }
