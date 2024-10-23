@@ -10,11 +10,11 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 type NotFoundPageProps struct {
-	*types.PageContext
+	*composables.PageContext
 }
 
 func NotFoundContent(props *NotFoundPageProps) templ.Component {

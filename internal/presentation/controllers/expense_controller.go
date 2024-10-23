@@ -11,7 +11,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expenses"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
@@ -182,7 +181,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 	case FormActionSave:
 		dto := expense.UpdateDTO{} //nolint:exhaustruct
-		var pageCtx *types.PageContext
+		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Expenses.Meta.Edit.Title", ""))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

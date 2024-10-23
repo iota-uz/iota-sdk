@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/users"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
@@ -130,7 +129,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		var pageCtx *types.PageContext
+		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r, composables.NewPageData("Users.Meta.Edit.Title", ""),
 		)

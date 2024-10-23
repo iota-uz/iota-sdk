@@ -2,11 +2,11 @@ package error_pages
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 type NotFoundPageProps struct {
-	*types.PageContext
+	*composables.PageContext
 }
 
 templ NotFoundContent(props *NotFoundPageProps) {

@@ -2,9 +2,9 @@ package home
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
-templ Index(pageContext *types.PageContext) {
+templ Index(pageContext *composables.PageContext) {
 	@layouts.Authenticated(pageContext)
 }

@@ -16,12 +16,12 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/textarea"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
+	*composables.PageContext
 	Currencies []*viewmodels.Currency
 	Category   category.CreateDTO
 	Errors     map[string]string

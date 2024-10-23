@@ -12,7 +12,6 @@ import (
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/accounts"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
@@ -155,7 +154,7 @@ func (c *AccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 	case FormActionSave:
 		dto := moneyAccount.UpdateDTO{} //nolint:exhaustruct
-		var pageCtx *types.PageContext
+		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.Edit.Title", ""))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

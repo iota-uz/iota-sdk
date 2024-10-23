@@ -2,19 +2,19 @@ package expenses
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 )
 
 type AccountSelectProps struct {
-	*types.PageContext
+	*composables.PageContext
 	Value    string
 	Accounts []*viewmodels.MoneyAccount
 	Attrs    templ.Attributes
 }
 
 type CategorySelectProps struct {
-	*types.PageContext
+	*composables.PageContext
 	Value      string
 	Categories []*viewmodels.ExpenseCategory
 	Attrs      templ.Attributes

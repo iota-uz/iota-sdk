@@ -2,15 +2,29 @@ package composables
 
 import (
 	"errors"
+	ut "github.com/go-playground/universal-translator"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"net/http"
 	"strconv"
 
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )
+
+type PageContext struct {
+	Title         string
+	Locale        string
+	Localizer     *i18n.Localizer
+	UniTranslator ut.Translator
+	User          *user.User
+	Pathname      string
+}
+
+func (p *PageContext) T(k string) string {
+	return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: k})
+}
 
 var errLocalizerNotFound = errors.New("localizer not found")
 
@@ -46,7 +60,7 @@ func NewPageData(title string, description string) *PageData {
 	}
 }
 
-func UsePageCtx(r *http.Request, pageData *PageData) (*types.PageContext, error) {
+func UsePageCtx(r *http.Request, pageData *PageData) (*PageContext, error) {
 	localizer, found := UseLocalizer(r.Context())
 	if !found {
 		return nil, errLocalizerNotFound
@@ -56,7 +70,7 @@ func UsePageCtx(r *http.Request, pageData *PageData) (*types.PageContext, error)
 		return nil, errLocalizerNotFound
 	}
 	locale := composables.UseLocale(r.Context(), language.English)
-	return &types.PageContext{
+	return &PageContext{
 		Pathname:      r.URL.Path,
 		Localizer:     localizer,
 		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}), //nolint:exhaustruct

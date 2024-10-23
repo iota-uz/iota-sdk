@@ -3,12 +3,12 @@ package users
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"strconv"
 )
 
 type RoleSelectProps struct {
-	*types.PageContext
+	*composables.PageContext
 	Roles    []*role.Role
 	Selected []*role.Role
 	Error    string
