@@ -14,19 +14,6 @@ type AuthenticationLog struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-type CreateEmployee struct {
-	FirstName   string             `json:"firstName"`
-	LastName    string             `json:"lastName"`
-	MiddleName  *string            `json:"middleName,omitempty"`
-	Email       string             `json:"email"`
-	Phone       *string            `json:"phone,omitempty"`
-	Salary      float64            `json:"salary"`
-	HourlyRate  float64            `json:"hourlyRate"`
-	PositionID  int64              `json:"positionId"`
-	Coefficient float64            `json:"coefficient"`
-	Meta        *EmployeeMetaInput `json:"meta,omitempty"`
-}
-
 type CreateExpense struct {
 	Amount     float64 `json:"amount"`
 	CategoryID int64   `json:"categoryId"`
@@ -83,48 +70,6 @@ type DialogueReply struct {
 	Model   *string `json:"model,omitempty"`
 }
 
-type Employee struct {
-	ID          int64         `json:"id"`
-	FirstName   string        `json:"firstName"`
-	LastName    string        `json:"lastName"`
-	MiddleName  *string       `json:"middleName,omitempty"`
-	Email       string        `json:"email"`
-	Phone       *string       `json:"phone,omitempty"`
-	Salary      float64       `json:"salary"`
-	HourlyRate  float64       `json:"hourlyRate"`
-	PositionID  int64         `json:"positionId"`
-	Coefficient float64       `json:"coefficient"`
-	Meta        *EmployeeMeta `json:"meta,omitempty"`
-	Position    *Position     `json:"position,omitempty"`
-	AvatarID    *int64        `json:"avatarId,omitempty"`
-	CreatedAt   time.Time     `json:"createdAt"`
-	UpdatedAt   time.Time     `json:"updatedAt"`
-}
-
-type EmployeeMeta struct {
-	EmployeeID        int64      `json:"employeeId"`
-	PrimaryLanguage   *string    `json:"primaryLanguage,omitempty"`
-	SecondaryLanguage *string    `json:"secondaryLanguage,omitempty"`
-	Tin               *string    `json:"tin,omitempty"`
-	BirthDate         *time.Time `json:"birthDate,omitempty"`
-	JoinDate          *time.Time `json:"joinDate,omitempty"`
-	LeaveDate         *time.Time `json:"leaveDate,omitempty"`
-	GeneralInfo       *string    `json:"generalInfo,omitempty"`
-	YtProfileID       *string    `json:"ytProfileId,omitempty"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
-}
-
-type EmployeeMetaInput struct {
-	PrimaryLanguage   *string    `json:"primaryLanguage,omitempty"`
-	SecondaryLanguage *string    `json:"secondaryLanguage,omitempty"`
-	Tin               *string    `json:"tin,omitempty"`
-	BirthDate         *time.Time `json:"birthDate,omitempty"`
-	JoinDate          *time.Time `json:"joinDate,omitempty"`
-	LeaveDate         *time.Time `json:"leaveDate,omitempty"`
-	GeneralInfo       *string    `json:"generalInfo,omitempty"`
-	YtProfileID       *string    `json:"ytProfileId,omitempty"`
-}
-
 type Expense struct {
 	ID         int64            `json:"id"`
 	Amount     float64          `json:"amount"`
@@ -136,7 +81,7 @@ type Expense struct {
 }
 
 type ExpenseCategory struct {
-	ID          uint      `json:"id"`
+	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description,omitempty"`
 	Amount      float64   `json:"amount"`
@@ -175,11 +120,6 @@ type PaginatedAuthenticationLogs struct {
 
 type PaginatedDialogues struct {
 	Data  []*Dialogue `json:"data"`
-	Total int64       `json:"total"`
-}
-
-type PaginatedEmployees struct {
-	Data  []*Employee `json:"data"`
 	Total int64       `json:"total"`
 }
 
@@ -308,19 +248,6 @@ type ToolCall struct {
 type UpdateDialogue struct {
 	UserID *int64  `json:"userId,omitempty"`
 	Label  *string `json:"label,omitempty"`
-}
-
-type UpdateEmployee struct {
-	FirstName   *string            `json:"firstName,omitempty"`
-	LastName    *string            `json:"lastName,omitempty"`
-	MiddleName  *string            `json:"middleName,omitempty"`
-	Email       *string            `json:"email,omitempty"`
-	Phone       *string            `json:"phone,omitempty"`
-	Salary      *float64           `json:"salary,omitempty"`
-	HourlyRate  *float64           `json:"hourlyRate,omitempty"`
-	PositionID  *int64             `json:"positionId,omitempty"`
-	Coefficient *float64           `json:"coefficient,omitempty"`
-	Meta        *EmployeeMetaInput `json:"meta,omitempty"`
 }
 
 type UpdateExpense struct {

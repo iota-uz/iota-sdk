@@ -34,7 +34,7 @@ func (e *ExpenseCategory) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (e *ExpenseCategory) ToGraph() *model.ExpenseCategory {
 	return &model.ExpenseCategory{
-		ID:          e.ID,
+		ID:          int64(e.ID),
 		Name:        e.Name,
 		Amount:      e.Amount,
 		Description: &e.Description,

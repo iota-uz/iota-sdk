@@ -69,7 +69,7 @@ func (g *GormEmployeeRepository) GetAll(ctx context.Context) ([]*employee.Employ
 	return entities, nil
 }
 
-func (g *GormEmployeeRepository) GetByID(ctx context.Context, id int64) (*employee.Employee, error) {
+func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (*employee.Employee, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -112,7 +112,7 @@ func (g *GormEmployeeRepository) Update(ctx context.Context, data *employee.Empl
 	return nil
 }
 
-func (g *GormEmployeeRepository) Delete(ctx context.Context, id int64) error {
+func (g *GormEmployeeRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

@@ -201,6 +201,33 @@
       "DeleteConfirmation": "Are you sure you want to delete this account?"
     }
   },
+  "Employees": {
+    "Meta": {
+      "List": {
+        "Title": "Employees"
+      },
+      "Edit": {
+        "Title": "Edit employee"
+      },
+      "New": {
+        "Title": "Add employee"
+      }
+    },
+    "List": {
+      "New": "Add employee",
+      "FullName": "Full name",
+      "Position": "Position",
+      "Email": "Email"
+    },
+    "Single": {
+      "Edit": "Edit employee",
+      "FirstName": "First name",
+      "LastName": "Last name",
+      "Email": "Email",
+      "Delete": "Delete employee",
+      "DeleteConfirmation": "Are you sure you want to delete this employee?"
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {
