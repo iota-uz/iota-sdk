@@ -10,19 +10,19 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 type AccountSelectProps struct {
-	*types.PageContext
+	*composables.PageContext
 	Value    string
 	Accounts []*viewmodels.MoneyAccount
 	Attrs    templ.Attributes
 }
 
 type CategorySelectProps struct {
-	*types.PageContext
+	*composables.PageContext
 	Value      string
 	Categories []*viewmodels.ExpenseCategory
 	Attrs      templ.Attributes

@@ -10,12 +10,12 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 type CurrencySelectProps struct {
-	*types.PageContext
+	*composables.PageContext
 	Value      string
 	Currencies []*viewmodels.Currency
 	Attrs      templ.Attributes

@@ -16,7 +16,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
 )
@@ -250,7 +250,7 @@ func UsersTable(localizer *i18n.Localizer, users []*user.User) templ.Component {
 	})
 }
 
-func UsersContent(pageCtx *types.PageContext, users []*user.User) templ.Component {
+func UsersContent(pageCtx *composables.PageContext, users []*user.User) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -393,7 +393,7 @@ func UsersContent(pageCtx *types.PageContext, users []*user.User) templ.Componen
 	})
 }
 
-func Index(pageCtx *types.PageContext, users []*user.User) templ.Component {
+func Index(pageCtx *composables.PageContext, users []*user.User) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)

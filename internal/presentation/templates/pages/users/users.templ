@@ -8,7 +8,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
 )
@@ -52,7 +52,7 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 	}
 }
 
-templ UsersContent(pageCtx *types.PageContext, users []*user.User) {
+templ UsersContent(pageCtx *composables.PageContext, users []*user.User) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
 			{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}) }
@@ -102,7 +102,7 @@ templ UsersContent(pageCtx *types.PageContext, users []*user.User) {
 	</div>
 }
 
-templ Index(pageCtx *types.PageContext, users []*user.User) {
+templ Index(pageCtx *composables.PageContext, users []*user.User) {
 	@layouts.Authenticated(pageCtx) {
 		@UsersContent(pageCtx, users)
 	}

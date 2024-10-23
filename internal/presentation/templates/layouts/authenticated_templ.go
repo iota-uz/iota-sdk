@@ -14,7 +14,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"strings"
 )
 
@@ -24,10 +24,10 @@ var (
 	navbarOnce = templ.NewOnceHandle()
 )
 
-type sidebarItem struct {
+type SidebarItem struct {
 	name     string
 	href     string
-	children []sidebarItem
+	children []SidebarItem
 	icon     templ.Component
 }
 
@@ -53,8 +53,8 @@ func newSidebarLink(name, href string, icon templ.Component, active bool) sideba
 	}
 }
 
-func newSidebarItem(name, href string, icon templ.Component, children []sidebarItem) sidebarItem {
-	return sidebarItem{
+func newSidebarItem(name, href string, icon templ.Component, children []SidebarItem) SidebarItem {
+	return SidebarItem{
 		name:     name,
 		href:     href,
 		children: children,
@@ -128,7 +128,7 @@ func isActiveLink(pathname, href string) bool {
 	return strings.HasPrefix(pathname, href)
 }
 
-func isAnyChildrenActive(pathname string, children []sidebarItem) bool {
+func isAnyChildrenActive(pathname string, children []SidebarItem) bool {
 	for _, item := range children {
 		if item.href == pathname {
 			return true
@@ -137,7 +137,7 @@ func isAnyChildrenActive(pathname string, children []sidebarItem) bool {
 	return false
 }
 
-func (i sidebarItem) render(pathname string) templ.Component {
+func (i SidebarItem) render(pathname string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -221,7 +221,7 @@ func (i sidebarItem) render(pathname string) templ.Component {
 	})
 }
 
-func sidebar(pageCtx *types.PageContext) templ.Component {
+func sidebar(pageCtx *composables.PageContext) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -256,51 +256,11 @@ func sidebar(pageCtx *types.PageContext) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Dashboard"), "/", icons.CirclesThreePlus(icons.Props{Size: "20"}), []sidebarItem{}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Users"), "/users", icons.Users(icons.Props{Size: "20"}), []sidebarItem{}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Operations"), "#",
-			icons.Pulse(icons.Props{Size: "20"}),
-			[]sidebarItem{
-				{name: pageCtx.T("NavigationLinks.Employees"), href: "/operations/employees"},
-				{name: pageCtx.T("NavigationLinks.Settings"), href: "/settings"},
-				{name: pageCtx.T("NavigationLinks.Projects"), href: "/projects"},
-			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Enums"), "#",
-			icons.CheckCircle(icons.Props{Size: "20"}),
-			[]sidebarItem{
-				{name: pageCtx.T("NavigationLinks.TaskTypes"), href: "/enums/task-types"},
-				{name: pageCtx.T("NavigationLinks.Positions"), href: "/enums/positions"},
-			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Finances"), "#",
-			icons.Money(icons.Props{Size: "20"}),
-			[]sidebarItem{
-				{name: pageCtx.T("NavigationLinks.ExpenseCategories"), href: "/finance/expense-categories"},
-				{name: pageCtx.T("NavigationLinks.Payments"), href: "/finance/payments"},
-				{name: pageCtx.T("NavigationLinks.Expenses"), href: "/finance/expenses"},
-				{name: pageCtx.T("NavigationLinks.Accounts"), href: "/finance/accounts"},
-			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = newSidebarItem(pageCtx.T("NavigationLinks.Reports"), "#",
-			icons.FileText(icons.Props{Size: "20"}),
-			[]sidebarItem{
-				{name: pageCtx.T("NavigationLinks.Finances"), href: "/reports/cash-flow"},
-			}).render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
+		for _, item := range getSidebarItems(pageCtx) {
+			templ_7745c5c3_Err = item.render(pageCtx.Pathname).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
 		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 11)
 		if templ_7745c5c3_Err != nil {
@@ -329,7 +289,7 @@ func sidebar(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SignOut"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 147, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 122, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -543,7 +503,7 @@ func Navbar() templ.Component {
 	})
 }
 
-func Authenticated(pageCtx *types.PageContext) templ.Component {
+func Authenticated(pageCtx *composables.PageContext) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)

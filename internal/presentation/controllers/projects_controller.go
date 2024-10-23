@@ -10,7 +10,6 @@ import (
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
-	"github.com/iota-agency/iota-erp/internal/presentation/types"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
@@ -137,7 +136,7 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 	case FormActionSave:
 		dto := project.UpdateDTO{} //nolint:exhaustruct
-		var pageCtx *types.PageContext
+		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r,
 			composables.NewPageData("Projects.Meta.Edit.Title", ""),
