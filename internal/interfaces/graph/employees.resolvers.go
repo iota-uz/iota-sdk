@@ -15,11 +15,7 @@ import (
 
 // Meta is the resolver for the meta field.
 func (r *employeeResolver) Meta(ctx context.Context, obj *model.Employee) (*model.EmployeeMeta, error) {
-	meta, err := r.app.EmployeeService.GetMeta(ctx, obj.ID)
-	if err != nil {
-		return nil, err
-	}
-	return meta.ToGraph(), nil
+	return &model.EmployeeMeta{}, nil
 }
 
 // CreateEmployee is the resolver for the createEmployee field.

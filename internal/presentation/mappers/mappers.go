@@ -8,6 +8,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"strconv"
@@ -114,5 +115,17 @@ func ProjectToViewModel(entity *project.Project) *viewmodels.Project {
 		Description: entity.Description,
 		UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
 		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+func EmployeeToViewModel(entity *employee.Employee) *viewmodels.Employee {
+	return &viewmodels.Employee{
+		ID:        strconv.FormatUint(uint64(entity.ID), 10),
+		FirstName: entity.FirstName,
+		LastName:  entity.LastName,
+		Email:     entity.Email,
+		Phone:     entity.Phone,
+		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
+		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 	}
 }

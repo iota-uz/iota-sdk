@@ -94,3 +94,13 @@ type Currency struct {
 	Name   string
 	Symbol string
 }
+
+type Employee struct {
+	ID        string
+	FirstName string
+	LastName  string
+	Email     string
+	Phone     string
+	CreatedAt string
+	UpdatedAt string
+}
