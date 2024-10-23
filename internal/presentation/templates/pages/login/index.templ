@@ -12,7 +12,7 @@ templ Index(pageCtx *composables.PageContext) {
 		<div class="grid grid-cols-2 h-screen">
 			<div class="flex flex-col gap-16 justify-center items-center text-left">
 				<h1 class="text-2xl text-gray-950">
-				    { pageCtx.T("Login.Meta.Title") }
+					{ pageCtx.T("Login.Meta.Title") }
 				</h1>
 				<form class="flex flex-col gap-7 w-2/3" action="/login" method="post">
 					@input.Email(&input.Props{

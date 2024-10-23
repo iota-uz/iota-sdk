@@ -10,6 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"bytes"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"github.com/iota-agency/iota-erp/internal/presentation/assets"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -25,10 +27,23 @@ var (
 )
 
 type SidebarItem struct {
-	name     string
-	href     string
-	children []SidebarItem
-	icon     templ.Component
+	name        string
+	href        string
+	children    []SidebarItem
+	icon        templ.Component
+	permissions []permission.Permission
+}
+
+func (s SidebarItem) HasPermission(user *user.User) bool {
+	if s.permissions == nil {
+		return true
+	}
+	for _, perm := range s.permissions {
+		if !user.Can(perm) {
+			return false
+		}
+	}
+	return true
 }
 
 type sidebarLink struct {
@@ -50,15 +65,6 @@ func newSidebarLink(name, href string, icon templ.Component, active bool) sideba
 		href:  href,
 		icon:  icon,
 		class: class.String(),
-	}
-}
-
-func newSidebarItem(name, href string, icon templ.Component, children []SidebarItem) SidebarItem {
-	return SidebarItem{
-		name:     name,
-		href:     href,
-		children: children,
-		icon:     icon,
 	}
 }
 
@@ -105,7 +111,7 @@ func (l sidebarLink) render() templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(l.name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 62, Col: 10}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 68, Col: 10}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -183,7 +189,7 @@ func (i SidebarItem) render(pathname string) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i.name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 90, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 96, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -246,7 +252,7 @@ func sidebar(pageCtx *composables.PageContext) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(iotaLogo)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 109, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 115, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -289,7 +295,7 @@ func sidebar(pageCtx *composables.PageContext) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SignOut"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 122, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/layouts/authenticated.templ`, Line: 128, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
