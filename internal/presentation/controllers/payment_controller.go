@@ -77,7 +77,7 @@ func (c *PaymentsController) viewModelStages(r *http.Request) ([]*viewmodels.Pro
 func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.MoneyAccount, error) {
 	accounts, err := c.app.MoneyAccountService.GetAll(r.Context())
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving accounts")
+		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
 	}
 	vms := make([]*viewmodels.MoneyAccount, len(accounts))
 	for i, a := range accounts {

@@ -201,6 +201,19 @@
       "DeleteConfirmation": "Are you sure you want to delete this account?"
     }
   },
+  "Account": {
+    "Meta": {
+      "Index": {
+        "Title": "Account"
+      }
+    },
+    "FirstName": "First name",
+    "LastName": "Last name",
+    "MiddleName": "Middle name",
+    "Email": "Email",
+    "Password": "Password",
+    "Save": "Save"
+  },
   "Login": {
     "Meta": {
       "Title": "Log in"

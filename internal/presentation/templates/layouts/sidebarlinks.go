@@ -101,7 +101,7 @@ func getSidebarItems(pageCtx *composables.PageContext) []SidebarItem {
 				},
 				{
 					name:        pageCtx.T("NavigationLinks.Accounts"),
-					href:        "/finance/accounts",
+					href:        "/finance/moneyaccounts",
 					permissions: nil,
 				},
 			},

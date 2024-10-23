@@ -42,7 +42,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.MoneyAccount, error) {
 	accounts, err := c.app.MoneyAccountService.GetAll(r.Context())
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving accounts")
+		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
 	}
 	viewAccounts := make([]*viewmodels.MoneyAccount, len(accounts))
 	for i, account := range accounts {
