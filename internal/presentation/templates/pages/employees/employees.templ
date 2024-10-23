@@ -19,8 +19,8 @@ type IndexPageProps struct {
 templ EmployeesTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: "Employees.List.FirstName", Key: "firstname"},
-			{Label: "Employees.List.LastName", Key: "lastname"},
+			{Label: "Employees.List.FullName", Key: "fullname"},
+			{Label: "Employees.List.Email", Key: "email"},
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
@@ -30,9 +30,10 @@ templ EmployeesTable(props *IndexPageProps) {
 			@base.TableRow() {
 				@base.TableCell() {
 					{ employee.FirstName }
+					{ employee.LastName }
 				}
 				@base.TableCell() {
-					{ employee.LastName }
+					{ employee.Email }
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">
@@ -44,7 +45,7 @@ templ EmployeesTable(props *IndexPageProps) {
 						Fixed: true,
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/finance/employees/%s", expense.ID),
+						Href:  fmt.Sprintf("/finance/employees/%s", employee.ID),
 					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
@@ -62,7 +63,7 @@ templ EmployeesContent(props *IndexPageProps) {
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
-				hx-get="/finance/expenses"
+				hx-get="/finance/employees"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target="table"
 				hx-swap="outerHTML"
@@ -93,7 +94,7 @@ templ EmployeesContent(props *IndexPageProps) {
 					<option>The day before yesterday</option>
 				}
 				@button.Primary(button.Props{
-					Size: button.SizeNormal, Href: "/finance/expenses/new",
+					Size: button.SizeNormal, Href: "/finance/employees/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
 					{ props.T("Employees.List.New") }

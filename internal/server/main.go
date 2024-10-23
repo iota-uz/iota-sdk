@@ -73,6 +73,7 @@ func DefaultServer() (*Server, error) {
 		},
 		controllers: []controllers.Controller{
 			controllers.NewAccountController(application),
+			controllers.NewEmployeeController(application),
 			controllers.NewMoneyAccountController(application),
 			controllers.NewHomeController(application),
 			controllers.NewLoginController(application),

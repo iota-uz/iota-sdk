@@ -10,7 +10,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/employees"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
@@ -43,7 +42,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Accounts.Meta.List.Title", ""),
+		composables.NewPageData("Employees.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -80,14 +79,14 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Accounts.Meta.Edit.Title", ""),
+		composables.NewPageData("Employees.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err := c.app.MoneyAccountService.GetByID(r.Context(), id)
+	entity, err := c.app.EmployeeService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 		return
@@ -109,7 +108,7 @@ func (c *EmployeeController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.app.MoneyAccountService.Delete(r.Context(), id); err != nil {
+	if _, err := c.app.EmployeeService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -131,14 +130,14 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 	switch action {
 	case FormActionDelete:
-		if _, err := c.app.MoneyAccountService.Delete(r.Context(), id); err != nil {
+		if _, err := c.app.EmployeeService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	case FormActionSave:
-		dto := moneyAccount.UpdateDTO{} //nolint:exhaustruct
+		dto := employee.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *composables.PageContext
-		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.Edit.Title", ""))
+		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Employees.Meta.Edit.Title", ""))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -162,10 +161,9 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			props := &employees.EditPageProps{
 				PageContext: pageCtx,
 				Employee:    mappers.EmployeeToViewModel(entity),
-				Currencies:  currencies,
 				Errors:      errorsMap,
-				PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
-				DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
+				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 			}
 			templ.Handler(employees.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
@@ -175,7 +173,7 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Employees.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -201,7 +199,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Employees.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
