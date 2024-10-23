@@ -27,12 +27,8 @@ func (s *EmployeeService) GetAll(ctx context.Context) ([]*employee.Employee, err
 	return s.repo.GetAll(ctx)
 }
 
-func (s *EmployeeService) GetByID(ctx context.Context, id int64) (*employee.Employee, error) {
+func (s *EmployeeService) GetByID(ctx context.Context, id uint) (*employee.Employee, error) {
 	return s.repo.GetByID(ctx, id)
-}
-
-func (s *EmployeeService) GetMeta(ctx context.Context, id int64) (*employee.Meta, error) {
-	return s.repo.GetEmployeeMeta(ctx, id)
 }
 
 func (s *EmployeeService) GetPaginated(
@@ -43,26 +39,44 @@ func (s *EmployeeService) GetPaginated(
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *EmployeeService) Create(ctx context.Context, data *employee.Employee) error {
-	if err := s.repo.Create(ctx, data); err != nil {
+func (s *EmployeeService) Create(ctx context.Context, data *employee.CreateDTO) error {
+	entity := data.ToEntity()
+	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	s.publisher.Publish("employee.created", data)
+	ev, err := employee.NewCreatedEvent(ctx, *data, *entity)
+	if err != nil {
+		return err
+	}
+	s.publisher.Publish(ev)
 	return nil
 }
 
-func (s *EmployeeService) Update(ctx context.Context, data *employee.Employee) error {
-	if err := s.repo.Update(ctx, data); err != nil {
+func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.UpdateDTO) error {
+	entity := data.ToEntity(id)
+	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	s.publisher.Publish("employee.updated", data)
+	ev, err := employee.NewUpdatedEvent(ctx, *data, *entity)
+	if err != nil {
+		return err
+	}
+	s.publisher.Publish(ev)
 	return nil
 }
 
-func (s *EmployeeService) Delete(ctx context.Context, id int64) error {
+func (s *EmployeeService) Delete(ctx context.Context, id uint) (*employee.Employee, error) {
 	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+		return nil, err
 	}
-	s.publisher.Publish("employee.deleted", id)
-	return nil
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	ev, err := employee.NewDeletedEvent(ctx, *entity)
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(ev)
+	return entity, nil
 }
