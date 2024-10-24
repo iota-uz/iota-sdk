@@ -62,6 +62,7 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	props := &employees.IndexPageProps{
 		PageContext: pageCtx,
 		Employees:   viewEmployees,
+		NewURL:      fmt.Sprintf("%s/new", c.basePath),
 	}
 	if isHxRequest {
 		templ.Handler(employees.EmployeesTable(props), templ.WithStreaming()).ServeHTTP(w, r)

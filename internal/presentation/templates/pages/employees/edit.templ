@@ -32,6 +32,26 @@ templ EditForm(props *EditPageProps) {
 				Attrs: templ.Attributes{"name": "LastName", "value": props.Employee.LastName},
 				Error: props.Errors["LastName"],
 			})
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.MiddleName"),
+				Attrs: templ.Attributes{"name": "MiddleName", "value": props.Employee.MiddleName},
+				Error: props.Errors["MiddleName"],
+			})
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.Phone"),
+				Attrs: templ.Attributes{"name": "Phone", "value": props.Employee.Phone},
+				Error: props.Errors["Phone"],
+			})
+			@input.Number(&input.Props{
+				Label: props.T("Employees.Single.Salary"),
+				Attrs: templ.Attributes{"name": "Salary", "value": props.Employee.Salary},
+				Error: props.Errors["Salary"],
+			})
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.Email"),
+				Attrs: templ.Attributes{"name": "Email", "value": props.Employee.Email},
+				Error: props.Errors["Email"],
+			})
 		}
 		<div
 			x-data

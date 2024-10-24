@@ -181,10 +181,16 @@ CREATE TABLE employees
     salary_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     hourly_rate        NUMERIC(9, 2) NOT NULL,
     coefficient        FLOAT         NOT NULL,
-    position_id        INT           NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
     avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE employee_positions
+(
+    employee_id INT NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
+    position_id INT NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
+    PRIMARY KEY (employee_id, position_id)
 );
 
 CREATE TABLE employee_meta
