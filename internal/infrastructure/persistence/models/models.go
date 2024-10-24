@@ -71,9 +71,6 @@ type Employee struct {
 	AvatarID         *uint
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
-	SalaryCurrency   Currency
-	Position         Position
-	Avatar           Upload
 }
 
 type EmployeePosition struct {
