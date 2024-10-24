@@ -68,13 +68,17 @@ type Employee struct {
 	SalaryCurrencyID *uint
 	HourlyRate       float64
 	Coefficient      float64
-	PositionID       uint
 	AvatarID         *uint
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	SalaryCurrency   Currency
 	Position         Position
 	Avatar           Upload
+}
+
+type EmployeePosition struct {
+	EmployeeID uint
+	PositionID uint
 }
 
 type EmployeeMeta struct {

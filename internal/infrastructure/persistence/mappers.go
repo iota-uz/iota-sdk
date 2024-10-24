@@ -475,14 +475,13 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction)
 
 func toDomainEmployee(dbEmployee *models.Employee) *employee.Employee {
 	return &employee.Employee{
-		ID:         dbEmployee.ID,
-		FirstName:  dbEmployee.FirstName,
-		LastName:   dbEmployee.LastName,
-		Email:      dbEmployee.Email,
-		Phone:      dbEmployee.Phone,
-		CreatedAt:  dbEmployee.CreatedAt,
-		UpdatedAt:  dbEmployee.UpdatedAt,
-		PositionID: dbEmployee.PositionID,
+		ID:        dbEmployee.ID,
+		FirstName: dbEmployee.FirstName,
+		LastName:  dbEmployee.LastName,
+		Email:     dbEmployee.Email,
+		Phone:     dbEmployee.Phone,
+		CreatedAt: dbEmployee.CreatedAt,
+		UpdatedAt: dbEmployee.UpdatedAt,
 		Meta: &employee.Meta{
 			EmployeeID: dbEmployee.ID,
 		},
@@ -491,14 +490,13 @@ func toDomainEmployee(dbEmployee *models.Employee) *employee.Employee {
 
 func toDBEmployee(entity *employee.Employee) (*models.Employee, *models.EmployeeMeta) {
 	dbEmployee := &models.Employee{
-		ID:         entity.ID,
-		FirstName:  entity.FirstName,
-		LastName:   entity.LastName,
-		Email:      entity.Email,
-		Phone:      entity.Phone,
-		CreatedAt:  entity.CreatedAt,
-		UpdatedAt:  entity.UpdatedAt,
-		PositionID: entity.PositionID,
+		ID:        entity.ID,
+		FirstName: entity.FirstName,
+		LastName:  entity.LastName,
+		Email:     entity.Email,
+		Phone:     entity.Phone,
+		CreatedAt: entity.CreatedAt,
+		UpdatedAt: entity.UpdatedAt,
 	}
 	dbEmployeeMeta := &models.EmployeeMeta{
 		EmployeeID: entity.ID,

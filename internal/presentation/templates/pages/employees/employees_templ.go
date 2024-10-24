@@ -22,6 +22,7 @@ import (
 type IndexPageProps struct {
 	*composables.PageContext
 	Employees []*viewmodels.Employee
+	NewURL    string
 }
 
 func EmployeesTable(props *IndexPageProps) templ.Component {
@@ -82,7 +83,7 @@ func EmployeesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(employee.FirstName)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 32, Col: 25}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 33, Col: 25}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -95,7 +96,7 @@ func EmployeesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var6 string
 						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(employee.LastName)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 33, Col: 24}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 34, Col: 24}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 						if templ_7745c5c3_Err != nil {
@@ -126,7 +127,7 @@ func EmployeesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var8 string
 						templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(employee.Email)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 36, Col: 21}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 37, Col: 21}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 						if templ_7745c5c3_Err != nil {
@@ -161,7 +162,7 @@ func EmployeesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", employee.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 40, Col: 68}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 41, Col: 68}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
@@ -215,7 +216,7 @@ func EmployeesTable(props *IndexPageProps) templ.Component {
 							Fixed: true,
 							Size:  button.SizeSM,
 							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/finance/employees/%s", employee.ID),
+							Href:  fmt.Sprintf("/operations/employees/%s", employee.ID),
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -276,7 +277,7 @@ func EmployeesContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.Employees"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 61, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 62, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -363,7 +364,7 @@ func EmployeesContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Employees.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 100, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/employees/employees.templ`, Line: 102, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -372,7 +373,8 @@ func EmployeesContent(props *IndexPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
-			Size: button.SizeNormal, Href: "/finance/employees/new",
+			Size: button.SizeNormal,
+			Href: props.NewURL,
 			Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

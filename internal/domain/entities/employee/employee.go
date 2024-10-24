@@ -28,7 +28,6 @@ type Employee struct {
 	Phone       string
 	Salary      float64
 	HourlyRate  float64
-	PositionID  uint
 	Coefficient float64
 	Meta        *Meta
 	Position    *position.Position
