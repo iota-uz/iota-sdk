@@ -14,7 +14,6 @@ type CreateDTO struct {
 	Email       string
 	Phone       string
 	Salary      float64
-	PositionID  uint
 	Coefficient float64
 }
 
@@ -25,7 +24,6 @@ type UpdateDTO struct {
 	Email       string
 	Phone       string
 	Salary      float64
-	PositionID  uint
 	Coefficient float64
 }
 
@@ -63,7 +61,6 @@ func (d *CreateDTO) ToEntity() *Employee {
 		Email:       d.Email,
 		Phone:       d.Phone,
 		Salary:      d.Salary,
-		PositionID:  d.PositionID,
 		Coefficient: d.Coefficient,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -79,7 +76,6 @@ func (d *UpdateDTO) ToEntity(id uint) *Employee {
 		Email:       d.Email,
 		Phone:       d.Phone,
 		Salary:      d.Salary,
-		PositionID:  d.PositionID,
 		Coefficient: d.Coefficient,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
