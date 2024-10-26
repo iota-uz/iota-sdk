@@ -7,22 +7,8 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [Architecture](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd)
 * [Database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e)
 
-## Features
-
-* [x] GraphQL API
-* [x] Database migrations
-* [x] Hot reload
-* [x] Query filters (partial)
-* [x] Query sorting
-* [x] Query pagination
-* [x] Query relations (partial)
-* [x] Query fields selection
-* [ ] Caching
-* [x] Authorization
-* [x] Authentication
-* [ ] Subscriptions
-* [ ] DataLoader
-* [ ] File uploads
+## Glossary
+* UHR - Unified Hourly Rate
 
 ## Prerequisites
 
