@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -14,7 +15,7 @@ type HomeController struct {
 	app *services.Application
 }
 
-func NewHomeController(app *services.Application) Controller {
+func NewHomeController(app *services.Application) shared.Controller {
 	return &HomeController{
 		app: app,
 	}

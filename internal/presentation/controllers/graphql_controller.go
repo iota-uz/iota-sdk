@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"log"
 
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -20,7 +21,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	log.Printf("connect to http://localhost:%d/playground for GraphQL playground", configuration.Use().ServerPort)
 }
 
-func NewGraphQLController(app *services.Application) Controller {
+func NewGraphQLController(app *services.Application) shared.Controller {
 	return &GraphQLController{
 		app: app,
 	}

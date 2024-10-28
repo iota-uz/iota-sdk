@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -9,7 +10,7 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
-func NewLoginController(app *services.Application) Controller {
+func NewLoginController(app *services.Application) shared.Controller {
 	return &LoginController{
 		app: app,
 	}

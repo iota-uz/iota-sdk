@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"github.com/NYTimes/gziphandler"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/pkg/dbutils"
 	"log"
 	"net/http"
@@ -20,7 +21,7 @@ import (
 
 type Server struct {
 	conf        *configuration.Configuration
-	controllers []controllers.Controller
+	controllers []shared.Controller
 	middlewares []mux.MiddlewareFunc
 }
 
@@ -71,7 +72,7 @@ func DefaultServer() (*Server, error) {
 			localMiddleware.WithLocalizer(bundle),
 			localMiddleware.Authorization(application.AuthService),
 		},
-		controllers: []controllers.Controller{
+		controllers: []shared.Controller{
 			controllers.NewAccountController(application),
 			controllers.NewEmployeeController(application),
 			controllers.NewMoneyAccountController(application),

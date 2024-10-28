@@ -1,4 +1,4 @@
-package controllers
+package elxolding
 
 import (
 	"github.com/a-h/templ"
@@ -58,7 +58,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := parseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -93,7 +93,7 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := parseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -103,11 +103,11 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	shared.Redirect(w, r, c.basePath)
+	redirect(w, r, c.basePath)
 }
 
 func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := parseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -116,17 +116,17 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
+	action := FormAction(r.FormValue("_action"))
 	if !action.IsValid() {
 		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
 	}
 	switch action {
-	case shared.FormActionDelete:
+	case FormActionDelete:
 		_, err = c.app.UserService.Delete(r.Context(), id)
-	case shared.FormActionSave:
+	case FormActionSave:
 		dto := &user.UpdateDTO{} //nolint:exhaustruct
-		if err = shared.Decoder.Decode(dto, r.Form); err != nil {
+		if err = decoder.Decode(dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -167,7 +167,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	shared.Redirect(w, r, c.basePath)
+	redirect(w, r, c.basePath)
 }
 
 func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +197,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dto := &user.CreateDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	if err := decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -231,5 +231,5 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shared.Redirect(w, r, c.basePath)
+	redirect(w, r, c.basePath)
 }

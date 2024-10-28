@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
@@ -19,7 +20,7 @@ type ExpenseCategoriesController struct {
 	basePath string
 }
 
-func NewExpenseCategoriesController(app *services.Application) Controller {
+func NewExpenseCategoriesController(app *services.Application) shared.Controller {
 	return &ExpenseCategoriesController{
 		app:      app,
 		basePath: "/finance/expense-categories",
@@ -81,7 +82,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -116,7 +117,7 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -126,16 +127,16 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := FormAction(r.FormValue("_action"))
+	action := shared.FormAction(r.FormValue("_action"))
 	if !action.IsValid() {
 		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
@@ -143,12 +144,12 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 	r.Form.Del("_action")
 
 	switch action {
-	case FormActionDelete:
+	case shared.FormActionDelete:
 		if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	case FormActionSave:
+	case shared.FormActionSave:
 		dto := category.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(
@@ -159,7 +160,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := decoder.Decode(&dto, r.Form); err != nil {
+		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -190,7 +191,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +225,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 	}
 
 	dto := category.CreateDTO{} //nolint:exhaustruct
-	if err := decoder.Decode(&dto, r.Form); err != nil {
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -259,5 +260,5 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }

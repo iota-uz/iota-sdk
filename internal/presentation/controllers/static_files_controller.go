@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/benbjohnson/hashfs"
@@ -14,6 +15,6 @@ func (s *StaticFilesController) Register(r *mux.Router) {
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
 }
 
-func NewStaticFilesController() Controller {
+func NewStaticFilesController() shared.Controller {
 	return &StaticFilesController{}
 }
