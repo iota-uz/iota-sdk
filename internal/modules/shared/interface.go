@@ -3,8 +3,11 @@ package shared
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 )
+
+type ControllerConstructor func(app *services.Application) Controller
 
 type Controller interface {
 	Register(r *mux.Router)
@@ -19,7 +22,8 @@ type NavigationItem struct {
 }
 
 type Module interface {
+	Name() string
 	NavigationItems() []NavigationItem
-	Controllers() []Controller
+	Controllers() []ControllerConstructor
 	LocaleFiles() []string
 }

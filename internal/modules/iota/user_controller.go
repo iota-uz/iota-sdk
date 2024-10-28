@@ -1,4 +1,4 @@
-package controllers
+package iota
 
 import (
 	"github.com/a-h/templ"
