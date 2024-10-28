@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 
@@ -21,10 +22,10 @@ type MoneyAccountController struct {
 	basePath string
 }
 
-func NewMoneyAccountController(app *services.Application) Controller {
+func NewMoneyAccountController(app *services.Application) shared.Controller {
 	return &MoneyAccountController{
 		app:      app,
-		basePath: "/finance/moneyaccounts",
+		basePath: "/finance/accounts",
 	}
 }
 
@@ -83,7 +84,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -120,7 +121,7 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -130,16 +131,16 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	action := FormAction(r.FormValue("_action"))
+	action := shared.FormAction(r.FormValue("_action"))
 	if !action.IsValid() {
 		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
@@ -147,12 +148,12 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 	r.Form.Del("_action")
 
 	switch action {
-	case FormActionDelete:
+	case shared.FormActionDelete:
 		if _, err := c.app.MoneyAccountService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	case FormActionSave:
+	case shared.FormActionSave:
 		dto := moneyAccount.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.Edit.Title", ""))
@@ -160,7 +161,7 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := decoder.Decode(&dto, r.Form); err != nil {
+		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -193,7 +194,7 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +225,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 	}
 
 	dto := moneyAccount.CreateDTO{} //nolint:exhaustruct
-	if err := decoder.Decode(&dto, r.Form); err != nil {
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -262,5 +263,5 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }

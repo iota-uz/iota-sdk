@@ -5,6 +5,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
@@ -21,7 +22,7 @@ type ExpenseController struct {
 	basePath string
 }
 
-func NewExpensesController(app *services.Application) Controller {
+func NewExpensesController(app *services.Application) shared.Controller {
 	return &ExpenseController{
 		app:      app,
 		basePath: "/finance/expenses",
@@ -106,7 +107,7 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -147,7 +148,7 @@ func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ExpenseController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -157,16 +158,16 @@ func (c *ExpenseController) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := FormAction(r.FormValue("_action"))
+	action := shared.FormAction(r.FormValue("_action"))
 	if !action.IsValid() {
 		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
@@ -174,12 +175,12 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	r.Form.Del("_action")
 
 	switch action {
-	case FormActionDelete:
+	case shared.FormActionDelete:
 		if _, err := c.app.ExpenseService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	case FormActionSave:
+	case shared.FormActionSave:
 		dto := expense.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Expenses.Meta.Edit.Title", ""))
@@ -187,7 +188,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := decoder.Decode(&dto, r.Form); err != nil {
+		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -222,7 +223,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -258,7 +259,7 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dto := expense.CreateDTO{} //nolint:exhaustruct
-	if err := decoder.Decode(&dto, r.Form); err != nil {
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -301,5 +302,5 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }

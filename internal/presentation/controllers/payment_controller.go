@@ -4,6 +4,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/app/services"
@@ -20,7 +21,7 @@ type PaymentsController struct {
 	basePath string
 }
 
-func NewPaymentsController(app *services.Application) Controller {
+func NewPaymentsController(app *services.Application) shared.Controller {
 	return &PaymentsController{
 		app:      app,
 		basePath: "/finance/payments",
@@ -51,7 +52,7 @@ func (c *PaymentsController) viewModelPayments(r *http.Request) ([]*viewmodels.P
 }
 
 func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Payment, error) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error parsing id")
 	}
@@ -149,7 +150,7 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -159,16 +160,16 @@ func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := FormAction(r.FormValue("_action"))
+	action := shared.FormAction(r.FormValue("_action"))
 	if !action.IsValid() {
 		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
@@ -176,11 +177,11 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	r.Form.Del("_action")
 
 	switch action {
-	case FormActionDelete:
+	case shared.FormActionDelete:
 		_, err = c.app.PaymentService.Delete(r.Context(), id)
-	case FormActionSave:
+	case shared.FormActionSave:
 		dto := payment.UpdateDTO{} //nolint:exhaustruct
-		if err := decoder.Decode(&dto, r.Form); err != nil {
+		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -225,7 +226,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -259,7 +260,7 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 
 func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	dto := payment.CreateDTO{} //nolint:exhaustruct
-	if err := decoder.Decode(&dto, r.Form); err != nil {
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -302,5 +303,5 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }

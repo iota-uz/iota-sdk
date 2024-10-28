@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"github.com/a-h/templ"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/account"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
@@ -16,7 +17,7 @@ type AccountController struct {
 	basePath string
 }
 
-func NewAccountController(app *services.Application) Controller {
+func NewAccountController(app *services.Application) shared.Controller {
 	return &AccountController{
 		app:      app,
 		basePath: "/account",

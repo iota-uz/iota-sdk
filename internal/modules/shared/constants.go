@@ -1,8 +1,8 @@
-package controllers
+package shared
 
 import "github.com/go-playground/form"
 
-var decoder = form.NewDecoder()
+var Decoder = form.NewDecoder()
 
 type FormAction string
 

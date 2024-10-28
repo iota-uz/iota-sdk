@@ -5,6 +5,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/projects"
 	"net/http"
 
@@ -20,7 +21,7 @@ type ProjectsController struct {
 	basePath string
 }
 
-func NewProjectsController(app *services.Application) Controller {
+func NewProjectsController(app *services.Application) shared.Controller {
 	return &ProjectsController{
 		app:      app,
 		basePath: "/projects",
@@ -71,7 +72,7 @@ func (c *ProjectsController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ProjectsController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -102,7 +103,7 @@ func (c *ProjectsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ProjectsController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -112,16 +113,16 @@ func (c *ProjectsController) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := FormAction(r.FormValue("_action"))
+	action := shared.FormAction(r.FormValue("_action"))
 	if !action.IsValid() {
 		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
@@ -129,12 +130,12 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	r.Form.Del("_action")
 
 	switch action {
-	case FormActionDelete:
+	case shared.FormActionDelete:
 		if _, err := c.app.ProjectService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	case FormActionSave:
+	case shared.FormActionSave:
 		dto := project.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *composables.PageContext
 		pageCtx, err = composables.UsePageCtx(
@@ -145,7 +146,7 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := decoder.Decode(&dto, r.Form); err != nil {
+		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -172,7 +173,7 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *ProjectsController) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +201,7 @@ func (c *ProjectsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dto := project.CreateDTO{} //nolint:exhaustruct
-	if err := decoder.Decode(&dto, r.Form); err != nil {
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -230,5 +231,5 @@ func (c *ProjectsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.basePath)
 }
