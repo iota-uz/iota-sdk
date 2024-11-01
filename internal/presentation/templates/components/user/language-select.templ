@@ -1,34 +1,31 @@
-package user
+package usercomponents
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
-	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/intl"
 )
 
 type LanguageSelectProps struct {
-	*composables.PageContext
-	Label string
+	Label       string
 	Placeholder string
-	Value string
-	Attrs templ.Attributes
+	Value       string
+	Attrs       templ.Attributes
 }
 
 templ LanguageSelect(props *LanguageSelectProps) {
 	@base.Select(&base.SelectProps{
-	    Label: props.Label,
+		Label:       props.Label,
 		Placeholder: props.Placeholder,
 		Attrs:       props.Attrs,
 	}) {
 		for _, lang := range intl.SupportedLanguages {
-			if lang.String() == props.Value {
-				<option value={ lang.String() } selected>
-					{ lang.String() }
+			if lang.Code == props.Value {
+				<option value={ lang.Code } selected>
+					{ lang.VerboseName }
 				</option>
 			} else {
-				<option value={ lang.String() }>
-					{ lang.String() }
+				<option value={ lang.Code }>
+					{ lang.VerboseName }
 				</option>
 			}
 		}

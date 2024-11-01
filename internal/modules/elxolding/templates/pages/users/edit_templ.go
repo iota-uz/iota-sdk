@@ -16,6 +16,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	usercomponents "github.com/iota-agency/iota-erp/internal/presentation/templates/components/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/pkg/composables"
@@ -94,22 +95,6 @@ func EditForm(props *EditFormProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = input.Email(&input.Props{
-				Label: props.T("Users.Single.Email"),
-				Attrs: templ.Attributes{
-					"value": props.User.Email,
-					"name":  "Email",
-					"form":  "save-form",
-				},
-				Error: props.Errors["email"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 4)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
 			templ_7745c5c3_Err = input.Password(&input.Props{
 				Label:       props.T("Users.Single.Password"),
 				Placeholder: props.T("Users.Single.EnterPassword"),
@@ -122,7 +107,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 4)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -131,6 +116,19 @@ func EditForm(props *EditFormProps) templ.Component {
 				Roles:       props.Roles,
 				Selected:    props.User.Roles,
 				Error:       props.Errors["RoleID"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+				Label:       props.T("Users.Single.Language"),
+				Placeholder: props.T("Users.Single.SelectLanguage"),
+				Value:       string(props.User.UILanguage),
+				Attrs:       templ.Attributes{"name": "Language"},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -148,7 +146,7 @@ func EditForm(props *EditFormProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/users/%d", props.User.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 75, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 73, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -173,7 +171,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 92, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 90, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -201,7 +199,7 @@ func EditForm(props *EditFormProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/users/%d", props.User.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 98, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 96, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -226,7 +224,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 111, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 109, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

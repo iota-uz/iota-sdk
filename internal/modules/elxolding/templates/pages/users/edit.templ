@@ -8,6 +8,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	usercomponents "github.com/iota-agency/iota-erp/internal/presentation/templates/components/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/pkg/composables"
@@ -41,15 +42,6 @@ templ EditForm(props *EditFormProps) {
 				},
 				Error: props.Errors["LastName"],
 			})
-			@input.Email(&input.Props{
-				Label: props.T("Users.Single.Email"),
-				Attrs: templ.Attributes{
-					"value": props.User.Email,
-					"name":  "Email",
-					"form":  "save-form",
-				},
-				Error: props.Errors["email"],
-			})
 			@input.Password(&input.Props{
 				Label:       props.T("Users.Single.Password"),
 				Placeholder: props.T("Users.Single.EnterPassword"),
@@ -64,6 +56,12 @@ templ EditForm(props *EditFormProps) {
 				Roles:       props.Roles,
 				Selected:    props.User.Roles,
 				Error:       props.Errors["RoleID"],
+			})
+			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+				Label:       props.T("Users.Single.Language"),
+				Placeholder: props.T("Users.Single.SelectLanguage"),
+				Value:       string(props.User.UILanguage),
+				Attrs:       templ.Attributes{"name": "Language"},
 			})
 		}
 		<div
