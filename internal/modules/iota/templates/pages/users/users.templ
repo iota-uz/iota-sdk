@@ -9,11 +9,15 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
 )
 
-templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
+type IndexPageProps struct {
+    *composables.PageContext
+    Users []*user.User
+}
+
+templ UsersTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: "Users.List.FullName", Key: "fullName"},
@@ -21,9 +25,9 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
-		Localizer: localizer,
+		Localizer: props.Localizer,
 	}) {
-		for _, user := range users {
+		for _, user := range props.Users {
 			@base.TableRow() {
 				@base.TableCell() {
 					{ user.FullName() }
@@ -34,7 +38,7 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 							<span x-text={ fmt.Sprintf("format('%s')", v.Format(time.RFC3339)) }></span>
 						</div>
 					} else {
-						{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Unknown"}) }
+						{ props.T("Unknown") }
 					}
 				}
 				@base.TableCell() {
@@ -43,7 +47,12 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 					</div>
 				}
 				@base.TableCell() {
-					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/users/%d", user.ID)}) {
+					@button.Secondary(button.Props{
+						Fixed: true,
+						Size:  button.SizeSM,
+						Class: "btn-fixed",
+						Href:  fmt.Sprintf("/users/%d", user.ID),
+					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
 				}
@@ -52,10 +61,10 @@ templ UsersTable(localizer *i18n.Localizer, users []*user.User) {
 	}
 }
 
-templ UsersContent(pageCtx *composables.PageContext, users []*user.User) {
+templ UsersContent(props *IndexPageProps) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Users"}) }
+			{ props.T("NavigationLinks.Users") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -70,13 +79,13 @@ templ UsersContent(pageCtx *composables.PageContext, users []*user.User) {
 						Position:  input.AddonLeft,
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
-					Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Search"}),
+					Placeholder: props.T("Search"),
 					Attrs: templ.Attributes{
 						"name": "name",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "PerPage"}),
+					Prefix: props.T("PerPage"),
 					Attrs: templ.Attributes{
 						"name": "limit",
 					},
@@ -86,24 +95,25 @@ templ UsersContent(pageCtx *composables.PageContext, users []*user.User) {
 					<option>50</option>
 					<option>100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CreatedAt"})}) {
+				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
 					<option>Вчера</option>
 					<option>Позавчера</option>
 				}
 				@button.Primary(button.Props{
-					Size: button.SizeNormal, Href: "/users/new",
+					Size: button.SizeNormal,
+					Href: "/users/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ pageCtx.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Users.List.NewUser"}) }
+					{ props.T("Users.List.NewUser") }
 				}
 			</form>
-			@UsersTable(pageCtx.Localizer, users)
+			@UsersTable(props)
 		</div>
 	</div>
 }
 
-templ Index(pageCtx *composables.PageContext, users []*user.User) {
-	@layouts.Authenticated(pageCtx) {
-		@UsersContent(pageCtx, users)
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@UsersContent(props)
 	}
 }

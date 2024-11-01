@@ -69,8 +69,7 @@ templ generate -watch
 Run tailwindcss in watch mode
 
 ```shell
-cd internal/presentation
-tailwindcss -c tailwind.config.js -i assets/css/main.css -o assets/css/main.min.css --minify --watch
+tailwindcss -c tailwind.config.js -i internal/presentation/assets/css/main.css -o internal/presentation/assets/css/main.min.css --minify --watch
 ```
 
 Now open postman and explore the GraphQL schema at http://localhost:3200/query
