@@ -13,8 +13,8 @@ import (
 )
 
 type IndexPageProps struct {
-    *composables.PageContext
-    Users []*user.User
+	*composables.PageContext
+	Users []*user.User
 }
 
 templ UsersTable(props *IndexPageProps) {
@@ -31,7 +31,7 @@ templ UsersTable(props *IndexPageProps) {
 			@base.TableRow() {
 				@base.TableCell() {
 					{ user.FullName() }
-			}
+				}
 				@base.TableCell() {
 					if v := user.LastAction; v != nil {
 						<div x-data="relativeformat">

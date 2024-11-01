@@ -55,6 +55,8 @@
       "LastName": "Last name",
       "Email": "Email",
       "Password": "Password",
+      "Language": "Language",
+      "SelectLanguage": "Select language",
       "Role": "Role",
       "SelectRole": "Select role",
       "EnterPassword": "Enter password",
