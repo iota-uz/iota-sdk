@@ -7,4 +7,4 @@ tmp/
 .env.local
 coverage
 node_modules
-**_templ.txt
+*_templ.txt
