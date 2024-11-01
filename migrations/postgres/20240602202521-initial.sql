@@ -236,6 +236,7 @@ CREATE TABLE users
     middle_name VARCHAR(255),
     email       VARCHAR(255)             NOT NULL UNIQUE,
     password    VARCHAR(255),
+    ui_language VARCHAR(3)               NOT NULL,
     avatar_id   INT                      REFERENCES uploads (id) ON DELETE SET NULL,
     last_login  TIMESTAMP                NULL,
     last_ip     VARCHAR(255)             NULL,
@@ -650,7 +651,6 @@ CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
 
 CREATE INDEX expenses_category_id_idx ON expenses (category_id);
 
-CREATE INDEX employees_position_id_idx ON employees (position_id);
 CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 CREATE INDEX folders_parent_id_idx ON folders (parent_id);

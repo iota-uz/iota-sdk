@@ -82,7 +82,7 @@ func AccountsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(account.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/moneyaccounts.templ`, Line: 32, Col: 19}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/accounts.templ`, Line: 32, Col: 19}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -113,7 +113,7 @@ func AccountsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(account.BalanceWithCurrency)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/moneyaccounts.templ`, Line: 35, Col: 34}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/accounts.templ`, Line: 35, Col: 34}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -148,7 +148,7 @@ func AccountsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", account.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/moneyaccounts.templ`, Line: 39, Col: 67}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/accounts.templ`, Line: 39, Col: 67}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -263,7 +263,7 @@ func AccountsContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.Accounts"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/moneyaccounts.templ`, Line: 60, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/accounts.templ`, Line: 60, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -350,7 +350,7 @@ func AccountsContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Accounts.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/moneyaccounts.templ`, Line: 99, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/moneyaccounts/accounts.templ`, Line: 99, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -359,7 +359,7 @@ func AccountsContent(props *IndexPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
-			Size: button.SizeNormal, Href: "/finance/moneyaccounts/new",
+			Size: button.SizeNormal, Href: "/finance/accounts/new",
 			Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

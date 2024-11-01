@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app"
 	"github.com/iota-agency/iota-erp/internal/configuration"
@@ -10,10 +9,9 @@ import (
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/controllers"
 	"github.com/iota-agency/iota-erp/pkg/dbutils"
+	"github.com/iota-agency/iota-erp/pkg/intl"
 	localMiddleware "github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/sdk/middleware"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"golang.org/x/text/language"
 	"gorm.io/gorm/logger"
 	"log"
 	"slices"
@@ -25,14 +23,6 @@ import (
 var AllModules = []shared.Module{
 	iota.NewUserModule(),
 	elxolding.NewUserModule(),
-}
-
-func loadBundle() *i18n.Bundle {
-	bundle := i18n.NewBundle(language.Russian)
-	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
-	bundle.MustLoadMessageFile("pkg/locales/en.json")
-	bundle.MustLoadMessageFile("pkg/locales/ru.json")
-	return bundle
 }
 
 func loadModules() []shared.Module {
@@ -57,7 +47,7 @@ func main() {
 	}
 	modules := loadModules()
 	application := app.New(db)
-	bundle := loadBundle()
+	bundle := intl.LoadBundle()
 	serverInstance := &server.HttpServer{
 		Middlewares: []mux.MiddlewareFunc{
 			middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),

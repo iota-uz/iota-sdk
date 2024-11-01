@@ -50,10 +50,14 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
+	props := &users.IndexPageProps{
+		PageContext: pageCtx,
+		Users:       us,
+	}
 	if isHxRequest {
-		templ.Handler(users.UsersTable(pageCtx.Localizer, us), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(users.Index(pageCtx, us), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(users.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 

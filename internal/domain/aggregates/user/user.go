@@ -25,6 +25,7 @@ type User struct {
 	AvatarID   *uint
 	EmployeeID *uint
 	LastIP     *string
+	UILanguage UILanguage
 	LastLogin  *time.Time
 	LastAction *time.Time
 	CreatedAt  time.Time

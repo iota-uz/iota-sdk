@@ -71,10 +71,7 @@ func UsePageCtx(r *http.Request, pageData *PageData) (*PageContext, error) {
 	if !found {
 		return nil, errLocalizerNotFound
 	}
-	u, err := UseUser(r.Context())
-	if err != nil {
-		return nil, err
-	}
+	u, _ := UseUser(r.Context())
 	locale := composables.UseLocale(r.Context(), language.English)
 	return &PageContext{
 		Pathname:      r.URL.Path,
