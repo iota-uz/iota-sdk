@@ -1,12 +1,13 @@
-package role
+package iota
 
 import (
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"time"
 )
 
 var (
-	CEO = Role{
+	CEO = role.Role{
 		ID:          1,
 		Name:        "CEO",
 		Description: "Chief Executive Officer",
@@ -14,7 +15,7 @@ var (
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	Owner = Role{
+	Owner = role.Role{
 		ID:          2,
 		Name:        "Owner",
 		Description: "Owner",
@@ -22,7 +23,7 @@ var (
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	CCO = Role{
+	CCO = role.Role{
 		ID:          3,
 		Name:        "CCO",
 		Description: "Chief Commercial Officer",
@@ -30,7 +31,7 @@ var (
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	CFO = Role{
+	CFO = role.Role{
 		ID:          4,
 		Name:        "CFO",
 		Description: "Chief Financial Officer",
@@ -73,7 +74,7 @@ var (
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	CPO = Role{
+	CPO = role.Role{
 		ID:          5,
 		Name:        "CPO",
 		Description: "Chief Product Officer",
@@ -116,7 +117,7 @@ var (
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	CMO = Role{
+	CMO = role.Role{
 		ID:          6,
 		Name:        "CMO",
 		Description: "Chief Marketing Officer",
@@ -153,7 +154,7 @@ var (
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	COO = Role{
+	COO = role.Role{
 		ID:          7,
 		Name:        "COO",
 		Description: "Chief Operating Officer",
@@ -196,7 +197,7 @@ var (
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	CTO = Role{
+	CTO = role.Role{
 		ID:          8,
 		Name:        "CTO",
 		Description: "Chief Technology Officer",
@@ -225,7 +226,7 @@ var (
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	ProjectManager = Role{
+	ProjectManager = role.Role{
 		ID:          9,
 		Name:        "Project Manager",
 		Description: "Project Manager",
@@ -257,7 +258,7 @@ var (
 )
 
 var (
-	Roles = []Role{
+	Roles = []role.Role{
 		CEO,
 		Owner,
 		CCO,
