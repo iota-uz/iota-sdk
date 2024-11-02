@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/modules"
 
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/sdk/composables"
@@ -20,9 +21,13 @@ func main() {
 	}
 
 	seedFuncs := []SeedFunc{
-		seed.CreateInitialUser,
+		seed.CreatePermissions,
 		seed.CreateCurrencies,
 	}
+	for _, module := range modules.Load() {
+		seedFuncs = append(seedFuncs, module.Seed)
+	}
+
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		ctx := composables.WithTx(context.Background(), tx)
 		for _, seedFunc := range seedFuncs {

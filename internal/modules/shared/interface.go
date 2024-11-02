@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
@@ -23,6 +24,7 @@ type NavigationItem struct {
 
 type Module interface {
 	Name() string
+	Seed(ctx context.Context) error
 	NavigationItems() []NavigationItem
 	Controllers() []ControllerConstructor
 	LocaleFiles() []string

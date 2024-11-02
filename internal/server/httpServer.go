@@ -2,7 +2,6 @@ package server
 
 import (
 	"github.com/NYTimes/gziphandler"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
@@ -13,19 +12,12 @@ import (
 type HttpServer struct {
 	Controllers []shared.Controller
 	Middlewares []mux.MiddlewareFunc
-	Modules     []shared.Module
 }
 
-func (s *HttpServer) Start(app *services.Application, socketAddress string) error {
+func (s *HttpServer) Start(socketAddress string) error {
 	r := mux.NewRouter()
 	r.Use(s.Middlewares...)
-	controllerInstances := s.Controllers
-	for _, module := range s.Modules {
-		for _, c := range module.Controllers() {
-			controllerInstances = append(controllerInstances, c(app))
-		}
-	}
-	for _, controller := range controllerInstances {
+	for _, controller := range s.Controllers {
 		controller.Register(r)
 	}
 	var notFoundHandler http.Handler = controllers.NotFound()

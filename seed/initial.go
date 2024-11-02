@@ -2,41 +2,18 @@ package seed
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 )
 
-func CreateInitialUser(ctx context.Context) error {
+func CreatePermissions(ctx context.Context) error {
 	permissionRepository := persistence.NewPermissionRepository()
-	roleRepository := persistence.NewRoleRepository()
 
 	for _, p := range permission.Permissions {
 		if err := permissionRepository.CreateOrUpdate(ctx, &p); err != nil {
 			return err
 		}
 	}
-
-	for _, r := range role.Roles {
-		if err := roleRepository.CreateOrUpdate(ctx, &r); err != nil {
-			return err
-		}
-	}
-	userRepository := persistence.NewUserRepository()
-	u := &user.User{
-		//nolint:exhaustruct
-		ID:        1,
-		FirstName: "Admin",
-		LastName:  "User",
-		Email:     "test@gmail.com",
-		Roles: []*role.Role{
-			&role.CEO,
-		},
-	}
-	if err := u.SetPassword("TestPass123!"); err != nil {
-		return err
-	}
-	return userRepository.CreateOrUpdate(ctx, u)
+	return nil
 }
