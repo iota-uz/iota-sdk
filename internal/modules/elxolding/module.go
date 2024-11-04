@@ -2,9 +2,11 @@ package elxolding
 
 import (
 	"context"
+	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
+	"github.com/iota-agency/iota-erp/internal/modules/elxolding/assets"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 )
@@ -14,6 +16,10 @@ func NewModule() shared.Module {
 }
 
 type Module struct {
+}
+
+func (m *Module) Assets() *hashfs.FS {
+	return assets.FS
 }
 
 func (m *Module) Seed(ctx context.Context) error {
@@ -59,9 +65,12 @@ func (m *Module) NavigationItems() []shared.NavigationItem {
 func (m *Module) Controllers() []shared.ControllerConstructor {
 	return []shared.ControllerConstructor{
 		NewUsersController,
+		NewLoginController,
 	}
 }
 
 func (m *Module) LocaleFiles() []string {
-	return []string{}
+	return []string{
+		"internal/modules/elxolding/locales/en.json",
+	}
 }

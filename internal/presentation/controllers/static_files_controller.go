@@ -1,20 +1,25 @@
 package controllers
 
 import (
+	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/sdk/multifs"
 	"net/http"
 
-	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/presentation/assets"
 )
 
-type StaticFilesController struct{}
-
-func (s *StaticFilesController) Register(r *mux.Router) {
-	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", hashfs.FileServer(assets.FS)))
+type StaticFilesController struct {
+	fsInstances []*hashfs.FS
 }
 
-func NewStaticFilesController() shared.Controller {
-	return &StaticFilesController{}
+func (s *StaticFilesController) Register(r *mux.Router) {
+	handler := http.StripPrefix("/assets/", http.FileServer(multifs.New(s.fsInstances...)))
+	r.PathPrefix("/assets/").Handler(handler)
+}
+
+func NewStaticFilesController(fsInstances []*hashfs.FS) shared.Controller {
+	return &StaticFilesController{
+		fsInstances: fsInstances,
+	}
 }

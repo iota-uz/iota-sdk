@@ -57,7 +57,11 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (*use
 	if err != nil {
 		return nil, nil, err
 	}
-	return s.authenticate(ctx, u.ID)
+	sess, err := s.authenticate(ctx, u)
+	if err != nil {
+		return nil, nil, err
+	}
+	return u, sess, nil
 }
 
 func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
@@ -119,16 +123,12 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
-func (s *AuthService) authenticate(ctx context.Context, id uint) (*user.User, *session.Session, error) {
-	u, err := s.app.UserService.GetByID(ctx, id)
-	if err != nil {
-		return nil, nil, err
-	}
+func (s *AuthService) authenticate(ctx context.Context, u *user.User) (*session.Session, error) {
 	ip, _ := composables.UseIP(ctx)
 	userAgent, _ := composables.UseUserAgent(ctx)
 	token, err := s.newSessionToken()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	sess := &session.CreateDTO{
 		Token:     token,
@@ -137,15 +137,49 @@ func (s *AuthService) authenticate(ctx context.Context, id uint) (*user.User, *s
 		UserAgent: userAgent,
 	}
 	if err := s.app.UserService.UpdateLastLogin(ctx, u.ID); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := s.app.UserService.UpdateLastAction(ctx, u.ID); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := s.app.SessionService.Create(ctx, sess); err != nil {
+		return nil, err
+	}
+	return sess.ToEntity(), nil
+}
+
+func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, password string) (*user.User, *session.Session, error) {
+	u, err := s.app.UserService.GetByID(ctx, id)
+	if err != nil {
 		return nil, nil, err
 	}
-	return u, sess.ToEntity(), nil
+	if !u.CheckPassword(password) {
+		return nil, nil, service.ErrInvalidPassword
+	}
+	sess, err := s.authenticate(ctx, u)
+	if err != nil {
+		return nil, nil, err
+	}
+	return u, sess, nil
+}
+
+func (s *AuthService) CoockieAuthenticateWithUserId(ctx context.Context, id uint, password string) (*http.Cookie, error) {
+	_, sess, err := s.AuthenticateWithUserId(ctx, id, password)
+	if err != nil {
+		return nil, err
+	}
+	conf := configuration.Use()
+	cookie := &http.Cookie{
+		//nolint:exhaustruct
+		Name:     conf.SidCookieKey,
+		Value:    sess.Token,
+		Expires:  sess.ExpiresAt,
+		HttpOnly: false,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   conf.GoAppEnvironment == "production",
+		Domain:   conf.Domain,
+	}
+	return cookie, nil
 }
 
 func (s *AuthService) Authenticate(ctx context.Context, email, password string) (*user.User, *session.Session, error) {
@@ -156,7 +190,11 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 	if !u.CheckPassword(password) {
 		return nil, nil, service.ErrInvalidPassword
 	}
-	return s.authenticate(ctx, u.ID)
+	sess, err := s.authenticate(ctx, u)
+	if err != nil {
+		return nil, nil, err
+	}
+	return u, sess, nil
 }
 
 func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password string) (*http.Cookie, error) {

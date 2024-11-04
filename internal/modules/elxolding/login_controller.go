@@ -1,12 +1,15 @@
-package controllers
+package elxolding
 
 import (
+	"github.com/iota-agency/iota-erp/internal/modules/elxolding/mappers"
+	"github.com/iota-agency/iota-erp/internal/modules/elxolding/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/login"
+	"github.com/iota-agency/iota-erp/internal/modules/elxolding/templates/pages/login"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
@@ -21,20 +24,31 @@ type LoginController struct {
 }
 
 func (c *LoginController) Register(r *mux.Router) {
-	r.HandleFunc("/oauth/google/callback", c.app.AuthService.OauthGoogleCallback)
 	r.HandleFunc("/login", c.Get).Methods(http.MethodGet)
 	r.HandleFunc("/login", c.Post).Methods(http.MethodPost)
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, &composables.PageData{ //nolint:exhaustruct
-		Title: "Login.Meta.Title",
-	})
+	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Login.Meta.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := login.Index(pageCtx).Render(r.Context(), w); err != nil {
+
+	viewUsers := make([]*viewmodels.User, 0)
+	users, err := c.app.UserService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for _, user := range users {
+		viewUsers = append(viewUsers, mappers.UserToViewModel(user))
+	}
+	props := &login.LoginPageProps{
+		PageContext: pageCtx,
+		Users:       viewUsers,
+	}
+	if err := login.Index(props).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -44,13 +58,17 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	email := r.FormValue("email")
-	password := r.FormValue("password")
-	if email == "" || password == "" {
-		http.Error(w, "email or password is empty", http.StatusBadRequest)
+	userId, err := strconv.ParseInt(r.FormValue("userId"), 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	cookie, err := c.app.AuthService.CookieAuthenticate(r.Context(), email, password)
+	password := r.FormValue("password")
+	if userId == 0 || password == "" {
+		http.Error(w, "userId or password is empty", http.StatusBadRequest)
+		return
+	}
+	cookie, err := c.app.AuthService.CoockieAuthenticateWithUserId(r.Context(), uint(userId), password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
