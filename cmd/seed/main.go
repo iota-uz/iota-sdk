@@ -24,7 +24,7 @@ func main() {
 		seed.CreatePermissions,
 		seed.CreateCurrencies,
 	}
-	for _, module := range modules.Load() {
+	for _, module := range modules.LoadedModules {
 		seedFuncs = append(seedFuncs, module.Seed)
 	}
 

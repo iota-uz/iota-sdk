@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"github.com/a-h/templ"
+	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
@@ -27,5 +28,6 @@ type Module interface {
 	Seed(ctx context.Context) error
 	NavigationItems() []NavigationItem
 	Controllers() []ControllerConstructor
+	Assets() *hashfs.FS
 	LocaleFiles() []string
 }
