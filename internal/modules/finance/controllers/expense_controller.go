@@ -5,10 +5,11 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"net/http"
 
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expenses"
@@ -18,11 +19,14 @@ import (
 )
 
 type ExpenseController struct {
-	app      *services.Application
-	basePath string
+	app                    *application.Application
+	moneyAccountService    *services.MoneyAccountService
+	expenseService         *services.ExpenseService
+	expenseCategoryService *services.ExpenseCategoryService
+	basePath               string
 }
 
-func NewExpensesController(app *services.Application) shared.Controller {
+func NewExpensesController(app *application.Application) shared.Controller {
 	return &ExpenseController{
 		app:      app,
 		basePath: "/finance/expenses",
@@ -41,7 +45,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 }
 
 func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.MoneyAccount, error) {
-	accounts, err := c.app.MoneyAccountService.GetAll(r.Context())
+	accounts, err := c.moneyAccountService.GetAll(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
 	}
@@ -56,7 +60,7 @@ func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.Mo
 
 func (c *ExpenseController) viewModelExpenses(r *http.Request) ([]*viewmodels.Expense, error) {
 	params := composables.UsePaginated(r)
-	expenseEntities, err := c.app.ExpenseService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	expenseEntities, err := c.expenseService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
@@ -68,7 +72,7 @@ func (c *ExpenseController) viewModelExpenses(r *http.Request) ([]*viewmodels.Ex
 }
 
 func (c *ExpenseController) viewModelCategories(r *http.Request) ([]*viewmodels.ExpenseCategory, error) {
-	categories, err := c.app.ExpenseCategoryService.GetAll(r.Context())
+	categories, err := c.expenseCategoryService.GetAll(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving categories")
 	}
@@ -122,7 +126,7 @@ func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entity, err := c.app.ExpenseService.GetByID(r.Context(), id)
+	entity, err := c.expenseService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
 		return
@@ -154,7 +158,7 @@ func (c *ExpenseController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.app.ExpenseService.Delete(r.Context(), id); err != nil {
+	if _, err := c.expenseService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -176,7 +180,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 	switch action {
 	case shared.FormActionDelete:
-		if _, err := c.app.ExpenseService.Delete(r.Context(), id); err != nil {
+		if _, err := c.expenseService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -193,7 +197,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			entity, err := c.app.ExpenseService.GetByID(r.Context(), id)
+			entity, err := c.expenseService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
 				return
@@ -218,7 +222,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(expenses.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		if err := c.app.ExpenseService.Update(r.Context(), id, &dto); err != nil {
+		if err := c.expenseService.Update(r.Context(), id, &dto); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -297,7 +301,7 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.app.ExpenseService.Create(r.Context(), &dto); err != nil {
+	if err := c.expenseService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -4,10 +4,11 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"net/http"
 
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/payments"
@@ -17,14 +18,20 @@ import (
 )
 
 type PaymentsController struct {
-	app      *services.Application
-	basePath string
+	app                 *application.Application
+	paymentService      *services.PaymentService
+	projectStageService *services.ProjectStageService
+	moneyAccountService *services.MoneyAccountService
+	basePath            string
 }
 
-func NewPaymentsController(app *services.Application) shared.Controller {
+func NewPaymentsController(app *application.Application) shared.Controller {
 	return &PaymentsController{
-		app:      app,
-		basePath: "/finance/payments",
+		app:                 app,
+		paymentService:      app.Service(services.PaymentService{}).(*services.PaymentService),
+		projectStageService: app.Service(services.ProjectStageService{}).(*services.ProjectStageService),
+		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		basePath:            "/finance/payments",
 	}
 }
 
@@ -40,7 +47,7 @@ func (c *PaymentsController) Register(r *mux.Router) {
 }
 
 func (c *PaymentsController) viewModelPayments(r *http.Request) ([]*viewmodels.Payment, error) {
-	ps, err := c.app.PaymentService.GetAll(r.Context())
+	ps, err := c.paymentService.GetAll(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving payments")
 	}
@@ -56,7 +63,7 @@ func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Paym
 	if err != nil {
 		return nil, errors.Wrap(err, "Error parsing id")
 	}
-	p, err := c.app.PaymentService.GetByID(r.Context(), id)
+	p, err := c.paymentService.GetByID(r.Context(), id)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving payment")
 	}
@@ -64,7 +71,7 @@ func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Paym
 }
 
 func (c *PaymentsController) viewModelStages(r *http.Request) ([]*viewmodels.ProjectStage, error) {
-	stages, err := c.app.ProjectStageService.GetAll(r.Context())
+	stages, err := c.projectStageService.GetAll(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving stages")
 	}
@@ -76,7 +83,7 @@ func (c *PaymentsController) viewModelStages(r *http.Request) ([]*viewmodels.Pro
 }
 
 func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.MoneyAccount, error) {
-	accounts, err := c.app.MoneyAccountService.GetAll(r.Context())
+	accounts, err := c.moneyAccountService.GetAll(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
 	}
@@ -156,7 +163,7 @@ func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if _, err := c.app.PaymentService.Delete(r.Context(), id); err != nil {
+	if _, err := c.paymentService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -178,7 +185,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 	switch action {
 	case shared.FormActionDelete:
-		_, err = c.app.PaymentService.Delete(r.Context(), id)
+		_, err = c.paymentService.Delete(r.Context(), id)
 	case shared.FormActionSave:
 		dto := payment.UpdateDTO{} //nolint:exhaustruct
 		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
@@ -220,7 +227,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.PaymentService.Update(r.Context(), id, &dto)
+		err = c.paymentService.Update(r.Context(), id, &dto)
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -298,7 +305,7 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := c.app.PaymentService.Create(r.Context(), &dto); err != nil {
+	if err := c.paymentService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

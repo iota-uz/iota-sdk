@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
@@ -17,11 +18,13 @@ import (
 )
 
 type AuthService struct {
-	app         *Application
-	oAuthConfig *oauth2.Config
+	app            *application.Application
+	oAuthConfig    *oauth2.Config
+	usersService   *UserService
+	sessionService *SessionService
 }
 
-func NewAuthService(app *Application) *AuthService {
+func NewAuthService(app *application.Application) *AuthService {
 	conf := configuration.Use()
 	return &AuthService{
 		app: app,
@@ -35,6 +38,8 @@ func NewAuthService(app *Application) *AuthService {
 			},
 			Endpoint: google.Endpoint,
 		},
+		usersService:   app.Service(UserService{}).(*UserService),
+		sessionService: app.Service(SessionService{}).(*SessionService),
 	}
 }
 
@@ -53,7 +58,7 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (*use
 	if err != nil {
 		return nil, nil, err
 	}
-	u, err := s.app.UserService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+	u, err := s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,16 +95,16 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 }
 
 func (s *AuthService) Authorize(ctx context.Context, token string) (*user.User, *session.Session, error) {
-	sess, err := s.app.SessionService.GetByToken(ctx, token)
+	sess, err := s.sessionService.GetByToken(ctx, token)
 	if err != nil {
 		return nil, nil, err
 	}
-	u, err := s.app.UserService.GetByID(ctx, sess.UserID)
+	u, err := s.usersService.GetByID(ctx, sess.UserID)
 	if err != nil {
 		return nil, nil, err
 	}
 	// TODO: update last action
-	// if err := s.app.UserService.UpdateLastAction(ctx, u.ID); err != nil {
+	// if err := s.usersService.UpdateLastAction(ctx, u.ID); err != nil {
 	//	  return nil, nil, err
 	//}
 	return u, sess, nil
@@ -136,20 +141,20 @@ func (s *AuthService) authenticate(ctx context.Context, u *user.User) (*session.
 		IP:        ip,
 		UserAgent: userAgent,
 	}
-	if err := s.app.UserService.UpdateLastLogin(ctx, u.ID); err != nil {
+	if err := s.usersService.UpdateLastLogin(ctx, u.ID); err != nil {
 		return nil, err
 	}
-	if err := s.app.UserService.UpdateLastAction(ctx, u.ID); err != nil {
+	if err := s.usersService.UpdateLastAction(ctx, u.ID); err != nil {
 		return nil, err
 	}
-	if err := s.app.SessionService.Create(ctx, sess); err != nil {
+	if err := s.sessionService.Create(ctx, sess); err != nil {
 		return nil, err
 	}
 	return sess.ToEntity(), nil
 }
 
 func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, password string) (*user.User, *session.Session, error) {
-	u, err := s.app.UserService.GetByID(ctx, id)
+	u, err := s.usersService.GetByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -183,7 +188,7 @@ func (s *AuthService) CoockieAuthenticateWithUserId(ctx context.Context, id uint
 }
 
 func (s *AuthService) Authenticate(ctx context.Context, email, password string) (*user.User, *session.Session, error) {
-	u, err := s.app.UserService.GetByEmail(ctx, email)
+	u, err := s.usersService.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, nil, err
 	}

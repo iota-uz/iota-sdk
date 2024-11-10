@@ -1,19 +1,19 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 )
 
 type LogoutController struct {
-	app *services.Application
+	app *application.Application
 }
 
-func NewLogoutController(app *services.Application) shared.Controller {
+func NewLogoutController(app *application.Application) shared.Controller {
 	return &LogoutController{
 		app: app,
 	}

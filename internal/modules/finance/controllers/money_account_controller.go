@@ -3,13 +3,14 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/moneyaccounts"
@@ -18,11 +19,13 @@ import (
 )
 
 type MoneyAccountController struct {
-	app      *services.Application
-	basePath string
+	app                 *application.Application
+	moneyAccountService *services.MoneyAccountService
+	currencyService     *services.CurrencyService
+	basePath            string
 }
 
-func NewMoneyAccountController(app *services.Application) shared.Controller {
+func NewMoneyAccountController(app *application.Application) shared.Controller {
 	return &MoneyAccountController{
 		app:      app,
 		basePath: "/finance/accounts",
@@ -41,7 +44,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 }
 
 func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
-	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	currencies, err := c.currencyService.GetAll(r.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +65,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := composables.UsePaginated(r)
-	accountEntities, err := c.app.MoneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		http.Error(w, errors.Wrap(err, "Error retrieving moneyaccounts").Error(), http.StatusInternalServerError)
 		return
@@ -99,7 +102,7 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	entity, err := c.app.MoneyAccountService.GetByID(r.Context(), id)
+	entity, err := c.moneyAccountService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 		return
@@ -127,7 +130,7 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, err := c.app.MoneyAccountService.Delete(r.Context(), id); err != nil {
+	if _, err := c.moneyAccountService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -149,7 +152,7 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 
 	switch action {
 	case shared.FormActionDelete:
-		if _, err := c.app.MoneyAccountService.Delete(r.Context(), id); err != nil {
+		if _, err := c.moneyAccountService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -167,12 +170,12 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 		}
 		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
 		if ok {
-			if err := c.app.MoneyAccountService.Update(r.Context(), id, &dto); err != nil {
+			if err := c.moneyAccountService.Update(r.Context(), id, &dto); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			entity, err := c.app.MoneyAccountService.GetByID(r.Context(), id)
+			entity, err := c.moneyAccountService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 				return
@@ -258,7 +261,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := c.app.MoneyAccountService.Create(r.Context(), &dto); err != nil {
+	if err := c.moneyAccountService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

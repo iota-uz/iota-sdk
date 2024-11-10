@@ -1,26 +1,31 @@
-package elxolding
+package controllers
 
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/modules/elxolding/templates/pages/users"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 )
 
 type UsersController struct {
-	app      *services.Application
-	basePath string
+	app         *application.Application
+	userService *services.UserService
+	roleService *services.RoleService
+	basePath    string
 }
 
-func NewUsersController(app *services.Application) shared.Controller {
+func NewUsersController(app *application.Application) shared.Controller {
 	return &UsersController{
-		app:      app,
-		basePath: "/users",
+		app:         app,
+		userService: app.Service(services.UserService{}).(*services.UserService),
+		roleService: app.Service(services.RoleService{}).(*services.RoleService),
+		basePath:    "/users",
 	}
 }
 
@@ -44,7 +49,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := composables.UsePaginated(r)
-	us, err := c.app.UserService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	us, err := c.userService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
@@ -76,13 +81,13 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roles, err := c.app.RoleService.GetAll(r.Context())
+	roles, err := c.roleService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
 
-	us, err := c.app.UserService.GetByID(r.Context(), id)
+	us, err := c.userService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
@@ -103,7 +108,7 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.app.UserService.Delete(r.Context(), id); err != nil {
+	if _, err := c.userService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -127,7 +132,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	switch action {
 	case shared.FormActionDelete:
-		_, err = c.app.UserService.Delete(r.Context(), id)
+		_, err = c.userService.Delete(r.Context(), id)
 	case shared.FormActionSave:
 		dto := &user.UpdateDTO{} //nolint:exhaustruct
 		if err = shared.Decoder.Decode(dto, r.Form); err != nil {
@@ -143,13 +148,13 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			roles, err := c.app.RoleService.GetAll(r.Context())
+			roles, err := c.roleService.GetAll(r.Context())
 			if err != nil {
 				http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 				return
 			}
 
-			us, err := c.app.UserService.GetByID(r.Context(), id)
+			us, err := c.userService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 				return
@@ -164,7 +169,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.app.UserService.Update(r.Context(), dto.ToEntity(id))
+		err = c.userService.Update(r.Context(), dto.ToEntity(id))
 	}
 
 	if err != nil {
@@ -175,7 +180,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
-	roles, err := c.app.RoleService.GetAll(r.Context())
+	roles, err := c.roleService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
@@ -213,7 +218,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		roles, err := c.app.RoleService.GetAll(r.Context())
+		roles, err := c.roleService.GetAll(r.Context())
 		if err != nil {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
@@ -230,7 +235,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.app.UserService.Create(r.Context(), dto.ToEntity()); err != nil {
+	if err := c.userService.Create(r.Context(), dto.ToEntity()); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

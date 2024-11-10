@@ -5,11 +5,11 @@ import (
 	"github.com/a-h/templ"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 )
 
-type ControllerConstructor func(app *services.Application) Controller
+type ControllerConstructor func(app *application.Application) Controller
 
 type Controller interface {
 	Register(r *mux.Router)

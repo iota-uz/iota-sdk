@@ -3,14 +3,15 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/employees"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
@@ -18,14 +19,16 @@ import (
 )
 
 type EmployeeController struct {
-	app      *services.Application
-	basePath string
+	app             *application.Application
+	employeeService *services.EmployeeService
+	basePath        string
 }
 
-func NewEmployeeController(app *services.Application) shared.Controller {
+func NewEmployeeController(app *application.Application) shared.Controller {
 	return &EmployeeController{
-		app:      app,
-		basePath: "/operations/employees",
+		app:             app,
+		employeeService: app.Service(services.EmployeeService{}).(*services.EmployeeService),
+		basePath:        "/operations/employees",
 	}
 }
 
@@ -50,7 +53,7 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := composables.UsePaginated(r)
-	employeeEntities, err := c.app.EmployeeService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	employeeEntities, err := c.employeeService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		http.Error(w, errors.Wrap(err, "Error retrieving employees").Error(), http.StatusInternalServerError)
 		return
@@ -88,7 +91,7 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entity, err := c.app.EmployeeService.GetByID(r.Context(), id)
+	entity, err := c.employeeService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 		return
@@ -110,7 +113,7 @@ func (c *EmployeeController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.app.EmployeeService.Delete(r.Context(), id); err != nil {
+	if _, err := c.employeeService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -132,7 +135,7 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 	switch action {
 	case shared.FormActionDelete:
-		if _, err := c.app.EmployeeService.Delete(r.Context(), id); err != nil {
+		if _, err := c.employeeService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -150,12 +153,12 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
 		if ok {
-			if err := c.app.EmployeeService.Update(r.Context(), id, &dto); err != nil {
+			if err := c.employeeService.Update(r.Context(), id, &dto); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			entity, err := c.app.EmployeeService.GetByID(r.Context(), id)
+			entity, err := c.employeeService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 				return
@@ -219,7 +222,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.app.EmployeeService.Create(r.Context(), &dto); err != nil {
+	if err := c.employeeService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

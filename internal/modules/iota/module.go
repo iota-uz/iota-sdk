@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/internal/modules/iota/assets"
+	"github.com/iota-agency/iota-erp/internal/modules/iota/controllers"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 )
@@ -64,8 +65,8 @@ func (m *Module) NavigationItems() []shared.NavigationItem {
 
 func (m *Module) Controllers() []shared.ControllerConstructor {
 	return []shared.ControllerConstructor{
-		NewUsersController,
-		NewLoginController,
+		controllers.NewUsersController,
+		controllers.NewLoginController,
 	}
 }
 

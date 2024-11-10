@@ -3,10 +3,11 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"net/http"
 
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expense_categories"
@@ -16,14 +17,18 @@ import (
 )
 
 type ExpenseCategoriesController struct {
-	app      *services.Application
-	basePath string
+	app                    *application.Application
+	currencyService        *services.CurrencyService
+	expenseCategoryService *services.ExpenseCategoryService
+	basePath               string
 }
 
-func NewExpenseCategoriesController(app *services.Application) shared.Controller {
+func NewExpenseCategoriesController(app *application.Application) shared.Controller {
 	return &ExpenseCategoriesController{
-		app:      app,
-		basePath: "/finance/expense-categories",
+		app:                    app,
+		currencyService:        app.Service(services.CurrencyService{}).(*services.CurrencyService),
+		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
+		basePath:               "/finance/expense-categories",
 	}
 }
 
@@ -39,7 +44,7 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 }
 
 func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
-	currencies, err := c.app.CurrencyService.GetAll(r.Context())
+	currencies, err := c.currencyService.GetAll(r.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +65,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	params := composables.UsePaginated(r)
-	categories, err := c.app.ExpenseCategoryService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	categories, err := c.expenseCategoryService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
 		return
@@ -97,7 +102,7 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), id)
+	entity, err := c.expenseCategoryService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
@@ -123,7 +128,7 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), id); err != nil {
+	if _, err := c.expenseCategoryService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -145,7 +150,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 
 	switch action {
 	case shared.FormActionDelete:
-		if _, err := c.app.ExpenseCategoryService.Delete(r.Context(), id); err != nil {
+		if _, err := c.expenseCategoryService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -166,12 +171,12 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 		}
 		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
 		if ok {
-			if err := c.app.ExpenseCategoryService.Update(r.Context(), id, &dto); err != nil {
+			if err := c.expenseCategoryService.Update(r.Context(), id, &dto); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			entity, err := c.app.ExpenseCategoryService.GetByID(r.Context(), id)
+			entity, err := c.expenseCategoryService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 				return
@@ -255,7 +260,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := c.app.ExpenseCategoryService.Create(r.Context(), &dto); err != nil {
+	if err := c.expenseCategoryService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

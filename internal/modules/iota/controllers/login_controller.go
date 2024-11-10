@@ -1,27 +1,29 @@
-package iota
+package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/modules/iota/templates/pages/login"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
-func NewLoginController(app *services.Application) shared.Controller {
+func NewLoginController(app *application.Application) shared.Controller {
 	return &LoginController{
 		app: app,
 	}
 }
 
 type LoginController struct {
-	app *services.Application
+	app         *application.Application
+	authService *services.AuthService
 }
 
 func (c *LoginController) Register(r *mux.Router) {
-	r.HandleFunc("/oauth/google/callback", c.app.AuthService.OauthGoogleCallback)
+	r.HandleFunc("/oauth/google/callback", c.authService.OauthGoogleCallback)
 	r.HandleFunc("/login", c.Get).Methods(http.MethodGet)
 	r.HandleFunc("/login", c.Post).Methods(http.MethodPost)
 }
@@ -48,7 +50,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "email or password is empty", http.StatusBadRequest)
 		return
 	}
-	cookie, err := c.app.AuthService.CookieAuthenticate(r.Context(), email, password)
+	cookie, err := c.authService.CookieAuthenticate(r.Context(), email, password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

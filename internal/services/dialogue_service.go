@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"io"
 	"log"
 
@@ -14,9 +15,10 @@ import (
 )
 
 type DialogueService struct {
-	repo      dialogue.Repository
-	app       *Application
-	chatFuncs *functions.ChatTools
+	repo          dialogue.Repository
+	app           *application.Application
+	chatFuncs     *functions.ChatTools
+	promptService *PromptService
 }
 
 var (
@@ -24,16 +26,17 @@ var (
 	ErrModelRequired  = errors.New("model is required")
 )
 
-func NewDialogueService(repo dialogue.Repository, app *Application) *DialogueService {
+func NewDialogueService(repo dialogue.Repository, app *application.Application) *DialogueService {
 	chatFuncs := functions.New()
 
 	// chatFuncs.Add(chatfuncs.NewCurrencyConvert())
 	// chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.DB))
-	chatFuncs.Add(NewSearchKnowledgeBase(app.EmbeddingService))
+	chatFuncs.Add(NewSearchKnowledgeBase(app.Service(EmbeddingService{}).(*EmbeddingService)))
 	return &DialogueService{
-		repo:      repo,
-		app:       app,
-		chatFuncs: chatFuncs,
+		repo:          repo,
+		app:           app,
+		chatFuncs:     chatFuncs,
+		promptService: app.Service(PromptService{}).(*PromptService),
 	}
 }
 
@@ -226,7 +229,7 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if model == "" {
 		return nil, ErrModelRequired
 	}
-	prompt, err := s.app.PromptService.GetByID(ctx, "bi-chat")
+	prompt, err := s.promptService.GetByID(ctx, "bi-chat")
 	if err != nil {
 		return nil, err
 	}

@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/projects"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"net/http"
 
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
@@ -17,11 +18,12 @@ import (
 )
 
 type ProjectsController struct {
-	app      *services.Application
-	basePath string
+	app            *application.Application
+	projectService *services.ProjectService
+	basePath       string
 }
 
-func NewProjectsController(app *services.Application) shared.Controller {
+func NewProjectsController(app *application.Application) shared.Controller {
 	return &ProjectsController{
 		app:      app,
 		basePath: "/projects",
@@ -49,7 +51,7 @@ func (c *ProjectsController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := composables.UsePaginated(r)
-	projectEntities, err := c.app.ProjectService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	projectEntities, err := c.projectService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		http.Error(w, "Error retrieving projects", http.StatusInternalServerError)
 		return
@@ -87,7 +89,7 @@ func (c *ProjectsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entity, err := c.app.ProjectService.GetByID(r.Context(), id)
+	entity, err := c.projectService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving project", http.StatusInternalServerError)
 		return
@@ -109,7 +111,7 @@ func (c *ProjectsController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.app.ProjectService.Delete(r.Context(), id); err != nil {
+	if _, err := c.projectService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -131,7 +133,7 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 	switch action {
 	case shared.FormActionDelete:
-		if _, err := c.app.ProjectService.Delete(r.Context(), id); err != nil {
+		if _, err := c.projectService.Delete(r.Context(), id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -152,12 +154,12 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
 		if ok {
-			if err := c.app.ProjectService.Update(r.Context(), id, &dto); err != nil {
+			if err := c.projectService.Update(r.Context(), id, &dto); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			entity, err := c.app.ProjectService.GetByID(r.Context(), id)
+			entity, err := c.projectService.GetByID(r.Context(), id)
 			if err != nil {
 				http.Error(w, "Error retrieving project", http.StatusInternalServerError)
 				return
@@ -226,7 +228,7 @@ func (c *ProjectsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.app.ProjectService.Create(r.Context(), &dto); err != nil {
+	if err := c.projectService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

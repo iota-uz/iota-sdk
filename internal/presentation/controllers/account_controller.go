@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"github.com/a-h/templ"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/account"
 	"github.com/iota-agency/iota-erp/pkg/composables"
@@ -9,15 +10,14 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 )
 
 type AccountController struct {
-	app      *services.Application
+	app      *application.Application
 	basePath string
 }
 
-func NewAccountController(app *services.Application) shared.Controller {
+func NewAccountController(app *application.Application) shared.Controller {
 	return &AccountController{
 		app:      app,
 		basePath: "/account",
