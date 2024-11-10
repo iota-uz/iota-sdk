@@ -8,6 +8,7 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 * [Database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e)
 
 ## Glossary
+
 * UHR - Unified Hourly Rate
 
 ## Prerequisites

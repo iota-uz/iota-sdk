@@ -1,4 +1,4 @@
-package warehouse_position
+package position
 
 import "time"
 

@@ -5,6 +5,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/application"
+	payments2 "github.com/iota-agency/iota-erp/internal/modules/finance/templates/pages/payments"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/services"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/payments"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
@@ -110,14 +110,14 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &payments.IndexPageProps{
+	props := &payments2.IndexPageProps{
 		PageContext: pageCtx,
 		Payments:    paymentViewModels,
 	}
 	if isHxRequest {
-		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(payments2.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(payments.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(payments2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -147,14 +147,14 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &payments.EditPageProps{
+	props := &payments2.EditPageProps{
 		PageContext: pageCtx,
 		Payment:     paymentViewModel,
 		Stages:      stages,
 		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
-	templ.Handler(payments.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(payments2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Request) {
@@ -218,14 +218,14 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			props := &payments.EditPageProps{
+			props := &payments2.EditPageProps{
 				PageContext: pageCtx,
 				Payment:     paymentViewModel,
 				Stages:      stages,
 				Accounts:    accounts,
 				Errors:      errorsMap,
 			}
-			templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(payments2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		err = c.paymentService.Update(r.Context(), id, &dto)
@@ -256,14 +256,14 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &payments.CreatePageProps{
+	props := &payments2.CreatePageProps{
 		PageContext: pageCtx,
 		Stages:      stages,
 		Payment:     &viewmodels.Payment{}, //nolint:exhaustruct
 		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
-	templ.Handler(payments.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(payments2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
@@ -292,7 +292,7 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &payments.CreatePageProps{
+		props := &payments2.CreatePageProps{
 			PageContext: pageCtx,
 			Payment:     mappers.PaymentToViewModel(dto.ToEntity()),
 			Accounts:    accounts,
@@ -300,7 +300,7 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 			Stages:      stages,
 		}
 		templ.Handler(
-			payments.CreateForm(props),
+			payments2.CreateForm(props),
 			templ.WithStreaming(),
 		).ServeHTTP(w, r)
 		return

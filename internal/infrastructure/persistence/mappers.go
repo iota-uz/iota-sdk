@@ -9,6 +9,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
+	warehouseproduct "github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
 	"time"
 
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
@@ -16,7 +17,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
@@ -204,23 +204,23 @@ func toDomainOrder(
 	}, nil
 }
 
-func toDBProduct(entity *product.Product) *models.WarehouseProduct {
+func toDBProduct(entity *warehouseproduct.Product) *models.WarehouseProduct {
 	return &models.WarehouseProduct{
 		ID:         entity.ID,
 		PositionID: entity.PositionID,
 		Rfid:       entity.Rfid,
-		Status:     entity.Status.String(),
+		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt,
 		UpdatedAt:  entity.UpdatedAt,
 	}
 }
 
-func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, error) {
-	status, err := product.NewStatus(dbProduct.Status)
+func toDomainProduct(dbProduct *models.WarehouseProduct) (*warehouseproduct.Product, error) {
+	status, err := warehouseproduct.NewStatus(dbProduct.Status)
 	if err != nil {
 		return nil, err
 	}
-	return &product.Product{
+	return &warehouseproduct.Product{
 		ID:         dbProduct.ID,
 		PositionID: dbProduct.PositionID,
 		Rfid:       dbProduct.Rfid,
