@@ -139,26 +139,6 @@ CREATE TABLE warehouse_order_items
     PRIMARY KEY (warehouse_order_id, product_id)
 );
 
-CREATE TABLE difficulty_levels
-(
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description TEXT,
-    coefficient FLOAT        NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE task_types
-(
-    id          SERIAL PRIMARY KEY,
-    icon        VARCHAR(255),
-    name        VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE settings
 (
     id              SERIAL PRIMARY KEY,
@@ -287,53 +267,6 @@ CREATE TABLE employee_contacts
     employee_id INT          NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
     type        VARCHAR(255) NOT NULL,
     value       VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-
-CREATE TABLE projects
-(
-    id              SERIAL PRIMARY KEY,
-    name            VARCHAR(255) NOT NULL,
-    description     TEXT,
-    counterparty_id INT          NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE project_stages
-(
-    id         SERIAL PRIMARY KEY,
-    project_id INT                      NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
-    name       VARCHAR(255)             NOT NULL,
-    margin     FLOAT                    NOT NULL,
-    risks      FLOAT                    NOT NULL,
-    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    end_date   TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE project_tasks
-(
-    id          SERIAL PRIMARY KEY,
-    title       VARCHAR(255) NOT NULL,
-    description TEXT,
-    stage_id    INT          NOT NULL REFERENCES project_stages (id) ON DELETE CASCADE,
-    type_id     INT          NOT NULL REFERENCES task_types (id) ON DELETE CASCADE,
-    level_id    INT          NOT NULL REFERENCES difficulty_levels (id) ON DELETE CASCADE,
-    parent_id   INT REFERENCES project_tasks (id) ON DELETE CASCADE,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE estimates
-(
-    id          SERIAL PRIMARY KEY,
-    task_id     INT   NOT NULL REFERENCES project_tasks (id) ON DELETE CASCADE,
-    employee_id INT   NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
-    hours       FLOAT NOT NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -655,16 +588,6 @@ CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 CREATE INDEX folders_parent_id_idx ON folders (parent_id);
 
-CREATE INDEX project_stages_project_id_idx ON project_stages (project_id);
-
-CREATE INDEX project_tasks_stage_id_idx ON project_tasks (stage_id);
-CREATE INDEX project_tasks_type_id_idx ON project_tasks (type_id);
-CREATE INDEX project_tasks_level_id_idx ON project_tasks (level_id);
-CREATE INDEX project_tasks_parent_id_idx ON project_tasks (parent_id);
-
-CREATE INDEX estimates_task_id_idx ON estimates (task_id);
-CREATE INDEX estimates_employee_id_idx ON estimates (employee_id);
-
 CREATE INDEX payments_staged_id_idx ON payments (stage_id);
 
 CREATE INDEX vacancies_salary_range_id_idx ON vacancies (id);
@@ -721,9 +644,6 @@ DROP TABLE IF EXISTS warehouse_units CASCADE;
 DROP TABLE IF EXISTS salary_range CASCADE;
 DROP TABLE IF EXISTS money_accounts CASCADE;
 DROP TABLE IF EXISTS prompts CASCADE;
-DROP TABLE IF EXISTS project_stages CASCADE;
-DROP TABLE IF EXISTS project_tasks CASCADE;
-DROP TABLE IF EXISTS projects CASCADE;
 DROP TABLE IF EXISTS role_permissions CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
 DROP TABLE IF EXISTS salary_range CASCADE;

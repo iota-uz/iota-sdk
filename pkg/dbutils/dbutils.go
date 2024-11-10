@@ -1,9 +1,12 @@
 package dbutils
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/iota-agency/iota-erp/internal/modules"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
+	migrate "github.com/rubenv/sql-migrate"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -48,4 +51,62 @@ func CheckModels(db *gorm.DB, modelsToTest []interface{}) error {
 		return nil
 	}
 	return fmt.Errorf("models are out of sync: %w", errors.Join(errs...))
+}
+
+func collectMigrations() ([]*migrate.Migration, error) {
+	migrationDirs := []string{"migrations/postgres"}
+	for _, m := range modules.LoadedModules {
+		migrationDirs = append(migrationDirs, m.MigrationDirs()...)
+	}
+	var migrations []*migrate.Migration
+	for _, dir := range migrationDirs {
+		migrationSource := &migrate.FileMigrationSource{
+			Dir: dir,
+		}
+		foundMigrations, err := migrationSource.FindMigrations()
+		if err != nil {
+			return nil, err
+		}
+		if len(foundMigrations) == 0 {
+			return nil, errors.New("no migrations found")
+		}
+		migrations = append(migrations, foundMigrations...)
+	}
+	return migrations, nil
+}
+
+func RunMigrations(db *sql.DB) error {
+	migrations, err := collectMigrations()
+	if err != nil {
+		return err
+	}
+	migrationSource := &migrate.MemoryMigrationSource{
+		Migrations: migrations,
+	}
+	n, err := migrate.Exec(db, "postgres", migrationSource, migrate.Up)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("no migrations found")
+	}
+	return nil
+}
+
+func RollbackMigrations(db *sql.DB) error {
+	migrations, err := collectMigrations()
+	if err != nil {
+		return err
+	}
+	migrationSource := &migrate.MemoryMigrationSource{
+		Migrations: migrations,
+	}
+	n, err := migrate.Exec(db, "postgres", migrationSource, migrate.Down)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("no migrations found")
+	}
+	return nil
 }
