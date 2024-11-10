@@ -1,26 +1,31 @@
-package elxolding
+package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/elxolding/mappers"
 	"github.com/iota-agency/iota-erp/internal/modules/elxolding/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/modules/elxolding/templates/pages/login"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
-func NewLoginController(app *services.Application) shared.Controller {
+func NewLoginController(app *application.Application) shared.Controller {
 	return &LoginController{
-		app: app,
+		app:         app,
+		userService: app.Service(services.UserService{}).(*services.UserService),
+		authService: app.Service(services.AuthService{}).(*services.AuthService),
 	}
 }
 
 type LoginController struct {
-	app *services.Application
+	app         *application.Application
+	userService *services.UserService
+	authService *services.AuthService
 }
 
 func (c *LoginController) Register(r *mux.Router) {
@@ -36,7 +41,7 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	viewUsers := make([]*viewmodels.User, 0)
-	users, err := c.app.UserService.GetAll(r.Context())
+	users, err := c.userService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -68,7 +73,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "userId or password is empty", http.StatusBadRequest)
 		return
 	}
-	cookie, err := c.app.AuthService.CoockieAuthenticateWithUserId(r.Context(), uint(userId), password)
+	cookie, err := c.authService.CoockieAuthenticateWithUserId(r.Context(), uint(userId), password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

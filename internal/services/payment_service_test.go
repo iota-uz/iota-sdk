@@ -2,7 +2,6 @@ package services_test
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
@@ -11,6 +10,7 @@ import (
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
+	services2 "github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/internal/testutils"
 	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/sdk/event"
@@ -30,8 +30,8 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	projectRepository := persistence.NewProjectRepository()
 	stageRepository := persistence.NewProjectStageRepository()
 	paymentRepository := persistence.NewPaymentRepository()
-	accountService := services.NewMoneyAccountService(accountRepository, publisher)
-	paymentsService := services.NewPaymentService(paymentRepository, publisher, accountService)
+	accountService := services2.NewMoneyAccountService(accountRepository, publisher)
+	paymentsService := services2.NewPaymentService(paymentRepository, publisher, accountService)
 
 	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
 		t.Fatal(err)

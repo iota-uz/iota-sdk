@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"github.com/iota-agency/iota-erp/internal/application"
 	"net/http"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -18,10 +18,10 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	app *services.Application
+	app *application.Application
 }
 
-func NewDefaultServer(app *services.Application) *handler.Server {
+func NewDefaultServer(app *application.Application) *handler.Server {
 	srv := handler.New(NewExecutableSchema(
 		Config{ //nolint:exhaustruct
 			Resolvers: &Resolver{

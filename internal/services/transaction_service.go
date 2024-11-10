@@ -2,16 +2,17 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/internal/application"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
 )
 
 type TransactionService struct {
 	repo transaction.Repository
-	app  *Application
+	app  *application.Application
 }
 
-func NewTransactionService(repo transaction.Repository, app *Application) *TransactionService {
+func NewTransactionService(repo transaction.Repository, app *application.Application) *TransactionService {
 	return &TransactionService{
 		repo: repo,
 		app:  app,

@@ -1,21 +1,21 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/app/services"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/home"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 type HomeController struct {
-	app *services.Application
+	app *application.Application
 }
 
-func NewHomeController(app *services.Application) shared.Controller {
+func NewHomeController(app *application.Application) shared.Controller {
 	return &HomeController{
 		app: app,
 	}

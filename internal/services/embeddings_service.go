@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/embedding"
@@ -12,10 +13,10 @@ import (
 )
 
 type EmbeddingService struct {
-	app *Application
+	app *application.Application
 }
 
-func NewEmbeddingService(app *Application) *EmbeddingService {
+func NewEmbeddingService(app *application.Application) *EmbeddingService {
 	return &EmbeddingService{
 		app: app,
 	}
