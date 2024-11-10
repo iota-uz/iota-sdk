@@ -28,8 +28,9 @@ type MoneyAccountController struct {
 
 func NewMoneyAccountController(app *application.Application) shared.Controller {
 	return &MoneyAccountController{
-		app:      app,
-		basePath: "/finance/accounts",
+		app:                 app,
+		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		basePath:            "/finance/accounts",
 	}
 }
 

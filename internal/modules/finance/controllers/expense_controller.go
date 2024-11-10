@@ -29,8 +29,11 @@ type ExpenseController struct {
 
 func NewExpensesController(app *application.Application) shared.Controller {
 	return &ExpenseController{
-		app:      app,
-		basePath: "/finance/expenses",
+		app:                    app,
+		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		expenseService:         app.Service(services.ExpenseService{}).(*services.ExpenseService),
+		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
+		basePath:               "/finance/expenses",
 	}
 }
 
