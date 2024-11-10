@@ -2,7 +2,7 @@ package layouts
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/assets"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 )
 
 var (
@@ -12,7 +12,7 @@ var (
 	htmx    = "/assets/" + assets.FS.HashName("js/htmx.min.js")
 )
 
-templ Base(pageCtx *composables.PageContext) {
+templ Base(pageCtx *types.PageContext) {
 	<!DOCTYPE html>
 	<html lang="en" class="system bg-surface-100 text-100">
 		<head>

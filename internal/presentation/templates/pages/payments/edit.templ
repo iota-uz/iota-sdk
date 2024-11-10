@@ -10,11 +10,11 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 )
 
 type EditPageProps struct {
-	*composables.PageContext
+	*types.PageContext
 	Payment  *viewmodels.Payment
 	Stages   []*viewmodels.ProjectStage
 	Accounts []*viewmodels.MoneyAccount

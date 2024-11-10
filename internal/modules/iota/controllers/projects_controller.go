@@ -7,14 +7,15 @@ import (
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/projects"
 	"github.com/iota-agency/iota-erp/internal/services"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
 )
 
 type ProjectsController struct {
@@ -44,7 +45,7 @@ func (c *ProjectsController) Register(r *mux.Router) {
 func (c *ProjectsController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Projects.Meta.List.Title", ""),
+		types.NewPageData("Projects.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -82,7 +83,7 @@ func (c *ProjectsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Projects.Meta.Edit.Title", ""),
+		types.NewPageData("Projects.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -139,10 +140,10 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 	case shared.FormActionSave:
 		dto := project.UpdateDTO{} //nolint:exhaustruct
-		var pageCtx *composables.PageContext
+		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r,
-			composables.NewPageData("Projects.Meta.Edit.Title", ""),
+			types.NewPageData("Projects.Meta.Edit.Title", ""),
 		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -181,7 +182,7 @@ func (c *ProjectsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 func (c *ProjectsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Projects.Meta.New.Title", ""),
+		types.NewPageData("Projects.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -209,7 +210,7 @@ func (c *ProjectsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pageCtx, err := composables.UsePageCtx(
-		r, composables.NewPageData("Projects.Meta.New.Title", ""),
+		r, types.NewPageData("Projects.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

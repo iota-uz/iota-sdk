@@ -8,7 +8,6 @@ import (
 	en_translations "github.com/go-playground/validator/v10/translations/en"
 	ru_translations "github.com/go-playground/validator/v10/translations/ru"
 	"github.com/iota-agency/iota-erp/pkg/constants"
-	"github.com/iota-agency/iota-erp/sdk/composables"
 	"golang.org/x/text/language"
 	"sync"
 
@@ -42,7 +41,7 @@ func loadUniTranslator() *ut.UniversalTranslator {
 
 func UseUniLocalizer(ctx context.Context) (ut.Translator, bool) {
 	uni := loadUniTranslator()
-	locale, _ := composables.UseLocale(ctx, language.English).Base()
+	locale, _ := UseLocale(ctx, language.English).Base()
 	trans, _ := uni.GetTranslator(locale.String())
 	translationLock.Lock()
 	defer translationLock.Unlock()

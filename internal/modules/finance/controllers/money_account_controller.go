@@ -5,8 +5,9 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -58,7 +59,7 @@ func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmo
 func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Accounts.Meta.List.Title", ""),
+		types.NewPageData("Accounts.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -95,7 +96,7 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Accounts.Meta.Edit.Title", ""),
+		types.NewPageData("Accounts.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -158,8 +159,8 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 		}
 	case shared.FormActionSave:
 		dto := moneyAccount.UpdateDTO{} //nolint:exhaustruct
-		var pageCtx *composables.PageContext
-		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.Edit.Title", ""))
+		var pageCtx *types.PageContext
+		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.Edit.Title", ""))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -201,7 +202,7 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 }
 
 func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -233,7 +234,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Accounts.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -6,8 +6,9 @@ import (
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -46,7 +47,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Employees.Meta.List.Title", ""),
+		types.NewPageData("Employees.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -84,7 +85,7 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Employees.Meta.Edit.Title", ""),
+		types.NewPageData("Employees.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -141,8 +142,8 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 	case shared.FormActionSave:
 		dto := employee.UpdateDTO{} //nolint:exhaustruct
-		var pageCtx *composables.PageContext
-		pageCtx, err = composables.UsePageCtx(r, composables.NewPageData("Employees.Meta.Edit.Title", ""))
+		var pageCtx *types.PageContext
+		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Employees.Meta.Edit.Title", ""))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -178,7 +179,7 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Employees.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -204,7 +205,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Employees.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

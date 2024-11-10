@@ -8,11 +8,11 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 )
 
 type IndexPageProps struct {
-	*composables.PageContext
+	*types.PageContext
 	Categories []*viewmodels.ExpenseCategory
 }
 

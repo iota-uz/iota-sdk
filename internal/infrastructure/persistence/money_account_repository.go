@@ -5,7 +5,7 @@ import (
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 	"time"
 )

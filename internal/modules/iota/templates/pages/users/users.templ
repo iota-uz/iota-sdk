@@ -8,12 +8,12 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"time"
 )
 
 type IndexPageProps struct {
-	*composables.PageContext
+	*types.PageContext
 	Users []*user.User
 }
 

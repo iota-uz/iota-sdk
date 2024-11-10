@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/modules"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/seed"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

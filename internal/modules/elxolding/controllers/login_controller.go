@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/modules/elxolding/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/services"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"net/http"
 	"strconv"
 
@@ -34,7 +35,7 @@ func (c *LoginController) Register(r *mux.Router) {
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Login.Meta.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

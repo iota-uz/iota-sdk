@@ -7,9 +7,10 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/modules/iota/templates/pages/users"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/services"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 )
 
@@ -42,7 +43,7 @@ func (c *UsersController) Register(r *mux.Router) {
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
-		r, composables.NewPageData("Users.Meta.List.Title", ""),
+		r, types.NewPageData("Users.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -74,7 +75,7 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pageCtx, err := composables.UsePageCtx(
-		r, composables.NewPageData("Users.Meta.Edit.Title", ""),
+		r, types.NewPageData("Users.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -139,9 +140,9 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		var pageCtx *composables.PageContext
+		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
-			r, composables.NewPageData("Users.Meta.Edit.Title", ""),
+			r, types.NewPageData("Users.Meta.Edit.Title", ""),
 		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -185,7 +186,7 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Users.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Users.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -211,7 +212,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("Users.Meta.New.Title", ""))
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Users.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

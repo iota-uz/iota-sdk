@@ -8,7 +8,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
-	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"

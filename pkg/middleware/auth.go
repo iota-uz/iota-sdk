@@ -3,13 +3,13 @@ package middleware
 import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/pkg/constants"
-	"github.com/iota-agency/iota-erp/sdk/composables"
 )
 
 type AuthService interface {
@@ -39,24 +39,6 @@ func Authorization(authService AuthService) mux.MiddlewareFunc {
 				params.Authenticated = true
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 				next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, constants.SessionKey, sess)))
-			},
-		)
-	}
-}
-
-func RequireAuthorization() mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				params, ok := composables.UseParams(r.Context())
-				if !ok {
-					panic("params not found. Add RequestParams middleware up the chain")
-				}
-				if !params.Authenticated {
-					http.Redirect(w, r, "/login", http.StatusFound)
-					return
-				}
-				next.ServeHTTP(w, r)
 			},
 		)
 	}

@@ -3,18 +3,18 @@ package payments
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 )
 
 type AccountSelectProps struct {
-	*composables.PageContext
+	*types.PageContext
 	Value    string
 	Accounts []*viewmodels.MoneyAccount
 	Attrs    templ.Attributes
 }
 
 type StageSelectProps struct {
-	*composables.PageContext
+	*types.PageContext
 	Value  string
 	Stages []*viewmodels.ProjectStage
 	Attrs  templ.Attributes

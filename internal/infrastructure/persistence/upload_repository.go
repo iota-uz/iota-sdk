@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/upload"
-	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )
 
