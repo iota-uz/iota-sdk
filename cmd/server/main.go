@@ -71,7 +71,11 @@ func main() {
 		assets.FS,
 	}
 	for _, module := range modules.LoadedModules {
-		assetsFs = append(assetsFs, module.Assets())
+		fs := module.Assets()
+		if fs == nil {
+			continue
+		}
+		assetsFs = append(assetsFs, fs)
 	}
 	app := constructApp(db)
 	controllerInstances := []shared.Controller{
