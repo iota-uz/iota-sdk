@@ -3,12 +3,10 @@ package testutils
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/dbutils"
 	_ "github.com/lib/pq"
-	migrate "github.com/rubenv/sql-migrate"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"strings"
@@ -25,14 +23,14 @@ func DBSetup(db *sql.DB) error {
 	if err := DropPublicSchema(db); err != nil {
 		return err
 	}
-	if err := RunMigrations(db); err != nil {
+	if err := dbutils.RunMigrations(db); err != nil {
 		return err
 	}
 	return nil
 }
 
 func DBTeardown(db *sql.DB) error {
-	return RollbackMigrations(db)
+	return dbutils.RollbackMigrations(db)
 }
 
 func DropPublicSchema(db *sql.DB) error {
@@ -46,34 +44,6 @@ func DropPublicSchema(db *sql.DB) error {
 	)
 	_, err := db.Exec(q)
 	return err
-}
-
-func RunMigrations(db *sql.DB) error {
-	migrations := &migrate.FileMigrationSource{
-		Dir: "migrations/postgres",
-	}
-	n, err := migrate.Exec(db, "postgres", migrations, migrate.Up)
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return errors.New("no migrations found")
-	}
-	return nil
-}
-
-func RollbackMigrations(db *sql.DB) error {
-	migrations := &migrate.FileMigrationSource{
-		Dir: "migrations/postgres",
-	}
-	n, err := migrate.Exec(db, "postgres", migrations, migrate.Down)
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return errors.New("no migrations found")
-	}
-	return nil
 }
 
 func GetTestContext() *TestContext {

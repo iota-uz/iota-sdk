@@ -17,6 +17,18 @@ func NewModule() shared.Module {
 type Module struct {
 }
 
+func (m *Module) MigrationDirs() []string {
+	return []string{
+		"internal/modules/finance/migrations",
+	}
+}
+
+func (m *Module) Migrations() []string {
+	return []string{
+		"internal/modules/finance/migrations",
+	}
+}
+
 func (m *Module) Assets() *hashfs.FS {
 	return nil
 }

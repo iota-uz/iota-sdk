@@ -21,5 +21,6 @@ type Module interface {
 	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 	Controllers() []ControllerConstructor
 	Assets() *hashfs.FS
+	MigrationDirs() []string
 	LocaleFiles() []string
 }
