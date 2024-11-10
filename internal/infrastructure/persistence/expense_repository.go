@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-erp/sdk/composables"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/sdk/service"
 	"gorm.io/gorm"
 )

@@ -4,10 +4,10 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 )
 
-templ Index(pageCtx *composables.PageContext) {
+templ Index(pageCtx *types.PageContext) {
 	@layouts.Base(pageCtx) {
 		<div class="grid grid-cols-2 h-screen">
 			<div class="flex flex-col gap-16 justify-center items-center text-left">

@@ -11,11 +11,11 @@ import (
 	usercomponents "github.com/iota-agency/iota-erp/internal/presentation/templates/components/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 )
 
 type EditFormProps struct {
-	*composables.PageContext
+	*types.PageContext
 	User   *user.User
 	Roles  []*role.Role
 	Errors map[string]string

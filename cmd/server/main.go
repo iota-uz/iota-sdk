@@ -13,9 +13,8 @@ import (
 	"github.com/iota-agency/iota-erp/internal/server"
 	"github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/pkg/dbutils"
-	localMiddleware "github.com/iota-agency/iota-erp/pkg/middleware"
+	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"github.com/iota-agency/iota-erp/sdk/event"
-	"github.com/iota-agency/iota-erp/sdk/middleware"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -99,8 +98,9 @@ func main() {
 			middleware.WithLogger(log.Default()),
 			middleware.LogRequests(),
 			middleware.Transactions(db),
-			localMiddleware.WithLocalizer(bundle),
-			localMiddleware.Authorization(authService),
+			middleware.WithLocalizer(bundle),
+			middleware.Authorization(authService),
+			middleware.NavItems(),
 		},
 		Controllers: controllerInstances,
 	}

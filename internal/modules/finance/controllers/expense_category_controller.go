@@ -5,7 +5,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/services"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"net/http"
 
 	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
@@ -13,7 +15,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
 )
 
 type ExpenseCategoriesController struct {
@@ -58,7 +59,7 @@ func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*v
 func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("ExpenseCategories.Meta.List.Title", ""),
+		types.NewPageData("ExpenseCategories.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -95,7 +96,7 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
+		types.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -156,10 +157,10 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 		}
 	case shared.FormActionSave:
 		dto := category.UpdateDTO{} //nolint:exhaustruct
-		var pageCtx *composables.PageContext
+		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r,
-			composables.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
+			types.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
 		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -202,7 +203,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("ExpenseCategories.Meta.New.Title", ""),
+		types.NewPageData("ExpenseCategories.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -236,7 +237,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 	}
 
 	pageCtx, err := composables.UsePageCtx(
-		r, composables.NewPageData("ExpenseCategories.Meta.New.Title", ""),
+		r, types.NewPageData("ExpenseCategories.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -4,9 +4,10 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/account"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -33,7 +34,7 @@ func (c *AccountController) Register(r *mux.Router) {
 func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Account.Meta.Index.Title", ""),
+		types.NewPageData("Account.Meta.Index.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

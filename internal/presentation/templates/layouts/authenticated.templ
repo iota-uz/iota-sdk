@@ -2,13 +2,11 @@ package layouts
 
 import (
 	"bytes"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"github.com/iota-agency/iota-erp/internal/presentation/assets"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"strings"
 )
 
@@ -17,26 +15,6 @@ var (
 
 	navbarOnce = templ.NewOnceHandle()
 )
-
-type SidebarItem struct {
-	name        string
-	href        string
-	children    []SidebarItem
-	icon        templ.Component
-	permissions []permission.Permission
-}
-
-func (s SidebarItem) HasPermission(user *user.User) bool {
-	if s.permissions == nil {
-		return true
-	}
-	for _, perm := range s.permissions {
-		if !user.Can(perm) {
-			return false
-		}
-	}
-	return true
-}
 
 type sidebarLink struct {
 	name     string
@@ -76,39 +54,39 @@ func isActiveLink(pathname, href string) bool {
 	return strings.HasPrefix(pathname, href)
 }
 
-func isAnyChildrenActive(pathname string, children []SidebarItem) bool {
+func isAnyChildrenActive(pathname string, children []types.NavigationItem) bool {
 	for _, item := range children {
-		if item.href == pathname {
+		if item.Href == pathname {
 			return true
 		}
 	}
 	return false
 }
 
-templ (i SidebarItem) render(pathname string) {
+templ renderNavItem(i types.NavigationItem, pathname string) {
 	<li>
-		if len(i.children) > 0 {
-			<details class="group" open?={ isAnyChildrenActive(pathname, i.children) }>
+		if len(i.Children) > 0 {
+			<details class="group" open?={ isAnyChildrenActive(pathname, i.Children) }>
 				<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
-					if i.icon != nil {
-						@i.icon
+					if i.Icon != nil {
+						@i.Icon
 					}
-					{ i.name }
+					{ i.Name }
 					@icons.CaretUp(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
 				</summary>
 				<ul class="ml-4 mt-2 flex flex-col gap-2">
-					for _, item := range i.children {
-						@newSidebarLink(item.name, item.href, item.icon, isActiveLink(pathname, item.href)).render()
+					for _, item := range i.Children {
+						@newSidebarLink(item.Name, item.Href, item.Icon, isActiveLink(pathname, item.Href)).render()
 					}
 				</ul>
 			</details>
 		} else {
-			@newSidebarLink(i.name, i.href, i.icon, isActiveLink(pathname, i.href)).render()
+			@newSidebarLink(i.Name, i.Href, i.Icon, isActiveLink(pathname, i.Href)).render()
 		}
 	</li>
 }
 
-templ sidebar(pageCtx *composables.PageContext) {
+templ sidebar(pageCtx *types.PageContext) {
 	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6">
 		<div class="flex h-16 items-center justify-center px-6">
 			<a href="/" class="flex items-center gap-2">
@@ -117,8 +95,8 @@ templ sidebar(pageCtx *composables.PageContext) {
 		</div>
 		<nav class="py-4 flex-1">
 			<ul class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar">
-				for _, item := range getSidebarItems(pageCtx) {
-					@item.render(pageCtx.Pathname)
+				for _, item := range pageCtx.NavItems {
+					@renderNavItem(item, pageCtx.Pathname)
 				}
 			</ul>
 		</nav>
@@ -193,7 +171,7 @@ templ Navbar() {
 	}
 }
 
-templ Authenticated(pageCtx *composables.PageContext) {
+templ Authenticated(pageCtx *types.PageContext) {
 	@Base(pageCtx) {
 		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
 			@sidebar(pageCtx)

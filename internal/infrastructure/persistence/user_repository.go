@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 
-	"github.com/iota-agency/iota-erp/sdk/composables"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
 	"github.com/iota-agency/iota-erp/sdk/service"
 )

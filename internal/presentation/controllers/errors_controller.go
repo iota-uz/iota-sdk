@@ -3,13 +3,14 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/error_pages"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"net/http"
 )
 
 func NotFound() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		pageCtx, err := composables.UsePageCtx(r, composables.NewPageData("ErrorPages.NotFound.Title", ""))
+		pageCtx, err := composables.UsePageCtx(r, types.NewPageData("ErrorPages.NotFound.Title", ""))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

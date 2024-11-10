@@ -6,6 +6,8 @@ import (
 	"github.com/iota-agency/iota-erp/internal/modules/finance/controllers"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 func NewModule() shared.Module {
@@ -27,13 +29,34 @@ func (m *Module) Name() string {
 	return "finance"
 }
 
-func (m *Module) NavigationItems() []shared.NavigationItem {
-	return []shared.NavigationItem{
+func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationItem {
+	return []types.NavigationItem{
 		{
-			Name:     "Users",
-			Children: nil,
-			Icon:     icons.Users(icons.Props{Size: "20"}),
-			Href:     "/users",
+			Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}),
+			Href: "#",
+			Icon: icons.Money(icons.Props{Size: "20"}),
+			Children: []types.NavigationItem{
+				{
+					Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.ExpenseCategories"}),
+					Href:        "/finance/expense-categories",
+					Permissions: nil,
+				},
+				{
+					Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Payments"}),
+					Href:        "/finance/payments",
+					Permissions: nil,
+				},
+				{
+					Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Expenses"}),
+					Href:        "/finance/expenses",
+					Permissions: nil,
+				},
+				{
+					Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Accounts"}),
+					Href:        "/finance/accounts",
+					Permissions: nil,
+				},
+			},
 		},
 	}
 }
@@ -50,5 +73,7 @@ func (m *Module) Controllers() []shared.ControllerConstructor {
 func (m *Module) LocaleFiles() []string {
 	return []string{
 		"internal/modules/finance/locales/en.json",
+		"internal/modules/finance/locales/ru.json",
+		"internal/modules/finance/locales/uz.json",
 	}
 }

@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -30,7 +31,7 @@ func (c *HomeController) Register(r *mux.Router) {
 
 func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
-		r, composables.NewPageData("Home.Meta.Title", ""),
+		r, types.NewPageData("Home.Meta.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

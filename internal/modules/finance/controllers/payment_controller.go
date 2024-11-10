@@ -6,7 +6,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/services"
+	"github.com/iota-agency/iota-erp/internal/types"
 	"net/http"
 
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
@@ -14,7 +16,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/payments"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/middleware"
 )
 
 type PaymentsController struct {
@@ -97,7 +98,7 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Payments.Meta.List.Title", ""),
+		types.NewPageData("Payments.Meta.List.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -123,7 +124,7 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		composables.NewPageData("Payments.Meta.Edit.Title", ""),
+		types.NewPageData("Payments.Meta.Edit.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -192,10 +193,10 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		var pageCtx *composables.PageContext
+		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r,
-			composables.NewPageData("Payments.Meta.Edit.Title", ""),
+			types.NewPageData("Payments.Meta.Edit.Title", ""),
 		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -238,7 +239,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
-		r, composables.NewPageData("Payments.Meta.New.Title", ""),
+		r, types.NewPageData("Payments.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -273,7 +274,7 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 	}
 
 	pageCtx, err := composables.UsePageCtx(
-		r, composables.NewPageData("Payments.Meta.New.Title", ""),
+		r, types.NewPageData("Payments.Meta.New.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

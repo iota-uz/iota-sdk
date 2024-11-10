@@ -2,11 +2,11 @@ package shared
 
 import (
 	"context"
-	"github.com/a-h/templ"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type ControllerConstructor func(app *application.Application) Controller
@@ -15,18 +15,10 @@ type Controller interface {
 	Register(r *mux.Router)
 }
 
-type NavigationItem struct {
-	Name        string
-	Href        string
-	Children    []NavigationItem
-	Icon        templ.Component
-	Permissions []permission.Permission
-}
-
 type Module interface {
 	Name() string
 	Seed(ctx context.Context) error
-	NavigationItems() []NavigationItem
+	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 	Controllers() []ControllerConstructor
 	Assets() *hashfs.FS
 	LocaleFiles() []string
