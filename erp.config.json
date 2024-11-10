@@ -1,6 +1,7 @@
 {
   "modules": [
     "elxolding",
-    "finance"
+    "finance",
+    "warehouse"
   ]
 }
