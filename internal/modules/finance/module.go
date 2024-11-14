@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"github.com/benbjohnson/hashfs"
+	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/finance/controllers"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
@@ -15,6 +16,10 @@ func NewModule() shared.Module {
 }
 
 type Module struct {
+}
+
+func (m *Module) Register(app *application.Application) error {
+	return nil
 }
 
 func (m *Module) MigrationDirs() []string {
@@ -33,7 +38,7 @@ func (m *Module) Assets() *hashfs.FS {
 	return nil
 }
 
-func (m *Module) Seed(ctx context.Context) error {
+func (m *Module) Seed(ctx context.Context, app *application.Application) error {
 	return nil
 }
 

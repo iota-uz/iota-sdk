@@ -6,6 +6,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-erp/internal/application"
+	expenses2 "github.com/iota-agency/iota-erp/internal/modules/finance/templates/pages/expenses"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
 	"github.com/iota-agency/iota-erp/internal/services"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
 	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/expenses"
 	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 )
@@ -103,14 +103,14 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &expenses.IndexPageProps{
+	props := &expenses2.IndexPageProps{
 		PageContext: pageCtx,
 		Expenses:    viewExpenses,
 	}
 	if isHxRequest {
-		templ.Handler(expenses.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expenses2.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(expenses.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expenses2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -145,14 +145,14 @@ func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &expenses.EditPageProps{
+	props := &expenses2.EditPageProps{
 		PageContext: pageCtx,
 		Expense:     mappers.ExpenseToViewModel(entity),
 		Accounts:    accounts,
 		Categories:  categories,
 		Errors:      map[string]string{},
 	}
-	templ.Handler(expenses.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expenses2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -216,14 +216,14 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			props := &expenses.EditPageProps{
+			props := &expenses2.EditPageProps{
 				PageContext: pageCtx,
 				Expense:     mappers.ExpenseToViewModel(entity),
 				Accounts:    accounts,
 				Categories:  categories,
 				Errors:      errorsMap,
 			}
-			templ.Handler(expenses.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(expenses2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		if err := c.expenseService.Update(r.Context(), id, &dto); err != nil {
@@ -250,14 +250,14 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &expenses.CreatePageProps{
+	props := &expenses2.CreatePageProps{
 		PageContext: pageCtx,
 		Accounts:    accounts,
 		Categories:  categories,
 		Errors:      map[string]string{},
 		Expense:     mappers.ExpenseToViewModel(&expense.Expense{}), //nolint:exhaustruct
 	}
-	templ.Handler(expenses.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expenses2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
@@ -294,14 +294,14 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &expenses.CreatePageProps{
+		props := &expenses2.CreatePageProps{
 			PageContext: pageCtx,
 			Accounts:    accounts,
 			Errors:      errorsMap,
 			Categories:  categories,
 			Expense:     mappers.ExpenseToViewModel(entity),
 		}
-		templ.Handler(expenses.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expenses2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

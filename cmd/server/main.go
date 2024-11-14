@@ -13,8 +13,8 @@ import (
 	"github.com/iota-agency/iota-erp/internal/server"
 	"github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/pkg/dbutils"
+	"github.com/iota-agency/iota-erp/pkg/event"
 	"github.com/iota-agency/iota-erp/pkg/middleware"
-	"github.com/iota-agency/iota-erp/sdk/event"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -85,6 +85,12 @@ func main() {
 		controllers.NewGraphQLController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewStaticFilesController(assetsFs),
+	}
+
+	for _, module := range modules.LoadedModules {
+		if err := module.Register(app); err != nil {
+			log.Fatalf("failed to register module %s: %v", module.Name(), err)
+		}
 	}
 
 	for _, module := range modules.LoadedModules {

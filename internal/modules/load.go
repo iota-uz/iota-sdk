@@ -2,12 +2,12 @@ package modules
 
 import (
 	"encoding/json"
+	"github.com/iota-agency/iota-erp/elxolding"
 	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/modules/elxolding"
 	"github.com/iota-agency/iota-erp/internal/modules/finance"
-	"github.com/iota-agency/iota-erp/internal/modules/iota"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse"
+	"github.com/iota-agency/iota-erp/iota"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 	"slices"
