@@ -2,7 +2,8 @@
   "NavigationLinks": {
     "Warehouse": "Warehouse",
     "Products": "Products",
-    "WarehousePositions": "Warehouse positions"
+    "WarehousePositions": "Warehouse positions",
+    "WarehouseOrders": "Warehouse orders"
   },
   "Products": {
     "List": {
@@ -43,6 +44,8 @@
     "Single": {
       "Title": "Title",
       "Barcode": "Barcode",
+      "Unit": "Unit",
+      "SelectUnit": "Select unit",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse position?"
     }
