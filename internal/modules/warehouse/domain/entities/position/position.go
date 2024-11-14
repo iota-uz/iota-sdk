@@ -3,10 +3,10 @@ package position
 import "time"
 
 type Position struct {
-	ID        int64
+	ID        uint
 	Title     string
 	Barcode   string
-	UnitID    int64
+	UnitID    uint
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

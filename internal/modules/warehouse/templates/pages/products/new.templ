@@ -1,0 +1,50 @@
+package products
+
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/types"
+)
+
+type CreatePageProps struct {
+	*types.PageContext
+	Positions []*viewmodels.Position
+	Product   *viewmodels.Product
+	Errors    map[string]string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post="/warehouse/products"
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@PositionSelect(&PositionSelectProps{
+				PageContext: props.PageContext,
+				Value:       "",
+				Positions:   props.Positions,
+				Attrs:       templ.Attributes{"name": "PositionID"},
+			})
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ props.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreatePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
+	}
+}

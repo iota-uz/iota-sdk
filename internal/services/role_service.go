@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/sdk/event"
+	"github.com/iota-agency/iota-erp/pkg/event"
 )
 
 type RoleService struct {

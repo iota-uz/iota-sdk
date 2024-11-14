@@ -5,7 +5,7 @@ import (
 	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/sdk/event"
+	"github.com/iota-agency/iota-erp/pkg/event"
 )
 
 type MoneyAccountService struct {

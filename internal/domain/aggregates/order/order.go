@@ -6,7 +6,7 @@ import (
 )
 
 type Order struct {
-	ID        int64
+	ID        uint
 	Type      *Type
 	Status    *Status
 	Items     []*Item
