@@ -3,11 +3,11 @@ package models
 import "time"
 
 type WarehouseUnit struct {
-	ID          int
-	Name        string
-	Description *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID         int
+	Title      string
+	ShortTitle string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type InventoryCheck struct {

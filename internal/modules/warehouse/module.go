@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-erp/internal/application"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/assets"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/controllers"
@@ -23,8 +24,10 @@ type Module struct {
 }
 
 func (m *Module) Register(app *application.Application) error {
+	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher)
 	positionService := services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher)
 	productService := services.NewProductService(persistence.NewProductRepository(), app.EventPublisher, positionService)
+	app.RegisterService(unitService)
 	app.RegisterService(positionService)
 	app.RegisterService(productService)
 	app.Rbac.Register(
@@ -66,14 +69,25 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 			Href: "#",
 			Children: []types.NavigationItem{
 				{
-					Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Products"}),
-					Href:        "/warehouse/products",
-					Permissions: nil,
+					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Products"}),
+					Href: "/warehouse/products",
+					Permissions: []permission.Permission{
+						permissions.ProductRead,
+					},
 				},
 				{
-					Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehousePositions"}),
-					Href:        "/warehouse/positions",
-					Permissions: nil,
+					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehousePositions"}),
+					Href: "/warehouse/positions",
+					Permissions: []permission.Permission{
+						permissions.PositionRead,
+					},
+				},
+				{
+					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseOrders"}),
+					Href: "/warehouse/orders",
+					Permissions: []permission.Permission{
+						permissions.OrderRead,
+					},
 				},
 			},
 		},

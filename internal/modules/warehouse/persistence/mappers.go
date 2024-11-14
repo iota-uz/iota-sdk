@@ -3,9 +3,9 @@ package persistence
 import (
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
 )
 
