@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
@@ -166,6 +167,7 @@ func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				PageContext: pageCtx,
 				Position:    mappers.PositionToViewModel(entity),
 				Errors:      errorsMap,
+				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 			}
 			templ.Handler(positions.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
@@ -188,6 +190,7 @@ func (c *PositionsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
 		Position:    mappers.PositionToViewModel(&position.Position{}), //nolint:exhaustruct
+		SaveURL:     c.basePath,
 	}
 	templ.Handler(positions.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
