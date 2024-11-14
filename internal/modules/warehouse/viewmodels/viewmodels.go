@@ -1,15 +1,19 @@
 package viewmodels
 
-type User struct {
+type Product struct {
 	ID         string
-	FirstName  string
-	LastName   string
-	MiddleName string
-	Email      string
+	PositionID string
+	Rfid       string
+	Status     string
 	CreatedAt  string
 	UpdatedAt  string
 }
 
-func (u *User) FullName() string {
-	return u.FirstName + " " + u.LastName + " " + u.MiddleName
+type Position struct {
+	ID        string
+	Title     string
+	Barcode   string
+	UnitID    string
+	CreatedAt string
+	UpdatedAt string
 }

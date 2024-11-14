@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/sdk/event"
+	"github.com/iota-agency/iota-erp/pkg/event"
 	"io"
 	"os"
 	"path/filepath"

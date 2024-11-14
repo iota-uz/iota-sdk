@@ -1,0 +1,34 @@
+package products
+
+import (
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/types"
+)
+
+type PositionSelectProps struct {
+	*types.PageContext
+	Value     string
+	Positions []*viewmodels.Position
+	Attrs     templ.Attributes
+}
+
+templ PositionSelect(props *PositionSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("Products.Single.Position"),
+		Placeholder: props.T("Products.Single.SelectPosition"),
+		Attrs:       props.Attrs,
+	}) {
+		for _, position := range props.Positions {
+			if position.ID == props.Value {
+				<option value={ position.ID } selected>
+					{ position.Title }
+				</option>
+			} else {
+				<option value={ position.ID }>
+					{ position.Title }
+				</option>
+			}
+		}
+	}
+}

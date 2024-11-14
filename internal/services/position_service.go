@@ -2,9 +2,8 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/sdk/event"
-
 	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
+	"github.com/iota-agency/iota-erp/pkg/event"
 )
 
 type PositionService struct {

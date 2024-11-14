@@ -3,7 +3,7 @@ package controllers
 import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/sdk/multifs"
+	"github.com/iota-agency/iota-erp/pkg/multifs"
 	"net/http"
 
 	"github.com/gorilla/mux"

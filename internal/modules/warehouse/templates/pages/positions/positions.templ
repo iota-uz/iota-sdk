@@ -1,0 +1,106 @@
+package positions
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/types"
+)
+
+type IndexPageProps struct {
+	*types.PageContext
+	Positions []*viewmodels.Position
+}
+
+templ PositionsTable(props *IndexPageProps) {
+	@base.Table(&base.TableProps{
+		Columns: []*base.TableColumn{
+			{Label: "WarehousePositions.List.Position", Key: "title"},
+			{Label: "WarehousePositions.List.Barcode", Key: "status"},
+			{Label: "UpdatedAt", Key: "updatedAt"},
+			{Label: "Actions", Class: "w-16"},
+		},
+		Localizer: props.Localizer,
+	}) {
+		for _, position := range props.Positions {
+			@base.TableRow() {
+				@base.TableCell() {
+					{ position.Title }
+				}
+				@base.TableCell() {
+					{ position.Barcode }
+				}
+				@base.TableCell() {
+					<div x-data="relativeformat">
+						<span x-text={ fmt.Sprintf("format('%s')", position.UpdatedAt) }></span>
+					</div>
+				}
+				@base.TableCell() {
+					@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/positions/%s", position.ID)}) {
+						@icons.PencilSimple(icons.Props{Size: "20"})
+					}
+				}
+			}
+		}
+	}
+}
+
+templ PositionsContent(props *IndexPageProps) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ props.T("NavigationLinks.WarehousePositions") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/warehouse/positions"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target="table"
+				hx-swap="outerHTML"
+			>
+				@input.Text(&input.Props{
+					Addon: &input.Addon{
+						Position:  input.AddonLeft,
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: props.T("Search"),
+					Attrs: templ.Attributes{
+						"name": "name",
+					},
+				})
+				@base.Select(&base.SelectProps{
+					Prefix: props.T("PerPage"),
+					Attrs: templ.Attributes{
+						"name": "limit",
+					},
+				}) {
+					<option>15</option>
+					<option>25</option>
+					<option>50</option>
+					<option>100</option>
+				}
+				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
+					<option>Yesterday</option>
+					<option>The day before yesterday</option>
+				}
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/warehouse/positions/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ props.T("WarehousePositions.List.New") }
+				}
+			</form>
+			@PositionsTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@PositionsContent(props)
+	}
+}

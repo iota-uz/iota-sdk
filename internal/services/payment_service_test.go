@@ -13,7 +13,7 @@ import (
 	services2 "github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/internal/testutils"
 	"github.com/iota-agency/iota-erp/pkg/constants"
-	"github.com/iota-agency/iota-erp/sdk/event"
+	"github.com/iota-agency/iota-erp/pkg/event"
 	"testing"
 	"time"
 )

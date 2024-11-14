@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-erp/pkg/event"
 
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
-	"github.com/iota-agency/iota-erp/sdk/event"
 )
 
 type ProjectStageService struct {
