@@ -5,8 +5,8 @@ import (
 )
 
 type Product struct {
-	ID         int64
-	PositionID int64
+	ID         uint
+	PositionID uint
 	Rfid       string
 	Status     Status
 	CreatedAt  time.Time

@@ -1,20 +1,18 @@
 package application
 
 import (
-	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-erp/sdk/event"
+	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-erp/pkg/event"
 	"gorm.io/gorm"
 	"reflect"
 )
-
-// ErrServiceNotFound Custom error for when a service is not found
-var ErrServiceNotFound = errors.New("service not found")
 
 // Application with a dynamically extendable service registry
 type Application struct {
 	DD             *gorm.DB
 	EventPublisher event.Publisher
+	Rbac           *permission.Rbac
 	services       map[reflect.Type]interface{}
 }
 
@@ -38,6 +36,7 @@ func New(db *gorm.DB, eventPublisher event.Publisher) *Application {
 	return &Application{
 		DD:             db,
 		EventPublisher: eventPublisher,
+		Rbac:           permission.NewRbac(),
 		services:       make(map[reflect.Type]interface{}),
 	}
 }

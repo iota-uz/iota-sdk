@@ -17,7 +17,8 @@ type Controller interface {
 
 type Module interface {
 	Name() string
-	Seed(ctx context.Context) error
+	Seed(ctx context.Context, app *application.Application) error
+	Register(app *application.Application) error
 	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 	Controllers() []ControllerConstructor
 	Assets() *hashfs.FS

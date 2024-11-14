@@ -5,7 +5,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/sdk/event"
+	"github.com/iota-agency/iota-erp/pkg/event"
 )
 
 type ExpenseService struct {
