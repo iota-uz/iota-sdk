@@ -11,20 +11,21 @@ import (
 
 func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 	return &models.WarehouseUnit{
-		ID:        unit.ID,
-		Name:      unit.Name,
-		CreatedAt: unit.CreatedAt,
-		UpdatedAt: unit.UpdatedAt,
+		ID:         unit.ID,
+		Title:      unit.Title,
+		ShortTitle: unit.ShortTitle,
+		CreatedAt:  unit.CreatedAt,
+		UpdatedAt:  unit.UpdatedAt,
 	}
 }
 
 func toDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	return &unit.Unit{
-		ID:          dbUnit.ID,
-		Name:        dbUnit.Name,
-		Description: dbUnit.Description,
-		CreatedAt:   dbUnit.CreatedAt,
-		UpdatedAt:   dbUnit.UpdatedAt,
+		ID:         dbUnit.ID,
+		Title:      dbUnit.Title,
+		ShortTitle: dbUnit.ShortTitle,
+		CreatedAt:  dbUnit.CreatedAt,
+		UpdatedAt:  dbUnit.UpdatedAt,
 	}
 }
 

@@ -3,7 +3,8 @@
     "Warehouse": "Warehouse",
     "Products": "Products",
     "WarehousePositions": "Warehouse positions",
-    "WarehouseOrders": "Warehouse orders"
+    "WarehouseOrders": "Warehouse orders",
+    "WarehouseUnits": "Warehouse units"
   },
   "Products": {
     "List": {
@@ -48,6 +49,25 @@
       "SelectUnit": "Select unit",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse position?"
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "Warehouse units"
+      },
+      "New": "New unit",
+      "Title": "Title",
+      "ShortTitle": "Short title"
+    },
+    "New": {
+      "Meta": {
+        "Title": "New warehouse unit"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "ShortTitle": "Short title"
     }
   }
 }

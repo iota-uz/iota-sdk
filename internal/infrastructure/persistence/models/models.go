@@ -274,8 +274,8 @@ type Expense struct {
 }
 
 type Payment struct {
-	ID             uint
-	StageID        uint
+	ID uint
+	//StageID        uint
 	TransactionID  uint
 	CounterpartyID uint
 	Transaction    *Transaction `gorm:"foreignKey:TransactionID;references:ID"`

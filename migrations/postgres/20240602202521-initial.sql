@@ -237,8 +237,6 @@ CREATE TABLE expenses
 CREATE TABLE payments
 (
     id              SERIAL PRIMARY KEY,
---     TODO: remove stage_id
-    stage_id        INT NOT NULL REFERENCES project_stages (id) ON DELETE RESTRICT,
     transaction_id  INT NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
     counterparty_id INT NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
@@ -518,8 +516,6 @@ CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 CREATE INDEX folders_parent_id_idx ON folders (parent_id);
 
-CREATE INDEX payments_staged_id_idx ON payments (stage_id);
-
 CREATE INDEX vacancies_salary_range_id_idx ON vacancies (id);
 
 CREATE INDEX applicants_vacancy_id_idx ON applicants (vacancy_id);
@@ -532,8 +528,10 @@ CREATE INDEX interview_ratings_interview_id_idx ON interview_ratings (interview_
 CREATE INDEX interviews_application_id_idx ON interviews (application_id);
 CREATE INDEX interviews_interviewer_id_idx ON interviews (interviewer_id);
 
+COMMIT;
 
 -- +migrate Down
+BEGIN;
 DROP TABLE IF EXISTS action_log CASCADE;
 DROP TABLE IF EXISTS applicant_comments CASCADE;
 DROP TABLE IF EXISTS applicant_skills CASCADE;

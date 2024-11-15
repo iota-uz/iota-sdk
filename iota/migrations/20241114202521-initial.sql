@@ -41,7 +41,6 @@ CREATE TABLE project_tasks
     description TEXT,
     stage_id    INT          NOT NULL REFERENCES project_stages (id) ON DELETE CASCADE,
     type_id     INT          NOT NULL REFERENCES task_types (id) ON DELETE CASCADE,
-    level_id    INT          NOT NULL REFERENCES difficulty_levels (id) ON DELETE CASCADE,
     parent_id   INT REFERENCES project_tasks (id) ON DELETE CASCADE,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
