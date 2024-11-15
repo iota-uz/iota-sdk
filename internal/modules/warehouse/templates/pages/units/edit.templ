@@ -23,7 +23,7 @@ templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: props.T("Units.Single.Title"),
+				Label: props.T("WarehouseUnits.Single.Title"),
 				Attrs: templ.Attributes{
 					"value": props.Unit.Title,
 					"name":  "Title",
@@ -31,7 +31,7 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@input.Text(&input.Props{
-				Label: props.T("Units.Single.ShortTitle"),
+				Label: props.T("WarehouseUnits.Single.ShortTitle"),
 				Attrs: templ.Attributes{
 					"value": props.Unit.ShortTitle,
 					"name":  "ShortTitle",
@@ -92,8 +92,8 @@ templ Edit(props *EditPageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading:   "Units.Single.Delete",
-			Text:      "Units.Single.DeleteConfirmation",
+			Heading:   "WarehouseUnits.Single.Delete",
+			Text:      "WarehouseUnits.Single.DeleteConfirmation",
 			Localizer: props.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
 			Action:    "open-delete-unit-confirmation",

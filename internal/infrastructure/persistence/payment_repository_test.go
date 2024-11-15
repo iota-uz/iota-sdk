@@ -56,11 +56,12 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	}
 	if err := paymentRepository.Create(
 		ctx.Context, &payment.Payment{
-			ID:           1,
-			CurrencyCode: string(currency.UsdCode),
-			StageID:      1,
-			Amount:       100,
-			AccountID:    1,
+			ID:      1,
+			StageID: 1,
+			Amount:  100,
+			Account: moneyAccount.Account{
+				ID: 1,
+			},
 		},
 	); err != nil {
 		t.Fatal(err)
@@ -121,9 +122,6 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if paymentEntity.Amount != 100 {
 				t.Errorf("expected 100, got %f", paymentEntity.Amount)
 			}
-			if paymentEntity.CurrencyCode != string(currency.UsdCode) {
-				t.Errorf("expected %s, got %s", currency.UsdCode, paymentEntity.CurrencyCode)
-			}
 		},
 	)
 
@@ -144,9 +142,6 @@ func TestGormPaymentRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			}
 			if paymentEntity.Amount != 200 {
 				t.Errorf("expected 200, got %f", paymentEntity.Amount)
-			}
-			if paymentEntity.CurrencyCode != string(currency.UsdCode) {
-				t.Errorf("expected %s, got %s", currency.UsdCode, paymentEntity.CurrencyCode)
 			}
 		},
 	)

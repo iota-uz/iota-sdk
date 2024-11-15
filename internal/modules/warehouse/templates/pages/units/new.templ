@@ -29,7 +29,6 @@ templ CreateForm(props *CreatePageProps) {
 				Attrs: templ.Attributes{
 					"name":  "Title",
 					"value": props.Unit.Title,
-					"form":  "save-form",
 				},
 			})
 			@input.Text(&input.Props{
@@ -37,7 +36,6 @@ templ CreateForm(props *CreatePageProps) {
 				Attrs: templ.Attributes{
 					"name":  "ShortTitle",
 					"value": props.Unit.ShortTitle,
-					"form":  "save-form",
 				},
 			})
 		}

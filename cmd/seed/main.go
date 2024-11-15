@@ -5,14 +5,13 @@ import (
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/configuration"
 	"github.com/iota-agency/iota-erp/internal/modules"
+	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/event"
 	"github.com/iota-agency/iota-erp/seed"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
-
-type SeedFunc func(ctx context.Context, app *application.Application) error
 
 func main() {
 	conf := configuration.Use()
@@ -21,11 +20,12 @@ func main() {
 		panic(err)
 	}
 
-	seedFuncs := []SeedFunc{
+	seedFuncs := []shared.SeedFunc{
 		seed.CreatePermissions,
 		seed.CreateCurrencies,
 	}
-	for _, module := range modules.LoadedModules {
+	registry := modules.Load()
+	for _, module := range registry.Modules() {
 		seedFuncs = append(seedFuncs, module.Seed)
 	}
 

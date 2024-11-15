@@ -10,6 +10,7 @@ import (
 )
 
 type ControllerConstructor func(app *application.Application) Controller
+type SeedFunc func(ctx context.Context, app *application.Application) error
 
 type Controller interface {
 	Register(r *mux.Router)

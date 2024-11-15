@@ -65,7 +65,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Units.Single.Title"),
+				Label: props.T("WarehouseUnits.Single.Title"),
 				Attrs: templ.Attributes{
 					"value": props.Unit.Title,
 					"name":  "Title",
@@ -80,7 +80,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Units.Single.ShortTitle"),
+				Label: props.T("WarehouseUnits.Single.ShortTitle"),
 				Attrs: templ.Attributes{
 					"value": props.Unit.ShortTitle,
 					"name":  "ShortTitle",
@@ -250,8 +250,8 @@ func Edit(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				Heading:   "Units.Single.Delete",
-				Text:      "Units.Single.DeleteConfirmation",
+				Heading:   "WarehouseUnits.Single.Delete",
+				Text:      "WarehouseUnits.Single.DeleteConfirmation",
 				Localizer: props.Localizer,
 				Icon:      icons.Trash(icons.Props{Size: "20"}),
 				Action:    "open-delete-unit-confirmation",

@@ -9,82 +9,86 @@ import (
 
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/sdk/mapper"
 )
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUser) (*model.User, error) {
-	u := &user.User{}
-	if err := mapper.LenientMapping(&input, u); err != nil {
-		return nil, err
-	}
-	if input.Password != nil {
-		if err := u.SetPassword(*input.Password); err != nil {
-			return nil, err
-		}
-	}
-	if err := r.app.UserService.Create(ctx, u); err != nil {
-		return nil, err
-	}
-	return u.ToGraph(), nil
+	//u := &user.User{}
+	//if err := mapper.LenientMapping(&input, u); err != nil {
+	//	return nil, err
+	//}
+	//if input.Password != nil {
+	//	if err := u.SetPassword(*input.Password); err != nil {
+	//		return nil, err
+	//	}
+	//}
+	//if err := r.app.UserService.Create(ctx, u); err != nil {
+	//	return nil, err
+	//}
+	//return u.ToGraph(), nil
+	panic("not implemented")
 }
 
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, id int64, input model.UpdateUser) (*model.User, error) {
-	entity, err := r.app.UserService.GetByID(ctx, uint(id))
-	if err != nil {
-		return nil, err
-	}
-	if err := mapper.LenientMapping(&input, entity); err != nil {
-		return nil, err
-	}
-	if input.Password != nil {
-		if err := entity.SetPassword(*input.Password); err != nil {
-			return nil, err
-		}
-	}
-	if err := r.app.UserService.Update(ctx, entity); err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.UserService.GetByID(ctx, uint(id))
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if err := mapper.LenientMapping(&input, entity); err != nil {
+	//	return nil, err
+	//}
+	//if input.Password != nil {
+	//	if err := entity.SetPassword(*input.Password); err != nil {
+	//		return nil, err
+	//	}
+	//}
+	//if err := r.app.UserService.Update(ctx, entity); err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic("not implemented")
 }
 
 // DeleteUser is the resolver for the deleteUser field.
 func (r *mutationResolver) DeleteUser(ctx context.Context, id int64) (*model.User, error) {
-	entity, err := r.app.UserService.Delete(ctx, uint(id))
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.UserService.Delete(ctx, uint(id))
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic("not implemented")
 }
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
-	entity, err := r.app.UserService.GetByID(ctx, uint(id))
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.UserService.GetByID(ctx, uint(id))
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic("not implemented")
 }
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error) {
-	entities, err := r.app.UserService.GetPaginated(ctx, limit, offset, sortBy)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.User, len(entities))
-	for i, entity := range entities {
-		result[i] = entity.ToGraph()
-	}
-	total, err := r.app.UserService.Count(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &model.PaginatedUsers{
-		Data:  result,
-		Total: total,
-	}, nil
+	//entities, err := r.app.UserService.GetPaginated(ctx, limit, offset, sortBy)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//result := make([]*model.User, len(entities))
+	//for i, entity := range entities {
+	//	result[i] = entity.ToGraph()
+	//}
+	//total, err := r.app.UserService.Count(ctx)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return &model.PaginatedUsers{
+	//	Data:  result,
+	//	Total: total,
+	//}, nil
+	panic("not implemented")
 }
 
 // UserCreated is the resolver for the userCreated field.
@@ -122,14 +126,15 @@ func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan *model.U
 
 // Avatar is the resolver for the avatar field.
 func (r *userResolver) Avatar(ctx context.Context, obj *model.User) (*model.Media, error) {
-	if obj.AvatarID == nil {
-		return nil, nil //nolint:nilnil
-	}
-	upload, err := r.app.UploadService.GetUploadByID(ctx, *obj.AvatarID)
-	if err != nil {
-		return nil, err
-	}
-	return upload.ToGraph(), nil
+	//if obj.AvatarID == nil {
+	//	return nil, nil //nolint:nilnil
+	//}
+	//upload, err := r.app.UploadService.GetUploadByID(ctx, *obj.AvatarID)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return upload.ToGraph(), nil
+	panic("not implemented")
 }
 
 // User returns UserResolver implementation.

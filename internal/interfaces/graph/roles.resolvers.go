@@ -8,44 +8,45 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/sdk/mapper"
 )
 
 // CreateRole is the resolver for the createRole field.
 func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRole) (*model.Role, error) {
-	entity := &role.Role{}
-	if err := mapper.LenientMapping(&input, entity); err != nil {
-		return nil, err
-	}
-	if err := r.app.RoleService.Create(ctx, entity); err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity := &role.Role{}
+	//if err := mapper.LenientMapping(&input, entity); err != nil {
+	//	return nil, err
+	//}
+	//if err := r.app.RoleService.Create(ctx, entity); err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: CreateRole - createRole"))
 }
 
 // UpdateRole is the resolver for the updateRole field.
 func (r *mutationResolver) UpdateRole(ctx context.Context, id int64, input model.UpdateRole) (*model.Role, error) {
-	entity, err := r.app.RoleService.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := mapper.LenientMapping(&input, entity); err != nil {
-		return nil, err
-	}
-	if err := r.app.RoleService.Update(ctx, entity); err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.RoleService.GetByID(ctx, id)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if err := mapper.LenientMapping(&input, entity); err != nil {
+	//	return nil, err
+	//}
+	//if err := r.app.RoleService.Update(ctx, entity); err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: UpdateRole - updateRole"))
 }
 
 // DeleteRole is the resolver for the deleteRole field.
 func (r *mutationResolver) DeleteRole(ctx context.Context, id int64) (bool, error) {
-	if err := r.app.RoleService.Delete(ctx, id); err != nil {
-		return false, err
-	}
-	return true, nil
+	//if err := r.app.RoleService.Delete(ctx, id); err != nil {
+	//	return false, err
+	//}
+	//return true, nil
+	panic(fmt.Errorf("not implemented: DeleteRole - deleteRole"))
 }
 
 // CreateRolePermission is the resolver for the createRolePermission field.
@@ -55,31 +56,33 @@ func (r *mutationResolver) CreateRolePermission(ctx context.Context, input model
 
 // Role is the resolver for the role field.
 func (r *queryResolver) Role(ctx context.Context, id int64) (*model.Role, error) {
-	entity, err := r.app.RoleService.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.RoleService.GetByID(ctx, id)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Role - role"))
 }
 
 // Roles is the resolver for the roles field.
 func (r *queryResolver) Roles(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedRoles, error) {
-	entities, err := r.app.RoleService.GetPaginated(ctx, limit, offset, sortBy)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Role, len(entities))
-	for i, entity := range entities {
-		result[i] = entity.ToGraph()
-	}
-	total, err := r.app.RoleService.Count(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &model.PaginatedRoles{
-		Data:  result,
-		Total: total,
-	}, nil
+	//entities, err := r.app.RoleService.GetPaginated(ctx, limit, offset, sortBy)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//result := make([]*model.Role, len(entities))
+	//for i, entity := range entities {
+	//	result[i] = entity.ToGraph()
+	//}
+	//total, err := r.app.RoleService.Count(ctx)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return &model.PaginatedRoles{
+	//	Data:  result,
+	//	Total: total,
+	//}, nil
+	panic(fmt.Errorf("not implemented: Roles - roles"))
 }
 
 // Permission is the resolver for the permission field.

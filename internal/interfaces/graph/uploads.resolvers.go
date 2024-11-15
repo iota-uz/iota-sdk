@@ -9,23 +9,23 @@ import (
 	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/upload"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
 // UploadFile is the resolver for the uploadFile field.
 func (r *mutationResolver) UploadFile(ctx context.Context, file graphql.Upload) (*model.Media, error) {
-	entity := &upload.Upload{
-		Name:     file.Filename,
-		Path:     file.Filename,
-		Mimetype: file.ContentType,
-		Size:     file.Size,
-	}
-
-	if err := r.app.UploadService.UploadFile(ctx, file.File, entity); err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity := &upload.Upload{
+	//	Name:     file.Filename,
+	//	Path:     file.Filename,
+	//	Mimetype: file.ContentType,
+	//	Size:     file.Size,
+	//}
+	//
+	//if err := r.app.UploadService.UploadFile(ctx, file.File, entity); err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: UploadFile - uploadFile"))
 }
 
 // DeleteUpload is the resolver for the deleteUpload field.
@@ -35,33 +35,36 @@ func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (*model.M
 
 // Data is the resolver for the data field.
 func (r *paginatedMediaResolver) Data(ctx context.Context, obj *model.PaginatedMedia) ([]*model.Media, error) {
-	entities, err := r.app.UploadService.GetUploadsPaginated(ctx, len(obj.Data), 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Media, len(entities))
-	for _, entity := range entities {
-		result = append(result, entity.ToGraph())
-	}
-	return result, nil
+	//entities, err := r.app.UploadService.GetUploadsPaginated(ctx, len(obj.Data), 0, nil)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//result := make([]*model.Media, len(entities))
+	//for _, entity := range entities {
+	//	result = append(result, entity.ToGraph())
+	//}
+	//return result, nil
+	panic(fmt.Errorf("not implemented: Data - data"))
 }
 
 // Total is the resolver for the total field.
 func (r *paginatedMediaResolver) Total(ctx context.Context, obj *model.PaginatedMedia) (int64, error) {
-	count, err := r.app.UploadService.GetUploadsCount(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
+	//count, err := r.app.UploadService.GetUploadsCount(ctx)
+	//if err != nil {
+	//	return 0, err
+	//}
+	//return count, nil
+	panic(fmt.Errorf("not implemented: Total - total"))
 }
 
 // Upload is the resolver for the upload field.
 func (r *queryResolver) Upload(ctx context.Context, id int64) (*model.Media, error) {
-	entity, err := r.app.UploadService.GetUploadByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.UploadService.GetUploadByID(ctx, id)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Upload - upload"))
 }
 
 // Uploads is the resolver for the uploads field.

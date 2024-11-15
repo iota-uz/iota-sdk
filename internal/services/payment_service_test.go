@@ -10,7 +10,7 @@ import (
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
-	services2 "github.com/iota-agency/iota-erp/internal/services"
+	"github.com/iota-agency/iota-erp/internal/services"
 	"github.com/iota-agency/iota-erp/internal/testutils"
 	"github.com/iota-agency/iota-erp/pkg/constants"
 	"github.com/iota-agency/iota-erp/pkg/event"
@@ -30,8 +30,8 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	projectRepository := persistence.NewProjectRepository()
 	stageRepository := persistence.NewProjectStageRepository()
 	paymentRepository := persistence.NewPaymentRepository()
-	accountService := services2.NewMoneyAccountService(accountRepository, publisher)
-	paymentsService := services2.NewPaymentService(paymentRepository, publisher, accountService)
+	accountService := services.NewMoneyAccountService(accountRepository, publisher)
+	paymentsService := services.NewPaymentService(paymentRepository, publisher, accountService)
 
 	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
 		t.Fatal(err)
@@ -68,10 +68,9 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	}
 	if err := paymentsService.Create(
 		ctx.Context, &payment.CreateDTO{
-			CurrencyCode: string(currency.UsdCode),
-			StageID:      1,
-			Amount:       100,
-			AccountID:    1,
+			StageID:   1,
+			Amount:    100,
+			AccountID: 1,
 		},
 	); err != nil {
 		t.Fatal(err)
