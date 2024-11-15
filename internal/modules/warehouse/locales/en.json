@@ -65,9 +65,16 @@
         "Title": "New warehouse unit"
       }
     },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse unit"
+      }
+    },
     "Single": {
       "Title": "Title",
-      "ShortTitle": "Short title"
+      "ShortTitle": "Short title",
+      "Delete": "Delete",
+      "DeleteConfirmation": "Are you sure you want to delete this warehouse unit?"
     }
   }
 }

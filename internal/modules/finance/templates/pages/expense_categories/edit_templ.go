@@ -85,7 +85,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				Label: props.T("ExpenseCategories.Single.Amount"),
 				Attrs: templ.Attributes{
 					"name":  "Amount",
-					"value": fmt.Sprintf("%.2f", props.Category.Amount),
+					"value": props.Category.Amount,
 					"form":  "save-form",
 				},
 				Error: props.Errors["Amount"],
@@ -190,9 +190,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%d", props.Category.ID))
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/finance/expense-categories/%s", props.Category.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/finance/templates/pages/expense_categories/edit.templ`, Line: 87, Col: 112}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/finance/templates/pages/expense_categories/edit.templ`, Line: 90, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -217,7 +217,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/finance/templates/pages/expense_categories/edit.templ`, Line: 96, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/finance/templates/pages/expense_categories/edit.templ`, Line: 103, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

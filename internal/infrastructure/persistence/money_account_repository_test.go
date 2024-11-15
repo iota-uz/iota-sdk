@@ -84,8 +84,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if accountEntity.Balance != 100 {
 				t.Errorf("expected 100, got %f", accountEntity.Balance)
 			}
-			if accountEntity.Currency.Code.Get() != currency.UsdCode {
-				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code.Get())
+			if accountEntity.Currency.Code != currency.UsdCode {
+				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code)
 			}
 		},
 	)
@@ -107,8 +107,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if accountEntity.Balance != 200 {
 				t.Errorf("expected 200, got %f", accountEntity.Balance)
 			}
-			if accountEntity.Currency.Code.Get() != currency.UsdCode {
-				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code.Get())
+			if accountEntity.Currency.Code != currency.UsdCode {
+				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code)
 			}
 		},
 	)

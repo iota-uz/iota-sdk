@@ -7,40 +7,38 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"net/http"
-
-	"github.com/iota-agency/iota-erp/internal/configuration"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
 )
 
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
-	writer, ok := composables.UseWriter(ctx)
-	if !ok {
-		return nil, fmt.Errorf("request params not found")
-	}
-	_, session, err := r.app.AuthService.Authenticate(ctx, email, password)
-	if err != nil {
-		return nil, err
-	}
-	conf := configuration.Use()
-	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    session.Token,
-		Expires:  session.ExpiresAt,
-		HttpOnly: false,
-		SameSite: http.SameSiteDefaultMode,
-		Secure:   false,
-		Domain:   conf.Domain,
-	}
-	http.SetCookie(writer, cookie)
-	return session.ToGraph(), nil
+	//writer, ok := composables.UseWriter(ctx)
+	//if !ok {
+	//	return nil, fmt.Errorf("request params not found")
+	//}
+	//_, session, err := r.app.AuthService.Authenticate(ctx, email, password)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//conf := configuration.Use()
+	//cookie := &http.Cookie{
+	//	Name:     conf.SidCookieKey,
+	//	Value:    session.Token,
+	//	Expires:  session.ExpiresAt,
+	//	HttpOnly: false,
+	//	SameSite: http.SameSiteDefaultMode,
+	//	Secure:   false,
+	//	Domain:   conf.Domain,
+	//}
+	//http.SetCookie(writer, cookie)
+	//return session.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Authenticate - authenticate"))
 }
 
 // GoogleAuthenticate is the resolver for the googleAuthenticate field.
 func (r *mutationResolver) GoogleAuthenticate(ctx context.Context) (string, error) {
-	return r.app.AuthService.GoogleAuthenticate()
+	//return r.app.AuthService.GoogleAuthenticate()
+	panic(fmt.Errorf("not implemented: GoogleAuthenticate - googleAuthenticate"))
 }
 
 // DeleteSession is the resolver for the deleteSession field.

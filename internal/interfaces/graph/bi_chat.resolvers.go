@@ -8,10 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-erp/pkg/composables"
 
 	"github.com/iota-agency/iota-erp/internal/domain/entities/dialogue"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-erp/internal/services"
+	"github.com/iota-agency/iota-erp/pkg/composables"
 )
 
 // NewDialogue is the resolver for the newDialogue field.
@@ -23,7 +24,8 @@ func (r *mutationResolver) NewDialogue(ctx context.Context, input model.NewDialo
 	if input.Model != nil {
 		openaiModel = *input.Model
 	}
-	data, err := r.app.DialogueService.StartDialogue(ctx, input.Message, openaiModel)
+	dialogueService := r.app.Service(services.DialogueService{}).(*services.DialogueService)
+	data, err := dialogueService.StartDialogue(ctx, input.Message, openaiModel)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +41,8 @@ func (r *mutationResolver) ReplyDialogue(ctx context.Context, id int64, input mo
 	if input.Model != nil {
 		openaiModel = *input.Model
 	}
-	data, err := r.app.DialogueService.ReplyToDialogue(ctx, id, input.Message, openaiModel)
+	dialogueService := r.app.Service(services.DialogueService{}).(*services.DialogueService)
+	data, err := dialogueService.ReplyToDialogue(ctx, id, input.Message, openaiModel)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +51,8 @@ func (r *mutationResolver) ReplyDialogue(ctx context.Context, id int64, input mo
 
 // DeleteDialogue is the resolver for the deleteDialogue field.
 func (r *mutationResolver) DeleteDialogue(ctx context.Context, id int64) (*model.Dialogue, error) {
-	entity, err := r.app.DialogueService.Delete(ctx, id)
+	dialogueService := r.app.Service(services.DialogueService{}).(*services.DialogueService)
+	entity, err := dialogueService.Delete(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +66,8 @@ func (r *mutationResolver) UpdatePrompt(ctx context.Context, id string, input mo
 
 // Dialogue is the resolver for the dialogue field.
 func (r *queryResolver) Dialogue(ctx context.Context, id int64) (*model.Dialogue, error) {
-	entity, err := r.app.DialogueService.GetByID(ctx, id)
+	dialogueService := r.app.Service(services.DialogueService{}).(*services.DialogueService)
+	entity, err := dialogueService.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +76,8 @@ func (r *queryResolver) Dialogue(ctx context.Context, id int64) (*model.Dialogue
 
 // Dialogues is the resolver for the dialogues field.
 func (r *queryResolver) Dialogues(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedDialogues, error) {
-	entities, err := r.app.DialogueService.GetPaginated(ctx, limit, offset, sortBy)
+	dialogueService := r.app.Service(services.DialogueService{}).(*services.DialogueService)
+	entities, err := dialogueService.GetPaginated(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +89,8 @@ func (r *queryResolver) Dialogues(ctx context.Context, offset int, limit int, so
 		}
 		result[i] = r
 	}
-	total, err := r.app.UserService.Count(ctx)
+	userService := r.app.Service(services.UserService{}).(*services.UserService)
+	total, err := userService.Count(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +102,8 @@ func (r *queryResolver) Dialogues(ctx context.Context, offset int, limit int, so
 
 // Prompt is the resolver for the prompt field.
 func (r *queryResolver) Prompt(ctx context.Context, id string) (*model.Prompt, error) {
-	entity, err := r.app.PromptService.GetByID(ctx, id)
+	promptService := r.app.Service(services.PromptService{}).(*services.PromptService)
+	entity, err := promptService.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +112,8 @@ func (r *queryResolver) Prompt(ctx context.Context, id string) (*model.Prompt, e
 
 // Prompts is the resolver for the prompts field.
 func (r *queryResolver) Prompts(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedPrompts, error) {
-	entities, err := r.app.PromptService.GetPaginated(ctx, limit, offset, sortBy)
+	promptService := r.app.Service(services.PromptService{}).(*services.PromptService)
+	entities, err := promptService.GetPaginated(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +121,7 @@ func (r *queryResolver) Prompts(ctx context.Context, offset int, limit int, sort
 	for i, entity := range entities {
 		result[i] = entity.ToGraph()
 	}
-	total, err := r.app.PromptService.Count(ctx)
+	total, err := promptService.Count(ctx)
 	if err != nil {
 		return nil, err
 	}
