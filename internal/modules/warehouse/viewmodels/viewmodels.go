@@ -17,3 +17,11 @@ type Position struct {
 	CreatedAt string
 	UpdatedAt string
 }
+
+type Unit struct {
+	ID         string
+	Title      string
+	ShortTitle string
+	CreatedAt  string
+	UpdatedAt  string
+}

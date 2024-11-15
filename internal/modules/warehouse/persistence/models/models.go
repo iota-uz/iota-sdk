@@ -3,7 +3,7 @@ package models
 import "time"
 
 type WarehouseUnit struct {
-	ID         int
+	ID         uint
 	Title      string
 	ShortTitle string
 	CreatedAt  time.Time

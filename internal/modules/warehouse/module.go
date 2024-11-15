@@ -39,6 +39,14 @@ func (m *Module) Register(app *application.Application) error {
 		permissions.PositionRead,
 		permissions.PositionUpdate,
 		permissions.PositionDelete,
+		permissions.OrderCreate,
+		permissions.OrderRead,
+		permissions.OrderUpdate,
+		permissions.OrderDelete,
+		permissions.UnitCreate,
+		permissions.UnitRead,
+		permissions.UnitUpdate,
+		permissions.UnitDelete,
 	)
 	return nil
 }
@@ -83,6 +91,13 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 					},
 				},
 				{
+					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseUnits"}),
+					Href: "/warehouse/units",
+					Permissions: []permission.Permission{
+						permissions.UnitRead,
+					},
+				},
+				{
 					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseOrders"}),
 					Href: "/warehouse/orders",
 					Permissions: []permission.Permission{
@@ -98,6 +113,7 @@ func (m *Module) Controllers() []shared.ControllerConstructor {
 	return []shared.ControllerConstructor{
 		controllers.NewProductsController,
 		controllers.NewPositionsController,
+		controllers.NewUnitsController,
 	}
 }
 
