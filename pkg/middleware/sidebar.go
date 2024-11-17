@@ -19,7 +19,8 @@ func NavItems() mux.MiddlewareFunc {
 				}
 				user, err := composables.UseUser(r.Context())
 				if err != nil {
-					panic(err)
+					next.ServeHTTP(w, r)
+					return
 				}
 				items := modules.GetNavItems(localizer, user)
 				ctx := context.WithValue(r.Context(), constants.NavItemsKey, items)

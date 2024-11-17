@@ -74,7 +74,8 @@ func GetNavItems(localizer *i18n.Localizer, user *user.User) []types.NavigationI
 			},
 		},
 	}
-	for _, m := range LoadedModules {
+	registry := Load()
+	for _, m := range registry.Modules() {
 		items = append(items, m.NavigationItems(localizer)...)
 	}
 	return filterItems(items, user)

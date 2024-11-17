@@ -20,29 +20,26 @@ var (
 		finance.NewModule(),
 		warehouse.NewModule(),
 	}
-	LoadedModules = Load()
 )
 
-func Load() []shared.Module {
+func Load() *ModuleRegistry {
 	jsonConf := configuration.UseJsonConfig()
-	modules := make([]shared.Module, 0, len(AllModules))
+	registry := &ModuleRegistry{}
 	for _, module := range AllModules {
 		if slices.Contains(jsonConf.Modules, module.Name()) {
-			modules = append(modules, module)
+			registry.RegisterModules(module)
 		}
 	}
-	return modules
+	return registry
 }
 
-func LoadBundle() *i18n.Bundle {
+func LoadBundle(registry *ModuleRegistry) *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.MustLoadMessageFile("pkg/locales/en.json")
 	bundle.MustLoadMessageFile("pkg/locales/ru.json")
-	for _, module := range LoadedModules {
-		for _, localeFile := range module.LocaleFiles() {
-			bundle.MustLoadMessageFile(localeFile)
-		}
+	for _, localeFile := range registry.localeFiles {
+		bundle.MustLoadMessageFile(localeFile)
 	}
 	return bundle
 }

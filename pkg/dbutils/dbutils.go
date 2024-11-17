@@ -54,10 +54,9 @@ func CheckModels(db *gorm.DB, modelsToTest []interface{}) error {
 }
 
 func collectMigrations() ([]*migrate.Migration, error) {
-	migrationDirs := []string{"migrations/postgres"}
-	for _, m := range modules.LoadedModules {
-		migrationDirs = append(migrationDirs, m.MigrationDirs()...)
-	}
+	registry := modules.Load()
+	migrationDirs := append([]string{"migrations/postgres"}, registry.MigrationDirs()...)
+
 	var migrations []*migrate.Migration
 	for _, dir := range migrationDirs {
 		migrationSource := &migrate.FileMigrationSource{

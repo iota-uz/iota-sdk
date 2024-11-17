@@ -18,7 +18,12 @@ type CreatePageProps struct {
 }
 
 templ CreateForm(props *CreatePageProps) {
-	<form class="flex flex-col justify-between h-full" hx-post={ props.SaveURL } hx-swap="outerHTML" hx-indicator="#save-btn">
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.SaveURL }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
 				Label: props.T("Projects.Single.Name"),

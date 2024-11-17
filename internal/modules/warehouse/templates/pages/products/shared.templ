@@ -1,9 +1,16 @@
 package products
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/types"
+)
+
+var (
+	InStock       = string(product.InStock)
+	InDevelopment = string(product.InDevelopment)
+	Approved      = string(product.Approved)
 )
 
 type PositionSelectProps struct {
@@ -11,6 +18,12 @@ type PositionSelectProps struct {
 	Value     string
 	Positions []*viewmodels.Position
 	Attrs     templ.Attributes
+}
+
+type StatusSelectProps struct {
+	*types.PageContext
+	Value string
+	Attrs templ.Attributes
 }
 
 templ PositionSelect(props *PositionSelectProps) {
@@ -30,5 +43,23 @@ templ PositionSelect(props *PositionSelectProps) {
 				</option>
 			}
 		}
+	}
+}
+
+templ StatusSelect(props *StatusSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("Products.Single.Status"),
+		Placeholder: props.T("Products.Single.SelectStatus"),
+		Attrs:       props.Attrs,
+	}) {
+		<option value={ InStock }>
+			{ props.T("Products.Single.Statuses.InStock") }
+		</option>
+		<option value={ InDevelopment }>
+			{ props.T("Products.Single.Statuses.InDevelopment") }
+		</option>
+		<option value={ Approved }>
+			{ props.T("Products.Single.Statuses.Approved") }
+		</option>
 	}
 }

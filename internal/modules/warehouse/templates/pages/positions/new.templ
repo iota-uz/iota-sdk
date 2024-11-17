@@ -13,6 +13,7 @@ type CreatePageProps struct {
 	*types.PageContext
 	Positions []*viewmodels.Position
 	Position  *viewmodels.Position
+	Units     []*viewmodels.Unit
 	Errors    map[string]string
 	SaveURL   string
 }
@@ -29,14 +30,20 @@ templ CreateForm(props *CreatePageProps) {
 				Label: props.T("WarehousePositions.Single.Title"),
 				Attrs: templ.Attributes{
 					"name": "Title",
-					"form": "save-form",
 				},
 			})
 			@input.Text(&input.Props{
 				Label: props.T("WarehousePositions.Single.Barcode"),
 				Attrs: templ.Attributes{
 					"name": "Barcode",
-					"form": "save-form",
+				},
+			})
+			@UnitSelect(&UnitSelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Position.UnitID,
+				Units:       props.Units,
+				Attrs: templ.Attributes{
+					"name": "UnitID",
 				},
 			})
 		}

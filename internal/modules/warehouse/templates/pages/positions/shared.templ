@@ -1,0 +1,34 @@
+package positions
+
+import (
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/types"
+)
+
+type UnitSelectProps struct {
+	*types.PageContext
+	Value string
+	Units []*viewmodels.Unit
+	Attrs templ.Attributes
+}
+
+templ UnitSelect(props *UnitSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("WarehousePositions.Single.Unit"),
+		Placeholder: props.T("WarehousePositions.Single.SelectUnit"),
+		Attrs:       props.Attrs,
+	}) {
+		for _, unit := range props.Units {
+			if unit.ID == props.Value {
+				<option value={ unit.ID } selected>
+					{ unit.Title }
+				</option>
+			} else {
+				<option value={ unit.ID }>
+					{ unit.Title }
+				</option>
+			}
+		}
+	}
+}

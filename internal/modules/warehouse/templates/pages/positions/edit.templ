@@ -1,7 +1,6 @@
 package positions
 
 import (
-	"fmt"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -15,7 +14,9 @@ import (
 type EditPageProps struct {
 	*types.PageContext
 	Position  *viewmodels.Position
+	Units     []*viewmodels.Unit
 	Errors    map[string]string
+	SaveURL   string
 	DeleteURL string
 }
 
@@ -23,7 +24,7 @@ templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: props.T("WarehousePositions.List.Title"),
+				Label: props.T("WarehousePositions.Single.Title"),
 				Attrs: templ.Attributes{
 					"value": props.Position.Title,
 					"name":  "FirstName",
@@ -31,11 +32,20 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@input.Text(&input.Props{
-				Label: props.T("WarehousePositions.List.Barcode"),
+				Label: props.T("WarehousePositions.Single.Barcode"),
 				Attrs: templ.Attributes{
 					"name":  "Barcode",
 					"form":  "save-form",
 					"value": props.Position.Barcode,
+				},
+			})
+			@UnitSelect(&UnitSelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Position.UnitID,
+				Units:       props.Units,
+				Attrs: templ.Attributes{
+					"name": "UnitID",
+					"form": "save-form",
 				},
 			})
 		}
@@ -45,7 +55,7 @@ templ EditForm(props *EditPageProps) {
 		>
 			<form
 				id="delete-form"
-				hx-delete={ fmt.Sprintf("/warehouse/positions/%s", props.Position.ID) }
+				hx-delete={ props.DeleteURL }
 				hx-trigger="submit"
 				hx-target="closest .content"
 				hx-swap="innerHTML"
@@ -68,7 +78,7 @@ templ EditForm(props *EditPageProps) {
 			<form
 				id="save-form"
 				method="post"
-				hx-post={ props.DeleteURL }
+				hx-post={ props.SaveURL }
 				hx-indicator="#save-btn"
 				hx-target="#edit-content"
 				hx-swap="outerHTML"
@@ -92,8 +102,8 @@ templ Edit(props *EditPageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading:   "Positions.Single.Delete",
-			Text:      "Positions.Single.DeleteConfirmation",
+			Heading:   "WarehousePositions.Single.Delete",
+			Text:      "WarehousePositions.Single.DeleteConfirmation",
 			Localizer: props.Localizer,
 			Icon:      icons.Trash(icons.Props{Size: "20"}),
 			Action:    "open-delete-position-confirmation",

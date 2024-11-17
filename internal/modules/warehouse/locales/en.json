@@ -2,7 +2,9 @@
   "NavigationLinks": {
     "Warehouse": "Warehouse",
     "Products": "Products",
-    "WarehousePositions": "Warehouse positions"
+    "WarehousePositions": "Warehouse positions",
+    "WarehouseOrders": "Warehouse orders",
+    "WarehouseUnits": "Warehouse units"
   },
   "Products": {
     "List": {
@@ -19,8 +21,16 @@
       }
     },
     "Single": {
+      "Rfid": "RFID",
       "Position": "Position",
       "SelectPosition": "Select position",
+      "Status": "Status",
+      "SelectStatus": "Select status",
+      "Statuses": {
+        "InStock": "In stock",
+        "Approved": "Approved",
+        "InDevelopment": "In development"
+      },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this product?"
     }
@@ -40,11 +50,44 @@
         "Title": "New warehouse position"
       }
     },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse position"
+      }
+    },
     "Single": {
       "Title": "Title",
       "Barcode": "Barcode",
+      "Unit": "Unit",
+      "SelectUnit": "Select unit",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse position?"
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "Warehouse units"
+      },
+      "New": "New unit",
+      "Title": "Title",
+      "ShortTitle": "Short title"
+    },
+    "New": {
+      "Meta": {
+        "Title": "New warehouse unit"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse unit"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "ShortTitle": "Short title",
+      "Delete": "Delete",
+      "DeleteConfirmation": "Are you sure you want to delete this warehouse unit?"
     }
   }
 }
