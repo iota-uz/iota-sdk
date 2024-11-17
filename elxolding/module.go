@@ -52,10 +52,11 @@ func (m *Module) Seed(ctx context.Context, app *application.Application) error {
 	userRepository := persistence.NewUserRepository()
 	usr := &user.User{
 		//nolint:exhaustruct
-		ID:        1,
-		FirstName: "Admin",
-		LastName:  "User",
-		Email:     "test@gmail.com",
+		ID:         1,
+		FirstName:  "Admin",
+		LastName:   "User",
+		Email:      "test@gmail.com",
+		UILanguage: user.UILanguageRU,
 		Roles: []*role.Role{
 			&CEO,
 		},

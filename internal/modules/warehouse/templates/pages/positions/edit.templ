@@ -15,6 +15,7 @@ import (
 type EditPageProps struct {
 	*types.PageContext
 	Position  *viewmodels.Position
+	Units     []*viewmodels.Unit
 	Errors    map[string]string
 	DeleteURL string
 }
@@ -36,6 +37,15 @@ templ EditForm(props *EditPageProps) {
 					"name":  "Barcode",
 					"form":  "save-form",
 					"value": props.Position.Barcode,
+				},
+			})
+			@UnitSelect(&UnitSelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Position.UnitID,
+				Units:       props.Units,
+				Attrs: templ.Attributes{
+					"name": "UnitID",
+					"form": "save-form",
 				},
 			})
 		}

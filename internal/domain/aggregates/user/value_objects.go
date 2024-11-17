@@ -4,6 +4,12 @@ import "errors"
 
 type UILanguage string
 
+const (
+	UILanguageEN UILanguage = "en"
+	UILanguageRU UILanguage = "ru"
+	UILanguageUZ UILanguage = "uz"
+)
+
 func NewUILanguage(l string) (UILanguage, error) {
 	language := UILanguage(l)
 	if !language.IsValid() {
