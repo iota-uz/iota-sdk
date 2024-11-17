@@ -115,7 +115,7 @@ templ avatar() {
 	</summary>
 }
 
-templ Navbar() {
+templ Navbar(pageCtx *types.PageContext) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center">
@@ -134,13 +134,13 @@ templ Navbar() {
 			</div>
 			@base.DetailsDropdown(avatar()) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
-					Профиль
+					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
 				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/settings"}) {
-					Настройки
+					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
 				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
-					Выйти
+					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
 				}
 			}
 		</div>
@@ -176,7 +176,7 @@ templ Authenticated(pageCtx *types.PageContext) {
 		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
 			@sidebar(pageCtx)
 			<div>
-				@Navbar()
+				@Navbar(pageCtx)
 				<div class="h-[calc(100%-4rem)] overflow-y-auto content">
 					{ children... }
 				</div>

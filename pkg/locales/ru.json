@@ -27,7 +27,12 @@
     "Projects": "Проекты",
     "ExpenseCategories": "Категории расходов",
     "Payments": "Платежи",
-    "Reports": "Отчеты"
+    "Reports": "Отчеты",
+    "Navbar": {
+      "Profile": "Профиль",
+      "Settings": "Настройки",
+      "Logout": "Выйти"
+    }
   },
   "Validations": {
     "Required": "Это поле обязательно для заполнения"
