@@ -1,24 +1,36 @@
 {
+  "errors": {
+    "message": "Запрашиваемый ресурс не найден."
+  },
+  "ErrorPages": {
+    "NotFound": {
+      "Title": "404",
+      "Message": "Страница не найдена",
+      "Home": "Главная"
+    }
+  },
   "NavigationLinks": {
-    "Dashboard": "Дашборд",
+    "Dashboard": "Панель управления",
     "Users": "Пользователи",
-    "BI-Chat": "BI-Chat",
+    "BI-Chat": "BI-Чат",
     "KnowledgeBase": "База знаний",
-    "Operations": "Операционка",
+    "Operations": "Операции",
     "Employees": "Сотрудники",
     "Settings": "Настройки",
     "Calendar": "Календарь",
-    "Enums": "Справочник",
-    "TaskTypes": "Тип задач",
+    "Enums": "Перечисления",
+    "TaskTypes": "Типы задач",
     "Positions": "Должности",
-    "CashFlow": "Денежный поток",
+    "Finances": "Финансы",
+    "Accounts": "Счета",
+    "Expenses": "Расходы",
     "Projects": "Проекты",
     "ExpenseCategories": "Категории расходов",
     "Payments": "Платежи",
     "Reports": "Отчеты"
   },
   "Validations": {
-    "Required": "Обязательное поле для заполнения"
+    "Required": "Это поле обязательно для заполнения"
   },
   "Users": {
     "Meta": {
@@ -34,27 +46,212 @@
     },
     "List": {
       "NewUser": "Новый пользователь",
-      "FullName": "Ф.И.О",
+      "FullName": "Полное имя",
       "LastAction": "Последнее действие"
     },
     "Single": {
       "EditUser": "Редактировать пользователя",
       "FirstName": "Имя",
       "LastName": "Фамилия",
-      "Email": "Email",
+      "Email": "Электронная почта",
       "Password": "Пароль",
+      "Language": "Язык",
+      "SelectLanguage": "Выбрать язык",
       "Role": "Роль",
-      "SelectRole": "Выберите роль",
+      "SelectRole": "Выбрать роль",
       "EnterPassword": "Введите пароль",
       "DeleteUser": "Удалить пользователя",
       "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
     }
   },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Категории расходов"
+      },
+      "Edit": {
+        "Title": "Редактировать категорию"
+      },
+      "New": {
+        "Title": "Новая категория"
+      }
+    },
+    "List": {
+      "NewCategory": "Новая категория",
+      "Name": "Название",
+      "Amount": "Сумма"
+    },
+    "Single": {
+      "EditUser": "Редактировать категорию",
+      "Name": "Название",
+      "Amount": "Сумма",
+      "Currency": "Валюта",
+      "SelectCurrency": "Выбрать валюту",
+      "Description": "Описание",
+      "Delete": "Удалить категорию",
+      "DeleteConfirmation": "Вы уверены что хотите удалить эту категорию расходов?"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "Платежи"
+      },
+      "Edit": {
+        "Title": "Редактировать платеж"
+      },
+      "New": {
+        "Title": "Добавить платеж"
+      }
+    },
+    "List": {
+      "New": "Добавить платеж",
+      "Amount": "Сумма"
+    },
+    "Single": {
+      "Account": "Счет",
+      "SelectAccount": "Выбрать счет",
+      "Edit": "Редактировать платеж",
+      "Name": "Название",
+      "Amount": "Сумма",
+      "Date": "Дата",
+      "Comment": "Комментарий",
+      "Stage": "Этап",
+      "SelectStage": "Выбрать этап"
+    }
+  },
+  "Expenses": {
+    "Meta": {
+      "List": {
+        "Title": "Расходы"
+      },
+      "Edit": {
+        "Title": "Редактировать расход"
+      },
+      "New": {
+        "Title": "Добавить расход"
+      }
+    },
+    "List": {
+      "New": "Добавить расход",
+      "Category": "Категория",
+      "Amount": "Сумма"
+    },
+    "Single": {
+      "Account": "Счет",
+      "SelectAccount": "Выбрать счет",
+      "Category": "Категория",
+      "SelectCategory": "Выбрать категорию",
+      "Edit": "Редактировать расход",
+      "Name": "Название",
+      "Amount": "Сумма",
+      "Date": "Дата",
+      "Comment": "Комментарий",
+      "Delete": "Удалить расход",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот расход?"
+    }
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Проекты"
+      },
+      "Edit": {
+        "Title": "Редактировать проект"
+      },
+      "New": {
+        "Title": "Добавить проект"
+      }
+    },
+    "List": {
+      "New": "Добавить проект",
+      "Description": "Описание",
+      "Name": "Название"
+    },
+    "Single": {
+      "Edit": "Редактировать проект",
+      "Name": "Название",
+      "Description": "Описание",
+      "Delete": "Удалить проект",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот проект?"
+    }
+  },
+  "Accounts": {
+    "Meta": {
+      "List": {
+        "Title": "Счета"
+      },
+      "Edit": {
+        "Title": "Редактировать счет"
+      },
+      "New": {
+        "Title": "Добавить счет"
+      }
+    },
+    "List": {
+      "New": "Добавить счет",
+      "Name": "Название",
+      "Balance": "Баланс"
+    },
+    "Single": {
+      "Edit": "Редактировать счет",
+      "Name": "Название",
+      "Balance": "Баланс",
+      "Description": "Описание",
+      "AccountNumber": "Номер счета",
+      "Delete": "Удалить счет",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот счет?"
+    }
+  },
+  "Employees": {
+    "Meta": {
+      "List": {
+        "Title": "Сотрудники"
+      },
+      "Edit": {
+        "Title": "Редактировать сотрудника"
+      },
+      "New": {
+        "Title": "Добавить сотрудника"
+      }
+    },
+    "List": {
+      "New": "Добавить сотрудника",
+      "FullName": "Полное имя",
+      "Position": "Должность",
+      "Email": "Электронная почта"
+    },
+    "Single": {
+      "Edit": "Редактировать сотрудника",
+      "FirstName": "Имя",
+      "LastName": "Фамилия",
+      "MiddleName": "Отчество",
+      "Phone": "Телефон",
+      "Email": "Электронная почта",
+      "Position": "Должность",
+      "Salary": "Зарплата",
+      "Delete": "Удалить сотрудника",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этого сотрудника?"
+    }
+  },
+  "Account": {
+    "Meta": {
+      "Index": {
+        "Title": "Аккаунт"
+      }
+    },
+    "FirstName": "Имя",
+    "LastName": "Фамилия",
+    "MiddleName": "Отчество",
+    "Email": "Электронная почта",
+    "Password": "Пароль",
+    "Save": "Сохранить"
+  },
   "Login": {
     "Meta": {
       "Title": "Войти"
     },
-    "Email": "Email",
+    "Email": "Электронная почта",
     "Password": "Пароль",
     "Login": "Войти"
   },
@@ -63,16 +260,15 @@
       "Title": "Главная"
     }
   },
-  "NewUser": "Новый пользователь",
-  "UpdatedAt": "Обновлен",
-  "CreatedAt": "Создан",
+  "UpdatedAt": "Обновлено",
+  "CreatedAt": "Создано",
   "SignOut": "Выйти",
   "Unknown": "Неизвестно",
   "Actions": "Действия",
   "Delete": "Удалить",
   "Save": "Сохранить",
   "Search": "Поиск",
-  "PerPage": "На страницу",
-  "Cancel": "Отменить",
+  "PerPage": "На странице",
+  "Cancel": "Отмена",
   "Back": "Назад"
 }

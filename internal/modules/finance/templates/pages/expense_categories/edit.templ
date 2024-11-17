@@ -36,7 +36,7 @@ templ EditForm(props *EditPageProps) {
 				Label: props.T("ExpenseCategories.Single.Amount"),
 				Attrs: templ.Attributes{
 					"name":  "Amount",
-					"value": fmt.Sprintf("%.2f", props.Category.Amount),
+					"value": props.Category.Amount,
 					"form":  "save-form",
 				},
 				Error: props.Errors["Amount"],
@@ -84,7 +84,14 @@ templ EditForm(props *EditPageProps) {
 					{ props.T("Delete") }
 				}
 			</form>
-			<form id="save-form" method="post" hx-post={ fmt.Sprintf("/finance/expense-categories/%d", props.Category.ID) } hx-indicator="#save-btn" hx-target="#edit-content" hx-swap="outerHTML">
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ fmt.Sprintf("/finance/expense-categories/%s", props.Category.ID) }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{

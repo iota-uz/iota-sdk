@@ -37,7 +37,7 @@ templ PaymentsTable(props *IndexPageProps) {
 						Fixed: true,
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/finance/payments/%d", payment.ID),
+						Href:  fmt.Sprintf("/finance/payments/%s", payment.ID),
 					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}

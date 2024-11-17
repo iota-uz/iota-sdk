@@ -67,17 +67,10 @@ func main() {
 		log.Fatalf("failed to check models: %v", err)
 	}
 
-	assetsFs := []*hashfs.FS{
-		assets.FS,
-	}
-	for _, module := range modules.LoadedModules {
-		fs := module.Assets()
-		if fs == nil {
-			continue
-		}
-		assetsFs = append(assetsFs, fs)
-	}
+	registry := modules.Load()
 	app := constructApp(db)
+
+	assetsFs := append([]*hashfs.FS{assets.FS}, registry.Assets()...)
 	controllerInstances := []shared.Controller{
 		controllers.NewAccountController(app),
 		controllers.NewEmployeeController(app),
@@ -87,19 +80,17 @@ func main() {
 		controllers.NewStaticFilesController(assetsFs),
 	}
 
-	for _, module := range modules.LoadedModules {
+	for _, module := range registry.Modules() {
 		if err := module.Register(app); err != nil {
 			log.Fatalf("failed to register module %s: %v", module.Name(), err)
 		}
 	}
 
-	for _, module := range modules.LoadedModules {
-		for _, c := range module.Controllers() {
-			controllerInstances = append(controllerInstances, c(app))
-		}
+	for _, c := range registry.Controllers() {
+		controllerInstances = append(controllerInstances, c(app))
 	}
 
-	bundle := modules.LoadBundle()
+	bundle := modules.LoadBundle(registry)
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
 	serverInstance := &server.HttpServer{
 		Middlewares: []mux.MiddlewareFunc{
@@ -108,8 +99,8 @@ func main() {
 			middleware.WithLogger(log.Default()),
 			middleware.LogRequests(),
 			middleware.Transactions(db),
-			middleware.WithLocalizer(bundle),
 			middleware.Authorization(authService),
+			middleware.WithLocalizer(bundle),
 			middleware.NavItems(),
 		},
 		Controllers: controllerInstances,

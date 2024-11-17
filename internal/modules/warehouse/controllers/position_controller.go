@@ -22,6 +22,7 @@ import (
 type PositionsController struct {
 	app             *application.Application
 	positionService *services.PositionService
+	unitService     *services.UnitService
 	basePath        string
 }
 
@@ -29,6 +30,7 @@ func NewPositionsController(app *application.Application) shared.Controller {
 	return &PositionsController{
 		app:             app,
 		positionService: app.Service(services.PositionService{}).(*services.PositionService),
+		unitService:     app.Service(services.UnitService{}).(*services.UnitService),
 		basePath:        "/warehouse/positions",
 	}
 }
@@ -54,6 +56,18 @@ func (c *PositionsController) viewModelPositions(r *http.Request) ([]*viewmodels
 		viewPositions[i] = mappers.PositionToViewModel(p)
 	}
 	return viewPositions, nil
+}
+
+func (c *PositionsController) viewModelUnits(r *http.Request) ([]*viewmodels.Unit, error) {
+	entities, err := c.unitService.GetAll(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving units")
+	}
+	viewUnits := make([]*viewmodels.Unit, len(entities))
+	for i, p := range entities {
+		viewUnits[i] = mappers.UnitToViewModel(p)
+	}
+	return viewUnits, nil
 }
 
 func (c *PositionsController) List(w http.ResponseWriter, r *http.Request) {
@@ -104,10 +118,18 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving position", http.StatusInternalServerError)
 		return
 	}
+	unitViewModels, err := c.viewModelUnits(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	props := &positions.EditPageProps{
 		PageContext: pageCtx,
 		Position:    mappers.PositionToViewModel(entity),
+		Units:       unitViewModels,
 		Errors:      map[string]string{},
+		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(positions.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -163,10 +185,17 @@ func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Error retrieving position", http.StatusInternalServerError)
 				return
 			}
+			unitViewModels, err := c.viewModelUnits(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			props := &positions.EditPageProps{
 				PageContext: pageCtx,
 				Position:    mappers.PositionToViewModel(entity),
+				Units:       unitViewModels,
 				Errors:      errorsMap,
+				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
 				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 			}
 			templ.Handler(positions.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -186,11 +215,17 @@ func (c *PositionsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	unitViewModels, err := c.viewModelUnits(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	props := &positions.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
 		Position:    mappers.PositionToViewModel(&position.Position{}), //nolint:exhaustruct
 		SaveURL:     c.basePath,
+		Units:       unitViewModels,
 	}
 	templ.Handler(positions.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

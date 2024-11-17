@@ -1,0 +1,93 @@
+{
+  "NavigationLinks": {
+    "Warehouse": "Склад",
+    "Products": "Продукты",
+    "WarehousePositions": "Наименования",
+    "WarehouseOrders": "Заказы склада",
+    "WarehouseUnits": "Единицы измерения"
+  },
+  "Products": {
+    "List": {
+      "Meta": {
+        "Title": "Продукты"
+      },
+      "New": "Новый продукт",
+      "Position": "Наименование",
+      "Status": "Статус"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Новый продукт"
+      }
+    },
+    "Single": {
+      "Position": "Наименование",
+      "Rfid": "RFID",
+      "SelectPosition": "Выбрать позицию",
+      "Status": "Статус",
+      "SelectStatus": "Выберите статус",
+      "Statuses": {
+        "InStock": "На складе",
+        "Approved": "Одобрено",
+        "InDevelopment": "В разработке"
+      },
+      "Delete": "Удалить",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить этот продукт?"
+    }
+  },
+  "WarehousePositions": {
+    "List": {
+      "Meta": {
+        "Title": "Наименования"
+      },
+      "New": "Новое наименование",
+      "Position": "Наименование",
+      "Barcode": "Артикул",
+      "Status": "Статус"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Новое наименование"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать наименование"
+      }
+    },
+    "Single": {
+      "Title": "Название",
+      "Barcode": "Артикул",
+      "Unit": "Единица",
+      "SelectUnit": "Выбрать единицу",
+      "Delete": "Удалить",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить это наименование?"
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "Единицы склада"
+      },
+      "New": "Новая единица",
+      "Title": "Название",
+      "ShortTitle": "Краткое название"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Новая единица склада"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать единицу склада"
+      }
+    },
+    "Single": {
+      "Title": "Название",
+      "ShortTitle": "Краткое название",
+      "Delete": "Удалить",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить эту единицу изменерения?"
+    }
+  }
+}

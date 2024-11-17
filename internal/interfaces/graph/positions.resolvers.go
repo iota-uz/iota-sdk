@@ -8,71 +8,75 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
 	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/sdk/mapper"
 )
 
 // CreatePosition is the resolver for the createPosition field.
 func (r *mutationResolver) CreatePosition(ctx context.Context, input model.CreatePosition) (*model.Position, error) {
-	entity := &position.Position{}
-	if err := mapper.LenientMapping(&input, entity); err != nil {
-		return nil, err
-	}
-	if err := r.app.PositionService.Create(ctx, entity); err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity := &position.Position{}
+	//if err := mapper.LenientMapping(&input, entity); err != nil {
+	//	return nil, err
+	//}
+	//if err := r.app.PositionService.Create(ctx, entity); err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: CreatePosition - createPosition"))
 }
 
 // UpdatePosition is the resolver for the updatePosition field.
 func (r *mutationResolver) UpdatePosition(ctx context.Context, id int64, input model.UpdatePosition) (*model.Position, error) {
-	entity, err := r.app.PositionService.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := mapper.LenientMapping(&input, entity); err != nil {
-		return nil, err
-	}
-	if err := r.app.PositionService.Update(ctx, entity); err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.PositionService.GetByID(ctx, id)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if err := mapper.LenientMapping(&input, entity); err != nil {
+	//	return nil, err
+	//}
+	//if err := r.app.PositionService.Update(ctx, entity); err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: UpdatePosition - updatePosition"))
 }
 
 // DeletePosition is the resolver for the deletePosition field.
 func (r *mutationResolver) DeletePosition(ctx context.Context, id int64) (bool, error) {
-	if err := r.app.PositionService.Delete(ctx, id); err != nil {
-		return false, err
-	}
-	return true, nil
+	//if err := r.app.PositionService.Delete(ctx, id); err != nil {
+	//	return false, err
+	//}
+	//return true, nil
+	panic(fmt.Errorf("not implemented: DeletePosition - deletePosition"))
 }
 
 // Data is the resolver for the data field.
 func (r *paginatedPositionsResolver) Data(ctx context.Context, obj *model.PaginatedPositions) ([]*model.Position, error) {
-	entities, err := r.app.PositionService.GetPaginated(ctx, len(obj.Data), 0, nil)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Position, len(entities))
-	for i, entity := range entities {
-		result[i] = entity.ToGraph()
-	}
-	return result, nil
+	//entities, err := r.app.PositionService.GetPaginated(ctx, len(obj.Data), 0, nil)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//result := make([]*model.Position, len(entities))
+	//for i, entity := range entities {
+	//	result[i] = entity.ToGraph()
+	//}
+	//return result, nil
+	panic(fmt.Errorf("not implemented: Data - data"))
 }
 
 // Total is the resolver for the total field.
 func (r *paginatedPositionsResolver) Total(ctx context.Context, obj *model.PaginatedPositions) (int64, error) {
-	return r.app.PositionService.Count(ctx)
+	//return r.app.PositionService.Count(ctx)
+	panic(fmt.Errorf("not implemented: Total - total"))
 }
 
 // Position is the resolver for the position field.
 func (r *queryResolver) Position(ctx context.Context, id int64) (*model.Position, error) {
-	entity, err := r.app.PositionService.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return entity.ToGraph(), nil
+	//entity, err := r.app.PositionService.GetByID(ctx, id)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return entity.ToGraph(), nil
+	panic(fmt.Errorf("not implemented: Position - position"))
 }
 
 // Positions is the resolver for the positions field.

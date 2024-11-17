@@ -218,7 +218,6 @@ func (c *ProjectsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		fmt.Println(errorsMap)
 		props := &projects.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,

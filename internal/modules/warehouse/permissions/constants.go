@@ -5,6 +5,8 @@ import "github.com/iota-agency/iota-erp/internal/domain/entities/permission"
 const (
 	ResourceProduct  permission.Resource = "product"
 	ResourcePosition permission.Resource = "position"
+	ResourceOrder    permission.Resource = "order"
+	ResourceUnit     permission.Resource = "unit"
 )
 
 var (
@@ -61,6 +63,62 @@ var (
 		ID:       42,
 		Name:     "Position.Delete",
 		Resource: ResourcePosition,
+		Action:   permission.ActionDelete,
+		Modifier: permission.ModifierAll,
+	}
+	OrderCreate = permission.Permission{
+		ID:       43,
+		Name:     "Order.Create",
+		Resource: ResourceOrder,
+		Action:   permission.ActionCreate,
+		Modifier: permission.ModifierAll,
+	}
+	OrderRead = permission.Permission{
+		ID:       43,
+		Name:     "Order.Read",
+		Resource: ResourceOrder,
+		Action:   permission.ActionRead,
+		Modifier: permission.ModifierAll,
+	}
+	OrderUpdate = permission.Permission{
+		ID:       44,
+		Name:     "Order.Update",
+		Resource: ResourceOrder,
+		Action:   permission.ActionUpdate,
+		Modifier: permission.ModifierAll,
+	}
+	OrderDelete = permission.Permission{
+		ID:       45,
+		Name:     "Order.Delete",
+		Resource: ResourceOrder,
+		Action:   permission.ActionDelete,
+		Modifier: permission.ModifierAll,
+	}
+	UnitCreate = permission.Permission{
+		ID:       46,
+		Name:     "Unit.Create",
+		Resource: ResourceUnit,
+		Action:   permission.ActionCreate,
+		Modifier: permission.ModifierAll,
+	}
+	UnitRead = permission.Permission{
+		ID:       47,
+		Name:     "Unit.Read",
+		Resource: ResourceUnit,
+		Action:   permission.ActionRead,
+		Modifier: permission.ModifierAll,
+	}
+	UnitUpdate = permission.Permission{
+		ID:       48,
+		Name:     "Unit.Update",
+		Resource: ResourceUnit,
+		Action:   permission.ActionUpdate,
+		Modifier: permission.ModifierAll,
+	}
+	UnitDelete = permission.Permission{
+		ID:       49,
+		Name:     "Unit.Delete",
+		Resource: ResourceUnit,
 		Action:   permission.ActionDelete,
 		Modifier: permission.ModifierAll,
 	}
