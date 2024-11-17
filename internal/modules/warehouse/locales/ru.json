@@ -2,9 +2,9 @@
   "NavigationLinks": {
     "Warehouse": "Склад",
     "Products": "Продукты",
-    "WarehousePositions": "Позиции склада",
+    "WarehousePositions": "Наименования",
     "WarehouseOrders": "Заказы склада",
-    "WarehouseUnits": "Единицы склада"
+    "WarehouseUnits": "Единицы измерения"
   },
   "Products": {
     "List": {
@@ -12,7 +12,7 @@
         "Title": "Продукты"
       },
       "New": "Новый продукт",
-      "Position": "Позиция",
+      "Position": "Наименование",
       "Status": "Статус"
     },
     "New": {
@@ -21,7 +21,7 @@
       }
     },
     "Single": {
-      "Position": "Позиция",
+      "Position": "Наименование",
       "SelectPosition": "Выбрать позицию",
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить этот продукт?"
@@ -30,25 +30,30 @@
   "WarehousePositions": {
     "List": {
       "Meta": {
-        "Title": "Позиции склада"
+        "Title": "Наименования"
       },
-      "New": "Новая позиция",
-      "Position": "Позиция",
-      "Barcode": "Штрих-код",
+      "New": "Новое наименование",
+      "Position": "Наименование",
+      "Barcode": "Артикул",
       "Status": "Статус"
     },
     "New": {
       "Meta": {
-        "Title": "Новая позиция склада"
+        "Title": "Новое наименование"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать наименование"
       }
     },
     "Single": {
       "Title": "Название",
-      "Barcode": "Штрих-код",
+      "Barcode": "Артикул",
       "Unit": "Единица",
       "SelectUnit": "Выбрать единицу",
       "Delete": "Удалить",
-      "DeleteConfirmation": "Вы уверены, что хотите удалить эту позицию склада?"
+      "DeleteConfirmation": "Вы уверены, что хотите удалить это наименование?"
     }
   },
   "WarehouseUnits": {
@@ -74,7 +79,7 @@
       "Title": "Название",
       "ShortTitle": "Краткое название",
       "Delete": "Удалить",
-      "DeleteConfirmation": "Вы уверены, что хотите удалить эту единицу склада?"
+      "DeleteConfirmation": "Вы уверены, что хотите удалить эту единицу изменерения?"
     }
   }
 }

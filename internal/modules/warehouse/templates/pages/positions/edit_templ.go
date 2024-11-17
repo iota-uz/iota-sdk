@@ -9,7 +9,6 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"fmt"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
@@ -25,6 +24,7 @@ type EditPageProps struct {
 	Position  *viewmodels.Position
 	Units     []*viewmodels.Unit
 	Errors    map[string]string
+	SaveURL   string
 	DeleteURL string
 }
 
@@ -66,7 +66,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("WarehousePositions.List.Title"),
+				Label: props.T("WarehousePositions.Single.Title"),
 				Attrs: templ.Attributes{
 					"value": props.Position.Title,
 					"name":  "FirstName",
@@ -81,7 +81,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("WarehousePositions.List.Barcode"),
+				Label: props.T("WarehousePositions.Single.Barcode"),
 				Attrs: templ.Attributes{
 					"name":  "Barcode",
 					"form":  "save-form",
@@ -118,9 +118,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/warehouse/positions/%s", props.Position.ID))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.DeleteURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/positions/edit.templ`, Line: 58, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/positions/edit.templ`, Line: 58, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -171,9 +171,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.DeleteURL)
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/positions/edit.templ`, Line: 81, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/positions/edit.templ`, Line: 81, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -267,8 +267,8 @@ func Edit(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				Heading:   "Positions.Single.Delete",
-				Text:      "Positions.Single.DeleteConfirmation",
+				Heading:   "WarehousePositions.Single.Delete",
+				Text:      "WarehousePositions.Single.DeleteConfirmation",
 				Localizer: props.Localizer,
 				Icon:      icons.Trash(icons.Props{Size: "20"}),
 				Action:    "open-delete-position-confirmation",

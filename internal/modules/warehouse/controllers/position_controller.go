@@ -128,6 +128,8 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		Position:    mappers.PositionToViewModel(entity),
 		Units:       unitViewModels,
 		Errors:      map[string]string{},
+		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(positions.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -193,6 +195,7 @@ func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				Position:    mappers.PositionToViewModel(entity),
 				Units:       unitViewModels,
 				Errors:      errorsMap,
+				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
 				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 			}
 			templ.Handler(positions.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
