@@ -27,7 +27,12 @@
     "Projects": "Projects",
     "ExpenseCategories": "Expense categories",
     "Payments": "Payments",
-    "Reports": "Reports"
+    "Reports": "Reports",
+    "Navbar": {
+      "Profile": "Profile",
+      "Settings": "Settings",
+      "Logout": "Logout"
+    }
   },
   "Validations": {
     "Required": "This field is required"
