@@ -3,7 +3,7 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	users2 "github.com/iota-agency/iota-erp/elxolding/templates/pages/users"
+	"github.com/iota-agency/iota-erp/elxolding/templates/pages/users"
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
@@ -56,14 +56,14 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &users2.IndexPageProps{
+	props := &users.IndexPageProps{
 		PageContext: pageCtx,
 		Users:       us,
 	}
 	if isHxRequest {
-		templ.Handler(users2.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(users2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(users.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -93,13 +93,13 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
-	props := &users2.EditFormProps{
+	props := &users.EditFormProps{
 		PageContext: pageCtx,
 		User:        us,
 		Roles:       roles,
 		Errors:      map[string]string{},
 	}
-	templ.Handler(users2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -161,13 +161,13 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			props := &users2.EditFormProps{
+			props := &users.EditFormProps{
 				PageContext: pageCtx,
 				User:        us,
 				Roles:       roles,
 				Errors:      errors,
 			}
-			templ.Handler(users2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		err = c.userService.Update(r.Context(), dto.ToEntity(id))
@@ -191,13 +191,13 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &users2.CreateFormProps{
+	props := &users.CreateFormProps{
 		PageContext: pageCtx,
 		User:        user.User{}, //nolint:exhaustruct
 		Roles:       roles,
 		Errors:      map[string]string{},
 	}
-	templ.Handler(users2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(users.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -224,14 +224,14 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
-		props := &users2.CreateFormProps{
+		props := &users.CreateFormProps{
 			PageContext: pageCtx,
 			User:        *dto.ToEntity(),
 			Roles:       roles,
 			Errors:      errors,
 		}
 		templ.Handler(
-			users2.CreateForm(props), templ.WithStreaming(),
+			users.CreateForm(props), templ.WithStreaming(),
 		).ServeHTTP(w, r)
 		return
 	}
