@@ -125,9 +125,25 @@ func UseWriter(ctx context.Context) (http.ResponseWriter, bool) {
 	return params.Writer, true
 }
 
+func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
+	user, err := UseUser(ctx)
+	if err != nil {
+		return language.Und, err
+	}
+	tag, err := language.Parse(string(user.UILanguage))
+	if err != nil {
+		return language.Und, err
+	}
+	return tag, nil
+}
+
 // UseLocale returns the locale from the context.
 // If the locale is not found, the second return value will be false.
 func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
+	tag, err := useLocaleFromUser(ctx)
+	if err == nil {
+		return tag
+	}
 	params, ok := UseParams(ctx)
 	if !ok {
 		return defaultLocale

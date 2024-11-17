@@ -30,23 +30,20 @@ templ CreateForm(props *CreatePageProps) {
 				Label: props.T("WarehousePositions.Single.Title"),
 				Attrs: templ.Attributes{
 					"name": "Title",
-					"form": "save-form",
 				},
 			})
 			@input.Text(&input.Props{
 				Label: props.T("WarehousePositions.Single.Barcode"),
 				Attrs: templ.Attributes{
 					"name": "Barcode",
-					"form": "save-form",
 				},
 			})
-			@PositionSelect(&UnitSelectProps{
+			@UnitSelect(&UnitSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Position.UnitID,
 				Units:       props.Units,
 				Attrs: templ.Attributes{
 					"name": "UnitID",
-					"form": "save-form",
 				},
 			})
 		}

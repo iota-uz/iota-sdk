@@ -13,7 +13,7 @@ type UnitSelectProps struct {
 	Attrs templ.Attributes
 }
 
-templ PositionSelect(props *UnitSelectProps) {
+templ UnitSelect(props *UnitSelectProps) {
 	@base.Select(&base.SelectProps{
 		Label:       props.T("WarehousePositions.Single.Unit"),
 		Placeholder: props.T("WarehousePositions.Single.SelectUnit"),
