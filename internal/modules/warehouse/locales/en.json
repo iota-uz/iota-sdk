@@ -42,6 +42,11 @@
         "Title": "New warehouse position"
       }
     },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse position"
+      }
+    },
     "Single": {
       "Title": "Title",
       "Barcode": "Barcode",
