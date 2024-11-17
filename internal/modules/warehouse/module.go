@@ -73,7 +73,7 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 	return []types.NavigationItem{
 		{
 			Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Warehouse"}),
-			Icon: icons.Book(icons.Props{Size: "20"}),
+			Icon: icons.Warehouse(icons.Props{Size: "20"}),
 			Href: "#",
 			Children: []types.NavigationItem{
 				{
