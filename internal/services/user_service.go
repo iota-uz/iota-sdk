@@ -43,7 +43,7 @@ func (s *UserService) Create(ctx context.Context, data *user.User) error {
 	if err != nil {
 		return err
 	}
-	if err := data.SetPassword(*data.Password); err != nil {
+	if err := data.SetPassword(data.Password); err != nil {
 		return err
 	}
 	if err := s.repo.Create(ctx, data); err != nil {

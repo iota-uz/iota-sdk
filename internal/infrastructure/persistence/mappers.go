@@ -24,13 +24,21 @@ func toDomainUser(dbUser *models.User) *user.User {
 	for i, r := range dbUser.Roles {
 		roles[i] = toDomainRole(&r)
 	}
+	var middleName string
+	if dbUser.MiddleName != nil {
+		middleName = *dbUser.MiddleName
+	}
+	var password string
+	if dbUser.Password != nil {
+		password = *dbUser.Password
+	}
 	return &user.User{
 		ID:         dbUser.ID,
 		FirstName:  dbUser.FirstName,
 		LastName:   dbUser.LastName,
-		MiddleName: dbUser.MiddleName,
+		MiddleName: middleName,
 		Email:      dbUser.Email,
-		Password:   dbUser.Password,
+		Password:   password,
 		AvatarID:   dbUser.AvatarID,
 		EmployeeID: dbUser.EmployeeID,
 		UILanguage: user.UILanguage(dbUser.UiLanguage),
@@ -53,10 +61,10 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 		ID:         entity.ID,
 		FirstName:  entity.FirstName,
 		LastName:   entity.LastName,
-		MiddleName: entity.MiddleName,
+		MiddleName: &entity.MiddleName,
 		Email:      entity.Email,
 		UiLanguage: string(entity.UILanguage),
-		Password:   entity.Password,
+		Password:   &entity.Password,
 		AvatarID:   entity.AvatarID,
 		EmployeeID: entity.EmployeeID,
 		LastIP:     entity.LastIP,
