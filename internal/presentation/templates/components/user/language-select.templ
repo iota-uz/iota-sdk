@@ -9,6 +9,7 @@ type LanguageSelectProps struct {
 	Label       string
 	Placeholder string
 	Value       string
+	Error       string
 	Attrs       templ.Attributes
 }
 
@@ -17,6 +18,7 @@ templ LanguageSelect(props *LanguageSelectProps) {
 		Label:       props.Label,
 		Placeholder: props.Placeholder,
 		Attrs:       props.Attrs,
+		Error:       props.Error,
 	}) {
 		for _, lang := range intl.SupportedLanguages {
 			if lang.Code == props.Value {

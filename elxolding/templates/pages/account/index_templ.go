@@ -9,6 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/iota-agency/iota-erp/elxolding/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -19,6 +20,7 @@ import (
 
 type ProfilePageProps struct {
 	*types.PageContext
+	UserData *viewmodels.User
 	Errors   map[string]string
 	PostPath string
 }
@@ -51,7 +53,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.PostPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/account/index.templ`, Line: 21, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/account/index.templ`, Line: 23, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -62,9 +64,9 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.User.FirstName)
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.UserData.FirstName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/account/index.templ`, Line: 26, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/account/index.templ`, Line: 27, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -75,9 +77,9 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.User.LastName)
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.UserData.LastName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/account/index.templ`, Line: 26, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/account/index.templ`, Line: 27, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -103,7 +105,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				Placeholder: props.T("Account.FirstName"),
 				Attrs: templ.Attributes{
 					"name":  "FirstName",
-					"value": props.User.FirstName,
+					"value": props.UserData.FirstName,
 				},
 				Error: props.Errors["FirstName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -118,7 +120,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				Placeholder: props.T("Account.LastName"),
 				Attrs: templ.Attributes{
 					"name":  "LastName",
-					"value": props.User.LastName,
+					"value": props.UserData.LastName,
 				},
 				Error: props.Errors["LastName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -133,7 +135,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				Placeholder: props.T("Account.MiddleName"),
 				Attrs: templ.Attributes{
 					"name":  "MiddleName",
-					"value": props.User.MiddleName,
+					"value": props.UserData.MiddleName,
 				},
 				Error: props.Errors["MiddleName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -147,7 +149,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			templ_7745c5c3_Err = usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       props.T("Users.Single.Language"),
 				Placeholder: props.T("Users.Single.SelectLanguage"),
-				Value:       string(props.User.UILanguage),
+				Value:       string(props.UserData.UILanguage),
 				Attrs:       templ.Attributes{"name": "UILanguage"},
 				Error:       props.Errors["UILanguage"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -179,7 +181,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Account.Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/account/index.templ`, Line: 67, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/account/index.templ`, Line: 70, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -188,8 +190,10 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			return templ_7745c5c3_Err
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
+			Size: button.SizeMD,
 			Attrs: templ.Attributes{
 				"type": "submit",
+				"id":   "save-btn",
 			}},
 		).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

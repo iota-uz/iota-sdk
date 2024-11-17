@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 
@@ -97,7 +98,9 @@ func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Model(&models.WarehouseUnit{}).Updates(toDBUnit(data)).Error //nolint:exhaustruct
+	dbRow := toDBUnit(data)
+	fmt.Println(dbRow)
+	return tx.Updates(dbRow).Error //nolint:exhaustruct
 }
 
 func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {
