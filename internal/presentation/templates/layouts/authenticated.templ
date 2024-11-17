@@ -65,6 +65,10 @@ func isAnyChildrenActive(pathname string, children []types.NavigationItem) bool 
 	return false
 }
 
+func initials(user *user.User) string {
+	return mappers.UserToViewModel(user).Initials()
+}
+
 templ renderNavItem(i types.NavigationItem, pathname string) {
 	<li>
 		if len(i.Children) > 0 {
@@ -113,7 +117,7 @@ templ sidebar(pageCtx *types.PageContext) {
 
 templ avatar(pageCtx *types.PageContext) {
 	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
-		{ pageCtx.UserViewModel.Initials() }
+		{ initials(pageCtx.User) }
 	</summary>
 }
 
