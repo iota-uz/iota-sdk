@@ -12,6 +12,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/types"
 )
@@ -60,11 +61,39 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = input.Text(&input.Props{
+				Label: props.T("Products.Single.Rfid"),
+				Attrs: templ.Attributes{
+					"value": props.Product.Rfid,
+					"name":  "Rfid",
+					"form":  "save-form",
+				},
+				Error: props.Errors["Rfid"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 2)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = PositionSelect(&PositionSelectProps{
 				PageContext: props.PageContext,
-				Value:       "",
+				Value:       props.Product.PositionID,
 				Positions:   props.Positions,
 				Attrs:       templ.Attributes{"name": "PositionID"},
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 3)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = StatusSelect(&StatusSelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Product.Status,
+				Attrs:       templ.Attributes{"name": "Status"},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -75,7 +104,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 2)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 4)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -94,7 +123,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/new.templ`, Line: 40, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/new.templ`, Line: 55, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -111,7 +140,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 3)
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

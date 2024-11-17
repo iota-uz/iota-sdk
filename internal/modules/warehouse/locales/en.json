@@ -21,8 +21,16 @@
       }
     },
     "Single": {
+      "Rfid": "RFID",
       "Position": "Position",
       "SelectPosition": "Select position",
+      "Status": "Status",
+      "SelectStatus": "Select status",
+      "Statuses": {
+        "InStock": "In stock",
+        "Approved": "Approved",
+        "InDevelopment": "In development"
+      },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this product?"
     }

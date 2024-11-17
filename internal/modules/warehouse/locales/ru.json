@@ -22,7 +22,15 @@
     },
     "Single": {
       "Position": "Наименование",
+      "Rfid": "RFID",
       "SelectPosition": "Выбрать позицию",
+      "Status": "Статус",
+      "SelectStatus": "Выберите статус",
+      "Statuses": {
+        "InStock": "На складе",
+        "Approved": "Одобрено",
+        "InDevelopment": "В разработке"
+      },
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить этот продукт?"
     }
