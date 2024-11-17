@@ -19,8 +19,8 @@ type User struct {
 	ID         uint
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
-	MiddleName *string
-	Password   *string
+	MiddleName string
+	Password   string
 	Email      string `validate:"required,email"`
 	AvatarID   *uint
 	EmployeeID *uint
@@ -50,10 +50,10 @@ type UpdateDTO struct {
 }
 
 func (u *User) CheckPassword(password string) bool {
-	if u.Password == nil {
+	if u.Password == "" {
 		return false
 	}
-	return bcrypt.CompareHashAndPassword([]byte(*u.Password), []byte(password)) == nil
+	return bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)) == nil
 }
 
 func (u *User) Can(perm permission.Permission) bool {
@@ -71,7 +71,7 @@ func (u *User) SetPassword(password string) error {
 		return err
 	}
 	newPassword := string(hash)
-	u.Password = &newPassword
+	u.Password = newPassword
 	return nil
 }
 
@@ -80,9 +80,9 @@ func (u *User) FullName() string {
 	if u.FirstName != "" {
 		out.WriteString(u.FirstName)
 	}
-	if v := u.MiddleName; v != nil && *v != "" {
+	if u.MiddleName != "" {
 		sequence.Pad(out, " ")
-		out.WriteString(*v)
+		out.WriteString(u.MiddleName)
 	}
 	if u.LastName != "" {
 		sequence.Pad(out, " ")
@@ -133,7 +133,7 @@ func (u *CreateDTO) ToEntity() *User {
 		LastName:   u.LastName,
 		Email:      u.Email,
 		Roles:      []*role.Role{{ID: u.RoleID}},
-		Password:   &u.Password,
+		Password:   u.Password,
 		LastLogin:  nil,
 		LastAction: nil,
 		LastIP:     nil,
@@ -151,7 +151,7 @@ func (u *UpdateDTO) ToEntity(id uint) *User {
 		LastName:   u.LastName,
 		Email:      u.Email,
 		Roles:      []*role.Role{{ID: u.RoleID}},
-		Password:   &u.Password,
+		Password:   u.Password,
 		LastLogin:  nil,
 		LastAction: nil,
 		LastIP:     nil,
@@ -167,7 +167,7 @@ func (u *User) ToGraph() *model.User {
 		ID:         int64(u.ID),
 		FirstName:  u.FirstName,
 		LastName:   u.LastName,
-		MiddleName: u.MiddleName,
+		MiddleName: &u.MiddleName,
 		Email:      u.Email,
 		AvatarID:   mapper.Pointer(int64(*u.AvatarID)),
 		EmployeeID: mapper.Pointer(int64(*u.EmployeeID)),

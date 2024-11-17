@@ -6,6 +6,7 @@ type User struct {
 	LastName   string
 	MiddleName string
 	Email      string
+	UILanguage string
 	CreatedAt  string
 	UpdatedAt  string
 }

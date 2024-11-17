@@ -126,6 +126,9 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 	if err := tx.Updates(dbUser).Error; err != nil {
 		return err
 	}
+	if len(dbRoles) == 0 {
+		return nil
+	}
 	return tx.Model(&models.User{}).Association("Roles").Replace(dbRoles)
 }
 

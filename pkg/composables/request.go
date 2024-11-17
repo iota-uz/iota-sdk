@@ -184,7 +184,7 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 	if !found {
 		return nil, ErrLocalizerNotFound
 	}
-	uniTranlator, found := UseUniLocalizer(r.Context())
+	uniTranslator, found := UseUniLocalizer(r.Context())
 	if !found {
 		return nil, ErrLocalizerNotFound
 	}
@@ -196,7 +196,7 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 		Localizer:     localizer,
 		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}), //nolint:exhaustruct
 		Locale:        locale.String(),
-		UniTranslator: uniTranlator,
+		UniTranslator: uniTranslator,
 		NavItems:      navItems,
 		User:          u,
 	}, nil
