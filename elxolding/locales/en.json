@@ -1,4 +1,10 @@
 {
+  "Dashboard": {
+    "Meta": {
+      "Title": "Dashboard"
+    },
+    "Welcome": "Welcome to the dashboard"
+  },
   "Login": {
     "User": "User",
     "SelectUser": "Select user"
