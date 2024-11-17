@@ -1,6 +1,7 @@
 package account
 
 import (
+	"github.com/iota-agency/iota-erp/elxolding/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
@@ -11,6 +12,7 @@ import (
 
 type ProfilePageProps struct {
 	*types.PageContext
+	UserData *viewmodels.User
 	Errors   map[string]string
 	PostPath string
 }
@@ -20,17 +22,16 @@ templ ProfileForm(props *ProfilePageProps) {
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
-		hx-indicator="#save-btn"
 	>
 		<h1 class="text-2xl font-medium pl-6 pt-6">
-			{ props.User.FirstName } { props.User.LastName }
+			{ props.UserData.FirstName } { props.UserData.LastName }
 		</h1>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
 				Placeholder: props.T("Account.FirstName"),
 				Attrs: templ.Attributes{
 					"name":  "FirstName",
-					"value": props.User.FirstName,
+					"value": props.UserData.FirstName,
 				},
 				Error: props.Errors["FirstName"],
 			})
@@ -38,7 +39,7 @@ templ ProfileForm(props *ProfilePageProps) {
 				Placeholder: props.T("Account.LastName"),
 				Attrs: templ.Attributes{
 					"name":  "LastName",
-					"value": props.User.LastName,
+					"value": props.UserData.LastName,
 				},
 				Error: props.Errors["LastName"],
 			})
@@ -46,22 +47,24 @@ templ ProfileForm(props *ProfilePageProps) {
 				Placeholder: props.T("Account.MiddleName"),
 				Attrs: templ.Attributes{
 					"name":  "MiddleName",
-					"value": props.User.MiddleName,
+					"value": props.UserData.MiddleName,
 				},
 				Error: props.Errors["MiddleName"],
 			})
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       props.T("Users.Single.Language"),
 				Placeholder: props.T("Users.Single.SelectLanguage"),
-				Value:       string(props.User.UILanguage),
+				Value:       string(props.UserData.UILanguage),
 				Attrs:       templ.Attributes{"name": "UILanguage"},
 				Error:       props.Errors["UILanguage"],
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
+				Size: button.SizeMD,
 				Attrs: templ.Attributes{
 					"type": "submit",
+					"id":   "save-btn",
 				}},
 			) {
 				{ props.T("Account.Save") }
