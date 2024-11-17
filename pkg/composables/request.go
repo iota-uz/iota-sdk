@@ -3,6 +3,8 @@ package composables
 import (
 	"context"
 	"errors"
+	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/types"
 	"github.com/iota-agency/iota-erp/pkg/constants"
 	"gorm.io/gorm"
@@ -189,6 +191,10 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 		return nil, ErrLocalizerNotFound
 	}
 	u, _ := UseUser(r.Context())
+	var userViewModel *viewmodels.User
+	if u != nil {
+		userViewModel = mappers.UserToViewModel(u)
+	}
 	locale := UseLocale(r.Context(), language.English)
 	navItems, _ := UseNavItems(r)
 	return &types.PageContext{
@@ -199,5 +205,6 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 		UniTranslator: uniTranslator,
 		NavItems:      navItems,
 		User:          u,
+		UserViewModel: userViewModel,
 	}, nil
 }

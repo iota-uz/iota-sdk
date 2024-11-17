@@ -3,6 +3,7 @@ package types
 import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
@@ -24,6 +25,7 @@ type PageContext struct {
 	Localizer     *i18n.Localizer
 	UniTranslator ut.Translator
 	User          *user.User
+	UserViewModel *viewmodels.User
 	NavItems      []NavigationItem
 	Pathname      string
 }
