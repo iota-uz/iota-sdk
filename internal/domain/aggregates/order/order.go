@@ -1,7 +1,7 @@
 package order
 
 import (
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"time"
 )
 

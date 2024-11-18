@@ -1,8 +1,8 @@
 package mappers
 
 import (
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
 	"strconv"
@@ -10,11 +10,16 @@ import (
 )
 
 func ProductToViewModel(entity *product.Product) *viewmodels.Product {
+	var pos *viewmodels.Position
+	if entity.Position != nil {
+		pos = PositionToViewModel(entity.Position)
+	}
 	return &viewmodels.Product{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		Status:     string(entity.Status),
 		Rfid:       entity.Rfid,
 		PositionID: strconv.FormatUint(uint64(entity.PositionID), 10),
+		Position:   pos,
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
 	}

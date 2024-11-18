@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/types"
@@ -21,12 +22,29 @@ type EditPageProps struct {
 templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@input.Text(&input.Props{
+				Label: props.T("Products.Single.Rfid"),
+				Attrs: templ.Attributes{
+					"value": props.Product.Rfid,
+					"name":  "Rfid",
+					"form":  "save-form",
+				},
+				Error: props.Errors["Rfid"],
+			})
 			@PositionSelect(&PositionSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.PositionID,
 				Positions:   props.Positions,
 				Attrs: templ.Attributes{
 					"name": "PositionID",
+					"form": "save-form",
+				},
+			})
+			@StatusSelect(&StatusSelectProps{
+				PageContext: props.PageContext,
+				Value:       props.Product.Status,
+				Attrs: templ.Attributes{
+					"name": "Status",
 					"form": "save-form",
 				},
 			})

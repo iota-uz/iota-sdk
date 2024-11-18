@@ -20,6 +20,11 @@
         "Title": "Новый продукт"
       }
     },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать продукт"
+      }
+    },
     "Single": {
       "Position": "Наименование",
       "Rfid": "RFID",
@@ -27,9 +32,9 @@
       "Status": "Статус",
       "SelectStatus": "Выберите статус",
       "Statuses": {
-        "InStock": "На складе",
-        "Approved": "Одобрено",
-        "InDevelopment": "В разработке"
+        "in_stock": "На складе",
+        "approved": "Одобрено",
+        "in_development": "В разработке"
       },
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить этот продукт?"

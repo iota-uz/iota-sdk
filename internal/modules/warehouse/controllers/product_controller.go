@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/services"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
@@ -14,7 +15,6 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"net/http"
 
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/pages/products"
 )
 
