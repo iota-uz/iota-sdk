@@ -221,6 +221,7 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Positions:   positions,
 		Errors:      map[string]string{},
 		Product:     mappers.ProductToViewModel(&product.Product{}), //nolint:exhaustruct
+		SaveURL:     c.basePath,
 	}
 	templ.Handler(products.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -259,6 +260,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 			Positions:   positions,
 			Errors:      errorsMap,
 			Product:     mappers.ProductToViewModel(entity),
+			SaveURL:     c.basePath,
 		}
 		templ.Handler(products.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
