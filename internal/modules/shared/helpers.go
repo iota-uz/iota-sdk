@@ -28,3 +28,15 @@ func ParseID(r *http.Request) (uint, error) {
 	}
 	return uint(id), nil
 }
+
+// MapViewModels maps entities to view models
+func MapViewModels[T any, V any](
+	entities []T,
+	mapFunc func(T) *V,
+) []*V {
+	viewModels := make([]*V, len(entities))
+	for i, entity := range entities {
+		viewModels[i] = mapFunc(entity)
+	}
+	return viewModels
+}
