@@ -13,13 +13,14 @@ type CreatePageProps struct {
 	*types.PageContext
 	Positions []*viewmodels.Position
 	Product   *viewmodels.Product
+	SaveURL   string
 	Errors    map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
 	<form
 		class="flex flex-col justify-between h-full"
-		hx-post="/warehouse/products"
+		hx-post={ props.SaveURL }
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
