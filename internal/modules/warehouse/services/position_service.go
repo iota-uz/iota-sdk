@@ -37,6 +37,13 @@ func (s *PositionService) GetAll(ctx context.Context) ([]*position.Position, err
 	return s.repo.GetAll(ctx)
 }
 
+func (s *PositionService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*position.Position, error) {
+	if err := composables.CanUser(ctx, permissions.PositionRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+}
+
 func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) error {
 	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
 		return err
