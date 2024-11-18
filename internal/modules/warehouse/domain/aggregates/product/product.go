@@ -1,6 +1,7 @@
 package product
 
 import (
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
 	"time"
 )
 
@@ -9,6 +10,7 @@ type Product struct {
 	PositionID uint
 	Rfid       string
 	Status     Status
+	Position   *position.Position
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }

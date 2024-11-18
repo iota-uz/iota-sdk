@@ -51,6 +51,7 @@ type WarehousePosition struct {
 type WarehouseProduct struct {
 	ID         uint
 	PositionID uint
+	Position   *WarehousePosition
 	Rfid       string
 	Status     string
 	CreatedAt  time.Time

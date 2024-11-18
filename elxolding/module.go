@@ -87,6 +87,7 @@ func (m *Module) Controllers() []shared.ControllerConstructor {
 		controllers.NewUsersController,
 		controllers.NewLoginController,
 		controllers.NewAccountController,
+		controllers.NewDashboardController,
 	}
 }
 

@@ -20,6 +20,11 @@
         "Title": "New product"
       }
     },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit product"
+      }
+    },
     "Single": {
       "Rfid": "RFID",
       "Position": "Position",
@@ -27,9 +32,9 @@
       "Status": "Status",
       "SelectStatus": "Select status",
       "Statuses": {
-        "InStock": "In stock",
-        "Approved": "Approved",
-        "InDevelopment": "In development"
+        "in_stock": "In stock",
+        "approved": "Approved",
+        "in_development": "In development"
       },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this product?"

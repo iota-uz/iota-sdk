@@ -121,6 +121,7 @@ func (m *Module) Controllers() []shared.ControllerConstructor {
 	return []shared.ControllerConstructor{
 		controllers.NewUsersController,
 		controllers.NewLoginController,
+		controllers.NewHomeController,
 	}
 }
 

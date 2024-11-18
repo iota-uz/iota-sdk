@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-erp/sdk/utils/fs"
 	"github.com/joho/godotenv"
 	"log"
-	"os"
 	"strings"
 	"time"
 )
@@ -69,8 +68,6 @@ func Use() *Configuration {
 }
 
 func (c *Configuration) load(envFiles []string) error {
-	wd, _ := os.Getwd()
-	fmt.Println(wd)
 	n, err := LoadEnv(envFiles)
 	if err != nil {
 		return err

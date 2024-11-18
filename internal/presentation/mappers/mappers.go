@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
 	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
 	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
@@ -14,6 +15,19 @@ import (
 	"strconv"
 	"time"
 )
+
+func UserToViewModel(entity *user.User) *viewmodels.User {
+	return &viewmodels.User{
+		ID:         strconv.FormatUint(uint64(entity.ID), 10),
+		FirstName:  entity.FirstName,
+		LastName:   entity.LastName,
+		MiddleName: entity.MiddleName,
+		Email:      entity.Email,
+		UILanguage: string(entity.UILanguage),
+		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
+	}
+}
 
 func ExpenseCategoryToViewModel(entity *category.ExpenseCategory) *viewmodels.ExpenseCategory {
 	return &viewmodels.ExpenseCategory{

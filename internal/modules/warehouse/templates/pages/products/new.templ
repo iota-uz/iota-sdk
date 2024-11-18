@@ -13,13 +13,14 @@ type CreatePageProps struct {
 	*types.PageContext
 	Positions []*viewmodels.Position
 	Product   *viewmodels.Product
+	SaveURL   string
 	Errors    map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
 	<form
 		class="flex flex-col justify-between h-full"
-		hx-post="/warehouse/products"
+		hx-post={ props.SaveURL }
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
@@ -29,7 +30,6 @@ templ CreateForm(props *CreatePageProps) {
 				Attrs: templ.Attributes{
 					"value": props.Product.Rfid,
 					"name":  "Rfid",
-					"form":  "save-form",
 				},
 				Error: props.Errors["Rfid"],
 			})
@@ -37,12 +37,16 @@ templ CreateForm(props *CreatePageProps) {
 				PageContext: props.PageContext,
 				Value:       props.Product.PositionID,
 				Positions:   props.Positions,
-				Attrs:       templ.Attributes{"name": "PositionID"},
+				Attrs: templ.Attributes{
+					"name": "PositionID",
+				},
 			})
 			@StatusSelect(&StatusSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.Status,
-				Attrs:       templ.Attributes{"name": "Status"},
+				Attrs: templ.Attributes{
+					"name": "Status",
+				},
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

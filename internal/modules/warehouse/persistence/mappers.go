@@ -3,8 +3,8 @@ package persistence
 import (
 	"errors"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
 )
@@ -109,10 +109,15 @@ func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, erro
 	if err != nil {
 		return nil, err
 	}
+	pos, err := toDomainPosition(dbProduct.Position)
+	if err != nil {
+		return nil, err
+	}
 	return &product.Product{
 		ID:         dbProduct.ID,
 		PositionID: dbProduct.PositionID,
 		Rfid:       dbProduct.Rfid,
+		Position:   pos,
 		Status:     status,
 		CreatedAt:  dbProduct.CreatedAt,
 		UpdatedAt:  dbProduct.UpdatedAt,
