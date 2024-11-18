@@ -1,4 +1,4 @@
-package selects
+package select
 
 import (
 	"fmt"
@@ -6,36 +6,40 @@ import (
 	"github.com/iota-agency/iota-erp/internal/types"
 )
 
-type PositionSelectProps struct {
+type Value struct {
+    Value string
+    Label string
+}
+
+type SearchSelectProps struct {
 	*types.PageContext
 	Label       string
 	Placeholder string
 	Value       string
-	Positions   []*viewmodels.Position
 	Attrs       templ.Attributes
 }
 
-type PositionSelectOptionsProps struct {
+type SearchOptionsProps struct {
 	*types.PageContext
-	Positions        []*viewmodels.Position
+	Options          []*Value
 	NothingFoundText string
 }
 
-templ PositionSelectOptions(props *PositionSelectOptionsProps) {
-	if len(props.Positions) == 0 {
+templ SearchOptions(props *SearchOptionsProps) {
+	if len(props.Options) == 0 {
 		<li class="p-2 text-gray-500">{ props.NothingFoundText }</li>
 	}
-	for _, position := range props.Positions {
+	for _, option := range props.Options {
 		<li
-			x-on:click={ fmt.Sprintf("selectResult('%s', %s)", position.Title, position.ID) }
+			x-on:click={ fmt.Sprintf("selectResult('%s', %s)", option.Label, option.Value) }
 			class="p-2 hover:bg-gray-100 cursor-pointer"
 		>
-			{ position.Title }
+			{ option.Label }
 		</li>
 	}
 }
 
-templ PositionSelect(props *PositionSelectProps) {
+templ PositionSelect(props *SearchSelectProps) {
 	<div
 		x-data="{ open: false, query: '', selectedId: '' }"
 		@click.away="open = false"
