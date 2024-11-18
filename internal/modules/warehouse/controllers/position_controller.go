@@ -47,7 +47,8 @@ func (c *PositionsController) Register(r *mux.Router) {
 }
 
 func (c *PositionsController) viewModelPositions(r *http.Request) ([]*viewmodels.Position, error) {
-	entities, err := c.positionService.GetAll(r.Context())
+	params := composables.UsePaginated(r)
+	entities, err := c.positionService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving positions")
 	}
