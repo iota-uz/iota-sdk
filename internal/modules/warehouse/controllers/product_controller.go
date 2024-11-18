@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-erp/pkg/mapping"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -78,7 +79,7 @@ func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedRe
 		return nil, fmt.Errorf("error retrieving products: %w", err)
 	}
 
-	viewProducts := shared.MapViewModels(productEntities, mappers.ProductToViewModel)
+	viewProducts := mapping.MapViewModels(productEntities, mappers.ProductToViewModel)
 
 	total, err := c.productService.Count(r.Context())
 	if err != nil {
@@ -97,7 +98,7 @@ func (c *ProductsController) getViewModelPositions(r *http.Request) ([]*viewmode
 		return nil, fmt.Errorf("error retrieving positions: %w", err)
 	}
 
-	return shared.MapViewModels(positions, mappers.PositionToViewModel), nil
+	return mapping.MapViewModels(positions, mappers.PositionToViewModel), nil
 }
 
 func (c *ProductsController) renderTemplate(w http.ResponseWriter, r *http.Request, template templ.Component) {

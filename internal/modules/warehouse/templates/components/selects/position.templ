@@ -1,0 +1,74 @@
+package selects
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/types"
+)
+
+type PositionSelectProps struct {
+	*types.PageContext
+	Value     string
+	Positions []*viewmodels.Position
+	Attrs     templ.Attributes
+}
+
+type PositionSelectOptionsProps struct {
+	Positions []*viewmodels.Position
+}
+
+templ PositionSelectOptions(props *PositionSelectOptionsProps) {
+	for _, position := range props.Positions {
+		<li
+			x-on:click={ fmt.Sprintf("selectResult('%s')", position.Title) }
+			class="p-2 hover:bg-gray-100 cursor-pointer"
+		>
+			{ position.Title }
+		</li>
+	}
+}
+
+templ PositionSelect(props *PositionSelectProps) {
+	<div
+		x-data="{ open: false, query: '' }"
+		@click.away="open = false"
+		class="relative"
+	>
+		<input
+			type="text"
+			placeholder="Search..."
+			x-model="query"
+			@input.debounce.300ms="fetchResults"
+			@focus="open = true"
+			class="border p-2 w-full"
+		/>
+		<ul x-show="open" id="results-container" class="absolute border bg-white w-full mt-1 max-h-60 overflow-auto">
+			<!-- Server-rendered results will be injected here -->
+		</ul>
+	</div>
+	<script>
+        function fetchResults() {
+            if (this.query.length < 2) {
+                document.getElementById('results-container').innerHTML = '<li class="p-2 text-gray-500">No results found.</li>';
+                return;
+            }
+            fetch(`/warehouse/positions/search?q=${encodeURIComponent(this.query)}`)
+                .then((response) => response.text())
+                .then((html) => {
+                    document.getElementById('results-container').innerHTML = html;
+                })
+                .catch((error) => {
+                    console.error('Error fetching results:', error);
+                    document.getElementById('results-container').innerHTML = '<li class="p-2 text-gray-500">Error loading results.</li>';
+                });
+        }
+
+        function selectResult(name) {
+            const input = document.querySelector('[x-model="query"]');
+            input.value = name;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            this.open = false;
+            // Handle further actions, such as navigating or updating the UI.
+        }
+    </script>
+}

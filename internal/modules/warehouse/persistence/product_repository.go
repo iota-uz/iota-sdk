@@ -34,7 +34,7 @@ func (g *GormProductRepository) GetPaginated(
 		return nil, err
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err = helpers.ApplySort(q, sortBy, &product.Product{}) //nolint:exhaustruct
+	q, err = helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}
