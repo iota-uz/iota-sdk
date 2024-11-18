@@ -162,6 +162,7 @@ func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
 type PaginationParams struct {
 	Limit  int
 	Offset int
+	Page   int
 }
 
 func UsePaginated(r *http.Request) PaginationParams {
@@ -176,6 +177,7 @@ func UsePaginated(r *http.Request) PaginationParams {
 	return PaginationParams{
 		Limit:  limit,
 		Offset: page * limit,
+		Page:   page,
 	}
 }
 
