@@ -58,7 +58,7 @@ func PositionSelectOptions(props *PositionSelectOptionsProps) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.NothingFoundText)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/components/selects/position.templ`, Line: 26, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/select/search_select.templ`, Line: 26, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -77,7 +77,7 @@ func PositionSelectOptions(props *PositionSelectOptionsProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("selectResult('%s', %s)", position.Title, position.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/components/selects/position.templ`, Line: 30, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/select/search_select.templ`, Line: 30, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -90,7 +90,7 @@ func PositionSelectOptions(props *PositionSelectOptionsProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(position.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/components/selects/position.templ`, Line: 33, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/components/base/select/search_select.templ`, Line: 33, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
