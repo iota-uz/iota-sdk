@@ -60,6 +60,8 @@ func isAnyChildrenActive(pathname string, children []types.NavigationItem) bool 
 	for _, item := range children {
 		if item.Href == pathname {
 			return true
+		} else if strings.HasPrefix(pathname, item.Href) {
+			return true
 		}
 	}
 	return false
