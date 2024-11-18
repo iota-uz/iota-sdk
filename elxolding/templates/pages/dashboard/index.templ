@@ -1,8 +1,8 @@
 package dashboard
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/types"
 )
 
@@ -20,9 +20,22 @@ templ avatar(pageCtx *types.PageContext) {
 	</summary>
 }
 
-templ Stats() {
+templ Stats(props *IndexPageProps) {
 	@base.Card("grid grid-cols-3 gap-4 m-6") {
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+			<div>
+				{ props.PositionsCount }
+			</div>
+			<div>
+				{ props.ProductsCount }
+			</div>
+			<div>
+				{ props.Depth }
+			</div>
+			<div>
+				{ props.OrdersCount }
+			</div>
+		</div>
 	}
 }
 
@@ -40,7 +53,9 @@ templ DashboardContent(props *IndexPageProps) {
 					</div>
 				</div>
 			</div>
-			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+				@Stats(props)
+			</div>
 		</div>
 	</div>
 }
