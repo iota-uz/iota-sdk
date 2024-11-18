@@ -5,6 +5,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/components/selects"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/types"
 )
@@ -33,7 +34,7 @@ templ CreateForm(props *CreatePageProps) {
 				},
 				Error: props.Errors["Rfid"],
 			})
-			@PositionSelect(&PositionSelectProps{
+			@selects.PositionSelect(&selects.PositionSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.PositionID,
 				Positions:   props.Positions,

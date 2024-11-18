@@ -2,7 +2,7 @@
 module.exports = {
   content: [
       "./internal/presentation/templates/**/*.{html,js,templ}",
-      "./internal/presentation/modules/**/templates/**/*.{html,js,templ}",
+      "./internal/modules/**/templates/**/*.{html,js,templ}",
   ],
   theme: {
     extend: {

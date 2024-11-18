@@ -28,7 +28,7 @@
     "Single": {
       "Position": "Наименование",
       "Rfid": "RFID",
-      "SelectPosition": "Выбрать позицию",
+      "SearchPosition": "Поиск наименования",
       "Status": "Статус",
       "SelectStatus": "Выберите статус",
       "Statuses": {

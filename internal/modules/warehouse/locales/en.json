@@ -28,7 +28,7 @@
     "Single": {
       "Rfid": "RFID",
       "Position": "Position",
-      "SelectPosition": "Select position",
+      "SearchPosition": "Search position",
       "Status": "Status",
       "SelectStatus": "Select status",
       "Statuses": {

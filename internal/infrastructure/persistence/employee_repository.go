@@ -27,7 +27,7 @@ func (g *GormEmployeeRepository) GetPaginated(
 	}
 	var rows []*models.Employee
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &models.Employee{}) //nolint:exhaustruct
+	q, err := helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}
