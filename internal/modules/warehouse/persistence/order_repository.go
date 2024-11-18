@@ -12,7 +12,7 @@ import (
 
 type GormOrderRepository struct{}
 
-func NewGormOrderRepository() order.Repository {
+func NewOrderRepository() order.Repository {
 	return &GormOrderRepository{}
 }
 

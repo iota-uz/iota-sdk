@@ -6,11 +6,13 @@ import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-erp/elxolding/assets"
 	"github.com/iota-agency/iota-erp/elxolding/controllers"
+	"github.com/iota-agency/iota-erp/elxolding/services"
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	persistence2 "github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -28,6 +30,12 @@ type Module struct {
 }
 
 func (m *Module) Register(app *application.Application) error {
+	dashboardService := services.NewDashboardService(
+		persistence2.NewPositionRepository(),
+		persistence2.NewProductRepository(),
+		persistence2.NewOrderRepository(),
+	)
+	app.RegisterService(dashboardService)
 	return nil
 }
 
