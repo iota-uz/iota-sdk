@@ -95,7 +95,7 @@ templ renderNavItem(i types.NavigationItem, pathname string) {
 }
 
 templ sidebar(pageCtx *types.PageContext) {
-	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6">
+	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0">
 		<div class="flex h-16 items-center justify-center px-6">
 			<a href="/" class="flex items-center gap-2">
 				<img src={ iotaLogo } alt="Logo" width="150" height="50"/>
