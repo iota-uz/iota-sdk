@@ -66,7 +66,6 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				Attrs: templ.Attributes{
 					"value": props.Product.Rfid,
 					"name":  "Rfid",
-					"form":  "save-form",
 				},
 				Error: props.Errors["Rfid"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -81,7 +80,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				PageContext: props.PageContext,
 				Value:       props.Product.PositionID,
 				Positions:   props.Positions,
-				Attrs:       templ.Attributes{"name": "PositionID"},
+				Attrs: templ.Attributes{
+					"name": "PositionID",
+				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -93,7 +94,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Err = StatusSelect(&StatusSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.Status,
-				Attrs:       templ.Attributes{"name": "Status"},
+				Attrs: templ.Attributes{
+					"name": "Status",
+				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -123,7 +126,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/new.templ`, Line: 55, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/new.templ`, Line: 58, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

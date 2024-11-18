@@ -13,7 +13,7 @@ type Status string
 func NewStatus(l string) (Status, error) {
 	language := Status(l)
 	if !language.IsValid() {
-		return "", errors.New("invalid language")
+		return "", errors.New("invalid status")
 	}
 	return language, nil
 }

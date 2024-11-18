@@ -2,18 +2,46 @@ package dashboard
 
 import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/types"
 )
 
 type IndexPageProps struct {
 	*types.PageContext
+	PositionsCount string
+	ProductsCount  string
+	Depth          string
+	OrdersCount    string
+}
+
+templ avatar(pageCtx *types.PageContext) {
+	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
+		FA
+	</summary>
+}
+
+templ Stats() {
+	@base.Card("grid grid-cols-3 gap-4 m-6") {
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+	}
 }
 
 templ DashboardContent(props *IndexPageProps) {
-	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Dashboard") }
-		</h1>
+	<div>
+		<div class="m-6">
+			<div class="flex items-center gap-4">
+				@avatar(props.PageContext)
+				<div>
+					<p class="text-xl">
+						Добро пожаловать, { props.User.FirstName }
+					</p>
+					<div class="text-muted-600">
+						Панель управления
+					</div>
+				</div>
+			</div>
+			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+		</div>
 	</div>
 }
 
