@@ -6,11 +6,9 @@ import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-erp/elxolding/assets"
 	"github.com/iota-agency/iota-erp/elxolding/controllers"
+	"github.com/iota-agency/iota-erp/elxolding/seed"
 	"github.com/iota-agency/iota-erp/elxolding/services"
 	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	persistence2 "github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
@@ -50,29 +48,17 @@ func (m *Module) Assets() *hashfs.FS {
 }
 
 func (m *Module) Seed(ctx context.Context, app *application.Application) error {
-	roleRepository := persistence.NewRoleRepository()
-
-	for _, r := range Roles {
-		if err := roleRepository.CreateOrUpdate(ctx, &r); err != nil {
+	seedFuncs := []shared.SeedFunc{
+		seed.SeedUser,
+		seed.SeedPositions,
+		seed.SeedProducts,
+	}
+	for _, seedFunc := range seedFuncs {
+		if err := seedFunc(ctx, app); err != nil {
 			return err
 		}
 	}
-	userRepository := persistence.NewUserRepository()
-	usr := &user.User{
-		//nolint:exhaustruct
-		ID:         1,
-		FirstName:  "Admin",
-		LastName:   "User",
-		Email:      "test@gmail.com",
-		UILanguage: user.UILanguageRU,
-		Roles: []*role.Role{
-			&CEO,
-		},
-	}
-	if err := usr.SetPassword("TestPass123!"); err != nil {
-		return err
-	}
-	return userRepository.CreateOrUpdate(ctx, usr)
+	return nil
 }
 
 func (m *Module) Name() string {

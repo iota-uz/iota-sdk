@@ -1,4 +1,4 @@
-package elxolding
+package constants
 
 import (
 	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
