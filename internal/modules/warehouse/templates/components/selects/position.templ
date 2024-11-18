@@ -14,13 +14,17 @@ type PositionSelectProps struct {
 }
 
 type PositionSelectOptionsProps struct {
+    *types.PageContext
 	Positions []*viewmodels.Position
 }
 
 templ PositionSelectOptions(props *PositionSelectOptionsProps) {
+    if len(props.Positions) == 0 {
+        <li class="p-2 text-gray-500">No results found.</li>
+    }
 	for _, position := range props.Positions {
 		<li
-			x-on:click={ fmt.Sprintf("selectResult('%s')", position.Title) }
+			x-on:click={ fmt.Sprintf("selectResult('%s', %s)", position.Title, position.ID) }
 			class="p-2 hover:bg-gray-100 cursor-pointer"
 		>
 			{ position.Title }
@@ -30,7 +34,7 @@ templ PositionSelectOptions(props *PositionSelectOptionsProps) {
 
 templ PositionSelect(props *PositionSelectProps) {
 	<div
-		x-data="{ open: false, query: '' }"
+		x-data="{ open: false, query: '', selectedId: '' }"
 		@click.away="open = false"
 		class="relative"
 	>
@@ -42,6 +46,7 @@ templ PositionSelect(props *PositionSelectProps) {
 			@focus="open = true"
 			class="border p-2 w-full"
 		/>
+		<input type="hidden" x-model="selectedId" name="position_id"/>
 		<ul x-show="open" id="results-container" class="absolute border bg-white w-full mt-1 max-h-60 overflow-auto">
 			<!-- Server-rendered results will be injected here -->
 		</ul>
@@ -63,10 +68,11 @@ templ PositionSelect(props *PositionSelectProps) {
                 });
         }
 
-        function selectResult(name) {
+        function selectResult(name, id) {
             const input = document.querySelector('[x-model="query"]');
             input.value = name;
             input.dispatchEvent(new Event('input', { bubbles: true }));
+            this.selectedId = id;
             this.open = false;
             // Handle further actions, such as navigating or updating the UI.
         }
