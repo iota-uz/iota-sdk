@@ -87,6 +87,14 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 	return toDomainPosition(&entity)
 }
 
+func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(toDBPosition(data)).Error
+}
+
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

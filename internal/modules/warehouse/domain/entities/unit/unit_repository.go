@@ -8,6 +8,7 @@ type Repository interface {
 	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*Unit, error)
 	GetByID(ctx context.Context, id uint) (*Unit, error)
 	Create(ctx context.Context, upload *Unit) error
+	CreateOrUpdate(ctx context.Context, upload *Unit) error
 	Update(ctx context.Context, upload *Unit) error
 	Delete(ctx context.Context, id uint) error
 }

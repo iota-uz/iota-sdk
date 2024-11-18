@@ -108,6 +108,14 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 	return nil
 }
 
+func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *product.Product) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(toDBProduct(data)).Error
+}
+
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
