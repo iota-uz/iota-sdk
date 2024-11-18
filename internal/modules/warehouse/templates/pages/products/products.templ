@@ -29,10 +29,10 @@ templ ProductsTable(props *IndexPageProps) {
 		for _, product := range props.Products {
 			@base.TableRow() {
 				@base.TableCell() {
-					{ product.PositionID }
+					{ product.Position.Title }
 				}
 				@base.TableCell() {
-					{ product.Status }
+					{ product.LocalizedStatus(props.Localizer) }
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">

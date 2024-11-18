@@ -74,7 +74,6 @@ func main() {
 	controllerInstances := []shared.Controller{
 		controllers.NewAccountController(app),
 		controllers.NewEmployeeController(app),
-		controllers.NewHomeController(app),
 		controllers.NewGraphQLController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewStaticFilesController(assetsFs),

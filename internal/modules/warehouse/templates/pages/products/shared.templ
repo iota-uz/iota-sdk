@@ -1,16 +1,35 @@
 package products
 
 import (
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/types"
 )
 
+type StatusViewModel struct {
+	MessageId string
+	Value     string
+}
+
 var (
 	InStock       = string(product.InStock)
 	InDevelopment = string(product.InDevelopment)
 	Approved      = string(product.Approved)
+	Statuses      = []StatusViewModel{
+		{
+			MessageId: "Products.Single.Statuses.in_stock",
+			Value:     InStock,
+		},
+		{
+			MessageId: "Products.Single.Statuses.in_development",
+			Value:     InDevelopment,
+		},
+		{
+			MessageId: "Products.Single.Statuses.approved",
+			Value:     Approved,
+		},
+	}
 )
 
 type PositionSelectProps struct {
@@ -52,14 +71,16 @@ templ StatusSelect(props *StatusSelectProps) {
 		Placeholder: props.T("Products.Single.SelectStatus"),
 		Attrs:       props.Attrs,
 	}) {
-		<option value={ InStock }>
-			{ props.T("Products.Single.Statuses.InStock") }
-		</option>
-		<option value={ InDevelopment }>
-			{ props.T("Products.Single.Statuses.InDevelopment") }
-		</option>
-		<option value={ Approved }>
-			{ props.T("Products.Single.Statuses.Approved") }
-		</option>
+		for _, status := range Statuses {
+			if status.Value == props.Value {
+				<option value={ status.Value } selected>
+					{ props.T(status.MessageId) }
+				</option>
+			} else {
+				<option value={ status.Value }>
+					{ props.T(status.MessageId) }
+				</option>
+			}
+		}
 	}
 }

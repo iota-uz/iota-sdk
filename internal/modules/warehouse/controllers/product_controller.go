@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/application"
 	"github.com/iota-agency/iota-erp/internal/modules/shared"
 	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/services"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
@@ -14,7 +15,6 @@ import (
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"net/http"
 
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/pages/products"
 )
 
@@ -221,6 +221,7 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Positions:   positions,
 		Errors:      map[string]string{},
 		Product:     mappers.ProductToViewModel(&product.Product{}), //nolint:exhaustruct
+		SaveURL:     c.basePath,
 	}
 	templ.Handler(products.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -259,6 +260,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 			Positions:   positions,
 			Errors:      errorsMap,
 			Product:     mappers.ProductToViewModel(entity),
+			SaveURL:     c.basePath,
 		}
 		templ.Handler(products.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

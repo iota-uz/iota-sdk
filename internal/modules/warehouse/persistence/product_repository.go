@@ -2,8 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/product"
+	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-erp/pkg/composables"
+	"gorm.io/gorm"
 
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
@@ -16,16 +17,24 @@ func NewProductRepository() product.Repository {
 	return &GormProductRepository{}
 }
 
-func (g *GormProductRepository) GetPaginated(
-	ctx context.Context, limit, offset int,
-	sortBy []string,
-) ([]*product.Product, error) {
+func (g *GormProductRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
+	return tx.Preload("Position"), nil
+}
+
+func (g *GormProductRepository) GetPaginated(
+	ctx context.Context, limit, offset int,
+	sortBy []string,
+) ([]*product.Product, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &product.Product{}) //nolint:exhaustruct
+	q, err = helpers.ApplySort(q, sortBy, &product.Product{}) //nolint:exhaustruct
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +66,9 @@ func (g *GormProductRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, service.ErrNoTx
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var entities []*models.WarehouseProduct
 	if err := tx.Find(&entities).Error; err != nil {
@@ -77,9 +86,9 @@ func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product,
 }
 
 func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.Product, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, service.ErrNoTx
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var entity models.WarehouseProduct
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {

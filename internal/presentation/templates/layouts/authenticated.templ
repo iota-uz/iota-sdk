@@ -2,7 +2,9 @@ package layouts
 
 import (
 	"bytes"
+	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-erp/internal/presentation/assets"
+	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
@@ -63,6 +65,10 @@ func isAnyChildrenActive(pathname string, children []types.NavigationItem) bool 
 	return false
 }
 
+func initials(user *user.User) string {
+	return mappers.UserToViewModel(user).Initials()
+}
+
 templ renderNavItem(i types.NavigationItem, pathname string) {
 	<li>
 		if len(i.Children) > 0 {
@@ -109,9 +115,9 @@ templ sidebar(pageCtx *types.PageContext) {
 	</div>
 }
 
-templ avatar() {
+templ avatar(pageCtx *types.PageContext) {
 	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
-		Ш
+		{ initials(pageCtx.User) }
 	</summary>
 }
 
@@ -132,7 +138,7 @@ templ Navbar(pageCtx *types.PageContext) {
 					@icons.MoonFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100"})
 				</label>
 			</div>
-			@base.DetailsDropdown(avatar()) {
+			@base.DetailsDropdown(avatar(pageCtx)) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
 				}
