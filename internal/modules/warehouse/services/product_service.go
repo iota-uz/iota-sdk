@@ -26,6 +26,13 @@ func NewProductService(
 	}
 }
 
+func (s *ProductService) Count(ctx context.Context) (int64, error) {
+	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
+		return 0, err
+	}
+	return s.repo.Count(ctx)
+}
+
 func (s *ProductService) GetByID(ctx context.Context, id uint) (*product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err

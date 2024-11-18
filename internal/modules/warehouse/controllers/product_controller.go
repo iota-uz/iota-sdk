@@ -11,6 +11,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/services"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/pagination"
 	"github.com/iota-agency/iota-erp/internal/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"net/http"
@@ -23,6 +24,11 @@ type ProductsController struct {
 	productService  *services.ProductService
 	positionService *services.PositionService
 	basePath        string
+}
+
+type PaginatedResponse struct {
+	Products        []*viewmodels.Product
+	PaginationState *pagination.State
 }
 
 func NewProductsController(app *application.Application) shared.Controller {
@@ -45,7 +51,7 @@ func (c *ProductsController) Register(r *mux.Router) {
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 }
 
-func (c *ProductsController) viewModelProducts(r *http.Request) ([]*viewmodels.Product, error) {
+func (c *ProductsController) viewModelProducts(r *http.Request) (*PaginatedResponse, error) {
 	params := composables.UsePaginated(r)
 	productEntities, err := c.productService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
@@ -55,7 +61,14 @@ func (c *ProductsController) viewModelProducts(r *http.Request) ([]*viewmodels.P
 	for i, entity := range productEntities {
 		viewProducts[i] = mappers.ProductToViewModel(entity)
 	}
-	return viewProducts, nil
+	total, err := c.productService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting products")
+	}
+	return &PaginatedResponse{
+		Products:        viewProducts,
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}, nil
 }
 
 func (c *ProductsController) viewModelPositions(r *http.Request) ([]*viewmodels.Position, error) {
@@ -80,15 +93,17 @@ func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	viewProducts, err := c.viewModelProducts(r)
+	paginated, err := c.viewModelProducts(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
+
 	props := &products.IndexPageProps{
-		PageContext: pageCtx,
-		Products:    viewProducts,
+		PageContext:     pageCtx,
+		Products:        paginated.Products,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(products.ProductsTable(props), templ.WithStreaming()).ServeHTTP(w, r)

@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/pagination"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/types"
@@ -13,7 +14,8 @@ import (
 
 type IndexPageProps struct {
 	*types.PageContext
-	Products []*viewmodels.Product
+	PaginationState *pagination.State
+	Products        []*viewmodels.Product
 }
 
 templ ProductsTable(props *IndexPageProps) {
@@ -95,6 +97,7 @@ templ ProductsContent(props *IndexPageProps) {
 				}
 			</form>
 			@ProductsTable(props)
+			@pagination.Pagination(props.PaginationState)
 		</div>
 	</div>
 }
