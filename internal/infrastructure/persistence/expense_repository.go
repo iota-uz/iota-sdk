@@ -2,10 +2,10 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 	"gorm.io/gorm"
 )
 

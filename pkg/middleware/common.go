@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/rs/cors"
 	"gorm.io/gorm"
 )

@@ -9,9 +9,9 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-erp/sdk/utils/random"
-	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/sdk/utils/random"
+	"github.com/iota-agency/iota-sdk/sdk/utils/sequence"
 	"strings"
 )
 

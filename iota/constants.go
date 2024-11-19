@@ -1,8 +1,8 @@
 package iota
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
 	"time"
 )
 

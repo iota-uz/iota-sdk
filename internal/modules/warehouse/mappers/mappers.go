@@ -1,10 +1,10 @@
 package mappers
 
 import (
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/unit"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/viewmodels"
 	"strconv"
 	"time"
 )

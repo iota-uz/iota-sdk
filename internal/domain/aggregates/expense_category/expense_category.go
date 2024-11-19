@@ -5,9 +5,9 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/currency"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 )
 
 type ExpenseCategory struct {

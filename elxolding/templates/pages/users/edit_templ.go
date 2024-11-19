@@ -10,16 +10,16 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
-	usercomponents "github.com/iota-agency/iota-erp/internal/presentation/templates/components/user"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/dialog"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/input"
+	usercomponents "github.com/iota-agency/iota-sdk/internal/presentation/templates/components/user"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/internal/types"
 )
 
 type EditFormProps struct {
@@ -149,7 +149,7 @@ func EditForm(props *EditFormProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/users/%d", props.User.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 73, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/users/edit.templ`, Line: 73, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -174,7 +174,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 90, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/users/edit.templ`, Line: 90, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -202,7 +202,7 @@ func EditForm(props *EditFormProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/users/%d", props.User.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 96, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/users/edit.templ`, Line: 96, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -227,7 +227,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/elxolding/templates/pages/users/edit.templ`, Line: 109, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `elxolding/templates/pages/users/edit.templ`, Line: 109, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

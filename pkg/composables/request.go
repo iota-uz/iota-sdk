@@ -3,14 +3,14 @@ package composables
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-erp/internal/types"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/iota-agency/iota-erp/internal/configuration"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )
@@ -162,6 +162,7 @@ func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
 type PaginationParams struct {
 	Limit  int
 	Offset int
+	Page   int
 }
 
 func UsePaginated(r *http.Request) PaginationParams {
@@ -176,6 +177,7 @@ func UsePaginated(r *http.Request) PaginationParams {
 	return PaginationParams{
 		Limit:  limit,
 		Offset: page * limit,
+		Page:   page,
 	}
 }
 

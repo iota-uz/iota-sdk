@@ -1,9 +1,9 @@
 package modules
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

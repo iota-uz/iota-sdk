@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/icons"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

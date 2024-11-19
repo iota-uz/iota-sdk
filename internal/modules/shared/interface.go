@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

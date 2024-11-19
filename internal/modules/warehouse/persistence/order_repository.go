@@ -2,17 +2,17 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/persistence/models"
+	"github.com/iota-agency/iota-sdk/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormOrderRepository struct{}
 
-func NewGormOrderRepository() order.Repository {
+func NewOrderRepository() order.Repository {
 	return &GormOrderRepository{}
 }
 
@@ -25,7 +25,7 @@ func (g *GormOrderRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &order.Order{}) //nolint:exhaustruct
+	q, err := helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}

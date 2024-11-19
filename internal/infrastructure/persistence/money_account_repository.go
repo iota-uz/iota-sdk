@@ -2,11 +2,11 @@ package persistence
 
 import (
 	"context"
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	moneyAccount "github.com/iota-agency/iota-sdk/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/transaction"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 	"time"
 )
 

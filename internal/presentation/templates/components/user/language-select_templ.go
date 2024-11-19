@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/pkg/intl"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/intl"
 )
 
 type LanguageSelectProps struct {

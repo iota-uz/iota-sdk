@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/gotd/td/session"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/telegramsession"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/telegramsession"
 	"github.com/jmoiron/sqlx"
 )
 

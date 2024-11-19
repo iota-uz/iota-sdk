@@ -3,7 +3,7 @@ package prompt
 import (
 	"time"
 
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
 )
 
 type Prompt struct {

@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/application"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/transaction"
 )
 
 type TransactionService struct {

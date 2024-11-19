@@ -2,11 +2,12 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-agency/iota-sdk/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormPositionRepository struct{}
@@ -16,31 +17,25 @@ func NewPositionRepository() position.Repository {
 }
 
 func (g *GormPositionRepository) GetPaginated(
-	ctx context.Context, limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &position.Position{}) //nolint:exhaustruct
+	q := tx.Limit(params.Limit).Offset(params.Offset)
+	q, err := helpers.ApplySort(q, params.SortBy)
 	if err != nil {
 		return nil, err
+	}
+	if params.Search != "" {
+		q = q.Where("title ILIKE ?", "%"+params.Search+"%")
 	}
 	var entities []*models.WarehousePosition
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	positions := make([]*position.Position, len(entities))
-	for i, entity := range entities {
-		p, err := toDomainPosition(entity)
-		if err != nil {
-			return nil, err
-		}
-		positions[i] = p
-	}
-	return positions, nil
+	return mapping.MapDbModels(entities, toDomainPosition)
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
@@ -64,15 +59,7 @@ func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Positi
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	positions := make([]*position.Position, len(entities))
-	for i, entity := range entities {
-		p, err := toDomainPosition(entity)
-		if err != nil {
-			return nil, err
-		}
-		positions[i] = p
-	}
-	return positions, nil
+	return mapping.MapDbModels(entities, toDomainPosition)
 }
 
 func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {
@@ -85,6 +72,14 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 		return nil, err
 	}
 	return toDomainPosition(&entity)
+}
+
+func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(toDBPosition(data)).Error
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
@@ -103,10 +98,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Save(toDBPosition(data)).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Save(toDBPosition(data)).Error
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
@@ -114,8 +106,5 @@ func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Where("id = ?", id).Delete(&models.WarehousePosition{}).Error; err != nil { //nolint:exhaustruct
-		return err
-	}
-	return nil
+	return tx.Where("id = ?", id).Delete(&models.WarehousePosition{}).Error //nolint:exhaustruct
 }

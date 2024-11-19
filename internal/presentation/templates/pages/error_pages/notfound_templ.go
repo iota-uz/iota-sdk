@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/internal/types"
 )
 
 type NotFoundPageProps struct {

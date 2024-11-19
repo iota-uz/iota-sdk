@@ -2,8 +2,8 @@ package modules
 
 import (
 	"github.com/benbjohnson/hashfs"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/types"
 )
 
 type ModuleRegistry struct {

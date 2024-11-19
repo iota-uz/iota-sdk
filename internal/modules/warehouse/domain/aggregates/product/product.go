@@ -1,7 +1,7 @@
 package product
 
 import (
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/position"
 	"time"
 )
 

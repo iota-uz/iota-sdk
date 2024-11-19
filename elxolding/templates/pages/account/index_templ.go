@@ -9,13 +9,13 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-erp/elxolding/viewmodels"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
-	usercomponents "github.com/iota-agency/iota-erp/internal/presentation/templates/components/user"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/elxolding/viewmodels"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/input"
+	usercomponents "github.com/iota-agency/iota-sdk/internal/presentation/templates/components/user"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/internal/types"
 )
 
 type ProfilePageProps struct {

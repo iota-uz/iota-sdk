@@ -9,10 +9,10 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/selects"
+	"github.com/iota-agency/iota-sdk/internal/types"
 )
 
 type StatusViewModel struct {
@@ -21,6 +21,8 @@ type StatusViewModel struct {
 }
 
 var (
+	selectOnce = templ.NewOnceHandle()
+
 	InStock       = string(product.InStock)
 	InDevelopment = string(product.InDevelopment)
 	Approved      = string(product.Approved)
@@ -40,20 +42,13 @@ var (
 	}
 )
 
-type PositionSelectProps struct {
-	*types.PageContext
-	Value     string
-	Positions []*viewmodels.Position
-	Attrs     templ.Attributes
-}
-
 type StatusSelectProps struct {
 	*types.PageContext
 	Value string
 	Attrs templ.Attributes
 }
 
-func PositionSelect(props *PositionSelectProps) templ.Component {
+func StatusSelect(props *StatusSelectProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -86,16 +81,16 @@ func PositionSelect(props *PositionSelectProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			for _, position := range props.Positions {
-				if position.ID == props.Value {
+			for _, status := range Statuses {
+				if status.Value == props.Value {
 					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var3 string
-					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(position.ID)
+					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(status.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 56, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 51, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -106,9 +101,9 @@ func PositionSelect(props *PositionSelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var4 string
-					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(position.Title)
+					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 57, Col: 21}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 52, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -124,9 +119,9 @@ func PositionSelect(props *PositionSelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(position.ID)
+					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(status.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 60, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 55, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -137,9 +132,9 @@ func PositionSelect(props *PositionSelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var6 string
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(position.Title)
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 61, Col: 21}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 56, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -154,8 +149,8 @@ func PositionSelect(props *PositionSelectProps) templ.Component {
 			return templ_7745c5c3_Err
 		})
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Label:       props.T("Products.Single.Position"),
-			Placeholder: props.T("Products.Single.SelectPosition"),
+			Label:       props.T("Products.Single.Status"),
+			Placeholder: props.T("Products.Single.SelectStatus"),
 			Attrs:       props.Attrs,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -165,7 +160,13 @@ func PositionSelect(props *PositionSelectProps) templ.Component {
 	})
 }
 
-func StatusSelect(props *StatusSelectProps) templ.Component {
+type PositionSelectProps struct {
+	*types.PageContext
+	Value string
+	Attrs templ.Attributes
+}
+
+func PositionSelect(props *PositionSelectProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -186,90 +187,14 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			for _, status := range Statuses {
-				if status.Value == props.Value {
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var9 string
-					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(status.Value)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 76, Col: 32}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 8)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var10 string
-					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 77, Col: 32}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 9)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				} else {
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 10)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var11 string
-					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(status.Value)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 80, Col: 32}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 11)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var12 string
-					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/warehouse/templates/pages/products/shared.templ`, Line: 81, Col: 32}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 12)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-			}
-			return templ_7745c5c3_Err
-		})
-		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Label:       props.T("Products.Single.Status"),
-			Placeholder: props.T("Products.Single.SelectStatus"),
+		templ_7745c5c3_Err = selects.SearchSelect(&selects.SearchSelectProps{
+			PageContext: props.PageContext,
+			Label:       props.T("Products.Single.Position"),
+			Placeholder: props.T("Products.Single.SearchPosition"),
+			Endpoint:    "/warehouse/positions/search",
+			Value:       props.Value,
 			Attrs:       props.Attrs,
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -3,11 +3,11 @@ package finance
 import (
 	"context"
 	"github.com/benbjohnson/hashfs"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/finance/controllers"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/finance/controllers"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

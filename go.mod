@@ -1,4 +1,4 @@
-module github.com/iota-agency/iota-erp
+module github.com/iota-agency/iota-sdk
 
 go 1.23.2
 

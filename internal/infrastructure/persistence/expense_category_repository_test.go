@@ -1,10 +1,10 @@
 package persistence_test
 
 //import (
-//	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-//	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-//	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
-//	"github.com/iota-agency/iota-erp/internal/testutils"
+//	category "github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense_category"
+//	"github.com/iota-agency/iota-sdk/internal/domain/entities/currency"
+//	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence"
+//	"github.com/iota-agency/iota-sdk/internal/testutils"
 //	"testing"
 //	"time"
 //)
