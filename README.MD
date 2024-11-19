@@ -1,6 +1,6 @@
 ## About
 
-IOTA ERP - is a set of building blocks for ERP development, which will later turn into a complete SDK
+IOTA SDK - is an configurable and feature complete ERP system
 
 ## Overview
 
