@@ -1,0 +1,194 @@
+package layouts
+
+import (
+	"bytes"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+	"strings"
+)
+
+var (
+	iotaLogo = "/assets/" + assets.FS.HashName("images/iota-1c.webp")
+
+	navbarOnce = templ.NewOnceHandle()
+)
+
+type sidebarLink struct {
+	name     string
+	expanded bool
+	class    string
+	href     string
+	icon     templ.Component
+}
+
+func newSidebarLink(name, href string, icon templ.Component, active bool) sidebarLink {
+	var class bytes.Buffer
+	class.WriteString("gap-2 w-full")
+	if active {
+		class.WriteString(" active")
+	}
+	return sidebarLink{
+		name:  name,
+		href:  href,
+		icon:  icon,
+		class: class.String(),
+	}
+}
+
+templ (l sidebarLink) render() {
+	@button.Sidebar(button.Props{Size: button.SizeMD, Href: l.href, Class: l.class}) {
+		if l.icon != nil {
+			@l.icon
+		}
+		{ l.name }
+	}
+}
+
+func isActiveLink(pathname, href string) bool {
+	if href == "/" {
+		return pathname == href
+	}
+	return strings.HasPrefix(pathname, href)
+}
+
+func isAnyChildrenActive(pathname string, children []types.NavigationItem) bool {
+	for _, item := range children {
+		if item.Href == pathname {
+			return true
+		} else if strings.HasPrefix(pathname, item.Href) {
+			return true
+		}
+	}
+	return false
+}
+
+func initials(user *user.User) string {
+	return mappers.UserToViewModel(user).Initials()
+}
+
+templ renderNavItem(i types.NavigationItem, pathname string) {
+	<li>
+		if len(i.Children) > 0 {
+			<details class="group" open?={ isAnyChildrenActive(pathname, i.Children) }>
+				<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
+					if i.Icon != nil {
+						@i.Icon
+					}
+					{ i.Name }
+					@icons.CaretUp(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
+				</summary>
+				<ul class="ml-4 mt-2 flex flex-col gap-2">
+					for _, item := range i.Children {
+						@newSidebarLink(item.Name, item.Href, item.Icon, isActiveLink(pathname, item.Href)).render()
+					}
+				</ul>
+			</details>
+		} else {
+			@newSidebarLink(i.Name, i.Href, i.Icon, isActiveLink(pathname, i.Href)).render()
+		}
+	</li>
+}
+
+templ sidebar(pageCtx *types.PageContext) {
+	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0">
+		<div class="flex h-16 items-center justify-center px-6">
+			<a href="/" class="flex items-center gap-2">
+				<img src={ iotaLogo } alt="Logo" width="150" height="50"/>
+			</a>
+		</div>
+		<nav class="py-4 flex-1">
+			<ul class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar">
+				for _, item := range pageCtx.NavItems {
+					@renderNavItem(item, pageCtx.Pathname)
+				}
+			</ul>
+		</nav>
+		<div class="px-6">
+			@button.Sidebar(button.Props{Size: button.SizeMD, Class: "w-full gap-2", Href: "/logout"}) {
+				@icons.SignOut(icons.Props{Size: "20"})
+				{ pageCtx.T("SignOut") }
+			}
+		</div>
+	</div>
+}
+
+templ avatar(pageCtx *types.PageContext) {
+	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
+		{ initials(pageCtx.User) }
+	</summary>
+}
+
+templ Navbar(pageCtx *types.PageContext) {
+	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
+		<div class="ml-auto flex items-center gap-8">
+			<div class="flex items-center justify-center">
+				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked/>
+				<label for="theme-light" class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/system:visible">
+					@icons.Desktop(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/system:group-[]/system:scale-100"})
+				</label>
+				<input class="peer/light appearance-none absolute" type="radio" name="theme" value="light" id="theme-light" onchange="onThemeChange(this)"/>
+				<label for="theme-dark" class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/light:visible">
+					@icons.SunFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100"})
+				</label>
+				<input class="peer/dark appearance-none absolute" type="radio" name="theme" value="dark" id="theme-dark" onchange="onThemeChange(this)"/>
+				<label for="theme-system" class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white invisible peer-checked/dark:visible">
+					@icons.MoonFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100"})
+				</label>
+			</div>
+			@base.DetailsDropdown(avatar(pageCtx)) {
+				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
+				}
+				@base.DropdownItem(base.DropdownItemProps{Href: "/settings"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
+				}
+				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
+				}
+			}
+		</div>
+	</section>
+	@navbarOnce.Once() {
+		<script>
+			let THEME_STORAGE_KEY = "iota-theme";
+			let savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+			let initialTheme = savedTheme ?? "system";
+			let root = document.documentElement;
+			let previousTheme = initialTheme;
+			let radioInput = document.getElementById(`theme-${initialTheme}`);
+			function changeTheme(theme) {
+				root.classList.remove(previousTheme);
+				if (!theme) theme = initialTheme;
+				window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+				root.classList.add(theme)
+				previousTheme = theme;
+			}
+			function onThemeChange(input) {
+				changeTheme(input.value);
+			}
+			if (radioInput) {
+				radioInput.checked = true;
+				changeTheme(initialTheme);
+			}
+		</script>
+	}
+}
+
+templ Authenticated(pageCtx *types.PageContext) {
+	@Base(pageCtx) {
+		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
+			@sidebar(pageCtx)
+			<div>
+				@Navbar(pageCtx)
+				<div class="h-[calc(100%-4rem)] overflow-y-auto content">
+					{ children... }
+				</div>
+			</div>
+		</div>
+	}
+}

@@ -1,0 +1,45 @@
+type Session {
+    token: String!
+    userId: ID!
+    ip: String!
+    userAgent: String!
+    expiresAt: Time!
+    createdAt: Time!
+}
+
+type PaginatedSessions {
+    data: [Session!]!
+    total: Int64!
+}
+
+type AuthenticationLog {
+    id: ID!
+    userId: ID!
+    ip: String!
+    userAgent: String!
+    createdAt: Time!
+}
+
+type PaginatedAuthenticationLogs {
+    data: [AuthenticationLog!]!
+    total: Int64!
+}
+
+extend type Query {
+    authenticationLog(id: ID!): AuthenticationLog
+    authenticationLogs(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedAuthenticationLogs!
+
+    session(token: String!): Session
+    sessions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedSessions!
+}
+
+extend type Mutation {
+    authenticate(email: String!, password: String!): Session!
+    googleAuthenticate: String!
+
+    deleteSession(token: String!): Boolean!
+}
+
+extend type Subscription {
+    sessionDeleted: ID!
+}

@@ -1,0 +1,75 @@
+package employees
+
+import (
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type CreatePageProps struct {
+	*types.PageContext
+	Employee *viewmodels.Employee
+	PostPath string
+	Errors   map[string]string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.PostPath }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.FirstName"),
+				Attrs: templ.Attributes{"name": "FirstName", "value": props.Employee.FirstName},
+				Error: props.Errors["FirstName"],
+			})
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.LastName"),
+				Attrs: templ.Attributes{"name": "LastName", "value": props.Employee.LastName},
+				Error: props.Errors["LastName"],
+			})
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.MiddleName"),
+				Attrs: templ.Attributes{"name": "MiddleName", "value": props.Employee.MiddleName},
+				Error: props.Errors["MiddleName"],
+			})
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.Phone"),
+				Attrs: templ.Attributes{"name": "Phone", "value": props.Employee.Phone},
+				Error: props.Errors["Phone"],
+			})
+			@input.Number(&input.Props{
+				Label: props.T("Employees.Single.Salary"),
+				Attrs: templ.Attributes{"name": "Salary", "value": props.Employee.Salary},
+				Error: props.Errors["Salary"],
+			})
+			@input.Text(&input.Props{
+				Label: props.T("Employees.Single.Email"),
+				Attrs: templ.Attributes{"name": "Email", "value": props.Employee.Email},
+				Error: props.Errors["Email"],
+			})
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ props.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreatePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
+	}
+}

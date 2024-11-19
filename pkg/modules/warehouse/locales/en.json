@@ -1,0 +1,99 @@
+{
+  "NavigationLinks": {
+    "Warehouse": "Warehouse",
+    "Products": "Products",
+    "WarehousePositions": "Warehouse positions",
+    "WarehouseOrders": "Warehouse orders",
+    "WarehouseUnits": "Warehouse units"
+  },
+  "Products": {
+    "List": {
+      "Meta": {
+        "Title": "Products"
+      },
+      "New": "New product",
+      "Position": "Position",
+      "Status": "Status"
+    },
+    "New": {
+      "Meta": {
+        "Title": "New product"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit product"
+      }
+    },
+    "Single": {
+      "Rfid": "RFID",
+      "Position": "Position",
+      "SearchPosition": "Search position",
+      "Status": "Status",
+      "SelectStatus": "Select status",
+      "Statuses": {
+        "in_stock": "In stock",
+        "approved": "Approved",
+        "in_development": "In development"
+      },
+      "Delete": "Delete",
+      "DeleteConfirmation": "Are you sure you want to delete this product?"
+    }
+  },
+  "WarehousePositions": {
+    "List": {
+      "Meta": {
+        "Title": "Warehouse positions"
+      },
+      "New": "New position",
+      "Position": "Position",
+      "Barcode": "Barcode",
+      "Status": "Status"
+    },
+    "New": {
+      "Meta": {
+        "Title": "New warehouse position"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse position"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "Barcode": "Barcode",
+      "Unit": "Unit",
+      "SelectUnit": "Select unit",
+      "Delete": "Delete",
+      "DeleteConfirmation": "Are you sure you want to delete this warehouse position?",
+      "NothingFound": "Nothing found"
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "Warehouse units"
+      },
+      "New": "New unit",
+      "Title": "Title",
+      "ShortTitle": "Short title"
+    },
+    "New": {
+      "Meta": {
+        "Title": "New warehouse unit"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse unit"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "ShortTitle": "Short title",
+      "Delete": "Delete",
+      "DeleteConfirmation": "Are you sure you want to delete this warehouse unit?"
+    }
+  }
+}
