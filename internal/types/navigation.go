@@ -2,8 +2,8 @@ package types
 
 import (
 	"github.com/a-h/templ"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
 )
 
 type NavigationItem struct {

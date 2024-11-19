@@ -3,9 +3,9 @@ package middleware
 import (
 	"context"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/modules"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/internal/modules"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"net/http"
 )
 

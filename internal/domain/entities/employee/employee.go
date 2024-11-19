@@ -3,7 +3,7 @@ package employee
 import (
 	"time"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/position"
 )
 
 type Meta struct {

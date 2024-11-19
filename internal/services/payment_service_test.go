@@ -2,11 +2,11 @@ package services_test
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
-	"github.com/iota-agency/iota-erp/internal/testutils"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/internal/testutils"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"testing"
 )
 

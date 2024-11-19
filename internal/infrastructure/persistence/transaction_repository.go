@@ -2,12 +2,12 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/transaction"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormTransactionRepository struct{}
@@ -26,7 +26,7 @@ func (g *GormTransactionRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &transaction.Transaction{}) //nolint:exhaustruct
+	q, err := helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}

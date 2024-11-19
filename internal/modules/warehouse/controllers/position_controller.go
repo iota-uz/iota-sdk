@@ -5,18 +5,20 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/mappers"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/services"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
-	"github.com/iota-agency/iota-erp/internal/types"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/mappers"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/selects"
+	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"net/http"
 
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/pages/positions"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/templates/pages/positions"
 )
 
 type PositionsController struct {
@@ -42,20 +44,21 @@ func (c *PositionsController) Register(r *mux.Router) {
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 }
 
 func (c *PositionsController) viewModelPositions(r *http.Request) ([]*viewmodels.Position, error) {
-	entities, err := c.positionService.GetAll(r.Context())
+	params := composables.UsePaginated(r)
+	entities, err := c.positionService.GetPaginated(r.Context(), &position.FindParams{
+		Limit:  params.Limit,
+		Offset: params.Offset,
+		SortBy: []string{"created_at desc"},
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving positions")
 	}
-	viewPositions := make([]*viewmodels.Position, len(entities))
-	for i, p := range entities {
-		viewPositions[i] = mappers.PositionToViewModel(p)
-	}
-	return viewPositions, nil
+	return mapping.MapViewModels(entities, mappers.PositionToViewModel), nil
 }
 
 func (c *PositionsController) viewModelUnits(r *http.Request) ([]*viewmodels.Unit, error) {
@@ -63,11 +66,7 @@ func (c *PositionsController) viewModelUnits(r *http.Request) ([]*viewmodels.Uni
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving units")
 	}
-	viewUnits := make([]*viewmodels.Unit, len(entities))
-	for i, p := range entities {
-		viewUnits[i] = mappers.UnitToViewModel(p)
-	}
-	return viewUnits, nil
+	return mapping.MapViewModels(entities, mappers.UnitToViewModel), nil
 }
 
 func (c *PositionsController) List(w http.ResponseWriter, r *http.Request) {
@@ -134,18 +133,37 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(positions.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *PositionsController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
+	// query params
+	search := r.URL.Query().Get("q")
+	if search == "" {
+		http.Error(w, "Search term is required", http.StatusBadRequest)
 		return
 	}
-
-	if _, err := c.positionService.Delete(r.Context(), id); err != nil {
+	entities, err := c.positionService.GetPaginated(r.Context(), &position.FindParams{
+		Search: search,
+		Limit:  10,
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	shared.Redirect(w, r, c.basePath)
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.List.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := &selects.SearchOptionsProps{
+		PageContext: pageCtx,
+		Options: mapping.MapViewModels(entities, func(pos *position.Position) *selects.Value {
+			return &selects.Value{
+				Value: fmt.Sprintf("%d", pos.ID),
+				Label: pos.Title,
+			}
+		}),
+		NothingFoundText: pageCtx.T("WarehousePositions.Single.NothingFound"),
+	}
+	templ.Handler(selects.SearchOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {

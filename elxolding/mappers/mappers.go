@@ -1,8 +1,8 @@
 package mappers
 
 import (
-	"github.com/iota-agency/iota-erp/elxolding/viewmodels"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/elxolding/viewmodels"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
 	"strconv"
 	"time"
 )

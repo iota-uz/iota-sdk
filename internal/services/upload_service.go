@@ -2,13 +2,13 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/upload"
 )
 
 type UploadService struct {

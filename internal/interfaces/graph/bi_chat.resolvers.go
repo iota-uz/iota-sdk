@@ -9,10 +9,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/dialogue"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/dialogue"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-sdk/internal/services"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 // NewDialogue is the resolver for the newDialogue field.

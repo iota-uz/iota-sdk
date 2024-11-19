@@ -2,11 +2,11 @@ package persistence
 
 import (
 	"errors"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/order"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/unit"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/persistence/models"
 )
 
 func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {

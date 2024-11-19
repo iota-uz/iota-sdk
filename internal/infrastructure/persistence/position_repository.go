@@ -2,10 +2,10 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/position"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormPositionRepository struct{}

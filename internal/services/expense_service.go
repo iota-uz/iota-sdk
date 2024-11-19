@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 )
 
 type ExpenseService struct {

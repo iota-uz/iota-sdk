@@ -2,12 +2,12 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormRoleRepository struct{}
@@ -26,7 +26,7 @@ func (g *GormRoleRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &role.Role{}) //nolint:exhaustruct
+	q, err := helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}

@@ -2,10 +2,10 @@ package persistence
 
 import (
 	"context"
-	payment2 "github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	payment2 "github.com/iota-agency/iota-sdk/internal/domain/aggregates/payment"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormPaymentRepository struct{}

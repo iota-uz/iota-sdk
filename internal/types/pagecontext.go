@@ -2,7 +2,7 @@ package types
 
 import (
 	ut "github.com/go-playground/universal-translator"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

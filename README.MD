@@ -26,7 +26,7 @@ IOTA SDK - is a configurable, modular and feature complete ERP system for severa
 Clone the repository
 
 ```shell
-git clone https://github.com/iota-agency/iota-erp.git
+git clone https://github.com/iota-agency/iota-sdk.git
 ```
 
 Install dependencies

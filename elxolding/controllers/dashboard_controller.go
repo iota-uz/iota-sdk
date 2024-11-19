@@ -1,31 +1,35 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-erp/elxolding/templates/pages/dashboard"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/elxolding/services"
+	"github.com/iota-agency/iota-sdk/elxolding/templates/pages/dashboard"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 func NewDashboardController(app *application.Application) shared.Controller {
 	return &DashboardController{
-		app:         app,
-		userService: app.Service(services.UserService{}).(*services.UserService),
+		app:              app,
+		dashboardService: app.Service(services.DashboardService{}).(*services.DashboardService),
 	}
 }
 
 type DashboardController struct {
-	app         *application.Application
-	userService *services.UserService
+	app              *application.Application
+	dashboardService *services.DashboardService
 }
 
 func (c *DashboardController) Register(r *mux.Router) {
-	r.HandleFunc("/", c.Get).Methods(http.MethodGet)
+	router := r.Methods(http.MethodGet).Subrouter()
+	router.Use(middleware.RequireAuthorization())
+	router.HandleFunc("/", c.Get)
 }
 
 func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
@@ -34,8 +38,17 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	stats, err := c.dashboardService.GetStats(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	props := &dashboard.IndexPageProps{
-		PageContext: pageCtx,
+		PageContext:    pageCtx,
+		PositionsCount: strconv.FormatInt(stats.PositionsCount, 10),
+		ProductsCount:  strconv.FormatInt(stats.ProductsCount, 10),
+		Depth:          strconv.FormatFloat(stats.Depth, 'f', 2, 64),
+		OrdersCount:    strconv.FormatInt(stats.OrdersCount, 10),
 	}
 	if err := dashboard.Index(props).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

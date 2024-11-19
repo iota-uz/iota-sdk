@@ -2,12 +2,12 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/unit"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/persistence/models"
+	"github.com/iota-agency/iota-sdk/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormUnitRepository struct{}
@@ -26,7 +26,7 @@ func (g *GormUnitRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &unit.Unit{}) //nolint:exhaustruct
+	q, err := helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}
@@ -92,12 +92,20 @@ func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error 
 	return nil
 }
 
+func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(toDBUnit(data)).Error
+}
+
 func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Updates(toDBUnit(data)).Error //nolint:exhaustruct
+	return tx.Updates(toDBUnit(data)).Error
 }
 
 func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {

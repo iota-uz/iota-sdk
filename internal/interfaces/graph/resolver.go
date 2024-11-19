@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"github.com/iota-agency/iota-erp/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/application"
 	"net/http"
 	"time"
 

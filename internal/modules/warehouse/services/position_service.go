@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/permissions"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/permissions"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 )
 
 type PositionService struct {
@@ -35,6 +35,13 @@ func (s *PositionService) GetAll(ctx context.Context) ([]*position.Position, err
 		return nil, err
 	}
 	return s.repo.GetAll(ctx)
+}
+
+func (s *PositionService) GetPaginated(ctx context.Context, params *position.FindParams) ([]*position.Position, error) {
+	if err := composables.CanUser(ctx, permissions.PositionRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) error {

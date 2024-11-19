@@ -1,9 +1,9 @@
-package elxolding
+package constants
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/permissions"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/permissions"
 	"time"
 )
 

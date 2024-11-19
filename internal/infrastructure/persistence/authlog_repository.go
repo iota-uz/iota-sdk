@@ -2,11 +2,11 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/authlog"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/authlog"
+	"github.com/iota-agency/iota-sdk/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormAuthLogRepository struct{}
@@ -26,7 +26,7 @@ func (g *GormAuthLogRepository) GetPaginated(
 		return nil, service.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy, &authlog.AuthenticationLog{}) //nolint:exhaustruct
+	q, err := helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}

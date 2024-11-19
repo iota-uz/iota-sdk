@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/iota-agency/iota-erp/internal/testutils"
-	"github.com/iota-agency/iota-erp/pkg/dbutils"
+	"github.com/iota-agency/iota-sdk/internal/testutils"
+	"github.com/iota-agency/iota-sdk/pkg/dbutils"
 	"os"
 	"testing"
 )

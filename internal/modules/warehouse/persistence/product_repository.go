@@ -2,13 +2,13 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"gorm.io/gorm"
 
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/persistence/models"
-	"github.com/iota-agency/iota-erp/sdk/graphql/helpers"
-	"github.com/iota-agency/iota-erp/sdk/service"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/persistence/models"
+	"github.com/iota-agency/iota-sdk/sdk/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/sdk/service"
 )
 
 type GormProductRepository struct{}
@@ -34,7 +34,7 @@ func (g *GormProductRepository) GetPaginated(
 		return nil, err
 	}
 	q := tx.Limit(limit).Offset(offset)
-	q, err = helpers.ApplySort(q, sortBy, &product.Product{}) //nolint:exhaustruct
+	q, err = helpers.ApplySort(q, sortBy)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +106,14 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 		return err
 	}
 	return nil
+}
+
+func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *product.Product) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(toDBProduct(data)).Error
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {

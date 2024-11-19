@@ -2,21 +2,21 @@ package persistence
 
 import (
 	"errors"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/expense"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/payment"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/employee"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
-	stage "github.com/iota-agency/iota-erp/internal/domain/entities/project_stages"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/payment"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/employee"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
+	stage "github.com/iota-agency/iota-sdk/internal/domain/entities/project_stages"
 	"time"
 
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/project"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/transaction"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence/models"
+	category "github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense_category"
+	moneyAccount "github.com/iota-agency/iota-sdk/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/project"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/currency"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/transaction"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence/models"
 )
 
 func toDomainUser(dbUser *models.User) *user.User {
