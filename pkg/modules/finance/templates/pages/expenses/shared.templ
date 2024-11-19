@@ -1,0 +1,63 @@
+package expenses
+
+import (
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type AccountSelectProps struct {
+	*types.PageContext
+	Value    string
+	Accounts []*viewmodels.MoneyAccount
+	Attrs    templ.Attributes
+}
+
+type CategorySelectProps struct {
+	*types.PageContext
+	Value      string
+	Categories []*viewmodels.ExpenseCategory
+	Attrs      templ.Attributes
+}
+
+templ AccountSelect(props *AccountSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("Expenses.Single.Account"),
+		Placeholder: props.T("Expenses.Single.SelectAccount"),
+		Attrs:       props.Attrs,
+	}) {
+		for _, account := range props.Accounts {
+			if account.ID == props.Value {
+				<option value={ account.ID } selected>
+					{ account.Name }
+					{ account.CurrencySymbol }
+				</option>
+			} else {
+				<option value={ account.ID }>
+					{ account.Name }
+					{ account.CurrencySymbol }
+				</option>
+			}
+		}
+	}
+}
+
+templ CategorySelect(props *CategorySelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("Expenses.Single.Category"),
+		Placeholder: props.T("Expenses.Single.SelectCategory"),
+		Attrs:       props.Attrs,
+	}) {
+		for _, category := range props.Categories {
+			if category.ID == props.Value {
+				<option value={ category.ID } selected>
+					{ category.Name }
+				</option>
+			} else {
+				<option value={ category.ID }>
+					{ category.Name }
+				</option>
+			}
+		}
+	}
+}

@@ -1,0 +1,36 @@
+package moneyaccounts
+
+import (
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type CurrencySelectProps struct {
+	*types.PageContext
+	Value      string
+	Currencies []*viewmodels.Currency
+	Attrs      templ.Attributes
+}
+
+templ CurrencySelect(props *CurrencySelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("ExpenseCategories.Single.Currency"),
+		Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
+		Attrs:       props.Attrs,
+	}) {
+		for _, currency := range props.Currencies {
+			if currency.Code == props.Value {
+				<option value={ currency.Code } selected>
+					{ currency.Symbol }
+					{ currency.Name }
+				</option>
+			} else {
+				<option value={ currency.Code }>
+					{ currency.Symbol }
+					{ currency.Name }
+				</option>
+			}
+		}
+	}
+}

@@ -1,0 +1,78 @@
+package products
+
+import (
+	"github.com/iota-agency/iota-sdk/pkg/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/selects"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type StatusViewModel struct {
+	MessageId string
+	Value     string
+}
+
+var (
+	selectOnce = templ.NewOnceHandle()
+
+	InStock       = string(product.InStock)
+	InDevelopment = string(product.InDevelopment)
+	Approved      = string(product.Approved)
+	Statuses      = []StatusViewModel{
+		{
+			MessageId: "Products.Single.Statuses.in_stock",
+			Value:     InStock,
+		},
+		{
+			MessageId: "Products.Single.Statuses.in_development",
+			Value:     InDevelopment,
+		},
+		{
+			MessageId: "Products.Single.Statuses.approved",
+			Value:     Approved,
+		},
+	}
+)
+
+type StatusSelectProps struct {
+	*types.PageContext
+	Value string
+	Attrs templ.Attributes
+}
+
+templ StatusSelect(props *StatusSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("Products.Single.Status"),
+		Placeholder: props.T("Products.Single.SelectStatus"),
+		Attrs:       props.Attrs,
+	}) {
+		for _, status := range Statuses {
+			if status.Value == props.Value {
+				<option value={ status.Value } selected>
+					{ props.T(status.MessageId) }
+				</option>
+			} else {
+				<option value={ status.Value }>
+					{ props.T(status.MessageId) }
+				</option>
+			}
+		}
+	}
+}
+
+type PositionSelectProps struct {
+	*types.PageContext
+	Value string
+	Attrs templ.Attributes
+}
+
+templ PositionSelect(props *PositionSelectProps) {
+	@selects.SearchSelect(&selects.SearchSelectProps{
+		PageContext: props.PageContext,
+		Label:       props.T("Products.Single.Position"),
+		Placeholder: props.T("Products.Single.SearchPosition"),
+		Endpoint:    "/warehouse/positions/search",
+		Value:       props.Value,
+		Attrs:       props.Attrs,
+	})
+}
