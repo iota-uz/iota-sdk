@@ -3,6 +3,7 @@ package products
 import (
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/selects"
 	"github.com/iota-agency/iota-erp/internal/types"
 )
 
@@ -57,4 +58,21 @@ templ StatusSelect(props *StatusSelectProps) {
 			}
 		}
 	}
+}
+
+type PositionSelectProps struct {
+	*types.PageContext
+	Value string
+	Attrs templ.Attributes
+}
+
+templ PositionSelect(props *PositionSelectProps) {
+	@selects.SearchSelect(&selects.SearchSelectProps{
+		PageContext: props.PageContext,
+		Label:       props.T("Products.Single.Position"),
+		Placeholder: props.T("Products.Single.SearchPosition"),
+		Endpoint:    "/warehouse/positions/search",
+		Value:       props.Value,
+		Attrs:       props.Attrs,
+	})
 }

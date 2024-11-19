@@ -5,14 +5,12 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/components/selects"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/types"
 )
 
 type CreatePageProps struct {
 	*types.PageContext
-	Positions []*viewmodels.Position
 	Product   *viewmodels.Product
 	SaveURL   string
 	Errors    map[string]string
@@ -34,10 +32,9 @@ templ CreateForm(props *CreatePageProps) {
 				},
 				Error: props.Errors["Rfid"],
 			})
-			@selects.PositionSelect(&selects.PositionSelectProps{
+			@PositionSelect(&PositionSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.PositionID,
-				Positions:   props.Positions,
 				Attrs: templ.Attributes{
 					"name": "PositionID",
 				},

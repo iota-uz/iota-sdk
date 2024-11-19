@@ -7,7 +7,6 @@ import (
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/button"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/dialog"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/input"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/components/selects"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/icons"
 	"github.com/iota-agency/iota-erp/internal/presentation/templates/layouts"
 	"github.com/iota-agency/iota-erp/internal/types"
@@ -16,7 +15,6 @@ import (
 type EditPageProps struct {
 	*types.PageContext
 	Product   *viewmodels.Product
-	Positions []*viewmodels.Position
 	Errors    map[string]string
 }
 
@@ -32,10 +30,9 @@ templ EditForm(props *EditPageProps) {
 				},
 				Error: props.Errors["Rfid"],
 			})
-			@selects.PositionSelect(&selects.PositionSelectProps{
+			@PositionSelect(&PositionSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.PositionID,
-				Positions:   props.Positions,
 				Attrs: templ.Attributes{
 					"name": "PositionID",
 					"form": "save-form",
