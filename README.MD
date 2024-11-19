@@ -26,7 +26,7 @@ IOTA ERP - is a set of building blocks for ERP development, which will later tur
 Clone the repository
 
 ```shell
-git clone https://github.com/iota-agency/iota-erp.git
+git clone https://github.com/iota-agency/iota-sdk.git
 ```
 
 Install dependencies
