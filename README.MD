@@ -1,4 +1,5 @@
 # IOTA SDK
+<img width="300" style="display: block; margin: 32px auto;" src="https://www.iota.uz/images/common/logotype.svg">
 
 ## A Modular and Configurable ERP Solution
 
