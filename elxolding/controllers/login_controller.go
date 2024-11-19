@@ -1,18 +1,18 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-erp/elxolding/mappers"
-	"github.com/iota-agency/iota-erp/elxolding/templates/pages/login"
-	"github.com/iota-agency/iota-erp/elxolding/viewmodels"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/elxolding/mappers"
+	"github.com/iota-agency/iota-sdk/elxolding/templates/pages/login"
+	"github.com/iota-agency/iota-sdk/elxolding/viewmodels"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/services"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 func NewLoginController(app *application.Application) shared.Controller {

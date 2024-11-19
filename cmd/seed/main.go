@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/modules"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/event"
-	"github.com/iota-agency/iota-erp/seed"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
+	"github.com/iota-agency/iota-sdk/internal/modules"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/iota-agency/iota-sdk/seed"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

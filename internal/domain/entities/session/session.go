@@ -1,10 +1,10 @@
 package session
 
 import (
-	"github.com/iota-agency/iota-erp/internal/configuration"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
 	"time"
 
-	"github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
 )
 
 type Session struct {

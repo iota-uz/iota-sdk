@@ -3,8 +3,8 @@ package role
 import (
 	"time"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
 )
 
 type Role struct {

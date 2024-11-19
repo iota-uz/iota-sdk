@@ -3,7 +3,7 @@ package configuration
 import (
 	"fmt"
 	"github.com/caarlos0/env/v11"
-	"github.com/iota-agency/iota-erp/sdk/utils/fs"
+	"github.com/iota-agency/iota-sdk/sdk/utils/fs"
 	"github.com/joho/godotenv"
 	"log"
 	"strings"

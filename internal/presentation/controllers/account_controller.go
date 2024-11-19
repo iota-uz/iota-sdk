@@ -2,12 +2,12 @@ package controllers
 
 import (
 	"github.com/a-h/templ"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/pages/account"
-	"github.com/iota-agency/iota-erp/internal/types"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/pages/account"
+	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"net/http"
 
 	"github.com/gorilla/mux"

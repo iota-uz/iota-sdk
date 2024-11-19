@@ -1,15 +1,15 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/types"
-	"github.com/iota-agency/iota-erp/iota/templates/pages/home"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/iota/templates/pages/home"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 type HomeController struct {

@@ -3,18 +3,18 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/application"
-	expense_categories2 "github.com/iota-agency/iota-erp/internal/modules/finance/templates/pages/expense_categories"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
-	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	expense_categories2 "github.com/iota-agency/iota-sdk/internal/modules/finance/templates/pages/expense_categories"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/internal/services"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"net/http"
 
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
-	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	category "github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense_category"
+	"github.com/iota-agency/iota-sdk/internal/presentation/mappers"
+	"github.com/iota-agency/iota-sdk/internal/presentation/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 type ExpenseCategoriesController struct {

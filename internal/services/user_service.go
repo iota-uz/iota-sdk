@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 )
 
 type UserService struct {

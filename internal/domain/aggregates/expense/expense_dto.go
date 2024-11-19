@@ -3,9 +3,9 @@ package expense
 import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	category "github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense_category"
+	moneyAccount "github.com/iota-agency/iota-sdk/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"time"
 )
 

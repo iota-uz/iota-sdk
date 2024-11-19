@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 
-	category "github.com/iota-agency/iota-erp/internal/domain/aggregates/expense_category"
+	category "github.com/iota-agency/iota-sdk/internal/domain/aggregates/expense_category"
 )
 
 type ExpenseCategoryService struct {

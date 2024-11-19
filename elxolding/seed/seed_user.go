@@ -2,11 +2,11 @@ package seed
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/elxolding/constants"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/elxolding/constants"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence"
 )
 
 func SeedUser(ctx context.Context, app *application.Application) error {

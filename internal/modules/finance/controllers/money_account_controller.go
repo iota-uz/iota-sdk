@@ -3,20 +3,20 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
-	"github.com/iota-agency/iota-erp/internal/application"
-	moneyaccounts2 "github.com/iota-agency/iota-erp/internal/modules/finance/templates/pages/moneyaccounts"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
-	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	moneyaccounts2 "github.com/iota-agency/iota-sdk/internal/modules/finance/templates/pages/moneyaccounts"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/internal/services"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-erp/internal/presentation/mappers"
-	"github.com/iota-agency/iota-erp/internal/presentation/viewmodels"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	moneyAccount "github.com/iota-agency/iota-sdk/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/internal/presentation/mappers"
+	"github.com/iota-agency/iota-sdk/internal/presentation/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 type MoneyAccountController struct {

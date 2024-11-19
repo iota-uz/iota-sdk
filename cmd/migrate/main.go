@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/pkg/dbutils"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/dbutils"
 	"gorm.io/gorm/logger"
 )
 

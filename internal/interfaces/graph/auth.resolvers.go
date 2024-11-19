@@ -7,7 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
 )
 
 // Authenticate is the resolver for the authenticate field.

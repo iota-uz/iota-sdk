@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gotd/td/telegram"
-	"github.com/iota-agency/iota-erp/sdk/utils/env"
+	"github.com/iota-agency/iota-sdk/sdk/utils/env"
 	"github.com/jmoiron/sqlx"
 )
 

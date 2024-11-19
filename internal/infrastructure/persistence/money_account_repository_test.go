@@ -1,10 +1,10 @@
 package persistence_test
 
 import (
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
-	"github.com/iota-agency/iota-erp/internal/infrastructure/persistence"
-	"github.com/iota-agency/iota-erp/internal/testutils"
+	moneyAccount "github.com/iota-agency/iota-sdk/internal/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/currency"
+	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/internal/testutils"
 	"testing"
 	"time"
 )

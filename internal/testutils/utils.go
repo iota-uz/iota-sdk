@@ -3,9 +3,9 @@ package testutils
 import (
 	"context"
 	"database/sql"
-	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/dbutils"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/dbutils"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

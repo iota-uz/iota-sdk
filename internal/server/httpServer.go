@@ -2,11 +2,11 @@ package server
 
 import (
 	"github.com/NYTimes/gziphandler"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/internal/presentation/controllers"
+	"github.com/iota-agency/iota-sdk/internal/presentation/controllers"
 )
 
 type HttpServer struct {
