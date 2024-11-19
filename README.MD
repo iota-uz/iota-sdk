@@ -1,6 +1,6 @@
 ## About
 
-IOTA SDK - is an configurable and feature complete ERP system
+IOTA SDK - is a configurable, modular and feature complete ERP system for several economic sectors (finance, manufacturing, warehouse management)
 
 ## Overview
 
