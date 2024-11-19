@@ -2,9 +2,9 @@ package project
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/session"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 func NewCreatedEvent(ctx context.Context, data CreateDTO, result Project) (*CreatedEvent, error) {

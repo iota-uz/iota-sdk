@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"net/http"
 
 	"github.com/gorilla/mux"

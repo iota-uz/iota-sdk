@@ -1,17 +1,17 @@
 package user
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
-	"github.com/iota-agency/iota-erp/sdk/mapper"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/sdk/mapper"
 	"strings"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-erp/pkg/constants"
-	"github.com/iota-agency/iota-erp/sdk/utils/sequence"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-agency/iota-sdk/sdk/utils/sequence"
 	"golang.org/x/crypto/bcrypt"
 )
 

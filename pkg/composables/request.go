@@ -3,14 +3,14 @@ package composables
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-erp/internal/types"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/iota-agency/iota-erp/internal/configuration"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )

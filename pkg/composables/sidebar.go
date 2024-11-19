@@ -2,8 +2,8 @@ package composables
 
 import (
 	"errors"
-	"github.com/iota-agency/iota-erp/internal/types"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"net/http"
 )
 

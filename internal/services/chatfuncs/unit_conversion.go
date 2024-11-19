@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	functions "github.com/iota-agency/iota-erp/sdk/llm/gpt-functions"
+	functions "github.com/iota-agency/iota-sdk/sdk/llm/gpt-functions"
 	"gorm.io/gorm"
 )
 

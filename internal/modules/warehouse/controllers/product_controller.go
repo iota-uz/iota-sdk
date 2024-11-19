@@ -2,23 +2,23 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/pkg/mapping"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/mappers"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/services"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/pages/products"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
-	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/pagination"
-	"github.com/iota-agency/iota-erp/internal/types"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/mappers"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/templates/pages/products"
+	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/pagination"
+	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 type ProductsController struct {

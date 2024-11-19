@@ -1,13 +1,13 @@
 package payment
 
 import (
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	moneyAccount "github.com/iota-agency/iota-erp/internal/domain/aggregates/money_account"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	moneyAccount "github.com/iota-agency/iota-sdk/internal/domain/aggregates/money_account"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
 )
 
 var validate = validator.New(validator.WithRequiredStructEnabled())

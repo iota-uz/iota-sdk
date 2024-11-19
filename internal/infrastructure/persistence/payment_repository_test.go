@@ -1,7 +1,7 @@
 package persistence_test
 
 import (
-	"github.com/iota-agency/iota-erp/internal/testutils"
+	"github.com/iota-agency/iota-sdk/internal/testutils"
 	"testing"
 )
 

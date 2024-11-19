@@ -1,6 +1,6 @@
 package permissions
 
-import "github.com/iota-agency/iota-erp/internal/domain/entities/permission"
+import "github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
 
 const (
 	ResourceProduct  permission.Resource = "product"

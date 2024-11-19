@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/authlog"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
-	"github.com/iota-agency/iota-erp/internal/services"
-	"github.com/iota-agency/iota-erp/pkg/composables"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/authlog"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/session"
+	"github.com/iota-agency/iota-sdk/internal/services"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 	"gorm.io/gorm"
 	"log"
 	"time"

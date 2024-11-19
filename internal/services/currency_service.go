@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/currency"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/currency"
 )
 
 type CurrencyService struct {

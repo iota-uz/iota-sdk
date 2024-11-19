@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
 )
 
 // UploadFile is the resolver for the uploadFile field.

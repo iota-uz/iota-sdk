@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/configuration"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/configuration"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
 	"net/http"
 
 	"github.com/gorilla/mux"

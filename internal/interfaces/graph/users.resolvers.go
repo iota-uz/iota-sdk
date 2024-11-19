@@ -7,8 +7,8 @@ package graph
 import (
 	"context"
 
-	"github.com/iota-agency/iota-erp/internal/domain/aggregates/user"
-	model "github.com/iota-agency/iota-erp/internal/interfaces/graph/gqlmodels"
+	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	model "github.com/iota-agency/iota-sdk/internal/interfaces/graph/gqlmodels"
 )
 
 // CreateUser is the resolver for the createUser field.

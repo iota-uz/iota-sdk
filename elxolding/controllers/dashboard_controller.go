@@ -1,17 +1,17 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-erp/elxolding/services"
-	"github.com/iota-agency/iota-erp/elxolding/templates/pages/dashboard"
-	"github.com/iota-agency/iota-erp/internal/application"
-	"github.com/iota-agency/iota-erp/internal/modules/shared"
-	"github.com/iota-agency/iota-erp/internal/modules/shared/middleware"
-	"github.com/iota-agency/iota-erp/internal/types"
+	"github.com/iota-agency/iota-sdk/elxolding/services"
+	"github.com/iota-agency/iota-sdk/elxolding/templates/pages/dashboard"
+	"github.com/iota-agency/iota-sdk/internal/application"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared"
+	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/internal/types"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-erp/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 func NewDashboardController(app *application.Application) shared.Controller {

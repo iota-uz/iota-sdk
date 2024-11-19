@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/iota-agency/iota-erp/internal/domain/entities/session"
-	"github.com/iota-agency/iota-erp/pkg/constants"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/session"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 )
 
 func NewCreatedEvent(ctx context.Context, data User) (*CreatedEvent, error) {

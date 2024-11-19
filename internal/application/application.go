@@ -2,8 +2,8 @@ package application
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-erp/internal/domain/entities/permission"
-	"github.com/iota-agency/iota-erp/pkg/event"
+	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 	"gorm.io/gorm"
 	"reflect"
 )
