@@ -11,8 +11,8 @@ import (
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/domain/entities/position"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/services"
-	"github.com/iota-agency/iota-erp/internal/modules/warehouse/templates/components/selects"
 	"github.com/iota-agency/iota-erp/internal/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-erp/internal/presentation/templates/components/base/selects"
 	"github.com/iota-agency/iota-erp/internal/types"
 	"github.com/iota-agency/iota-erp/pkg/composables"
 	"github.com/iota-agency/iota-erp/pkg/mapping"
@@ -148,15 +148,22 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	//pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.List.Meta.Title", ""))
-	//if err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
-	props := &selects.PositionSelectOptionsProps{
-		Positions: mapping.MapViewModels(entities, mappers.PositionToViewModel),
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.List.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	templ.Handler(selects.PositionSelectOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
+	props := &selects.SearchOptionsProps{
+		PageContext: pageCtx,
+		Options: mapping.MapViewModels(entities, func(pos *position.Position) *selects.Value {
+			return &selects.Value{
+				Value: fmt.Sprintf("%d", pos.ID),
+				Label: pos.Title,
+			}
+		}),
+		NothingFoundText: pageCtx.T("WarehousePositions.Single.NothingFound"),
+	}
+	templ.Handler(selects.SearchOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {

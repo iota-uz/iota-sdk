@@ -66,7 +66,8 @@
       "Unit": "Единица",
       "SelectUnit": "Выбрать единицу",
       "Delete": "Удалить",
-      "DeleteConfirmation": "Вы уверены, что хотите удалить это наименование?"
+      "DeleteConfirmation": "Вы уверены, что хотите удалить это наименование?",
+      "NothingFound": "Ничего не найдено"
     }
   },
   "WarehouseUnits": {

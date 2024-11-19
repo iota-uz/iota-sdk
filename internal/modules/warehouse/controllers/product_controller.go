@@ -153,16 +153,9 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	positions, err := c.getViewModelPositions(r)
-	if err != nil {
-		c.handleError(w, err)
-		return
-	}
-
 	props := &products.EditPageProps{
 		PageContext: pageCtx,
 		Product:     mappers.ProductToViewModel(entity),
-		Positions:   positions,
 		Errors:      map[string]string{},
 	}
 	c.renderTemplate(w, r, products.Edit(props))
@@ -208,16 +201,9 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			positions, err := c.getViewModelPositions(r)
-			if err != nil {
-				c.handleError(w, err)
-				return
-			}
-
 			props := &products.EditPageProps{
 				PageContext: pageCtx,
 				Product:     mappers.ProductToViewModel(entity),
-				Positions:   positions,
 				Errors:      errorsMap,
 			}
 			c.renderTemplate(w, r, products.EditForm(props))
@@ -239,15 +225,8 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	positions, err := c.getViewModelPositions(r)
-	if err != nil {
-		c.handleError(w, err)
-		return
-	}
-
 	props := &products.CreatePageProps{
 		PageContext: pageCtx,
-		Positions:   positions,
 		Errors:      map[string]string{},
 		Product:     mappers.ProductToViewModel(&product.Product{}),
 		SaveURL:     c.basePath,
@@ -274,12 +253,6 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		positions, err := c.getViewModelPositions(r)
-		if err != nil {
-			c.handleError(w, err)
-			return
-		}
-
 		entity, err := dto.ToEntity()
 		if err != nil {
 			c.handleError(w, err)
@@ -288,7 +261,6 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 
 		props := &products.CreatePageProps{
 			PageContext: pageCtx,
-			Positions:   positions,
 			Errors:      errorsMap,
 			Product:     mappers.ProductToViewModel(entity),
 			SaveURL:     c.basePath,
