@@ -3,10 +3,10 @@ package controllers
 import (
 	"github.com/iota-agency/iota-sdk/elxolding/services"
 	"github.com/iota-agency/iota-sdk/elxolding/templates/pages/dashboard"
-	"github.com/iota-agency/iota-sdk/internal/application"
-	"github.com/iota-agency/iota-sdk/internal/modules/shared"
-	"github.com/iota-agency/iota-sdk/internal/modules/shared/middleware"
-	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/modules/shared"
+	"github.com/iota-agency/iota-sdk/pkg/modules/shared/middleware"
+	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
 	"strconv"
 

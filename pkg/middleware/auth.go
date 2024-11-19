@@ -2,14 +2,14 @@ package middleware
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/internal/configuration"
-	"github.com/iota-agency/iota-sdk/internal/domain/entities/session"
+	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
 )
 
 type AuthService interface {

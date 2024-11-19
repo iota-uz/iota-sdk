@@ -3,9 +3,9 @@ package seed
 import (
 	"context"
 	"fmt"
-	"github.com/iota-agency/iota-sdk/internal/application"
-	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/persistence"
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/pkg/modules/warehouse/persistence"
 	"time"
 )
 

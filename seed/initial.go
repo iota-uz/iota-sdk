@@ -2,8 +2,8 @@ package seed
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/internal/application"
-	"github.com/iota-agency/iota-sdk/internal/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 )
 
 func CreatePermissions(ctx context.Context, app *application.Application) error {

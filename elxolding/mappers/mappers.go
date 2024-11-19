@@ -2,7 +2,7 @@ package mappers
 
 import (
 	"github.com/iota-agency/iota-sdk/elxolding/viewmodels"
-	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"strconv"
 	"time"
 )

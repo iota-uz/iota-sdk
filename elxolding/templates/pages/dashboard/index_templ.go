@@ -9,9 +9,9 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 type IndexPageProps struct {
