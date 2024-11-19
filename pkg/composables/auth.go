@@ -3,12 +3,11 @@ package composables
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/internal/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/sdk/service"
-
-	"github.com/iota-agency/iota-sdk/internal/domain/entities/session"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
+	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
 var (

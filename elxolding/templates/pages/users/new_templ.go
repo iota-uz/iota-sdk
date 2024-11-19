@@ -9,14 +9,14 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/role"
-	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/input"
-	usercomponents "github.com/iota-agency/iota-sdk/internal/presentation/templates/components/user"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
+	usercomponents "github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/user"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 type CreateFormProps struct {

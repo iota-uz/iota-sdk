@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"github.com/iota-agency/iota-sdk/elxolding/domain/entities/dashboard"
-	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/order"
-	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/internal/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/pkg/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/pkg/modules/warehouse/domain/entities/position"
 	"sync"
 )
 

@@ -8,11 +8,11 @@ import (
 	"github.com/iota-agency/iota-sdk/elxolding/controllers"
 	"github.com/iota-agency/iota-sdk/elxolding/seed"
 	"github.com/iota-agency/iota-sdk/elxolding/services"
-	"github.com/iota-agency/iota-sdk/internal/application"
-	"github.com/iota-agency/iota-sdk/internal/modules/shared"
-	persistence2 "github.com/iota-agency/iota-sdk/internal/modules/warehouse/persistence"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/modules/shared"
+	persistence2 "github.com/iota-agency/iota-sdk/pkg/modules/warehouse/persistence"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

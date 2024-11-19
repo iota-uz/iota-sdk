@@ -10,13 +10,13 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/internal/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/components/base/input"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/internal/presentation/templates/layouts"
-	"github.com/iota-agency/iota-sdk/internal/types"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
 	"time"
 )
 

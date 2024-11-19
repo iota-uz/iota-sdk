@@ -12,7 +12,7 @@ When facing an error like this:
 
 ```
 WARN [runner] Can't run linter goanalysis_metalinter: buildssa: failed to load package : could not load export data: no
-export data for "github.com/iota-agency/iota-sdk/internal/domain/entities/expense_category"
+export data for "github.com/iota-agency/iota-sdk/pkg/domain/entities/expense_category"
 ```
 
 Try running:
