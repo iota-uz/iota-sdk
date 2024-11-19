@@ -1,83 +1,102 @@
-## About
+# IOTA SDK
 
-IOTA SDK - is a configurable, modular and feature complete ERP system for several economic sectors (finance, manufacturing, warehouse management)
+## A Modular and Configurable ERP Solution
 
-## Overview
+**IOTA SDK** is an open-source, modular, and feature-complete **ERP system** designed to adapt to multiple economic sectors, including **finance**, **manufacturing**, and **warehouse management**. Inspired by leading platforms like Odoo, IOTA SDK provides an intuitive framework to accelerate enterprise operations and unlock efficiency with powerful tools and integrations.
 
-* [Architecture](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd)
-* [Database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e)
+---
 
-## Glossary
+## 🚀 Key Features
 
-* UHR - Unified Hourly Rate
+- **Configurable Architecture**: Fully modular components to customize workflows.
+- **Industry-Specific Modules**: Finance, manufacturing, warehouse management, and more.
+- **Modern Development Practices**: Built with **Go** for performance and scalability.
+- **GraphQL API**: Simplifies querying and data management.
+- **Open Source**: Fully extensible and transparent.
 
-## Prerequisites
+---
 
-* [Go](https://golang.org/doc/install)
-* [Air](https://github.com/cosmtrek/air#Installation)
-* [Docker](https://docs.docker.com/get-docker/)
-* [SQL-Migrate](https://github.com/rubenv/sql-migrate)
-* [Templ](https://templ.guide/)
-* [Tailwindcss](https://tailwindcss.com/docs/installation)
-* [golangcli-lint](https://golangci-lint.run/welcome/install/)
+## 📚 Overview
 
-## Development
+### Architecture  
+Visualize the system's architecture using this [interactive diagram](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd).
 
-Clone the repository
+### Database Schema  
+Explore the modular design through the [database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e).
 
-```shell
-git clone https://github.com/iota-agency/iota-sdk.git
-```
+### Glossary  
+**UHR** - Unified Hourly Rate (a common standard in IOTA SDK for cost tracking and resource management).
 
-Install dependencies
+---
 
-```shell
-go get -u -d ./...
-```
+## ⚙️ Prerequisites
 
-Install tailwindcss globally
+Before starting, ensure the following tools are installed on your system:
 
-```shell
-pnpm install -g tailwindcss
-# or
-npm install -g tailwindcss
-```
+- [Go](https://golang.org/doc/install)
+- [Air](https://github.com/cosmtrek/air#Installation) for hot-reloading
+- [Docker](https://docs.docker.com/get-docker/) for containerized services
+- [SQL-Migrate](https://github.com/rubenv/sql-migrate) for database migrations
+- [Templ](https://templ.guide/) for templating
+- [TailwindCSS](https://tailwindcss.com/docs/installation) for styling
+- [golangci-lint](https://golangci-lint.run/welcome/install/) for linting
 
-Run postgres
+---
 
-```shell
-docker compose -f docker-compose.dev.yml up -d
-```
+## 🛠️ Development Setup
 
-Run migrations
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/iota-agency/iota-sdk.git
+   ```
 
-```shell
-sql-migrate up
-```
+2. **Install dependencies**:
+   ```bash
+   go get -u -d ./...
+   ```
 
-Run in watch mode (hot reload)
+3. **Set up TailwindCSS globally**:
+   ```bash
+   pnpm install -g tailwindcss
+   # or
+   npm install -g tailwindcss
+   ```
 
-```shell
-air
-```
+4. **Run PostgreSQL**:
+   ```bash
+   docker compose -f docker-compose.dev.yml up -d
+   ```
 
-Run templ in watch mode
+5. **Apply database migrations**:
+   ```bash
+   sql-migrate up
+   ```
 
-```shell
-templ generate -watch
-```
+6. **Start hot-reloading with Air**:
+   ```bash
+   air
+   ```
 
-Run tailwindcss in watch mode
+7. **Enable Templ in watch mode**:
+   ```bash
+   templ generate -watch
+   ```
 
-```shell
-tailwindcss -c tailwind.config.js -i internal/presentation/assets/css/main.css -o internal/presentation/assets/css/main.min.css --minify --watch
-```
+8. **Compile TailwindCSS**:
+   ```bash
+   tailwindcss -c tailwind.config.js -i internal/presentation/assets/css/main.css -o internal/presentation/assets/css/main.min.css --minify --watch
+   ```
 
-Now open postman and explore the GraphQL schema at http://localhost:3200/query
+9. **Access the GraphQL Schema**:  
+   Open Postman and connect to:  
+   [http://localhost:3200/query](http://localhost:3200/query)
 
-## Examples
+---
 
-Get all employees and their positions
+## 🔍 Example Queries
+
+### Fetch Employees and Positions  
+Use the following GraphQL query to retrieve users and their roles:
 
 ```graphql
 query Users {
@@ -97,70 +116,70 @@ query Users {
 }
 ```
 
-## Reference commands
+---
 
-Run linter
+## 📖 Reference Commands
 
-```shell
-golangci-lint run
-```
+### Core Development
+- **Run Linter**:  
+  ```bash
+  golangci-lint run
+  ```
+- **Regenerate from GraphQL schema**:  
+  ```bash
+  go generate ./...
+  ```
 
-Regenerate from GraphQL schema
+### Database Management
+- **Apply migrations**:  
+  ```bash
+  sql-migrate up
+  ```
+- **Rollback migrations**:  
+  ```bash
+  sql-migrate down
+  ```
+- **Redo migrations**:  
+  ```bash
+  sql-migrate redo
+  ```
+- **Create a new migration**:  
+  ```bash
+  sql-migrate new <migration-name>
+  ```
 
-```shell
-go generate ./...
-```
+### Testing
+- **Run tests**:  
+  ```bash
+  go test -v ./...
+  ```
+- **Test with coverage**:  
+  ```bash
+  go test -coverprofile coverage/coverage.out ./... 
+  go tool cover -html=coverage/coverage.out
+  ```
 
-Running migrations
+### Server Operations
+- **Run the server**:  
+  ```bash
+  go run cmd/server/main.go
+  ```
 
-```shell
-sql-migrate up
-```
+### Templ Management
+- **Format Templ files**:  
+  ```bash
+  templ fmt .
+  ```
 
-Rolling back migrations
+---
 
-```shell
-sql-migrate down
-```
+## 🎯 Conventions
 
-Redoing migrations (useful for development)
+- [Naming Guidelines](CONVENTIONS.MD#naming)
+- [Code Style](CONVENTIONS.MD#code-style)
 
-```shell
-sql-migrate redo
-```
+---
 
-Making a migration
+## 🌟 Join Us
 
-```shell
-sql-migrate new <migration-name>
-```
-
-Running tests
-
-```shell
-go test -v ./...
-```
-
-Running tests with coverage
-
-```shell
-go test -coverprofile coverage/coverage.out ./... 
-go tool cover -html=coverage/coverage.out
-```
-
-Running the server
-
-```shell
-go run cmd/server/main.go
-```
-
-Format templ files
-
-```shell
-templ fmt .
-```
-
-## Conventions
-
-* [Naming](CONVENTIONS.MD#naming)
-* [Code style](CONVENTIONS.MD#code-style)
+We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.md) to get started.
