@@ -2,6 +2,7 @@ package finance
 
 import (
 	"context"
+	"embed"
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/modules/finance/controllers"
@@ -10,6 +11,12 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
+
+//go:embed locales/*.json
+var localeFiles embed.FS
+
+////go:embed migrations/*.sql
+//var migrationFiles embed.FS
 
 func NewModule() shared.Module {
 	return &Module{}
@@ -22,16 +29,9 @@ func (m *Module) Register(app *application.Application) error {
 	return nil
 }
 
-func (m *Module) MigrationDirs() []string {
-	return []string{
-		"pkg/modules/finance/migrations",
-	}
-}
-
-func (m *Module) Migrations() []string {
-	return []string{
-		"pkg/modules/finance/migrations",
-	}
+func (m *Module) MigrationDirs() *embed.FS {
+	//return &migrationFiles
+	return nil
 }
 
 func (m *Module) Assets() *hashfs.FS {
@@ -87,10 +87,6 @@ func (m *Module) Controllers() []shared.ControllerConstructor {
 	}
 }
 
-func (m *Module) LocaleFiles() []string {
-	return []string{
-		"pkg/modules/finance/locales/en.json",
-		"pkg/modules/finance/locales/ru.json",
-		"pkg/modules/finance/locales/uz.json",
-	}
+func (m *Module) LocaleFiles() *embed.FS {
+	return &localeFiles
 }

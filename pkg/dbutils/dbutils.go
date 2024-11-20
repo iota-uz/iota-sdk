@@ -1,7 +1,9 @@
 package dbutils
 
 import (
+	"bytes"
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
@@ -14,6 +16,9 @@ import (
 	"os"
 	"time"
 )
+
+//go:embed migrations/*.sql
+var embeddedMigrations embed.FS
 
 func NewLogger(level logger.LogLevel) logger.Interface {
 	return logger.New(
@@ -52,24 +57,33 @@ func CheckModels(db *gorm.DB, modelsToTest []interface{}) error {
 	}
 	return fmt.Errorf("models are out of sync: %w", errors.Join(errs...))
 }
-
 func collectMigrations() ([]*migrate.Migration, error) {
 	registry := modules.Load()
-	migrationDirs := append([]string{"migrations/postgres"}, registry.MigrationDirs()...)
+	migrationDirs := append([]*embed.FS{&embeddedMigrations}, registry.MigrationDirs()...)
 
 	var migrations []*migrate.Migration
-	for _, dir := range migrationDirs {
-		migrationSource := &migrate.FileMigrationSource{
-			Dir: dir,
-		}
-		foundMigrations, err := migrationSource.FindMigrations()
+	for _, fs := range migrationDirs {
+		files, err := fs.ReadDir("migrations")
 		if err != nil {
 			return nil, err
 		}
-		if len(foundMigrations) == 0 {
-			return nil, errors.New("no migrations found")
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			content, err := fs.ReadFile("migrations/" + file.Name())
+			if err != nil {
+				return nil, err
+			}
+			migration, err := migrate.ParseMigration(file.Name(), bytes.NewReader(content))
+			if err != nil {
+				return nil, err
+			}
+			migrations = append(migrations, migration)
 		}
-		migrations = append(migrations, foundMigrations...)
+	}
+	if len(migrations) == 0 {
+		return nil, errors.New("no migrations found")
 	}
 	return migrations, nil
 }
@@ -87,7 +101,7 @@ func RunMigrations(db *sql.DB) error {
 		return err
 	}
 	if n == 0 {
-		return errors.New("no migrations found")
+		return errors.New("no migrations applied")
 	}
 	return nil
 }

@@ -2,7 +2,7 @@ package elxolding
 
 import (
 	"context"
-	"fmt"
+	"embed"
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/elxolding/assets"
 	"github.com/iota-agency/iota-sdk/elxolding/controllers"
@@ -16,9 +16,8 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-var (
-	ProjectDir = "elxolding"
-)
+//go:embed locales/*.json
+var localeFiles embed.FS
 
 func NewModule() shared.Module {
 	return &Module{}
@@ -37,10 +36,8 @@ func (m *Module) Register(app *application.Application) error {
 	return nil
 }
 
-func (m *Module) MigrationDirs() []string {
-	return []string{
-		//fmt.Sprintf("%s/migrations", ProjectDir),
-	}
+func (m *Module) MigrationDirs() *embed.FS {
+	return nil
 }
 
 func (m *Module) Assets() *hashfs.FS {
@@ -85,10 +82,6 @@ func (m *Module) Controllers() []shared.ControllerConstructor {
 	}
 }
 
-func (m *Module) LocaleFiles() []string {
-	return []string{
-		fmt.Sprintf("%s/locales/en.json", ProjectDir),
-		fmt.Sprintf("%s/locales/ru.json", ProjectDir),
-		fmt.Sprintf("%s/locales/uz.json", ProjectDir),
-	}
+func (m *Module) LocaleFiles() *embed.FS {
+	return &localeFiles
 }

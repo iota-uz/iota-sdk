@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"embed"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/application"
@@ -23,6 +24,6 @@ type Module interface {
 	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 	Controllers() []ControllerConstructor
 	Assets() *hashfs.FS
-	MigrationDirs() []string
-	LocaleFiles() []string
+	MigrationDirs() *embed.FS
+	LocaleFiles() *embed.FS
 }
