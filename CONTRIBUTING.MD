@@ -1,3 +1,17 @@
+## ⚙️ Prerequisites
+
+Before starting, ensure the following tools are installed on your system:
+
+- [Go](https://golang.org/doc/install)
+- [Air](https://github.com/cosmtrek/air#Installation) for hot-reloading
+- [Docker](https://docs.docker.com/get-docker/) for containerized services
+- [SQL-Migrate](https://github.com/rubenv/sql-migrate) for database migrations
+- [Templ](https://templ.guide/) for templating
+- [TailwindCSS](https://tailwindcss.com/docs/installation) for styling
+- [golangci-lint](https://golangci-lint.run/welcome/install/) for linting
+
+---
+
 ## 🛠️ Development Setup
 
 1. **Clone the repository**:
@@ -50,7 +64,8 @@
 
 ## 🔍 Example Queries
 
-### Fetch Employees and Positions  
+### Fetch Employees and Positions
+
 Use the following GraphQL query to retrieve users and their roles:
 
 ```graphql
@@ -83,20 +98,22 @@ package main
 // Bad
 var employees []string
 for i := 0; i < 10; i++ {
-    employees = append(employees, "employee")
+employees = append(employees, "employee")
 }
 
 // Good
 employees := make([]string, 10)
 
 for i := 0; i < 10; i++ {
-    employees[i] = "employee"
+employees[i] = "employee"
 }
 ```
 
 ## Project structure
-We follow the [Standard Go Project Layout](https://github.com/golang-standards/project-layout) and DDD principles. 
+
+We follow the [Standard Go Project Layout](https://github.com/golang-standards/project-layout) and DDD principles.
 Below is an example of a project structure
+
 ```
 project-root/
 ├── cmd/
@@ -148,7 +165,6 @@ project-root/
 └── go.mod
 ```
 
-
 ## Types
 
 Use `int64` for `count` && `ID` fields
@@ -157,18 +173,19 @@ Use `int64` for `count` && `ID` fields
 package models
 
 type Employee struct {
-    ID        int64
-    Email     string
-    FirstName string
-    LastName  string
-    PositionID int64
-    Salary    float64
+	ID         int64
+	Email      string
+	FirstName  string
+	LastName   string
+	PositionID int64
+	Salary     float64
 }
 ```
 
 ## Naming
 
 ### GraphQL
+
 For queries and mutations, we use camelCase. Below is an example for the `users` service
 
 ```graphql
@@ -217,6 +234,8 @@ extend type Subscription {
 ```
 
 ### Code style
+
 We use the [standard Go code style](https://go.dev/doc/effective_go) with the following exceptions:
+
 - We use `PascalCase` for struct fields
 - We use `PascalCase` for file names
