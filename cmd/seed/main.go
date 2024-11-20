@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
+	seed2 "github.com/iota-agency/iota-sdk/internal/seed"
+	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/modules"
-	"github.com/iota-agency/iota-sdk/pkg/modules/shared"
-	"github.com/iota-agency/iota-sdk/seed"
+	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -21,8 +21,8 @@ func main() {
 	}
 
 	seedFuncs := []shared.SeedFunc{
-		seed.CreatePermissions,
-		seed.CreateCurrencies,
+		seed2.CreatePermissions,
+		seed2.CreateCurrencies,
 	}
 	registry := modules.Load()
 	for _, module := range registry.Modules() {

@@ -3,7 +3,7 @@ package controllers
 import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/modules/shared"
+	"github.com/iota-agency/iota-sdk/pkg/shared"
 )
 
 type GraphQLController struct {
