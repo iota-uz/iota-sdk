@@ -1,0 +1,6 @@
+<form class=\"flex flex-col justify-between h-full\" hx-post=\"
+\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\">
+ 
+ 
+<div class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\">
+</div></form>
