@@ -14,7 +14,8 @@ import (
 
 func NewLoginController(app *application.Application) shared.Controller {
 	return &LoginController{
-		app: app,
+		app:         app,
+		authService: app.Service(services.AuthService{}).(*services.AuthService),
 	}
 }
 
