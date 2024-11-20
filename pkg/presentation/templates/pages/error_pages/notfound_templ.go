@@ -57,7 +57,7 @@ func NotFoundContent(props *NotFoundPageProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("ErrorPages.NotFound.Message"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/error_pages/notfound.templ`, Line: 19, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/pages/error_pages/notfound.templ`, Line: 19, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {

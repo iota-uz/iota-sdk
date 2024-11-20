@@ -86,7 +86,7 @@ func ProjectsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(project.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/projects/projects.templ`, Line: 33, Col: 19}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/pages/projects/projects.templ`, Line: 33, Col: 19}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -117,7 +117,7 @@ func ProjectsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(project.Description)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/projects/projects.templ`, Line: 36, Col: 26}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/pages/projects/projects.templ`, Line: 36, Col: 26}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -152,7 +152,7 @@ func ProjectsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", project.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/projects/projects.templ`, Line: 40, Col: 67}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/pages/projects/projects.templ`, Line: 40, Col: 67}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -270,7 +270,7 @@ func ProjectsContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.Projects"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/projects/projects.templ`, Line: 61, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/pages/projects/projects.templ`, Line: 61, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -357,7 +357,7 @@ func ProjectsContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Projects.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/presentation/templates/pages/projects/projects.templ`, Line: 101, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/pages/projects/projects.templ`, Line: 101, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
