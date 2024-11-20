@@ -20,7 +20,7 @@
 ## 📚 Overview
 
 ### Architecture  
-Visualize the system's architecture using this [interactive diagram](https://app.excalidraw.com/s/3x4l1qRpK2w/ADYN81ksZsd).
+Visualize the system's architecture using this [interactive diagram](https://www.figma.com/board/fxj4bk8lE0qby1gcj44KqU/Architecture?node-id=0-1&t=Zhnwq55AM34EhhY4-1).
 
 ### Database Schema  
 Explore the modular design through the [database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e).
