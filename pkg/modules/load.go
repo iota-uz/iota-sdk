@@ -3,7 +3,6 @@ package modules
 import (
 	"embed"
 	"encoding/json"
-	"github.com/iota-agency/iota-sdk/elxolding"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/modules/finance"
 	"github.com/iota-agency/iota-sdk/pkg/modules/shared"
@@ -18,7 +17,6 @@ var localeFiles embed.FS
 
 var (
 	AllModules = []shared.Module{
-		elxolding.NewModule(),
 		finance.NewModule(),
 		warehouse.NewModule(),
 	}
