@@ -109,7 +109,7 @@ let dialog = () => ({
   }
 });
 
-document.addEventListener("alpine:init", () => {
+document.addEventListener("alpine:registry", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
