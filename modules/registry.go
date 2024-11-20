@@ -20,7 +20,10 @@ func (m *ModuleRegistry) RegisterModules(modules ...shared.Module) {
 	m.modules = append(m.modules, modules...)
 	for _, module := range modules {
 		m.controllers = append(m.controllers, module.Controllers()...)
-		m.assets = append(m.assets, module.Assets())
+		assets := module.Assets()
+		if assets != nil {
+			m.assets = append(m.assets, assets)
+		}
 		localeFs := module.LocaleFiles()
 		if localeFs != nil {
 			m.localeFiles = append(m.localeFiles, localeFs)
