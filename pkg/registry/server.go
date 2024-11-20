@@ -31,6 +31,7 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 
 	assetsFs := append([]*hashfs.FS{assets.FS}, registry.Assets()...)
 	controllerInstances := []shared.Controller{
+		controllers.NewLoginController(app),
 		controllers.NewAccountController(app),
 		controllers.NewEmployeeController(app),
 		controllers.NewGraphQLController(app),
