@@ -3,24 +3,27 @@ package services
 import (
 	"context"
 
+	"github.com/iota-agency/iota-sdk/modules/upload/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/modules/upload/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/modules/upload/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/modules/upload/permissions"
 )
 
 type UploadService struct {
 	repo      upload.Repository
+	storage   upload.Storage
 	publisher event.Publisher
 }
 
 func NewUploadService(
 	repo upload.Repository,
+	storage upload.Storage,
 	publisher event.Publisher,
 ) *UploadService {
 	return &UploadService{
 		repo:      repo,
 		publisher: publisher,
+		storage:   storage,
 	}
 }
 
@@ -42,8 +45,11 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) erro
 	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
 		return err
 	}
-	entity, err := data.ToEntity()
+	entity, bytes, err := data.ToEntity()
 	if err != nil {
+		return err
+	}
+	if err := s.storage.Save(ctx, entity.ID, bytes); err != nil {
 		return err
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {

@@ -47,10 +47,10 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *CreateDTO) ToEntity() (*Upload, error) {
+func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 	bytes, err := io.ReadAll(d.File)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil
 	}
 	mdsum := md5.Sum(bytes)
 	hash := hex.EncodeToString(mdsum[:])
@@ -61,7 +61,7 @@ func (d *CreateDTO) ToEntity() (*Upload, error) {
 		Type:      d.Type,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	}, nil
+	}, bytes, nil
 }
 
 func (d *UpdateDTO) ToEntity(id string) (*Upload, error) {

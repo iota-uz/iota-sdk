@@ -1,8 +1,8 @@
 package persistence
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/modules/upload/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/modules/upload/persistence/models"
+	"github.com/iota-agency/iota-sdk/modules/upload/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/modules/upload/persistence/models"
 )
 
 func toDBUpload(upload *upload.Upload) *models.Upload {
