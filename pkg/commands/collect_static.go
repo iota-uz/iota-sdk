@@ -2,11 +2,9 @@ package commands
 
 import (
 	"embed"
-	"github.com/iota-agency/iota-sdk/modules"
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 )
 
@@ -21,7 +19,7 @@ func getAllFilenames(fs *embed.FS, dir string) (out []string, err error) {
 	}
 
 	for _, entry := range entries {
-		fp := path.Join(dir, entry.Name())
+		fp := filepath.Join(dir, entry.Name())
 		if entry.IsDir() {
 			res, err := getAllFilenames(fs, fp)
 			if err != nil {
@@ -44,7 +42,7 @@ func copyFile(file fs.File, dest, filename string) error {
 	if err := os.MkdirAll(dest, 0755); err != nil {
 		return err
 	}
-	out, err := os.Create(path.Join(dest, filename))
+	out, err := os.Create(filepath.Join(dest, filename))
 	if err != nil {
 		return err
 	}
@@ -56,8 +54,8 @@ func copyFile(file fs.File, dest, filename string) error {
 }
 
 // CollectStatic collects all static files from the registry and writes them to the destination directory.
-func CollectStatic(registry *modules.ModuleRegistry, dest string) error {
-	for _, embedFs := range registry.Assets() {
+func CollectStatic(assets []*embed.FS, dest string) error {
+	for _, embedFs := range assets {
 		filenames, err := getAllFilenames(embedFs, "")
 		if err != nil {
 			return err
@@ -68,8 +66,7 @@ func CollectStatic(registry *modules.ModuleRegistry, dest string) error {
 				return err
 			}
 			filename := filepath.Base(relPath)
-			dest = filepath.Join(dest, filepath.Dir(relPath))
-			if err := copyFile(file, dest, filename); err != nil {
+			if err := copyFile(file, filepath.Join(dest, filepath.Dir(relPath)), filename); err != nil {
 				return err
 			}
 		}
