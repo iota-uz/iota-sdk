@@ -17,7 +17,6 @@ import (
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
-	fmt.Println("Entity:", entity)
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		FirstName:  entity.FirstName,
