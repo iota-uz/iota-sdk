@@ -9,7 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )

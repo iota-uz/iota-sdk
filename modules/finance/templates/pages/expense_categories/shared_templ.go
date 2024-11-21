@@ -9,7 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
+	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
@@ -64,7 +64,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expense_categories/shared.templ`, Line: 26, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/shared.templ`, Line: 26, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -77,7 +77,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Symbol)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expense_categories/shared.templ`, Line: 27, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/shared.templ`, Line: 27, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -90,7 +90,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expense_categories/shared.templ`, Line: 28, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/shared.templ`, Line: 28, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -108,7 +108,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expense_categories/shared.templ`, Line: 31, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/shared.templ`, Line: 31, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -121,7 +121,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Symbol)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expense_categories/shared.templ`, Line: 32, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/shared.templ`, Line: 32, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -134,7 +134,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expense_categories/shared.templ`, Line: 33, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/shared.templ`, Line: 33, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {

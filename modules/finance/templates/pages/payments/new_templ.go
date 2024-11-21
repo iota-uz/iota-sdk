@@ -9,10 +9,10 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/textarea"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base/textarea"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -164,7 +164,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/payments/new.templ`, Line: 90, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/new.templ`, Line: 90, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

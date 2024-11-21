@@ -5,17 +5,15 @@ package units
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"github.com/a-h/templ"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
-)
+import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -87,7 +85,7 @@ func UnitsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(unit.Title)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/units/units.templ`, Line: 32, Col: 17}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/units/units.templ`, Line: 32, Col: 17}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -118,7 +116,7 @@ func UnitsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(unit.ShortTitle)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/units/units.templ`, Line: 35, Col: 22}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/units/units.templ`, Line: 35, Col: 22}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -153,7 +151,7 @@ func UnitsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", unit.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/units/units.templ`, Line: 39, Col: 64}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/units/units.templ`, Line: 39, Col: 64}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -266,7 +264,7 @@ func UnitsContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.WarehouseUnits"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/units/units.templ`, Line: 55, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/units/units.templ`, Line: 55, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -353,7 +351,7 @@ func UnitsContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("WarehouseUnits.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/units/units.templ`, Line: 94, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/units/units.templ`, Line: 94, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {

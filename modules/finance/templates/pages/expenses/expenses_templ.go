@@ -10,9 +10,9 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
@@ -85,7 +85,7 @@ func ExpensesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(expense.Category.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expenses/expenses.templ`, Line: 32, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expenses/expenses.templ`, Line: 32, Col: 28}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -116,7 +116,7 @@ func ExpensesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(expense.AmountWithCurrency)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expenses/expenses.templ`, Line: 35, Col: 33}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expenses/expenses.templ`, Line: 35, Col: 33}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -151,7 +151,7 @@ func ExpensesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", expense.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expenses/expenses.templ`, Line: 39, Col: 67}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expenses/expenses.templ`, Line: 39, Col: 67}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -264,7 +264,7 @@ func ExpensesContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.Expenses"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expenses/expenses.templ`, Line: 55, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expenses/expenses.templ`, Line: 55, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -351,7 +351,7 @@ func ExpensesContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Expenses.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/expenses/expenses.templ`, Line: 94, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expenses/expenses.templ`, Line: 94, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {

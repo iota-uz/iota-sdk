@@ -5,15 +5,13 @@ package products
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"github.com/a-h/templ"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-)
+import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/selects"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/selects"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
@@ -92,7 +90,7 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(status.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/products/shared.templ`, Line: 51, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/products/shared.templ`, Line: 51, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -105,7 +103,7 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/products/shared.templ`, Line: 52, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/products/shared.templ`, Line: 52, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -123,7 +121,7 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(status.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/products/shared.templ`, Line: 55, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/products/shared.templ`, Line: 55, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -136,7 +134,7 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/warehouse/templates/pages/products/shared.templ`, Line: 56, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/templates/pages/products/shared.templ`, Line: 56, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {

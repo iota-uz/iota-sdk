@@ -10,9 +10,9 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
@@ -89,7 +89,7 @@ func PaymentsTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", payment.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/payments/payments.templ`, Line: 32, Col: 67}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/payments.templ`, Line: 32, Col: 67}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -206,7 +206,7 @@ func PaymentsContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.Payments"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/payments/payments.templ`, Line: 53, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/payments.templ`, Line: 53, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -293,7 +293,7 @@ func PaymentsContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Payments.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/modules/finance/templates/pages/payments/payments.templ`, Line: 93, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/payments.templ`, Line: 93, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
