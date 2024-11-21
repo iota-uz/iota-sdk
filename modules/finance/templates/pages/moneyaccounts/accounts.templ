@@ -44,7 +44,7 @@ templ AccountsTable(props *IndexPageProps) {
 						Fixed: true,
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
-						Href:  account.EditURL,
+						Href:  fmt.Sprintf("/finance/accounts/%s", account.ID),
 					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}

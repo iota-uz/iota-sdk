@@ -1,12 +1,12 @@
 package controllers
 
 import (
-	"fmt"
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expenses"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
@@ -53,13 +53,7 @@ func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.Mo
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
 	}
-	viewAccounts := make([]*viewmodels.MoneyAccount, len(accounts))
-	for i, account := range accounts {
-		viewAccounts[i] = mappers.MoneyAccountToViewModel(
-			account, fmt.Sprintf("%s/%d", c.basePath, account.ID),
-		)
-	}
-	return viewAccounts, nil
+	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
 }
 
 func (c *ExpenseController) viewModelExpenses(r *http.Request) ([]*viewmodels.Expense, error) {
@@ -68,11 +62,7 @@ func (c *ExpenseController) viewModelExpenses(r *http.Request) ([]*viewmodels.Ex
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
-	viewExpenses := make([]*viewmodels.Expense, len(expenseEntities))
-	for i, entity := range expenseEntities {
-		viewExpenses[i] = mappers.ExpenseToViewModel(entity)
-	}
-	return viewExpenses, nil
+	return mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel), nil
 }
 
 func (c *ExpenseController) viewModelCategories(r *http.Request) ([]*viewmodels.ExpenseCategory, error) {
@@ -80,11 +70,7 @@ func (c *ExpenseController) viewModelCategories(r *http.Request) ([]*viewmodels.
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving categories")
 	}
-	viewCategories := make([]*viewmodels.ExpenseCategory, len(categories))
-	for i, category := range categories {
-		viewCategories[i] = mappers.ExpenseCategoryToViewModel(category)
-	}
-	return viewCategories, nil
+	return mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel), nil
 }
 
 func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
