@@ -8,11 +8,12 @@ import (
 )
 
 type UploadInputProps struct {
-	ID        string
-	Upload    *viewmodels.Upload
-	Errors    map[string]string
-	Name      string
-	Form      string
+	ID     string
+	Upload *viewmodels.Upload
+	Errors map[string]string
+	Name   string
+	Form   string
+	Class  string
 }
 
 func newUploadInput(props *UploadInputProps) *UploadInputProps {
@@ -34,7 +35,7 @@ templ UploadPreview(p *UploadInputProps) {
 }
 
 templ (p *UploadInputProps) render() {
-	<div class="border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center">
+	<div class={"border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center", p.Class}>
 		<div class="flex flex-col items-center" hx-include="this">
 			<input
 				id={ p.ID }
