@@ -53,9 +53,9 @@ func copyFile(file fs.File, dest, filename string) error {
 	return nil
 }
 
-// CollectStatic collects all static files from the registry and writes them to the destination directory.
-func CollectStatic(assets []*embed.FS, dest string) error {
-	for _, embedFs := range assets {
+// Collect collects all static files from the registry and writes them to the destination directory.
+func Collect(embeddedFiles []*embed.FS, dest string) error {
+	for _, embedFs := range embeddedFiles {
 		filenames, err := getAllFilenames(embedFs, "")
 		if err != nil {
 			return err
