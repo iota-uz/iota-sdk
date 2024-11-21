@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules/upload/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/modules/upload/mappers"
 	"github.com/iota-agency/iota-sdk/modules/upload/services"
 	"github.com/iota-agency/iota-sdk/modules/upload/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/application"
@@ -74,7 +75,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		templ.Handler(components.UploadPreview(&components.UploadInputProps{ID: id, UploadURL: "", Errors: errorsMap, Form: formName, Name: name}), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(components.UploadPreview(&components.UploadInputProps{ID: id, Upload: nil, Errors: errorsMap, Form: formName, Name: name}), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
@@ -84,5 +85,5 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templ.Handler(components.UploadPreview(&components.UploadInputProps{ID: id, UploadURL: upload.URL, Form: formName, Name: name}), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(components.UploadPreview(&components.UploadInputProps{ID: id, Upload: mappers.UploadToViewModel(upload), Form: formName, Name: name}), templ.WithStreaming()).ServeHTTP(w, r)
 }
