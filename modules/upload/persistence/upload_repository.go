@@ -7,8 +7,8 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 
-	"github.com/iota-agency/iota-sdk/pkg/modules/upload/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/modules/upload/persistence/models"
+	"github.com/iota-agency/iota-sdk/modules/upload/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/modules/upload/persistence/models"
 )
 
 type GormUploadRepository struct{}

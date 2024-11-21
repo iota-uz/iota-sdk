@@ -3,6 +3,7 @@ package warehouse
 import (
 	"context"
 	"embed"
+
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
 	controllers2 "github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
