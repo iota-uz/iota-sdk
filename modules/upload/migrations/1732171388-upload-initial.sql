@@ -1,5 +1,6 @@
 -- +migrate Up
 BEGIN;
+DROP TABLE IF EXISTS uploads CASCADE;
 CREATE TABLE IF NOT EXISTS uploads
 (
     id          VARCHAR(255) PRIMARY KEY,

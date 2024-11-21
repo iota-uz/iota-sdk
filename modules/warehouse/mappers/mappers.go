@@ -1,8 +1,8 @@
 package mappers
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	viewmodels2 "github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"strconv"
@@ -31,6 +31,7 @@ func PositionToViewModel(entity *position.Position) *viewmodels2.Position {
 		Title:     entity.Title,
 		Barcode:   entity.Barcode,
 		UnitID:    strconv.FormatUint(uint64(entity.UnitID), 10),
+		Unit:      *UnitToViewModel(&entity.Unit),
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
 	}

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	seed2 "github.com/iota-agency/iota-sdk/internal/seed"
+	"github.com/iota-agency/iota-sdk/internal/seed"
 	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -21,8 +21,9 @@ func main() {
 	}
 
 	seedFuncs := []shared.SeedFunc{
-		seed2.CreatePermissions,
-		seed2.CreateCurrencies,
+		seed.CreatePermissions,
+		seed.CreateCurrencies,
+		seed.CreateUser,
 	}
 	registry := modules.Load()
 	for _, module := range registry.Modules() {

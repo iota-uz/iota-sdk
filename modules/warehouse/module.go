@@ -4,12 +4,12 @@ import (
 	"context"
 	"embed"
 
-	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
-	controllers2 "github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
-	persistence2 "github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
-	services2 "github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/templates"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
@@ -32,9 +32,9 @@ type Module struct {
 }
 
 func (m *Module) Register(app *application.Application) error {
-	unitService := services2.NewUnitService(persistence2.NewUnitRepository(), app.EventPublisher)
-	positionService := services2.NewPositionService(persistence2.NewPositionRepository(), app.EventPublisher)
-	productService := services2.NewProductService(persistence2.NewProductRepository(), app.EventPublisher, positionService)
+	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher)
+	positionService := services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher)
+	productService := services.NewProductService(persistence.NewProductRepository(), app.EventPublisher, positionService)
 	app.RegisterService(unitService)
 	app.RegisterService(positionService)
 	app.RegisterService(productService)
@@ -63,8 +63,12 @@ func (m *Module) MigrationDirs() *embed.FS {
 	return &migrationFiles
 }
 
-func (m *Module) Assets() *hashfs.FS {
-	return assets.FS
+func (m *Module) Assets() *embed.FS {
+	return &assets.FS
+}
+
+func (m *Module) Templates() *embed.FS {
+	return &templates.FS
 }
 
 func (m *Module) Seed(ctx context.Context, app *application.Application) error {
@@ -117,9 +121,9 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 
 func (m *Module) Controllers() []shared.ControllerConstructor {
 	return []shared.ControllerConstructor{
-		controllers2.NewProductsController,
-		controllers2.NewPositionsController,
-		controllers2.NewUnitsController,
+		controllers.NewProductsController,
+		controllers.NewPositionsController,
+		controllers.NewUnitsController,
 	}
 }
 

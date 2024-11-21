@@ -2,29 +2,38 @@ package persistence
 
 import (
 	"context"
-	position2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/service"
+	"gorm.io/gorm"
 )
 
 type GormPositionRepository struct{}
 
-func NewPositionRepository() position2.Repository {
+func NewPositionRepository() position.Repository {
 	return &GormPositionRepository{}
 }
 
-func (g *GormPositionRepository) GetPaginated(
-	ctx context.Context, params *position2.FindParams,
-) ([]*position2.Position, error) {
+func (g *GormPositionRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
+	return tx.Preload("Unit"), nil
+}
+
+func (g *GormPositionRepository) GetPaginated(
+	ctx context.Context, params *position.FindParams,
+) ([]*position.Position, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := tx.Limit(params.Limit).Offset(params.Offset)
-	q, err := helpers.ApplySort(q, params.SortBy)
+	q, err = helpers.ApplySort(q, params.SortBy)
 	if err != nil {
 		return nil, err
 	}
@@ -50,10 +59,10 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position2.Position, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, service.ErrNoTx
+func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Position, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var entities []*models.WarehousePosition
 	if err := tx.Find(&entities).Error; err != nil {
@@ -62,7 +71,7 @@ func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position2.Posit
 	return mapping.MapDbModels(entities, toDomainPosition)
 }
 
-func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position2.Position, error) {
+func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -74,7 +83,7 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 	return toDomainPosition(&entity)
 }
 
-func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position2.Position) error {
+func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -82,7 +91,7 @@ func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *posit
 	return tx.Save(toDBPosition(data)).Error
 }
 
-func (g *GormPositionRepository) Create(ctx context.Context, data *position2.Position) error {
+func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -93,7 +102,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position2.Pos
 	return nil
 }
 
-func (g *GormPositionRepository) Update(ctx context.Context, data *position2.Position) error {
+func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

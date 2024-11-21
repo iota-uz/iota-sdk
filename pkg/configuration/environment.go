@@ -2,12 +2,13 @@ package configuration
 
 import (
 	"fmt"
-	"github.com/caarlos0/env/v11"
-	"github.com/iota-agency/iota-sdk/pkg/utils/fs"
-	"github.com/joho/godotenv"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/caarlos0/env/v11"
+	"github.com/iota-agency/iota-sdk/pkg/utils/fs"
+	"github.com/joho/godotenv"
 )
 
 var singleton *Configuration
@@ -49,8 +50,9 @@ type Configuration struct {
 	GoAppEnvironment   string        `env:"GO_APP_ENV" envDefault:"development"`
 	SocketAddress      string        `env:"-"`
 	OpenAIKey          string        `env:"OPENAI_KEY"`
-	UploadsPath        string        `env:"UPLOADS_PATH" envDefault:"uploads"`
+	UploadsPath        string        `env:"UPLOADS_PATH" envDefault:"static"`
 	Domain             string        `env:"DOMAIN" envDefault:"localhost"`
+	Origin             string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize           int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize        int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
 	// Session ID cookie key

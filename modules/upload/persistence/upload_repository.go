@@ -88,10 +88,6 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id string) (*upload.
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}
-	var uploads []*models.Upload
-	if err := tx.Where("order_id = ?", entity.ID).Find(&uploads).Error; err != nil {
-		return nil, err
-	}
 	u, err := toDomainUpload(&entity)
 	if err != nil {
 		return nil, err

@@ -3,13 +3,15 @@ package modules
 import (
 	"embed"
 	"encoding/json"
+	"slices"
+
 	"github.com/iota-agency/iota-sdk/modules/finance"
+	"github.com/iota-agency/iota-sdk/modules/upload"
 	"github.com/iota-agency/iota-sdk/modules/warehouse"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
-	"slices"
 )
 
 //go:embed locales/*.json
@@ -19,6 +21,7 @@ var (
 	AllModules = []shared.Module{
 		finance.NewModule(),
 		warehouse.NewModule(),
+		upload.NewModule(),
 	}
 )
 
@@ -31,6 +34,7 @@ func Load() *ModuleRegistry {
 	registry := &ModuleRegistry{}
 	for _, module := range AllModules {
 		if slices.Contains(jsonConf.Modules, module.Name()) {
+			// TODO: verbose logging
 			registry.RegisterModules(module)
 		}
 	}

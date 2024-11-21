@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 
-	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/modules/upload/controllers"
 	"github.com/iota-agency/iota-sdk/modules/upload/permissions"
 	"github.com/iota-agency/iota-sdk/modules/upload/persistence"
@@ -18,18 +17,14 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-type Module struct {
-	baseFilePath string
-}
+type Module struct{}
 
-func NewModule(baseFilePath string) shared.Module {
-	return &Module{
-		baseFilePath: baseFilePath,
-	}
+func NewModule() shared.Module {
+	return &Module{}
 }
 
 func (m *Module) Register(app *application.Application) error {
-	fsStorage, err := persistence.NewFSStorage(m.baseFilePath)
+	fsStorage, err := persistence.NewFSStorage()
 	if err != nil {
 		return err
 	}
@@ -49,7 +44,11 @@ func (m *Module) MigrationDirs() *embed.FS {
 	return &migrationFiles
 }
 
-func (m *Module) Assets() *hashfs.FS {
+func (m *Module) Templates() *embed.FS {
+	return nil
+}
+
+func (m *Module) Assets() *embed.FS {
 	return nil
 	// return assets.FS
 }

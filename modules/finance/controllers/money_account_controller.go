@@ -5,6 +5,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/moneyaccounts"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
@@ -50,11 +51,7 @@ func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmo
 	if err != nil {
 		return nil, err
 	}
-	viewCurrencies := make([]*viewmodels.Currency, 0, len(currencies))
-	for _, currency := range currencies {
-		viewCurrencies = append(viewCurrencies, mappers.CurrencyToViewModel(currency))
-	}
-	return viewCurrencies, nil
+	return mapping.MapViewModels(currencies, mappers.CurrencyToViewModel), nil
 }
 
 func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
@@ -72,14 +69,10 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errors.Wrap(err, "Error retrieving moneyaccounts").Error(), http.StatusInternalServerError)
 		return
 	}
-	viewAccounts := make([]*viewmodels.MoneyAccount, len(accountEntities))
-	for i, entity := range accountEntities {
-		viewAccounts[i] = mappers.MoneyAccountToViewModel(entity, fmt.Sprintf("%s/%d", c.basePath, entity.ID))
-	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &moneyaccounts.IndexPageProps{
 		PageContext: pageCtx,
-		Accounts:    viewAccounts,
+		Accounts:    mapping.MapViewModels(accountEntities, mappers.MoneyAccountToViewModel),
 	}
 	if isHxRequest {
 		templ.Handler(moneyaccounts.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -217,7 +210,7 @@ func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) 
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}, ""), //nolint:exhaustruct
+		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}), //nolint:exhaustruct
 		PostPath:    c.basePath,
 	}
 	templ.Handler(moneyaccounts.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -256,7 +249,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 			PageContext: pageCtx,
 			Currencies:  currencies,
 			Errors:      errorsMap,
-			Account:     mappers.MoneyAccountToViewModel(entity, ""),
+			Account:     mappers.MoneyAccountToViewModel(entity),
 			PostPath:    c.basePath,
 		}
 		templ.Handler(moneyaccounts.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)

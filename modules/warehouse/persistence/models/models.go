@@ -44,6 +44,7 @@ type WarehousePosition struct {
 	Title     string
 	Barcode   string
 	UnitID    uint
+	Unit      *WarehouseUnit
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
