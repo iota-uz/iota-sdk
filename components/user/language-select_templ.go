@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/pkg/intl"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
 )
 
 type LanguageSelectProps struct {
@@ -63,7 +63,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(lang.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/components/user/language-select.templ`, Line: 25, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 25, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -76,7 +76,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(lang.VerboseName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/components/user/language-select.templ`, Line: 26, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 26, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -94,7 +94,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(lang.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/components/user/language-select.templ`, Line: 29, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 29, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -107,7 +107,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(lang.VerboseName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/presentation/templates/components/user/language-select.templ`, Line: 30, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 30, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {

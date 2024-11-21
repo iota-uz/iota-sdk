@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	product2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
 	services2 "github.com/iota-agency/iota-sdk/modules/warehouse/services"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
