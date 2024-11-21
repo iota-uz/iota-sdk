@@ -7,3 +7,5 @@ tmp/
 .env.local
 coverage
 node_modules
+static
+uploads

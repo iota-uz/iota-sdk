@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/payments"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
@@ -88,11 +89,7 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
 	}
-	vms := make([]*viewmodels.MoneyAccount, len(accounts))
-	for i, a := range accounts {
-		vms[i] = mappers.MoneyAccountToViewModel(a, "")
-	}
-	return vms, nil
+	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
 }
 
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {

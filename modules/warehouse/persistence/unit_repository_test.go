@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
+func TestGormUnitRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	ctx := testutils.GetTestContext()
 	defer ctx.Tx.Commit()
 	unitRepository := persistence.NewUnitRepository()

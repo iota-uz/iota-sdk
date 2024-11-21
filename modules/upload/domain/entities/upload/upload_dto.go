@@ -4,10 +4,13 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"io"
+	"net/http"
+	"path/filepath"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 )
 
@@ -15,7 +18,7 @@ type CreateDTO struct {
 	File io.ReadSeeker `validate:"required"`
 	Name string        `validate:"required"`
 	Size int           `validate:"required"`
-	Type string        `validate:"required"`
+	Type string
 }
 
 type UpdateDTO struct {
@@ -48,6 +51,7 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
+	conf := configuration.Use()
 	bytes, err := io.ReadAll(d.File)
 	if err != nil {
 		return nil, nil, nil
@@ -58,9 +62,10 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 		ID:        hash,
 		Name:      d.Name,
 		Size:      d.Size,
-		Type:      d.Type,
+		Type:      http.DetectContentType(bytes),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
+		URL:       conf.Origin + filepath.Join("/", conf.UploadsPath, hash),
 	}, bytes, nil
 }
 

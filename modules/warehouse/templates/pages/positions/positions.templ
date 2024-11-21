@@ -2,10 +2,10 @@ package positions
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/modules/warehouse/viewmodels"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/button"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -20,7 +20,8 @@ templ PositionsTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: "WarehousePositions.List.Position", Key: "title"},
-			{Label: "WarehousePositions.List.Barcode", Key: "status"},
+			{Label: "WarehousePositions.List.Barcode", Key: "barcode"},
+			{Label: "WarehousePositions.List.Unit", Key: "unit"},
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
@@ -33,6 +34,9 @@ templ PositionsTable(props *IndexPageProps) {
 				}
 				@base.TableCell() {
 					{ position.Barcode }
+				}
+				@base.TableCell() {
+					{ position.Unit.Title }
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">

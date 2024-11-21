@@ -4,25 +4,28 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+
+	"github.com/iota-agency/iota-sdk/pkg/configuration"
 )
 
-type FSStorage struct {
-	basePath string
-}
+type FSStorage struct{}
 
-func NewFSStorage(basePath string) (*FSStorage, error) {
+func NewFSStorage() (*FSStorage, error) {
+	conf := configuration.Use()
 	workDir, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	fullPath := filepath.Join(workDir, basePath)
-	return &FSStorage{
-		basePath: fullPath,
-	}, nil
+	fullPath := filepath.Join(workDir, conf.UploadsPath)
+	if err := os.MkdirAll(fullPath, 0777); err != nil {
+		return nil, err
+	}
+	return &FSStorage{}, nil
 }
 
 func (s *FSStorage) Save(ctx context.Context, fileName string, bytes []byte) error {
-	if err := os.WriteFile(filepath.Join(s.basePath, fileName), bytes, os.ModeAppend); err != nil {
+	conf := configuration.Use()
+	if err := os.WriteFile(filepath.Join(conf.UploadsPath, fileName), bytes, 0644); err != nil {
 		return err
 	}
 	return nil

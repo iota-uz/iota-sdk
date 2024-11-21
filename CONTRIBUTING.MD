@@ -53,7 +53,7 @@ Before starting, ensure the following tools are installed on your system:
 
 8. **Compile TailwindCSS**:
    ```bash
-   tailwindcss -c tailwind.config.js -i internal/presentation/assets/css/main.css -o internal/presentation/assets/css/main.min.css --minify --watch
+   tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css -o pkg/presentation/assets/css/main.min.css --minify --watch
    ```
 
 9. **Access the GraphQL Schema**:  
@@ -167,7 +167,7 @@ project-root/
 
 ## Types
 
-Use `int64` for `count` && `ID` fields
+Use `uint` for `Primary/Foreign Key` fields
 
 ```go
 package models

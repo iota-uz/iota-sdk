@@ -2,8 +2,8 @@ package persistence
 
 import (
 	"errors"
-	product2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/order"
@@ -93,7 +93,7 @@ func toDomainOrder(
 	}, nil
 }
 
-func toDBProduct(entity *product2.Product) *models.WarehouseProduct {
+func toDBProduct(entity *product.Product) *models.WarehouseProduct {
 	return &models.WarehouseProduct{
 		ID:         entity.ID,
 		PositionID: entity.PositionID,
@@ -104,8 +104,8 @@ func toDBProduct(entity *product2.Product) *models.WarehouseProduct {
 	}
 }
 
-func toDomainProduct(dbProduct *models.WarehouseProduct) (*product2.Product, error) {
-	status, err := product2.NewStatus(dbProduct.Status)
+func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, error) {
+	status, err := product.NewStatus(dbProduct.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func toDomainProduct(dbProduct *models.WarehouseProduct) (*product2.Product, err
 	if err != nil {
 		return nil, err
 	}
-	return &product2.Product{
+	return &product.Product{
 		ID:         dbProduct.ID,
 		PositionID: dbProduct.PositionID,
 		Rfid:       dbProduct.Rfid,
@@ -125,11 +125,16 @@ func toDomainProduct(dbProduct *models.WarehouseProduct) (*product2.Product, err
 }
 
 func toDomainPosition(dbPosition *models.WarehousePosition) (*position.Position, error) {
+	u := unit.Unit{}
+	if dbPosition.Unit != nil {
+		u = *toDomainUnit(dbPosition.Unit)
+	}
 	return &position.Position{
 		ID:        dbPosition.ID,
 		Title:     dbPosition.Title,
 		Barcode:   dbPosition.Barcode,
 		UnitID:    dbPosition.UnitID,
+		Unit:      u,
 		CreatedAt: dbPosition.CreatedAt,
 		UpdatedAt: dbPosition.UpdatedAt,
 	}, nil

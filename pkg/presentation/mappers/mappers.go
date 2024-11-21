@@ -17,7 +17,6 @@ import (
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
-	fmt.Println("Entity:", entity)
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		FirstName:  entity.FirstName,
@@ -42,7 +41,7 @@ func ExpenseCategoryToViewModel(entity *category.ExpenseCategory) *viewmodels.Ex
 	}
 }
 
-func MoneyAccountToViewModel(entity *moneyaccount.Account, editURL string) *viewmodels.MoneyAccount {
+func MoneyAccountToViewModel(entity *moneyaccount.Account) *viewmodels.MoneyAccount {
 	return &viewmodels.MoneyAccount{
 		ID:                  strconv.FormatUint(uint64(entity.ID), 10),
 		Name:                entity.Name,
@@ -54,7 +53,6 @@ func MoneyAccountToViewModel(entity *moneyaccount.Account, editURL string) *view
 		Description:         entity.Description,
 		UpdatedAt:           entity.UpdatedAt.Format(time.RFC3339),
 		CreatedAt:           entity.CreatedAt.Format(time.RFC3339),
-		EditURL:             editURL,
 	}
 }
 

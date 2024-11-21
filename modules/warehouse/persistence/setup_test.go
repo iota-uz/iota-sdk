@@ -6,7 +6,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if err := os.Chdir("../../../../"); err != nil {
+	if err := os.Chdir("../../../"); err != nil {
 		panic(err)
 	}
 	os.Exit(m.Run())

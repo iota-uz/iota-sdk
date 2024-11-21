@@ -1,3 +1,4 @@
+// Package mapper is deprecated
 package mapper
 
 import (

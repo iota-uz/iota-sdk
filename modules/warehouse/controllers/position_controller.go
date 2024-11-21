@@ -5,7 +5,8 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	position2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/components/base/selects"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
 	services2 "github.com/iota-agency/iota-sdk/modules/warehouse/services"
 	positions2 "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/positions"
@@ -13,7 +14,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components/base/selects"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -49,7 +49,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 
 func (c *PositionsController) viewModelPositions(r *http.Request) ([]*viewmodels2.Position, error) {
 	params := composables.UsePaginated(r)
-	entities, err := c.positionService.GetPaginated(r.Context(), &position2.FindParams{
+	entities, err := c.positionService.GetPaginated(r.Context(), &position.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: []string{"created_at desc"},
@@ -139,7 +139,7 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Search term is required", http.StatusBadRequest)
 		return
 	}
-	entities, err := c.positionService.GetPaginated(r.Context(), &position2.FindParams{
+	entities, err := c.positionService.GetPaginated(r.Context(), &position.FindParams{
 		Search: search,
 		Limit:  10,
 	})
@@ -154,7 +154,7 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &selects.SearchOptionsProps{
 		PageContext: pageCtx,
-		Options: mapping.MapViewModels(entities, func(pos *position2.Position) *selects.Value {
+		Options: mapping.MapViewModels(entities, func(pos *position.Position) *selects.Value {
 			return &selects.Value{
 				Value: fmt.Sprintf("%d", pos.ID),
 				Label: pos.Title,
@@ -185,7 +185,7 @@ func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := position2.UpdateDTO{} //nolint:exhaustruct
+		dto := position.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
 		if err != nil {
@@ -240,7 +240,7 @@ func (c *PositionsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &positions2.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Position:    mappers.PositionToViewModel(&position2.Position{}), //nolint:exhaustruct
+		Position:    mappers.PositionToViewModel(&position.Position{}), //nolint:exhaustruct
 		SaveURL:     c.basePath,
 		Units:       unitViewModels,
 	}
@@ -253,7 +253,7 @@ func (c *PositionsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := position2.CreateDTO{} //nolint:exhaustruct
+	dto := position.CreateDTO{} //nolint:exhaustruct
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

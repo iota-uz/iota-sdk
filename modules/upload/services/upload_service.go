@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/iota-agency/iota-sdk/modules/upload/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/modules/upload/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
+	"gorm.io/gorm"
 )
 
 type UploadService struct {
@@ -41,26 +43,34 @@ func (s *UploadService) GetAll(ctx context.Context) ([]*upload.Upload, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) error {
+func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*upload.Upload, error) {
 	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
-		return err
+		return nil, err
 	}
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
-		return err
+		return nil, err
 	}
+	up, err := s.GetByID(ctx, entity.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if up != nil {
+		return up, nil
+	}
+
 	if err := s.storage.Save(ctx, entity.ID, bytes); err != nil {
-		return err
+		return entity, err
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {
-		return err
+		return entity, err
 	}
 	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
-		return err
+		return entity, err
 	}
 	s.publisher.Publish(createdEvent)
-	return nil
+	return entity, nil
 }
 
 func (s *UploadService) Update(ctx context.Context, id string, data *upload.UpdateDTO) error {

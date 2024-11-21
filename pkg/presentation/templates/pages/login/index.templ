@@ -1,0 +1,50 @@
+package login
+
+import (
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+templ Index(pageCtx *types.PageContext) {
+	@layouts.Base(pageCtx) {
+		<div class="grid grid-cols-2 h-screen">
+			<div class="flex flex-col gap-16 justify-center items-center text-left">
+				<h1 class="text-2xl text-gray-950">
+					{ pageCtx.T("Login.Meta.Title") }
+				</h1>
+				<form class="flex flex-col gap-7 w-2/3" action="/login" method="post">
+					@input.Email(&input.Props{
+						Label: pageCtx.T("Login.Email"),
+						Attrs: templ.Attributes{
+							"name": "email",
+						},
+					})
+					@input.Password(&input.Props{
+						Label: pageCtx.T("Login.Password"),
+						Attrs: templ.Attributes{
+							"name": "password",
+						},
+					})
+					@button.Primary(button.Props{
+						Size:  button.SizeMD,
+						Class: "justify-center",
+						Attrs: templ.Attributes{
+							"type": "submit",
+						},
+					}) {
+						{ pageCtx.T("Login.Login") }
+					}
+				</form>
+			</div>
+			<div class="bg-primary-700">
+				<img
+					src="/assets/images/login.webp"
+					alt="login"
+					class="w-full h-full object-cover"
+				/>
+			</div>
+		</div>
+	}
+}

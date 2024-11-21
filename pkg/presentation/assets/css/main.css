@@ -121,6 +121,7 @@
     --clr-primary-outline-btn-text-hover: var(--primary-500);
     --clr-primary-outline-btn-border: var(--primary-500);
     --clr-primary-outline-btn-border-hover: var(--primary-500);
+    --clr-primary-outline-btn-bg-hover: var(--primary-500) / 5%;
 
     /* Sidebar btn */
     --clr-sidebar-btn-bg: var(--transparent);
@@ -400,6 +401,7 @@
     --border-color: var(--clr-primary-outline-btn-border);
     --text-hover: var(--clr-primary-outline-btn-text-hover);
     --border-hover: var(--clr-primary-outline-btn-border-hover);
+    --bg-hover: var(--clr-primary-outline-btn-bg-hover);
   }
 
   .btn-sidebar {
@@ -421,6 +423,11 @@
   .btn-sm {
     --size-x: 0.75rem;
     --size-y: calc(0.75rem - 3.5px);
+  }
+
+  .btn-xs {
+    --size-x: 0.25rem;
+    --size-y: 0.1rem;
   }
 
   .btn-fixed {

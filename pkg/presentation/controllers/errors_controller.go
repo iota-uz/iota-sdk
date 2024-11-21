@@ -1,11 +1,12 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/error_pages"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 )
 
 func NotFound() http.HandlerFunc {
