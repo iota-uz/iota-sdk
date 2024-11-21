@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	mainCss = "/assets/" + assets.FS.HashName("css/main.min.css")
-	favicon = "/assets/" + assets.FS.HashName("images/favicon.ico")
-	alpine  = "/assets/" + assets.FS.HashName("js/alpine.js")
-	htmx    = "/assets/" + assets.FS.HashName("js/htmx.min.js")
+	mainCss = "/assets/" + assets.HashFS.HashName("css/main.min.css")
+	favicon = "/assets/" + assets.HashFS.HashName("images/favicon.ico")
+	alpine  = "/assets/" + assets.HashFS.HashName("js/alpine.js")
+	htmx    = "/assets/" + assets.HashFS.HashName("js/htmx.min.js")
 )
 
 func Base(pageCtx *types.PageContext) templ.Component {

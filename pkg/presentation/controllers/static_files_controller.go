@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"embed"
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/pkg/multifs"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
@@ -10,15 +11,19 @@ import (
 )
 
 type StaticFilesController struct {
-	fsInstances []*hashfs.FS
+	fsInstances []*embed.FS
 }
 
 func (s *StaticFilesController) Register(r *mux.Router) {
-	handler := http.StripPrefix("/assets/", http.FileServer(multifs.New(s.fsInstances...)))
+	fsInstances := make([]*hashfs.FS, len(s.fsInstances))
+	for i, fs := range s.fsInstances {
+		fsInstances[i] = hashfs.NewFS(fs)
+	}
+	handler := http.StripPrefix("/assets/", http.FileServer(multifs.New(fsInstances...)))
 	r.PathPrefix("/assets/").Handler(handler)
 }
 
-func NewStaticFilesController(fsInstances []*hashfs.FS) shared.Controller {
+func NewStaticFilesController(fsInstances []*embed.FS) shared.Controller {
 	return &StaticFilesController{
 		fsInstances: fsInstances,
 	}

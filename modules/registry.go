@@ -2,7 +2,6 @@ package modules
 
 import (
 	"embed"
-	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
@@ -11,7 +10,7 @@ type ModuleRegistry struct {
 	modules         []shared.Module
 	controllers     []shared.ControllerConstructor
 	navigationItems []types.NavigationItem
-	assets          []*hashfs.FS
+	assets          []*embed.FS
 	localeFiles     []*embed.FS
 	migrationDirs   []*embed.FS
 }
@@ -47,7 +46,7 @@ func (m *ModuleRegistry) NavigationItems() []types.NavigationItem {
 	return m.navigationItems
 }
 
-func (m *ModuleRegistry) Assets() []*hashfs.FS {
+func (m *ModuleRegistry) Assets() []*embed.FS {
 	return m.assets
 }
 

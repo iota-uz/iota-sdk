@@ -3,7 +3,6 @@ package finance
 import (
 	"context"
 	"embed"
-	"github.com/benbjohnson/hashfs"
 	"github.com/iota-agency/iota-sdk/modules/finance/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
@@ -34,7 +33,7 @@ func (m *Module) MigrationDirs() *embed.FS {
 	return nil
 }
 
-func (m *Module) Assets() *hashfs.FS {
+func (m *Module) Assets() *embed.FS {
 	return nil
 }
 
