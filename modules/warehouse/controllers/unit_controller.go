@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
 	units2 "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/units"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"net/http"
@@ -49,11 +50,7 @@ func (c *UnitsController) viewModelUnits(r *http.Request) ([]*viewmodels.Unit, e
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving units")
 	}
-	viewUnits := make([]*viewmodels.Unit, len(entities))
-	for i, u := range entities {
-		viewUnits[i] = mappers.UnitToViewModel(u)
-	}
-	return viewUnits, nil
+	return mapping.MapViewModels(entities, mappers.UnitToViewModel), nil
 }
 
 func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
