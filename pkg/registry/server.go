@@ -1,7 +1,7 @@
 package registry
 
 import (
-	"github.com/benbjohnson/hashfs"
+	"embed"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules"
@@ -29,7 +29,7 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 	registry := modules.Load()
 	app := ConstructApp(db)
 
-	assetsFs := append([]*hashfs.FS{assets.FS}, registry.Assets()...)
+	assetsFs := append([]*embed.FS{&assets.FS}, registry.Assets()...)
 	controllerInstances := []shared.Controller{
 		controllers.NewLoginController(app),
 		controllers.NewAccountController(app),

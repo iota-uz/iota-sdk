@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	iotaLogo = "/assets/" + assets.FS.HashName("images/iota-1c.webp")
+	iotaLogo = "/assets/" + assets.HashFS.HashName("images/iota-1c.webp")
 
 	navbarOnce = templ.NewOnceHandle()
 )
