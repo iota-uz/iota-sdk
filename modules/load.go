@@ -31,6 +31,7 @@ func Load() *ModuleRegistry {
 	registry := &ModuleRegistry{}
 	for _, module := range AllModules {
 		if slices.Contains(jsonConf.Modules, module.Name()) {
+			// TODO: verbose logging
 			registry.RegisterModules(module)
 		}
 	}

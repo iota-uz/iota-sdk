@@ -8,6 +8,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/templates"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
@@ -63,6 +64,10 @@ func (m *Module) MigrationDirs() *embed.FS {
 
 func (m *Module) Assets() *embed.FS {
 	return &assets.FS
+}
+
+func (m *Module) Templates() *embed.FS {
+	return &templates.FS
 }
 
 func (m *Module) Seed(ctx context.Context, app *application.Application) error {

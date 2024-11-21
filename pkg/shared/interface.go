@@ -23,6 +23,7 @@ type Module interface {
 	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 	Controllers() []ControllerConstructor
 	Assets() *embed.FS
+	Templates() *embed.FS
 	MigrationDirs() *embed.FS
 	LocaleFiles() *embed.FS
 }

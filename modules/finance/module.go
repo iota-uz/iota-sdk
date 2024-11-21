@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"github.com/iota-agency/iota-sdk/modules/finance/controllers"
+	"github.com/iota-agency/iota-sdk/modules/finance/templates"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
@@ -35,6 +36,10 @@ func (m *Module) MigrationDirs() *embed.FS {
 
 func (m *Module) Assets() *embed.FS {
 	return nil
+}
+
+func (m *Module) Templates() *embed.FS {
+	return &templates.FS
 }
 
 func (m *Module) Seed(ctx context.Context, app *application.Application) error {
