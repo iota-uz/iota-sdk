@@ -205,7 +205,7 @@ func AccountsTable(props *IndexPageProps) templ.Component {
 							Fixed: true,
 							Size:  button.SizeSM,
 							Class: "btn-fixed",
-							Href:  account.EditURL,
+							Href:  fmt.Sprintf("/finance/accounts/%s", account.ID),
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
