@@ -28,28 +28,43 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	app.RegisterTemplates(&templates.FS)
+
+	moneyAccountService := services.NewMoneyAccountService(
+		persistence.NewMoneyAccountRepository(),
+		app.EventPublisher(),
+	)
+	app.RegisterService(
+		services.NewPaymentService(
+			persistence.NewPaymentRepository(),
+			app.EventPublisher(),
+			moneyAccountService,
+		),
+	)
+	app.RegisterService(
+		services.NewCurrencyService(
+			persistence.NewCurrencyRepository(),
+			app.EventPublisher(),
+		),
+	)
+	app.RegisterService(
+		services.NewExpenseCategoryService(
+			persistence.NewExpenseCategoryRepository(),
+			app.EventPublisher(),
+		))
+	app.RegisterService(
+		services.NewExpenseService(
+			persistence.NewExpenseRepository(),
+			app.EventPublisher(),
+			moneyAccountService,
+		))
+	app.RegisterService(moneyAccountService)
+
 	app.RegisterControllers(
 		controllers.NewExpensesController(app),
 		controllers.NewMoneyAccountController(app),
 		controllers.NewExpenseCategoriesController(app),
 		controllers.NewPaymentsController(app),
 	)
-	moneyAccountService := services.NewMoneyAccountService(
-		persistence.NewMoneyAccountRepository(),
-		app.EventPublisher(),
-	)
-	app.RegisterService(services.NewPaymentService(
-		persistence.NewPaymentRepository(), app.EventPublisher(), moneyAccountService,
-	))
-	app.RegisterService(services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()))
-	app.RegisterService(services.NewExpenseCategoryService(
-		persistence.NewExpenseCategoryRepository(),
-		app.EventPublisher(),
-	))
-	app.RegisterService(services.NewExpenseService(
-		persistence.NewExpenseRepository(), app.EventPublisher(), moneyAccountService,
-	))
-	app.RegisterService(moneyAccountService)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterModule(m)
 	return nil
