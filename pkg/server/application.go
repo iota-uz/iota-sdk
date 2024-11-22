@@ -1,6 +1,7 @@
 package server
 
 import (
+	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
@@ -11,7 +12,7 @@ import (
 func ConstructApp(db *gorm.DB) application.Application {
 	eventPublisher := event.NewEventPublisher()
 	app := application.New(db, eventPublisher)
-	moneyAccountService := services.NewMoneyAccountService(
+	moneyAccountService := services2.NewMoneyAccountService(
 		persistence.NewMoneyAccountRepository(),
 		eventPublisher,
 	)
@@ -20,12 +21,12 @@ func ConstructApp(db *gorm.DB) application.Application {
 	app.RegisterService(services.NewSessionService(persistence.NewSessionRepository(), eventPublisher))
 	app.RegisterService(services.NewAuthService(app))
 	app.RegisterService(services.NewRoleService(persistence.NewRoleRepository(), eventPublisher))
-	app.RegisterService(services.NewPaymentService(
+	app.RegisterService(services2.NewPaymentService(
 		persistence.NewPaymentRepository(), eventPublisher, moneyAccountService,
 	))
 	app.RegisterService(services.NewProjectStageService(persistence.NewProjectStageRepository(), eventPublisher))
-	app.RegisterService(services.NewCurrencyService(persistence.NewCurrencyRepository(), eventPublisher))
-	app.RegisterService(services.NewExpenseCategoryService(
+	app.RegisterService(services2.NewCurrencyService(persistence.NewCurrencyRepository(), eventPublisher))
+	app.RegisterService(services2.NewExpenseCategoryService(
 		persistence.NewExpenseCategoryRepository(),
 		eventPublisher,
 	))
@@ -33,7 +34,7 @@ func ConstructApp(db *gorm.DB) application.Application {
 	app.RegisterService(services.NewEmployeeService(persistence.NewEmployeeRepository(), eventPublisher))
 	app.RegisterService(services.NewAuthLogService(persistence.NewAuthLogRepository(), eventPublisher))
 	app.RegisterService(services.NewPromptService(persistence.NewPromptRepository(), eventPublisher))
-	app.RegisterService(services.NewExpenseService(
+	app.RegisterService(services2.NewExpenseService(
 		persistence.NewExpenseRepository(), eventPublisher, moneyAccountService,
 	))
 	app.RegisterService(services.NewProjectService(persistence.NewProjectRepository(), eventPublisher))
