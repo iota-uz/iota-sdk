@@ -2,7 +2,7 @@ package application
 
 import (
 	"bytes"
-	"database/sql"
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -21,8 +21,7 @@ import (
 
 // Application with a dynamically extendable service registry
 type Application interface {
-	DD() *gorm.DB
-	RegisterPermissions(permissions ...permission.Permission)
+	DB() *gorm.DB
 	EventPublisher() event.Publisher
 	Modules() []Module
 	Controllers() []Controller
@@ -31,9 +30,12 @@ type Application interface {
 	Templates() []*embed.FS
 	LocaleFiles() []*embed.FS
 	MigrationDirs() []*embed.FS
+	Seed(ctx context.Context) error
+	Permissions() []permission.Permission
 	RegisterControllers(controllers ...Controller)
-	NavigationItems() []types.NavigationItem
-	RegisterNavigationItems(items ...types.NavigationItem)
+	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
+	RegisterModule(module Module)
+	RegisterPermissions(permissions ...permission.Permission)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterAssets(fs ...*embed.FS)
 	RegisterTemplates(fs ...*embed.FS)
@@ -42,8 +44,8 @@ type Application interface {
 	RegisterService(service interface{})
 	Service(service interface{}) interface{}
 	Bundle() (*i18n.Bundle, error)
-	RunMigrations(db *sql.DB) error
-	RollbackMigrations(db *sql.DB) error
+	RunMigrations() error
+	RollbackMigrations() error
 }
 
 func New(db *gorm.DB, eventPublisher event.Publisher) Application {
@@ -57,25 +59,37 @@ func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 
 // ApplicationImpl with a dynamically extendable service registry
 type ApplicationImpl struct {
-	db              *gorm.DB
-	eventPublisher  event.Publisher
-	rbac            *permission.Rbac
-	services        map[reflect.Type]interface{}
-	modules         []Module
-	controllers     []Controller
-	navigationItems []types.NavigationItem
-	hashFsAssets    []*hashfs.FS
-	assets          []*embed.FS
-	templates       []*embed.FS
-	localeFiles     []*embed.FS
-	migrationDirs   []*embed.FS
+	db             *gorm.DB
+	eventPublisher event.Publisher
+	rbac           *permission.Rbac
+	services       map[reflect.Type]interface{}
+	modules        []Module
+	controllers    []Controller
+	hashFsAssets   []*hashfs.FS
+	assets         []*embed.FS
+	templates      []*embed.FS
+	localeFiles    []*embed.FS
+	migrationDirs  []*embed.FS
+}
+
+func (app *ApplicationImpl) Seed(ctx context.Context) error {
+	for _, module := range app.modules {
+		if err := module.Seed(ctx, app); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (app *ApplicationImpl) Permissions() []permission.Permission {
+	return app.rbac.Permissions()
 }
 
 func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permission) {
 	app.rbac.Register(permissions...)
 }
 
-func (app *ApplicationImpl) DD() *gorm.DB {
+func (app *ApplicationImpl) DB() *gorm.DB {
 	return app.db
 }
 
@@ -111,16 +125,20 @@ func (app *ApplicationImpl) MigrationDirs() []*embed.FS {
 	return app.migrationDirs
 }
 
+func (app *ApplicationImpl) NavigationItems(l *i18n.Localizer) []types.NavigationItem {
+	var result []types.NavigationItem
+	for _, m := range app.modules {
+		result = append(result, m.NavigationItems(l)...)
+	}
+	return result
+}
+
 func (app *ApplicationImpl) RegisterControllers(controllers ...Controller) {
 	app.controllers = append(app.controllers, controllers...)
 }
 
-func (app *ApplicationImpl) NavigationItems() []types.NavigationItem {
-	return app.navigationItems
-}
-
-func (app *ApplicationImpl) RegisterNavigationItems(items ...types.NavigationItem) {
-	app.navigationItems = append(app.navigationItems, items...)
+func (app *ApplicationImpl) RegisterModule(module Module) {
+	app.modules = append(app.modules, module)
 }
 
 func (app *ApplicationImpl) RegisterHashFsAssets(fs ...*hashfs.FS) {
@@ -210,7 +228,11 @@ func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
 	return migrations, nil
 }
 
-func (app *ApplicationImpl) RunMigrations(db *sql.DB) error {
+func (app *ApplicationImpl) RunMigrations() error {
+	db, err := app.db.DB()
+	if err != nil {
+		return err
+	}
 	migrations, err := CollectMigrations(app)
 	if err != nil {
 		return err
@@ -228,7 +250,11 @@ func (app *ApplicationImpl) RunMigrations(db *sql.DB) error {
 	return nil
 }
 
-func (app *ApplicationImpl) RollbackMigrations(db *sql.DB) error {
+func (app *ApplicationImpl) RollbackMigrations() error {
+	db, err := app.db.DB()
+	if err != nil {
+		return err
+	}
 	migrations, err := CollectMigrations(app)
 	if err != nil {
 		return err
