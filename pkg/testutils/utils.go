@@ -3,9 +3,11 @@ package testutils
 import (
 	"context"
 	"database/sql"
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/dbutils"
+	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -19,18 +21,18 @@ type TestContext struct {
 	Tx      *gorm.DB
 }
 
-func DBSetup(db *sql.DB) error {
+func DBSetup(app application.Application) error {
+	db, err := app.DB().DB()
+	if err != nil {
+		return err
+	}
 	if err := DropPublicSchema(db); err != nil {
 		return err
 	}
-	if err := dbutils.RunMigrations(db); err != nil {
+	if err := app.RunMigrations(); err != nil {
 		return err
 	}
 	return nil
-}
-
-func DBTeardown(db *sql.DB) error {
-	return dbutils.RollbackMigrations(db)
 }
 
 func DropPublicSchema(db *sql.DB) error {
@@ -51,12 +53,13 @@ func GetTestContext() *TestContext {
 	if err != nil {
 		panic(err)
 	}
+	app := server.ConstructApp(db)
 	tx := db.Begin()
 	sqlDB, err := tx.DB()
 	if err != nil {
 		panic(err)
 	}
-	if err := DBSetup(sqlDB); err != nil {
+	if err := DBSetup(app); err != nil {
 		panic(err)
 	}
 	ctx := composables.WithTx(context.Background(), tx)

@@ -10,15 +10,3 @@ var (
 	ErrForbidden       = errors.New("forbidden")
 	ErrInternal        = errors.New("internal error")
 )
-
-type FindParams struct {
-	Offset int
-	Limit  int
-	SortBy []string
-	Joins  []string
-}
-
-type GetParams[T comparable] struct {
-	ID    T
-	Joins []string
-}

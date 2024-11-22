@@ -2,14 +2,14 @@ package main
 
 import (
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/registry"
+	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
 	"log"
 )
 
 func main() {
 	conf := configuration.Use()
-	serverInstance, err := registry.NewServer(conf)
+	serverInstance, err := server.Default(conf)
 	if err != nil {
 		log.Fatalf("failed to create server: %v", err)
 	}

@@ -4,17 +4,17 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
-	viewmodels2 "github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"strconv"
 	"time"
 )
 
-func ProductToViewModel(entity *product.Product) *viewmodels2.Product {
-	var pos *viewmodels2.Position
+func ProductToViewModel(entity *product.Product) *viewmodels.Product {
+	var pos *viewmodels.Position
 	if entity.Position != nil {
 		pos = PositionToViewModel(entity.Position)
 	}
-	return &viewmodels2.Product{
+	return &viewmodels.Product{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		Status:     string(entity.Status),
 		Rfid:       entity.Rfid,
@@ -25,8 +25,8 @@ func ProductToViewModel(entity *product.Product) *viewmodels2.Product {
 	}
 }
 
-func PositionToViewModel(entity *position.Position) *viewmodels2.Position {
-	return &viewmodels2.Position{
+func PositionToViewModel(entity *position.Position) *viewmodels.Position {
+	return &viewmodels.Position{
 		ID:        strconv.FormatUint(uint64(entity.ID), 10),
 		Title:     entity.Title,
 		Barcode:   entity.Barcode,
@@ -37,8 +37,8 @@ func PositionToViewModel(entity *position.Position) *viewmodels2.Position {
 	}
 }
 
-func UnitToViewModel(entity *unit.Unit) *viewmodels2.Unit {
-	return &viewmodels2.Unit{
+func UnitToViewModel(entity *unit.Unit) *viewmodels.Unit {
+	return &viewmodels.Unit{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		Title:      entity.Title,
 		ShortTitle: entity.ShortTitle,

@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/NYTimes/gziphandler"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
+	"github.com/iota-agency/iota-sdk/pkg/application"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -10,7 +10,7 @@ import (
 )
 
 type HttpServer struct {
-	Controllers []shared.Controller
+	Controllers []application.Controller
 	Middlewares []mux.MiddlewareFunc
 }
 

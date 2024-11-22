@@ -6,10 +6,10 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 )
 
-func CreatePermissions(ctx context.Context, app *application.Application) error {
+func CreatePermissions(ctx context.Context, app application.Application) error {
 	permissionRepository := persistence.NewPermissionRepository()
 
-	for _, p := range app.Rbac.Permissions() {
+	for _, p := range app.Permissions() {
 		if err := permissionRepository.CreateOrUpdate(ctx, &p); err != nil {
 			return err
 		}

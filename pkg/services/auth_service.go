@@ -18,13 +18,13 @@ import (
 )
 
 type AuthService struct {
-	app            *application.Application
+	app            application.Application
 	oAuthConfig    *oauth2.Config
 	usersService   *UserService
 	sessionService *SessionService
 }
 
-func NewAuthService(app *application.Application) *AuthService {
+func NewAuthService(app application.Application) *AuthService {
 	conf := configuration.Use()
 	return &AuthService{
 		app: app,

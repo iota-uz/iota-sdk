@@ -3,11 +3,11 @@ package controllers
 import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
-	product2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
-	services2 "github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	products2 "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/products"
-	viewmodels2 "github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/products"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
@@ -22,22 +22,22 @@ import (
 )
 
 type ProductsController struct {
-	app             *application.Application
-	productService  *services2.ProductService
-	positionService *services2.PositionService
+	app             application.Application
+	productService  *services.ProductService
+	positionService *services.PositionService
 	basePath        string
 }
 
 type PaginatedResponse struct {
-	Products        []*viewmodels2.Product
+	Products        []*viewmodels.Product
 	PaginationState *pagination.State
 }
 
-func NewProductsController(app *application.Application) shared.Controller {
+func NewProductsController(app application.Application) application.Controller {
 	return &ProductsController{
 		app:             app,
-		productService:  app.Service(services2.ProductService{}).(*services2.ProductService),
-		positionService: app.Service(services2.PositionService{}).(*services2.PositionService),
+		productService:  app.Service(services.ProductService{}).(*services.ProductService),
+		positionService: app.Service(services.PositionService{}).(*services.PositionService),
 		basePath:        "/warehouse/products",
 	}
 }
@@ -92,7 +92,7 @@ func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedRe
 	}, nil
 }
 
-func (c *ProductsController) getViewModelPositions(r *http.Request) ([]*viewmodels2.Position, error) {
+func (c *ProductsController) getViewModelPositions(r *http.Request) ([]*viewmodels.Position, error) {
 	positions, err := c.positionService.GetAll(r.Context())
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving positions: %w", err)
@@ -119,7 +119,7 @@ func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &products2.IndexPageProps{
+	props := &products.IndexPageProps{
 		PageContext:     pageCtx,
 		Products:        paginated.Products,
 		PaginationState: paginated.PaginationState,
@@ -127,9 +127,9 @@ func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 
 	var template templ.Component
 	if isHxRequest {
-		template = products2.ProductsTable(props)
+		template = products.ProductsTable(props)
 	} else {
-		template = products2.Index(props)
+		template = products.Index(props)
 	}
 	c.renderTemplate(w, r, template)
 }
@@ -153,12 +153,12 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &products2.EditPageProps{
+	props := &products.EditPageProps{
 		PageContext: pageCtx,
 		Product:     mappers.ProductToViewModel(entity),
 		Errors:      map[string]string{},
 	}
-	c.renderTemplate(w, r, products2.Edit(props))
+	c.renderTemplate(w, r, products.Edit(props))
 }
 
 func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +182,7 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := product2.UpdateDTO{}
+		dto := product.UpdateDTO{}
 		pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
 		if err != nil {
 			c.handleError(w, err)
@@ -201,12 +201,12 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			props := &products2.EditPageProps{
+			props := &products.EditPageProps{
 				PageContext: pageCtx,
 				Product:     mappers.ProductToViewModel(entity),
 				Errors:      errorsMap,
 			}
-			c.renderTemplate(w, r, products2.EditForm(props))
+			c.renderTemplate(w, r, products.EditForm(props))
 			return
 		}
 
@@ -225,13 +225,13 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &products2.CreatePageProps{
+	props := &products.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Product:     mappers.ProductToViewModel(&product2.Product{}),
+		Product:     mappers.ProductToViewModel(&product.Product{}),
 		SaveURL:     c.basePath,
 	}
-	c.renderTemplate(w, r, products2.New(props))
+	c.renderTemplate(w, r, products.New(props))
 }
 
 func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +240,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := product2.CreateDTO{}
+	dto := product.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -259,13 +259,13 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		props := &products2.CreatePageProps{
+		props := &products.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
 			Product:     mappers.ProductToViewModel(entity),
 			SaveURL:     c.basePath,
 		}
-		c.renderTemplate(w, r, products2.CreateForm(props))
+		c.renderTemplate(w, r, products.CreateForm(props))
 		return
 	}
 

@@ -3,10 +3,10 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
+	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/moneyaccounts"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -21,16 +21,16 @@ import (
 )
 
 type MoneyAccountController struct {
-	app                 *application.Application
-	moneyAccountService *services.MoneyAccountService
-	currencyService     *services.CurrencyService
+	app                 application.Application
+	moneyAccountService *services2.MoneyAccountService
+	currencyService     *services2.CurrencyService
 	basePath            string
 }
 
-func NewMoneyAccountController(app *application.Application) shared.Controller {
+func NewMoneyAccountController(app application.Application) application.Controller {
 	return &MoneyAccountController{
 		app:                 app,
-		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		moneyAccountService: app.Service(services2.MoneyAccountService{}).(*services2.MoneyAccountService),
 		basePath:            "/finance/accounts",
 	}
 }

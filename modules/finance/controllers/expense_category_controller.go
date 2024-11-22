@@ -3,9 +3,9 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -18,17 +18,17 @@ import (
 )
 
 type ExpenseCategoriesController struct {
-	app                    *application.Application
-	currencyService        *services.CurrencyService
-	expenseCategoryService *services.ExpenseCategoryService
+	app                    application.Application
+	currencyService        *services2.CurrencyService
+	expenseCategoryService *services2.ExpenseCategoryService
 	basePath               string
 }
 
-func NewExpenseCategoriesController(app *application.Application) shared.Controller {
+func NewExpenseCategoriesController(app application.Application) application.Controller {
 	return &ExpenseCategoriesController{
 		app:                    app,
-		currencyService:        app.Service(services.CurrencyService{}).(*services.CurrencyService),
-		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
+		currencyService:        app.Service(services2.CurrencyService{}).(*services2.CurrencyService),
+		expenseCategoryService: app.Service(services2.ExpenseCategoryService{}).(*services2.ExpenseCategoryService),
 		basePath:               "/finance/expense-categories",
 	}
 }

@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -23,7 +24,11 @@ func filterItems(items []types.NavigationItem, user *user.User) []types.Navigati
 	return filteredItems
 }
 
-func GetNavItems(localizer *i18n.Localizer, user *user.User) []types.NavigationItem {
+func GetNavItems(
+	app application.Application,
+	localizer *i18n.Localizer,
+	user *user.User,
+) []types.NavigationItem {
 	items := []types.NavigationItem{
 		{
 			Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}),
@@ -33,9 +38,8 @@ func GetNavItems(localizer *i18n.Localizer, user *user.User) []types.NavigationI
 			Permissions: nil,
 		},
 	}
-	registry := Load()
-	for _, m := range registry.Modules() {
-		items = append(items, m.NavigationItems(localizer)...)
+	for _, n := range app.NavigationItems(localizer) {
+		items = append(items, n)
 	}
 	return filterItems(items, user)
 }

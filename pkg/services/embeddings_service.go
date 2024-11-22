@@ -13,10 +13,10 @@ import (
 )
 
 type EmbeddingService struct {
-	app *application.Application
+	app application.Application
 }
 
-func NewEmbeddingService(app *application.Application) *EmbeddingService {
+func NewEmbeddingService(app application.Application) *EmbeddingService {
 	return &EmbeddingService{
 		app: app,
 	}
