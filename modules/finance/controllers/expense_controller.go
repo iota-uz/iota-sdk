@@ -20,14 +20,14 @@ import (
 )
 
 type ExpenseController struct {
-	app                    *application.Application
+	app                    application.Application
 	moneyAccountService    *services.MoneyAccountService
 	expenseService         *services.ExpenseService
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
 
-func NewExpensesController(app *application.Application) shared.Controller {
+func NewExpensesController(app application.Application) application.Controller {
 	return &ExpenseController{
 		app:                    app,
 		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),

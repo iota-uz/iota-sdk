@@ -1,18 +1,18 @@
 package registry
 
 import (
-	"embed"
+	"github.com/benbjohnson/hashfs"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules"
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	"github.com/iota-agency/iota-sdk/pkg/services"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"gorm.io/gorm/logger"
 	"log"
 )
@@ -26,11 +26,11 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 		return nil, err
 	}
 
-	registry := modules.Load()
+	loadedModules := modules.Load()
 	app := ConstructApp(db)
 
-	assetsFs := append([]*embed.FS{&assets.FS}, registry.Assets()...)
-	controllerInstances := []shared.Controller{
+	assetsFs := append([]*hashfs.FS{assets.HashFS}, app.HashFsAssets()...)
+	controllerInstances := []application.Controller{
 		controllers.NewLoginController(app),
 		controllers.NewAccountController(app),
 		controllers.NewEmployeeController(app),
@@ -39,18 +39,19 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 		controllers.NewStaticFilesController(assetsFs),
 	}
 
-	for _, module := range registry.Modules() {
+	for _, module := range loadedModules {
 		if err := module.Register(app); err != nil {
 			return nil, errors.Wrapf(err, "failed to register module %s", module.Name())
+		} else {
+			log.Printf("Module %s registered", module.Name())
 		}
 	}
 
-	for _, c := range registry.Controllers() {
-		controllerInstances = append(controllerInstances, c(app))
-	}
-
-	bundle := modules.LoadBundle(registry)
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
+	bundle, err := app.Bundle()
+	if err != nil {
+		return nil, err
+	}
 	serverInstance := &server.HttpServer{
 		Middlewares: []mux.MiddlewareFunc{
 			middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),
@@ -60,7 +61,7 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 			middleware.Transactions(db),
 			middleware.Authorization(authService),
 			middleware.WithLocalizer(bundle),
-			middleware.NavItems(),
+			middleware.NavItems(app),
 		},
 		Controllers: controllerInstances,
 	}

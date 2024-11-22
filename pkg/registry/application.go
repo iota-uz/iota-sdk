@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func ConstructApp(db *gorm.DB) *application.Application {
+func ConstructApp(db *gorm.DB) application.Application {
 	eventPublisher := event.NewEventPublisher()
 	app := application.New(db, eventPublisher)
 	moneyAccountService := services.NewMoneyAccountService(

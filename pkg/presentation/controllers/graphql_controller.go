@@ -3,11 +3,10 @@ package controllers
 import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 )
 
 type GraphQLController struct {
-	app *application.Application
+	app application.Application
 }
 
 func (g *GraphQLController) Register(r *mux.Router) {
@@ -17,7 +16,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	//log.Printf("connect to http://localhost:%d/playground for GraphQL playground", configuration.Use().ServerPort)
 }
 
-func NewGraphQLController(app *application.Application) shared.Controller {
+func NewGraphQLController(app application.Application) application.Controller {
 	return &GraphQLController{
 		app: app,
 	}

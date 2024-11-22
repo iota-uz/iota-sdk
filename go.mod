@@ -2,9 +2,7 @@ module github.com/iota-agency/iota-sdk
 
 go 1.23.2
 
-replace (
-	github.com/iota-agency/iota-sdk => /Users/diyorkhaydarov/Projects/active/iota-sdk
-)
+replace github.com/iota-agency/iota-sdk => /Users/diyorkhaydarov/Projects/active/iota-sdk
 
 require (
 	github.com/99designs/gqlgen v0.17.55
@@ -45,6 +43,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.5 // indirect
+	github.com/gmarik/go-erd v0.0.0-20170331193134-80f366849d69 // indirect
 	github.com/go-faster/jx v1.1.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect

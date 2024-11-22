@@ -18,10 +18,10 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	app *application.Application
+	app application.Application
 }
 
-func NewDefaultServer(app *application.Application) *handler.Server {
+func NewDefaultServer(app application.Application) *handler.Server {
 	srv := handler.New(NewExecutableSchema(
 		Config{ //nolint:exhaustruct
 			Resolvers: &Resolver{

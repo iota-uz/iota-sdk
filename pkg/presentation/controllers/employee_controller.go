@@ -20,12 +20,12 @@ import (
 )
 
 type EmployeeController struct {
-	app             *application.Application
+	app             application.Application
 	employeeService *services.EmployeeService
 	basePath        string
 }
 
-func NewEmployeeController(app *application.Application) shared.Controller {
+func NewEmployeeController(app application.Application) application.Controller {
 	return &EmployeeController{
 		app:             app,
 		employeeService: app.Service(services.EmployeeService{}).(*services.EmployeeService),

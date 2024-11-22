@@ -3,17 +3,16 @@ package controllers
 import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
 
 type LogoutController struct {
-	app *application.Application
+	app application.Application
 }
 
-func NewLogoutController(app *application.Application) shared.Controller {
+func NewLogoutController(app application.Application) application.Controller {
 	return &LogoutController{
 		app: app,
 	}

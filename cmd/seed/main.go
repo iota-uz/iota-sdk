@@ -8,7 +8,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -20,7 +19,7 @@ func main() {
 		panic(err)
 	}
 
-	seedFuncs := []shared.SeedFunc{
+	seedFuncs := []application.SeedFunc{
 		seed.CreatePermissions,
 		seed.CreateCurrencies,
 		seed.CreateUser,

@@ -5,7 +5,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/account"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
@@ -14,11 +13,11 @@ import (
 )
 
 type AccountController struct {
-	app      *application.Application
+	app      application.Application
 	basePath string
 }
 
-func NewAccountController(app *application.Application) shared.Controller {
+func NewAccountController(app application.Application) application.Controller {
 	return &AccountController{
 		app:      app,
 		basePath: "/account",

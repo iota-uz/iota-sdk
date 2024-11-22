@@ -20,14 +20,14 @@ import (
 )
 
 type PaymentsController struct {
-	app                 *application.Application
+	app                 application.Application
 	paymentService      *services.PaymentService
 	projectStageService *services.ProjectStageService
 	moneyAccountService *services.MoneyAccountService
 	basePath            string
 }
 
-func NewPaymentsController(app *application.Application) shared.Controller {
+func NewPaymentsController(app application.Application) application.Controller {
 	return &PaymentsController{
 		app:                 app,
 		paymentService:      app.Service(services.PaymentService{}).(*services.PaymentService),

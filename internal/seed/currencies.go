@@ -8,7 +8,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 )
 
-func CreateCurrencies(ctx context.Context, app *application.Application) error {
+func CreateCurrencies(ctx context.Context, app application.Application) error {
 	currencyRepository := persistence.NewCurrencyRepository()
 	for _, c := range currency.Currencies {
 		if err := currencyRepository.CreateOrUpdate(ctx, &c); err != nil {
