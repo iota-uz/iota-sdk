@@ -4,10 +4,10 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expenses"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -20,19 +20,19 @@ import (
 )
 
 type ExpenseController struct {
-	app                    *application.Application
-	moneyAccountService    *services.MoneyAccountService
-	expenseService         *services.ExpenseService
-	expenseCategoryService *services.ExpenseCategoryService
+	app                    application.Application
+	moneyAccountService    *services2.MoneyAccountService
+	expenseService         *services2.ExpenseService
+	expenseCategoryService *services2.ExpenseCategoryService
 	basePath               string
 }
 
-func NewExpensesController(app *application.Application) shared.Controller {
+func NewExpensesController(app application.Application) application.Controller {
 	return &ExpenseController{
 		app:                    app,
-		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		expenseService:         app.Service(services.ExpenseService{}).(*services.ExpenseService),
-		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
+		moneyAccountService:    app.Service(services2.MoneyAccountService{}).(*services2.MoneyAccountService),
+		expenseService:         app.Service(services2.ExpenseService{}).(*services2.ExpenseService),
+		expenseCategoryService: app.Service(services2.ExpenseCategoryService{}).(*services2.ExpenseCategoryService),
 		basePath:               "/finance/expenses",
 	}
 }

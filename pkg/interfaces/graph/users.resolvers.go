@@ -94,7 +94,7 @@ func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy
 // UserCreated is the resolver for the userCreated field.
 func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe(
+	r.app.EventPublisher().Subscribe(
 		func(evt *user.CreatedEvent) {
 			ch <- evt.Result.ToGraph()
 		},
@@ -105,7 +105,7 @@ func (r *subscriptionResolver) UserCreated(ctx context.Context) (<-chan *model.U
 // UserUpdated is the resolver for the userUpdated field.
 func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe(
+	r.app.EventPublisher().Subscribe(
 		func(evt *user.UpdatedEvent) {
 			ch <- evt.Result.ToGraph()
 		},
@@ -116,7 +116,7 @@ func (r *subscriptionResolver) UserUpdated(ctx context.Context) (<-chan *model.U
 // UserDeleted is the resolver for the userDeleted field.
 func (r *subscriptionResolver) UserDeleted(ctx context.Context) (<-chan *model.User, error) {
 	ch := make(chan *model.User)
-	r.app.EventPublisher.Subscribe(
+	r.app.EventPublisher().Subscribe(
 		func(evt *user.DeletedEvent) {
 			ch <- evt.Result.ToGraph()
 		},

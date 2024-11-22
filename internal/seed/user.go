@@ -18,7 +18,7 @@ var (
 	}
 )
 
-func CreateUser(ctx context.Context, app *application.Application) error {
+func CreateUser(ctx context.Context, app application.Application) error {
 	roleRepository := persistence.NewRoleRepository()
 
 	if err := roleRepository.CreateOrUpdate(ctx, &CEO); err != nil {

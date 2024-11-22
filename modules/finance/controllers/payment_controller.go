@@ -4,6 +4,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/payments"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -20,19 +21,19 @@ import (
 )
 
 type PaymentsController struct {
-	app                 *application.Application
-	paymentService      *services.PaymentService
+	app                 application.Application
+	paymentService      *services2.PaymentService
 	projectStageService *services.ProjectStageService
-	moneyAccountService *services.MoneyAccountService
+	moneyAccountService *services2.MoneyAccountService
 	basePath            string
 }
 
-func NewPaymentsController(app *application.Application) shared.Controller {
+func NewPaymentsController(app application.Application) application.Controller {
 	return &PaymentsController{
 		app:                 app,
-		paymentService:      app.Service(services.PaymentService{}).(*services.PaymentService),
+		paymentService:      app.Service(services2.PaymentService{}).(*services2.PaymentService),
 		projectStageService: app.Service(services.ProjectStageService{}).(*services.ProjectStageService),
-		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		moneyAccountService: app.Service(services2.MoneyAccountService{}).(*services2.MoneyAccountService),
 		basePath:            "/finance/payments",
 	}
 }

@@ -4,12 +4,13 @@ import (
 	"context"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules"
+	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"net/http"
 )
 
-func NavItems() mux.MiddlewareFunc {
+func NavItems(app application.Application) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +23,7 @@ func NavItems() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
-				items := modules.GetNavItems(localizer, user)
+				items := modules.GetNavItems(app, localizer, user)
 				ctx := context.WithValue(r.Context(), constants.NavItemsKey, items)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},

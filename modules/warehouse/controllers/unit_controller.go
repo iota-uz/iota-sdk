@@ -21,12 +21,12 @@ import (
 )
 
 type UnitsController struct {
-	app         *application.Application
+	app         application.Application
 	unitService *services.UnitService
 	basePath    string
 }
 
-func NewUnitsController(app *application.Application) shared.Controller {
+func NewUnitsController(app application.Application) application.Controller {
 	return &UnitsController{
 		app:         app,
 		unitService: app.Service(services.UnitService{}).(*services.UnitService),

@@ -2,10 +2,6 @@ module github.com/iota-agency/iota-sdk
 
 go 1.23.2
 
-replace (
-	github.com/iota-agency/iota-sdk => /Users/diyorkhaydarov/Projects/active/iota-sdk
-)
-
 require (
 	github.com/99designs/gqlgen v0.17.55
 	github.com/NYTimes/gziphandler v1.1.1
