@@ -2,22 +2,22 @@ package persistence
 
 import (
 	"context"
+	category2 "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	category "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
 type GormExpenseCategoryRepository struct{}
 
-func NewExpenseCategoryRepository() category.Repository {
+func NewExpenseCategoryRepository() category2.Repository {
 	return &GormExpenseCategoryRepository{}
 }
 
 func (g *GormExpenseCategoryRepository) GetPaginated(
 	ctx context.Context, limit, offset int,
 	sortBy []string,
-) ([]*category.ExpenseCategory, error) {
+) ([]*category2.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -30,7 +30,7 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 	if err := q.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	categories := make([]*category.ExpenseCategory, len(rows))
+	categories := make([]*category2.ExpenseCategory, len(rows))
 	for i, row := range rows {
 		e, err := toDomainExpenseCategory(row)
 		if err != nil {
@@ -53,7 +53,7 @@ func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (uint, error)
 	return uint(count), nil
 }
 
-func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category2.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -62,7 +62,7 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category
 	if err := tx.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*category.ExpenseCategory, len(rows))
+	entities := make([]*category2.ExpenseCategory, len(rows))
 	for i, row := range rows {
 		e, err := toDomainExpenseCategory(row)
 		if err != nil {
@@ -73,7 +73,7 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category
 	return entities, nil
 }
 
-func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*category2.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -85,7 +85,7 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*
 	return toDomainExpenseCategory(&entity)
 }
 
-func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *category.ExpenseCategory) error {
+func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *category2.ExpenseCategory) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -93,7 +93,7 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *catego
 	return tx.Create(toDBExpenseCategory(data)).Error
 }
 
-func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *category.ExpenseCategory) error {
+func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *category2.ExpenseCategory) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

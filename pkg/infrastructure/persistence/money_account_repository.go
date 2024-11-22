@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	moneyAccount "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 	"time"
@@ -12,14 +12,14 @@ import (
 
 type GormMoneyAccountRepository struct{}
 
-func NewMoneyAccountRepository() moneyAccount.Repository {
+func NewMoneyAccountRepository() moneyaccount.Repository {
 	return &GormMoneyAccountRepository{}
 }
 
 func (g *GormMoneyAccountRepository) GetPaginated(
 	ctx context.Context, limit, offset int,
 	sortBy []string,
-) ([]*moneyAccount.Account, error) {
+) ([]*moneyaccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -32,7 +32,7 @@ func (g *GormMoneyAccountRepository) GetPaginated(
 	if err := q.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*moneyAccount.Account, len(rows))
+	entities := make([]*moneyaccount.Account, len(rows))
 	for i, r := range rows {
 		p, err := toDomainMoneyAccount(r)
 		if err != nil {
@@ -55,7 +55,7 @@ func (g *GormMoneyAccountRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyAccount.Account, error) {
+func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyaccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -64,7 +64,7 @@ func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyAccoun
 	if err := tx.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*moneyAccount.Account, len(rows))
+	entities := make([]*moneyaccount.Account, len(rows))
 	for i, r := range rows {
 		p, err := toDomainMoneyAccount(r)
 		if err != nil {
@@ -75,7 +75,7 @@ func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyAccoun
 	return entities, nil
 }
 
-func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*moneyAccount.Account, error) {
+func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*moneyaccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -102,7 +102,7 @@ func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id 
 	return tx.Model(&models.MoneyAccount{}).Where("id = ?", id).Update("balance", balance).Error //nolint:exhaustruct
 }
 
-func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyAccount.Account) error {
+func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyaccount.Account) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -129,7 +129,7 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyAcco
 	return nil
 }
 
-func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyAccount.Account) error {
+func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyaccount.Account) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

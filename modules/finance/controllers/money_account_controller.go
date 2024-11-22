@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
+	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/moneyaccounts"
 	"github.com/iota-agency/iota-sdk/pkg/application"
@@ -15,7 +16,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	moneyAccount "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )

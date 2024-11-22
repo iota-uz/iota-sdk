@@ -1,12 +1,12 @@
 package category
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 

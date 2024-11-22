@@ -1,12 +1,12 @@
 package payment
 
 import (
+	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	moneyAccount "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/money_account"
 	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 

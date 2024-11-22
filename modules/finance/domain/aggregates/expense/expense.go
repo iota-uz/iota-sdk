@@ -1,10 +1,10 @@
 package expense
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"time"
 
-	category "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/money_account"
 	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 

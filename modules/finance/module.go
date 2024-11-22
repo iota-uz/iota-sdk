@@ -56,7 +56,8 @@ func (m *Module) Register(app application.Application) error {
 			persistence.NewExpenseRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
-		))
+		),
+	)
 	app.RegisterService(moneyAccountService)
 
 	app.RegisterControllers(
