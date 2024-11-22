@@ -7,7 +7,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/registry"
+	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -53,7 +53,7 @@ func GetTestContext() *TestContext {
 	if err != nil {
 		panic(err)
 	}
-	app := registry.ConstructApp(db)
+	app := server.ConstructApp(db)
 	tx := db.Begin()
 	sqlDB, err := tx.DB()
 	if err != nil {

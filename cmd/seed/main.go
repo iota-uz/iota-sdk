@@ -6,7 +6,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/registry"
+	"github.com/iota-agency/iota-sdk/pkg/server"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -18,7 +18,7 @@ func main() {
 		panic(err)
 	}
 
-	app := registry.ConstructApp(db)
+	app := server.ConstructApp(db)
 
 	seedFuncs := []application.SeedFunc{
 		seed.CreatePermissions,
