@@ -4,8 +4,10 @@ import (
 	"context"
 	"embed"
 	"github.com/iota-agency/iota-sdk/modules/finance/controllers"
+	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -32,6 +34,22 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewExpenseCategoriesController(app),
 		controllers.NewPaymentsController(app),
 	)
+	moneyAccountService := services.NewMoneyAccountService(
+		persistence.NewMoneyAccountRepository(),
+		app.EventPublisher(),
+	)
+	app.RegisterService(services.NewPaymentService(
+		persistence.NewPaymentRepository(), app.EventPublisher(), moneyAccountService,
+	))
+	app.RegisterService(services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()))
+	app.RegisterService(services.NewExpenseCategoryService(
+		persistence.NewExpenseCategoryRepository(),
+		app.EventPublisher(),
+	))
+	app.RegisterService(services.NewExpenseService(
+		persistence.NewExpenseRepository(), app.EventPublisher(), moneyAccountService,
+	))
+	app.RegisterService(moneyAccountService)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterModule(m)
 	return nil
