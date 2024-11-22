@@ -1,12 +1,12 @@
 package moneyaccount
 
 import (
+	currency2 "github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 )
 
 type Account struct {
@@ -15,7 +15,7 @@ type Account struct {
 	AccountNumber string
 	Description   string
 	Balance       float64
-	Currency      currency.Currency
+	Currency      currency2.Currency
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -49,7 +49,7 @@ func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (p *CreateDTO) ToEntity() (*Account, error) {
-	c, err := currency.NewCode(p.CurrencyCode)
+	c, err := currency2.NewCode(p.CurrencyCode)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (p *CreateDTO) ToEntity() (*Account, error) {
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,
-		Currency: currency.Currency{
+		Currency: currency2.Currency{
 			Name:   "",
 			Code:   c,
 			Symbol: "",
@@ -96,7 +96,7 @@ func (p *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
-	code, err := currency.NewCode(p.CurrencyCode)
+	code, err := currency2.NewCode(p.CurrencyCode)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,
-		Currency:      currency.Currency{Code: code},
+		Currency:      currency2.Currency{Code: code},
 		Description:   p.Description,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),

@@ -2,13 +2,13 @@ package mappers
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense"
-	category "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/payment"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
@@ -41,7 +41,7 @@ func ExpenseCategoryToViewModel(entity *category.ExpenseCategory) *viewmodels.Ex
 	}
 }
 
-func MoneyAccountToViewModel(entity *moneyaccount.Account) *viewmodels.MoneyAccount {
+func MoneyAccountToViewModel(entity *moneyaccount.moneyaccount) *viewmodels.MoneyAccount {
 	return &viewmodels.MoneyAccount{
 		ID:                  strconv.FormatUint(uint64(entity.ID), 10),
 		Name:                entity.Name,

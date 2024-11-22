@@ -2,8 +2,12 @@ package persistence
 
 import (
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/payment"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
+	currency2 "github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
+	transaction2 "github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
@@ -11,11 +15,7 @@ import (
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
 	"time"
 
-	category "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
@@ -126,7 +126,7 @@ func toDomainPermission(dbPermission *models.Permission) *permission.Permission 
 	}
 }
 
-func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
+func toDBTransaction(entity *transaction2.Transaction) *models.Transaction {
 	return &models.Transaction{
 		ID:                   entity.ID,
 		Amount:               entity.Amount,
@@ -140,13 +140,13 @@ func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
 	}
 }
 
-func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transaction, error) {
-	_type, err := transaction.NewType(dbTransaction.TransactionType)
+func toDomainTransaction(dbTransaction *models.Transaction) (*transaction2.Transaction, error) {
+	_type, err := transaction2.NewType(dbTransaction.TransactionType)
 	if err != nil {
 		return nil, err
 	}
 
-	return &transaction.Transaction{
+	return &transaction2.Transaction{
 		ID:                   dbTransaction.ID,
 		Amount:               dbTransaction.Amount,
 		TransactionType:      _type,
@@ -168,7 +168,7 @@ func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction)
 		TransactionDate:      entity.TransactionDate,
 		OriginAccountID:      nil,
 		DestinationAccountID: &entity.Account.ID,
-		TransactionType:      transaction.Income.String(),
+		TransactionType:      transaction2.Income.String(),
 		CreatedAt:            entity.CreatedAt,
 	}
 	dbPayment := &models.Payment{
@@ -205,7 +205,7 @@ func toDomainPayment(dbPayment *models.Payment) (*payment.Payment, error) {
 	}, nil
 }
 
-func toDBCurrency(entity *currency.Currency) *models.Currency {
+func toDBCurrency(entity *currency2.Currency) *models.Currency {
 	return &models.Currency{
 		Code:      string(entity.Code),
 		Name:      entity.Name,
@@ -215,16 +215,16 @@ func toDBCurrency(entity *currency.Currency) *models.Currency {
 	}
 }
 
-func toDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
-	code, err := currency.NewCode(dbCurrency.Code)
+func toDomainCurrency(dbCurrency *models.Currency) (*currency2.Currency, error) {
+	code, err := currency2.NewCode(dbCurrency.Code)
 	if err != nil {
 		return nil, err
 	}
-	symbol, err := currency.NewSymbol(dbCurrency.Symbol)
+	symbol, err := currency2.NewSymbol(dbCurrency.Symbol)
 	if err != nil {
 		return nil, err
 	}
-	return &currency.Currency{
+	return &currency2.Currency{
 		Code:   code,
 		Name:   dbCurrency.Name,
 		Symbol: symbol,
@@ -357,7 +357,7 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction)
 		TransactionDate:      entity.Date,
 		OriginAccountID:      &entity.Account.ID,
 		DestinationAccountID: nil,
-		TransactionType:      transaction.Expense.String(),
+		TransactionType:      transaction2.Expense.String(),
 		CreatedAt:            entity.CreatedAt,
 	}
 	dbExpense := &models.Expense{

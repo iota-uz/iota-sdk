@@ -2,32 +2,32 @@ package services
 
 import (
 	"context"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	moneyAccount "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
 
 type MoneyAccountService struct {
-	repo      moneyAccount.Repository
+	repo      moneyaccount.Repository
 	publisher event.Publisher
 }
 
-func NewMoneyAccountService(repo moneyAccount.Repository, publisher event.Publisher) *MoneyAccountService {
+func NewMoneyAccountService(repo moneyaccount.Repository, publisher event.Publisher) *MoneyAccountService {
 	return &MoneyAccountService{
 		repo:      repo,
 		publisher: publisher,
 	}
 }
 
-func (s *MoneyAccountService) GetByID(ctx context.Context, id uint) (*moneyAccount.Account, error) {
+func (s *MoneyAccountService) GetByID(ctx context.Context, id uint) (*moneyaccount.Account, error) {
 	if err := composables.CanUser(ctx, permission.AccountRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *MoneyAccountService) GetAll(ctx context.Context) ([]*moneyAccount.Account, error) {
+func (s *MoneyAccountService) GetAll(ctx context.Context) ([]*moneyaccount.Account, error) {
 	if err := composables.CanUser(ctx, permission.AccountRead); err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (s *MoneyAccountService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*moneyAccount.Account, error) {
+) ([]*moneyaccount.Account, error) {
 	if err := composables.CanUser(ctx, permission.AccountRead); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (s *MoneyAccountService) RecalculateBalance(ctx context.Context, id uint) e
 	return s.repo.RecalculateBalance(ctx, id)
 }
 
-func (s *MoneyAccountService) Create(ctx context.Context, data *moneyAccount.CreateDTO) error {
+func (s *MoneyAccountService) Create(ctx context.Context, data *moneyaccount.CreateDTO) error {
 	if err := composables.CanUser(ctx, permission.AccountCreate); err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (s *MoneyAccountService) Create(ctx context.Context, data *moneyAccount.Cre
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := moneyAccount.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := moneyaccount.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (s *MoneyAccountService) Create(ctx context.Context, data *moneyAccount.Cre
 	return nil
 }
 
-func (s *MoneyAccountService) Update(ctx context.Context, id uint, data *moneyAccount.UpdateDTO) error {
+func (s *MoneyAccountService) Update(ctx context.Context, id uint, data *moneyaccount.UpdateDTO) error {
 	if err := composables.CanUser(ctx, permission.AccountUpdate); err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (s *MoneyAccountService) Update(ctx context.Context, id uint, data *moneyAc
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := moneyAccount.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := moneyaccount.NewUpdatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (s *MoneyAccountService) Update(ctx context.Context, id uint, data *moneyAc
 	return nil
 }
 
-func (s *MoneyAccountService) Delete(ctx context.Context, id uint) (*moneyAccount.Account, error) {
+func (s *MoneyAccountService) Delete(ctx context.Context, id uint) (*moneyaccount.Account, error) {
 	if err := composables.CanUser(ctx, permission.AccountDelete); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (s *MoneyAccountService) Delete(ctx context.Context, id uint) (*moneyAccoun
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := moneyAccount.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := moneyaccount.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}

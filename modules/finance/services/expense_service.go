@@ -2,20 +2,20 @@ package services
 
 import (
 	"context"
+	expense2 "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
 
 type ExpenseService struct {
-	repo           expense.Repository
+	repo           expense2.Repository
 	publisher      event.Publisher
 	accountService *MoneyAccountService
 }
 
 func NewExpenseService(
-	repo expense.Repository,
+	repo expense2.Repository,
 	publisher event.Publisher,
 	accountService *MoneyAccountService,
 ) *ExpenseService {
@@ -26,14 +26,14 @@ func NewExpenseService(
 	}
 }
 
-func (s *ExpenseService) GetByID(ctx context.Context, id uint) (*expense.Expense, error) {
+func (s *ExpenseService) GetByID(ctx context.Context, id uint) (*expense2.Expense, error) {
 	if err := composables.CanUser(ctx, permission.ExpenseRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ExpenseService) GetAll(ctx context.Context) ([]*expense.Expense, error) {
+func (s *ExpenseService) GetAll(ctx context.Context) ([]*expense2.Expense, error) {
 	if err := composables.CanUser(ctx, permission.ExpenseRead); err != nil {
 		return nil, err
 	}
@@ -44,14 +44,14 @@ func (s *ExpenseService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*expense.Expense, error) {
+) ([]*expense2.Expense, error) {
 	if err := composables.CanUser(ctx, permission.ExpenseRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *ExpenseService) Create(ctx context.Context, data *expense.CreateDTO) error {
+func (s *ExpenseService) Create(ctx context.Context, data *expense2.CreateDTO) error {
 	if err := composables.CanUser(ctx, permission.ExpenseCreate); err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (s *ExpenseService) Create(ctx context.Context, data *expense.CreateDTO) er
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := expense.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := expense2.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (s *ExpenseService) Create(ctx context.Context, data *expense.CreateDTO) er
 	return nil
 }
 
-func (s *ExpenseService) Update(ctx context.Context, id uint, data *expense.UpdateDTO) error {
+func (s *ExpenseService) Update(ctx context.Context, id uint, data *expense2.UpdateDTO) error {
 	if err := composables.CanUser(ctx, permission.ExpenseUpdate); err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func (s *ExpenseService) Update(ctx context.Context, id uint, data *expense.Upda
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := expense.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := expense2.NewUpdatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (s *ExpenseService) Update(ctx context.Context, id uint, data *expense.Upda
 	return nil
 }
 
-func (s *ExpenseService) Delete(ctx context.Context, id uint) (*expense.Expense, error) {
+func (s *ExpenseService) Delete(ctx context.Context, id uint) (*expense2.Expense, error) {
 	if err := composables.CanUser(ctx, permission.ExpenseDelete); err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (s *ExpenseService) Delete(ctx context.Context, id uint) (*expense.Expense,
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := expense.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := expense2.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}

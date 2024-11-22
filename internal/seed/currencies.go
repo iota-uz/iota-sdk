@@ -2,9 +2,9 @@ package seed
 
 import (
 	"context"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 )
 

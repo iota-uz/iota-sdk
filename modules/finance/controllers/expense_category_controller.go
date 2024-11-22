@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-sdk/pkg/application"
@@ -12,7 +13,6 @@ import (
 	"net/http"
 
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	category "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )

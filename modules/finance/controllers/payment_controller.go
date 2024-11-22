@@ -4,6 +4,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
 	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/payments"
 	"github.com/iota-agency/iota-sdk/pkg/application"
@@ -15,7 +16,6 @@ import (
 	"net/http"
 
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/payment"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )

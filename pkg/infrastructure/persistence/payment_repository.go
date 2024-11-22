@@ -2,22 +2,22 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	payment2 "github.com/iota-agency/iota-sdk/pkg/domain/aggregates/payment"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
 type GormPaymentRepository struct{}
 
-func NewPaymentRepository() payment2.Repository {
+func NewPaymentRepository() payment.Repository {
 	return &GormPaymentRepository{}
 }
 
 func (g *GormPaymentRepository) GetPaginated(
 	ctx context.Context, limit, offset int,
 	sortBy []string,
-) ([]*payment2.Payment, error) {
+) ([]*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -30,7 +30,7 @@ func (g *GormPaymentRepository) GetPaginated(
 	if err := q.Preload("Transaction").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*payment2.Payment, len(rows))
+	entities := make([]*payment.Payment, len(rows))
 	for i, r := range rows {
 		p, err := toDomainPayment(r)
 		if err != nil {
@@ -53,7 +53,7 @@ func (g *GormPaymentRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment2.Payment, error) {
+func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -62,7 +62,7 @@ func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment2.Payment
 	if err := tx.Preload("Transaction").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*payment2.Payment, len(rows))
+	entities := make([]*payment.Payment, len(rows))
 	for i, r := range rows {
 		p, err := toDomainPayment(r)
 		if err != nil {
@@ -73,7 +73,7 @@ func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment2.Payment
 	return entities, nil
 }
 
-func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (*payment2.Payment, error) {
+func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -85,7 +85,7 @@ func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (*payment2
 	return toDomainPayment(&row)
 }
 
-func (g *GormPaymentRepository) Create(ctx context.Context, data *payment2.Payment) error {
+func (g *GormPaymentRepository) Create(ctx context.Context, data *payment.Payment) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -98,7 +98,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data *payment2.Payme
 	return tx.Create(paymentRow).Error
 }
 
-func (g *GormPaymentRepository) Update(ctx context.Context, data *payment2.Payment) error {
+func (g *GormPaymentRepository) Update(ctx context.Context, data *payment.Payment) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

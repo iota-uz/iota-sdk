@@ -2,17 +2,17 @@ package persistence
 
 import (
 	"context"
+	transaction2 "github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
 type GormTransactionRepository struct{}
 
-func NewTransactionRepository() transaction.Repository {
+func NewTransactionRepository() transaction2.Repository {
 	return &GormTransactionRepository{}
 }
 
@@ -20,7 +20,7 @@ func (g *GormTransactionRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*transaction.Transaction, error) {
+) ([]*transaction2.Transaction, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -30,7 +30,7 @@ func (g *GormTransactionRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	var entities []*transaction.Transaction
+	var entities []*transaction2.Transaction
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
@@ -43,25 +43,25 @@ func (g *GormTransactionRepository) Count(ctx context.Context) (int64, error) {
 		return 0, service.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&transaction.Transaction{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&transaction2.Transaction{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormTransactionRepository) GetAll(ctx context.Context) ([]*transaction.Transaction, error) {
+func (g *GormTransactionRepository) GetAll(ctx context.Context) ([]*transaction2.Transaction, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	var entities []*transaction.Transaction
+	var entities []*transaction2.Transaction
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
-func (g *GormTransactionRepository) GetByID(ctx context.Context, id int64) (*transaction.Transaction, error) {
+func (g *GormTransactionRepository) GetByID(ctx context.Context, id int64) (*transaction2.Transaction, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -73,7 +73,7 @@ func (g *GormTransactionRepository) GetByID(ctx context.Context, id int64) (*tra
 	return toDomainTransaction(&entity)
 }
 
-func (g *GormTransactionRepository) Create(ctx context.Context, data *transaction.Transaction) error {
+func (g *GormTransactionRepository) Create(ctx context.Context, data *transaction2.Transaction) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -82,7 +82,7 @@ func (g *GormTransactionRepository) Create(ctx context.Context, data *transactio
 	return tx.Create(entity).Error
 }
 
-func (g *GormTransactionRepository) Update(ctx context.Context, data *transaction.Transaction) error {
+func (g *GormTransactionRepository) Update(ctx context.Context, data *transaction2.Transaction) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -96,5 +96,5 @@ func (g *GormTransactionRepository) Delete(ctx context.Context, id int64) error 
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Delete(&transaction.Transaction{}, id).Error //nolint:exhaustruct
+	return tx.Delete(&transaction2.Transaction{}, id).Error //nolint:exhaustruct
 }
