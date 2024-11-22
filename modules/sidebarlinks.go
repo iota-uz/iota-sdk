@@ -38,7 +38,7 @@ func GetNavItems(
 			Permissions: nil,
 		},
 	}
-	for _, n := range app.NavigationItems() {
+	for _, n := range app.NavigationItems(localizer) {
 		items = append(items, n)
 	}
 	return filterItems(items, user)

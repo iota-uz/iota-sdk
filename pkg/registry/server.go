@@ -29,6 +29,13 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 	loadedModules := modules.Load()
 	app := ConstructApp(db)
 
+	for _, module := range loadedModules {
+		if err := module.Register(app); err != nil {
+			return nil, errors.Wrapf(err, "failed to register module %s", module.Name())
+		} else {
+			log.Printf("Module %s registered", module.Name())
+		}
+	}
 	assetsFs := append([]*hashfs.FS{assets.HashFS}, app.HashFsAssets()...)
 	controllerInstances := []application.Controller{
 		controllers.NewLoginController(app),
@@ -38,15 +45,7 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 		controllers.NewLogoutController(app),
 		controllers.NewStaticFilesController(assetsFs),
 	}
-
-	for _, module := range loadedModules {
-		if err := module.Register(app); err != nil {
-			return nil, errors.Wrapf(err, "failed to register module %s", module.Name())
-		} else {
-			log.Printf("Module %s registered", module.Name())
-		}
-	}
-
+	controllerInstances = append(controllerInstances, app.Controllers()...)
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
 	bundle, err := app.Bundle()
 	if err != nil {

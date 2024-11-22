@@ -63,6 +63,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
+	app.RegisterModule(m)
 	return nil
 }
 

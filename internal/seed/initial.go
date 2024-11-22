@@ -9,7 +9,7 @@ import (
 func CreatePermissions(ctx context.Context, app application.Application) error {
 	permissionRepository := persistence.NewPermissionRepository()
 
-	for _, p := range app.rbac.Permissions() {
+	for _, p := range app.Permissions() {
 		if err := permissionRepository.CreateOrUpdate(ctx, &p); err != nil {
 			return err
 		}

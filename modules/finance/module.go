@@ -33,7 +33,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewPaymentsController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
-	app.RegisterNavigationItems()
+	app.RegisterModule(m)
 	return nil
 }
 
