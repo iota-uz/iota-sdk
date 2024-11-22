@@ -3,9 +3,7 @@ package registry
 import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/go-faster/errors"
-	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules"
-	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
@@ -37,32 +35,32 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 		}
 	}
 	assetsFs := append([]*hashfs.FS{assets.HashFS}, app.HashFsAssets()...)
-	controllerInstances := []application.Controller{
+	app.RegisterControllers(
 		controllers.NewLoginController(app),
 		controllers.NewAccountController(app),
 		controllers.NewEmployeeController(app),
 		controllers.NewGraphQLController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewStaticFilesController(assetsFs),
-	}
-	controllerInstances = append(controllerInstances, app.Controllers()...)
+	)
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
 	bundle, err := app.Bundle()
 	if err != nil {
 		return nil, err
 	}
+	app.RegisterMiddleware(
+		middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),
+		middleware.RequestParams(middleware.DefaultParamsConstructor),
+		middleware.WithLogger(log.Default()),
+		middleware.LogRequests(),
+		middleware.Transactions(db),
+		middleware.Authorization(authService),
+		middleware.WithLocalizer(bundle),
+		middleware.NavItems(app),
+	)
 	serverInstance := &server.HttpServer{
-		Middlewares: []mux.MiddlewareFunc{
-			middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),
-			middleware.RequestParams(middleware.DefaultParamsConstructor),
-			middleware.WithLogger(log.Default()),
-			middleware.LogRequests(),
-			middleware.Transactions(db),
-			middleware.Authorization(authService),
-			middleware.WithLocalizer(bundle),
-			middleware.NavItems(app),
-		},
-		Controllers: controllerInstances,
+		Middlewares: app.Middleware(),
+		Controllers: app.Controllers(),
 	}
 	return serverInstance, nil
 }

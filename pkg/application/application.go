@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/benbjohnson/hashfs"
+	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules/core"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
@@ -25,6 +26,7 @@ type Application interface {
 	EventPublisher() event.Publisher
 	Modules() []Module
 	Controllers() []Controller
+	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
 	Templates() []*embed.FS
@@ -42,6 +44,7 @@ type Application interface {
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterMigrationDirs(fs ...*embed.FS)
 	RegisterService(service interface{})
+	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
 	Bundle() (*i18n.Bundle, error)
 	RunMigrations() error
@@ -65,6 +68,7 @@ type ApplicationImpl struct {
 	services       map[reflect.Type]interface{}
 	modules        []Module
 	controllers    []Controller
+	middleware     []mux.MiddlewareFunc
 	hashFsAssets   []*hashfs.FS
 	assets         []*embed.FS
 	templates      []*embed.FS
@@ -83,6 +87,10 @@ func (app *ApplicationImpl) Seed(ctx context.Context) error {
 
 func (app *ApplicationImpl) Permissions() []permission.Permission {
 	return app.rbac.Permissions()
+}
+
+func (app *ApplicationImpl) Middleware() []mux.MiddlewareFunc {
+	return app.middleware
 }
 
 func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permission) {
@@ -139,6 +147,10 @@ func (app *ApplicationImpl) RegisterControllers(controllers ...Controller) {
 
 func (app *ApplicationImpl) RegisterModule(module Module) {
 	app.modules = append(app.modules, module)
+}
+
+func (app *ApplicationImpl) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {
+	app.middleware = append(app.middleware, middleware...)
 }
 
 func (app *ApplicationImpl) RegisterHashFsAssets(fs ...*hashfs.FS) {
