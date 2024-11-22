@@ -7,7 +7,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/templates"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -18,31 +17,27 @@ var localeFiles embed.FS
 ////go:embed migrations/*.sql
 //var migrationFiles embed.FS
 
-func NewModule() shared.Module {
+func NewModule() application.Module {
 	return &Module{}
 }
 
 type Module struct {
 }
 
-func (m *Module) Register(app *application.Application) error {
+func (m *Module) Register(app application.Application) error {
+	app.RegisterTemplates(&templates.FS)
+	app.RegisterControllers(
+		controllers.NewExpensesController(app),
+		controllers.NewMoneyAccountController(app),
+		controllers.NewExpenseCategoriesController(app),
+		controllers.NewPaymentsController(app),
+	)
+	app.RegisterLocaleFiles(&localeFiles)
+	app.RegisterNavigationItems()
 	return nil
 }
 
-func (m *Module) MigrationDirs() *embed.FS {
-	//return &migrationFiles
-	return nil
-}
-
-func (m *Module) Assets() *embed.FS {
-	return nil
-}
-
-func (m *Module) Templates() *embed.FS {
-	return &templates.FS
-}
-
-func (m *Module) Seed(ctx context.Context, app *application.Application) error {
+func (m *Module) Seed(ctx context.Context, app application.Application) error {
 	return nil
 }
 
@@ -80,17 +75,4 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 			},
 		},
 	}
-}
-
-func (m *Module) Controllers() []shared.ControllerConstructor {
-	return []shared.ControllerConstructor{
-		controllers.NewExpensesController,
-		controllers.NewMoneyAccountController,
-		controllers.NewExpenseCategoriesController,
-		controllers.NewPaymentsController,
-	}
-}
-
-func (m *Module) LocaleFiles() *embed.FS {
-	return &localeFiles
 }

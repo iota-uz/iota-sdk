@@ -4,7 +4,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/login"
 	"github.com/iota-agency/iota-sdk/pkg/services"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
 
@@ -12,7 +11,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
-func NewLoginController(app *application.Application) shared.Controller {
+func NewLoginController(app application.Application) application.Controller {
 	return &LoginController{
 		app:         app,
 		authService: app.Service(services.AuthService{}).(*services.AuthService),
@@ -20,7 +19,7 @@ func NewLoginController(app *application.Application) shared.Controller {
 }
 
 type LoginController struct {
-	app         *application.Application
+	app         application.Application
 	authService *services.AuthService
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/llm/gpt-functions"
 	"io"
 	"log"
@@ -15,10 +16,10 @@ import (
 )
 
 type DialogueService struct {
-	repo          dialogue.Repository
-	app           *application.Application
-	chatFuncs     *functions.ChatTools
-	promptService *PromptService
+	repo           dialogue.Repository
+	eventPublisher event.Publisher
+	chatFuncs      *functions.ChatTools
+	promptService  *PromptService
 }
 
 var (
@@ -26,17 +27,17 @@ var (
 	ErrModelRequired  = errors.New("model is required")
 )
 
-func NewDialogueService(repo dialogue.Repository, app *application.Application) *DialogueService {
+func NewDialogueService(repo dialogue.Repository, app application.Application) *DialogueService {
 	chatFuncs := functions.New()
 
 	// chatFuncs.Add(chatfuncs.NewCurrencyConvert())
 	// chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.DB))
 	chatFuncs.Add(NewSearchKnowledgeBase(app.Service(EmbeddingService{}).(*EmbeddingService)))
 	return &DialogueService{
-		repo:          repo,
-		app:           app,
-		chatFuncs:     chatFuncs,
-		promptService: app.Service(PromptService{}).(*PromptService),
+		repo:           repo,
+		eventPublisher: app.EventPublisher(),
+		chatFuncs:      chatFuncs,
+		promptService:  app.Service(PromptService{}).(*PromptService),
 	}
 }
 
@@ -159,7 +160,7 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 		})
 		for m := range ch {
 			data.Messages[len(data.Messages)-1] = m
-			s.app.EventPublisher.Publish(dialogue.UpdatedEvent{ //nolint:exhaustruct
+			s.eventPublisher.Publish(dialogue.UpdatedEvent{ //nolint:exhaustruct
 				Result: *data,
 			})
 		}
@@ -252,7 +253,7 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err != nil {
 		return nil, err
 	}
-	s.app.EventPublisher.Publish(createdEvent)
+	s.eventPublisher.Publish(createdEvent)
 	if err := s.ChatComplete(ctx, data, model); err != nil {
 		return nil, err
 	}
@@ -268,7 +269,7 @@ func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) e
 	if err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish(updatedEvent)
+	s.eventPublisher.Publish(updatedEvent)
 	return nil
 }
 
@@ -284,6 +285,6 @@ func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialo
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	s.app.EventPublisher.Publish(deletedEvent)
+	s.eventPublisher.Publish(deletedEvent)
 	return entity, nil
 }

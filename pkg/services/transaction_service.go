@@ -2,20 +2,20 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/transaction"
 )
 
 type TransactionService struct {
-	repo transaction.Repository
-	app  *application.Application
+	repo           transaction.Repository
+	eventPublisher event.Publisher
 }
 
-func NewTransactionService(repo transaction.Repository, app *application.Application) *TransactionService {
+func NewTransactionService(repo transaction.Repository, eventPublisher *event.Publisher) *TransactionService {
 	return &TransactionService{
-		repo: repo,
-		app:  app,
+		repo:           repo,
+		eventPublisher: *eventPublisher,
 	}
 }
 
@@ -43,7 +43,7 @@ func (s *TransactionService) Create(ctx context.Context, data *transaction.Trans
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("transaction.created", data)
+	s.eventPublisher.Publish("transaction.created", data)
 	return nil
 }
 
@@ -51,7 +51,7 @@ func (s *TransactionService) Update(ctx context.Context, data *transaction.Trans
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("transaction.updated", data)
+	s.eventPublisher.Publish("transaction.updated", data)
 	return nil
 }
 
@@ -59,6 +59,6 @@ func (s *TransactionService) Delete(ctx context.Context, id int64) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.app.EventPublisher.Publish("transaction.deleted", id)
+	s.eventPublisher.Publish("transaction.deleted", id)
 	return nil
 }
