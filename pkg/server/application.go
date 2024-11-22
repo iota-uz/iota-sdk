@@ -1,4 +1,4 @@
-package registry
+package server
 
 import (
 	"github.com/iota-agency/iota-sdk/pkg/application"

@@ -1,4 +1,4 @@
-package registry
+package server
 
 import (
 	"github.com/benbjohnson/hashfs"
@@ -9,18 +9,17 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
-	"github.com/iota-agency/iota-sdk/pkg/server"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"gorm.io/gorm/logger"
 	"log"
 )
 
-func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
+func Default(conf *configuration.Configuration) (*HttpServer, error) {
 	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Error)
 	if err != nil {
 		return nil, err
 	}
-	if err := dbutils.CheckModels(db, server.RegisteredModels); err != nil {
+	if err := dbutils.CheckModels(db, RegisteredModels); err != nil {
 		return nil, err
 	}
 
@@ -58,7 +57,7 @@ func NewServer(conf *configuration.Configuration) (*server.HttpServer, error) {
 		middleware.WithLocalizer(bundle),
 		middleware.NavItems(app),
 	)
-	serverInstance := &server.HttpServer{
+	serverInstance := &HttpServer{
 		Middlewares: app.Middleware(),
 		Controllers: app.Controllers(),
 	}
