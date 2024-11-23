@@ -1,6 +1,8 @@
 package server
 
 import (
+	"log"
+
 	"github.com/benbjohnson/hashfs"
 	"github.com/go-faster/errors"
 	"github.com/iota-agency/iota-sdk/modules"
@@ -11,7 +13,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"gorm.io/gorm/logger"
-	"log"
 )
 
 func Default(conf *configuration.Configuration) (*HttpServer, error) {
@@ -41,6 +42,7 @@ func Default(conf *configuration.Configuration) (*HttpServer, error) {
 		controllers.NewGraphQLController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewStaticFilesController(assetsFs),
+		controllers.NewUploadController(app),
 	)
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
 	bundle, err := app.Bundle()

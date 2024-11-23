@@ -2,13 +2,15 @@ package mappers
 
 import (
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
-	"strconv"
-	"time"
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
@@ -55,5 +57,17 @@ func EmployeeToViewModel(entity *employee.Employee) *viewmodels.Employee {
 		Phone:     entity.Phone,
 		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
+	return &viewmodels.Upload{
+		ID:        entity.ID,
+		URL:       entity.URL,
+		Name:      entity.Name,
+		Type:      entity.Type,
+		Size:      strconv.Itoa(entity.Size),
+		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
 	}
 }
