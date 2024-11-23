@@ -2,20 +2,21 @@ package persistence
 
 import (
 	"context"
-	expense2 "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 	"gorm.io/gorm"
 )
 
 type GormExpenseRepository struct{}
 
-func NewExpenseRepository() expense2.Repository {
+func NewExpenseRepository() expense.Repository {
 	return &GormExpenseRepository{}
 }
 
-func (g *GormExpenseRepository) txWithPreloads(ctx context.Context) (*gorm.DB, error) {
+func (g *GormExpenseRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -26,8 +27,8 @@ func (g *GormExpenseRepository) txWithPreloads(ctx context.Context) (*gorm.DB, e
 func (g *GormExpenseRepository) GetPaginated(
 	ctx context.Context, limit, offset int,
 	sortBy []string,
-) ([]*expense2.Expense, error) {
-	tx, err := g.txWithPreloads(ctx)
+) ([]*expense.Expense, error) {
+	tx, err := g.tx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -39,15 +40,7 @@ func (g *GormExpenseRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*expense2.Expense, len(rows))
-	for i, row := range rows {
-		e, err := toDomainExpense(row)
-		if err != nil {
-			return nil, err
-		}
-		entities[i] = e
-	}
-	return entities, nil
+	return mapping.MapDbModels(rows, toDomainExpense)
 }
 
 func (g *GormExpenseRepository) Count(ctx context.Context) (uint, error) {
@@ -62,8 +55,8 @@ func (g *GormExpenseRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]*expense2.Expense, error) {
-	tx, err := g.txWithPreloads(ctx)
+func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]*expense.Expense, error) {
+	tx, err := g.tx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -71,19 +64,11 @@ func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]*expense2.Expense
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*expense2.Expense, len(rows))
-	for i, row := range rows {
-		e, err := toDomainExpense(row)
-		if err != nil {
-			return nil, err
-		}
-		entities[i] = e
-	}
-	return entities, nil
+	return mapping.MapDbModels(rows, toDomainExpense)
 }
 
-func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (*expense2.Expense, error) {
-	tx, err := g.txWithPreloads(ctx)
+func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (*expense.Expense, error) {
+	tx, err := g.tx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +79,7 @@ func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (*expense2
 	return toDomainExpense(&entity)
 }
 
-func (g *GormExpenseRepository) Create(ctx context.Context, data *expense2.Expense) error {
+func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expense) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -107,7 +92,7 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data *expense2.Expen
 	return tx.Create(expenseRow).Error
 }
 
-func (g *GormExpenseRepository) Update(ctx context.Context, data *expense2.Expense) error {
+func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expense) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx

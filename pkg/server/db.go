@@ -1,12 +1,13 @@
 package server
 
 import (
+	uploadmodels "github.com/iota-agency/iota-sdk/modules/upload/persistence/models"
 	warehousemodels "github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
 var RegisteredModels = []interface{}{
-	&models.Upload{},                    //nolint:exhaustruct
+	&uploadmodels.Upload{},              //nolint:exhaustruct
 	&models.User{},                      //nolint:exhaustruct
 	&models.Payment{},                   //nolint:exhaustruct
 	&models.ExpenseCategory{},           //nolint:exhaustruct

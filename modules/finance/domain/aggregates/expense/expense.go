@@ -4,8 +4,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"time"
-
-	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 
 type Expense struct {
@@ -19,20 +17,4 @@ type Expense struct {
 	Date             time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
-}
-
-func (e *Expense) category2Graph() *model.ExpenseCategory {
-	return e.Category.ToGraph()
-}
-
-func (e *Expense) ToGraph() *model.Expense {
-	return &model.Expense{
-		ID:         int64(e.ID),
-		Amount:     e.Amount,
-		CategoryID: int64(e.Category.ID),
-		Category:   e.category2Graph(),
-		Date:       e.Date,
-		CreatedAt:  e.CreatedAt,
-		UpdatedAt:  e.UpdatedAt,
-	}
 }

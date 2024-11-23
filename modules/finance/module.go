@@ -4,10 +4,11 @@ import (
 	"context"
 	"embed"
 	"github.com/iota-agency/iota-sdk/modules/finance/controllers"
+	"github.com/iota-agency/iota-sdk/modules/finance/permissions"
+	"github.com/iota-agency/iota-sdk/modules/finance/persistence"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates"
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -66,6 +67,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewExpenseCategoriesController(app),
 		controllers.NewPaymentsController(app),
 	)
+	app.RegisterPermissions(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterModule(m)
 	return nil

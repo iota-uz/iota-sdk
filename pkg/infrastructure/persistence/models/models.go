@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -119,7 +120,7 @@ type User struct {
 	MiddleName *string
 	Email      string
 	Password   *string
-	AvatarID   *uint
+	//AvatarID   *uint
 	LastLogin  *time.Time
 	LastIP     *string
 	UiLanguage string
@@ -365,7 +366,7 @@ type Dialogue struct {
 }
 
 type Permission struct {
-	ID       uint
+	ID       uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
 	Name     string
 	Resource string
 	Action   string

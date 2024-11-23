@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
+
 	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 

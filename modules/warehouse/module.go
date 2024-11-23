@@ -3,6 +3,7 @@ package warehouse
 import (
 	"context"
 	"embed"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
