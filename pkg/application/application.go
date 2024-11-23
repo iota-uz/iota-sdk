@@ -17,6 +17,7 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
 	"gorm.io/gorm"
+	"log"
 	"reflect"
 )
 
@@ -258,6 +259,8 @@ func (app *ApplicationImpl) RunMigrations() error {
 	}
 	if n == 0 {
 		return errors.New("no migrations applied")
+	} else {
+		log.Printf("Applied %d migrations", n)
 	}
 	return nil
 }

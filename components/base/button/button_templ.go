@@ -23,6 +23,7 @@ const (
 	SizeNormal = Size(iota + 1)
 	SizeMD
 	SizeSM
+	SizeXS
 )
 
 var variants = map[Variant]string{
@@ -37,6 +38,7 @@ var sizes = map[Size]string{
 	SizeNormal: "btn-normal",
 	SizeMD:     "btn-md",
 	SizeSM:     "btn-sm",
+	SizeXS:     "btn-xs",
 }
 
 type Props struct {

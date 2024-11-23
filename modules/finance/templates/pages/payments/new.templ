@@ -13,7 +13,6 @@ import (
 type CreatePageProps struct {
 	*types.PageContext
 	Payment  *viewmodels.Payment
-	Stages   []*viewmodels.ProjectStage
 	Accounts []*viewmodels.MoneyAccount
 	Errors   map[string]string
 }
@@ -38,15 +37,6 @@ templ CreateForm(props *CreatePageProps) {
 					"form":  "save-form",
 				},
 				Error: props.Errors["Date"],
-			})
-			@StageSelect(&StageSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Payment.StageID,
-				Stages:      props.Stages,
-				Attrs: templ.Attributes{
-					"name": "StageId",
-					"form": "save-form",
-				},
 			})
 			@AccountSelect(&AccountSelectProps{
 				PageContext: props.PageContext,

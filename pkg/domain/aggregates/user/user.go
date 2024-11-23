@@ -22,7 +22,7 @@ type User struct {
 	MiddleName string
 	Password   string
 	Email      string `validate:"required,email"`
-	AvatarID   *uint
+	//AvatarID   *uint
 	EmployeeID *uint
 	LastIP     *string
 	UILanguage UILanguage
@@ -137,7 +137,7 @@ func (u *CreateDTO) ToEntity() *User {
 		LastLogin:  nil,
 		LastAction: nil,
 		LastIP:     nil,
-		AvatarID:   nil,
+		//AvatarID:   nil,
 		EmployeeID: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
@@ -155,7 +155,7 @@ func (u *UpdateDTO) ToEntity(id uint) *User {
 		LastLogin:  nil,
 		LastAction: nil,
 		LastIP:     nil,
-		AvatarID:   nil,
+		//AvatarID:   nil,
 		EmployeeID: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
@@ -169,7 +169,7 @@ func (u *User) ToGraph() *model.User {
 		LastName:   u.LastName,
 		MiddleName: &u.MiddleName,
 		Email:      u.Email,
-		AvatarID:   mapper.Pointer(int64(*u.AvatarID)),
+		//AvatarID:   mapper.Pointer(int64(*u.AvatarID)),
 		EmployeeID: mapper.Pointer(int64(*u.EmployeeID)),
 		LastIP:     u.LastIP,
 		LastLogin:  u.LastLogin,

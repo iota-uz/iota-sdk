@@ -20,13 +20,13 @@ CREATE TABLE warehouse_positions
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
-
-CREATE TABLE warehouse_position_images
-(
-    warehouse_position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-    upload_id             INT REFERENCES uploads (id) ON DELETE CASCADE,
-    PRIMARY KEY (upload_id, warehouse_position_id)
-);
+--
+-- CREATE TABLE warehouse_position_images
+-- (
+--     warehouse_position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+--     upload_id             INT REFERENCES uploads (id) ON DELETE CASCADE,
+--     PRIMARY KEY (upload_id, warehouse_position_id)
+-- );
 
 CREATE TABLE warehouse_products
 (
@@ -72,6 +72,8 @@ CREATE TABLE warehouse_order_items
     PRIMARY KEY (warehouse_order_id, product_id)
 );
 
+COMMIT;
+
 -- +migrate Down
 BEGIN;
 
@@ -80,7 +82,7 @@ DROP TABLE warehouse_orders;
 DROP TABLE inventory_check_results;
 DROP TABLE inventory_checks;
 DROP TABLE warehouse_products;
-DROP TABLE warehouse_position_images;
+-- DROP TABLE warehouse_position_images;
 DROP TABLE warehouse_positions;
 DROP TABLE warehouse_units;
 

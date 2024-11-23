@@ -2,20 +2,20 @@ package services
 
 import (
 	"context"
-	payment2 "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
+	"github.com/iota-agency/iota-sdk/modules/finance/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
 
 type PaymentService struct {
-	repo           payment2.Repository
+	repo           payment.Repository
 	publisher      event.Publisher
 	accountService *MoneyAccountService
 }
 
 func NewPaymentService(
-	repo payment2.Repository,
+	repo payment.Repository,
 	publisher event.Publisher,
 	accountService *MoneyAccountService,
 ) *PaymentService {
@@ -26,15 +26,15 @@ func NewPaymentService(
 	}
 }
 
-func (s *PaymentService) GetByID(ctx context.Context, id uint) (*payment2.Payment, error) {
-	if err := composables.CanUser(ctx, permission.PaymentRead); err != nil {
+func (s *PaymentService) GetByID(ctx context.Context, id uint) (*payment.Payment, error) {
+	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *PaymentService) GetAll(ctx context.Context) ([]*payment2.Payment, error) {
-	if err := composables.CanUser(ctx, permission.PaymentRead); err != nil {
+func (s *PaymentService) GetAll(ctx context.Context) ([]*payment.Payment, error) {
+	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetAll(ctx)
@@ -44,22 +44,22 @@ func (s *PaymentService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*payment2.Payment, error) {
-	if err := composables.CanUser(ctx, permission.PaymentRead); err != nil {
+) ([]*payment.Payment, error) {
+	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *PaymentService) Create(ctx context.Context, data *payment2.CreateDTO) error {
-	if err := composables.CanUser(ctx, permission.PaymentCreate); err != nil {
+func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) error {
+	if err := composables.CanUser(ctx, permissions.PaymentCreate); err != nil {
 		return err
 	}
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := payment2.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := payment.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -70,15 +70,15 @@ func (s *PaymentService) Create(ctx context.Context, data *payment2.CreateDTO) e
 	return nil
 }
 
-func (s *PaymentService) Update(ctx context.Context, id uint, data *payment2.UpdateDTO) error {
-	if err := composables.CanUser(ctx, permission.PaymentUpdate); err != nil {
+func (s *PaymentService) Update(ctx context.Context, id uint, data *payment.UpdateDTO) error {
+	if err := composables.CanUser(ctx, permissions.PaymentUpdate); err != nil {
 		return err
 	}
 	entity := data.ToEntity(id)
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := payment2.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := payment.NewUpdatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -89,8 +89,8 @@ func (s *PaymentService) Update(ctx context.Context, id uint, data *payment2.Upd
 	return nil
 }
 
-func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment2.Payment, error) {
-	if err := composables.CanUser(ctx, permission.PaymentDelete); err != nil {
+func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment.Payment, error) {
+	if err := composables.CanUser(ctx, permissions.PaymentDelete); err != nil {
 		return nil, err
 	}
 	entity, err := s.repo.GetByID(ctx, id)
@@ -100,7 +100,7 @@ func (s *PaymentService) Delete(ctx context.Context, id uint) (*payment2.Payment
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := payment2.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := payment.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}

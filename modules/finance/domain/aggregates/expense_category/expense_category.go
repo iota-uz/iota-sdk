@@ -7,7 +7,6 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
-	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 
 type ExpenseCategory struct {
@@ -30,15 +29,4 @@ func (e *ExpenseCategory) Ok(l ut.Translator) (map[string]string, bool) {
 		errors[_err.Field()] = _err.Translate(l)
 	}
 	return errors, len(errors) == 0
-}
-
-func (e *ExpenseCategory) ToGraph() *model.ExpenseCategory {
-	return &model.ExpenseCategory{
-		ID:          int64(e.ID),
-		Name:        e.Name,
-		Amount:      e.Amount,
-		Description: &e.Description,
-		CreatedAt:   e.CreatedAt,
-		UpdatedAt:   e.UpdatedAt,
-	}
 }
