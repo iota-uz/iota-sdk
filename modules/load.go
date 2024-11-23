@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/iota-agency/iota-sdk/modules/finance"
-	"github.com/iota-agency/iota-sdk/modules/upload"
 	"github.com/iota-agency/iota-sdk/modules/warehouse"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
@@ -14,7 +13,6 @@ var (
 	AllModules = []application.Module{
 		finance.NewModule(),
 		warehouse.NewModule(),
-		upload.NewModule(),
 	}
 )
 

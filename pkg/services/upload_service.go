@@ -2,82 +2,111 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/event"
-	"io"
-	"os"
-	"path/filepath"
+	"errors"
 
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/pkg/event"
+	"gorm.io/gorm"
 )
 
 type UploadService struct {
 	repo      upload.Repository
+	storage   upload.Storage
 	publisher event.Publisher
 }
 
-func NewUploadService(repo upload.Repository, publisher event.Publisher) *UploadService {
+func NewUploadService(
+	repo upload.Repository,
+	storage upload.Storage,
+	publisher event.Publisher,
+) *UploadService {
 	return &UploadService{
 		repo:      repo,
 		publisher: publisher,
+		storage:   storage,
 	}
 }
 
-func (s *UploadService) GetUploadsCount(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
-}
-
-func (s *UploadService) GetUploads(ctx context.Context) ([]*upload.Upload, error) {
-	return s.repo.GetAll(ctx)
-}
-
-func (s *UploadService) GetUploadByID(ctx context.Context, id int64) (*upload.Upload, error) {
+func (s *UploadService) GetByID(ctx context.Context, id string) (*upload.Upload, error) {
+	if err := composables.CanUser(ctx, permission.UploadRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *UploadService) GetUploadsPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
-) ([]*upload.Upload, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+func (s *UploadService) GetAll(ctx context.Context) ([]*upload.Upload, error) {
+	if err := composables.CanUser(ctx, permission.UploadRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetAll(ctx)
 }
 
-func (s *UploadService) UploadFile(ctx context.Context, file io.ReadSeeker, upload *upload.Upload) error {
-	// write file to disk
-	conf := configuration.Use()
-	fullPath := filepath.Join(conf.UploadsPath, upload.Path)
-	f, err := os.Create(fullPath)
+func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*upload.Upload, error) {
+	if err := composables.CanUser(ctx, permission.UploadCreate); err != nil {
+		return nil, err
+	}
+	entity, bytes, err := data.ToEntity()
+	if err != nil {
+		return nil, err
+	}
+	up, err := s.GetByID(ctx, entity.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if up != nil {
+		return up, nil
+	}
+
+	if err := s.storage.Save(ctx, entity.ID, bytes); err != nil {
+		return entity, err
+	}
+	if err := s.repo.Create(ctx, entity); err != nil {
+		return entity, err
+	}
+	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *entity)
+	if err != nil {
+		return entity, err
+	}
+	s.publisher.Publish(createdEvent)
+	return entity, nil
+}
+
+func (s *UploadService) Update(ctx context.Context, id string, data *upload.UpdateDTO) error {
+	if err := composables.CanUser(ctx, permission.UploadUpdate); err != nil {
+		return err
+	}
+	entity, err := data.ToEntity(id)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	if _, err := io.Copy(f, file); err != nil {
+	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	return s.CreateUpload(ctx, upload)
-}
-
-func (s *UploadService) CreateUpload(ctx context.Context, upload *upload.Upload) error {
-	if err := s.repo.Create(ctx, upload); err != nil {
+	updatedEvent, err := upload.NewUpdatedEvent(ctx, *data, *entity)
+	if err != nil {
 		return err
 	}
-	s.publisher.Publish("upload.created", upload)
+	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
-func (s *UploadService) UpdateUpload(ctx context.Context, upload *upload.Upload) error {
-	if err := s.repo.Update(ctx, upload); err != nil {
-		return err
+func (s *UploadService) Delete(ctx context.Context, id string) (*upload.Upload, error) {
+	if err := composables.CanUser(ctx, permission.UploadDelete); err != nil {
+		return nil, err
 	}
-	s.publisher.Publish("upload.updated", upload)
-	return nil
-}
-
-func (s *UploadService) DeleteUpload(ctx context.Context, id int64) error {
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+		return nil, err
 	}
-	s.publisher.Publish("upload.deleted", id)
-	return nil
+	deletedEvent, err := upload.NewDeletedEvent(ctx, *entity)
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(deletedEvent)
+	return entity, nil
 }

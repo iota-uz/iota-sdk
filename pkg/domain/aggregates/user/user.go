@@ -1,12 +1,13 @@
 package user
 
 import (
+	"strings"
+	"time"
+
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/mapper"
 	"github.com/iota-agency/iota-sdk/pkg/utils/sequence"
-	"strings"
-	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -22,7 +23,7 @@ type User struct {
 	MiddleName string
 	Password   string
 	Email      string `validate:"required,email"`
-	//AvatarID   *uint
+	AvatarID   *uint
 	EmployeeID *uint
 	LastIP     *string
 	UILanguage UILanguage

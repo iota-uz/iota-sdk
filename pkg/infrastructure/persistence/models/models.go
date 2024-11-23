@@ -1,16 +1,17 @@
 package models
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Upload struct {
-	ID        uint
+	ID        string
+	URL       string
 	Name      string
-	Path      string
-	Mimetype  string
-	Size      float64
+	Type      string
+	Size      int
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -120,7 +121,7 @@ type User struct {
 	MiddleName *string
 	Email      string
 	Password   *string
-	//AvatarID   *uint
+	AvatarID   *uint
 	LastLogin  *time.Time
 	LastIP     *string
 	UiLanguage string
