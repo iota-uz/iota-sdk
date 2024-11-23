@@ -322,7 +322,7 @@ CREATE TABLE dialogues
 
 CREATE TABLE permissions
 (
-    id          SERIAL PRIMARY KEY,
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(255) NOT NULL UNIQUE,
     resource    VARCHAR(255) NOT NULL, -- roles, users, etc.
     action      VARCHAR(255) NOT NULL, -- create, read, update, delete
@@ -332,8 +332,8 @@ CREATE TABLE permissions
 
 CREATE TABLE role_permissions
 (
-    role_id       INT NOT NULL,
-    permission_id INT NOT NULL,
+    role_id       INT  NOT NULL,
+    permission_id uuid NOT NULL,
     PRIMARY KEY (role_id, permission_id),
     CONSTRAINT fk_role_permissions_role
         FOREIGN KEY (role_id)
