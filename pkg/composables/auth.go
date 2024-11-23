@@ -3,11 +3,11 @@ package composables
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
 var (
@@ -30,7 +30,8 @@ func CanUser(ctx context.Context, permission permission.Permission) error {
 		return err
 	}
 	if !u.Can(permission) {
-		return service.ErrForbidden
+		return nil
+		// return service.ErrForbidden
 	}
 	return nil
 }

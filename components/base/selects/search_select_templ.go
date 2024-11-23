@@ -55,7 +55,7 @@ func SearchOptions(props *SearchOptionsProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(props.Options) == 0 {
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<li class=\"p-2 text-gray-500\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -68,13 +68,13 @@ func SearchOptions(props *SearchOptionsProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 2)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		for _, option := range props.Options {
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 3)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<li x-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -87,7 +87,7 @@ func SearchOptions(props *SearchOptionsProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 4)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"p-2 hover:bg-gray-100 cursor-pointer\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -100,7 +100,7 @@ func SearchOptions(props *SearchOptionsProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -130,7 +130,7 @@ func SearchSelect(props *SearchSelectProps) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div x-data=\"{ open: false, query: &#39;&#39;, selectedId: &#39;&#39; }\" @click.away=\"open = false\" class=\"relative\" id=\"search-select\" endpoint=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -143,7 +143,7 @@ func SearchSelect(props *SearchSelectProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"><label class=\"block text-sm font-medium text-gray-700\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -156,7 +156,7 @@ func SearchSelect(props *SearchSelectProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 8)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</label> <input type=\"text\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -169,7 +169,7 @@ func SearchSelect(props *SearchSelectProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 9)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" x-model=\"query\" @input.debounce.300ms=\"fetchResults\" @focus=\"open = true\" class=\"border p-2 w-full mt-1\"> <input type=\"hidden\" x-model=\"selectedId\" name=\"position_id\"><ul x-show=\"open\" id=\"results-container\" class=\"absolute border bg-white w-full mt-1 max-h-60 overflow-auto\"><!-- Server-rendered results will be injected here --></ul></div><script>\n        function fetchResults() {\n            const endpoint = document.getElementById('search-select').getAttribute('endpoint');\n            if (this.query.length < 2) {\n                document.getElementById('results-container').innerHTML = '<li class=\"p-2 text-gray-500\">No results found.</li>';\n                return;\n            }\n            fetch(`${endpoint}?q=${encodeURIComponent(this.query)}`)\n                .then((response) => response.text())\n                .then((html) => {\n                    document.getElementById('results-container').innerHTML = html;\n                })\n                .catch((error) => {\n                    console.error('Error fetching results:', error);\n                    document.getElementById('results-container').innerHTML = '<li class=\"p-2 text-gray-500\">Error loading results.</li>';\n                });\n        }\n\n        function selectResult(name, id) {\n            const input = document.querySelector('[x-model=\"query\"]');\n            input.value = name;\n            input.dispatchEvent(new Event('input', { bubbles: true }));\n            this.selectedId = id;\n            this.open = false;\n            // Handle further actions, such as navigating or updating the UI.\n        }\n    </script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -3,6 +3,7 @@ module.exports = {
   content: [
       "./pkg/presentation/templates/**/*.{html,js,templ}",
       "./modules/**/templates/**/*.{html,js,templ}",
+      "./components/**/*.{html,js,templ}",
   ],
   theme: {
     extend: {
