@@ -14,18 +14,6 @@ type AuthenticationLog struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-type CreateExpense struct {
-	Amount     float64 `json:"amount"`
-	CategoryID int64   `json:"categoryId"`
-	Date       *string `json:"date,omitempty"`
-}
-
-type CreateExpenseCategory struct {
-	Name        string  `json:"name"`
-	Amount      float64 `json:"amount"`
-	Description *string `json:"description,omitempty"`
-}
-
 type CreatePayment struct {
 	StageID       int64 `json:"stageId"`
 	TransactionID int64 `json:"transactionId"`
@@ -70,25 +58,6 @@ type DialogueReply struct {
 	Model   *string `json:"model,omitempty"`
 }
 
-type Expense struct {
-	ID         int64            `json:"id"`
-	Amount     float64          `json:"amount"`
-	CategoryID int64            `json:"categoryId"`
-	Category   *ExpenseCategory `json:"category,omitempty"`
-	Date       time.Time        `json:"date"`
-	CreatedAt  time.Time        `json:"createdAt"`
-	UpdatedAt  time.Time        `json:"updatedAt"`
-}
-
-type ExpenseCategory struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description,omitempty"`
-	Amount      float64   `json:"amount"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-}
-
 type Media struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
@@ -121,16 +90,6 @@ type PaginatedAuthenticationLogs struct {
 type PaginatedDialogues struct {
 	Data  []*Dialogue `json:"data"`
 	Total int64       `json:"total"`
-}
-
-type PaginatedExpenseCategories struct {
-	Data  []*ExpenseCategory `json:"data"`
-	Total int64              `json:"total"`
-}
-
-type PaginatedExpenses struct {
-	Data  []*Expense `json:"data"`
-	Total int64      `json:"total"`
 }
 
 type PaginatedMedia struct {
@@ -248,18 +207,6 @@ type ToolCall struct {
 type UpdateDialogue struct {
 	UserID *int64  `json:"userId,omitempty"`
 	Label  *string `json:"label,omitempty"`
-}
-
-type UpdateExpense struct {
-	Amount     *float64 `json:"amount,omitempty"`
-	CategoryID *int64   `json:"categoryId,omitempty"`
-	Date       *string  `json:"date,omitempty"`
-}
-
-type UpdateExpenseCategory struct {
-	Name        *string  `json:"name,omitempty"`
-	Amount      *float64 `json:"amount,omitempty"`
-	Description *string  `json:"description,omitempty"`
 }
 
 type UpdatePayment struct {
