@@ -12,6 +12,7 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 		Name:      upload.Name,
 		Type:      upload.Type,
 		Size:      upload.Size,
+		Mimetype:  upload.Mimetype,
 		CreatedAt: upload.CreatedAt,
 		UpdatedAt: upload.UpdatedAt,
 	}
@@ -24,6 +25,7 @@ func toDomainUpload(dbUpload *models.Upload) (*upload.Upload, error) {
 		URL:       dbUpload.URL,
 		Size:      dbUpload.Size,
 		Name:      dbUpload.Name,
+		Mimetype:  dbUpload.Mimetype,
 		CreatedAt: dbUpload.CreatedAt,
 		UpdatedAt: dbUpload.UpdatedAt,
 	}, nil

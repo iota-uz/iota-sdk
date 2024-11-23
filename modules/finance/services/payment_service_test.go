@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"github.com/iota-agency/iota-sdk/modules/finance/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
@@ -16,10 +17,10 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 		Roles: []*role.Role{
 			{
 				Permissions: []permission.Permission{
-					permission.PaymentCreate,
-					permission.PaymentRead,
-					permission.PaymentUpdate,
-					permission.PaymentDelete,
+					permissions.PaymentCreate,
+					permissions.PaymentRead,
+					permissions.PaymentUpdate,
+					permissions.PaymentDelete,
 				},
 			},
 		},

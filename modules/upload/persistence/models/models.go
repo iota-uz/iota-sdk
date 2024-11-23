@@ -8,6 +8,7 @@ type Upload struct {
 	Name      string
 	Type      string
 	Size      int
+	Mimetype  string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
