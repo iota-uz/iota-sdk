@@ -2,9 +2,12 @@ package mappers
 
 import (
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
+	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
@@ -12,8 +15,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
-	"strconv"
-	"time"
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
@@ -41,7 +42,7 @@ func ExpenseCategoryToViewModel(entity *category.ExpenseCategory) *viewmodels.Ex
 	}
 }
 
-func MoneyAccountToViewModel(entity *moneyaccount.moneyaccount) *viewmodels.MoneyAccount {
+func MoneyAccountToViewModel(entity *moneyaccount.Account) *viewmodels.MoneyAccount {
 	return &viewmodels.MoneyAccount{
 		ID:                  strconv.FormatUint(uint64(entity.ID), 10),
 		Name:                entity.Name,
