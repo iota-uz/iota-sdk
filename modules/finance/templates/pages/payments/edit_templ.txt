@@ -1,0 +1,11 @@
+<div class=\"flex flex-col justify-between h-full\" id=\"edit-content\">
+ 
+ 
+ 
+ 
+<div x-data class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\"><form id=\"delete-form\" hx-delete=\"
+\" hx-trigger=\"submit\" hx-target=\"closest .content\" hx-swap=\"innerHTML\" hx-indicator=\"#delete-payment-btn\" hx-disabled-elt=\"find button\">
+</form><form id=\"save-form\" method=\"post\" hx-post=\"
+\" hx-indicator=\"#save-btn\" hx-target=\"#edit-content\" hx-swap=\"outerHTML\">
+</form></div></div>
+ 
