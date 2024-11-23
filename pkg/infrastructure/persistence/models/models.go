@@ -120,7 +120,7 @@ type User struct {
 	MiddleName *string
 	Email      string
 	Password   *string
-	AvatarID   *uint
+	//AvatarID   *uint
 	LastLogin  *time.Time
 	LastIP     *string
 	UiLanguage string

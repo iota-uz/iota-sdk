@@ -26,18 +26,6 @@ CREATE TABLE counterparty_contacts
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE uploads
-(
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    path       VARCHAR(255) NOT NULL,
---     uploader_id INT          REFERENCES users (id) ON DELETE SET NULL,
-    mimetype   VARCHAR(255) NOT NULL,
-    size       FLOAT        NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE currencies
 (
     code       VARCHAR(3)   NOT NULL PRIMARY KEY, -- RUB
@@ -90,7 +78,7 @@ CREATE TABLE employees
     salary_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     hourly_rate        NUMERIC(9, 2) NOT NULL,
     coefficient        FLOAT         NOT NULL,
-    avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
+--     avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -146,7 +134,7 @@ CREATE TABLE users
     email       VARCHAR(255)             NOT NULL UNIQUE,
     password    VARCHAR(255),
     ui_language VARCHAR(3)               NOT NULL,
-    avatar_id   INT                      REFERENCES uploads (id) ON DELETE SET NULL,
+--     avatar_id   INT                      REFERENCES uploads (id) ON DELETE SET NULL,
     last_login  TIMESTAMP                NULL,
     last_ip     VARCHAR(255)             NULL,
     last_action TIMESTAMP WITH TIME ZONE NULL,
@@ -247,7 +235,7 @@ CREATE TABLE folders
 (
     id         SERIAL PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
-    icon_id    INT          REFERENCES uploads (id) ON DELETE SET NULL,
+--     icon_id    INT          REFERENCES uploads (id) ON DELETE SET NULL,
     parent_id  INT REFERENCES folders (id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
@@ -260,7 +248,7 @@ CREATE TABLE articles
     content     TEXT         NOT NULL,
     title_emoji VARCHAR(255),
     author_id   INT          REFERENCES users (id) ON DELETE SET NULL,
-    picture_id  INT          REFERENCES uploads (id) ON DELETE SET NULL,
+--     picture_id  INT          REFERENCES uploads (id) ON DELETE SET NULL,
     folder_id   INT          REFERENCES folders (id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
@@ -288,7 +276,7 @@ CREATE TABLE likes
 CREATE TABLE uploaded_images
 (
     id         SERIAL PRIMARY KEY,
-    upload_id  INT          NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
+--     upload_id  INT          NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
     type       VARCHAR(255) NOT NULL,
     size       FLOAT        NOT NULL,
     width      INT          NOT NULL,
@@ -504,7 +492,7 @@ CREATE INDEX comments_user_id_idx ON comments (user_id);
 CREATE INDEX likes_article_id_idx ON likes (article_id);
 CREATE INDEX likes_user_id_idx ON likes (user_id);
 
-CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
+-- CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
 CREATE INDEX action_log_user_id_idx ON action_logs (user_id);
 
@@ -512,7 +500,7 @@ CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
 
 CREATE INDEX expenses_category_id_idx ON expenses (category_id);
 
-CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
+-- CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 CREATE INDEX folders_parent_id_idx ON folders (parent_id);
 
@@ -573,7 +561,6 @@ DROP TABLE IF EXISTS skills CASCADE;
 DROP TABLE IF EXISTS task_types CASCADE;
 DROP TABLE IF EXISTS telegram_sessions CASCADE;
 DROP TABLE IF EXISTS uploaded_images CASCADE;
-DROP TABLE IF EXISTS uploads CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS vacancies CASCADE;

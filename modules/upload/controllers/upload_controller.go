@@ -15,17 +15,16 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 type UploadController struct {
-	app           *application.Application
+	app           application.Application
 	uploadService *services.UploadService
 	basePath      string
 }
 
-func NewUploadController(app *application.Application) shared.Controller {
+func NewUploadController(app application.Application) application.Controller {
 	return &UploadController{
 		app:           app,
 		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
