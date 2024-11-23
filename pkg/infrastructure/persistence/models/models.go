@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -365,7 +366,7 @@ type Dialogue struct {
 }
 
 type Permission struct {
-	ID       uint
+	ID       uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
 	Name     string
 	Resource string
 	Action   string

@@ -4,8 +4,8 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	expense2 "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
-	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
+	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expenses"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -14,25 +14,25 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
 
+	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type ExpenseController struct {
 	app                    application.Application
-	moneyAccountService    *services2.MoneyAccountService
-	expenseService         *services2.ExpenseService
-	expenseCategoryService *services2.ExpenseCategoryService
+	moneyAccountService    *services.MoneyAccountService
+	expenseService         *services.ExpenseService
+	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
 
 func NewExpensesController(app application.Application) application.Controller {
 	return &ExpenseController{
 		app:                    app,
-		moneyAccountService:    app.Service(services2.MoneyAccountService{}).(*services2.MoneyAccountService),
-		expenseService:         app.Service(services2.ExpenseService{}).(*services2.ExpenseService),
-		expenseCategoryService: app.Service(services2.ExpenseCategoryService{}).(*services2.ExpenseCategoryService),
+		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		expenseService:         app.Service(services.ExpenseService{}).(*services.ExpenseService),
+		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
 		basePath:               "/finance/expenses",
 	}
 }
@@ -175,7 +175,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := expense2.UpdateDTO{} //nolint:exhaustruct
+		dto := expense.UpdateDTO{} //nolint:exhaustruct
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Expenses.Meta.Edit.Title", ""))
 		if err != nil {
@@ -241,7 +241,7 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Accounts:    accounts,
 		Categories:  categories,
 		Errors:      map[string]string{},
-		Expense:     mappers.ExpenseToViewModel(&expense2.Expense{}), //nolint:exhaustruct
+		Expense:     mappers.ExpenseToViewModel(&expense.Expense{}), //nolint:exhaustruct
 	}
 	templ.Handler(expenses.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -252,7 +252,7 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := expense2.CreateDTO{} //nolint:exhaustruct
+	dto := expense.CreateDTO{} //nolint:exhaustruct
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

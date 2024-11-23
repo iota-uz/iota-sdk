@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/go-faster/errors"
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
-	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
+	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/moneyaccounts"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -15,22 +15,22 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type MoneyAccountController struct {
 	app                 application.Application
-	moneyAccountService *services2.MoneyAccountService
-	currencyService     *services2.CurrencyService
+	moneyAccountService *services.MoneyAccountService
+	currencyService     *services.CurrencyService
 	basePath            string
 }
 
 func NewMoneyAccountController(app application.Application) application.Controller {
 	return &MoneyAccountController{
 		app:                 app,
-		moneyAccountService: app.Service(services2.MoneyAccountService{}).(*services2.MoneyAccountService),
+		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
 		basePath:            "/finance/accounts",
 	}
 }

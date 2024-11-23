@@ -5,35 +5,32 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
-	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
+	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/payments"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
 
+	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type PaymentsController struct {
 	app                 application.Application
-	paymentService      *services2.PaymentService
-	projectStageService *services.ProjectStageService
-	moneyAccountService *services2.MoneyAccountService
+	paymentService      *services.PaymentService
+	moneyAccountService *services.MoneyAccountService
 	basePath            string
 }
 
 func NewPaymentsController(app application.Application) application.Controller {
 	return &PaymentsController{
 		app:                 app,
-		paymentService:      app.Service(services2.PaymentService{}).(*services2.PaymentService),
-		projectStageService: app.Service(services.ProjectStageService{}).(*services.ProjectStageService),
-		moneyAccountService: app.Service(services2.MoneyAccountService{}).(*services2.MoneyAccountService),
+		paymentService:      app.Service(services.PaymentService{}).(*services.PaymentService),
+		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
 		basePath:            "/finance/payments",
 	}
 }
@@ -73,22 +70,10 @@ func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Paym
 	return mappers.PaymentToViewModel(p), nil
 }
 
-func (c *PaymentsController) viewModelStages(r *http.Request) ([]*viewmodels.ProjectStage, error) {
-	stages, err := c.projectStageService.GetAll(r.Context())
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving stages")
-	}
-	vms := make([]*viewmodels.ProjectStage, len(stages))
-	for i, s := range stages {
-		vms[i] = mappers.ProjectStageToViewModel(s)
-	}
-	return vms, nil
-}
-
 func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.MoneyAccount, error) {
 	accounts, err := c.moneyAccountService.GetAll(r.Context())
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
+		return nil, errors.Wrap(err, "Error retrieving accounts")
 	}
 	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
 }
@@ -134,11 +119,6 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	stages, err := c.viewModelStages(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -148,7 +128,6 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	props := &payments.EditPageProps{
 		PageContext: pageCtx,
 		Payment:     paymentViewModel,
-		Stages:      stages,
 		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
@@ -206,11 +185,6 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			stages, err := c.viewModelStages(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
 			accounts, err := c.viewModelAccounts(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -219,7 +193,6 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			props := &payments.EditPageProps{
 				PageContext: pageCtx,
 				Payment:     paymentViewModel,
-				Stages:      stages,
 				Accounts:    accounts,
 				Errors:      errorsMap,
 			}
@@ -243,11 +216,6 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	stages, err := c.viewModelStages(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -256,7 +224,6 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 
 	props := &payments.CreatePageProps{
 		PageContext: pageCtx,
-		Stages:      stages,
 		Payment:     &viewmodels.Payment{}, //nolint:exhaustruct
 		Accounts:    accounts,
 		Errors:      make(map[string]string),
@@ -280,11 +247,6 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		stages, err := c.viewModelStages(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -295,7 +257,6 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 			Payment:     mappers.PaymentToViewModel(dto.ToEntity()),
 			Accounts:    accounts,
 			Errors:      errorsMap,
-			Stages:      stages,
 		}
 		templ.Handler(
 			payments.CreateForm(props),
