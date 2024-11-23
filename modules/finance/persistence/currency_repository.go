@@ -2,8 +2,9 @@ package persistence
 
 import (
 	"context"
-	currency2 "github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
+	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
@@ -11,7 +12,7 @@ import (
 
 type GormCurrencyRepository struct{}
 
-func NewCurrencyRepository() currency2.Repository {
+func NewCurrencyRepository() currency.Repository {
 	return &GormCurrencyRepository{}
 }
 
@@ -19,7 +20,7 @@ func (g *GormCurrencyRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*currency2.Currency, error) {
+) ([]*currency.Currency, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -32,15 +33,7 @@ func (g *GormCurrencyRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*currency2.Currency, 0, len(rows))
-	for _, r := range rows {
-		c, err := toDomainCurrency(r)
-		if err != nil {
-			return nil, err
-		}
-		entities = append(entities, c)
-	}
-	return entities, nil
+	return mapping.MapDbModels(rows, toDomainCurrency)
 }
 
 func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
@@ -55,7 +48,7 @@ func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency2.Currency, error) {
+func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency.Currency, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -64,18 +57,10 @@ func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency2.Curre
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*currency2.Currency, 0, len(rows))
-	for _, r := range rows {
-		c, err := toDomainCurrency(r)
-		if err != nil {
-			return nil, err
-		}
-		entities = append(entities, c)
-	}
-	return entities, nil
+	return mapping.MapDbModels(rows, toDomainCurrency)
 }
 
-func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currency2.Currency, error) {
+func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currency.Currency, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
@@ -87,7 +72,7 @@ func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currenc
 	return toDomainCurrency(&entity)
 }
 
-func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency2.Currency) error {
+func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -96,7 +81,7 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency2.C
 	return tx.Create(row).Error
 }
 
-func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency2.Currency) error {
+func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Currency) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -105,7 +90,7 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency2.C
 	return tx.Save(row).Error
 }
 
-func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency2.Currency) error {
+func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency.Currency) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
@@ -119,7 +104,7 @@ func (g *GormCurrencyRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Delete(&currency2.Currency{}, id).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Delete(&currency.Currency{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

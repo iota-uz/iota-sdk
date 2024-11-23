@@ -4,7 +4,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	services2 "github.com/iota-agency/iota-sdk/modules/finance/services"
+	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
@@ -12,23 +12,23 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
 
+	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type ExpenseCategoriesController struct {
 	app                    application.Application
-	currencyService        *services2.CurrencyService
-	expenseCategoryService *services2.ExpenseCategoryService
+	currencyService        *services.CurrencyService
+	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
 
 func NewExpenseCategoriesController(app application.Application) application.Controller {
 	return &ExpenseCategoriesController{
 		app:                    app,
-		currencyService:        app.Service(services2.CurrencyService{}).(*services2.CurrencyService),
-		expenseCategoryService: app.Service(services2.ExpenseCategoryService{}).(*services2.ExpenseCategoryService),
+		currencyService:        app.Service(services.CurrencyService{}).(*services.CurrencyService),
+		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
 		basePath:               "/finance/expense-categories",
 	}
 }

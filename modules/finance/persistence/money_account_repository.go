@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 	"time"
 )
@@ -32,15 +33,7 @@ func (g *GormMoneyAccountRepository) GetPaginated(
 	if err := q.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*moneyaccount.Account, len(rows))
-	for i, r := range rows {
-		p, err := toDomainMoneyAccount(r)
-		if err != nil {
-			return nil, err
-		}
-		entities[i] = p
-	}
-	return entities, nil
+	return mapping.MapDbModels(rows, toDomainMoneyAccount)
 }
 
 func (g *GormMoneyAccountRepository) Count(ctx context.Context) (uint, error) {
@@ -64,15 +57,7 @@ func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyaccoun
 	if err := tx.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*moneyaccount.Account, len(rows))
-	for i, r := range rows {
-		p, err := toDomainMoneyAccount(r)
-		if err != nil {
-			return nil, err
-		}
-		entities[i] = p
-	}
-	return entities, nil
+	return mapping.MapDbModels(rows, toDomainMoneyAccount)
 }
 
 func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*moneyaccount.Account, error) {
