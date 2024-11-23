@@ -1,6 +1,7 @@
 {
   "modules": [
     "finance",
-    "warehouse"
+    "warehouse",
+    "upload"
   ]
 }

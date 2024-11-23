@@ -72,6 +72,8 @@ CREATE TABLE warehouse_order_items
     PRIMARY KEY (warehouse_order_id, product_id)
 );
 
+COMMIT;
+
 -- +migrate Down
 BEGIN;
 
