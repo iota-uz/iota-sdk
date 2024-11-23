@@ -32,7 +32,7 @@ func NewModifier(m string) (Modifier, error) {
 
 func (r Resource) IsValid() bool {
 	switch r {
-	case ResourcePayment, ResourceUser, ResourceRole, ResourceAccount, ResourceStage, ResourceProject:
+	case ResourceUser, ResourceRole, ResourceAccount, ResourceStage, ResourceProject:
 		return true
 	}
 	return false
