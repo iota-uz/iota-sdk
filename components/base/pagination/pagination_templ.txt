@@ -1,0 +1,18 @@
+<ul class=\"inline-flex -space-x-px text-sm\"><li>
+<a class=\"
+\" href=\"
+\">
+</a></li>
+<li>
+<a class=\"
+\">...</a></li>
+<li>
+<a class=\"
+\" href=\"
+\">
+</a></li>
+<li>
+<a class=\"
+\" href=\"
+\">
+</a></li></ul>
