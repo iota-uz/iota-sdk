@@ -50,6 +50,14 @@ templ ProfileForm(props *ProfilePageProps) {
 				},
 				Error: props.Errors["MiddleName"],
 			})
+			@base.Combobox(base.ComboboxProps{
+				Placeholder: props.T("Users.Single.SelectRole"),
+				Multiple:    true,
+				Label:       props.T("Users.Single.Role"),
+			}) {
+				<option value="admin">Admin</option>
+				<option value="worker">Worker</option>
+			}
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       props.T("Users.Single.Language"),
 				Placeholder: props.T("Users.Single.SelectLanguage"),
