@@ -3,8 +3,8 @@ package upload
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"github.com/gabriel-vasile/mimetype"
 	"io"
-	"net/http"
 	"path/filepath"
 	"time"
 
@@ -62,7 +62,7 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 		ID:        hash,
 		Name:      d.Name,
 		Size:      d.Size,
-		Type:      http.DetectContentType(bytes),
+		Mimetype:  *mimetype.Detect(bytes),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		URL:       conf.Origin + filepath.Join("/", conf.UploadsPath, hash),

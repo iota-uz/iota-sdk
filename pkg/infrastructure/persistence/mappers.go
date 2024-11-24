@@ -1,14 +1,17 @@
 package persistence
 
 import (
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
+	"time"
 )
 
 func toDomainUser(dbUser *models.User) *user.User {
@@ -194,8 +197,8 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 		ID:        upload.ID,
 		URL:       upload.URL,
 		Name:      upload.Name,
-		Type:      upload.Type,
 		Size:      upload.Size,
+		Mimetype:  upload.Mimetype.String(),
 		CreatedAt: upload.CreatedAt,
 		UpdatedAt: upload.UpdatedAt,
 	}
@@ -204,11 +207,37 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 func toDomainUpload(dbUpload *models.Upload) (*upload.Upload, error) {
 	return &upload.Upload{
 		ID:        dbUpload.ID,
-		Type:      dbUpload.Type,
 		URL:       dbUpload.URL,
 		Size:      dbUpload.Size,
 		Name:      dbUpload.Name,
+		Mimetype:  *mimetype.Lookup(dbUpload.Mimetype),
 		CreatedAt: dbUpload.CreatedAt,
 		UpdatedAt: dbUpload.UpdatedAt,
+	}, nil
+}
+
+func ToDBCurrency(entity *currency.Currency) *models.Currency {
+	return &models.Currency{
+		Code:      string(entity.Code),
+		Name:      entity.Name,
+		Symbol:    string(entity.Symbol),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+}
+
+func ToDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
+	code, err := currency.NewCode(dbCurrency.Code)
+	if err != nil {
+		return nil, err
+	}
+	symbol, err := currency.NewSymbol(dbCurrency.Symbol)
+	if err != nil {
+		return nil, err
+	}
+	return &currency.Currency{
+		Code:   code,
+		Name:   dbCurrency.Name,
+		Symbol: symbol,
 	}, nil
 }
