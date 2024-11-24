@@ -3,11 +3,10 @@ package persistence
 import (
 	"context"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/service"
-
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
 type GormTransactionRepository struct{}
