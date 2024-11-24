@@ -104,7 +104,7 @@ func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
 		ID:        entity.ID,
 		URL:       entity.URL,
 		Name:      entity.Name,
-		Type:      entity.Type,
+		Mimetype:  entity.Mimetype.String(),
 		Size:      strconv.Itoa(entity.Size),
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),

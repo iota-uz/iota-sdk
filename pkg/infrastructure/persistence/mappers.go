@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
@@ -194,8 +195,8 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 		ID:        upload.ID,
 		URL:       upload.URL,
 		Name:      upload.Name,
-		Type:      upload.Type,
 		Size:      upload.Size,
+		Mimetype:  upload.Mimetype.String(),
 		CreatedAt: upload.CreatedAt,
 		UpdatedAt: upload.UpdatedAt,
 	}
@@ -204,10 +205,10 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 func toDomainUpload(dbUpload *models.Upload) (*upload.Upload, error) {
 	return &upload.Upload{
 		ID:        dbUpload.ID,
-		Type:      dbUpload.Type,
 		URL:       dbUpload.URL,
 		Size:      dbUpload.Size,
 		Name:      dbUpload.Name,
+		Mimetype:  *mimetype.Lookup(dbUpload.Mimetype),
 		CreatedAt: dbUpload.CreatedAt,
 		UpdatedAt: dbUpload.UpdatedAt,
 	}, nil
