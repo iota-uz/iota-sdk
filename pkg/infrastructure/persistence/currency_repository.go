@@ -2,8 +2,8 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 
@@ -33,7 +33,7 @@ func (g *GormCurrencyRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(rows, toDomainCurrency)
+	return mapping.MapDbModels(rows, ToDomainCurrency)
 }
 
 func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
@@ -57,7 +57,7 @@ func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency.Curren
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(rows, toDomainCurrency)
+	return mapping.MapDbModels(rows, ToDomainCurrency)
 }
 
 func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currency.Currency, error) {
@@ -69,7 +69,7 @@ func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currenc
 	if err := tx.First(&entity, id).Error; err != nil {
 		return nil, err
 	}
-	return toDomainCurrency(&entity)
+	return ToDomainCurrency(&entity)
 }
 
 func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
@@ -77,7 +77,7 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Cu
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDBCurrency(entity)
+	row := ToDBCurrency(entity)
 	return tx.Create(row).Error
 }
 
@@ -86,7 +86,7 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Cu
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDBCurrency(entity)
+	row := ToDBCurrency(entity)
 	return tx.Save(row).Error
 }
 
@@ -95,7 +95,7 @@ func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *c
 	if !ok {
 		return service.ErrNoTx
 	}
-	row := toDBCurrency(currency)
+	row := ToDBCurrency(currency)
 	return tx.Save(row).Error
 }
 
