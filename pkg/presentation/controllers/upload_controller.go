@@ -8,13 +8,13 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/modules/upload/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/modules/upload/mappers"
-	"github.com/iota-agency/iota-sdk/modules/upload/services"
-	"github.com/iota-agency/iota-sdk/modules/upload/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
+	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 

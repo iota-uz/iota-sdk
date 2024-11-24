@@ -5,7 +5,7 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-agency/iota-sdk/components/user"
-	uploadcomponents "github.com/iota-agency/iota-sdk/modules/upload/templates/components"
+	components "github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
@@ -27,7 +27,7 @@ templ ProfileForm(props *ProfilePageProps) {
 			{ props.User.FirstName } { props.User.LastName }
 		</h1>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
-			@uploadcomponents.UploadInput(&uploadcomponents.UploadInputProps{
+			@components.UploadInput(&components.UploadInputProps{
 				Name: "AvatarID",
 				Class: "col-span-3",
 			})
