@@ -2,6 +2,7 @@ package mappers
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"strconv"
 	"time"
 
@@ -108,5 +109,13 @@ func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
 		Size:      strconv.Itoa(entity.Size),
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
+	return &viewmodels.Currency{
+		Code:   string(entity.Code),
+		Name:   entity.Name,
+		Symbol: string(entity.Symbol),
 	}
 }

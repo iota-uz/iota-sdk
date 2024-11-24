@@ -6,11 +6,10 @@ import (
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	corepersistence "github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
-	"time"
 )
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
@@ -90,32 +89,6 @@ func toDomainPayment(dbPayment *models.Payment) (*payment.Payment, error) {
 	}, nil
 }
 
-func toDBCurrency(entity *currency.Currency) *models.Currency {
-	return &models.Currency{
-		Code:      string(entity.Code),
-		Name:      entity.Name,
-		Symbol:    string(entity.Symbol),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-}
-
-func toDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
-	code, err := currency.NewCode(dbCurrency.Code)
-	if err != nil {
-		return nil, err
-	}
-	symbol, err := currency.NewSymbol(dbCurrency.Symbol)
-	if err != nil {
-		return nil, err
-	}
-	return &currency.Currency{
-		Code:   code,
-		Name:   dbCurrency.Name,
-		Symbol: symbol,
-	}, nil
-}
-
 func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
 		ID:               entity.ID,
@@ -129,7 +102,7 @@ func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCatego
 }
 
 func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.ExpenseCategory, error) {
-	currencyEntity, err := toDomainCurrency(&dbCategory.AmountCurrency)
+	currencyEntity, err := corepersistence.ToDomainCurrency(&dbCategory.AmountCurrency)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +118,7 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.Expe
 }
 
 func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyAccount.Account, error) {
-	currencyEntity, err := toDomainCurrency(dbAccount.Currency)
+	currencyEntity, err := corepersistence.ToDomainCurrency(dbAccount.Currency)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +141,7 @@ func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
 		AccountNumber:     entity.AccountNumber,
 		Balance:           entity.Balance,
 		BalanceCurrencyID: string(entity.Currency.Code),
-		Currency:          toDBCurrency(&entity.Currency),
+		Currency:          corepersistence.ToDBCurrency(&entity.Currency),
 		Description:       entity.Description,
 		CreatedAt:         entity.CreatedAt,
 		UpdatedAt:         entity.UpdatedAt,

@@ -1,7 +1,7 @@
 package category
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"

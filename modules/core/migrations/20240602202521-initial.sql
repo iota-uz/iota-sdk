@@ -1,31 +1,6 @@
 -- +migrate Up
 BEGIN;
 
-CREATE TABLE counterparty
-(
-    id            SERIAL PRIMARY KEY,
-    tin           VARCHAR(20),
-    name          VARCHAR(255) NOT NULL,
-    type          VARCHAR(255) NOT NULL, -- customer, supplier, individual
-    legal_type    VARCHAR(255) NOT NULL, -- LLC, JSC, etc.
-    legal_address VARCHAR(255),
-    created_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE counterparty_contacts
-(
-    id              SERIAL PRIMARY KEY,
-    counterparty_id INT          NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
-    first_name      VARCHAR(255) NOT NULL,
-    last_name       VARCHAR(255) NOT NULL,
-    middle_name     VARCHAR(255) NULL,
-    email           VARCHAR(255),
-    phone           VARCHAR(255),
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE uploads
 (
     id         SERIAL PRIMARY KEY,
@@ -36,28 +11,6 @@ CREATE TABLE uploads
     size       INT          NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-
-CREATE TABLE currencies
-(
-    code       VARCHAR(3)   NOT NULL PRIMARY KEY, -- RUB
-    name       VARCHAR(255) NOT NULL,             -- Russian Ruble
-    symbol     VARCHAR(3)   NOT NULL,             -- ₽
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE inventory
-(
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255)  NOT NULL,
-    description TEXT,
-    currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
-    price       NUMERIC(9, 2) NOT NULL,
-    quantity    INT           NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE positions
@@ -77,6 +30,15 @@ CREATE TABLE settings
     income_tax_rate FLOAT NOT NULL,
     social_tax_rate FLOAT NOT NULL,
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE currencies
+(
+    code       VARCHAR(3)   NOT NULL PRIMARY KEY, -- RUB
+    name       VARCHAR(255) NOT NULL,             -- Russian Ruble
+    symbol     VARCHAR(3)   NOT NULL,             -- ₽
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE employees
@@ -180,17 +142,6 @@ CREATE TABLE prompts
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE expense_categories
-(
-    id                 SERIAL PRIMARY KEY,
-    name               VARCHAR(255)  NOT NULL,
-    description        TEXT,
-    amount             NUMERIC(9, 2) NOT NULL,
-    amount_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE employee_contacts
 (
     id          SERIAL PRIMARY KEY,
@@ -199,49 +150,6 @@ CREATE TABLE employee_contacts
     value       VARCHAR(255) NOT NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE money_accounts
-(
-    id                  SERIAL PRIMARY KEY,
-    name                VARCHAR(255)  NOT NULL,
-    account_number      VARCHAR(255)  NOT NULL,
-    description         TEXT,
-    balance             NUMERIC(9, 2) NOT NULL,
-    balance_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
-    created_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE transactions
-(
-    id                     SERIAL PRIMARY KEY,
-    amount                 NUMERIC(9, 2) NOT NULL,
-    origin_account_id      INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    destination_account_id INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    transaction_date       DATE          NOT NULL   DEFAULT CURRENT_DATE,
-    accounting_period      DATE          NOT NULL   DEFAULT CURRENT_DATE,
-    transaction_type       VARCHAR(255)  NOT NULL, -- income, expense, transfer
-    comment                TEXT,
-    created_at             TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE expenses
-(
-    id             SERIAL PRIMARY KEY,
-    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
-    category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE payments
-(
-    id              SERIAL PRIMARY KEY,
-    transaction_id  INT NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
-    counterparty_id INT NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE folders
@@ -511,8 +419,6 @@ CREATE INDEX action_log_user_id_idx ON action_logs (user_id);
 
 CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
 
-CREATE INDEX expenses_category_id_idx ON expenses (category_id);
-
 CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 CREATE INDEX folders_parent_id_idx ON folders (parent_id);
@@ -544,7 +450,6 @@ DROP TABLE IF EXISTS companies CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
 DROP TABLE IF EXISTS contact_form_submissions CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
-DROP TABLE IF EXISTS counterparty_contacts CASCADE;
 DROP TABLE IF EXISTS dialogues CASCADE;
 DROP TABLE IF EXISTS difficulty_levels CASCADE;
 DROP TABLE IF EXISTS employee_contacts CASCADE;
@@ -552,8 +457,6 @@ DROP TABLE IF EXISTS employee_meta CASCADE;
 DROP TABLE IF EXISTS employee_skills CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
 DROP TABLE IF EXISTS estimates CASCADE;
-DROP TABLE IF EXISTS expense_categories CASCADE;
-DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS folders CASCADE;
 DROP TABLE IF EXISTS interview_questions CASCADE;
 DROP TABLE IF EXISTS interview_ratings CASCADE;
@@ -577,8 +480,6 @@ DROP TABLE IF EXISTS uploaded_images CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS vacancies CASCADE;
-DROP TABLE IF EXISTS payments CASCADE;
-DROP TABLE IF EXISTS transactions CASCADE;
 DROP TABLE IF EXISTS action_logs CASCADE;
 
 COMMIT;
