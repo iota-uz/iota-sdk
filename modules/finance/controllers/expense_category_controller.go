@@ -7,6 +7,9 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	coremappers "github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
+	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -19,7 +22,7 @@ import (
 
 type ExpenseCategoriesController struct {
 	app                    application.Application
-	currencyService        *services.CurrencyService
+	currencyService        *coreservices.CurrencyService
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
@@ -27,7 +30,7 @@ type ExpenseCategoriesController struct {
 func NewExpenseCategoriesController(app application.Application) application.Controller {
 	return &ExpenseCategoriesController{
 		app:                    app,
-		currencyService:        app.Service(services.CurrencyService{}).(*services.CurrencyService),
+		currencyService:        app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
 		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
 		basePath:               "/finance/expense-categories",
 	}
@@ -49,11 +52,7 @@ func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*v
 	if err != nil {
 		return nil, err
 	}
-	viewCurrencies := make([]*viewmodels.Currency, len(currencies))
-	for i, currency := range currencies {
-		viewCurrencies[i] = mappers.CurrencyToViewModel(currency)
-	}
-	return viewCurrencies, nil
+	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
 }
 
 func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
@@ -71,14 +70,10 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
 		return
 	}
-	viewCategories := make([]*viewmodels.ExpenseCategory, len(categories))
-	for i, entity := range categories {
-		viewCategories[i] = mappers.ExpenseCategoryToViewModel(entity)
-	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expense_categories.IndexPageProps{
 		PageContext: pageCtx,
-		Categories:  viewCategories,
+		Categories:  mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
 	}
 	if isHxRequest {
 		templ.Handler(expense_categories.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
