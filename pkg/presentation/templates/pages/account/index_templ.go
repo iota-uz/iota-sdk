@@ -13,7 +13,7 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-agency/iota-sdk/components/user"
-	uploadcomponents "github.com/iota-agency/iota-sdk/modules/upload/templates/components"
+	components "github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
@@ -100,7 +100,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = uploadcomponents.UploadInput(&uploadcomponents.UploadInputProps{
+			templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
 				Name:  "AvatarID",
 				Class: "col-span-3",
 			}).Render(ctx, templ_7745c5c3_Buffer)
