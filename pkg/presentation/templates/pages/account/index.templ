@@ -7,11 +7,13 @@ import (
 	usercomponents "github.com/iota-agency/iota-sdk/components/user"
 	components "github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 type ProfilePageProps struct {
 	*types.PageContext
+	User     *viewmodels.User
 	Errors   map[string]string
 	PostPath string
 }
@@ -28,7 +30,7 @@ templ ProfileForm(props *ProfilePageProps) {
 		</h1>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@components.UploadInput(&components.UploadInputProps{
-				Name: "AvatarID",
+				Name:  "AvatarID",
 				Class: "col-span-3",
 			})
 			@input.Text(&input.Props{

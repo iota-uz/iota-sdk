@@ -2,7 +2,6 @@ package types
 
 import (
 	ut "github.com/go-playground/universal-translator"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
@@ -23,7 +22,6 @@ type PageContext struct {
 	Locale        string
 	Localizer     *i18n.Localizer
 	UniTranslator ut.Translator
-	User          *user.User
 	NavItems      []NavigationItem
 	Pathname      string
 }

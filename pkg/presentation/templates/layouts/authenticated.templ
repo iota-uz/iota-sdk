@@ -2,9 +2,10 @@ package layouts
 
 import (
 	"bytes"
+	"context"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
@@ -67,8 +68,12 @@ func isAnyChildrenActive(pathname string, children []types.NavigationItem) bool 
 	return false
 }
 
-func initials(user *user.User) string {
-	return mappers.UserToViewModel(user).Initials()
+func initials(ctx context.Context) string {
+	u, err := composables.UseUser(ctx)
+	if err != nil {
+		return ""
+	}
+	return mappers.UserToViewModel(u).Initials()
 }
 
 templ renderNavItem(i types.NavigationItem, pathname string) {
@@ -119,7 +124,7 @@ templ sidebar(pageCtx *types.PageContext) {
 
 templ avatar(pageCtx *types.PageContext) {
 	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
-		{ initials(pageCtx.User) }
+		{ initials(ctx) }
 	</summary>
 }
 
