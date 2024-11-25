@@ -2,7 +2,8 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
+
+	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
@@ -106,4 +107,8 @@ func (s *MoneyAccountService) Delete(ctx context.Context, id uint) (*moneyaccoun
 	}
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+func (s *MoneyAccountService) Count(ctx context.Context) (uint, error) {
+	return s.repo.Count(ctx)
 }

@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
@@ -12,7 +14,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 
 	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -82,6 +83,12 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	params := composables.UsePaginated(r)
+	total, err := c.expenseService.Count(r.Context())
+	if err != nil {
+		http.Error(w, "Error counting expenses", http.StatusInternalServerError)
+		return
+	}
 
 	viewExpenses, err := c.viewModelExpenses(r)
 	if err != nil {
@@ -90,8 +97,10 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expenses.IndexPageProps{
-		PageContext: pageCtx,
-		Expenses:    viewExpenses,
+		PageContext:      pageCtx,
+		Expenses:         viewExpenses,
+		PaginationParams: params,
+		ExpensesTotal:    int(total),
 	}
 	if isHxRequest {
 		templ.Handler(expenses.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
