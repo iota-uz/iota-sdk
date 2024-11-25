@@ -10,16 +10,17 @@ import (
 )
 
 var (
-	AllModules = []application.Module{
+	BuiltInModules = []application.Module{
 		finance.NewModule(),
 		warehouse.NewModule(),
 	}
 )
 
-func Load() []application.Module {
+func Load(externalModules ...application.Module) []application.Module {
 	jsonConf := configuration.UseJsonConfig()
 	var result []application.Module
-	for _, module := range AllModules {
+	modules := append(BuiltInModules, externalModules...)
+	for _, module := range modules {
 		if slices.Contains(jsonConf.Modules, module.Name()) {
 			result = append(result, module)
 		}
