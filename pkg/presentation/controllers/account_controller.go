@@ -4,6 +4,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/account"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -39,9 +40,15 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	u, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	props := &account.ProfilePageProps{
 		PageContext: pageCtx,
 		PostPath:    c.basePath,
+		User:        mappers.UserToViewModel(u),
 	}
 	templ.Handler(account.Index(props)).ServeHTTP(w, r)
 }
