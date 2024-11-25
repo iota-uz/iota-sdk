@@ -9,49 +9,58 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
 	*types.PageContext
+	PaginationParams composables.PaginationParams
 	Categories []*viewmodels.ExpenseCategory
+	CategoriesTotal int
 }
 
 templ CategoriesTable(props *IndexPageProps) {
-	@base.Table(&base.TableProps{
-		Columns: []*base.TableColumn{
-			{Label: "ExpenseCategories.List.Name", Key: "name"},
-			{Label: "ExpenseCategories.List.Amount", Key: "amount"},
-			{Label: "UpdatedAt", Key: "updatedAt"},
-			{Label: "Actions", Class: "w-16"},
-		},
-		Localizer: props.Localizer,
-	}) {
-		for _, category := range props.Categories {
-			@base.TableRow() {
-				@base.TableCell() {
-					{ category.Name }
-				}
-				@base.TableCell() {
-					{ category.AmountWithCurrency }
-				}
-				@base.TableCell() {
-					<div x-data="relativeformat">
-						<span x-text={ fmt.Sprintf("format('%s')", category.UpdatedAt) }></span>
-					</div>
-				}
-				@base.TableCell() {
-					@button.Secondary(button.Props{
-						Fixed: true,
-						Size:  button.SizeSM,
-						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/finance/expense-categories/%s", category.ID),
-					}) {
-						@icons.PencilSimple(icons.Props{Size: "20"})
+	<div class="flex flex-col gap-4 table-wrapper">
+		@base.Table(&base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: "ExpenseCategories.List.Name", Key: "name"},
+				{Label: "ExpenseCategories.List.Amount", Key: "amount"},
+				{Label: "UpdatedAt", Key: "updatedAt"},
+				{Label: "Actions", Class: "w-16"},
+			},
+			Localizer: props.Localizer,
+		}) {
+			for _, category := range props.Categories {
+				@base.TableRow() {
+					@base.TableCell() {
+						{ category.Name }
+					}
+					@base.TableCell() {
+						{ category.AmountWithCurrency }
+					}
+					@base.TableCell() {
+						<div x-data="relativeformat">
+							<span x-text={ fmt.Sprintf("format('%s')", category.UpdatedAt) }></span>
+						</div>
+					}
+					@base.TableCell() {
+						@button.Secondary(button.Props{
+							Fixed: true,
+							Size:  button.SizeSM,
+							Class: "btn-fixed",
+							Href:  fmt.Sprintf("/finance/expense-categories/%s", category.ID),
+						}) {
+							@icons.PencilSimple(icons.Props{Size: "20"})
+						}
 					}
 				}
 			}
 		}
-	}
+		<div class="p-4">
+			@pagination.Pagination(pagination.New("/finance/expense-categories", props.PaginationParams.Page, props.CategoriesTotal, props.PaginationParams.Limit))
+		</div>
+	</div>
 }
 
 templ CategoriesContent(props *IndexPageProps) {
@@ -64,7 +73,7 @@ templ CategoriesContent(props *IndexPageProps) {
 				class="p-4 flex items-center gap-3"
 				hx-get="/finance/expense-categories"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target="table"
+				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
 				@input.Text(&input.Props{

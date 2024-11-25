@@ -3,9 +3,7 @@
 \" href=\"
 \">
 </a></li>
-<li>
-<a class=\"
-\">...</a></li>
+<li><a class=\"btn btn-secondary border-none rounded-none h-11\">...</a></li>
 <li>
 <a class=\"
 \" href=\"

@@ -12,19 +12,14 @@ type Page struct {
 	Active bool
 }
 
-const baseAnchorClasses = "flex items-center justify-center px-4 h-10 border border-gray-300 dark:border-gray-700"
-const baseAnchorBg = "bg-white leading-tight hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white text-gray-500 hover:text-gray-700"
-const activeAnchorClasses = "text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 dark:bg-gray-700 dark:text-white"
-const disabledAnchorClasses = "text-gray-400 dark:text-gray-700 pointer-events-none"
-
 func (p *Page) Classes() string {
-	if p.Filler {
-		return baseAnchorClasses + " " + disabledAnchorClasses
-	}
 	if p.Active {
-		return baseAnchorClasses + " " + activeAnchorClasses
+		return "bg-brand-500 text-white"
 	}
-	return baseAnchorClasses + " " + baseAnchorBg
+	if p.Filler {
+		return "opacity-70 pointer-events-none"
+	}
+	return ""
 }
 
 type State struct {
@@ -71,25 +66,23 @@ func (s *State) NextLink() string {
 }
 
 func (s *State) PrevLinkClasses() string {
-	base := baseAnchorClasses + " rounded-l-lg "
 	if s.PrevLink() == "" {
-		return base + disabledAnchorClasses
+		return "opacity-70 pointer-events-none"
 	}
-	return base + baseAnchorBg
+	return ""
 }
 
 func (s *State) NextLinkClasses() string {
-	base := baseAnchorClasses + " rounded-r-lg "
 	if s.NextLink() == "" {
-		return base + disabledAnchorClasses
+		return "opacity-70 pointer-events-none"
 	}
-	return base + baseAnchorBg
+	return ""
 }
 
 func New(baseLink string, page, total, limit int) *State {
 	p := &State{
 		Total:   total,
-		Current: page,
+		Current: max(page-1, 0),
 	}
 	if total == 0 {
 		return p
@@ -103,7 +96,7 @@ func New(baseLink string, page, total, limit int) *State {
 		p.pages = append(p.pages, Page{
 			Num:    i + 1,
 			Link:   link,
-			Active: i == page,
+			Active: i == max(page-1, 0),
 		})
 	}
 	return p
