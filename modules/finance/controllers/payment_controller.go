@@ -1,9 +1,12 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/payments"
@@ -12,7 +15,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 
 	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -24,6 +26,11 @@ type PaymentsController struct {
 	paymentService      *services.PaymentService
 	moneyAccountService *services.MoneyAccountService
 	basePath            string
+}
+
+type PaymentPaginatedResponse struct {
+	Payments        []*viewmodels.Payment
+	PaginationState *pagination.State
 }
 
 func NewPaymentsController(app application.Application) application.Controller {
@@ -46,18 +53,6 @@ func (c *PaymentsController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}", c.DeletePayment).Methods(http.MethodDelete)
 }
 
-func (c *PaymentsController) viewModelPayments(r *http.Request) ([]*viewmodels.Payment, error) {
-	ps, err := c.paymentService.GetAll(r.Context())
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving payments")
-	}
-	vms := make([]*viewmodels.Payment, len(ps))
-	for i, p := range ps {
-		vms[i] = mappers.PaymentToViewModel(p)
-	}
-	return vms, nil
-}
-
 func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Payment, error) {
 	id, err := shared.ParseID(r)
 	if err != nil {
@@ -78,6 +73,24 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
 }
 
+func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginatedResponse, error) {
+	params := composables.UsePaginated(r)
+	paymentEntities, err := c.paymentService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving payments")
+	}
+	viewPayments := mapping.MapViewModels(paymentEntities, mappers.PaymentToViewModel)
+	total, err := c.paymentService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting payments")
+	}
+
+	return &PaymentPaginatedResponse{
+		Payments:        viewPayments,
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}, nil
+}
+
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -87,15 +100,16 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	paymentViewModels, err := c.viewModelPayments(r)
+	paginated, err := c.viewModelPayments(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &payments.IndexPageProps{
-		PageContext: pageCtx,
-		Payments:    paymentViewModels,
+		PageContext:     pageCtx,
+		Payments:        paginated.Payments,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)

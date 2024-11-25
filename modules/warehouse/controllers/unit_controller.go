@@ -2,6 +2,9 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	unit2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
@@ -10,7 +13,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -24,6 +26,11 @@ type UnitsController struct {
 	app         application.Application
 	unitService *services.UnitService
 	basePath    string
+}
+
+type UnitPaginatedResponse struct {
+	Units           []*viewmodels.Unit
+	PaginationState *pagination.State
 }
 
 func NewUnitsController(app application.Application) application.Controller {
@@ -45,12 +52,21 @@ func (c *UnitsController) Register(r *mux.Router) {
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 }
 
-func (c *UnitsController) viewModelUnits(r *http.Request) ([]*viewmodels.Unit, error) {
-	entities, err := c.unitService.GetAll(r.Context())
+func (c *UnitsController) viewModelUnits(r *http.Request) (*UnitPaginatedResponse, error) {
+	params := composables.UsePaginated(r)
+	entities, err := c.unitService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving units")
 	}
-	return mapping.MapViewModels(entities, mappers.UnitToViewModel), nil
+	viewUnits := mapping.MapViewModels(entities, mappers.UnitToViewModel)
+	total, err := c.unitService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting units")
+	}
+	return &UnitPaginatedResponse{
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		Units:           viewUnits,
+	}, nil
 }
 
 func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
@@ -63,15 +79,16 @@ func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	viewUnits, err := c.viewModelUnits(r)
+	paginated, err := c.viewModelUnits(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &units2.IndexPageProps{
-		PageContext: pageCtx,
-		Units:       viewUnits,
+		PageContext:     pageCtx,
+		Units:           paginated.Units,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(units2.UnitsTable(props), templ.WithStreaming()).ServeHTTP(w, r)

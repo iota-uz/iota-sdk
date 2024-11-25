@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -99,4 +100,8 @@ func (s *PositionService) Delete(ctx context.Context, id uint) (*position.Positi
 	}
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+func (s *PositionService) Count(ctx context.Context) (uint, error) {
+	return s.repo.Count(ctx)
 }
