@@ -30,7 +30,7 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 		if err := module.Register(app); err != nil {
 			return nil, errors.Wrapf(err, "failed to register module %s", module.Name())
 		} else {
-			log.Printf("Module %s registered", module.Name())
+			log.Printf("Module \"%s\" registered", module.Name())
 		}
 	}
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
