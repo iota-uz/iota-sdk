@@ -1,16 +1,17 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 
 	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -71,14 +72,21 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
 		return
 	}
+	total, err := c.expenseCategoryService.Count(r.Context())
+	if err != nil {
+		http.Error(w, "Error counting expense categories", http.StatusInternalServerError)
+		return
+	}
 	viewCategories := make([]*viewmodels.ExpenseCategory, len(categories))
 	for i, entity := range categories {
 		viewCategories[i] = mappers.ExpenseCategoryToViewModel(entity)
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expense_categories.IndexPageProps{
-		PageContext: pageCtx,
-		Categories:  viewCategories,
+		PageContext:      pageCtx,
+		Categories:       viewCategories,
+		CategoriesTotal:  int(total),
+		PaginationParams: params,
 	}
 	if isHxRequest {
 		templ.Handler(expense_categories.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
