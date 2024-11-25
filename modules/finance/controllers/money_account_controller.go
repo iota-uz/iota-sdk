@@ -11,6 +11,8 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/moneyaccounts"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	coremappers "github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
+	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -25,7 +27,7 @@ import (
 type MoneyAccountController struct {
 	app                 application.Application
 	moneyAccountService *services.MoneyAccountService
-	currencyService     *services.CurrencyService
+	currencyService     *coreservices.CurrencyService
 	basePath            string
 }
 
@@ -58,7 +60,7 @@ func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmo
 	if err != nil {
 		return nil, err
 	}
-	return mapping.MapViewModels(currencies, mappers.CurrencyToViewModel), nil
+	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
 }
 
 func (c *MoneyAccountController) viewModelAccounts(r *http.Request) (*AccountPaginatedResponse, error) {

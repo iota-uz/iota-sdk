@@ -6,7 +6,6 @@ import (
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"strconv"
 	"time"
@@ -67,12 +66,12 @@ func PaymentToViewModel(entity *payment.Payment) *viewmodels.Payment {
 }
 
 func ExpenseToViewModel(entity *expense.Expense) *viewmodels.Expense {
-	currency := entity.Category.Currency
+	currencyEntity := entity.Category.Currency
 	return &viewmodels.Expense{
 		ID:                 strconv.FormatUint(uint64(entity.ID), 10),
 		Amount:             fmt.Sprintf("%.2f", entity.Amount),
 		AccountID:          strconv.FormatUint(uint64(entity.Account.ID), 10),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount, currency.Symbol),
+		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount, currencyEntity.Symbol),
 		CategoryID:         strconv.FormatUint(uint64(entity.Category.ID), 10),
 		Category:           ExpenseCategoryToViewModel(&entity.Category),
 		Comment:            entity.Comment,
@@ -81,13 +80,5 @@ func ExpenseToViewModel(entity *expense.Expense) *viewmodels.Expense {
 		Date:               entity.Date.Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt.Format(time.RFC3339),
-	}
-}
-
-func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
-	return &viewmodels.Currency{
-		Code:   string(entity.Code),
-		Name:   entity.Name,
-		Symbol: string(entity.Symbol),
 	}
 }

@@ -17,8 +17,8 @@ import (
 //go:embed locales/*.json
 var localeFiles embed.FS
 
-////go:embed migrations/*.sql
-//var migrationFiles embed.FS
+//go:embed migrations/*.sql
+var migrationFiles embed.FS
 
 func NewModule() application.Module {
 	return &Module{}
@@ -39,12 +39,6 @@ func (m *Module) Register(app application.Application) error {
 			persistence.NewPaymentRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
-		),
-	)
-	app.RegisterService(
-		services.NewCurrencyService(
-			persistence.NewCurrencyRepository(),
-			app.EventPublisher(),
 		),
 	)
 	app.RegisterService(
@@ -69,6 +63,7 @@ func (m *Module) Register(app application.Application) error {
 	)
 	app.RegisterPermissions(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
+	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterModule(m)
 	return nil
 }

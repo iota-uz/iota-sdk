@@ -11,7 +11,17 @@ import (
 func ConstructApp(db *gorm.DB) application.Application {
 	eventPublisher := event.NewEventPublisher()
 	app := application.New(db, eventPublisher)
+	fsStorage, err := persistence.NewFSStorage()
+	if err != nil {
+		panic("Unable to initialize persistence.NewFSStorage()")
+	}
 
+	app.RegisterService(
+		services.NewCurrencyService(
+			persistence.NewCurrencyRepository(),
+			app.EventPublisher(),
+		),
+	)
 	app.RegisterService(services.NewUserService(persistence.NewUserRepository(), eventPublisher))
 	app.RegisterService(services.NewSessionService(persistence.NewSessionRepository(), eventPublisher))
 	app.RegisterService(services.NewAuthService(app))
@@ -24,5 +34,6 @@ func ConstructApp(db *gorm.DB) application.Application {
 	app.RegisterService(services.NewProjectService(persistence.NewProjectRepository(), eventPublisher))
 	app.RegisterService(services.NewEmbeddingService(app))
 	app.RegisterService(services.NewDialogueService(persistence.NewDialogueRepository(), app))
+	app.RegisterService(services.NewUploadService(persistence.NewUploadRepository(), fsStorage, eventPublisher))
 	return app
 }

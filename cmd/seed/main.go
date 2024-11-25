@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"github.com/iota-agency/iota-sdk/internal/seed"
+	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
@@ -19,6 +20,12 @@ func main() {
 	}
 
 	app := server.ConstructApp(db)
+	loadedModules := modules.Load()
+	for _, module := range loadedModules {
+		if err := module.Register(app); err != nil {
+			panic(err)
+		}
+	}
 
 	seedFuncs := []application.SeedFunc{
 		seed.CreatePermissions,

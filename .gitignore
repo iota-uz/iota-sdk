@@ -9,3 +9,5 @@ coverage
 node_modules
 static
 uploads
+*_templ.txt
+*_templ.go

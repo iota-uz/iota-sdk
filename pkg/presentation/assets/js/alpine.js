@@ -1,17 +1,26 @@
 import "./alpine.lib.min.js";
+import "./alpine-focus.min.js";
 
 let relativeFormat = () => ({
   format(dateStr = new Date().toISOString(), locale = "ru") {
-    let date = new Date(dateStr)
+    let date = new Date(dateStr);
     let timeMs = date.getTime();
     let delta = Math.round((timeMs - Date.now()) / 1000);
-    let cutoffs = [60, 3600, 86400, 86400 * 7, 86400 * 30, 86400 * 365, Infinity];
+    let cutoffs = [
+      60,
+      3600,
+      86400,
+      86400 * 7,
+      86400 * 30,
+      86400 * 365,
+      Infinity,
+    ];
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
+    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
-  }
+  },
 });
 
 let passwordVisibility = () => ({
@@ -19,10 +28,10 @@ let passwordVisibility = () => ({
     let inputId = e.target.value;
     let input = document.getElementById(inputId);
     if (input) {
-    	if (e.target.checked) input.setAttribute("type", "text")
-    	else input.setAttribute("type", "password")
+      if (e.target.checked) input.setAttribute("type", "text");
+      else input.setAttribute("type", "password");
     }
-  }
+  },
 });
 
 let dialogEvents = {
@@ -31,10 +40,12 @@ let dialogEvents = {
   opening: new Event("opening"),
   opened: new Event("opened"),
   removed: new Event("removed"),
-}
+};
 
 async function animationsComplete(el) {
-  return await Promise.allSettled(el.getAnimations().map(animation => animation.finished));
+  return await Promise.allSettled(
+    el.getAnimations().map((animation) => animation.finished)
+  );
 }
 
 let dialog = () => ({
@@ -51,7 +62,7 @@ let dialog = () => ({
 
         dialog.removeAttribute("inert");
 
-        let focusTarget = dialog.querySelector('[autofocus]');
+        let focusTarget = dialog.querySelector("[autofocus]");
         let dialogBtn = dialog.querySelector("button");
         if (focusTarget) focusTarget.focus();
         else if (dialogBtn) dialogBtn.focus();
@@ -68,17 +79,17 @@ let dialog = () => ({
         if (removed.nodeName === "DIALOG") {
           removed.removeEventListener("click", this.lightDismiss);
           removed.removeEventListener("close", this.close);
-          removed.dispatchEvent(dialogEvents.removed)
+          removed.dispatchEvent(dialogEvents.removed);
         }
       });
     });
   }),
-  lightDismiss({target: dialog}) {
+  lightDismiss({ target: dialog }) {
     if (dialog.nodeName === "DIALOG") {
-      dialog.close("dismiss")
+      dialog.close("dismiss");
     }
   },
-  async close({target: dialog}) {
+  async close({ target: dialog }) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -105,12 +116,89 @@ let dialog = () => ({
     },
     ["@close"](e) {
       this.close(e);
-    }
-  }
+    },
+  },
 });
 
-document.addEventListener("alpine:registry", () => {
+let combobox = () => ({
+  open: false,
+  openedWithKeyboard: false,
+  options: [],
+  selectedIndex: null,
+  selectedIndices: new Set(),
+  multiple: false,
+  value: "",
+  setIndex(index) {
+    let indexInt = Number(index);
+    if (this.multiple) {
+      this.options[index].toggleAttribute("selected");
+      if (this.selectedIndices.has(indexInt)) {
+        this.selectedIndices.delete(indexInt);
+      } else {
+        this.selectedIndices.add(indexInt);
+      }
+    } else {
+      let [selectedIndex] = this.selectedIndices;
+      for (let i = 0, len = this.options.length; i < len; i++) {
+        if (i === selectedIndex) this.options[i].toggleAttribute("selected");
+        else this.options[i].removeAttribute("selected");
+      }
+      if (
+        this.selectedIndices.size > 0 &&
+        !this.selectedIndices.has(indexInt)
+      ) {
+        this.selectedIndices.clear();
+      }
+      if (this.selectedIndices.has(indexInt)) {
+        this.selectedIndices.delete(indexInt);
+      } else this.selectedIndices.add(indexInt);
+    }
+    this.generateValue();
+    this.open = false;
+    this.openedWithKeyboard = false;
+  },
+  toggle() {
+    this.open = !this.open;
+  },
+  generateValue() {
+    let values = [];
+    for (let i of this.selectedIndices.values()) {
+      values.push(this.options[i].textContent);
+    }
+    this.value = values.join(", ");
+  },
+  highlightMatchingOption(pressedKey) {
+    let optionIndex = null;
+    for (let i = 0, len = this.options.length; i < len; i++) {
+      let option = this.options[i];
+      if (option.textContent.toLowerCase().startsWith(pressedKey.toLowerCase())) {
+        optionIndex = i;
+      }
+    }
+    let allOptions = this.$refs.list.querySelectorAll(".combobox-option");
+    if (optionIndex !== null) {
+      allOptions[optionIndex]?.focus();
+    }
+  },
+  select: {
+    ["x-init"]() {
+      this.options = this.$el.querySelectorAll("option");
+      this.multiple = this.$el.multiple;
+      for (let i = 0, len = this.options.length; i < len; i++) {
+        let option = this.options[i];
+        if (option.selected) {
+          if (this.selectedIndices > 0 && !this.multiple) continue;
+          this.selectedIndices.add(i);
+        }
+      }
+      this.generateValue();
+    },
+  },
+});
+
+document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
+  Alpine.data("combobox", combobox);
 });

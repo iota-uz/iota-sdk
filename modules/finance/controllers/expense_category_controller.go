@@ -12,6 +12,8 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	coremappers "github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
+	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -23,7 +25,7 @@ import (
 
 type ExpenseCategoriesController struct {
 	app                    application.Application
-	currencyService        *services.CurrencyService
+	currencyService        *coreservices.CurrencyService
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
@@ -36,7 +38,7 @@ type ExpenseCategoryPaginatedResponse struct {
 func NewExpenseCategoriesController(app application.Application) application.Controller {
 	return &ExpenseCategoriesController{
 		app:                    app,
-		currencyService:        app.Service(services.CurrencyService{}).(*services.CurrencyService),
+		currencyService:        app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
 		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
 		basePath:               "/finance/expense-categories",
 	}
@@ -58,11 +60,7 @@ func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*v
 	if err != nil {
 		return nil, err
 	}
-	viewCurrencies := make([]*viewmodels.Currency, len(currencies))
-	for i, currency := range currencies {
-		viewCurrencies[i] = mappers.CurrencyToViewModel(currency)
-	}
-	return viewCurrencies, nil
+	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
 }
 
 func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {

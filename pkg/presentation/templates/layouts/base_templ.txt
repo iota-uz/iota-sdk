@@ -1,7 +1,0 @@
-<!doctype html><html lang=\"en\" class=\"system bg-surface-100 text-100\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><link rel=\"icon\" type=\"image/x-icon\" href=\"
-\"><title>IOTA ERP - 
-</title><link rel=\"stylesheet\" href=\"
-\"><link rel=\"preload\" href=\"/assets/fonts/Gilroy/Gilroy-Regular.woff2\" as=\"font\" type=\"font/woff2\" crossorigin><link rel=\"preload\" href=\"/assets/fonts/Gilroy/Gilroy-Medium.woff2\" as=\"font\" type=\"font/woff2\" crossorigin><link rel=\"preload\" href=\"/assets/fonts/Gilroy/Gilroy-Semibold.woff2\" as=\"font\" type=\"font/woff2\" crossorigin><script defer type=\"module\" src=\"
-\"></script><script defer async src=\"
-\"></script></head><body class=\"antialiased\">
-</body></html>

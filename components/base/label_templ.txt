@@ -1,4 +1,0 @@
-<label>
-<span class=\"text-gray-700 dark:text-gray-300\">
-</span>
-</label>

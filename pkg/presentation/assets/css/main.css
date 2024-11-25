@@ -270,6 +270,8 @@
   }
 }
 
+[x-cloak] { display: none !important; }
+
 @layer components {
   .form-control {
     --bg-color: var(--clr-form-control-bg);
