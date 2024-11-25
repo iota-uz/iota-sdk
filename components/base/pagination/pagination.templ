@@ -6,42 +6,34 @@ import (
 )
 
 templ Pagination(state *State) {
-	if len(state.Pages()) > 0 {
-		<ul class="inline-flex -space-x-px text-sm">
-			<li>
-				<a
-					class={ state.PrevLinkClasses() }
-					href={ templ.SafeURL(state.PrevLink()) }
-				>
-					@icons.ChevronLeft(icons.Props{Size: "20"})
-				</a>
-			</li>
-			for _, page := range state.Pages() {
-				if page.Filler {
-					<li>
-						<a class={ page.Classes() }>
-							...
-						</a>
-					</li>
-				} else {
-					<li>
-						<a
-							class={ page.Classes() }
-							href={ templ.SafeURL(page.Link) }
-						>
-							{ fmt.Sprintf("%d", page.Num) }
-						</a>
-					</li>
-				}
+	<ul class="inline-flex -space-x-px text-sm">
+		<li>
+			<a class={ "btn btn-secondary border-none rounded-r-none h-11", state.PrevLinkClasses() } href={ templ.SafeURL(state.PrevLink()) }>
+				@icons.ChevronLeft(icons.Props{Size: "16"})
+			</a>
+		</li>
+		for _, page := range state.Pages() {
+			if page.Filler {
+				<li>
+					<a class="btn btn-secondary border-none rounded-none h-11">
+						...
+					</a>
+				</li>
+			} else {
+				<li>
+					<a
+						class={ "btn btn-secondary border-none rounded-none h-11 px-5", page.Classes() }
+						href={ templ.SafeURL(page.Link) }
+					>
+						{ fmt.Sprintf("%d", page.Num) }
+					</a>
+				</li>
 			}
-			<li>
-				<a
-					class={ state.NextLinkClasses() }
-					href={ templ.SafeURL(state.NextLink()) }
-				>
-					@icons.ChevronRight(icons.Props{Size: "20"})
-				</a>
-			</li>
-		</ul>
-	}
+		}
+		<li>
+			<a class={ "btn btn-secondary border-none rounded-l-none h-11", state.NextLinkClasses() } href={ templ.SafeURL(state.NextLink()) }>
+				@icons.ChevronRight(icons.Props{Size: "16"})
+			</a>
+		</li>
+	</ul>
 }

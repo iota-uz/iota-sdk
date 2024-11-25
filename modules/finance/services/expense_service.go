@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-agency/iota-sdk/modules/finance/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -112,4 +113,8 @@ func (s *ExpenseService) Delete(ctx context.Context, id uint) (*expense.Expense,
 	}
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+func (s *ExpenseService) Count(ctx context.Context) (uint, error) {
+	return s.repo.Count(ctx)
 }

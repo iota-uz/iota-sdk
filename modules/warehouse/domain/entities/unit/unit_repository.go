@@ -3,7 +3,7 @@ package unit
 import "context"
 
 type Repository interface {
-	Count(ctx context.Context) (int64, error)
+	Count(ctx context.Context) (uint, error)
 	GetAll(ctx context.Context) ([]*Unit, error)
 	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*Unit, error)
 	GetByID(ctx context.Context, id uint) (*Unit, error)

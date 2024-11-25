@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	unit2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -35,6 +36,17 @@ func (s *UnitService) GetAll(ctx context.Context) ([]*unit2.Unit, error) {
 		return nil, err
 	}
 	return s.repo.GetAll(ctx)
+}
+
+func (s *UnitService) GetPaginated(
+	ctx context.Context,
+	limit, offset int,
+	sortBy []string,
+) ([]*unit2.Unit, error) {
+	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
 func (s *UnitService) Create(ctx context.Context, data *unit2.CreateDTO) error {
@@ -92,4 +104,7 @@ func (s *UnitService) Delete(ctx context.Context, id uint) (*unit2.Unit, error) 
 	}
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+func (s *UnitService) Count(ctx context.Context) (uint, error) {
+	return s.repo.Count(ctx)
 }

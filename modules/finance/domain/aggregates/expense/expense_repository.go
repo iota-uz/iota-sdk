@@ -3,6 +3,7 @@ package expense
 import "context"
 
 type Repository interface {
+	Count(ctx context.Context) (uint, error)
 	GetByID(ctx context.Context, id uint) (*Expense, error)
 	GetAll(ctx context.Context) ([]*Expense, error)
 	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*Expense, error)

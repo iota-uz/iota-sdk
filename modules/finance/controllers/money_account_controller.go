@@ -2,7 +2,10 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/go-faster/errors"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/moneyaccounts"
@@ -13,7 +16,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -27,6 +29,11 @@ type MoneyAccountController struct {
 	moneyAccountService *services.MoneyAccountService
 	currencyService     *coreservices.CurrencyService
 	basePath            string
+}
+
+type AccountPaginatedResponse struct {
+	Accounts        []*viewmodels.MoneyAccount
+	PaginationState *pagination.State
 }
 
 func NewMoneyAccountController(app application.Application) application.Controller {
@@ -56,6 +63,25 @@ func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmo
 	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
 }
 
+func (c *MoneyAccountController) viewModelAccounts(r *http.Request) (*AccountPaginatedResponse, error) {
+	params := composables.UsePaginated(r)
+	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving accounts")
+	}
+	viewAccounts := mapping.MapViewModels(accountEntities, mappers.MoneyAccountToViewModel)
+
+	total, err := c.moneyAccountService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting expenses")
+	}
+
+	return &AccountPaginatedResponse{
+		Accounts:        viewAccounts,
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}, nil
+}
+
 func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -65,16 +91,17 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	params := composables.UsePaginated(r)
-	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+
+	paginated, err := c.viewModelAccounts(r)
 	if err != nil {
-		http.Error(w, errors.Wrap(err, "Error retrieving moneyaccounts").Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &moneyaccounts.IndexPageProps{
-		PageContext: pageCtx,
-		Accounts:    mapping.MapViewModels(accountEntities, mappers.MoneyAccountToViewModel),
+		PageContext:     pageCtx,
+		Accounts:        paginated.Accounts,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(moneyaccounts.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
