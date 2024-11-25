@@ -28,9 +28,9 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 	}
 	for _, module := range options.LoadedModules {
 		if err := module.Register(app); err != nil {
-			return nil, errors.Wrapf(err, "failed to register module \"%s\"", module.Name())
+			return nil, errors.Wrapf(err, "failed to register \"%s\" module", module.Name())
 		} else {
-			log.Printf("Module \"%s\" registered", module.Name())
+			log.Printf("\"%s\" module registered", module.Name())
 		}
 	}
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
