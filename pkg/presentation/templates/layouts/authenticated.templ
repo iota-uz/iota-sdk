@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -14,8 +13,6 @@ import (
 )
 
 var (
-	iotaLogo = "/assets/" + assets.HashFS.HashName("images/iota-1c.webp")
-
 	navbarOnce = templ.NewOnceHandle()
 )
 
@@ -100,10 +97,11 @@ templ renderNavItem(i types.NavigationItem, pathname string) {
 }
 
 templ sidebar(pageCtx *types.PageContext) {
+	{{ companyLogo, _ := composables.UseLogoURL(ctx) }}
 	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0">
 		<div class="flex h-16 items-center justify-center px-6">
 			<a href="/" class="flex items-center gap-2">
-				<img src={ iotaLogo } alt="Logo" width="150" height="50"/>
+				<img src={ companyLogo } alt="Logo" width="150" height="50"/>
 			</a>
 		</div>
 		<nav class="py-4 flex-1">

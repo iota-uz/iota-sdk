@@ -1,6 +1,7 @@
 package server
 
 import (
+	internalassets "github.com/iota-agency/iota-sdk/internal/assets"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"gorm.io/gorm"
 	"log"
@@ -38,7 +39,10 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 	if err != nil {
 		return nil, err
 	}
+	logoURL := "/assets/" + internalassets.HashFS.HashName("images/logo.webp")
+	faviconURL := "/assets/" + internalassets.HashFS.HashName("images/favicon.ico")
 	app.RegisterMiddleware(
+		middleware.LogoInContext(logoURL, faviconURL),
 		middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),
 		middleware.RequestParams(middleware.DefaultParamsConstructor),
 		middleware.WithLogger(log.Default()),

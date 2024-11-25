@@ -11,6 +11,8 @@ const (
 	TxKey       ContextKey = "tx"
 	ParamsKey   ContextKey = "params"
 	LoggerKey   ContextKey = "logger"
+	LogoKey     ContextKey = "logo"
+	FaviconKey  ContextKey = "favicon"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())

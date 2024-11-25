@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/benbjohnson/hashfs"
+	internalassets "github.com/iota-agency/iota-sdk/internal/assets"
 	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
@@ -21,7 +22,13 @@ func main() {
 	}
 	loadedModules := modules.Load()
 	app := server.ConstructApp(db)
-	assetsFs := append([]*hashfs.FS{assets.HashFS}, app.HashFsAssets()...)
+	assetsFs := append(
+		[]*hashfs.FS{
+			assets.HashFS,
+			internalassets.HashFS,
+		},
+		app.HashFsAssets()...,
+	)
 	app.RegisterControllers(
 		controllers.NewLoginController(app),
 		controllers.NewAccountController(app),

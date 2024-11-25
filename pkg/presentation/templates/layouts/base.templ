@@ -1,18 +1,19 @@
 package layouts
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 var (
 	mainCss = "/assets/" + assets.HashFS.HashName("css/main.min.css")
-	favicon = "/assets/" + assets.HashFS.HashName("images/favicon.ico")
 	alpine  = "/assets/" + assets.HashFS.HashName("js/alpine.js")
 	htmx    = "/assets/" + assets.HashFS.HashName("js/htmx.min.js")
 )
 
 templ Base(pageCtx *types.PageContext) {
+	{{ favicon, _ := composables.UseFaviconURL(ctx) }}
 	<!DOCTYPE html>
 	<html lang="en" class="system bg-surface-100 text-100">
 		<head>
