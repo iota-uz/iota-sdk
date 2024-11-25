@@ -108,6 +108,7 @@ type Employee struct {
 }
 type Upload struct {
 	ID        string
+	Hash      string
 	URL       string
 	Name      string
 	Mimetype  string

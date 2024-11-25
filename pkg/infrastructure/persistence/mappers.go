@@ -1,6 +1,8 @@
 package persistence
 
 import (
+	"time"
+
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
@@ -11,7 +13,6 @@ import (
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
-	"time"
 )
 
 func toDomainUser(dbUser *models.User) *user.User {
@@ -196,6 +197,7 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 	return &models.Upload{
 		ID:        upload.ID,
 		URL:       upload.URL,
+		Hash:      upload.Hash,
 		Name:      upload.Name,
 		Size:      upload.Size,
 		Mimetype:  upload.Mimetype.String(),
