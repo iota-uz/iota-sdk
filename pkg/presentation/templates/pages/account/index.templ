@@ -5,7 +5,7 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-agency/iota-sdk/components/user"
-	components "github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -23,7 +23,6 @@ templ ProfileForm(props *ProfilePageProps) {
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
-		hx-indicator="#save-btn"
 	>
 		<h1 class="text-2xl font-medium pl-6 pt-6">
 			{ props.User.FirstName } { props.User.LastName }
@@ -57,14 +56,6 @@ templ ProfileForm(props *ProfilePageProps) {
 				},
 				Error: props.Errors["MiddleName"],
 			})
-			@base.Combobox(base.ComboboxProps{
-				Placeholder: props.T("Users.Single.SelectRole"),
-				Multiple:    true,
-				Label:       props.T("Users.Single.Role"),
-			}) {
-				<option value="admin">Admin</option>
-				<option value="worker">Worker</option>
-			}
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       props.T("Users.Single.Language"),
 				Placeholder: props.T("Users.Single.SelectLanguage"),
