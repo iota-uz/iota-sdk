@@ -7,7 +7,8 @@ import (
 )
 
 type Upload struct {
-	ID        string
+	ID        uint
+	Hash      string
 	URL       string
 	Name      string
 	Size      int

@@ -79,13 +79,29 @@ func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, er
 	return orders, nil
 }
 
-func (g *GormUploadRepository) GetByID(ctx context.Context, id string) (*upload.Upload, error) {
+func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, service.ErrNoTx
 	}
 	var entity models.Upload
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
+		return nil, err
+	}
+	u, err := toDomainUpload(&entity)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return nil, service.ErrNoTx
+	}
+	var entity models.Upload
+	if err := tx.Where("hash = ?", hash).First(&entity).Error; err != nil {
 		return nil, err
 	}
 	u, err := toDomainUpload(&entity)
@@ -119,7 +135,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) 
 	return nil
 }
 
-func (g *GormUploadRepository) Delete(ctx context.Context, id string) error {
+func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
