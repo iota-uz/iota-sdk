@@ -21,37 +21,6 @@ import (
 	"reflect"
 )
 
-// Application with a dynamically extendable service registry
-type Application interface {
-	DB() *gorm.DB
-	EventPublisher() event.Publisher
-	Modules() []Module
-	Controllers() []Controller
-	Middleware() []mux.MiddlewareFunc
-	Assets() []*embed.FS
-	HashFsAssets() []*hashfs.FS
-	Templates() []*embed.FS
-	LocaleFiles() []*embed.FS
-	MigrationDirs() []*embed.FS
-	Seed(ctx context.Context) error
-	Permissions() []permission.Permission
-	RegisterControllers(controllers ...Controller)
-	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
-	RegisterModule(module Module)
-	RegisterPermissions(permissions ...permission.Permission)
-	RegisterHashFsAssets(fs ...*hashfs.FS)
-	RegisterAssets(fs ...*embed.FS)
-	RegisterTemplates(fs ...*embed.FS)
-	RegisterLocaleFiles(fs ...*embed.FS)
-	RegisterMigrationDirs(fs ...*embed.FS)
-	RegisterService(service interface{})
-	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
-	Service(service interface{}) interface{}
-	Bundle() (*i18n.Bundle, error)
-	RunMigrations() error
-	RollbackMigrations() error
-}
-
 func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 	return &ApplicationImpl{
 		db:             db,
