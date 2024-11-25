@@ -5,7 +5,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 )
 
@@ -14,14 +13,18 @@ var (
 		ID:          1,
 		Name:        "CEO",
 		Description: "Chief Executive Officer",
-		Permissions: permission.Permissions,
 	}
 )
 
 func CreateUser(ctx context.Context, app application.Application) error {
 	roleRepository := persistence.NewRoleRepository()
 
-	if err := roleRepository.CreateOrUpdate(ctx, &CEO); err != nil {
+	if err := roleRepository.CreateOrUpdate(ctx, &role.Role{
+		ID:          CEO.ID,
+		Name:        CEO.Name,
+		Description: CEO.Description,
+		Permissions: app.Permissions(),
+	}); err != nil {
 		return err
 	}
 	userRepository := persistence.NewUserRepository()
