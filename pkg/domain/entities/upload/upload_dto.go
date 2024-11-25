@@ -3,10 +3,11 @@ package upload
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"github.com/gabriel-vasile/mimetype"
 	"io"
 	"path/filepath"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -59,7 +60,8 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 	mdsum := md5.Sum(bytes)
 	hash := hex.EncodeToString(mdsum[:])
 	return &Upload{
-		ID:        hash,
+		ID:        0,
+		Hash:      hash,
 		Name:      d.Name,
 		Size:      d.Size,
 		Mimetype:  *mimetype.Detect(bytes),
@@ -69,7 +71,7 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 	}, bytes, nil
 }
 
-func (d *UpdateDTO) ToEntity(id string) (*Upload, error) {
+func (d *UpdateDTO) ToEntity(id uint) (*Upload, error) {
 	return &Upload{
 		ID:        id,
 		CreatedAt: time.Now(),

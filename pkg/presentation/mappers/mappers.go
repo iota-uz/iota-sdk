@@ -2,9 +2,10 @@ package mappers
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"strconv"
 	"time"
+
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -102,7 +103,8 @@ func EmployeeToViewModel(entity *employee.Employee) *viewmodels.Employee {
 
 func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
 	return &viewmodels.Upload{
-		ID:        entity.ID,
+		ID:        strconv.FormatUint(uint64(entity.ID), 10),
+		Hash:      entity.Hash,
 		URL:       entity.URL,
 		Name:      entity.Name,
 		Mimetype:  entity.Mimetype.String(),
