@@ -3,12 +3,12 @@ BEGIN;
 
 CREATE TABLE uploads
 (
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    url        VARCHAR(255) NOT NULL,
---     uploader_id INT          REFERENCES users (id) ON DELETE SET NULL,
-    mimetype   VARCHAR(255) NOT NULL,
-    size       INT          NOT NULL,
+    id         VARCHAR(255) PRIMARY KEY,
+    url        VARCHAR(1024) NOT NULL   DEFAULT '',
+    name       VARCHAR(255)  NOT NULL   DEFAULT '',
+    type       VARCHAR(255)  NOT NULL   DEFAULT '',
+    size       INT           NOT NULL   DEFAULT 0,
+    mimetype   VARCHAR(255)  NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -53,7 +53,7 @@ CREATE TABLE employees
     salary_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     hourly_rate        NUMERIC(9, 2) NOT NULL,
     coefficient        FLOAT         NOT NULL,
-    avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
+    avatar_id          VARCHAR(255)  REFERENCES uploads (id) ON DELETE SET NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -109,7 +109,7 @@ CREATE TABLE users
     email       VARCHAR(255)             NOT NULL UNIQUE,
     password    VARCHAR(255),
     ui_language VARCHAR(3)               NOT NULL,
-    avatar_id   INT                      REFERENCES uploads (id) ON DELETE SET NULL,
+    avatar_id   VARCHAR(255)             REFERENCES uploads (id) ON DELETE SET NULL,
     last_login  TIMESTAMP                NULL,
     last_ip     VARCHAR(255)             NULL,
     last_action TIMESTAMP WITH TIME ZONE NULL,
@@ -156,7 +156,7 @@ CREATE TABLE folders
 (
     id         SERIAL PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
-    icon_id    INT          REFERENCES uploads (id) ON DELETE SET NULL,
+    icon_id    VARCHAR(255) REFERENCES uploads (id) ON DELETE SET NULL,
     parent_id  INT REFERENCES folders (id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
@@ -169,7 +169,7 @@ CREATE TABLE articles
     content     TEXT         NOT NULL,
     title_emoji VARCHAR(255),
     author_id   INT          REFERENCES users (id) ON DELETE SET NULL,
-    picture_id  INT          REFERENCES uploads (id) ON DELETE SET NULL,
+    picture_id  VARCHAR(255) REFERENCES uploads (id) ON DELETE SET NULL,
     folder_id   INT          REFERENCES folders (id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
@@ -197,7 +197,7 @@ CREATE TABLE likes
 CREATE TABLE uploaded_images
 (
     id         SERIAL PRIMARY KEY,
-    upload_id  INT          NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
+    upload_id  VARCHAR(255) NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
     type       VARCHAR(255) NOT NULL,
     size       FLOAT        NOT NULL,
     width      INT          NOT NULL,
