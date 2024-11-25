@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+
 	unit2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -40,7 +41,7 @@ func (g *GormUnitRepository) GetPaginated(
 	return units, nil
 }
 
-func (g *GormUnitRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormUnitRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
@@ -49,7 +50,7 @@ func (g *GormUnitRepository) Count(ctx context.Context) (int64, error) {
 	if err := tx.Model(&models.WarehouseUnit{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
-	return count, nil
+	return uint(count), nil
 }
 
 func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit2.Unit, error) {

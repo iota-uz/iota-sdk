@@ -5,19 +5,17 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"github.com/iota-agency/iota-sdk/components/base/pagination"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
 	*types.PageContext
-	PaginationParams composables.PaginationParams
-	Categories []*viewmodels.ExpenseCategory
-	CategoriesTotal int
+	Categories      []*viewmodels.ExpenseCategory
+	PaginationState *pagination.State
 }
 
 templ CategoriesTable(props *IndexPageProps) {
@@ -58,7 +56,7 @@ templ CategoriesTable(props *IndexPageProps) {
 			}
 		}
 		<div class="p-4">
-			@pagination.Pagination(pagination.New("/finance/expense-categories", props.PaginationParams.Page, props.CategoriesTotal, props.PaginationParams.Limit))
+			@pagination.Pagination(props.PaginationState)
 		</div>
 	</div>
 }

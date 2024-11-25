@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-faster/errors"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/moneyaccounts"
@@ -26,6 +27,11 @@ type MoneyAccountController struct {
 	moneyAccountService *services.MoneyAccountService
 	currencyService     *services.CurrencyService
 	basePath            string
+}
+
+type AccountPaginatedResponse struct {
+	Accounts        []*viewmodels.MoneyAccount
+	PaginationState *pagination.State
 }
 
 func NewMoneyAccountController(app application.Application) application.Controller {
@@ -55,6 +61,25 @@ func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmo
 	return mapping.MapViewModels(currencies, mappers.CurrencyToViewModel), nil
 }
 
+func (c *MoneyAccountController) viewModelAccounts(r *http.Request) (*AccountPaginatedResponse, error) {
+	params := composables.UsePaginated(r)
+	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving accounts")
+	}
+	viewAccounts := mapping.MapViewModels(accountEntities, mappers.MoneyAccountToViewModel)
+
+	total, err := c.moneyAccountService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting expenses")
+	}
+
+	return &AccountPaginatedResponse{
+		Accounts:        viewAccounts,
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}, nil
+}
+
 func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -65,23 +90,16 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := composables.UsePaginated(r)
-	total, err := c.moneyAccountService.Count(r.Context())
+	paginated, err := c.viewModelAccounts(r)
 	if err != nil {
-		http.Error(w, "Error counting accounts", http.StatusInternalServerError)
-		return
-	}
-	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
-	if err != nil {
-		http.Error(w, errors.Wrap(err, "Error retrieving moneyaccounts").Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &moneyaccounts.IndexPageProps{
-		PageContext:      pageCtx,
-		Accounts:         mapping.MapViewModels(accountEntities, mappers.MoneyAccountToViewModel),
-		PaginationParams: params,
-		AccountsTotal:    int(total),
+		PageContext:     pageCtx,
+		Accounts:        paginated.Accounts,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(moneyaccounts.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)

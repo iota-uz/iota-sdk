@@ -14,7 +14,6 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
@@ -23,9 +22,8 @@ import (
 
 type IndexPageProps struct {
 	*types.PageContext
-	PaginationParams composables.PaginationParams
-	Categories       []*viewmodels.ExpenseCategory
-	CategoriesTotal  int
+	Categories      []*viewmodels.ExpenseCategory
+	PaginationState *pagination.State
 }
 
 func CategoriesTable(props *IndexPageProps) templ.Component {
@@ -93,7 +91,7 @@ func CategoriesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(category.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 37, Col: 21}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 35, Col: 21}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -124,7 +122,7 @@ func CategoriesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(category.AmountWithCurrency)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 40, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 38, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -159,7 +157,7 @@ func CategoriesTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", category.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 44, Col: 69}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 42, Col: 69}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -249,7 +247,7 @@ func CategoriesTable(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = pagination.Pagination(pagination.New("/finance/expense-categories", props.PaginationParams.Page, props.CategoriesTotal, props.PaginationParams.Limit)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = pagination.Pagination(props.PaginationState).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -289,7 +287,7 @@ func CategoriesContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.ExpenseCategories"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 69, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 67, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -376,7 +374,7 @@ func CategoriesContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("ExpenseCategories.List.NewCategory"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 109, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/expense_categories/categories.templ`, Line: 107, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {

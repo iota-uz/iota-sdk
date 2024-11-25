@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -47,7 +48,7 @@ func (g *GormPositionRepository) GetPaginated(
 	return mapping.MapDbModels(entities, toDomainPosition)
 }
 
-func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormPositionRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
@@ -56,7 +57,7 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 	if err := tx.Model(&models.WarehousePosition{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
-	return count, nil
+	return uint(count), nil
 }
 
 func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Position, error) {

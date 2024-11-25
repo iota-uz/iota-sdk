@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
@@ -11,7 +13,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -124,7 +125,6 @@ func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 		Products:        paginated.Products,
 		PaginationState: paginated.PaginationState,
 	}
-
 	var template templ.Component
 	if isHxRequest {
 		template = products.ProductsTable(props)

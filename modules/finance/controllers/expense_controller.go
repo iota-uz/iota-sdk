@@ -6,6 +6,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expenses"
@@ -26,6 +27,10 @@ type ExpenseController struct {
 	expenseService         *services.ExpenseService
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
+}
+type ExpensePaginationResponse struct {
+	Expenses        []*viewmodels.Expense
+	PaginationState *pagination.State
 }
 
 func NewExpensesController(app application.Application) application.Controller {
@@ -57,13 +62,23 @@ func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.Mo
 	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
 }
 
-func (c *ExpenseController) viewModelExpenses(r *http.Request) ([]*viewmodels.Expense, error) {
+func (c *ExpenseController) viewModelExpenses(r *http.Request) (*ExpensePaginationResponse, error) {
 	params := composables.UsePaginated(r)
 	expenseEntities, err := c.expenseService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
-	return mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel), nil
+	viewExpenses := mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel)
+
+	total, err := c.expenseService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting expenses")
+	}
+
+	return &ExpensePaginationResponse{
+		Expenses:        viewExpenses,
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}, nil
 }
 
 func (c *ExpenseController) viewModelCategories(r *http.Request) ([]*viewmodels.ExpenseCategory, error) {
@@ -83,24 +98,16 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	params := composables.UsePaginated(r)
-	total, err := c.expenseService.Count(r.Context())
-	if err != nil {
-		http.Error(w, "Error counting expenses", http.StatusInternalServerError)
-		return
-	}
-
-	viewExpenses, err := c.viewModelExpenses(r)
+	paginated, err := c.viewModelExpenses(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expenses.IndexPageProps{
-		PageContext:      pageCtx,
-		Expenses:         viewExpenses,
-		PaginationParams: params,
-		ExpensesTotal:    int(total),
+		PageContext:     pageCtx,
+		Expenses:        paginated.Expenses,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(expenses.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)

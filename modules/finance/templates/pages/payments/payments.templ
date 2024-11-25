@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
@@ -16,8 +15,7 @@ import (
 type IndexPageProps struct {
 	*types.PageContext
 	Payments         []*viewmodels.Payment
-	PaginationParams composables.PaginationParams
-	PaymentsTotal    int
+	PaginationState *pagination.State
 }
 
 templ PaymentsTable(props *IndexPageProps) {
@@ -51,7 +49,7 @@ templ PaymentsTable(props *IndexPageProps) {
 			}
 		}
 		<div class="p-4">
-			@pagination.Pagination(pagination.New("/finance/payments", props.PaginationParams.Page, props.PaymentsTotal, props.PaginationParams.Limit))
+			@pagination.Pagination(props.PaginationState)
 		</div>
 	</div>
 }
