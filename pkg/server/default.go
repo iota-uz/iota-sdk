@@ -1,49 +1,38 @@
 package server
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"gorm.io/gorm"
 	"log"
 
-	"github.com/benbjohnson/hashfs"
 	"github.com/go-faster/errors"
-	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/services"
-	"gorm.io/gorm/logger"
 )
 
-func Default(conf *configuration.Configuration) (*HttpServer, error) {
-	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Error)
-	if err != nil {
-		return nil, err
-	}
+type DefaultOptions struct {
+	Configuration *configuration.Configuration
+	LoadedModules []application.Module
+	Application   application.Application
+	Db            *gorm.DB
+}
+
+func Default(options *DefaultOptions) (*HttpServer, error) {
+	db := options.Db
+	app := options.Application
+
 	if err := dbutils.CheckModels(db, RegisteredModels); err != nil {
 		return nil, err
 	}
-
-	loadedModules := modules.Load()
-	app := ConstructApp(db)
-
-	for _, module := range loadedModules {
+	for _, module := range options.LoadedModules {
 		if err := module.Register(app); err != nil {
 			return nil, errors.Wrapf(err, "failed to register module %s", module.Name())
 		} else {
 			log.Printf("Module %s registered", module.Name())
 		}
 	}
-	assetsFs := append([]*hashfs.FS{assets.HashFS}, app.HashFsAssets()...)
-	app.RegisterControllers(
-		controllers.NewLoginController(app),
-		controllers.NewAccountController(app),
-		controllers.NewEmployeeController(app),
-		controllers.NewGraphQLController(app),
-		controllers.NewLogoutController(app),
-		controllers.NewStaticFilesController(assetsFs),
-		controllers.NewUploadController(app),
-	)
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
 	bundle, err := app.Bundle()
 	if err != nil {
