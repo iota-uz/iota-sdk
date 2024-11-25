@@ -1,12 +1,14 @@
 package upload
 
 import (
-	"github.com/gabriel-vasile/mimetype"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 type Upload struct {
-	ID        string
+	ID        uint
+	Hash      string
 	URL       string
 	Name      string
 	Size      int

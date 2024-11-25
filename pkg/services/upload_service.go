@@ -29,11 +29,18 @@ func NewUploadService(
 	}
 }
 
-func (s *UploadService) GetByID(ctx context.Context, id string) (*upload.Upload, error) {
+func (s *UploadService) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
 	if err := composables.CanUser(ctx, permission.UploadRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
+}
+
+func (s *UploadService) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
+	if err := composables.CanUser(ctx, permission.UploadRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByHash(ctx, hash)
 }
 
 func (s *UploadService) GetAll(ctx context.Context) ([]*upload.Upload, error) {
@@ -51,7 +58,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	if err != nil {
 		return nil, err
 	}
-	up, err := s.GetByID(ctx, entity.ID)
+	up, err := s.repo.GetByHash(ctx, entity.Hash)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
@@ -59,7 +66,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 		return up, nil
 	}
 
-	if err := s.storage.Save(ctx, entity.ID, bytes); err != nil {
+	if err := s.storage.Save(ctx, entity.Hash, bytes); err != nil {
 		return entity, err
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {
@@ -73,7 +80,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	return entity, nil
 }
 
-func (s *UploadService) Update(ctx context.Context, id string, data *upload.UpdateDTO) error {
+func (s *UploadService) Update(ctx context.Context, id uint, data *upload.UpdateDTO) error {
 	if err := composables.CanUser(ctx, permission.UploadUpdate); err != nil {
 		return err
 	}
@@ -92,7 +99,7 @@ func (s *UploadService) Update(ctx context.Context, id string, data *upload.Upda
 	return nil
 }
 
-func (s *UploadService) Delete(ctx context.Context, id string) (*upload.Upload, error) {
+func (s *UploadService) Delete(ctx context.Context, id uint) (*upload.Upload, error) {
 	if err := composables.CanUser(ctx, permission.UploadDelete); err != nil {
 		return nil, err
 	}
