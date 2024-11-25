@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
@@ -12,7 +14,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 
 	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -87,6 +88,12 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	params := composables.UsePaginated(r)
+	total, err := c.paymentService.Count(r.Context())
+	if err != nil {
+		http.Error(w, "Error counting payments", http.StatusInternalServerError)
+		return
+	}
 	paymentViewModels, err := c.viewModelPayments(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -94,8 +101,10 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &payments.IndexPageProps{
-		PageContext: pageCtx,
-		Payments:    paymentViewModels,
+		PageContext:      pageCtx,
+		Payments:         paymentViewModels,
+		PaginationParams: params,
+		PaymentsTotal:    int(total),
 	}
 	if isHxRequest {
 		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)

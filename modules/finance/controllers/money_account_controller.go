@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/go-faster/errors"
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -63,7 +64,13 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	params := composables.UsePaginated(r)
+	total, err := c.moneyAccountService.Count(r.Context())
+	if err != nil {
+		http.Error(w, "Error counting accounts", http.StatusInternalServerError)
+		return
+	}
 	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
 	if err != nil {
 		http.Error(w, errors.Wrap(err, "Error retrieving moneyaccounts").Error(), http.StatusInternalServerError)
@@ -71,8 +78,10 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &moneyaccounts.IndexPageProps{
-		PageContext: pageCtx,
-		Accounts:    mapping.MapViewModels(accountEntities, mappers.MoneyAccountToViewModel),
+		PageContext:      pageCtx,
+		Accounts:         mapping.MapViewModels(accountEntities, mappers.MoneyAccountToViewModel),
+		PaginationParams: params,
+		AccountsTotal:    int(total),
 	}
 	if isHxRequest {
 		templ.Handler(moneyaccounts.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
