@@ -4,11 +4,14 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-sdk/modules/finance/services"
 	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -23,6 +26,11 @@ type ExpenseCategoriesController struct {
 	currencyService        *services.CurrencyService
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
+}
+
+type ExpenseCategoryPaginatedResponse struct {
+	Categories      []*viewmodels.ExpenseCategory
+	PaginationState *pagination.State
 }
 
 func NewExpenseCategoriesController(app application.Application) application.Controller {
@@ -57,6 +65,25 @@ func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*v
 	return viewCurrencies, nil
 }
 
+func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {
+	params := composables.UsePaginated(r)
+	expenseEntities, err := c.expenseCategoryService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving expenses")
+	}
+	viewCategories := mapping.MapViewModels(expenseEntities, mappers.ExpenseCategoryToViewModel)
+
+	total, err := c.expenseCategoryService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting expenses")
+	}
+
+	return &ExpenseCategoryPaginatedResponse{
+		Categories:      viewCategories,
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}, nil
+}
+
 func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -66,27 +93,17 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	params := composables.UsePaginated(r)
-	categories, err := c.expenseCategoryService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+
+	paginated, err := c.viewModelExpenseCategories(r)
 	if err != nil {
-		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	total, err := c.expenseCategoryService.Count(r.Context())
-	if err != nil {
-		http.Error(w, "Error counting expense categories", http.StatusInternalServerError)
-		return
-	}
-	viewCategories := make([]*viewmodels.ExpenseCategory, len(categories))
-	for i, entity := range categories {
-		viewCategories[i] = mappers.ExpenseCategoryToViewModel(entity)
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expense_categories.IndexPageProps{
-		PageContext:      pageCtx,
-		Categories:       viewCategories,
-		CategoriesTotal:  int(total),
-		PaginationParams: params,
+		PageContext:     pageCtx,
+		Categories:      paginated.Categories,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(expense_categories.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)

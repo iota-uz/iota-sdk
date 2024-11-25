@@ -2,9 +2,12 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/components/base/selects"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
@@ -17,7 +20,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 )
 
 type PositionsController struct {
@@ -25,6 +27,11 @@ type PositionsController struct {
 	positionService *services.PositionService
 	unitService     *services.UnitService
 	basePath        string
+}
+
+type PositionPaginatedResponse struct {
+	Positions       []*viewmodels.Position
+	PaginationState *pagination.State
 }
 
 func NewPositionsController(app application.Application) application.Controller {
@@ -47,7 +54,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 }
 
-func (c *PositionsController) viewModelPositions(r *http.Request) ([]*viewmodels.Position, error) {
+func (c *PositionsController) viewModelPositions(r *http.Request) (*PositionPaginatedResponse, error) {
 	params := composables.UsePaginated(r)
 	entities, err := c.positionService.GetPaginated(r.Context(), &position.FindParams{
 		Limit:  params.Limit,
@@ -57,7 +64,15 @@ func (c *PositionsController) viewModelPositions(r *http.Request) ([]*viewmodels
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving positions")
 	}
-	return mapping.MapViewModels(entities, mappers.PositionToViewModel), nil
+	viewPositions := mapping.MapViewModels(entities, mappers.PositionToViewModel)
+	total, err := c.positionService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting positions")
+	}
+	return &PositionPaginatedResponse{
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		Positions:       viewPositions,
+	}, nil
 }
 
 func (c *PositionsController) viewModelUnits(r *http.Request) ([]*viewmodels.Unit, error) {
@@ -78,15 +93,16 @@ func (c *PositionsController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	viewPositions, err := c.viewModelPositions(r)
+	paginated, err := c.viewModelPositions(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &positions.IndexPageProps{
-		PageContext: pageCtx,
-		Positions:   viewPositions,
+		PageContext:     pageCtx,
+		Positions:       paginated.Positions,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(positions.PositionsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
