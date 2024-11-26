@@ -1,31 +1,47 @@
 package login
 
 import (
+	"github.com/iota-agency/iota-sdk/components/base/alert"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
-templ Index(pageCtx *types.PageContext) {
-	@layouts.Base(pageCtx) {
+type LoginProps struct {
+	*types.PageContext
+	ErrorsMap    map[string]string
+	ErrorMessage string
+	Email        string
+}
+
+templ Index(p *LoginProps) {
+	@layouts.Base(p.PageContext) {
 		<div class="grid grid-cols-2 h-screen">
 			<div class="flex flex-col gap-16 justify-center items-center text-left">
 				<h1 class="text-2xl text-gray-950">
-					{ pageCtx.T("Login.Meta.Title") }
+					{ p.T("Login.Meta.Title") }
 				</h1>
 				<form class="flex flex-col gap-7 w-2/3" action="/login" method="post">
+					if len(p.ErrorMessage) > 0 {
+						@alert.Error() {
+							{ p.ErrorMessage }
+						}
+					}
 					@input.Email(&input.Props{
-						Label: pageCtx.T("Login.Email"),
+						Label: p.T("Login.Email"),
 						Attrs: templ.Attributes{
-							"name": "email",
+							"name":  "email",
+							"value": p.Email,
 						},
+						Error: p.ErrorsMap["Email"],
 					})
 					@input.Password(&input.Props{
-						Label: pageCtx.T("Login.Password"),
+						Label: p.T("Login.Password"),
 						Attrs: templ.Attributes{
 							"name": "password",
 						},
+						Error: p.ErrorsMap["Email"],
 					})
 					@button.Primary(button.Props{
 						Size:  button.SizeMD,
@@ -34,7 +50,7 @@ templ Index(pageCtx *types.PageContext) {
 							"type": "submit",
 						},
 					}) {
-						{ pageCtx.T("Login.Login") }
+						{ p.T("Login.Login") }
 					}
 				</form>
 			</div>

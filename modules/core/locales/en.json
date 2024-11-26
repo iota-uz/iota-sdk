@@ -2,6 +2,9 @@
   "errors": {
     "message": "The requested resource could not be found."
   },
+  "Errors": {
+    "Internal": "Internal server error"
+  },
   "ErrorPages": {
     "NotFound": {
       "Title": "404",
@@ -258,7 +261,10 @@
     },
     "Email": "Email",
     "Password": "Password",
-    "Login": "Log in"
+    "Login": "Log in",
+    "Errors": {
+      "PasswordInvalid": "Email or password is invalid"
+    }
   },
   "Home": {
     "Meta": {
