@@ -1,15 +1,55 @@
 package controllers
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/login"
+	"github.com/iota-agency/iota-sdk/pkg/service"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
+
+func SetFlash(w http.ResponseWriter, name string, value []byte) {
+	c := &http.Cookie{Name: name, Value: base64.URLEncoding.EncodeToString(value)}
+	http.SetCookie(w, c)
+}
+
+func SetFlashMap[K comparable, V any](w http.ResponseWriter, name string, value map[K]V) {
+	errors, err := json.Marshal(value)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	SetFlash(w, name, errors)
+}
+
+type LoginDTO struct {
+	Email    string `validate:"required"`
+	Password string `validate:"required"`
+}
+
+func (e *LoginDTO) Ok(l ut.Translator) (map[string]string, bool) {
+	errorMessages := map[string]string{}
+	errs := constants.Validate.Struct(e)
+	if errs == nil {
+		return errorMessages, true
+	}
+
+	for _, err := range errs.(validator.ValidationErrors) {
+		errorMessages[err.Field()] = err.Translate(l)
+	}
+	return errorMessages, len(errorMessages) == 0
+}
 
 func NewLoginController(app application.Application) application.Controller {
 	return &LoginController{
@@ -30,31 +70,61 @@ func (c *LoginController) Register(r *mux.Router) {
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
+	email := r.URL.Query().Get("email")
+	errorsMap, err := composables.UseFlashMap[string, string](w, r, "errorsMap")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	errorMessage, err := composables.UseFlash(w, r, "error")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := login.Index(pageCtx).Render(r.Context(), w); err != nil {
+	if err := login.Index(&login.LoginProps{
+		PageContext:  pageCtx,
+		ErrorsMap:    errorsMap,
+		Email:        email,
+		ErrorMessage: string(errorMessage),
+	}).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	email := r.FormValue("email")
-	password := r.FormValue("password")
-	if email == "" || password == "" {
-		http.Error(w, "email or password is empty", http.StatusBadRequest)
-		return
-	}
-	cookie, err := c.authService.CookieAuthenticate(r.Context(), email, password)
+	dto := LoginDTO{
+		Email:    r.FormValue("email"),
+		Password: r.FormValue("password"),
+	} //nolint:exhaustruct
+
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
 	}
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		SetFlashMap(w, "errorsMap", errorsMap)
+		http.Redirect(w, r, "/login?email="+dto.Email, http.StatusFound)
+		return
+	}
+
+	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidPassword) {
+			SetFlash(w, "error", []byte(pageCtx.T("Login.Errors.PasswordInvalid")))
+		} else {
+			SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
+		}
+		http.Redirect(w, r, "/login?email="+dto.Email, http.StatusFound)
+		return
+	}
+
 	http.SetCookie(w, cookie)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
