@@ -53,7 +53,7 @@ templ (p *UploadInputProps) render() {
 			<input type="hidden" name="_name" value={ p.Name }/>
 			@UploadPreview(p)
 			<div class="flex gap-1 items-center mt-4 mb-1.5">
-				@button.PrimaryOutline(button.Props{Size: button.SizeXS}) {
+				@button.PrimaryOutline(button.Props{Size: button.SizeXS, Attrs: templ.Attributes{"type": "button"}}) {
 					<label for={ p.ID } class="cursor-pointer">
 						Browse filesystem 
 					</label>
