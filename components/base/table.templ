@@ -1,7 +1,5 @@
 package base
 
-import "github.com/nicksnyder/go-i18n/v2/i18n"
-
 type TableColumn struct {
 	Label      string
 	Key        string
@@ -25,8 +23,7 @@ templ TableCell() {
 }
 
 type TableProps struct {
-	Columns   []*TableColumn
-	Localizer *i18n.Localizer
+	Columns []*TableColumn
 }
 
 templ Table(props *TableProps) {
@@ -35,7 +32,7 @@ templ Table(props *TableProps) {
 			<thead>
 				<tr class="bg-surface-500 text-200">
 					for _, col := range props.Columns {
-						<th class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }>{ props.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: col.Label}) }</th>
+						<th class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }>{ col.Label }</th>
 					}
 				</tr>
 			</thead>

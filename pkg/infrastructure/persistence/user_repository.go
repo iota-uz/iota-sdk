@@ -129,7 +129,7 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 	if err := tx.Model(dbUser).Association("Avatar").Find(dbUser.Avatar); err != nil {
 		return err
 	}
-	user.Avatar = toDomainUpload(dbUser.Avatar)
+	user.Avatar = ToDomainUpload(dbUser.Avatar)
 	if len(dbRoles) == 0 {
 		return nil
 	}
