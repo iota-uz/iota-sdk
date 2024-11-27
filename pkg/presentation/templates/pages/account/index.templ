@@ -31,6 +31,7 @@ templ ProfileForm(props *ProfilePageProps) {
 			@components.UploadInput(&components.UploadInputProps{
 				Name:  "AvatarID",
 				Class: "col-span-3",
+				Upload: props.User.Avatar,
 			})
 			@input.Text(&input.Props{
 				Placeholder: props.T("Account.FirstName"),

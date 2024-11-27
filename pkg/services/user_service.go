@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )

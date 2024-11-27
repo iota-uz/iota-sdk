@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
@@ -74,7 +75,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, 
 		return nil, service.ErrNoTx
 	}
 	var row models.User
-	if err := tx.Preload("Roles").Preload("Roles.Permissions").First(&row, id).Error; err != nil {
+	if err := tx.Preload("Roles").Preload("Avatar").Preload("Roles.Permissions").First(&row, id).Error; err != nil {
 		return nil, err
 	}
 	return toDomainUser(&row), nil
@@ -122,9 +123,13 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 		return service.ErrNoTx
 	}
 	dbUser, dbRoles := toDBUser(user)
-	if err := tx.Updates(dbUser).Error; err != nil {
+	if err := tx.Updates(dbUser).Preload("Avatar").Error; err != nil {
 		return err
 	}
+	if err := tx.Model(dbUser).Association("Avatar").Find(dbUser.Avatar); err != nil {
+		return err
+	}
+	user.Avatar = toDomainUpload(dbUser.Avatar)
 	if len(dbRoles) == 0 {
 		return nil
 	}
