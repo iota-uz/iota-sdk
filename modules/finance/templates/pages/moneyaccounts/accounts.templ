@@ -22,12 +22,11 @@ templ AccountsTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "Accounts.List.Name", Key: "name"},
-				{Label: "Accounts.List.Balance", Key: "balance"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: props.T("Accounts.List.Name"), Key: "name"},
+				{Label: props.T("Accounts.List.Balance"), Key: "balance"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
-			Localizer: props.Localizer,
 		}) {
 			for _, account := range props.Accounts {
 				@base.TableRow() {
