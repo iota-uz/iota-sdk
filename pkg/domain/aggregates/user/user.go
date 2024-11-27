@@ -6,6 +6,7 @@ import (
 
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/mapper"
 	"github.com/iota-agency/iota-sdk/pkg/utils/sequence"
 
@@ -24,6 +25,7 @@ type User struct {
 	Password   string
 	Email      string `validate:"required,email"`
 	AvatarID   *uint
+	Avatar     *upload.Upload
 	EmployeeID *uint
 	LastIP     *string
 	UILanguage UILanguage

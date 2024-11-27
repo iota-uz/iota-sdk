@@ -13,6 +13,8 @@ type User struct {
 	UILanguage string
 	CreatedAt  string
 	UpdatedAt  string
+	AvatarID   string
+	Avatar     *Upload
 }
 
 func (u *User) FullName() string {
