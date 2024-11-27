@@ -28,6 +28,11 @@ func toDomainUser(dbUser *models.User) *user.User {
 	if dbUser.Password != nil {
 		password = *dbUser.Password
 	}
+	var avatar upload.Upload
+	if dbUser.Avatar != nil {
+		avatar = *toDomainUpload(dbUser.Avatar)
+	}
+
 	return &user.User{
 		ID:         dbUser.ID,
 		FirstName:  dbUser.FirstName,
@@ -35,8 +40,8 @@ func toDomainUser(dbUser *models.User) *user.User {
 		MiddleName: middleName,
 		Email:      dbUser.Email,
 		Password:   password,
-		Avatar:     toDomainUpload(dbUser.Avatar),
 		AvatarID:   dbUser.AvatarID,
+		Avatar:     &avatar,
 		EmployeeID: dbUser.EmployeeID,
 		UILanguage: user.UILanguage(dbUser.UiLanguage),
 		LastIP:     dbUser.LastIP,
@@ -213,9 +218,6 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 }
 
 func toDomainUpload(dbUpload *models.Upload) *upload.Upload {
-	if dbUpload == nil {
-		return nil
-	}
 	return &upload.Upload{
 		ID:        dbUpload.ID,
 		URL:       dbUpload.URL,

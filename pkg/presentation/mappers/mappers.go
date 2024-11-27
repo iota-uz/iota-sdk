@@ -18,9 +18,13 @@ import (
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
-	avatarId := ""
+	var avatarId string
 	if v := entity.AvatarID; v != nil {
 		avatarId = string(*v)
+	}
+	var avatar viewmodels.Upload
+	if entity.Avatar != nil {
+		avatar = *UploadToViewModel(entity.Avatar)
 	}
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
@@ -28,7 +32,7 @@ func UserToViewModel(entity *user.User) *viewmodels.User {
 		LastName:   entity.LastName,
 		MiddleName: entity.MiddleName,
 		Email:      entity.Email,
-		Avatar:     UploadToViewModel(entity.Avatar),
+		Avatar:     &avatar,
 		UILanguage: string(entity.UILanguage),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
@@ -108,9 +112,6 @@ func EmployeeToViewModel(entity *employee.Employee) *viewmodels.Employee {
 }
 
 func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
-	if entity == nil {
-		return nil
-	}
 	return &viewmodels.Upload{
 		ID:        strconv.FormatUint(uint64(entity.ID), 10),
 		Hash:      entity.Hash,
