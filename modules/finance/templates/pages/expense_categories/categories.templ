@@ -55,9 +55,9 @@ templ CategoriesTable(props *IndexPageProps) {
 				}
 			}
 		}
-		<div class="p-4">
+		if len(props.PaginationState.Pages()) > 0 {
 			@pagination.Pagination(props.PaginationState)
-		</div>
+		}
 	</div>
 }
 
