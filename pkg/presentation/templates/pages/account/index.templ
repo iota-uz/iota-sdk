@@ -29,9 +29,10 @@ templ ProfileForm(props *ProfilePageProps) {
 		</h1>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@components.UploadInput(&components.UploadInputProps{
-				Name:  "AvatarID",
-				Class: "col-span-3",
-				Upload: props.User.Avatar,
+				Label:   props.T("Account.Avatar"),
+				Name:    "AvatarID",
+				Class:   "col-span-3",
+				Uploads: []*viewmodels.Upload{props.User.Avatar},
 			})
 			@input.Text(&input.Props{
 				Placeholder: props.T("Account.FirstName"),

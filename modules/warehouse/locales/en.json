@@ -61,6 +61,7 @@
       }
     },
     "Single": {
+      "Images": "Images",
       "Title": "Title",
       "Barcode": "Barcode",
       "Unit": "Unit",

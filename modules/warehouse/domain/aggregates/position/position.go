@@ -2,6 +2,7 @@ package position
 
 import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"time"
 )
 
@@ -11,6 +12,7 @@ type Position struct {
 	Barcode   string
 	UnitID    uint
 	Unit      unit.Unit
+	Images    []upload.Upload
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

@@ -30,7 +30,7 @@ func toDomainUser(dbUser *models.User) *user.User {
 	}
 	var avatar upload.Upload
 	if dbUser.Avatar != nil {
-		avatar = *toDomainUpload(dbUser.Avatar)
+		avatar = *ToDomainUpload(dbUser.Avatar)
 	}
 
 	return &user.User{
@@ -59,7 +59,7 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 		dbRole, _ := toDBRole(r)
 		roles[i] = *dbRole
 	}
-	avatar := toDBUpload(&upload.Upload{})
+	avatar := ToDBUpload(&upload.Upload{})
 	if v := entity.AvatarID; v != nil {
 		avatar.ID = *v
 	}
@@ -204,7 +204,7 @@ func toDBProjectStage(entity *stage.ProjectStage) *models.ProjectStage {
 	}
 }
 
-func toDBUpload(upload *upload.Upload) *models.Upload {
+func ToDBUpload(upload *upload.Upload) *models.Upload {
 	return &models.Upload{
 		ID:        upload.ID,
 		URL:       upload.URL,
@@ -217,7 +217,7 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 	}
 }
 
-func toDomainUpload(dbUpload *models.Upload) *upload.Upload {
+func ToDomainUpload(dbUpload *models.Upload) *upload.Upload {
 	return &upload.Upload{
 		ID:        dbUpload.ID,
 		URL:       dbUpload.URL,

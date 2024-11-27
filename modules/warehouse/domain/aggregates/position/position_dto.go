@@ -4,13 +4,15 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"time"
 )
 
 type CreateDTO struct {
-	Title   string
-	Barcode string
-	UnitID  uint
+	Title    string `validate:"required"`
+	Barcode  string `validate:"required"`
+	UnitID   uint   `validate:"required"`
+	ImageIDs []uint
 }
 
 type UpdateDTO struct {
@@ -45,11 +47,16 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (*Position, error) {
+	images := make([]upload.Upload, len(d.ImageIDs))
+	for i, id := range d.ImageIDs {
+		images[i] = upload.Upload{ID: id}
+	}
 	return &Position{
 		ID:        0,
 		Title:     d.Title,
 		Barcode:   d.Barcode,
 		UnitID:    d.UnitID,
+		Images:    images,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}, nil
