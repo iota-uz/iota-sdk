@@ -50,7 +50,9 @@ templ ProductsTable(props *IndexPageProps) {
 				}
 			}
 		}
-		@pagination.Pagination(props.PaginationState)
+		if len(props.PaginationState.Pages()) > 0 {
+			@pagination.Pagination(props.PaginationState)
+		}
 	</div>
 }
 
