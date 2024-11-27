@@ -35,7 +35,8 @@ func toDomainUser(dbUser *models.User) *user.User {
 		MiddleName: middleName,
 		Email:      dbUser.Email,
 		Password:   password,
-		//AvatarID:   dbUser.AvatarID,
+		Avatar:     toDomainUpload(dbUser.Avatar),
+		AvatarID:   dbUser.AvatarID,
 		EmployeeID: dbUser.EmployeeID,
 		UILanguage: user.UILanguage(dbUser.UiLanguage),
 		LastIP:     dbUser.LastIP,
@@ -53,6 +54,10 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 		dbRole, _ := toDBRole(r)
 		roles[i] = *dbRole
 	}
+	avatar := toDBUpload(&upload.Upload{})
+	if v := entity.AvatarID; v != nil {
+		avatar.ID = *v
+	}
 	return &models.User{
 		ID:         entity.ID,
 		FirstName:  entity.FirstName,
@@ -61,8 +66,9 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 		Email:      entity.Email,
 		UiLanguage: string(entity.UILanguage),
 		Password:   &entity.Password,
-		//AvatarID:   entity.AvatarID,
+		AvatarID:   entity.AvatarID,
 		EmployeeID: entity.EmployeeID,
+		Avatar:     avatar,
 		LastIP:     entity.LastIP,
 		LastLogin:  entity.LastLogin,
 		LastAction: entity.LastAction,
@@ -206,7 +212,10 @@ func toDBUpload(upload *upload.Upload) *models.Upload {
 	}
 }
 
-func toDomainUpload(dbUpload *models.Upload) (*upload.Upload, error) {
+func toDomainUpload(dbUpload *models.Upload) *upload.Upload {
+	if dbUpload == nil {
+		return nil
+	}
 	return &upload.Upload{
 		ID:        dbUpload.ID,
 		URL:       dbUpload.URL,
@@ -215,7 +224,7 @@ func toDomainUpload(dbUpload *models.Upload) (*upload.Upload, error) {
 		Mimetype:  *mimetype.Lookup(dbUpload.Mimetype),
 		CreatedAt: dbUpload.CreatedAt,
 		UpdatedAt: dbUpload.UpdatedAt,
-	}, nil
+	}
 }
 
 func ToDBCurrency(entity *currency.Currency) *models.Currency {

@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"strconv"
+
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
@@ -12,6 +14,7 @@ type SaveAccountDTO struct {
 	LastName   string `validate:"required"`
 	MiddleName string
 	UILanguage string `validate:"required"`
+	AvatarID   string
 }
 
 func (u *SaveAccountDTO) Ok(l ut.Translator) (map[string]string, bool) {
@@ -31,11 +34,17 @@ func (u *SaveAccountDTO) ToEntity(id uint) (*user.User, error) {
 	if err != nil {
 		return nil, err
 	}
+	avatarIdInt, err := strconv.Atoi(u.AvatarID)
+	if err != nil {
+		return nil, err
+	}
+	avatarIdUint := uint(avatarIdInt)
 	return &user.User{
 		ID:         id,
 		FirstName:  u.FirstName,
 		LastName:   u.LastName,
 		MiddleName: u.MiddleName,
 		UILanguage: lang,
+		AvatarID:   &avatarIdUint,
 	}, nil
 }
