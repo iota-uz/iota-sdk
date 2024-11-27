@@ -27,7 +27,6 @@ templ ProductsTable(props *IndexPageProps) {
 				{Label: "UpdatedAt", Key: "updatedAt"},
 				{Label: "Actions", Class: "w-16"},
 			},
-			Localizer: props.Localizer,
 		}) {
 			for _, product := range props.Products {
 				@base.TableRow() {

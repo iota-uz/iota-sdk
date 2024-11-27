@@ -20,12 +20,11 @@ type IndexPageProps struct {
 templ ProjectsTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: "Projects.List.Name", Key: "name"},
-			{Label: "Projects.List.Description", Key: "description"},
-			{Label: "UpdatedAt", Key: "updatedAt"},
-			{Label: "Actions", Class: "w-16"},
+			{Label: props.T("Projects.List.Name"), Key: "name"},
+			{Label: props.T("Projects.List.Description"), Key: "description"},
+			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+			{Label: props.T("Actions"), Class: "w-16"},
 		},
-		Localizer: props.Localizer,
 	}) {
 		for _, project := range props.Projects {
 			@base.TableRow() {
