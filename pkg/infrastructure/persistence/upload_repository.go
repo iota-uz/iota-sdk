@@ -88,11 +88,7 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Up
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}
-	u, err := toDomainUpload(&entity)
-	if err != nil {
-		return nil, err
-	}
-	return u, nil
+	return ToDomainUpload(&entity), nil
 }
 
 func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
@@ -104,11 +100,7 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 	if err := tx.Where("hash = ?", hash).First(&entity).Error; err != nil {
 		return nil, err
 	}
-	u, err := toDomainUpload(&entity)
-	if err != nil {
-		return nil, err
-	}
-	return u, nil
+	return ToDomainUpload(&entity), nil
 }
 
 func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
@@ -116,7 +108,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 	if !ok {
 		return service.ErrNoTx
 	}
-	upload := toDBUpload(data)
+	upload := ToDBUpload(data)
 	if err := tx.Create(upload).Error; err != nil {
 		return err
 	}
@@ -128,7 +120,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) 
 	if !ok {
 		return service.ErrNoTx
 	}
-	upload := toDBUpload(data)
+	upload := ToDBUpload(data)
 	if err := tx.Save(upload).Error; err != nil {
 		return err
 	}

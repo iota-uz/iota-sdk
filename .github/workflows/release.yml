@@ -1,0 +1,77 @@
+name: Build & release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Specify the release version (e.g., v1.2.3)"
+        required: true
+      notes:
+        description: "Release notes or description"
+        required: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23.2"
+
+      - name: Install TailwindCSS
+        run: |
+          echo "Installing TailwindCSS for x64 architecture..."
+          mkdir -p downloaded
+          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+          chmod +x downloaded/tailwindcss
+          echo "$PWD/downloaded" >> $GITHUB_PATH
+
+      - name: Verify TailwindCSS installation
+        run: |
+          tailwindcss -h
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
+          golangci-lint version
+
+      - name: Install templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@latest
+          templ --help
+
+      - name: Download Go dependencies
+        run: |
+          go mod download
+
+      - name: Generate templates and run go vet
+        run: |
+          templ generate
+          go vet ./...
+
+      - name: Build TailwindCSS assets
+        run: |
+          tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css \
+            -o pkg/presentation/assets/css/main.min.css --minify --watch &
+
+      - name: Create and push tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          echo "Creating tag $VERSION"
+          git tag $VERSION
+          git push origin $VERSION
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Creating GitHub release..."
+          gh release create ${{ inputs.version }} \
+            --title "Release ${{ inputs.version }}" \
+            --notes "${{ inputs.notes }}"

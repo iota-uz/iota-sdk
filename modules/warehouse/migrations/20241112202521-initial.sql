@@ -1,6 +1,4 @@
 -- +migrate Up
-BEGIN;
-
 CREATE TABLE warehouse_units
 (
     id          SERIAL PRIMARY KEY,
@@ -72,11 +70,7 @@ CREATE TABLE warehouse_order_items
     PRIMARY KEY (warehouse_order_id, product_id)
 );
 
-COMMIT;
-
 -- +migrate Down
-BEGIN;
-
 DROP TABLE warehouse_order_items;
 DROP TABLE warehouse_orders;
 DROP TABLE inventory_check_results;
@@ -85,5 +79,3 @@ DROP TABLE warehouse_products;
 DROP TABLE warehouse_position_images;
 DROP TABLE warehouse_positions;
 DROP TABLE warehouse_units;
-
-COMMIT;

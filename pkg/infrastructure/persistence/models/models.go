@@ -123,6 +123,7 @@ type User struct {
 	Email      string
 	Password   *string
 	AvatarID   *uint
+	Avatar     *Upload `gorm:"foreignKey:AvatarID;references:ID"`
 	LastLogin  *time.Time
 	LastIP     *string
 	UiLanguage string

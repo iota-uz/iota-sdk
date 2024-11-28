@@ -5,7 +5,6 @@ Before starting, ensure the following tools are installed on your system:
 - [Go](https://golang.org/doc/install)
 - [Air](https://github.com/cosmtrek/air#Installation) for hot-reloading
 - [Docker](https://docs.docker.com/get-docker/) for containerized services
-- [SQL-Migrate](https://github.com/rubenv/sql-migrate) for database migrations
 - [Templ](https://templ.guide/) for templating
 - [TailwindCSS](https://tailwindcss.com/docs/installation) for styling
 - [golangci-lint](https://golangci-lint.run/welcome/install/) for linting
@@ -24,11 +23,14 @@ Before starting, ensure the following tools are installed on your system:
    go get -u -d ./...
    ```
 
-3. **Set up TailwindCSS globally**:
+3. **Set up TailwindCSS**:
    ```bash
    pnpm install -g tailwindcss
    # or
    npm install -g tailwindcss
+   # or
+   curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/v3.4.15/download/tailwindcss-linux-x64
+   chmod +x tailwindcss-linux-x64
    ```
 
 4. **Run PostgreSQL**:
@@ -38,7 +40,7 @@ Before starting, ensure the following tools are installed on your system:
 
 5. **Apply database migrations**:
    ```bash
-   sql-migrate up
+   go run cmd/migrate/main.go
    ```
 
 6. **Start hot-reloading with Air**:

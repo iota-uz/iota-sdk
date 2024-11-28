@@ -14,7 +14,7 @@ import (
 
 type IndexPageProps struct {
 	*types.PageContext
-	Payments         []*viewmodels.Payment
+	Payments        []*viewmodels.Payment
 	PaginationState *pagination.State
 }
 
@@ -22,11 +22,10 @@ templ PaymentsTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "Payments.List.Amount", Key: "amount"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: props.T("Payments.List.Amount"), Key: "amount"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
-			Localizer: props.PageContext.Localizer,
 		}) {
 			for _, payment := range props.Payments {
 				@base.TableRow() {
@@ -48,9 +47,9 @@ templ PaymentsTable(props *IndexPageProps) {
 				}
 			}
 		}
-		<div class="p-4">
+		if len(props.PaginationState.Pages()) > 1 {
 			@pagination.Pagination(props.PaginationState)
-		</div>
+		}
 	</div>
 }
 

@@ -80,6 +80,21 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	return entity, nil
 }
 
+func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]*upload.Upload, error) {
+	if err := composables.CanUser(ctx, permission.UploadCreate); err != nil {
+		return nil, err
+	}
+	entities := make([]*upload.Upload, 0, len(data))
+	for _, d := range data {
+		entity, err := s.Create(ctx, d)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, entity)
+	}
+	return entities, nil
+}
+
 func (s *UploadService) Update(ctx context.Context, id uint, data *upload.UpdateDTO) error {
 	if err := composables.CanUser(ctx, permission.UploadUpdate); err != nil {
 		return err

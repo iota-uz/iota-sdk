@@ -64,14 +64,13 @@ func (c *PositionsController) viewModelPositions(r *http.Request) (*PositionPagi
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving positions")
 	}
-	viewPositions := mapping.MapViewModels(entities, mappers.PositionToViewModel)
 	total, err := c.positionService.Count(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting positions")
 	}
 	return &PositionPaginatedResponse{
 		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
-		Positions:       viewPositions,
+		Positions:       mapping.MapViewModels(entities, mappers.PositionToViewModel),
 	}, nil
 }
 

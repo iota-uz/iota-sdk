@@ -102,6 +102,6 @@ func (s *PositionService) Delete(ctx context.Context, id uint) (*position.Positi
 	return entity, nil
 }
 
-func (s *PositionService) Count(ctx context.Context) (uint, error) {
+func (s *PositionService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }

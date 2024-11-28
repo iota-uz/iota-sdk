@@ -7,6 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"reflect"
+	"strings"
+	"time"
+
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/modules/core"
@@ -17,8 +22,6 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
 	"gorm.io/gorm"
-	"log"
-	"reflect"
 )
 
 func New(db *gorm.DB, eventPublisher event.Publisher) Application {
@@ -222,15 +225,43 @@ func (app *ApplicationImpl) RunMigrations() error {
 	migrationSource := &migrate.MemoryMigrationSource{
 		Migrations: migrations,
 	}
-	n, err := migrate.Exec(db, "postgres", migrationSource, migrate.Up)
+	ms := migrate.MigrationSet{}
+	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Up, 0)
+	applied := 0
+	tx, err := dbMap.Begin()
 	if err != nil {
 		return err
 	}
-	if n == 0 {
-		return errors.New("no migrations applied")
-	} else {
-		log.Printf("Applied %d migrations", n)
+	defer tx.Rollback()
+	for _, m := range plannedMigrations {
+		for _, stmt := range m.Queries {
+			stmt = strings.TrimSuffix(stmt, "\n")
+			stmt = strings.TrimSuffix(stmt, " ")
+			stmt = strings.TrimSuffix(stmt, ";")
+			if _, err := tx.Exec(stmt); err != nil {
+				return &migrate.TxError{
+					Migration: m.Migration,
+					Err:       err,
+				}
+			}
+		}
+
+		if err := tx.Insert(&migrate.MigrationRecord{
+			Id:        m.Id,
+			AppliedAt: time.Now(),
+		}); err != nil {
+			return &migrate.TxError{
+				Migration: m.Migration,
+				Err:       err,
+			}
+		}
+		applied++
 	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	log.Printf("Applied %d migrations", applied)
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"net/http"
 	"os"
 	"path"
@@ -47,16 +48,14 @@ func (c *UploadController) Register(r *mux.Router) {
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
-	file, header, err := r.FormFile("file")
-	if err != nil {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	dto := &upload.CreateDTO{
-		File: file,
-		Name: header.Filename,
-		Size: int(header.Size),
+	files, ok := r.MultipartForm.File["file"]
+	if !ok {
+		http.Error(w, "No file(s) found", http.StatusBadRequest)
+		return
 	}
 
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
@@ -68,21 +67,52 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("_id")
 	name := r.FormValue("_name")
 	formName := r.FormValue("_formName")
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		_, _, err := dto.ToEntity()
+
+	dtos := make([]*upload.CreateDTO, 0, len(files))
+	for _, header := range files {
+		file, err := header.Open()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		templ.Handler(components.UploadPreview(&components.UploadInputProps{ID: id, Upload: nil, Errors: errorsMap, Form: formName, Name: name}), templ.WithStreaming()).ServeHTTP(w, r)
-		return
+		defer file.Close()
+
+		dto := &upload.CreateDTO{
+			File: file,
+			Name: header.Filename,
+			Size: int(header.Size),
+		}
+
+		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+			_, _, err := dto.ToEntity()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			props := &components.UploadInputProps{
+				ID:      id,
+				Uploads: nil,
+				Errors:  errorsMap,
+				Form:    formName,
+				Name:    name,
+			}
+			templ.Handler(components.UploadPreview(props), templ.WithStreaming()).ServeHTTP(w, r)
+			return
+		}
+		dtos = append(dtos, dto)
 	}
 
-	upload, err := c.uploadService.Create(r.Context(), dto)
+	uploadEntities, err := c.uploadService.CreateMany(r.Context(), dtos)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	templ.Handler(components.UploadPreview(&components.UploadInputProps{ID: id, Upload: mappers.UploadToViewModel(upload), Form: formName, Name: name}), templ.WithStreaming()).ServeHTTP(w, r)
+	props := &components.UploadInputProps{
+		ID:      id,
+		Uploads: mapping.MapViewModels(uploadEntities, mappers.UploadToViewModel),
+		Form:    formName,
+		Name:    name,
+	}
+	templ.Handler(components.UploadPreview(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

@@ -22,12 +22,11 @@ templ UnitsTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "WarehouseUnits.List.Title", Key: "title"},
-				{Label: "WarehouseUnits.List.ShortTitle", Key: "shortTitle"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: props.T("WarehouseUnits.List.Title"), Key: "title"},
+				{Label: props.T("WarehouseUnits.List.ShortTitle"), Key: "shortTitle"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
-			Localizer: props.Localizer,
 		}) {
 			for _, unit := range props.Units {
 				@base.TableRow() {
@@ -50,9 +49,9 @@ templ UnitsTable(props *IndexPageProps) {
 				}
 			}
 		}
-		<div class="p-4">
+		if len(props.PaginationState.Pages()) > 1 {
 			@pagination.Pagination(props.PaginationState)
-		</div>
+		}
 	</div>
 }
 
