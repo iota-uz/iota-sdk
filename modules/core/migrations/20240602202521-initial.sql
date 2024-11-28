@@ -1,6 +1,4 @@
 -- +migrate Up
-BEGIN;
-
 CREATE TABLE uploads
 (
     
@@ -436,10 +434,7 @@ CREATE INDEX interview_ratings_interview_id_idx ON interview_ratings (interview_
 CREATE INDEX interviews_application_id_idx ON interviews (application_id);
 CREATE INDEX interviews_interviewer_id_idx ON interviews (interviewer_id);
 
-COMMIT;
-
 -- +migrate Down
-BEGIN;
 DROP TABLE IF EXISTS action_log CASCADE;
 DROP TABLE IF EXISTS applicant_comments CASCADE;
 DROP TABLE IF EXISTS applicant_skills CASCADE;
@@ -482,5 +477,3 @@ DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS vacancies CASCADE;
 DROP TABLE IF EXISTS action_logs CASCADE;
-
-COMMIT;
