@@ -18,9 +18,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Check architecture
-        run: uname -m
-
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -29,10 +26,11 @@ jobs:
       - name: Install TailwindCSS
         run: |
           echo "Installing TailwindCSS for x64 architecture..."
-          echo
-          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/v3.4.15/download/tailwindcss-linux-x64
-          chmod +x tailwindcss-linux-x64
-          sudo mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+          mkdir -p downloaded
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 -o downloaded/tailwindcss
+          chmod +x downloaded/tailwindcss
+          echo "$PWD/downloaded" >> $GITHUB_PATH
+          echo "Verifying TailwindCSS installation..."
           tailwindcss --help
 
       - name: Install golangci-lint
