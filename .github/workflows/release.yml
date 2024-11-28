@@ -72,4 +72,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Creating GitHub release..."
-          gh release create ${{ inputs.version }} --title "Release ${{ inputs.version }}
+          gh release create ${{ inputs.version }} \
+            --title "Release ${{ inputs.version }}" \
+            --notes "${{ inputs.notes }}"
