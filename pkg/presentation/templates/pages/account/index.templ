@@ -29,7 +29,7 @@ templ ProfileForm(props *ProfilePageProps) {
 		</h1>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@components.UploadInput(&components.UploadInputProps{
-				Label:   props.T("Account.Avatar"),
+				Label:   props.T("Account.BrowseFilesystem"),
 				Name:    "AvatarID",
 				Class:   "col-span-3",
 				Uploads: []*viewmodels.Upload{props.User.Avatar},

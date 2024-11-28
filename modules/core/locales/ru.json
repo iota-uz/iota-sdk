@@ -245,7 +245,7 @@
         "Title": "Аккаунт"
       }
     },
-    "Avatar": "Выбрать изображение",
+    "BrowseFilesystem": "Выбрать изображение",
     "FirstName": "Имя",
     "LastName": "Фамилия",
     "MiddleName": "Отчество",

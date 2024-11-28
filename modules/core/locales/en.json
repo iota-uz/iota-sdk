@@ -245,7 +245,7 @@
         "Title": "Account"
       }
     },
-    "Avatar": "Browse filesystem",
+    "BrowseFilesystem": "Browse filesystem",
     "FirstName": "First name",
     "LastName": "Last name",
     "MiddleName": "Middle name",
