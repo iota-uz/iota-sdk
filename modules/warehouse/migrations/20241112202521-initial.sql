@@ -23,9 +23,9 @@ CREATE TABLE warehouse_positions
 
 CREATE TABLE warehouse_position_images
 (
-    position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    warehouse_position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE,
     upload_id             INT REFERENCES uploads (id) ON DELETE CASCADE,
-    PRIMARY KEY (upload_id, position_id)
+    PRIMARY KEY (upload_id, warehouse_position_id)
 );
 
 CREATE TABLE warehouse_products
