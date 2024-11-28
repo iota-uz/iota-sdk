@@ -25,7 +25,6 @@ templ EmployeesTable(props *IndexPageProps) {
 			{Label: "UpdatedAt", Key: "updatedAt"},
 			{Label: "Actions", Class: "w-16"},
 		},
-		Localizer: props.Localizer,
 	}) {
 		for _, employee := range props.Employees {
 			@base.TableRow() {

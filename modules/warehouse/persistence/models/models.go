@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	coremodels "github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
+	"time"
+)
 
 type WarehouseUnit struct {
 	ID         uint
@@ -45,6 +48,7 @@ type WarehousePosition struct {
 	Barcode   string
 	UnitID    uint
 	Unit      *WarehouseUnit
+	Images    []coremodels.Upload `gorm:"many2many:warehouse_position_images;"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -57,4 +61,9 @@ type WarehouseProduct struct {
 	Status     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+}
+
+type WarehousePositionImage struct {
+	UploadID            uint
+	WarehousePositionID uint
 }

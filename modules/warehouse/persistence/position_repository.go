@@ -23,7 +23,7 @@ func (g *GormPositionRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	if !ok {
 		return nil, service.ErrNoTx
 	}
-	return tx.Preload("Unit"), nil
+	return tx.Preload("Unit").Preload("Images"), nil
 }
 
 func (g *GormPositionRepository) GetPaginated(
@@ -73,9 +73,9 @@ func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Positi
 }
 
 func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, service.ErrNoTx
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var entity models.WarehousePosition
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
@@ -89,7 +89,16 @@ func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *posit
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(toDBPosition(data)).Error
+	positionRow, uploadRows := toDBPosition(data)
+	if err := tx.Save(positionRow).Error; err != nil {
+		return err
+	}
+	for _, uploadRow := range uploadRows {
+		if err := tx.Save(uploadRow).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
@@ -97,8 +106,16 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Create(toDBPosition(data)).Error; err != nil {
+	positionRow, junctionRows := toDBPosition(data)
+	if err := tx.Create(positionRow).Error; err != nil {
 		return err
+	}
+	for _, junctionRow := range junctionRows {
+		// TODO: this feels like a hack
+		junctionRow.WarehousePositionID = positionRow.ID
+		if err := tx.Create(junctionRow).Error; err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -108,7 +125,19 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if !ok {
 		return service.ErrNoTx
 	}
-	return tx.Save(toDBPosition(data)).Error
+	positionRow, uploadRows := toDBPosition(data)
+	if err := tx.Updates(positionRow).Error; err != nil {
+		return err
+	}
+	if err := tx.Delete(&models.WarehousePositionImage{}, "position_id = ?", positionRow.ID).Error; err != nil {
+		return err
+	}
+	for _, uploadRow := range uploadRows {
+		if err := tx.Create(uploadRow).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
