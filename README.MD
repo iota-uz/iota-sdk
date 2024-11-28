@@ -36,6 +36,10 @@ Explore the modular design through the [database schema](https://dbdiagram.io/d/
 
 **UHR** - Unified Hourly Rate (a common standard in IOTA SDK for cost tracking and resource management).
 
+### Discord community
+
+[Join us](https://discord.gg/zKeTEZAQqF)
+
 ## 🌟 Join Us
 
 We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.md) to get
