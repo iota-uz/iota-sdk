@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -13,25 +11,12 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/login"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 	"github.com/iota-agency/iota-sdk/pkg/services"
+	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 )
-
-func SetFlash(w http.ResponseWriter, name string, value []byte) {
-	c := &http.Cookie{Name: name, Value: base64.URLEncoding.EncodeToString(value)}
-	http.SetCookie(w, c)
-}
-
-func SetFlashMap[K comparable, V any](w http.ResponseWriter, name string, value map[K]V) {
-	errors, err := json.Marshal(value)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	SetFlash(w, name, errors)
-}
 
 type LoginDTO struct {
 	Email    string `validate:"required"`
@@ -97,19 +82,23 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
-	dto := LoginDTO{
-		Email:    r.FormValue("email"),
-		Password: r.FormValue("password"),
-	} //nolint:exhaustruct
-
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dto := LoginDTO{} //nolint:exhaustruct
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
 	if err != nil {
-		SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
+		shared.SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		SetFlashMap(w, "errorsMap", errorsMap)
+		shared.SetFlashMap(w, "errorsMap", errorsMap)
 		http.Redirect(w, r, "/login?email="+dto.Email, http.StatusFound)
 		return
 	}
@@ -117,9 +106,9 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidPassword) {
-			SetFlash(w, "error", []byte(pageCtx.T("Login.Errors.PasswordInvalid")))
+			shared.SetFlash(w, "error", []byte(pageCtx.T("Login.Errors.PasswordInvalid")))
 		} else {
-			SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
+			shared.SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
 		}
 		http.Redirect(w, r, "/login?email="+dto.Email, http.StatusFound)
 		return

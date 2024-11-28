@@ -31,7 +31,7 @@ templ Index(p *LoginProps) {
 					@input.Email(&input.Props{
 						Label: p.T("Login.Email"),
 						Attrs: templ.Attributes{
-							"name":  "email",
+							"name":  "Email",
 							"value": p.Email,
 						},
 						Error: p.ErrorsMap["Email"],
@@ -39,7 +39,7 @@ templ Index(p *LoginProps) {
 					@input.Password(&input.Props{
 						Label: p.T("Login.Password"),
 						Attrs: templ.Attributes{
-							"name": "password",
+							"name": "Password",
 						},
 						Error: p.ErrorsMap["Email"],
 					})

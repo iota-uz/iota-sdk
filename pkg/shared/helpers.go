@@ -1,10 +1,13 @@
 package shared
 
 import (
-	"github.com/go-faster/errors"
-	"github.com/gorilla/mux"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"github.com/go-faster/errors"
+	"github.com/gorilla/mux"
 )
 
 func HxRedirect(w http.ResponseWriter, _ *http.Request, path string) {
@@ -27,4 +30,18 @@ func ParseID(r *http.Request) (uint, error) {
 		return 0, errors.Wrap(err, "Error parsing id")
 	}
 	return uint(id), nil
+}
+
+func SetFlash(w http.ResponseWriter, name string, value []byte) {
+	c := &http.Cookie{Name: name, Value: base64.URLEncoding.EncodeToString(value)}
+	http.SetCookie(w, c)
+}
+
+func SetFlashMap[K comparable, V any](w http.ResponseWriter, name string, value map[K]V) {
+	errors, err := json.Marshal(value)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	SetFlash(w, name, errors)
 }
