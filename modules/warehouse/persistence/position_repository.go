@@ -48,7 +48,7 @@ func (g *GormPositionRepository) GetPaginated(
 	return mapping.MapDbModels(entities, toDomainPosition)
 }
 
-func (g *GormPositionRepository) Count(ctx context.Context) (uint, error) {
+func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, service.ErrNoTx
@@ -57,7 +57,7 @@ func (g *GormPositionRepository) Count(ctx context.Context) (uint, error) {
 	if err := tx.Model(&models.WarehousePosition{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
-	return uint(count), nil
+	return count, nil
 }
 
 func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Position, error) {
