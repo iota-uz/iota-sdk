@@ -12,7 +12,7 @@ const (
 	ParamsKey   ContextKey = "params"
 	LoggerKey   ContextKey = "logger"
 	LogoKey     ContextKey = "logo"
-	FaviconKey  ContextKey = "favicon"
+	HeadKey     ContextKey = "head"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())

@@ -1,8 +1,10 @@
 package server
 
 import (
-	internalassets "github.com/iota-agency/iota-sdk/internal/assets"
 	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
 	"gorm.io/gorm"
 	"log"
 
@@ -18,6 +20,10 @@ type DefaultOptions struct {
 	LoadedModules []application.Module
 	Application   application.Application
 	Db            *gorm.DB
+}
+
+func head() types.HeadComponent {
+	return layouts.Head
 }
 
 func Default(options *DefaultOptions) (*HttpServer, error) {
@@ -39,10 +45,9 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	logoURL := "/assets/" + internalassets.HashFS.HashName("images/logo.webp")
-	faviconURL := "/assets/" + internalassets.HashFS.HashName("images/favicon.ico")
 	app.RegisterMiddleware(
-		middleware.LogoInContext(logoURL, faviconURL),
+		middleware.Provide(constants.HeadKey, head()),
+		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
 		middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),
 		middleware.RequestParams(middleware.DefaultParamsConstructor),
 		middleware.WithLogger(log.Default()),
