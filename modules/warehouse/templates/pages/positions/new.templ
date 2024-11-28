@@ -1,10 +1,11 @@
 package positions
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
@@ -20,22 +21,32 @@ type CreatePageProps struct {
 
 templ CreateForm(props *CreatePageProps) {
 	<form
+		id="save-form"
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.SaveURL }
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@components.UploadInput(&components.UploadInputProps{
+				Label:    props.T("WarehousePositions.Single.Images"),
+				Name:     "ImageIDs",
+				Class:    "col-span-3",
+				Form:     "save-form",
+				Multiple: true,
+			})
 			@input.Text(&input.Props{
 				Label: props.T("WarehousePositions.Single.Title"),
 				Attrs: templ.Attributes{
 					"name": "Title",
+					"form": "save-form",
 				},
 			})
 			@input.Text(&input.Props{
 				Label: props.T("WarehousePositions.Single.Barcode"),
 				Attrs: templ.Attributes{
 					"name": "Barcode",
+					"form": "save-form",
 				},
 			})
 			@UnitSelect(&UnitSelectProps{
@@ -44,6 +55,7 @@ templ CreateForm(props *CreatePageProps) {
 				Units:       props.Units,
 				Attrs: templ.Attributes{
 					"name": "UnitID",
+					"form": "save-form",
 				},
 			})
 		}

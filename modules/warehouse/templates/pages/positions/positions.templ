@@ -22,16 +22,21 @@ templ PositionsTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "WarehousePositions.List.Position", Key: "title"},
-				{Label: "WarehousePositions.List.Barcode", Key: "barcode"},
-				{Label: "WarehousePositions.List.Unit", Key: "unit"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: "", Key: "title"},
+				{Label: props.T("WarehousePositions.List.Position"), Key: "title"},
+				{Label: props.T("WarehousePositions.List.Barcode"), Key: "barcode"},
+				{Label: props.T("WarehousePositions.List.Unit"), Key: "unit"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
-			Localizer: props.Localizer,
 		}) {
 			for _, position := range props.Positions {
 				@base.TableRow() {
+					@base.TableCell() {
+						if len(position.Images) > 0 {
+							<img src={ position.Images[0].URL } class="w-12 h-12"/>
+						}
+					}
 					@base.TableCell() {
 						{ position.Title }
 					}

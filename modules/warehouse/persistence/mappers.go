@@ -7,6 +7,8 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 )
 
 func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {
@@ -129,18 +131,32 @@ func toDomainPosition(dbPosition *models.WarehousePosition) (*position.Position,
 	if dbPosition.Unit != nil {
 		u = *toDomainUnit(dbPosition.Unit)
 	}
+	images := make([]upload.Upload, len(dbPosition.Images))
+	for i, img := range dbPosition.Images {
+		images[i] = *persistence.ToDomainUpload(&img)
+	}
 	return &position.Position{
 		ID:        dbPosition.ID,
 		Title:     dbPosition.Title,
 		Barcode:   dbPosition.Barcode,
 		UnitID:    dbPosition.UnitID,
 		Unit:      u,
+		Images:    images,
 		CreatedAt: dbPosition.CreatedAt,
 		UpdatedAt: dbPosition.UpdatedAt,
 	}, nil
 }
 
-func toDBPosition(entity *position.Position) *models.WarehousePosition {
+func toDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage) {
+	junctionRows := make([]*models.WarehousePositionImage, 0, len(entity.Images))
+	for _, image := range entity.Images {
+		junctionRows = append(
+			junctionRows, &models.WarehousePositionImage{
+				WarehousePositionID: entity.ID,
+				UploadID:            image.ID,
+			},
+		)
+	}
 	return &models.WarehousePosition{
 		ID:        entity.ID,
 		Title:     entity.Title,
@@ -148,5 +164,5 @@ func toDBPosition(entity *position.Position) *models.WarehousePosition {
 		UnitID:    entity.UnitID,
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
-	}
+	}, junctionRows
 }
