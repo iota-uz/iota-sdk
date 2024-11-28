@@ -1,4 +1,4 @@
-name: Build and Release Pipeline
+name: Build & release
 
 on:
   workflow_dispatch:
