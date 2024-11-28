@@ -10,7 +10,7 @@ type FindParams struct {
 }
 
 type Repository interface {
-	Count(ctx context.Context) (uint, error)
+	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]*Position, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]*Position, error)
 	GetByID(ctx context.Context, id uint) (*Position, error)
