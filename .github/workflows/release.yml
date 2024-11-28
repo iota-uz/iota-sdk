@@ -33,7 +33,7 @@ jobs:
 
       - name: Verify TailwindCSS installation
         run: |
-          tailwindcss --version
+          tailwindcss -h
 
       - name: Install golangci-lint
         run: |
