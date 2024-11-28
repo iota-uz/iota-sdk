@@ -20,7 +20,7 @@ import (
 func UserToViewModel(entity *user.User) *viewmodels.User {
 	var avatarId string
 	if v := entity.AvatarID; v != nil {
-		avatarId = string(*v)
+		avatarId = strconv.Itoa(int(*v))
 	}
 	var avatar viewmodels.Upload
 	if entity.Avatar != nil {
