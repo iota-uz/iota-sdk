@@ -1,11 +1,12 @@
 package positions
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/dialog"
 	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/components"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -23,6 +24,14 @@ type EditPageProps struct {
 templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@components.UploadInput(&components.UploadInputProps{
+				Label:    props.T("WarehousePositions.Single.Images"),
+				Name:     "ImageIDs",
+				Class:    "col-span-3",
+				Form:     "save-form",
+				Multiple: true,
+				Uploads:  props.Position.Images,
+			})
 			@input.Text(&input.Props{
 				Label: props.T("WarehousePositions.Single.Title"),
 				Attrs: templ.Attributes{

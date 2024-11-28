@@ -27,7 +27,6 @@ templ ProductsTable(props *IndexPageProps) {
 				{Label: "UpdatedAt", Key: "updatedAt"},
 				{Label: "Actions", Class: "w-16"},
 			},
-			Localizer: props.Localizer,
 		}) {
 			for _, product := range props.Products {
 				@base.TableRow() {
@@ -50,9 +49,9 @@ templ ProductsTable(props *IndexPageProps) {
 				}
 			}
 		}
-		<div class="p-4">
+		if len(props.PaginationState.Pages()) > 1 {
 			@pagination.Pagination(props.PaginationState)
-		</div>
+		}
 	</div>
 }
 

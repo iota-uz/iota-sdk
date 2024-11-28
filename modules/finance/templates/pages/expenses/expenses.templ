@@ -14,7 +14,7 @@ import (
 
 type IndexPageProps struct {
 	*types.PageContext
-	Expenses         []*viewmodels.Expense
+	Expenses        []*viewmodels.Expense
 	PaginationState *pagination.State
 }
 
@@ -22,12 +22,11 @@ templ ExpensesTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "Expenses.List.Category", Key: "name"},
-				{Label: "Expenses.List.Amount", Key: "amount"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: props.T("Expenses.List.Category"), Key: "name"},
+				{Label: props.T("Expenses.List.Amount"), Key: "amount"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
-			Localizer: props.Localizer,
 		}) {
 			for _, expense := range props.Expenses {
 				@base.TableRow() {
@@ -50,9 +49,9 @@ templ ExpensesTable(props *IndexPageProps) {
 				}
 			}
 		}
-		<div class="p-4">
+		if len(props.PaginationState.Pages()) > 1 {
 			@pagination.Pagination(props.PaginationState)
-		</div>
+		}
 	</div>
 }
 

@@ -22,12 +22,11 @@ templ CategoriesTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "ExpenseCategories.List.Name", Key: "name"},
-				{Label: "ExpenseCategories.List.Amount", Key: "amount"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: props.T("ExpenseCategories.List.Name"), Key: "name"},
+				{Label: props.T("ExpenseCategories.List.Amount"), Key: "amount"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
-			Localizer: props.Localizer,
 		}) {
 			for _, category := range props.Categories {
 				@base.TableRow() {
@@ -55,9 +54,9 @@ templ CategoriesTable(props *IndexPageProps) {
 				}
 			}
 		}
-		<div class="p-4">
+		if len(props.PaginationState.Pages()) > 1 {
 			@pagination.Pagination(props.PaginationState)
-		</div>
+		}
 	</div>
 }
 

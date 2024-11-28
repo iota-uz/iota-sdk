@@ -6,7 +6,7 @@ import (
 )
 
 templ Pagination(state *State) {
-	<ul class="inline-flex -space-x-px text-sm">
+	<ul class="inline-flex -space-x-px text-sm p-4">
 		<li>
 			<a class={ "btn btn-secondary border-none rounded-r-none h-11", state.PrevLinkClasses() } href={ templ.SafeURL(state.PrevLink()) }>
 				@icons.ChevronLeft(icons.Props{Size: "16"})

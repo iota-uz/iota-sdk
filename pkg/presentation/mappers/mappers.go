@@ -18,15 +18,25 @@ import (
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
+	var avatarId string
+	if v := entity.AvatarID; v != nil {
+		avatarId = strconv.Itoa(int(*v))
+	}
+	var avatar viewmodels.Upload
+	if entity.Avatar != nil {
+		avatar = *UploadToViewModel(entity.Avatar)
+	}
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		FirstName:  entity.FirstName,
 		LastName:   entity.LastName,
 		MiddleName: entity.MiddleName,
 		Email:      entity.Email,
+		Avatar:     &avatar,
 		UILanguage: string(entity.UILanguage),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
+		AvatarID:   avatarId,
 	}
 }
 

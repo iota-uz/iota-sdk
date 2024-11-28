@@ -248,6 +248,7 @@
         "Title": "Account"
       }
     },
+    "BrowseFilesystem": "Browse filesystem",
     "FirstName": "First name",
     "LastName": "Last name",
     "MiddleName": "Middle name",
