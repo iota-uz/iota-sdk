@@ -11,3 +11,4 @@ static
 uploads
 *_templ.txt
 *_templ.go
+pkg/presentation/assets/css/main.min.css
