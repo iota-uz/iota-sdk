@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -14,6 +15,8 @@ import (
 
 var (
 	navbarOnce = templ.NewOnceHandle()
+
+	companyLogo = "/assets/" + assets.HashFS.HashName("images/logo.webp")
 )
 
 type sidebarLink struct {
@@ -96,12 +99,15 @@ templ renderNavItem(i types.NavigationItem, pathname string) {
 	</li>
 }
 
+templ DefaultLogo() {
+	<img src={ companyLogo } alt="Logo" width="150" height="50"/>
+}
+
 templ sidebar(pageCtx *types.PageContext) {
-	{{ companyLogo, _ := composables.UseLogoURL(ctx) }}
 	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0">
 		<div class="flex h-16 items-center justify-center px-6">
 			<a href="/" class="flex items-center gap-2">
-				<img src={ companyLogo } alt="Logo" width="150" height="50"/>
+				@composables.MustUseLogo(ctx)
 			</a>
 		</div>
 		<nav class="py-4 flex-1">
