@@ -38,7 +38,7 @@ Explore the modular design through the [database schema](https://dbdiagram.io/d/
 
 ### Discord community
 
-[Join us](https://discord.gg/zKeTEZAQqF)
+Join us on [Discord] (https://discord.gg/zKeTEZAQqF)
 
 ## 🌟 Join Us
 
