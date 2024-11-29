@@ -54,7 +54,7 @@ func copyFile(file fs.File, dest, filename string) error {
 }
 
 // Collect collects all static files from the registry and writes them to the destination directory.
-func Collect(embeddedFiles []*embed.FS, dest string) error {
+func Collect(dest string, embeddedFiles ...*embed.FS) error {
 	for _, embedFs := range embeddedFiles {
 		filenames, err := getAllFilenames(embedFs, "")
 		if err != nil {
