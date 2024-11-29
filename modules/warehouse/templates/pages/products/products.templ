@@ -22,10 +22,10 @@ templ ProductsTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "Products.List.Position", Key: "position"},
-				{Label: "Products.List.Status", Key: "status"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: props.T("Products.List.Position"), Key: "position"},
+				{Label: props.T("Products.List.Status"), Key: "status"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, product := range props.Products {
