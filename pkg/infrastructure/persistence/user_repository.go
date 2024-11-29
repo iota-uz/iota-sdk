@@ -2,12 +2,12 @@ package persistence
 
 import (
 	"context"
-
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/service"
+	"gorm.io/gorm"
 )
 
 func NewUserRepository() user.Repository {
@@ -123,7 +123,13 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 		return service.ErrNoTx
 	}
 	dbUser, dbRoles := toDBUser(user)
-	if err := tx.Updates(dbUser).Preload("Avatar").Error; err != nil {
+	var q *gorm.DB
+	if dbUser.AvatarID == nil {
+		q = tx.Updates(dbUser)
+	} else {
+		q = tx.Updates(dbUser).Preload("Avatar")
+	}
+	if err := q.Error; err != nil {
 		return err
 	}
 	if err := tx.Model(dbUser).Association("Avatar").Find(dbUser.Avatar); err != nil {

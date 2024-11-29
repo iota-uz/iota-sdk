@@ -59,9 +59,15 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 		dbRole, _ := toDBRole(r)
 		roles[i] = *dbRole
 	}
-	avatar := ToDBUpload(&upload.Upload{})
+	var avatar *models.Upload
 	if v := entity.AvatarID; v != nil {
-		avatar.ID = *v
+		avatar = ToDBUpload(&upload.Upload{
+			ID: *v,
+		})
+	}
+	var avatarId *uint
+	if entity.AvatarID != nil && *entity.AvatarID != 0 {
+		avatarId = entity.AvatarID
 	}
 	return &models.User{
 		ID:         entity.ID,
@@ -71,7 +77,7 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 		Email:      entity.Email,
 		UiLanguage: string(entity.UILanguage),
 		Password:   &entity.Password,
-		AvatarID:   entity.AvatarID,
+		AvatarID:   avatarId,
 		EmployeeID: entity.EmployeeID,
 		Avatar:     avatar,
 		LastIP:     entity.LastIP,
@@ -218,12 +224,16 @@ func ToDBUpload(upload *upload.Upload) *models.Upload {
 }
 
 func ToDomainUpload(dbUpload *models.Upload) *upload.Upload {
+	var mime mimetype.MIME
+	if dbUpload.Mimetype != "" {
+		mime = *mimetype.Lookup(dbUpload.Mimetype)
+	}
 	return &upload.Upload{
 		ID:        dbUpload.ID,
 		URL:       dbUpload.URL,
 		Size:      dbUpload.Size,
 		Name:      dbUpload.Name,
-		Mimetype:  *mimetype.Lookup(dbUpload.Mimetype),
+		Mimetype:  mime,
 		CreatedAt: dbUpload.CreatedAt,
 		UpdatedAt: dbUpload.UpdatedAt,
 	}
