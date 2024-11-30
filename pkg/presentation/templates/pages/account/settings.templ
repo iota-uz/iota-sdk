@@ -1,0 +1,66 @@
+package account
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type SettingsPageProps struct {
+	*types.PageContext
+}
+
+css marginLeft(depth int) {
+	margin-left: { fmt.Sprintf("%dpx", depth * 8) };
+}
+
+templ NavItems(items []types.NavigationItem, depth int) {
+	<ul class={ marginLeft(depth) }>
+		for _, item := range items {
+			<li>
+				if len(item.Children) > 0 {
+					<details>
+						<summary class="cursor-pointer">
+							<input type="checkbox" class="parent" id={ item.Href } value={ item.Href }/>
+							<span for={ item.Href }>{ item.Name }</span>
+						</summary>
+						@NavItems(item.Children, depth+1)
+					</details>
+				} else {
+					<input type="checkbox" id={ item.Href } value={ item.Href }/>
+					<label for={ item.Href }>{ item.Name }</label>
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ SettingsForm(props *SettingsPageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-swap="outerHTML"
+	>
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			<div x-data="checkboxes">
+				@NavItems(props.NavItems, 0)
+			</div>
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Attrs: templ.Attributes{
+					"type": "submit",
+				}},
+			) {
+				{ props.T("Account.Save") }
+			}
+		</div>
+	</form>
+}
+
+templ Settings(props *SettingsPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@SettingsForm(props)
+	}
+}

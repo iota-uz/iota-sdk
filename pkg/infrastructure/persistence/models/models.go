@@ -522,3 +522,10 @@ type WebsitePageView struct {
 	CreatedAt time.Time
 	Page      WebsitePage
 }
+
+type Tab struct {
+	ID       uint
+	Href     string
+	Position uint
+	UserID   uint
+}
