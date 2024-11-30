@@ -4,6 +4,6 @@ import (
 	"embed"
 )
 
-//go:embed base/*
-//go:embed user/*
+//go:embed base/*.templ
+//go:embed user/*.templ
 var FS embed.FS
