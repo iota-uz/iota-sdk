@@ -18,7 +18,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -84,12 +84,12 @@ let dialog = () => ({
       });
     });
   }),
-  lightDismiss({ target: dialog }) {
+  lightDismiss({target: dialog}) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({ target: dialog }) {
+  async close({target: dialog}) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -196,9 +196,35 @@ let combobox = () => ({
   },
 });
 
+let checkboxes = () => ({
+  allInputs: [],
+  init() {
+    this.allInputs = Array.from(this.$el.querySelectorAll("input[type='checkbox']"));
+    this.allInputs.forEach((input) => {
+      input.addEventListener("change", (e) => {
+        let check = e.target;
+        let children = check.parentNode.querySelectorAll("input");
+        children.forEach((child) => child.checked = check.checked);
+
+        let details = check.closest("details");
+        console.log("DETAILS: ", details);
+        let parent = details.querySelector(".parent");
+        console.log("PARENT: ", parent);
+        // while (check) {
+        //   let parent = 
+        //   let parent = (check.closest("ul").parentNode).querySelector("input");
+        //   console.log("PARENT: ", parent);
+        //   check = check != parent ? parent : 0
+        // }
+      });
+    });
+  }
+});
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
   Alpine.data("combobox", combobox);
+  Alpine.data("checkboxes", checkboxes);
 });

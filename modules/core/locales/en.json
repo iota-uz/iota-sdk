@@ -243,6 +243,9 @@
     "Meta": {
       "Index": {
         "Title": "Account"
+      },
+      "Settings": {
+        "Title": "Account settings"
       }
     },
     "BrowseFilesystem": "Browse filesystem",

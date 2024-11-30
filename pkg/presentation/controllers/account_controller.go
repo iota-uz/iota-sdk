@@ -34,6 +34,7 @@ func (c *AccountController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.RequireAuthorization())
 	router.HandleFunc("", c.Get).Methods(http.MethodGet)
+	router.HandleFunc("/settings", c.GetSettings).Methods(http.MethodGet)
 	router.HandleFunc("", c.Post).Methods(http.MethodPost)
 }
 
@@ -120,4 +121,20 @@ func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
 		User:        mappers.UserToViewModel(entity),
 		Errors:      map[string]string{},
 	})).ServeHTTP(w, r)
+}
+
+func (c *AccountController) GetSettings(w http.ResponseWriter, r *http.Request) {
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		types.NewPageData("Account.Meta.Settings.Title", ""),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	props := &account.SettingsPageProps{
+		PageContext: pageCtx,
+	}
+	templ.Handler(account.Settings(props)).ServeHTTP(w, r)
 }
