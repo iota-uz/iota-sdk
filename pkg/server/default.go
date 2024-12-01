@@ -41,6 +41,7 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 		}
 	}
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
+	tabService := app.Service(services.TabService{}).(*services.TabService)
 	bundle, err := app.Bundle()
 	if err != nil {
 		return nil, err
@@ -55,6 +56,7 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 		middleware.Transactions(db),
 		middleware.Authorization(authService),
 		middleware.WithLocalizer(bundle),
+		middleware.Tabs(tabService),
 		middleware.NavItems(app),
 	)
 	serverInstance := &HttpServer{

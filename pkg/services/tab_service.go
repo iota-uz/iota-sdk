@@ -32,6 +32,18 @@ func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab,
 	return entity, nil
 }
 
+func (s *TabService) CreateMany(ctx context.Context, data []*tab.CreateDTO) ([]*tab.Tab, error) {
+	entities := make([]*tab.Tab, 0, len(data))
+	for _, d := range data {
+		entity, err := s.Create(ctx, d)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, entity)
+	}
+	return entities, nil
+}
+
 func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) error {
 	entity, err := data.ToEntity(id)
 	if err != nil {
@@ -43,13 +55,17 @@ func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) e
 	return nil
 }
 
-func (s *TabService) Delete(ctx context.Context, id uint) (*tab.Tab, error) {
+func (s *TabService) DeleteByID(ctx context.Context, id uint) (*tab.Tab, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, &tab.DeleteParams{ID: id}); err != nil {
 		return nil, err
 	}
 	return entity, nil
+}
+
+func (s *TabService) Delete(ctx context.Context, params *tab.DeleteParams) error {
+	return s.repo.Delete(ctx, params)
 }

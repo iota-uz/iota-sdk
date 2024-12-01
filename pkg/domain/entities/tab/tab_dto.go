@@ -8,6 +8,7 @@ import (
 
 type CreateDTO struct {
 	Href     string `validate:"required"`
+	UserID   uint
 	Position uint
 }
 
@@ -47,6 +48,7 @@ func (d *CreateDTO) ToEntity() (*Tab, error) {
 		ID:       0,
 		Href:     d.Href,
 		Position: d.Position,
+		UserID:   d.UserID,
 	}, nil
 }
 

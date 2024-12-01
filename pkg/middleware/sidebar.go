@@ -23,8 +23,14 @@ func NavItems(app application.Application) mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
-				items := modules.GetNavItems(app, localizer, user)
+				tabs, err := composables.UseTabs(r.Context())
+				if err != nil {
+					next.ServeHTTP(w, r)
+					return
+				}
+				items, allItems := modules.GetNavItems(app, localizer, user, tabs)
 				ctx := context.WithValue(r.Context(), constants.NavItemsKey, items)
+				ctx = context.WithValue(ctx, constants.AllNavItemsKey, allItems)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)

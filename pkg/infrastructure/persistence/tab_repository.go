@@ -88,12 +88,18 @@ func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
 	return nil
 }
 
-func (g *GormTabRepository) Delete(ctx context.Context, id uint) error {
+func (g *GormTabRepository) Delete(ctx context.Context, params *tab.DeleteParams) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
 	}
-	if err := tx.Where("id = ?", id).Delete(&models.Tab{}).Error; err != nil { //nolint:exhaustruct
+	if params.ID != 0 {
+		tx = tx.Where("id = ?", params.ID)
+	}
+	if params.UserID != 0 {
+		tx = tx.Where("user_id = ?", params.UserID)
+	}
+	if err := tx.Delete(&models.Tab{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil
