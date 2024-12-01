@@ -197,27 +197,22 @@ let combobox = () => ({
 });
 
 let checkboxes = () => ({
-  allInputs: [],
+  children: [],
+  onParentChange(e) {
+    this.children.forEach(c => c.checked = e.target.checked);
+  },
+  onChange() {
+    let allChecked = this.children.every((c) => c.checked);
+    let someChecked = this.children.some((c) => c.checked);
+    this.$refs.parent.checked = allChecked;
+    this.$refs.parent.indeterminate = !allChecked && allChecked !== someChecked;
+  },
   init() {
-    this.allInputs = Array.from(this.$el.querySelectorAll("input[type='checkbox']"));
-    this.allInputs.forEach((input) => {
-      input.addEventListener("change", (e) => {
-        let check = e.target;
-        let children = check.parentNode.querySelectorAll("input");
-        children.forEach((child) => child.checked = check.checked);
-
-        let details = check.closest("details");
-        console.log("DETAILS: ", details);
-        let parent = details.querySelector(".parent");
-        console.log("PARENT: ", parent);
-        // while (check) {
-        //   let parent = 
-        //   let parent = (check.closest("ul").parentNode).querySelector("input");
-        //   console.log("PARENT: ", parent);
-        //   check = check != parent ? parent : 0
-        // }
-      });
-    });
+    this.children = Array.from(this.$el.querySelectorAll("input[type='checkbox']:not(.parent)"));
+    this.onChange();
+  },
+  destroy() {
+    this.children = [];
   }
 });
 
