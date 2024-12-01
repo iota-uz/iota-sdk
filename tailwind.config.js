@@ -47,8 +47,8 @@ module.exports = {
           500: "oklch(var(--gray-500) / <alpha-value>)",
         },
         red: {
-          100: "oklch(var(--red-100) / <alpha-value>)",
-          200: "oklch(var(--red-200) / <alpha-value>)",
+          100: "oklch(var(--red-100))",
+          200: "oklch(var(--red-200))",
           500: "oklch(var(--red-500) / <alpha-value>)",
         }
       },
