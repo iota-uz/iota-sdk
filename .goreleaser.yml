@@ -3,9 +3,8 @@ project_name: my-project
 release:
   # Automatically create a GitHub release
   github:
-    owner: your-github-username
-    name: your-repo-name
-  tag_name: "{{.Tag}}"
+    owner: iota-agency
+    name: iota-sdk
 
 builds: [ ] # No binaries to build
 
