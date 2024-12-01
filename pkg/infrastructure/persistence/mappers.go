@@ -275,11 +275,11 @@ func ToDBTab(tab *tab.Tab) *models.Tab {
 	}
 }
 
-func ToDomainTab(dbTab *models.Tab) *tab.Tab {
+func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
 	return &tab.Tab{
 		ID:       dbTab.ID,
 		Href:     dbTab.Href,
 		Position: dbTab.Position,
 		UserID:   dbTab.UserID,
-	}
+	}, nil
 }

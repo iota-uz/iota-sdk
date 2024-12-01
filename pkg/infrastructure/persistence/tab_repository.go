@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
@@ -44,12 +45,7 @@ func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) 
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-
-	tabs := make([]*tab.Tab, len(entities))
-	for i, entity := range entities {
-		tabs[i] = ToDomainTab(entity)
-	}
-	return tabs, nil
+	return mapping.MapDbModels(entities, ToDomainTab)
 }
 
 func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, error) {
@@ -61,7 +57,7 @@ func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, err
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}
-	return ToDomainTab(&entity), nil
+	return ToDomainTab(&entity)
 }
 
 func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
