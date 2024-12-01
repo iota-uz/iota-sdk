@@ -6,9 +6,6 @@ on:
       version:
         description: "Specify the release version (e.g., v1.2.3)"
         required: true
-      notes:
-        description: "Release notes or description"
-        required: false
 
 jobs:
   build-and-release:
@@ -67,11 +64,10 @@ jobs:
           git tag $VERSION
           git push origin $VERSION
 
-      - name: Create GitHub release
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: v1.24.0
+          args: release --clean --timeout 10m0s
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Creating GitHub release..."
-          gh release create ${{ inputs.version }} \
-            --title "Release ${{ inputs.version }}" \
-            --notes "${{ inputs.notes }}"
