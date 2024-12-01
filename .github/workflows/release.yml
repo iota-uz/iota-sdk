@@ -6,6 +6,9 @@ on:
       version:
         description: "Specify the release version (e.g., v1.2.3)"
         required: true
+      notes:
+        description: "Release notes or description"
+        required: false
 
 jobs:
   build-and-release:
@@ -56,6 +59,12 @@ jobs:
           tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css \
             -o pkg/presentation/assets/css/main.min.css --minify --watch &
 
+      - name: Add generated files to commit
+        run: |
+          git add -f pkg/presentation/assets/css/main.min.css
+          git add -f *_templ.go *_templ.txt
+          git commit -m "Add generated assets"
+
       - name: Create and push tag
         env:
           VERSION: ${{ inputs.version }}
@@ -64,10 +73,11 @@ jobs:
           git tag $VERSION
           git push origin $VERSION
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          version: v1.24.0
-          args: release --clean --timeout 10m0s
+      - name: Create GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Creating GitHub release..."
+          gh release create ${{ inputs.version }} \
+            --title "Release ${{ inputs.version }}" \
+            --notes "${{ inputs.notes }}"
