@@ -44,7 +44,7 @@ jobs:
 
       - name: Add generated files to commit
         run: |
-          git add -f '*_templ.go' '*_templ.txt'
+          git add -f '*_templ.go'
           git commit -m "Add generated assets"
 
       - name: Create and push tag
