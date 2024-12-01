@@ -44,6 +44,8 @@ jobs:
 
       - name: Add generated files to commit
         run: |
+          git config --global user.email "github@actions.com"
+          git config --global user.name "GitHub Actions"
           git add -f '*_templ.go'
           git commit -m "Add generated assets"
 
