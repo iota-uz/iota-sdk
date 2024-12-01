@@ -135,8 +135,7 @@ func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
 
 func TabToViewModel(entity *tab.Tab) *viewmodels.Tab {
 	return &viewmodels.Tab{
-		ID:       strconv.FormatUint(uint64(entity.ID), 10),
-		Href:     entity.Href,
-		Position: entity.Position,
+		ID:   strconv.FormatUint(uint64(entity.ID), 10),
+		Href: entity.Href,
 	}
 }

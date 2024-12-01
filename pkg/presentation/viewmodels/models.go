@@ -118,7 +118,6 @@ type Upload struct {
 }
 
 type Tab struct {
-	ID       string
-	Href     string
-	Position uint
+	ID   string
+	Href string
 }
