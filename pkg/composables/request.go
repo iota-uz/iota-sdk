@@ -2,10 +2,13 @@ package composables
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -201,4 +204,35 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 		UniTranslator: uniTranslator,
 		NavItems:      navItems,
 	}, nil
+}
+
+func UseFlash(w http.ResponseWriter, r *http.Request, name string) ([]byte, error) {
+	c, err := r.Cookie(name)
+	if err != nil {
+		switch err {
+		case http.ErrNoCookie:
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+	val, err := base64.URLEncoding.DecodeString(c.Value)
+	if err != nil {
+		return nil, err
+	}
+	dc := &http.Cookie{Name: name, MaxAge: -1, Expires: time.Unix(1, 0)}
+	http.SetCookie(w, dc)
+	return val, nil
+}
+
+func UseFlashMap[K comparable, V any](w http.ResponseWriter, r *http.Request, name string) (map[K]V, error) {
+	bytes, err := UseFlash(w, r, name)
+	if err != nil {
+		return nil, err
+	}
+	var errors map[K]V
+	if len(bytes) == 0 {
+		return errors, nil
+	}
+	return errors, json.Unmarshal(bytes, &errors)
 }
