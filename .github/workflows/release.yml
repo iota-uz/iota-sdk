@@ -57,12 +57,12 @@ jobs:
       - name: Build TailwindCSS assets
         run: |
           tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css \
-            -o pkg/presentation/assets/css/main.min.css --minify --watch &
+            -o pkg/presentation/assets/css/main.min.css --minify
 
       - name: Add generated files to commit
         run: |
           git add -f pkg/presentation/assets/css/main.min.css
-          git add -f *_templ.go *_templ.txt
+          git add -f '*_templ.go' '*_templ.txt'
           git commit -m "Add generated assets"
 
       - name: Create and push tag
