@@ -1,0 +1,20 @@
+project_name: my-project
+
+release:
+  # Automatically create a GitHub release
+  github:
+    owner: your-github-username
+    name: your-repo-name
+  tag_name: "{{.Tag}}"
+
+builds: [ ] # No binaries to build
+
+archives:
+  - id: source-archive
+    format: tar.gz
+    files:
+      - "**/*"  # Include all source files
+
+changelog:
+  use: git
+  sort: asc
