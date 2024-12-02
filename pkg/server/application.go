@@ -35,5 +35,6 @@ func ConstructApp(db *gorm.DB) application.Application {
 	app.RegisterService(services.NewEmbeddingService(app))
 	app.RegisterService(services.NewDialogueService(persistence.NewDialogueRepository(), app))
 	app.RegisterService(services.NewUploadService(persistence.NewUploadRepository(), fsStorage, eventPublisher))
+	app.RegisterService(services.NewTabService(persistence.NewTabRepository()))
 	return app
 }

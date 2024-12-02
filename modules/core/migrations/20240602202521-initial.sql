@@ -392,6 +392,14 @@ CREATE TABLE contact_form_submissions
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
+CREATE TABLE tabs (
+    id         SERIAL PRIMARY KEY,
+    href       VARCHAR(255) NOT NULL,
+    user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    position   INT NOT NULL DEFAULT 0,
+    UNIQUE(href, user_id)
+);
+
 CREATE INDEX users_first_name_idx ON users (first_name);
 CREATE INDEX users_last_name_idx ON users (last_name);
 
@@ -477,3 +485,4 @@ DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS vacancies CASCADE;
 DROP TABLE IF EXISTS action_logs CASCADE;
+DROP TABLE IF EXISTS tabs CASCADE;

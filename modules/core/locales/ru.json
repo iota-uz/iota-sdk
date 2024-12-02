@@ -246,6 +246,9 @@
     "Meta": {
       "Index": {
         "Title": "Аккаунт"
+      },
+      "Settings": {
+        "Title": "Настройки аккаунта"
       }
     },
     "BrowseFilesystem": "Выбрать изображение",

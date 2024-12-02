@@ -126,7 +126,7 @@ templ sidebar(pageCtx *types.PageContext) {
 	</div>
 }
 
-templ avatar(pageCtx *types.PageContext) {
+templ avatar() {
 	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
 		{ initials(ctx) }
 	</summary>
@@ -149,11 +149,11 @@ templ Navbar(pageCtx *types.PageContext) {
 					@icons.MoonFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100"})
 				</label>
 			</div>
-			@base.DetailsDropdown(avatar(pageCtx)) {
+			@base.DetailsDropdown(avatar()) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
 				}
-				@base.DropdownItem(base.DropdownItemProps{Href: "/settings"}) {
+				@base.DropdownItem(base.DropdownItemProps{Href: "/account/settings"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
 				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {

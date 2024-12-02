@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -129,5 +130,12 @@ func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
 		Code:   string(entity.Code),
 		Name:   entity.Name,
 		Symbol: string(entity.Symbol),
+	}
+}
+
+func TabToViewModel(entity *tab.Tab) *viewmodels.Tab {
+	return &viewmodels.Tab{
+		ID:   strconv.FormatUint(uint64(entity.ID), 10),
+		Href: entity.Href,
 	}
 }

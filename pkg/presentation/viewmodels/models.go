@@ -116,3 +116,8 @@ type Upload struct {
 	CreatedAt string
 	UpdatedAt string
 }
+
+type Tab struct {
+	ID   string
+	Href string
+}
