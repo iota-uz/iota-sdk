@@ -18,7 +18,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -84,12 +84,12 @@ let dialog = () => ({
       });
     });
   }),
-  lightDismiss({ target: dialog }) {
+  lightDismiss({target: dialog}) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({ target: dialog }) {
+  async close({target: dialog}) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -196,9 +196,30 @@ let combobox = () => ({
   },
 });
 
+let checkboxes = () => ({
+  children: [],
+  onParentChange(e) {
+    this.children.forEach(c => c.checked = e.target.checked);
+  },
+  onChange() {
+    let allChecked = this.children.every((c) => c.checked);
+    let someChecked = this.children.some((c) => c.checked);
+    this.$refs.parent.checked = allChecked;
+    this.$refs.parent.indeterminate = !allChecked && allChecked !== someChecked;
+  },
+  init() {
+    this.children = Array.from(this.$el.querySelectorAll("input[type='checkbox']:not(.parent)"));
+    this.onChange();
+  },
+  destroy() {
+    this.children = [];
+  }
+});
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
   Alpine.data("combobox", combobox);
+  Alpine.data("checkboxes", checkboxes);
 });

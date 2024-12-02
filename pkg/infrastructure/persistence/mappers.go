@@ -11,6 +11,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
@@ -262,5 +263,23 @@ func ToDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
 		Code:   code,
 		Name:   dbCurrency.Name,
 		Symbol: symbol,
+	}, nil
+}
+
+func ToDBTab(tab *tab.Tab) *models.Tab {
+	return &models.Tab{
+		ID:       tab.ID,
+		Href:     tab.Href,
+		Position: tab.Position,
+		UserID:   tab.UserID,
+	}
+}
+
+func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
+	return &tab.Tab{
+		ID:       dbTab.ID,
+		Href:     dbTab.Href,
+		Position: dbTab.Position,
+		UserID:   dbTab.UserID,
 	}, nil
 }

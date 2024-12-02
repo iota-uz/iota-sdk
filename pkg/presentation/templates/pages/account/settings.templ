@@ -1,0 +1,103 @@
+package account
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type SettingsPageProps struct {
+	*types.PageContext
+	Tabs        []*viewmodels.Tab
+	AllNavItems []types.NavigationItem
+}
+
+css marginLeft(depth int) {
+	margin-left: { fmt.Sprintf("%dpx", depth * 8) };
+}
+
+func isChecked(href string, tabs []*viewmodels.Tab) bool {
+	for _, tab := range tabs {
+		if tab.Href == href {
+			return true
+		}
+	}
+
+	return false
+}
+
+templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, class string) {
+	<ul class={ "flex flex-col gap-2", class, marginLeft(depth) }>
+		for _, item := range items {
+			<li
+				if len(item.Children) > 0 {
+					x-data="checkboxes"
+				}
+			>
+				if len(item.Children) > 0 {
+					<details class="group">
+						<summary class="cursor-pointer flex items-center justify-between">
+							@input.Checkbox(&input.CheckboxProps{
+								Class: "parent",
+								Attrs: templ.Attributes{
+									"x-ref":   "parent",
+									"value":   item.Href,
+									"@change": "onParentChange",
+								},
+							}) {
+								if item.Icon != nil {
+									@item.Icon
+								}
+								{ item.Name }
+							}
+							@icons.CaretUp(icons.Props{Size: "16", Class: "duration-200 group-open:rotate-180"})
+						</summary>
+						@NavItems(item.Children, tabs, depth+1, "mt-2")
+					</details>
+				} else {
+					@input.Checkbox(&input.CheckboxProps{
+						Attrs: templ.Attributes{
+							"value":   item.Href,
+							"@change": "onChange",
+							"name":    "Hrefs",
+						},
+						ID:      item.Href,
+						Checked: isChecked(item.Href, tabs),
+					}) {
+						<label for={ item.Href }>
+							{ item.Name }
+						</label>
+					}
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ SettingsForm(props *SettingsPageProps) {
+	<form class="flex flex-col justify-between h-full" method="post">
+		@base.Card("m-6") {
+			@NavItems(props.AllNavItems, props.Tabs, 0, "")
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Attrs: templ.Attributes{
+					"type": "submit",
+				}},
+			) {
+				{ props.T("Account.Save") }
+			}
+		</div>
+	</form>
+}
+
+templ Settings(props *SettingsPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@SettingsForm(props)
+	}
+}

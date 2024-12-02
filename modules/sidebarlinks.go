@@ -3,6 +3,7 @@ package modules
 import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -24,11 +25,44 @@ func filterItems(items []types.NavigationItem, user *user.User) []types.Navigati
 	return filteredItems
 }
 
+func hrefExists(href string, tabs []*tab.Tab) bool {
+	for _, tab := range tabs {
+		if tab.Href == href {
+			return true
+		}
+	}
+	return false
+}
+
+func getEnabledNavItems(items []types.NavigationItem, tabs []*tab.Tab) []types.NavigationItem {
+	out := []types.NavigationItem{}
+	for _, item := range items {
+		if len(item.Children) > 0 {
+			children := getEnabledNavItems(item.Children, tabs)
+			childrenLen := len(children)
+			if childrenLen == 0 {
+				continue
+			}
+			if childrenLen == 1 {
+				out = append(out, children[0])
+			} else {
+				item.Children = children
+				out = append(out, item)
+			}
+		} else if item.Href == "" || item.Href != "" && hrefExists(item.Href, tabs) {
+			out = append(out, item)
+		}
+	}
+
+	return out
+}
+
 func GetNavItems(
 	app application.Application,
 	localizer *i18n.Localizer,
 	user *user.User,
-) []types.NavigationItem {
+	tabs []*tab.Tab,
+) ([]types.NavigationItem, []types.NavigationItem) {
 	items := []types.NavigationItem{
 		{
 			Name:        localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}),
@@ -41,5 +75,6 @@ func GetNavItems(
 	for _, n := range app.NavigationItems(localizer) {
 		items = append(items, n)
 	}
-	return filterItems(items, user)
+	filtered := filterItems(items, user)
+	return getEnabledNavItems(filtered, tabs), filtered
 }

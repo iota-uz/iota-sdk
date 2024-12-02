@@ -80,7 +80,7 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 	return []types.NavigationItem{
 		{
 			Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Finances"}),
-			Href: "#",
+			Href: "/finance",
 			Icon: icons.Money(icons.Props{Size: "20"}),
 			Children: []types.NavigationItem{
 				{

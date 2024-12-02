@@ -18,3 +18,11 @@ func UseNavItems(r *http.Request) ([]types.NavigationItem, error) {
 	}
 	return navItems.([]types.NavigationItem), nil
 }
+
+func UseAllNavItems(r *http.Request) ([]types.NavigationItem, error) {
+	navItems := r.Context().Value(constants.AllNavItemsKey)
+	if navItems == nil {
+		return nil, ErrNavItemsNotFound
+	}
+	return navItems.([]types.NavigationItem), nil
+}
