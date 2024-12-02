@@ -55,7 +55,7 @@ templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, 
 								}
 								{ item.Name }
 							}
-							@icons.CaretUp(icons.Props{Size: "16", Class: "duration-200 group-open:rotate-180"})
+							@icons.ChevronDown(icons.Props{Size: "16", Class: "duration-200 group-open:rotate-180"})
 						</summary>
 						@NavItems(item.Children, tabs, depth+1, "mt-2")
 					</details>
