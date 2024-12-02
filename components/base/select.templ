@@ -41,7 +41,7 @@ templ (p *SelectProps) render() {
 				}
 				{ children... }
 			</select>
-			@icons.CaretUp(icons.Props{Class: "absolute top-1/2 right-3 -translate-y-1/2 rotate-180 pointer-events-none", Size: "16"})
+			@icons.ChevronDown(icons.Props{Class: "absolute top-1/2 right-3 -translate-y-1/2 pointer-events-none", Size: "16"})
 		</div>
 		if p.Error != "" {
 			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
