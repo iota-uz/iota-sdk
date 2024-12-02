@@ -21,6 +21,10 @@ func (s *TabService) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab
 	return s.repo.GetAll(ctx, params)
 }
 
+func (s *TabService) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, error) {
+	return s.repo.GetUserTabs(ctx, userID)
+}
+
 func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab, error) {
 	entity, err := data.ToEntity()
 	if err != nil {
@@ -55,17 +59,10 @@ func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) e
 	return nil
 }
 
-func (s *TabService) DeleteByID(ctx context.Context, id uint) (*tab.Tab, error) {
-	entity, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.repo.Delete(ctx, &tab.DeleteParams{ID: id}); err != nil {
-		return nil, err
-	}
-	return entity, nil
+func (s *TabService) Delete(ctx context.Context, id uint) error {
+	return s.repo.Delete(ctx, id)
 }
 
-func (s *TabService) Delete(ctx context.Context, params *tab.DeleteParams) error {
-	return s.repo.Delete(ctx, params)
+func (s *TabService) DeleteUserTabs(ctx context.Context, userID uint) error {
+	return s.repo.DeleteUserTabs(ctx, userID)
 }
