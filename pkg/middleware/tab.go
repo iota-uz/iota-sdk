@@ -7,7 +7,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 )
 
@@ -20,7 +19,7 @@ func Tabs(tabService *services.TabService) mux.MiddlewareFunc {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				tabs, err := tabService.GetAll(r.Context(), &tab.FindParams{UserID: u.ID})
+				tabs, err := tabService.GetUserTabs(r.Context(), u.ID)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return

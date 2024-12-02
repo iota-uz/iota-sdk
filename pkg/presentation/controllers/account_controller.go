@@ -183,7 +183,7 @@ func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request)
 			UserID:   u.ID,
 		})
 	}
-	if err := c.tabService.Delete(r.Context(), &tab.DeleteParams{UserID: u.ID}); err != nil {
+	if err := c.tabService.DeleteUserTabs(r.Context(), u.ID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

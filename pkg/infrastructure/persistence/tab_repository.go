@@ -38,11 +38,20 @@ func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) 
 	if err != nil {
 		return nil, err
 	}
-	if params.UserID != 0 {
-		q.Where("user_id = ?", params.UserID)
-	}
 	var entities []*models.Tab
 	if err := q.Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	return mapping.MapDbModels(entities, ToDomainTab)
+}
+
+func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, error) {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return nil, service.ErrNoTx
+	}
+	var entities []*models.Tab
+	if err := tx.Where("user_id = ?", userID).Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(entities, ToDomainTab)
@@ -84,18 +93,23 @@ func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
 	return nil
 }
 
-func (g *GormTabRepository) Delete(ctx context.Context, params *tab.DeleteParams) error {
+func (g *GormTabRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return service.ErrNoTx
 	}
-	if params.ID != 0 {
-		tx = tx.Where("id = ?", params.ID)
+	if err := tx.Where("id = ?", id).Delete(&models.Tab{}).Error; err != nil { //nolint:exhaustruct
+		return err
 	}
-	if params.UserID != 0 {
-		tx = tx.Where("user_id = ?", params.UserID)
+	return nil
+}
+
+func (g *GormTabRepository) DeleteUserTabs(ctx context.Context, userID uint) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
 	}
-	if err := tx.Delete(&models.Tab{}).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Where("user_id = ?", userID).Delete(&models.Tab{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil
