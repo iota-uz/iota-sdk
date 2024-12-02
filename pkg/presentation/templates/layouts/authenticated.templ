@@ -85,7 +85,7 @@ templ renderNavItem(i types.NavigationItem, pathname string) {
 						@i.Icon
 					}
 					{ i.Name }
-					@icons.CaretUp(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
+					@icons.ChevronDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
 				</summary>
 				<ul class="ml-4 mt-2 flex flex-col gap-2">
 					for _, item := range i.Children {
