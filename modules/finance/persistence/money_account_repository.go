@@ -7,7 +7,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 	"time"
 )
 
@@ -23,7 +22,7 @@ func (g *GormMoneyAccountRepository) GetPaginated(
 ) ([]*moneyaccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.MoneyAccount
 	q := tx.Limit(limit).Offset(offset)
@@ -39,7 +38,7 @@ func (g *GormMoneyAccountRepository) GetPaginated(
 func (g *GormMoneyAccountRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.MoneyAccount{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -51,7 +50,7 @@ func (g *GormMoneyAccountRepository) Count(ctx context.Context) (uint, error) {
 func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyaccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.MoneyAccount
 	if err := tx.Preload("Currency").Find(&rows).Error; err != nil {
@@ -63,7 +62,7 @@ func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyaccoun
 func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*moneyaccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entity models.MoneyAccount
 	if err := tx.Preload("Currency").First(&entity, id).Error; err != nil {
@@ -75,7 +74,7 @@ func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*mon
 func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	var balance float64
 	q := tx.Model(&models.Transaction{}).Where("origin_account_id = ?", id).Or(
@@ -90,7 +89,7 @@ func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id 
 func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyaccount.Account) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	entity := toDBMoneyAccount(data)
 	if err := tx.Create(entity).Error; err != nil {
@@ -117,7 +116,7 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyacco
 func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyaccount.Account) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Updates(toDBMoneyAccount(data)).Error
 }
@@ -125,7 +124,7 @@ func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyacco
 func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&models.MoneyAccount{}, id).Error //nolint:exhaustruct
 }

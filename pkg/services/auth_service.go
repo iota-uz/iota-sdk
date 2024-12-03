@@ -9,7 +9,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
@@ -113,7 +112,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (*user.User, 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&session.Session{}, "token = ?", token).Error //nolint:exhaustruct
 }
@@ -159,7 +158,7 @@ func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, passw
 		return nil, nil, err
 	}
 	if !u.CheckPassword(password) {
-		return nil, nil, service.ErrInvalidPassword
+		return nil, nil, composables.ErrInvalidPassword
 	}
 	sess, err := s.authenticate(ctx, u)
 	if err != nil {
@@ -193,7 +192,7 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 		return nil, nil, err
 	}
 	if !u.CheckPassword(password) {
-		return nil, nil, service.ErrInvalidPassword
+		return nil, nil, composables.ErrInvalidPassword
 	}
 	sess, err := s.authenticate(ctx, u)
 	if err != nil {

@@ -3,8 +3,6 @@ package persistence
 import (
 	"context"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/service"
-
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
@@ -22,7 +20,7 @@ func (g *GormProjectRepository) GetPaginated(
 ) ([]*project.Project, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.Project
 	q := tx.Limit(limit).Offset(offset)
@@ -42,7 +40,7 @@ func (g *GormProjectRepository) GetPaginated(
 func (g *GormProjectRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.Project{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -54,7 +52,7 @@ func (g *GormProjectRepository) Count(ctx context.Context) (uint, error) {
 func (g *GormProjectRepository) GetAll(ctx context.Context) ([]*project.Project, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.Project
 	if err := tx.Find(&rows).Error; err != nil {
@@ -70,7 +68,7 @@ func (g *GormProjectRepository) GetAll(ctx context.Context) ([]*project.Project,
 func (g *GormProjectRepository) GetByID(ctx context.Context, id uint) (*project.Project, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var row models.Project
 	if err := tx.First(&row, id).Error; err != nil {
@@ -82,7 +80,7 @@ func (g *GormProjectRepository) GetByID(ctx context.Context, id uint) (*project.
 func (g *GormProjectRepository) Create(ctx context.Context, data *project.Project) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	entity := toDBProject(data)
 	return tx.Create(entity).Error
@@ -91,7 +89,7 @@ func (g *GormProjectRepository) Create(ctx context.Context, data *project.Projec
 func (g *GormProjectRepository) Update(ctx context.Context, data *project.Project) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	entity := toDBProject(data)
 	return tx.Save(entity).Error
@@ -100,7 +98,7 @@ func (g *GormProjectRepository) Update(ctx context.Context, data *project.Projec
 func (g *GormProjectRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&models.Project{}, id).Error //nolint:exhaustruct
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
 type GormExpenseCategoryRepository struct{}
@@ -21,7 +20,7 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 ) ([]*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
 	for _, s := range sortBy {
@@ -37,7 +36,7 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.ExpenseCategory{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -49,7 +48,7 @@ func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (uint, error)
 func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.ExpenseCategory
 	if err := tx.Preload("AmountCurrency").Find(&rows).Error; err != nil {
@@ -61,7 +60,7 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]*category
 func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entity models.ExpenseCategory
 	if err := tx.Preload("AmountCurrency").First(&entity, id).Error; err != nil {
@@ -73,7 +72,7 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*
 func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *category.ExpenseCategory) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Create(toDBExpenseCategory(data)).Error
 }
@@ -81,7 +80,7 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *catego
 func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *category.ExpenseCategory) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Updates(toDBExpenseCategory(data)).Error
 }
@@ -89,7 +88,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *catego
 func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&models.ExpenseCategory{}, id).Error //nolint:exhaustruct
 }

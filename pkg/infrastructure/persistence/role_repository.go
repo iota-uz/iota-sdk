@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
 type GormRoleRepository struct{}
@@ -22,7 +21,7 @@ func (g *GormRoleRepository) GetPaginated(
 ) ([]*role.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
 	q, err := helpers.ApplySort(q, sortBy)
@@ -39,7 +38,7 @@ func (g *GormRoleRepository) GetPaginated(
 func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.Role{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -51,7 +50,7 @@ func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.Role
 	if err := tx.Preload("Permissions").Find(&rows).Error; err != nil {
@@ -67,7 +66,7 @@ func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
 func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entity models.Role
 	if err := tx.Preload("Permissions").First(&entity, id).Error; err != nil {
@@ -79,7 +78,7 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role.Role,
 func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	entity, permissions := toDBRole(data)
 	if err := tx.Save(entity).Error; err != nil {
@@ -94,7 +93,7 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	entity, permissions := toDBRole(data)
 	if err := tx.Create(entity).Error; err != nil {
@@ -109,7 +108,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	entity, permissions := toDBRole(data)
 	if err := tx.Updates(entity).Error; err != nil {
@@ -124,7 +123,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error 
 func (g *GormRoleRepository) Delete(ctx context.Context, id int64) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&models.Role{}, id).Error //nolint:exhaustruct
 }

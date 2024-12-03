@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +22,7 @@ func (g *GormUserRepository) GetPaginated(
 ) ([]*user.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	q := tx.Preload("Roles").Preload("Roles.Permissions").Limit(limit).Offset(offset)
 	q, err := helpers.ApplySort(q, sortBy)
@@ -44,7 +43,7 @@ func (g *GormUserRepository) GetPaginated(
 func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.User{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -56,7 +55,7 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var users []*models.User
 	if err := tx.Find(&users).Error; err != nil {
@@ -72,7 +71,7 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var row models.User
 	if err := tx.Preload("Roles").Preload("Avatar").Preload("Roles.Permissions").First(&row, id).Error; err != nil {
@@ -84,7 +83,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, 
 func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var row models.User
 	if err := tx.Preload("Roles").Preload("Roles.Permissions").First(&row, "email = ?", email).Error; err != nil {
@@ -96,7 +95,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	dbUser, dbRoles := toDBUser(user)
 	if err := tx.Save(dbUser).Error; err != nil {
@@ -108,7 +107,7 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User
 func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	dbUser, dbRoles := toDBUser(user)
 	if err := tx.Create(dbUser).Error; err != nil {
@@ -120,7 +119,7 @@ func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error 
 func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	dbUser, dbRoles := toDBUser(user)
 	var q *gorm.DB
@@ -145,7 +144,7 @@ func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error 
 func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Model(&models.User{}).Where("id = ?", id).Update("last_login", "NOW()").Error //nolint:exhaustruct
 }
@@ -153,7 +152,7 @@ func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error
 func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Model(&models.User{}).Where("id = ?", id).Update("last_action", "NOW()").Error //nolint:exhaustruct
 }
@@ -161,7 +160,7 @@ func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id uint) erro
 func (g *GormUserRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&models.User{}, id).Error //nolint:exhaustruct
 }

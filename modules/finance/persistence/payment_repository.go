@@ -6,7 +6,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 )
 
 type GormPaymentRepository struct{}
@@ -21,7 +20,7 @@ func (g *GormPaymentRepository) GetPaginated(
 ) ([]*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.Payment
 	q := tx.Limit(limit).Offset(offset)
@@ -37,7 +36,7 @@ func (g *GormPaymentRepository) GetPaginated(
 func (g *GormPaymentRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.Payment{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -49,7 +48,7 @@ func (g *GormPaymentRepository) Count(ctx context.Context) (uint, error) {
 func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var rows []*models.Payment
 	if err := tx.Preload("Transaction").Find(&rows).Error; err != nil {
@@ -61,7 +60,7 @@ func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment.Payment,
 func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var row models.Payment
 	if err := tx.Preload("Transaction").First(&row, id).Error; err != nil {
@@ -73,7 +72,7 @@ func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (*payment.
 func (g *GormPaymentRepository) Create(ctx context.Context, data *payment.Payment) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	paymentRow, transactionRow := toDBPayment(data)
 	if err := tx.Create(transactionRow).Error; err != nil {
@@ -86,7 +85,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data *payment.Paymen
 func (g *GormPaymentRepository) Update(ctx context.Context, data *payment.Payment) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	// TODO: a nicer solution
 	var transactionID uint
@@ -105,7 +104,7 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data *payment.Paymen
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&models.Payment{}, id).Error //nolint:exhaustruct
 }

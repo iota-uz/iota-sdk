@@ -1,9 +1,8 @@
-package service
+package composables
 
 import "errors"
 
 var (
-	ErrNoTx            = errors.New("no transaction found in context")
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrNotFound        = errors.New("not found")
 	ErrUnauthorized    = errors.New("unauthorized")

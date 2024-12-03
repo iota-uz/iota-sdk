@@ -4,11 +4,9 @@ import (
 	"context"
 
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/service"
-
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 )
 
 type GormUploadRepository struct{}
@@ -22,7 +20,7 @@ func (g *GormUploadRepository) GetPaginated(
 ) ([]*upload.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	q := tx.Limit(params.Limit).Offset(params.Offset)
 	q, err := helpers.ApplySort(q, params.SortBy)
@@ -48,7 +46,7 @@ func (g *GormUploadRepository) GetPaginated(
 func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.Upload{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -60,7 +58,7 @@ func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entities []*models.Upload
 	if err := tx.Find(&entities).Error; err != nil {
@@ -82,7 +80,7 @@ func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, er
 func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entity models.Upload
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
@@ -94,7 +92,7 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Up
 func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entity models.Upload
 	if err := tx.Where("hash = ?", hash).First(&entity).Error; err != nil {
@@ -106,7 +104,7 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	upload := ToDBUpload(data)
 	if err := tx.Create(upload).Error; err != nil {
@@ -118,7 +116,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	upload := ToDBUpload(data)
 	if err := tx.Save(upload).Error; err != nil {
@@ -130,7 +128,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) 
 func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	if err := tx.Where("id = ?", id).Delete(&models.Upload{}).Error; err != nil { //nolint:exhaustruct
 		return err

@@ -10,11 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"gorm.io/gorm"
-
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )
@@ -72,21 +70,6 @@ func UseMeta(ctx context.Context) (map[string]interface{}, bool) {
 		return nil, false
 	}
 	return params.Meta, true
-}
-
-// WithTx returns a new context with the database transaction.
-func WithTx(ctx context.Context, tx *gorm.DB) context.Context {
-	return context.WithValue(ctx, constants.TxKey, tx)
-}
-
-// UseTx returns the database transaction from the context.
-// If the transaction is not found, the second return value will be false.
-func UseTx(ctx context.Context) (*gorm.DB, bool) {
-	tx, ok := ctx.Value(constants.TxKey).(*gorm.DB)
-	if !ok {
-		return nil, false
-	}
-	return tx, true
 }
 
 // UseAuthenticated returns whether the user is authenticated and the second return value is true.
@@ -230,9 +213,9 @@ func UseFlashMap[K comparable, V any](w http.ResponseWriter, r *http.Request, na
 	if err != nil {
 		return nil, err
 	}
-	var errors map[K]V
+	var errorsMap map[K]V
 	if len(bytes) == 0 {
-		return errors, nil
+		return errorsMap, nil
 	}
-	return errors, json.Unmarshal(bytes, &errors)
+	return errorsMap, json.Unmarshal(bytes, &errorsMap)
 }
