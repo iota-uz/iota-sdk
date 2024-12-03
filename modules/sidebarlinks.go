@@ -34,7 +34,7 @@ func hrefExists(href string, tabs []*tab.Tab) bool {
 }
 
 func getEnabledNavItems(items []types.NavigationItem, tabs []*tab.Tab) []types.NavigationItem {
-	out := []types.NavigationItem{}
+	var out []types.NavigationItem
 	for _, item := range items {
 		if len(item.Children) > 0 {
 			children := getEnabledNavItems(item.Children, tabs)
