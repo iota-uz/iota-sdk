@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -93,12 +92,10 @@ func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *posit
 	if err := tx.Save(positionRow).Error; err != nil {
 		return err
 	}
-	for _, uploadRow := range uploadRows {
-		if err := tx.Save(uploadRow).Error; err != nil {
-			return err
-		}
+	if len(uploadRows) == 0 {
+		return nil
 	}
-	return nil
+	return tx.Save(uploadRows).Error
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {

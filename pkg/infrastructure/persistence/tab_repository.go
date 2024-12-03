@@ -81,6 +81,14 @@ func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
 	return nil
 }
 
+func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return service.ErrNoTx
+	}
+	return tx.Save(ToDBTab(data)).Error
+}
+
 func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
