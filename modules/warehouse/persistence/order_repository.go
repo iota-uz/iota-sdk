@@ -4,10 +4,8 @@ import (
 	"context"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
-	"github.com/iota-agency/iota-sdk/pkg/service"
-
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormOrderRepository struct{}
@@ -22,7 +20,7 @@ func (g *GormOrderRepository) GetPaginated(
 ) ([]*order.Order, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	q := tx.Limit(limit).Offset(offset)
 	q, err := helpers.ApplySort(q, sortBy)
@@ -48,7 +46,7 @@ func (g *GormOrderRepository) GetPaginated(
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.WarehouseOrder{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -60,7 +58,7 @@ func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
 func (g *GormOrderRepository) GetAll(ctx context.Context) ([]*order.Order, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entities []*models.WarehouseOrder
 	if err := tx.Find(&entities).Error; err != nil {
@@ -82,7 +80,7 @@ func (g *GormOrderRepository) GetAll(ctx context.Context) ([]*order.Order, error
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (*order.Order, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entity models.WarehouseOrder
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
@@ -110,7 +108,7 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (*order.Orde
 func (g *GormOrderRepository) Create(ctx context.Context, data *order.Order) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	or, orderItems := toDBOrder(data)
 	if err := tx.Create(or).Error; err != nil {
@@ -127,7 +125,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data *order.Order) err
 func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	or, orderItems := toDBOrder(data)
 	if err := tx.Save(or).Error; err != nil {
@@ -147,7 +145,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) err
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	if err := tx.Where("id = ?", id).Delete(&models.WarehouseOrder{}).Error; err != nil { //nolint:exhaustruct
 		return err

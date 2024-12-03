@@ -10,7 +10,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/rs/cors"
-	"gorm.io/gorm"
 )
 
 var AllowMethods = []string{
@@ -91,23 +90,4 @@ func RequestParams(constructor ParamsConstructor) mux.MiddlewareFunc {
 			return constructor(r, w)
 		},
 	)
-}
-
-func Transactions(db *gorm.DB) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				err := db.Transaction(
-					func(tx *gorm.DB) error { //nolint:contextcheck
-						ctx := context.WithValue(r.Context(), constants.TxKey, tx)
-						next.ServeHTTP(w, r.WithContext(ctx))
-						return nil
-					},
-				)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
-			},
-		)
-	}
 }

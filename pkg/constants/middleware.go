@@ -9,6 +9,7 @@ const (
 	SessionKey     ContextKey = "session"
 	NavItemsKey    ContextKey = "navItems"
 	AllNavItemsKey ContextKey = "allNavItems"
+	DBKey          ContextKey = "db"
 	TxKey          ContextKey = "tx"
 	ParamsKey      ContextKey = "params"
 	LoggerKey      ContextKey = "logger"

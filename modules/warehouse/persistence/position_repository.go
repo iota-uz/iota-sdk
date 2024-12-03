@@ -7,7 +7,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +19,7 @@ func NewPositionRepository() position.Repository {
 func (g *GormPositionRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	return tx.Preload("Unit").Preload("Images"), nil
 }
@@ -50,7 +49,7 @@ func (g *GormPositionRepository) GetPaginated(
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.WarehousePosition{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -86,7 +85,7 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	positionRow, uploadRows := toDBPosition(data)
 	if err := tx.Save(positionRow).Error; err != nil {
@@ -101,7 +100,7 @@ func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *posit
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	positionRow, junctionRows := toDBPosition(data)
 	if err := tx.Create(positionRow).Error; err != nil {
@@ -120,7 +119,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	positionRow, uploadRows := toDBPosition(data)
 	if err := tx.Updates(positionRow).Error; err != nil {
@@ -140,7 +139,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Where("id = ?", id).Delete(&models.WarehousePosition{}).Error //nolint:exhaustruct
 }

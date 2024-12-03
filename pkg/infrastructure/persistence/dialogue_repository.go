@@ -3,8 +3,6 @@ package persistence
 import (
 	"context"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/service"
-
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/dialogue"
 )
 
@@ -21,7 +19,7 @@ func (g *GormDialogueRepository) GetPaginated(
 ) ([]*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var uploads []*dialogue.Dialogue
 	q := tx.Limit(limit).Offset(offset)
@@ -37,7 +35,7 @@ func (g *GormDialogueRepository) GetPaginated(
 func (g *GormDialogueRepository) Count(ctx context.Context) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&dialogue.Dialogue{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -49,7 +47,7 @@ func (g *GormDialogueRepository) Count(ctx context.Context) (int64, error) {
 func (g *GormDialogueRepository) GetAll(ctx context.Context) ([]*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entities []*dialogue.Dialogue
 	if err := tx.Find(&entities).Error; err != nil {
@@ -61,7 +59,7 @@ func (g *GormDialogueRepository) GetAll(ctx context.Context) ([]*dialogue.Dialog
 func (g *GormDialogueRepository) GetByID(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entity dialogue.Dialogue
 	if err := tx.First(&entity, id).Error; err != nil {
@@ -73,7 +71,7 @@ func (g *GormDialogueRepository) GetByID(ctx context.Context, id int64) (*dialog
 func (g *GormDialogueRepository) GetByUserID(ctx context.Context, userID int64) ([]*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	var entities []*dialogue.Dialogue
 	if err := tx.Where("user_id = ?", userID).Find(&entities).Error; err != nil {
@@ -85,7 +83,7 @@ func (g *GormDialogueRepository) GetByUserID(ctx context.Context, userID int64) 
 func (g *GormDialogueRepository) Create(ctx context.Context, data *dialogue.Dialogue) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	if err := tx.Create(data).Error; err != nil {
 		return err
@@ -96,7 +94,7 @@ func (g *GormDialogueRepository) Create(ctx context.Context, data *dialogue.Dial
 func (g *GormDialogueRepository) Update(ctx context.Context, data *dialogue.Dialogue) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	if err := tx.Save(data).Error; err != nil {
 		return err
@@ -107,7 +105,7 @@ func (g *GormDialogueRepository) Update(ctx context.Context, data *dialogue.Dial
 func (g *GormDialogueRepository) Delete(ctx context.Context, id int64) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	if err := tx.Delete(&dialogue.Dialogue{}, id).Error; err != nil { //nolint:exhaustruct
 		return err

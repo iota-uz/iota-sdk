@@ -9,7 +9,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/login"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -105,7 +104,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidPassword) {
+		if errors.Is(err, composables.ErrInvalidPassword) {
 			shared.SetFlash(w, "error", []byte(pageCtx.T("Login.Errors.PasswordInvalid")))
 		} else {
 			shared.SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))

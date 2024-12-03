@@ -7,7 +7,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/service"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +19,7 @@ func NewExpenseRepository() expense.Repository {
 func (g *GormExpenseRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return nil, service.ErrNoTx
+		return nil, composables.ErrNoTx
 	}
 	return tx.Preload("Transaction").Preload("Category").Preload("Category.AmountCurrency"), nil
 }
@@ -47,7 +46,7 @@ func (g *GormExpenseRepository) GetPaginated(
 func (g *GormExpenseRepository) Count(ctx context.Context) (uint, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return 0, service.ErrNoTx
+		return 0, composables.ErrNoTx
 	}
 	var count int64
 	if err := tx.Model(&models.Expense{}).Count(&count).Error; err != nil { //nolint:exhaustruct
@@ -83,7 +82,7 @@ func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (*expense.
 func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expense) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	expenseRow, transactionRow := toDBExpense(data)
 	if err := tx.Create(transactionRow).Error; err != nil {
@@ -96,7 +95,7 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expens
 func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expense) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	expenseRow, transactionRow := toDBExpense(data)
 	if err := tx.Save(transactionRow).Error; err != nil {
@@ -109,7 +108,7 @@ func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expens
 func (g *GormExpenseRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
-		return service.ErrNoTx
+		return composables.ErrNoTx
 	}
 	return tx.Delete(&models.Expense{}, id).Error //nolint:exhaustruct
 }
