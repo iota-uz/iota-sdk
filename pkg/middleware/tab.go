@@ -16,7 +16,7 @@ func Tabs(tabService *services.TabService) mux.MiddlewareFunc {
 			func(w http.ResponseWriter, r *http.Request) {
 				u, err := composables.UseUser(r.Context())
 				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+					next.ServeHTTP(w, r)
 					return
 				}
 				tabs, err := tabService.GetUserTabs(r.Context(), u.ID)

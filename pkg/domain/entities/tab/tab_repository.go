@@ -12,6 +12,7 @@ type Repository interface {
 	GetUserTabs(ctx context.Context, userID uint) ([]*Tab, error)
 	GetByID(ctx context.Context, id uint) (*Tab, error)
 	Create(ctx context.Context, data *Tab) error
+	CreateOrUpdate(ctx context.Context, data *Tab) error
 	Update(ctx context.Context, data *Tab) error
 	Delete(ctx context.Context, id uint) error
 	DeleteUserTabs(ctx context.Context, userID uint) error
