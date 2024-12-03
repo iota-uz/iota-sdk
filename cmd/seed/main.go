@@ -20,13 +20,9 @@ func main() {
 	}
 
 	app := server.ConstructApp(db)
-	loadedModules := modules.Load()
-	for _, module := range loadedModules {
-		if err := module.Register(app); err != nil {
-			panic(err)
-		}
+	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
+		panic(err)
 	}
-
 	seedFuncs := []application.SeedFunc{
 		seed.CreatePermissions,
 		seed.CreateCurrencies,

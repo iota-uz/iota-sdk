@@ -8,7 +8,6 @@ import (
 	"gorm.io/gorm"
 	"log"
 
-	"github.com/go-faster/errors"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
@@ -17,7 +16,6 @@ import (
 
 type DefaultOptions struct {
 	Configuration *configuration.Configuration
-	LoadedModules []application.Module
 	Application   application.Application
 	Db            *gorm.DB
 }
@@ -32,13 +30,6 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 
 	if err := dbutils.CheckModels(db, RegisteredModels); err != nil {
 		return nil, err
-	}
-	for _, module := range options.LoadedModules {
-		if err := module.Register(app); err != nil {
-			return nil, errors.Wrapf(err, "failed to register \"%s\" module", module.Name())
-		} else {
-			log.Printf("\"%s\" module registered", module.Name())
-		}
 	}
 	authService := app.Service(services.AuthService{}).(*services.AuthService)
 	tabService := app.Service(services.TabService{}).(*services.TabService)

@@ -20,8 +20,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
-	loadedModules := modules.Load()
+
 	app := server.ConstructApp(db)
+	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
+		log.Fatalf("failed to load modules: %v", err)
+	}
 	assetsFs := append(
 		[]*hashfs.FS{
 			assets.HashFS,
@@ -42,7 +45,6 @@ func main() {
 		Configuration: conf,
 		Db:            db,
 		Application:   app,
-		LoadedModules: loadedModules,
 	}
 	serverInstance, err := server.Default(options)
 	if err != nil {
