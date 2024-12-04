@@ -13,7 +13,6 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/modules/core"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -163,7 +162,7 @@ func (app *ApplicationImpl) Service(service interface{}) interface{} {
 func (app *ApplicationImpl) Bundle() (*i18n.Bundle, error) {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
-	localeDirs := append([]*embed.FS{&core.LocalesFS}, app.LocaleFiles()...)
+	localeDirs := app.LocaleFiles()
 	for _, localeFs := range localeDirs {
 		files, err := localeFs.ReadDir("locales")
 		if err != nil {
@@ -183,7 +182,7 @@ func (app *ApplicationImpl) Bundle() (*i18n.Bundle, error) {
 }
 
 func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
-	migrationDirs := append([]*embed.FS{&core.MigrationsFs}, app.MigrationDirs()...)
+	migrationDirs := app.MigrationDirs()
 
 	var migrations []*migrate.Migration
 	for _, fs := range migrationDirs {
