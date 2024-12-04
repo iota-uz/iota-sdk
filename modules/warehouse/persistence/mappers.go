@@ -1,14 +1,14 @@
 package persistence
 
 import (
-	"errors"
-	order2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 )
 
 func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {
@@ -31,17 +31,13 @@ func toDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	}
 }
 
-func toDBOrder(data *order2.Order) (*models.WarehouseOrder, []*models.WarehouseOrderItem) {
-	dbItems := make([]*models.WarehouseOrderItem, 0, len(data.Items))
-	for _, item := range data.Items {
-		dbItems = append(
-			dbItems, &models.WarehouseOrderItem{
-				ProductID: item.Product.ID,
-				OrderID:   data.ID,
-				CreatedAt: data.CreatedAt,
-			},
-		)
-	}
+func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.WarehouseOrderItem) {
+	dbItems, _ := mapping.MapDbModels(data.Products, func(p *product.Product) (*models.WarehouseOrderItem, error) {
+		return &models.WarehouseOrderItem{
+			ProductID: p.ID,
+			CreatedAt: data.CreatedAt,
+		}, nil
+	})
 	return &models.WarehouseOrder{
 		ID:        data.ID,
 		Status:    string(data.Status),
@@ -50,48 +46,25 @@ func toDBOrder(data *order2.Order) (*models.WarehouseOrder, []*models.WarehouseO
 	}, dbItems
 }
 
-func toDomainOrder(
-	dbOrder *models.WarehouseOrder,
-	dbItems []*models.WarehouseOrderItem,
-	dbProduct []*models.WarehouseProduct,
-) (*order2.Order, error) {
-	items := make([]*order2.Item, 0, len(dbItems))
-	for _, item := range dbItems {
-		var orderProduct *models.WarehouseProduct
-		for _, p := range dbProduct {
-			if p.ID == item.ProductID {
-				orderProduct = p
-				break
-			}
-		}
-		if orderProduct == nil {
-			return nil, errors.New("product not found")
-		}
-		p, err := toDomainProduct(orderProduct)
-		if err != nil {
-			return nil, err
-		}
-		items = append(
-			items, &order2.Item{
-				Product:   p,
-				CreatedAt: item.CreatedAt,
-			},
-		)
-	}
-	status, err := order2.NewStatus(dbOrder.Status)
+func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
+	products, err := mapping.MapDbModels(dbOrder.Products, toDomainProduct)
 	if err != nil {
 		return nil, err
 	}
-	typeEnum, err := order2.NewType(dbOrder.Type)
+	status, err := order.NewStatus(dbOrder.Status)
 	if err != nil {
 		return nil, err
 	}
-	return &order2.Order{
+	typeEnum, err := order.NewType(dbOrder.Type)
+	if err != nil {
+		return nil, err
+	}
+	return &order.Order{
 		ID:        dbOrder.ID,
 		Status:    status,
 		Type:      typeEnum,
+		Products:  products,
 		CreatedAt: dbOrder.CreatedAt,
-		Items:     items,
 	}, nil
 }
 

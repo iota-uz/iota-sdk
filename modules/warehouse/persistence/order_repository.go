@@ -6,6 +6,8 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"gorm.io/gorm"
 )
 
 type GormOrderRepository struct{}
@@ -14,16 +16,21 @@ func NewOrderRepository() order.Repository {
 	return &GormOrderRepository{}
 }
 
-func (g *GormOrderRepository) GetPaginated(
-	ctx context.Context, limit, offset int,
-	sortBy []string,
-) ([]*order.Order, error) {
+func (g *GormOrderRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy)
+	return tx.Preload("Products"), nil
+}
+
+func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]*order.Order, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := tx.Limit(params.Limit).Offset(params.Offset)
+	q, err = helpers.ApplySort(q, params.SortBy)
 	if err != nil {
 		return nil, err
 	}
@@ -31,16 +38,7 @@ func (g *GormOrderRepository) GetPaginated(
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	orders := make([]*order.Order, len(entities))
-	for i, entity := range entities {
-		// TODO: proper implementation
-		o, err := g.GetByID(ctx, entity.ID)
-		if err != nil {
-			return nil, err
-		}
-		orders[i] = o
-	}
-	return orders, nil
+	return mapping.MapDbModels(entities, toDomainOrder)
 }
 
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
@@ -78,31 +76,15 @@ func (g *GormOrderRepository) GetAll(ctx context.Context) ([]*order.Order, error
 }
 
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (*order.Order, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var entity models.WarehouseOrder
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}
-	var orderItems []*models.WarehouseOrderItem
-	if err := tx.Where("order_id = ?", entity.ID).Find(&orderItems).Error; err != nil {
-		return nil, err
-	}
-	ids := make([]uint, len(orderItems))
-	for i, item := range orderItems {
-		ids[i] = item.ProductID
-	}
-	var products []*models.WarehouseProduct
-	if err := tx.Where("id = ?", entity.ID).Find(&products, ids).Error; err != nil {
-		return nil, err
-	}
-	o, err := toDomainOrder(&entity, orderItems, products)
-	if err != nil {
-		return nil, err
-	}
-	return o, nil
+	return toDomainOrder(&entity)
 }
 
 func (g *GormOrderRepository) Create(ctx context.Context, data *order.Order) error {
@@ -115,9 +97,10 @@ func (g *GormOrderRepository) Create(ctx context.Context, data *order.Order) err
 		return err
 	}
 	for _, item := range orderItems {
-		if err := tx.Create(item).Error; err != nil {
-			return err
-		}
+		item.WarehouseOrderID = or.ID
+	}
+	if err := tx.Create(orderItems).Error; err != nil {
+		return err
 	}
 	return nil
 }
@@ -131,7 +114,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) err
 	if err := tx.Updates(or).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("order_id = ?", or.ID).Delete(&models.WarehouseOrderItem{}).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Where("warehouse_order_id = ?", or.ID).Delete(&models.WarehouseOrderItem{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	for _, item := range orderItems {
