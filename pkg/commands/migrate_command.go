@@ -39,10 +39,10 @@ func Migrate() error {
 		}
 	case "redo":
 		if err := app.RollbackMigrations(); err != nil {
-			return err
+			return errors.Join(err, errors.New("failed to rollback migrations"))
 		}
 		if err := app.RunMigrations(); err != nil {
-			return err
+			return errors.Join(err, errors.New("failed to run migrations"))
 		}
 	default:
 		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo'", os.Args[1])
