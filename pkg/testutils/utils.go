@@ -3,6 +3,7 @@ package testutils
 import (
 	"context"
 	"database/sql"
+	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -54,6 +55,9 @@ func GetTestContext() *TestContext {
 		panic(err)
 	}
 	app := server.ConstructApp(db)
+	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
+		panic(err)
+	}
 	tx := db.Begin()
 	sqlDB, err := tx.DB()
 	if err != nil {
