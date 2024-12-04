@@ -3,7 +3,7 @@
     "Warehouse": "Склад",
     "Products": "Продукты",
     "WarehousePositions": "Наименования",
-    "WarehouseOrders": "Заказы склада",
+    "WarehouseOrders": "Заявки/Накладные",
     "WarehouseUnits": "Единицы измерения"
   },
   "Products": {
