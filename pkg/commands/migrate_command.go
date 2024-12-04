@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrNoCommand = errors.New("expected 'up' or 'down' subcommands")
+	ErrNoCommand = errors.New("expected 'up', 'down' or 'redo' subcommands")
 )
 
 func Migrate() error {
