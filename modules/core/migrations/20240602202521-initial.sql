@@ -1,9 +1,9 @@
 -- +migrate Up
 CREATE TABLE uploads
 (
-    
+
     id         SERIAL PRIMARY KEY,
-    hash       VARCHAR(255)  NOT NULL   UNIQUE,
+    hash       VARCHAR(255)  NOT NULL UNIQUE,
     url        VARCHAR(1024) NOT NULL   DEFAULT '',
     name       VARCHAR(255)  NOT NULL   DEFAULT '',
     size       INT           NOT NULL   DEFAULT 0,
@@ -52,7 +52,7 @@ CREATE TABLE employees
     salary_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     hourly_rate        NUMERIC(9, 2) NOT NULL,
     coefficient        FLOAT         NOT NULL,
-    avatar_id          INT  REFERENCES uploads (id) ON DELETE SET NULL,
+    avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -108,7 +108,7 @@ CREATE TABLE users
     email       VARCHAR(255)             NOT NULL UNIQUE,
     password    VARCHAR(255),
     ui_language VARCHAR(3)               NOT NULL,
-    avatar_id   INT             REFERENCES uploads (id) ON DELETE SET NULL,
+    avatar_id   INT                      REFERENCES uploads (id) ON DELETE SET NULL,
     last_login  TIMESTAMP                NULL,
     last_ip     VARCHAR(255)             NULL,
     last_action TIMESTAMP WITH TIME ZONE NULL,
@@ -155,7 +155,7 @@ CREATE TABLE folders
 (
     id         SERIAL PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
-    icon_id    INT REFERENCES uploads (id) ON DELETE SET NULL,
+    icon_id    INT          REFERENCES uploads (id) ON DELETE SET NULL,
     parent_id  INT REFERENCES folders (id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
@@ -168,7 +168,7 @@ CREATE TABLE articles
     content     TEXT         NOT NULL,
     title_emoji VARCHAR(255),
     author_id   INT          REFERENCES users (id) ON DELETE SET NULL,
-    picture_id  INT REFERENCES uploads (id) ON DELETE SET NULL,
+    picture_id  INT          REFERENCES uploads (id) ON DELETE SET NULL,
     folder_id   INT          REFERENCES folders (id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
@@ -196,7 +196,7 @@ CREATE TABLE likes
 CREATE TABLE uploaded_images
 (
     id         SERIAL PRIMARY KEY,
-    upload_id  INT NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
+    upload_id  INT          NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
     type       VARCHAR(255) NOT NULL,
     size       FLOAT        NOT NULL,
     width      INT          NOT NULL,
@@ -392,12 +392,13 @@ CREATE TABLE contact_form_submissions
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE tabs (
-    id         SERIAL PRIMARY KEY,
-    href       VARCHAR(255) NOT NULL,
-    user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    position   INT NOT NULL DEFAULT 0,
-    UNIQUE(href, user_id)
+CREATE TABLE tabs
+(
+    id       SERIAL PRIMARY KEY,
+    href     VARCHAR(255) NOT NULL,
+    user_id  INT          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    position INT          NOT NULL DEFAULT 0,
+    UNIQUE (href, user_id)
 );
 
 CREATE INDEX users_first_name_idx ON users (first_name);
@@ -481,6 +482,8 @@ DROP TABLE IF EXISTS skills CASCADE;
 DROP TABLE IF EXISTS task_types CASCADE;
 DROP TABLE IF EXISTS telegram_sessions CASCADE;
 DROP TABLE IF EXISTS uploaded_images CASCADE;
+DROP TABLE IF EXISTS uploads CASCADE;
+DROP TABLE IF EXISTS employee_positions CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS vacancies CASCADE;
