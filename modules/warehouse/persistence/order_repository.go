@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
 )
 
@@ -86,7 +86,7 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (*order.Orde
 	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}
-	var orderItems []*models.OrderItem
+	var orderItems []*models.WarehouseOrderItem
 	if err := tx.Where("order_id = ?", entity.ID).Find(&orderItems).Error; err != nil {
 		return nil, err
 	}
@@ -128,10 +128,10 @@ func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) err
 		return composables.ErrNoTx
 	}
 	or, orderItems := toDBOrder(data)
-	if err := tx.Save(or).Error; err != nil {
+	if err := tx.Updates(or).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("order_id = ?", or.ID).Delete(&models.OrderItem{}).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Where("order_id = ?", or.ID).Delete(&models.WarehouseOrderItem{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	for _, item := range orderItems {

@@ -64,10 +64,10 @@ CREATE TABLE warehouse_orders
 
 CREATE TABLE warehouse_order_items
 (
-    warehouse_order_id INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
-    product_id         INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    PRIMARY KEY (warehouse_order_id, product_id)
+    order_id   INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    PRIMARY KEY (order_id, product_id)
 );
 
 -- +migrate Down

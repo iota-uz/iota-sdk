@@ -36,7 +36,7 @@ type WarehouseOrder struct {
 	CreatedAt time.Time
 }
 
-type OrderItem struct {
+type WarehouseOrderItem struct {
 	OrderID   uint
 	ProductID uint
 	CreatedAt time.Time

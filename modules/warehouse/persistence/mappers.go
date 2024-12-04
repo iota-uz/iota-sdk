@@ -2,11 +2,11 @@ package persistence
 
 import (
 	"errors"
+	order2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 )
@@ -31,11 +31,11 @@ func toDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	}
 }
 
-func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.OrderItem) {
-	dbItems := make([]*models.OrderItem, 0, len(data.Items))
+func toDBOrder(data *order2.Order) (*models.WarehouseOrder, []*models.WarehouseOrderItem) {
+	dbItems := make([]*models.WarehouseOrderItem, 0, len(data.Items))
 	for _, item := range data.Items {
 		dbItems = append(
-			dbItems, &models.OrderItem{
+			dbItems, &models.WarehouseOrderItem{
 				ProductID: item.Product.ID,
 				OrderID:   data.ID,
 				CreatedAt: data.CreatedAt,
@@ -44,18 +44,18 @@ func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.OrderItem) 
 	}
 	return &models.WarehouseOrder{
 		ID:        data.ID,
-		Status:    data.Status.String(),
-		Type:      data.Type.String(),
+		Status:    string(data.Status),
+		Type:      string(data.Type),
 		CreatedAt: data.CreatedAt,
 	}, dbItems
 }
 
 func toDomainOrder(
 	dbOrder *models.WarehouseOrder,
-	dbItems []*models.OrderItem,
+	dbItems []*models.WarehouseOrderItem,
 	dbProduct []*models.WarehouseProduct,
-) (*order.Order, error) {
-	items := make([]*order.Item, 0, len(dbItems))
+) (*order2.Order, error) {
+	items := make([]*order2.Item, 0, len(dbItems))
 	for _, item := range dbItems {
 		var orderProduct *models.WarehouseProduct
 		for _, p := range dbProduct {
@@ -72,21 +72,21 @@ func toDomainOrder(
 			return nil, err
 		}
 		items = append(
-			items, &order.Item{
+			items, &order2.Item{
 				Product:   p,
 				CreatedAt: item.CreatedAt,
 			},
 		)
 	}
-	status, err := order.NewStatus(dbOrder.Status)
+	status, err := order2.NewStatus(dbOrder.Status)
 	if err != nil {
 		return nil, err
 	}
-	typeEnum, err := order.NewType(dbOrder.Type)
+	typeEnum, err := order2.NewType(dbOrder.Type)
 	if err != nil {
 		return nil, err
 	}
-	return &order.Order{
+	return &order2.Order{
 		ID:        dbOrder.ID,
 		Status:    status,
 		Type:      typeEnum,

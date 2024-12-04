@@ -7,8 +7,8 @@ import (
 
 type Order struct {
 	ID        uint
-	Type      *Type
-	Status    *Status
+	Type      Type
+	Status    Status
 	Items     []*Item
 	CreatedAt time.Time
 }

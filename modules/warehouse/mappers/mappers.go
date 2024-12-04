@@ -1,6 +1,7 @@
 package mappers
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
@@ -51,5 +52,14 @@ func UnitToViewModel(entity *unit.Unit) *viewmodels.Unit {
 		ShortTitle: entity.ShortTitle,
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func OrderToViewModel(entity *order.Order) *viewmodels.Order {
+	return &viewmodels.Order{
+		ID:        strconv.FormatUint(uint64(entity.ID), 10),
+		Type:      string(entity.Type),
+		Status:    string(entity.Status),
+		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 	}
 }
