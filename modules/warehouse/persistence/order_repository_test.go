@@ -1,6 +1,9 @@
 package persistence_test
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"testing"
 	"time"
 
@@ -12,15 +15,59 @@ import (
 func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	ctx := testutils.GetTestContext()
 	defer ctx.Tx.Commit()
+
+	unitRepository := persistence.NewUnitRepository()
+	positionRepository := persistence.NewPositionRepository()
+	productRepository := persistence.NewProductRepository()
 	orderRepository := persistence.NewOrderRepository()
+
+	if err := unitRepository.Create(
+		ctx.Context, &unit.Unit{
+			ID:         1,
+			Title:      "Unit 1",
+			ShortTitle: "U1",
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := positionRepository.Create(
+		ctx.Context, &position.Position{
+			ID:        1,
+			Title:     "Position 1",
+			Barcode:   "3141592653589",
+			UnitID:    1,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := productRepository.Create(
+		ctx.Context, &product.Product{
+			ID:         1,
+			PositionID: 1,
+			Rfid:       "EPS:321456",
+			Status:     product.Approved,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := orderRepository.Create(
 		ctx.Context, &order.Order{
-			ID:        1,
-			Status:    order.Pending,
-			Type:      order.TypeIn,
+			ID:     1,
+			Status: order.Pending,
+			Type:   order.TypeIn,
+			Products: []*product.Product{
+				{
+					ID: 1,
+				},
+			},
 			CreatedAt: time.Now(),
-			// Add other necessary fields
 		},
 	); err != nil {
 		t.Fatal(err)
@@ -40,7 +87,11 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 
 	t.Run( //nolint:paralleltest
 		"GetPaginated", func(t *testing.T) {
-			orders, err := orderRepository.GetPaginated(ctx.Context, 1, 0, []string{})
+			orders, err := orderRepository.GetPaginated(ctx.Context, &order.FindParams{
+				Limit:  1,
+				Offset: 0,
+				SortBy: []string{"id desc"},
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -74,7 +125,6 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if orderEntity.Status != order.Pending {
 				t.Errorf("expected %s, got %s", order.Pending, orderEntity.Status)
 			}
-			// Add other necessary checks
 		},
 	)
 
