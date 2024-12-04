@@ -5,7 +5,10 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 var (
@@ -16,8 +19,21 @@ var (
 	}
 )
 
+func navItems2Tabs(navItems []types.NavigationItem) []*tab.Tab {
+	tabs := make([]*tab.Tab, len(navItems))
+	for i, navItem := range navItems {
+		tabs[i] = &tab.Tab{
+			Href: navItem.Href,
+		}
+		tabs = append(tabs, navItems2Tabs(navItem.Children)...)
+	}
+	return tabs
+}
+
 func CreateUser(ctx context.Context, app application.Application) error {
+	userRepository := persistence.NewUserRepository()
 	roleRepository := persistence.NewRoleRepository()
+	tabsRepository := persistence.NewTabRepository()
 
 	if err := roleRepository.CreateOrUpdate(ctx, &role.Role{
 		ID:          CEO.ID,
@@ -27,7 +43,7 @@ func CreateUser(ctx context.Context, app application.Application) error {
 	}); err != nil {
 		return err
 	}
-	userRepository := persistence.NewUserRepository()
+
 	usr := &user.User{
 		//nolint:exhaustruct
 		ID:         1,
@@ -42,5 +58,23 @@ func CreateUser(ctx context.Context, app application.Application) error {
 	if err := usr.SetPassword("TestPass123!"); err != nil {
 		return err
 	}
-	return userRepository.CreateOrUpdate(ctx, usr)
+	if err := userRepository.CreateOrUpdate(ctx, usr); err != nil {
+		return err
+	}
+	bundle, err := app.Bundle()
+	if err != nil {
+		return err
+	}
+	localizer := i18n.NewLocalizer(bundle, "ru")
+	tabs := navItems2Tabs(app.NavigationItems(localizer))
+	for i, t := range tabs {
+		t.ID = uint(i + 1)
+		t.UserID = usr.ID
+		t.Position = uint(i + 1)
+		if err := tabsRepository.CreateOrUpdate(ctx, t); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

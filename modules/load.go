@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/core"
 	"github.com/iota-agency/iota-sdk/modules/finance"
 	"github.com/iota-agency/iota-sdk/modules/warehouse"
 	"github.com/iota-agency/iota-sdk/pkg/application"
@@ -8,6 +9,7 @@ import (
 
 var (
 	BuiltInModules = []application.Module{
+		core.NewModule(),
 		finance.NewModule(),
 		warehouse.NewModule(),
 	}
