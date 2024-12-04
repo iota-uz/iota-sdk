@@ -1,0 +1,112 @@
+package orders
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type IndexPageProps struct {
+	*types.PageContext
+	Orders          []*viewmodels.Order
+	PaginationState *pagination.State
+}
+
+templ OrdersTable(props *IndexPageProps) {
+	<div class="flex flex-col gap-4 table-wrapper">
+		@base.Table(&base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: props.T("WarehouseOrders.List.Type"), Key: "title"},
+				{Label: props.T("WarehouseOrders.List.Status"), Key: "shortTitle"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
+			},
+		}) {
+			for _, order := range props.Orders {
+				@base.TableRow() {
+					@base.TableCell() {
+						{ order.Type }
+					}
+					@base.TableCell() {
+						{ order.Status }
+					}
+					@base.TableCell() {
+						<div x-data="relativeformat">
+							<span x-text={ fmt.Sprintf("format('%s')", order.UpdatedAt) }></span>
+						</div>
+					}
+					@base.TableCell() {
+						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/orders/%s", order.ID)}) {
+							@icons.PencilSimple(icons.Props{Size: "20"})
+						}
+					}
+				}
+			}
+		}
+		if len(props.PaginationState.Pages()) > 1 {
+			@pagination.Pagination(props.PaginationState)
+		}
+	</div>
+}
+
+templ OrdersContent(props *IndexPageProps) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ props.T("NavigationLinks.WarehouseOrders") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/warehouse/orders"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@input.Text(&input.Props{
+					Addon: &input.Addon{
+						Position:  input.AddonLeft,
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: props.T("Search"),
+					Attrs: templ.Attributes{
+						"name": "name",
+					},
+				})
+				@base.Select(&base.SelectProps{
+					Prefix: props.T("PerPage"),
+					Attrs: templ.Attributes{
+						"name": "limit",
+					},
+				}) {
+					<option>15</option>
+					<option>25</option>
+					<option>50</option>
+					<option>100</option>
+				}
+				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
+					<option>Yesterday</option>
+					<option>The day before yesterday</option>
+				}
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/warehouse/orders/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ props.T("WarehouseOrders.List.New") }
+				}
+			</form>
+			@OrdersTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@OrdersContent(props)
+	}
+}
