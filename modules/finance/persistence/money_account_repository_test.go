@@ -2,7 +2,7 @@ package persistence_test
 
 import (
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
-	persistence2 "github.com/iota-agency/iota-sdk/modules/finance/persistence"
+	financepersistence "github.com/iota-agency/iota-sdk/modules/finance/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/testutils"
@@ -14,7 +14,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	ctx := testutils.GetTestContext()
 	defer ctx.Tx.Commit()
 	currencyRepository := persistence.NewCurrencyRepository()
-	accountRepository := persistence2.NewMoneyAccountRepository()
+	accountRepository := financepersistence.NewMoneyAccountRepository()
 
 	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
 		t.Fatal(err)
