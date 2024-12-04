@@ -4,16 +4,52 @@ import (
 	"errors"
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules"
+	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	"gorm.io/gorm/logger"
+	"log"
 	"os"
 )
 
 var (
 	ErrNoCommand = errors.New("expected 'up' or 'down' subcommands")
 )
+
+func HandleCommand(cmd string, app application.Application) error {
+	var err error
+	switch cmd {
+	case "up":
+		err = app.RunMigrations()
+		if errors.Is(err, application.ErrNoMigrationsFound) {
+			log.Println("No migrations found to run")
+			return nil
+		}
+	case "down":
+		err = app.RollbackMigrations()
+		if errors.Is(err, application.ErrNoMigrationsFound) {
+			log.Println("No migrations found to rollback")
+			return nil
+		}
+	case "redo":
+		err = app.RollbackMigrations()
+		if errors.Is(err, application.ErrNoMigrationsFound) {
+			log.Println("No migrations found to rollback")
+			return nil
+		}
+		if err != nil {
+			return errors.Join(err, errors.New("failed to rollback migrations"))
+		}
+		err = app.RunMigrations()
+		if errors.Is(err, application.ErrNoMigrationsFound) {
+			log.Println("No migrations found to run")
+		}
+	default:
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo'", os.Args[1])
+	}
+	return err
+}
 
 func Migrate() error {
 	if len(os.Args) < 2 {
@@ -28,24 +64,5 @@ func Migrate() error {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		return err
 	}
-	switch migration {
-	case "up":
-		if err := app.RunMigrations(); err != nil {
-			return err
-		}
-	case "down":
-		if err := app.RollbackMigrations(); err != nil {
-			return err
-		}
-	case "redo":
-		if err := app.RollbackMigrations(); err != nil {
-			return errors.Join(err, errors.New("failed to rollback migrations"))
-		}
-		if err := app.RunMigrations(); err != nil {
-			return errors.Join(err, errors.New("failed to run migrations"))
-		}
-	default:
-		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo'", os.Args[1])
-	}
-	return nil
+	return HandleCommand(migration, app)
 }

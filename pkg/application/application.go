@@ -24,6 +24,10 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	ErrNoMigrationsFound = errors.New("no migrations found")
+)
+
 func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 	return &ApplicationImpl{
 		db:             db,
@@ -208,7 +212,7 @@ func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
 		}
 	}
 	if len(migrations) == 0 {
-		return nil, errors.New("no migrations found")
+		return nil, ErrNoMigrationsFound
 	}
 	return migrations, nil
 }
@@ -282,7 +286,7 @@ func (app *ApplicationImpl) RollbackMigrations() error {
 		return err
 	}
 	if n == 0 {
-		return errors.New("no migrations found")
+		return ErrNoMigrationsFound
 	}
 	return nil
 }
