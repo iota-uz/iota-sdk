@@ -5,7 +5,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -22,10 +21,6 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
 	"gorm.io/gorm"
-)
-
-var (
-	ErrNoMigrationsFound = errors.New("no migrations found")
 )
 
 func New(db *gorm.DB, eventPublisher event.Publisher) Application {
@@ -211,9 +206,6 @@ func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
 			migrations = append(migrations, migration)
 		}
 	}
-	if len(migrations) == 0 {
-		return nil, ErrNoMigrationsFound
-	}
 	return migrations, nil
 }
 
@@ -225,6 +217,10 @@ func (app *ApplicationImpl) RunMigrations() error {
 	migrations, err := CollectMigrations(app)
 	if err != nil {
 		return err
+	}
+	if len(migrations) == 0 {
+		log.Printf("No migrations found")
+		return nil
 	}
 	migrationSource := &migrate.MemoryMigrationSource{
 		Migrations: migrations,
@@ -278,6 +274,10 @@ func (app *ApplicationImpl) RollbackMigrations() error {
 	if err != nil {
 		return err
 	}
+	if len(migrations) == 0 {
+		log.Printf("No migrations found")
+		return nil
+	}
 	migrationSource := &migrate.MemoryMigrationSource{
 		Migrations: migrations,
 	}
@@ -285,8 +285,6 @@ func (app *ApplicationImpl) RollbackMigrations() error {
 	if err != nil {
 		return err
 	}
-	if n == 0 {
-		return ErrNoMigrationsFound
-	}
+	log.Printf("Rolled back %d migrations", n)
 	return nil
 }
