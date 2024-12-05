@@ -196,6 +196,7 @@ let combobox = (searchable = false) => ({
       for (let i = 0, len = this.options.length; i < len; i++) {
         let option = this.options[i];
         if (option.selected) {
+          this.activeIndex = i;
           if (this.selectedIndices > 0 && !this.multiple) continue;
           this.selectedIndices.add(i);
         }
