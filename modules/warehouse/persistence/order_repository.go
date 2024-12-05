@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -38,6 +39,7 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
+	fmt.Println("entities", entities[0].Products)
 	return mapping.MapDbModels(entities, toDomainOrder)
 }
 

@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"fmt"
+	"gorm.io/gorm/logger"
 	"log"
 	"strings"
 	"time"
@@ -55,8 +56,24 @@ type Configuration struct {
 	Origin             string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize           int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize        int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
+	LgLevel            string        `env:"LOG_LEVEL" envDefault:"error"`
 	// Session ID cookie key
 	SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"`
+}
+
+func (c *Configuration) LogLevel() logger.LogLevel {
+	switch c.LgLevel {
+	case "silent":
+		return logger.Silent
+	case "error":
+		return logger.Error
+	case "warn":
+		return logger.Warn
+	case "info":
+		return logger.Info
+	default:
+		return logger.Error
+	}
 }
 
 func Use() *Configuration {
