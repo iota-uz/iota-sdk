@@ -2,11 +2,11 @@ package products
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/dialog"
 	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -14,8 +14,8 @@ import (
 
 type EditPageProps struct {
 	*types.PageContext
-	Product   *viewmodels.Product
-	Errors    map[string]string
+	Product *viewmodels.Product
+	Errors  map[string]string
 }
 
 templ EditForm(props *EditPageProps) {
@@ -30,14 +30,17 @@ templ EditForm(props *EditPageProps) {
 				},
 				Error: props.Errors["Rfid"],
 			})
-			@PositionSelect(&PositionSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Product.PositionID,
-				Attrs: templ.Attributes{
-					"name": "PositionID",
-					"form": "save-form",
-				},
-			})
+			@base.Combobox(base.ComboboxProps{
+				Label:        props.T("Products.Single.Position"),
+				Placeholder:  props.T("Products.Single.SearchPosition"),
+				Searchable:   true,
+				NotFoundText: props.T("Products.Single.NoPositionsFound"),
+				Name:         "PositionID",
+				Form:         "save-form",
+				Endpoint:     "/warehouse/positions/search",
+			}) {
+				<option value={ props.Product.PositionID } selected>{ props.Product.Position.Title }</option>
+			}
 			@StatusSelect(&StatusSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.Status,

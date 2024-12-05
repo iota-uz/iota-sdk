@@ -63,7 +63,7 @@ templ (p *Props) render() {
 			}
 			<input id={ p.id } class={ "form-control w-full", p.Class } type={ p.typ } placeholder={ p.Placeholder } { p.Attrs... }/>
 			if p.Addon != nil && p.Addon.Position == AddonRight {
-				<div class="absolute -translate-x-3 right-3 top-1/2 -translate-y-1/2">
+				<div class="absolute -translate-x-3 right-0 top-1/2 -translate-y-1/2 flex items-center justify-center">
 					if p.Addon.Render != nil {
 						@p.Addon.Render(p)
 					} else if p.Addon.Component != nil {
@@ -134,7 +134,7 @@ templ Checkbox(p *CheckboxProps) {
 }
 
 templ passwordLock(p *Props) {
-	<label x-data="passwordVisibility" class="flex items-center justify-center">
+	<label x-data="passwordVisibility" class="flex items-center justify-center mr-3">
 		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } @change="toggle"/>
 		@icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"})
 		@icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"})

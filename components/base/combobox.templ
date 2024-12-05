@@ -2,55 +2,110 @@ package base
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 )
 
 type ComboboxProps struct {
-	Multiple    bool
-	Placeholder string
-	Class       string
-	Name        string
-	Form        string
-	Label       string
+	Multiple     bool
+	Placeholder  string
+	Class        string
+	Name         string
+	Form         string
+	Label        string
+	Endpoint     string
+	Searchable   bool
+	NotFoundText string
+}
+
+type ComboboxOption struct {
+	Value string
+	Label string
+}
+
+templ ComboboxOptions(options []*ComboboxOption) {
+	for _, option := range options {
+		<option value={ option.Value }>{ option.Label }</option>
+	}
+}
+
+templ DropdownIndicator() {
+	<button class="p-2 -m-2 duration-200 cursor-pointer" :class="open || openedWithKeyboard ? 'rotate-180' : ''" type="button" @click="open = !open">
+		@icons.ChevronDown(icons.Props{Size: "16"})
+	</button>
 }
 
 templ Combobox(props ComboboxProps) {
 	<div
-		x-data="combobox"
-		class={ "w-full", props.Class }
-		x-on:keydown="highlightMatchingOption($event.key)"
+		x-data={ fmt.Sprintf("combobox(%t)", props.Searchable) }
+		class={ "w-full flex flex-col", props.Class }
 		x-on:keydown.esc.window="open = false, openedWithKeyboard = false"
+		x-id="['combobox']"
+		if !props.Searchable {
+			x-on:keydown="highlightMatchingOption($event.key)"
+		}
 	>
 		if len(props.Label) > 0 {
 			<label class="form-control-label mb-2">{ props.Label }</label>
 		}
-		<select x-bind="select" class="hidden" multiple?={ props.Multiple } name={ props.Name } form={ props.Form }>
+		<select
+			x-bind="select"
+			x-ref="select"
+			class="hidden"
+			:id="$id('combobox')"
+			multiple?={ props.Multiple }
+			name={ props.Name }
+			if props.Form != "" {
+				form={ props.Form }
+			}
+		>
 			{ children... }
 		</select>
-		<div class="relative">
-			<button class="form-control flex items-center justify-between w-full gap-6" x-on:click="open = !open" x-on:keydown.down.prevent="openedWithKeyboard = true" x-on:keydown.enter.prevent="openedWithKeyboard = true" x-on:keydown.space.prevent="openedWithKeyboard = true">
-				<span class="text-sm font-normal" x-text={ fmt.Sprintf("value !== '' ? value : '%s'", props.Placeholder) }></span>
-				@icons.ChevronDown(icons.Props{
-					Size:  "16",
-					Class: "text-200 duration-300",
-					Attributes: templ.Attributes{
-						":class": "{'rotate-180': open || openedWithKeyboard}",
+		<div class="relative" x-on:click.outside="open = false, openedWithKeyboard = false">
+			if props.Searchable {
+				@input.Text(&input.Props{
+					Placeholder: props.Placeholder,
+					Attrs: templ.Attributes{
+						":value":                     "value",
+						"hx-get":                     props.Endpoint,
+						"hx-trigger":                 "input changed delay:250ms, search",
+						"hx-sync":                    "this:replace",
+						"name":                       "q",
+						":hx-target":                 "'#' + $id('combobox')",
+						"hx-swap":                    "innerHTML",
+						"@input.debounce":            "onInput",
+						"x-on:keydown.enter.prevent": "setIndex(activeIndex)",
+					},
+					Addon: &input.Addon{
+						Position:  input.AddonRight,
+						Component: DropdownIndicator(),
 					},
 				})
-			</button>
+			} else {
+				<button class="form-control flex items-center justify-between w-full gap-6" x-on:click="open = !open" x-on:keydown.down.prevent="openedWithKeyboard = true" x-on:keydown.enter.prevent="openedWithKeyboard = true" x-on:keydown.space.prevent="openedWithKeyboard = true">
+					<span class="text-sm font-normal" x-text={ fmt.Sprintf("value !== '' ? value : '%s'", props.Placeholder) }></span>
+					@icons.ChevronDown(icons.Props{
+						Size:  "16",
+						Class: "text-200 duration-300",
+						Attributes: templ.Attributes{
+							":class": "{'rotate-180': open || openedWithKeyboard}",
+						},
+					})
+				</button>
+			}
 			<ul
 				x-ref="list"
 				x-cloak
 				x-show="open || openedWithKeyboard"
-				class="absolute z-10 left-0 top-11 flex max-h-44 w-full flex-col overflow-hidden overflow-y-auto border-gray-100 bg-white py-1.5 rounded-md drop-shadow-sm"
-				x-on:click.outside="open = false, openedWithKeyboard = false"
+				class="absolute z-10 left-0 top-11 mt-1 flex max-h-44 w-full flex-col gap-0.5 overflow-hidden overflow-y-auto border border-gray-200 bg-white p-1.5 rounded-md drop-shadow-sm"
 				x-on:keydown.down.prevent="$focus.wrap().next()"
 				x-on:keydown.up.prevent="$focus.wrap().previous()"
+				this.activeIndex
 				x-transition
 				x-trap="openedWithKeyboard"
 			>
 				<template x-for="(item, index) in options" x-bind:key="index">
-					<li class="combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm hover:bg-brand-500 focus-visible:bg-brand-500 hover:text-white focus-visible:text-white focus-visible:outline-none" x-on:click="setIndex(index)" x-on:keydown.enter="setIndex(index)" x-bind:id="'option-' + index" tabindex="0">
+					<li class="combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none" :class="activeIndex == index ? 'bg-gray-100' : ''" x-on:click="setIndex(index)" x-on:keydown.enter="setIndex(index)" x-bind:id="'option-' + index" tabindex="0">
 						<span x-text="item.textContent"></span>
 						@icons.Check(icons.Props{Size: "16", Attributes: templ.Attributes{
 							"x-cloak": "",
@@ -58,6 +113,9 @@ templ Combobox(props ComboboxProps) {
 						}})
 					</li>
 				</template>
+				<li x-show="options.length == 0" class="px-4 py-2 text-sm text-200">
+					{ props.NotFoundText }
+				</li>
 			</ul>
 		</div>
 	</div>
