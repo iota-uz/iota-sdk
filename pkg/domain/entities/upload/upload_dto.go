@@ -67,7 +67,7 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 		Mimetype:  *mimetype.Detect(bytes),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		URL:       conf.Origin + filepath.Join("/", conf.UploadsPath, hash),
+		URL:       filepath.Join("/", conf.UploadsPath, hash),
 	}, bytes, nil
 }
 
