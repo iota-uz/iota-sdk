@@ -21,7 +21,7 @@ func (g *GormOrderRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	return tx.Preload("Products"), nil
+	return tx.Model(&models.WarehouseOrder{}).Preload("Products"), nil
 }
 
 func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]*order.Order, error) {
@@ -54,25 +54,15 @@ func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *GormOrderRepository) GetAll(ctx context.Context) ([]*order.Order, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var entities []*models.WarehouseOrder
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-
-	orders := make([]*order.Order, len(entities))
-	for i, entity := range entities {
-		// TODO: proper implementation
-		o, err := g.GetByID(ctx, entity.ID)
-		if err != nil {
-			return nil, err
-		}
-		orders[i] = o
-	}
-	return orders, nil
+	return mapping.MapDbModels(entities, toDomainOrder)
 }
 
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (*order.Order, error) {
@@ -99,10 +89,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data *order.Order) err
 	for _, item := range orderItems {
 		item.WarehouseOrderID = or.ID
 	}
-	if err := tx.Create(orderItems).Error; err != nil {
-		return err
-	}
-	return nil
+	return tx.Create(orderItems).Error
 }
 
 func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) error {
@@ -117,12 +104,10 @@ func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) err
 	if err := tx.Where("warehouse_order_id = ?", or.ID).Delete(&models.WarehouseOrderItem{}).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
-	for _, item := range orderItems {
-		if err := tx.Create(item).Error; err != nil {
-			return err
-		}
+	if len(orderItems) == 0 {
+		return nil
 	}
-	return nil
+	return tx.Create(orderItems).Error
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {

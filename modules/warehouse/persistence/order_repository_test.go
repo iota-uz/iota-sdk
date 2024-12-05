@@ -98,6 +98,9 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if len(orders) != 1 {
 				t.Errorf("expected 1, got %d", len(orders))
 			}
+			if len(orders[0].Products) != 1 {
+				t.Errorf("expected 1, got %d", len(orders[0].Products))
+			}
 		},
 	)
 
@@ -109,6 +112,9 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			}
 			if len(orders) != 1 {
 				t.Errorf("expected 1, got %d", len(orders))
+			}
+			if len(orders[0].Products) != 1 {
+				t.Errorf("expected 1, got %d", len(orders[0].Products))
 			}
 			if orders[0].Status != order.Pending {
 				t.Errorf("expected %s, got %s", order.Pending, orders[0].Status)
