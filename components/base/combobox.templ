@@ -30,7 +30,7 @@ templ ComboboxOptions(options []*ComboboxOption) {
 }
 
 templ DropdownIndicator() {
-	<button class="p-2 -m-2 duration-200 cursor-pointer" :class="open || openedWithKeyboard ? 'rotate-180' : ''" type="button" @click="open = !open">
+	<button class="p-2 -m-2 duration-200 cursor-pointer" tabindex="-1" :class="open || openedWithKeyboard ? 'rotate-180' : ''" type="button" @click="open = !open">
 		@icons.ChevronDown(icons.Props{Size: "16"})
 	</button>
 }
@@ -75,6 +75,8 @@ templ Combobox(props ComboboxProps) {
 						"hx-swap":                    "innerHTML",
 						"@input.debounce":            "onInput",
 						"x-on:keydown.enter.prevent": "setIndex(activeIndex)",
+						"autocomplete":               "off",
+						"x-ref":                      "input",
 					},
 					Addon: &input.Addon{
 						Position:  input.AddonRight,
