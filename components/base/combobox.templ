@@ -48,7 +48,17 @@ templ Combobox(props ComboboxProps) {
 		if len(props.Label) > 0 {
 			<label class="form-control-label mb-2">{ props.Label }</label>
 		}
-		<select x-bind="select" x-ref="select" class="hidden" :id="$id('combobox')" multiple?={ props.Multiple } name={ props.Name } form={ props.Form }>
+		<select
+			x-bind="select"
+			x-ref="select"
+			class="hidden"
+			:id="$id('combobox')"
+			multiple?={ props.Multiple }
+			name={ props.Name }
+			if props.Form != "" {
+				form={ props.Form }
+			}
+		>
 			{ children... }
 		</select>
 		<div class="relative" x-on:click.outside="open = false, openedWithKeyboard = false">

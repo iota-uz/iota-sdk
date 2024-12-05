@@ -132,7 +132,7 @@ let combobox = (searchable = false) => ({
   observer: null,
   searchable,
   setIndex(index) {
-    if (!index) return;
+    if (index == null) return;
     let indexInt = Number(index);
     this.activeIndex = indexInt;
     if (this.multiple) {
