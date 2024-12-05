@@ -118,6 +118,7 @@
     },
     "Single": {
       "Type": "Тип",
+      "TypePlaceholder": "Выберите тип",
       "Status": "Статус",
       "Types": {
         "In": "Отгрузка",
