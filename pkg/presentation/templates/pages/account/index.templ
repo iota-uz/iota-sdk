@@ -34,6 +34,14 @@ templ ProfileForm(props *ProfilePageProps) {
 				Class:   "col-span-3",
 				Uploads: []*viewmodels.Upload{props.User.Avatar},
 			})
+			@base.Combobox(base.ComboboxProps{
+				Name:        "asdsa",
+				Label:       props.T("Account.BrowseFilesystem"),
+				Placeholder: "Choose your fight",
+			}) {
+				<option value="hello">Hello</option>
+				<option value="yellow">Yellow</option>
+			}
 			@input.Text(&input.Props{
 				Placeholder: props.T("Account.FirstName"),
 				Attrs: templ.Attributes{

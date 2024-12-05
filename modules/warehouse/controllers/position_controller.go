@@ -7,8 +7,8 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
-	"github.com/iota-agency/iota-sdk/components/base/selects"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
@@ -148,12 +148,7 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
-	// query params
 	search := r.URL.Query().Get("q")
-	if search == "" {
-		http.Error(w, "Search term is required", http.StatusBadRequest)
-		return
-	}
 	entities, err := c.positionService.GetPaginated(r.Context(), &position.FindParams{
 		Search: search,
 		Limit:  10,
@@ -162,22 +157,13 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.List.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	props := &selects.SearchOptionsProps{
-		PageContext: pageCtx,
-		Options: mapping.MapViewModels(entities, func(pos *position.Position) *selects.Value {
-			return &selects.Value{
-				Value: fmt.Sprintf("%d", pos.ID),
-				Label: pos.Title,
-			}
-		}),
-		NothingFoundText: pageCtx.T("WarehousePositions.Single.NothingFound"),
-	}
-	templ.Handler(selects.SearchOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
+	props := mapping.MapViewModels(entities, func(pos *position.Position) *base.ComboboxOption {
+		return &base.ComboboxOption{
+			Value: fmt.Sprintf("%d", pos.ID),
+			Label: pos.Title,
+		}
+	})
+	templ.Handler(base.ComboboxOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {

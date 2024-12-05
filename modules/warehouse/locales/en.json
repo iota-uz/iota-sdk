@@ -29,6 +29,7 @@
       "Rfid": "RFID",
       "Position": "Position",
       "SearchPosition": "Search position",
+      "NoPositionsFound": "No positions found",
       "Status": "Status",
       "SelectStatus": "Select status",
       "Statuses": {
