@@ -96,5 +96,43 @@
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse unit?"
     }
+  },
+  "WarehouseOrders": {
+    "List": {
+      "Meta": {
+        "Title": "Warehouse orders"
+      },
+      "New": "New order",
+      "Title": "Title",
+      "Status": "Status",
+      "SelectStatus": "Select status",
+      "Statuses": {
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "canceled": "Canceled"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "New warehouse order"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse order"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "Status": "Status",
+      "SelectStatus": "Select status",
+      "Statuses": {
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "canceled": "Canceled"
+      },
+      "Delete": "Delete",
+      "DeleteConfirmation": "Are you sure you want to delete this warehouse order?"
+    }
   }
 }
