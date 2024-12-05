@@ -29,6 +29,7 @@
       "Position": "Наименование",
       "Rfid": "RFID",
       "SearchPosition": "Поиск наименования",
+      "NoPositionsFound": "Наименований не найдено",
       "Status": "Статус",
       "SelectStatus": "Выберите статус",
       "Statuses": {

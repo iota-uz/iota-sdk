@@ -120,16 +120,21 @@ let dialog = () => ({
   },
 });
 
-let combobox = () => ({
+let combobox = (searchable = false) => ({
   open: false,
   openedWithKeyboard: false,
   options: [],
   selectedIndex: null,
+  activeIndex: null,
   selectedIndices: new Set(),
   multiple: false,
   value: "",
+  observer: null,
+  searchable,
   setIndex(index) {
+    if (index == null) return;
     let indexInt = Number(index);
+    this.activeIndex = indexInt;
     if (this.multiple) {
       this.options[index].toggleAttribute("selected");
       if (this.selectedIndices.has(indexInt)) {
@@ -167,17 +172,25 @@ let combobox = () => ({
     }
     this.value = values.join(", ");
   },
+  onInput(e) {
+    for (let i = 0, len = this.options.length; i < len; i++) {
+      let option = this.options[i];
+      if (option.textContent.toLowerCase().startsWith(e.target.value.toLowerCase())) {
+        this.activeIndex = i;
+      }
+    }
+    if (!this.open) this.open = true;
+  },
   highlightMatchingOption(pressedKey) {
-    let optionIndex = null;
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
       if (option.textContent.toLowerCase().startsWith(pressedKey.toLowerCase())) {
-        optionIndex = i;
+        this.activeIndex = i;
       }
     }
     let allOptions = this.$refs.list.querySelectorAll(".combobox-option");
-    if (optionIndex !== null) {
-      allOptions[optionIndex]?.focus();
+    if (this.activeIndex !== null) {
+      allOptions[this.activeIndex]?.focus();
     }
   },
   select: {
@@ -192,6 +205,12 @@ let combobox = () => ({
         }
       }
       this.generateValue();
+      this.observer = new MutationObserver(() => {
+        this.options = this.$el.querySelectorAll("option");
+      });
+      this.observer.observe(this.$el, {
+        childList: true
+      });
     },
   },
 });
