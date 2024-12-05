@@ -1,0 +1,44 @@
+package orders
+
+import "github.com/iota-agency/iota-sdk/components/base"
+
+type TypeSelectProps struct {
+	Label       string
+	Placeholder string
+	Value       string
+	Error       string
+	Attrs       templ.Attributes
+}
+
+type OrderType struct {
+	Label string
+	Value string
+}
+
+var (
+	Types = []OrderType{
+		{Label: "WarehouseOrders.Single.Types.In", Value: "in"},
+		{Label: "WarehouseOrders.Single.Types.Out", Value: "out"},
+	}
+)
+
+templ TypeSelect(props *TypeSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.Label,
+		Placeholder: props.Placeholder,
+		Attrs:       props.Attrs,
+		Error:       props.Error,
+	}) {
+		for _, t := range Types {
+			if t.Value == props.Value {
+				<option value={ t.Value } selected>
+					{ t.Label }
+				</option>
+			} else {
+				<option value={ t.Value }>
+					{ t.Label }
+				</option>
+			}
+		}
+	}
+}

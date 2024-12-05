@@ -24,7 +24,7 @@ templ OrdersTable(props *IndexPageProps) {
 			Columns: []*base.TableColumn{
 				{Label: props.T("WarehouseOrders.List.Type"), Key: "title"},
 				{Label: props.T("WarehouseOrders.List.Status"), Key: "shortTitle"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("CreatedAt"), Key: "updatedAt"},
 				{Label: props.T("Actions"), Class: "w-16"},
 			},
 		}) {
@@ -38,7 +38,7 @@ templ OrdersTable(props *IndexPageProps) {
 					}
 					@base.TableCell() {
 						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", order.UpdatedAt) }></span>
+							<span x-text={ fmt.Sprintf("format('%s')", order.CreatedAt) }></span>
 						</div>
 					}
 					@base.TableCell() {
@@ -94,7 +94,8 @@ templ OrdersContent(props *IndexPageProps) {
 					<option>The day before yesterday</option>
 				}
 				@button.Primary(button.Props{
-					Size: button.SizeNormal, Href: "/warehouse/orders/new",
+					Size: button.SizeNormal,
+					Href: "/warehouse/orders/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
 					{ props.T("WarehouseOrders.List.New") }
