@@ -57,7 +57,7 @@ templ Combobox(props ComboboxProps) {
 					Placeholder: props.Placeholder,
 					Attrs: templ.Attributes{
 						":value":                     "value",
-						"hx-get":                     "/warehouse/positions/search",
+						"hx-get":                     props.Endpoint,
 						"hx-trigger":                 "input changed delay:250ms, search",
 						"hx-sync":                    "this:replace",
 						"name":                       "q",

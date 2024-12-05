@@ -38,6 +38,7 @@ templ CreateForm(props *CreatePageProps) {
 				Searchable:   true,
 				NotFoundText: props.T("Products.Single.NoPositionsFound"),
 				Name:         "PositionID",
+				Endpoint:     "/warehouse/positions/search",
 			})
 			@StatusSelect(&StatusSelectProps{
 				PageContext: props.PageContext,
