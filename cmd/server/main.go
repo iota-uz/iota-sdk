@@ -10,13 +10,12 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
-	"gorm.io/gorm/logger"
 	"log"
 )
 
 func main() {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(conf.DBOpts, logger.Error)
+	db, err := dbutils.ConnectDB(conf.DBOpts, conf.LogLevel())
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
