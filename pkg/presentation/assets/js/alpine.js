@@ -132,9 +132,8 @@ let combobox = (searchable = false) => ({
   observer: null,
   searchable,
   setIndex(index) {
-    if (index == null) return;
+    if (index == null || index > this.options.length - 1 || !(this.open || this.openedWithKeyboard)) return;
     let indexInt = Number(index);
-    this.activeIndex = indexInt;
     if (this.multiple) {
       this.options[index].toggleAttribute("selected");
       if (this.selectedIndices.has(indexInt)) {
@@ -172,22 +171,19 @@ let combobox = (searchable = false) => ({
     }
     this.value = values.join(", ");
   },
-  onInput(e) {
+  setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
-      if (option.textContent.toLowerCase().startsWith(e.target.value.toLowerCase())) {
+      if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeIndex = i;
       }
     }
+  },
+  onInput() {
     if (!this.open) this.open = true;
   },
   highlightMatchingOption(pressedKey) {
-    for (let i = 0, len = this.options.length; i < len; i++) {
-      let option = this.options[i];
-      if (option.textContent.toLowerCase().startsWith(pressedKey.toLowerCase())) {
-        this.activeIndex = i;
-      }
-    }
+    this.setActiveIndex(pressedKey);
     let allOptions = this.$refs.list.querySelectorAll(".combobox-option");
     if (this.activeIndex !== null) {
       allOptions[this.activeIndex]?.focus();
@@ -207,6 +203,8 @@ let combobox = (searchable = false) => ({
       this.generateValue();
       this.observer = new MutationObserver(() => {
         this.options = this.$el.querySelectorAll("option");
+        this.selectedIndices.clear();
+        this.setActiveIndex(this.$refs.input.value);
       });
       this.observer.observe(this.$el, {
         childList: true
