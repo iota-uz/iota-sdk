@@ -21,8 +21,8 @@ CREATE TABLE warehouse_positions
 
 CREATE TABLE warehouse_position_images
 (
-    warehouse_position_id INT REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-    upload_id             INT REFERENCES uploads (id) ON DELETE CASCADE,
+    warehouse_position_id INT NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    upload_id             INT NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
     PRIMARY KEY (upload_id, warehouse_position_id)
 );
 
@@ -34,6 +34,22 @@ CREATE TABLE warehouse_products
     status      VARCHAR(255) NOT NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE warehouse_orders
+(
+    id         SERIAL PRIMARY KEY,
+    type       VARCHAR(255) NOT NULL,
+    status     VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
+CREATE TABLE warehouse_order_items
+(
+    warehouse_order_id INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
+    product_id         INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    PRIMARY KEY (warehouse_order_id, product_id)
 );
 
 CREATE TABLE inventory_checks
@@ -52,22 +68,6 @@ CREATE TABLE inventory_check_results
     actual_quantity    INT NOT NULL,
     difference         INT NOT NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE warehouse_orders
-(
-    id         SERIAL PRIMARY KEY,
-    type       VARCHAR(255) NOT NULL,
-    status     VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE warehouse_order_items
-(
-    warehouse_order_id INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
-    product_id         INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    PRIMARY KEY (warehouse_order_id, product_id)
 );
 
 -- +migrate Down
