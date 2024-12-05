@@ -34,9 +34,13 @@ func (m *Module) Register(app application.Application) error {
 	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher())
 	positionService := services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher())
 	productService := services.NewProductService(persistence.NewProductRepository(), app.EventPublisher(), positionService)
+	orderService := services.NewOrderService(persistence.NewOrderRepository(), app.EventPublisher())
+
 	app.RegisterService(unitService)
 	app.RegisterService(positionService)
 	app.RegisterService(productService)
+	app.RegisterService(orderService)
+
 	app.RegisterPermissions(
 		permissions.ProductCreate,
 		permissions.ProductRead,
@@ -59,6 +63,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewProductsController(app),
 		controllers.NewPositionsController(app),
 		controllers.NewUnitsController(app),
+		controllers.NewOrdersController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)

@@ -1,17 +1,16 @@
 package orders
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
-	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 type CreatePageProps struct {
 	*types.PageContext
-	Unit    *viewmodels.Unit
+	Order   *viewmodels.Order
 	Errors  map[string]string
 	SaveURL string
 }
@@ -24,20 +23,6 @@ templ CreateForm(props *CreatePageProps) {
 		hx-indicator="#save-btn"
 	>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
-			@input.Text(&input.Props{
-				Label: props.T("WarehouseUnits.Single.Title"),
-				Attrs: templ.Attributes{
-					"name":  "Title",
-					"value": props.Unit.Title,
-				},
-			})
-			@input.Text(&input.Props{
-				Label: props.T("WarehouseUnits.Single.ShortTitle"),
-				Attrs: templ.Attributes{
-					"name":  "ShortTitle",
-					"value": props.Unit.ShortTitle,
-				},
-			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
