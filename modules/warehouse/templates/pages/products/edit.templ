@@ -37,6 +37,7 @@ templ EditForm(props *EditPageProps) {
 				NotFoundText: props.T("Products.Single.NoPositionsFound"),
 				Name:         "PositionID",
 				Form:         "save-form",
+				Endpoint:     "/warehouse/positions/search",
 			})
 			@StatusSelect(&StatusSelectProps{
 				PageContext: props.PageContext,
