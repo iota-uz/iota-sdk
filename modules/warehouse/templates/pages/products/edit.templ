@@ -38,7 +38,9 @@ templ EditForm(props *EditPageProps) {
 				Name:         "PositionID",
 				Form:         "save-form",
 				Endpoint:     "/warehouse/positions/search",
-			})
+			}) {
+				<option value={ props.Product.PositionID } selected>{ props.Product.Position.Title }</option>
+			}
 			@StatusSelect(&StatusSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Product.Status,
