@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"github.com/iota-agency/iota-sdk/modules/core/seed"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
@@ -27,6 +28,7 @@ type Module struct {
 func (m *Module) Register(app application.Application) error {
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterLocaleFiles(&localeFiles)
+	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterModule(m)
 	return nil
 }

@@ -6,16 +6,35 @@ import (
 	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
+	"github.com/iota-agency/iota-sdk/pkg/logging"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
+	gormlogger "gorm.io/gorm/logger"
 	"log"
 )
 
 func main() {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(conf.DBOpts, conf.LogLevel())
+	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
+	if err != nil {
+		log.Fatalf("failed to create logger: %v", err)
+	}
+
+	defer logFile.Close()
+	db, err := dbutils.ConnectDB(
+		conf.DBOpts,
+		gormlogger.New(
+			logger,
+			gormlogger.Config{
+				SlowThreshold:             0,
+				LogLevel:                  conf.GormLogLevel(),
+				IgnoreRecordNotFoundError: false,
+				Colorful:                  true,
+				ParameterizedQueries:      true,
+			},
+		),
+	)
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
@@ -26,7 +45,6 @@ func main() {
 	}
 	assetsFs := append(
 		[]*hashfs.FS{
-			assets.HashFS,
 			internalassets.HashFS,
 		},
 		app.HashFsAssets()...,
@@ -40,7 +58,9 @@ func main() {
 		controllers.NewStaticFilesController(assetsFs),
 		controllers.NewUploadController(app),
 	)
+
 	options := &server.DefaultOptions{
+		Logger:        logger,
 		Configuration: conf,
 		Db:            db,
 		Application:   app,

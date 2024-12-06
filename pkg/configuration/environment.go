@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/logger"
 	"log"
 	"strings"
@@ -56,13 +57,28 @@ type Configuration struct {
 	Origin             string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize           int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize        int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
-	LgLevel            string        `env:"LOG_LEVEL" envDefault:"error"`
+	LogLevel           string        `env:"LOG_LEVEL" envDefault:"error"`
 	// Session ID cookie key
 	SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 }
 
-func (c *Configuration) LogLevel() logger.LogLevel {
-	switch c.LgLevel {
+func (c *Configuration) LogrusLogLevel() logrus.Level {
+	switch c.LogLevel {
+	case "silent":
+		return logrus.PanicLevel
+	case "error":
+		return logrus.ErrorLevel
+	case "warn":
+		return logrus.WarnLevel
+	case "info":
+		return logrus.InfoLevel
+	default:
+		return logrus.ErrorLevel
+	}
+}
+
+func (c *Configuration) GormLogLevel() logger.LogLevel {
+	switch c.LogLevel {
 	case "silent":
 		return logger.Silent
 	case "error":

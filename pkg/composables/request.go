@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"log"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
 	"time"
@@ -54,12 +54,12 @@ func UseRequest(ctx context.Context) (*http.Request, bool) {
 
 // UseLogger returns the logger from the context.
 // If the logger is not found, the second return value will be false.
-func UseLogger(ctx context.Context) (*log.Logger, bool) {
-	logger, ok := ctx.Value(constants.LoggerKey).(*log.Logger)
-	if !ok {
+func UseLogger(ctx context.Context) (*logrus.Entry, bool) {
+	logger := ctx.Value(constants.LoggerKey)
+	if logger == nil {
 		return nil, false
 	}
-	return logger, true
+	return logger.(*logrus.Entry), true
 }
 
 // UseMeta returns the metadata from the context.

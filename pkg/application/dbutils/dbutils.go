@@ -25,12 +25,14 @@ func NewLogger(level logger.LogLevel) logger.Interface {
 	)
 }
 
-func ConnectDB(dbOpts string, level logger.LogLevel) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(dbOpts), &gorm.Config{
-		//nolint:exhaustruct
-		Logger:                 NewLogger(level),
-		SkipDefaultTransaction: true,
-	})
+func ConnectDB(dbOpts string, loggerInstance logger.Interface) (*gorm.DB, error) {
+	db, err := gorm.Open(
+		postgres.Open(dbOpts),
+		&gorm.Config{
+			Logger:                 loggerInstance,
+			SkipDefaultTransaction: true,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
