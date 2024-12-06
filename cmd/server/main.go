@@ -50,11 +50,7 @@ func main() {
 		app.HashFsAssets()...,
 	)
 	app.RegisterControllers(
-
-		controllers.NewGraphQLController(app),
-		controllers.NewLogoutController(app),
 		controllers.NewStaticFilesController(assetsFs),
-		controllers.NewUploadController(app),
 	)
 
 	options := &server.DefaultOptions{

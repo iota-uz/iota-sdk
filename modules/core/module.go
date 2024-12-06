@@ -4,6 +4,7 @@ import (
 	"embed"
 	"github.com/iota-agency/iota-sdk/modules/core/seed"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
@@ -31,6 +32,14 @@ func (m *Module) Register(app application.Application) error {
 		seed.CreatePermissions,
 		seed.CreateCurrencies,
 		seed.CreateUser,
+	)
+	app.RegisterControllers(
+		controllers.NewLoginController(app),
+		controllers.NewAccountController(app),
+		controllers.NewEmployeeController(app),
+		controllers.NewGraphQLController(app),
+		controllers.NewLogoutController(app),
+		controllers.NewUploadController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterModule(m)
