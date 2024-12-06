@@ -65,16 +65,15 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	if up != nil {
 		return up, nil
 	}
-
 	if err := s.storage.Save(ctx, entity.Hash, bytes); err != nil {
-		return entity, err
+		return nil, err
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {
-		return entity, err
+		return nil, err
 	}
 	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
-		return entity, err
+		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
 	return entity, nil

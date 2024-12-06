@@ -31,6 +31,7 @@ type Application interface {
 	RegisterModule(module Module)
 	RegisterPermissions(permissions ...permission.Permission)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
+	RegisterSeedFuncs(seedFuncs ...SeedFunc)
 	RegisterAssets(fs ...*embed.FS)
 	RegisterTemplates(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
@@ -51,7 +52,6 @@ type Controller interface {
 
 type Module interface {
 	Name() string
-	Seed(ctx context.Context, app Application) error
 	Register(app Application) error
 	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 }

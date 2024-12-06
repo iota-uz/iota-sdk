@@ -2,19 +2,19 @@ package server
 
 import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
-	"github.com/iota-agency/iota-sdk/pkg/types"
-	"gorm.io/gorm"
-	"log"
-
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/services"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 type DefaultOptions struct {
+	Logger        *logrus.Logger
 	Configuration *configuration.Configuration
 	Application   application.Application
 	Db            *gorm.DB
@@ -37,12 +37,13 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	app.RegisterMiddleware(
+		middleware.WithLogger(options.Logger),
 		middleware.Provide(constants.HeadKey, head()),
 		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
 		middleware.Cors([]string{"http://localhost:3000", "ws://localhost:3000"}),
 		middleware.RequestParams(middleware.DefaultParamsConstructor),
-		middleware.WithLogger(log.Default()),
 		middleware.LogRequests(),
 		middleware.Transactions(db),
 		middleware.Authorization(authService),

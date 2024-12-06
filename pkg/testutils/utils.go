@@ -11,7 +11,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"strings"
 )
 
@@ -50,7 +49,8 @@ func DropPublicSchema(db *sql.DB) error {
 }
 
 func GetTestContext() *TestContext {
-	db, err := dbutils.ConnectDB(configuration.Use().DBOpts, logger.Warn)
+	conf := configuration.Use()
+	db, err := dbutils.ConnectDB(conf.DBOpts, conf.GormLogLevel())
 	if err != nil {
 		panic(err)
 	}
