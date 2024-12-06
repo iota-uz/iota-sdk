@@ -1,7 +1,6 @@
 package warehouse
 
 import (
-	"context"
 	"embed"
 
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
@@ -34,9 +33,13 @@ func (m *Module) Register(app application.Application) error {
 	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher())
 	positionService := services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher())
 	productService := services.NewProductService(persistence.NewProductRepository(), app.EventPublisher(), positionService)
+	orderService := services.NewOrderService(persistence.NewOrderRepository(), app.EventPublisher())
+
 	app.RegisterService(unitService)
 	app.RegisterService(positionService)
 	app.RegisterService(productService)
+	app.RegisterService(orderService)
+
 	app.RegisterPermissions(
 		permissions.ProductCreate,
 		permissions.ProductRead,
@@ -59,16 +62,13 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewProductsController(app),
 		controllers.NewPositionsController(app),
 		controllers.NewUnitsController(app),
+		controllers.NewOrdersController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
 	app.RegisterModule(m)
-	return nil
-}
-
-func (m *Module) Seed(ctx context.Context, app application.Application) error {
 	return nil
 }
 

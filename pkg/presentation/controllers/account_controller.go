@@ -89,7 +89,7 @@ func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 	uniTranslator, ok := composables.UseUniLocalizer(r.Context())
 	if !ok {
-		http.Error(w, composables.ErrLocalizerNotFound.Error(), http.StatusInternalServerError)
+		http.Error(w, composables.ErrNoLocalizer.Error(), http.StatusInternalServerError)
 	}
 	errors, ok := dto.Ok(uniTranslator)
 	if !ok {

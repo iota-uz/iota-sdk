@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
 	"time"
@@ -38,10 +40,19 @@ func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composabl
 	}
 }
 
-func WithLogger(logger *log.Logger) mux.MiddlewareFunc {
+func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 	return ContextKeyValue(
-		constants.LoggerKey, func(*http.Request, http.ResponseWriter) interface{} {
-			return logger
+		constants.LoggerKey,
+		func(r *http.Request, w http.ResponseWriter) interface{} {
+			return logger.WithFields(logrus.Fields{
+				"timestamp":  time.Now().Format(time.RFC3339),
+				"path":       r.RequestURI,
+				"method":     r.Method,
+				"host":       r.Host,
+				"ip":         r.RemoteAddr,
+				"user-agent": r.UserAgent(),
+				"request-id": uuid.New().String(),
+			})
 		},
 	)
 }
@@ -51,12 +62,13 @@ func LogRequests() mux.MiddlewareFunc {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
-				logger, ok := composables.UseLogger(r.Context())
-				if !ok {
-					panic("logger not found. Add WithLogger middleware up the chain")
-				}
 				next.ServeHTTP(w, r)
-				logger.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
+				log.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
+				logger, err := composables.UseLogger(r.Context())
+				if err != nil {
+					log.Printf("logger not found: %v", err)
+				}
+				logger.WithField("duration", time.Since(start)).Info("request completed")
 			},
 		)
 	}

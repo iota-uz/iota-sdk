@@ -84,9 +84,12 @@ func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, erro
 	if err != nil {
 		return nil, err
 	}
-	pos, err := toDomainPosition(dbProduct.Position)
-	if err != nil {
-		return nil, err
+	var pos *position.Position
+	if dbProduct.Position != nil {
+		pos, err = toDomainPosition(dbProduct.Position)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &product.Product{
 		ID:         dbProduct.ID,

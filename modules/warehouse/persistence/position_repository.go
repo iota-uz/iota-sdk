@@ -125,7 +125,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if err := tx.Updates(positionRow).Error; err != nil {
 		return err
 	}
-	if err := tx.Delete(&models.WarehousePositionImage{}, "position_id = ?", positionRow.ID).Error; err != nil {
+	if err := tx.Delete(&models.WarehousePositionImage{}, "warehouse_position_id = ?", positionRow.ID).Error; err != nil {
 		return err
 	}
 	for _, uploadRow := range uploadRows {

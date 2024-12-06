@@ -1,7 +1,6 @@
 package finance
 
 import (
-	"context"
 	"embed"
 	"github.com/iota-agency/iota-sdk/modules/finance/controllers"
 	"github.com/iota-agency/iota-sdk/modules/finance/permissions"
@@ -65,10 +64,6 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterModule(m)
-	return nil
-}
-
-func (m *Module) Seed(ctx context.Context, app application.Application) error {
 	return nil
 }
 
