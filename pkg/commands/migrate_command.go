@@ -6,8 +6,10 @@ import (
 	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/logging"
 	"github.com/iota-agency/iota-sdk/pkg/server"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
+	"log"
 	"os"
 )
 
@@ -20,7 +22,27 @@ func Migrate() error {
 		return ErrNoCommand
 	}
 	migration := os.Args[1]
-	db, err := dbutils.ConnectDB(configuration.Use().DBOpts, logger.Warn)
+
+	conf := configuration.Use()
+
+	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
+	if err != nil {
+		log.Fatalf("failed to create logger: %v", err)
+	}
+	defer logFile.Close()
+	db, err := dbutils.ConnectDB(
+		conf.DBOpts,
+		gormlogger.New(
+			logger,
+			gormlogger.Config{
+				SlowThreshold:             0,
+				LogLevel:                  conf.GormLogLevel(),
+				IgnoreRecordNotFoundError: false,
+				Colorful:                  true,
+				ParameterizedQueries:      true,
+			},
+		),
+	)
 	if err != nil {
 		panic(err)
 	}

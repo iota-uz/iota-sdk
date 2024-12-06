@@ -20,8 +20,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create logger: %v", err)
 	}
-
 	defer logFile.Close()
+
 	db, err := dbutils.ConnectDB(
 		conf.DBOpts,
 		gormlogger.New(

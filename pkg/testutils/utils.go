@@ -8,9 +8,12 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/logging"
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 	"strings"
 )
 
@@ -50,7 +53,19 @@ func DropPublicSchema(db *sql.DB) error {
 
 func GetTestContext() *TestContext {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(conf.DBOpts, conf.GormLogLevel())
+	db, err := dbutils.ConnectDB(
+		conf.DBOpts,
+		gormlogger.New(
+			logging.ConsoleLogger(logrus.InfoLevel),
+			gormlogger.Config{
+				SlowThreshold:             0,
+				LogLevel:                  gormlogger.Info,
+				IgnoreRecordNotFoundError: false,
+				Colorful:                  true,
+				ParameterizedQueries:      true,
+			},
+		),
+	)
 	if err != nil {
 		panic(err)
 	}
