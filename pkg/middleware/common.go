@@ -62,6 +62,11 @@ func LogRequests() mux.MiddlewareFunc {
 				start := time.Now()
 				next.ServeHTTP(w, r)
 				log.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
+				logger, err := composables.UseLogger(r.Context())
+				if err != nil {
+					log.Printf("logger not found: %v", err)
+				}
+				logger.WithField("duration", time.Since(start)).Info("request completed")
 			},
 		)
 	}

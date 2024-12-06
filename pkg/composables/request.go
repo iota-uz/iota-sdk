@@ -18,7 +18,8 @@ import (
 )
 
 var (
-	ErrLocalizerNotFound = errors.New("localizer not found")
+	ErrNoLocalizer = errors.New("localizer not found")
+	ErrNoLogger    = errors.New("logger not found")
 )
 
 type Params struct {
@@ -54,12 +55,12 @@ func UseRequest(ctx context.Context) (*http.Request, bool) {
 
 // UseLogger returns the logger from the context.
 // If the logger is not found, the second return value will be false.
-func UseLogger(ctx context.Context) (*logrus.Entry, bool) {
+func UseLogger(ctx context.Context) (*logrus.Entry, error) {
 	logger := ctx.Value(constants.LoggerKey)
 	if logger == nil {
-		return nil, false
+		return nil, ErrNoLogger
 	}
-	return logger.(*logrus.Entry), true
+	return logger.(*logrus.Entry), nil
 }
 
 // UseMeta returns the metadata from the context.
@@ -171,11 +172,11 @@ func UsePaginated(r *http.Request) PaginationParams {
 func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, error) {
 	localizer, found := UseLocalizer(r.Context())
 	if !found {
-		return nil, ErrLocalizerNotFound
+		return nil, ErrNoLocalizer
 	}
 	uniTranslator, found := UseUniLocalizer(r.Context())
 	if !found {
-		return nil, ErrLocalizerNotFound
+		return nil, ErrNoLocalizer
 	}
 	locale := UseLocale(r.Context(), language.English)
 	navItems, _ := UseNavItems(r)
