@@ -30,6 +30,7 @@ templ CreateForm(props *CreatePageProps) {
 					"name":  "Title",
 					"value": props.Unit.Title,
 				},
+				Error: props.Errors["Title"],
 			})
 			@input.Text(&input.Props{
 				Label: props.T("WarehouseUnits.Single.ShortTitle"),
@@ -37,6 +38,7 @@ templ CreateForm(props *CreatePageProps) {
 					"name":  "ShortTitle",
 					"value": props.Unit.ShortTitle,
 				},
+				Error: props.Errors["ShortTitle"],
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
