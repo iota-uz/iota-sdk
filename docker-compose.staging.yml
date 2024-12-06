@@ -18,7 +18,6 @@ services:
       GOOGLE_CLIENT_SECRET: 123456789
       GOOGLE_REDIRECT_URL: https://erp.ci.iota.uz/auth/google/callback
       OPENAI_KEY: sk-1234567890 # TODO: Change this
-
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.erp.rule=Host(`erp.ci.iota.uz`)"

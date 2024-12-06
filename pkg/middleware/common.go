@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/sirupsen/logrus"
 	"log"
@@ -50,6 +51,7 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 				"host":       r.Host,
 				"ip":         r.RemoteAddr,
 				"user-agent": r.UserAgent(),
+				"request-id": uuid.New().String(),
 			})
 		},
 	)
