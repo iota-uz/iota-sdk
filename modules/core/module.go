@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"embed"
 	"github.com/iota-agency/iota-sdk/modules/core/seed"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
@@ -28,22 +27,13 @@ type Module struct {
 func (m *Module) Register(app application.Application) error {
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterLocaleFiles(&localeFiles)
-	app.RegisterHashFsAssets(assets.HashFS)
-	app.RegisterModule(m)
-	return nil
-}
-
-func (m *Module) Seed(ctx context.Context, app application.Application) error {
-	seedFuncs := []application.SeedFunc{
+	app.RegisterSeedFuncs(
 		seed.CreatePermissions,
 		seed.CreateCurrencies,
 		seed.CreateUser,
-	}
-	for _, seedFunc := range seedFuncs {
-		if err := seedFunc(ctx, app); err != nil {
-			return err
-		}
-	}
+	)
+	app.RegisterHashFsAssets(assets.HashFS)
+	app.RegisterModule(m)
 	return nil
 }
 
