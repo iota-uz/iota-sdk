@@ -50,9 +50,7 @@ func main() {
 		app.HashFsAssets()...,
 	)
 	app.RegisterControllers(
-		controllers.NewLoginController(app),
-		controllers.NewAccountController(app),
-		controllers.NewEmployeeController(app),
+
 		controllers.NewGraphQLController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewStaticFilesController(assetsFs),

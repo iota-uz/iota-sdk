@@ -45,11 +45,12 @@ type ApplicationImpl struct {
 	templates      []*embed.FS
 	localeFiles    []*embed.FS
 	migrationDirs  []*embed.FS
+	seedFuncs      []SeedFunc
 }
 
 func (app *ApplicationImpl) Seed(ctx context.Context) error {
-	for _, module := range app.modules {
-		if err := module.Seed(ctx, app); err != nil {
+	for _, seedFunc := range app.seedFuncs {
+		if err := seedFunc(ctx, app); err != nil {
 			return err
 		}
 	}
@@ -142,6 +143,10 @@ func (app *ApplicationImpl) RegisterLocaleFiles(fs ...*embed.FS) {
 
 func (app *ApplicationImpl) RegisterMigrationDirs(fs ...*embed.FS) {
 	app.migrationDirs = append(app.migrationDirs, fs...)
+}
+
+func (app *ApplicationImpl) RegisterSeedFuncs(seedFuncs ...SeedFunc) {
+	app.seedFuncs = append(app.seedFuncs, seedFuncs...)
 }
 
 // RegisterService registers a new service in the application by its type

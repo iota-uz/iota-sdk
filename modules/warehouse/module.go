@@ -1,7 +1,6 @@
 package warehouse
 
 import (
-	"context"
 	"embed"
 
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
@@ -70,10 +69,6 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
 	app.RegisterModule(m)
-	return nil
-}
-
-func (m *Module) Seed(ctx context.Context, app application.Application) error {
 	return nil
 }
 
