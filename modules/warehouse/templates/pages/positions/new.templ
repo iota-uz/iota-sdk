@@ -41,6 +41,7 @@ templ CreateForm(props *CreatePageProps) {
 					"name": "Title",
 					"form": "save-form",
 				},
+				Error: props.Errors["Title"],
 			})
 			@input.Text(&input.Props{
 				Label: props.T("WarehousePositions.Single.Barcode"),
@@ -48,6 +49,7 @@ templ CreateForm(props *CreatePageProps) {
 					"name": "Barcode",
 					"form": "save-form",
 				},
+				Error: props.Errors["Barcode"],
 			})
 			@UnitSelect(&UnitSelectProps{
 				PageContext: props.PageContext,
