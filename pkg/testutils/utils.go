@@ -50,7 +50,7 @@ func DropPublicSchema(db *sql.DB) error {
 
 func GetTestContext() *TestContext {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(conf.DBOpts, conf.LogLevel())
+	db, err := dbutils.ConnectDB(conf.DBOpts, conf.GormLogLevel())
 	if err != nil {
 		panic(err)
 	}
