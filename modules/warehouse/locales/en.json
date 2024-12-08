@@ -76,7 +76,15 @@
       "Meta": {
         "Title": "Upload .xlsx"
       },
-      "Example": "Example",
+      "Example": {
+        "Title": "Excel Upload",
+        "Description": "The sequence of cells in Excel should be as follows:",
+        "ItemName": "Item Name",
+        "ItemCode": "Item Code",
+        "Unit": "Unit",
+        "Quantity": "Quantity",
+        "Below": "Below is an example of how the data should be entered:"
+      },
       "UploadLabel": "Files",
       "UploadPlaceholder": ".xls, .xlsx",
       "Submit": "Upload"

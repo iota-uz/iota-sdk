@@ -14,43 +14,51 @@ type UploadPageProps struct {
 	SaveURL string
 }
 
-templ exampleTable() {
+templ exampleTable(props *UploadPageProps) {
 	<div class="overflow-x-auto">
 		<table class="table-auto border-collapse border border-gray-300 w-full text-sm">
 			<thead>
 				<tr class="bg-gray-200 text-left">
 					<th class="border border-gray-300 px-4 py-2">#</th>
-					<th class="border border-gray-300 px-4 py-2">Наименование</th>
-					<th class="border border-gray-300 px-4 py-2">Код в справочнике</th>
-					<th class="border border-gray-300 px-4 py-2">Ед. изм.</th>
-					<th class="border border-gray-300 px-4 py-2">Кол-во</th>
+					<th class="border border-gray-300 px-4 py-2">
+						{ props.T("WarehousePositions.Upload.Example.ItemName") }
+					</th>
+					<th class="border border-gray-300 px-4 py-2">
+						{ props.T("WarehousePositions.Upload.Example.ItemCode") }
+					</th>
+					<th class="border border-gray-300 px-4 py-2">
+						{ props.T("WarehousePositions.Upload.Example.Unit") }
+					</th>
+					<th class="border border-gray-300 px-4 py-2">
+						{ props.T("WarehousePositions.Upload.Example.Quantity") }
+					</th>
 				</tr>
 			</thead>
 			<tbody>
 				<tr>
 					<td class="border border-gray-300 px-4 py-2">1</td>
-					<td class="border border-gray-300 px-4 py-2">850810999 : Дрель Молоток N.C.V (900W)</td>
+					<td class="border border-gray-300 px-4 py-2">Дрель Молоток N.C.V (900W)</td>
 					<td class="border border-gray-300 px-4 py-2">30232478</td>
 					<td class="border border-gray-300 px-4 py-2">шт</td>
 					<td class="border border-gray-300 px-4 py-2">1</td>
 				</tr>
 				<tr>
 					<td class="border border-gray-300 px-4 py-2">2</td>
-					<td class="border border-gray-300 px-4 py-2">850819998 : Дрель Ударная (650W)</td>
+					<td class="border border-gray-300 px-4 py-2">Дрель Ударная (650W)</td>
 					<td class="border border-gray-300 px-4 py-2">30232477</td>
 					<td class="border border-gray-300 px-4 py-2">шт</td>
 					<td class="border border-gray-300 px-4 py-2">1</td>
 				</tr>
 				<tr>
 					<td class="border border-gray-300 px-4 py-2">3</td>
-					<td class="border border-gray-300 px-4 py-2">490110008 : Комплект плакатов по предмету "Математика", 40 листов</td>
+					<td class="border border-gray-300 px-4 py-2">Комплект плакатов по предмету "Математика", 40 листов</td>
 					<td class="border border-gray-300 px-4 py-2">00017492</td>
 					<td class="border border-gray-300 px-4 py-2">компл</td>
 					<td class="border border-gray-300 px-4 py-2">7</td>
 				</tr>
 				<tr>
 					<td class="border border-gray-300 px-4 py-2">4</td>
-					<td class="border border-gray-300 px-4 py-2">490110011 : Комплект плакатов цветных по "Технике безопасности" (500x700мм, 5 листов) на туркменском</td>
+					<td class="border border-gray-300 px-4 py-2">Комплект плакатов цветных по "Технике безопасности" (500x700мм, 5 листов) на туркменском</td>
 					<td class="border border-gray-300 px-4 py-2">00028544</td>
 					<td class="border border-gray-300 px-4 py-2">компл</td>
 					<td class="border border-gray-300 px-4 py-2">127</td>
@@ -62,18 +70,18 @@ templ exampleTable() {
 
 templ UploadForm(props *UploadPageProps) {
 	@base.Card("m-6") {
-		<h1 class="text-xl font-bold mb-4">Загрузка Excel</h1>
-		<p class="text-gray-700 mb-4">Последовательность ячеек в Excel должна быть следующая:</p>
+		<h1 class="text-xl font-bold mb-4">{ props.T("WarehousePositions.Upload.Example.Title") }</h1>
+		<p class="text-gray-700 mb-4">{ props.T("WarehousePositions.Upload.Example.Description") }</p>
 		<ul class="list-disc list-inside text-gray-700 mb-6">
-			<li>Наименование</li>
-			<li>Артикул</li>
-			<li>Ед. измерения</li>
-			<li>Кол-во</li>
+			<li>{ props.T("WarehousePositions.Upload.Example.ItemName") }</li>
+			<li>{ props.T("WarehousePositions.Upload.Example.ItemCode") }</li>
+			<li>{ props.T("WarehousePositions.Upload.Example.Unit") }</li>
+			<li>{ props.T("WarehousePositions.Upload.Example.Quantity") }</li>
 		</ul>
 		<p class="text-lg mb-1">
-			{ props.T("WarehousePositions.Upload.Example") }
+			{ props.T("WarehousePositions.Upload.Example.Below") }
 		</p>
-		@exampleTable()
+		@exampleTable(props)
 		<form
 			id="save-form"
 			class="flex flex-col justify-between mt-6"

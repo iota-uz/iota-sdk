@@ -76,7 +76,15 @@
       "Meta": {
         "Title": "Загрузить .xlsx"
       },
-      "Example": "Пример",
+      "Example": {
+        "Title": "Загрузка Excel",
+        "Description": "Последовательность ячеек в Excel должна быть следующая:",
+        "ItemName": "Наименование",
+        "ItemCode": "Артикул",
+        "Unit": "Ед. измерения",
+        "Quantity": "Кол-во",
+        "Below": "Ниже приведен пример файла Excel для загрузки"
+      },
       "UploadLabel": "Файлы",
       "UploadPlaceholder": ".xls, .xlsx",
       "Submit": "Загрузить"
