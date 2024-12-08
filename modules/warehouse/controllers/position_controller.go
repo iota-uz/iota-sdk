@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -52,6 +53,54 @@ func (c *PositionsController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
 	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/upload", c.GetUpload).Methods(http.MethodGet)
+	router.HandleFunc("/upload", c.HandleUpload).Methods(http.MethodPost)
+}
+
+func (c *PositionsController) GetUpload(w http.ResponseWriter, r *http.Request) {
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Upload.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := &positions.UploadPageProps{
+		PageContext: pageCtx,
+		SaveURL:     c.basePath + "/upload",
+	}
+	templ.Handler(positions.Upload(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	dto := dtos.PositionsUploadDTO{}
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Upload.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		fmt.Println(errorsMap)
+		props := &positions.UploadPageProps{
+			PageContext: pageCtx,
+			SaveURL:     c.basePath + "/upload",
+		}
+		templ.Handler(positions.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	if err := c.positionService.UploadFromFile(r.Context(), dto.FileID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *PositionsController) viewModelPositions(r *http.Request) (*PositionPaginatedResponse, error) {

@@ -20,7 +20,7 @@ package persistence_test
 //	if err := categoryRepository.Create(
 //		ctx.Context, &category.ExpenseCategory{
 //			ID:          1,
-//			Name:        "test",
+//			Path:        "test",
 //			Amount:      100,
 //			Currency:    currency.USD,
 //			Description: "test",

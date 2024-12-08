@@ -47,6 +47,7 @@
         "Title": "Warehouse positions"
       },
       "New": "New position",
+      "Upload": "Upload .xlsx",
       "Position": "Position",
       "Barcode": "Barcode",
       "Unit": "Unit"

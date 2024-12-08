@@ -47,6 +47,7 @@
         "Title": "Наименования"
       },
       "New": "Новое наименование",
+      "Upload": "Загрузить .xlsx",
       "Position": "Наименование",
       "Barcode": "Артикул",
       "Unit": "Единица измерения"
@@ -70,6 +71,13 @@
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить это наименование?",
       "NothingFound": "Ничего не найдено"
+    },
+    "Upload": {
+      "Meta": {
+        "Title": "Загрузить .xlsx"
+      },
+      "UploadLabel": "Файлы",
+      "UploadPlaceholder": ".xls, .xlsx"
     }
   },
   "WarehouseUnits": {
