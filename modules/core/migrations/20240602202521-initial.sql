@@ -4,8 +4,7 @@ CREATE TABLE uploads
 
     id         SERIAL PRIMARY KEY,
     hash       VARCHAR(255)  NOT NULL UNIQUE,
-    url        VARCHAR(1024) NOT NULL   DEFAULT '',
-    name       VARCHAR(255)  NOT NULL   DEFAULT '',
+    path       VARCHAR(1024) NOT NULL   DEFAULT '',
     size       INT           NOT NULL   DEFAULT 0,
     mimetype   VARCHAR(255)  NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,

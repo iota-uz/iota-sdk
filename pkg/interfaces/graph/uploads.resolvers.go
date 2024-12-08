@@ -15,8 +15,8 @@ import (
 // UploadFile is the resolver for the uploadFile field.
 func (r *mutationResolver) UploadFile(ctx context.Context, file graphql.Upload) (*model.Media, error) {
 	//entity := &upload.Upload{
-	//	Name:     file.Filename,
-	//	Path:     file.Filename,
+	//	Path:     file.Path,
+	//	Path:     file.Path,
 	//	Mimetype: file.ContentType,
 	//	Size:     file.Size,
 	//}

@@ -110,7 +110,6 @@ type Upload struct {
 	ID        string
 	Hash      string
 	URL       string
-	Name      string
 	Mimetype  string
 	Size      string
 	CreatedAt string

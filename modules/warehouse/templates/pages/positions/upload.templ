@@ -1,0 +1,51 @@
+package positions
+
+import (
+	"github.com/iota-agency/iota-sdk/components"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type UploadPageProps struct {
+	*types.PageContext
+	SaveURL string
+}
+
+templ UploadForm(props *UploadPageProps) {
+	<form
+		id="save-form"
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.SaveURL }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@components.UploadInput(&components.UploadInputProps{
+				Label:       props.T("WarehousePositions.Upload.UploadLabel"),
+				Placeholder: props.T("WarehousePositions.Upload.UploadPlaceholder"),
+				Accept:      "text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel",
+				Name:        "FileID",
+				Class:       "col-span-3",
+				Form:        "save-form",
+			})
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ props.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ Upload(props *UploadPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@UploadForm(props)
+	}
+}

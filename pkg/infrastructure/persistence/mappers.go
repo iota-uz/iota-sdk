@@ -214,9 +214,8 @@ func toDBProjectStage(entity *stage.ProjectStage) *models.ProjectStage {
 func ToDBUpload(upload *upload.Upload) *models.Upload {
 	return &models.Upload{
 		ID:        upload.ID,
-		URL:       upload.URL,
+		Path:      upload.Path,
 		Hash:      upload.Hash,
-		Name:      upload.Name,
 		Size:      upload.Size,
 		Mimetype:  upload.Mimetype.String(),
 		CreatedAt: upload.CreatedAt,
@@ -231,9 +230,8 @@ func ToDomainUpload(dbUpload *models.Upload) *upload.Upload {
 	}
 	return &upload.Upload{
 		ID:        dbUpload.ID,
-		URL:       dbUpload.URL,
 		Size:      dbUpload.Size,
-		Name:      dbUpload.Name,
+		Path:      dbUpload.Path,
 		Mimetype:  mime,
 		CreatedAt: dbUpload.CreatedAt,
 		UpdatedAt: dbUpload.UpdatedAt,
