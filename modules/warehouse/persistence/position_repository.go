@@ -82,6 +82,18 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 	return toDomainPosition(&entity)
 }
 
+func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode string) (*position.Position, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var entity models.WarehousePosition
+	if err := tx.Where("barcode = ?", barcode).First(&entity).Error; err != nil {
+		return nil, err
+	}
+	return toDomainPosition(&entity)
+}
+
 func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

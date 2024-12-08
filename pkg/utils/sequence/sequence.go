@@ -36,3 +36,13 @@ func Pad(b *strings.Builder, str string) {
 	}
 	b.WriteString(str)
 }
+
+func RemoveNonNumeric(str string) string {
+	var b strings.Builder
+	for _, r := range str {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}

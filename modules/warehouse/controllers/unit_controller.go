@@ -242,7 +242,7 @@ func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.unitService.Create(r.Context(), &dto); err != nil {
+	if _, err := c.unitService.Create(r.Context(), &dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
