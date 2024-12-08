@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
@@ -65,7 +64,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	if up != nil {
 		return up, nil
 	}
-	if err := s.storage.Save(ctx, entity.Hash, bytes); err != nil {
+	if err := s.storage.Save(ctx, entity.Path, bytes); err != nil {
 		return nil, err
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {

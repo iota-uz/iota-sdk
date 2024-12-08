@@ -9,8 +9,7 @@ import (
 type Upload struct {
 	ID        uint
 	Hash      string
-	URL       string
-	Name      string
+	Path      string
 	Size      int
 	Mimetype  mimetype.MIME
 	CreatedAt time.Time

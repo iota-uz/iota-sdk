@@ -23,10 +23,14 @@ func NewFSStorage() (*FSStorage, error) {
 	return &FSStorage{}, nil
 }
 
-func (s *FSStorage) Save(ctx context.Context, fileName string, bytes []byte) error {
-	conf := configuration.Use()
-	if err := os.WriteFile(filepath.Join(conf.UploadsPath, fileName), bytes, 0644); err != nil {
-		return err
+func (s *FSStorage) Open(ctx context.Context, fileName string) ([]byte, error) {
+	bytes, err := os.ReadFile(fileName)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return bytes, nil
+}
+
+func (s *FSStorage) Save(ctx context.Context, fileName string, bytes []byte) error {
+	return os.WriteFile(fileName, bytes, 0644)
 }

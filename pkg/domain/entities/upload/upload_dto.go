@@ -59,15 +59,15 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 	}
 	mdsum := md5.Sum(bytes)
 	hash := hex.EncodeToString(mdsum[:])
+	ext := filepath.Ext(d.Name)
 	return &Upload{
 		ID:        0,
 		Hash:      hash,
-		Name:      d.Name,
+		Path:      filepath.Join(conf.UploadsPath, hash+ext),
 		Size:      d.Size,
 		Mimetype:  *mimetype.Detect(bytes),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		URL:       filepath.Join("/", conf.UploadsPath, hash),
 	}, bytes, nil
 }
 

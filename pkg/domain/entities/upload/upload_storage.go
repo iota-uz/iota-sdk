@@ -5,5 +5,6 @@ import (
 )
 
 type Storage interface {
+	Open(ctx context.Context, fileName string) ([]byte, error)
 	Save(ctx context.Context, fileName string, bytes []byte) error
 }
