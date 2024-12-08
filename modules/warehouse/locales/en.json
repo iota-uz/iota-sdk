@@ -71,6 +71,15 @@
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse position?",
       "NothingFound": "Nothing found"
+    },
+    "Upload": {
+      "Meta": {
+        "Title": "Upload .xlsx"
+      },
+      "Example": "Example",
+      "UploadLabel": "Files",
+      "UploadPlaceholder": ".xls, .xlsx",
+      "Submit": "Upload"
     }
   },
   "WarehouseUnits": {

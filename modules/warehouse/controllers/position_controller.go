@@ -66,6 +66,7 @@ func (c *PositionsController) GetUpload(w http.ResponseWriter, r *http.Request) 
 	props := &positions.UploadPageProps{
 		PageContext: pageCtx,
 		SaveURL:     c.basePath + "/upload",
+		Errors:      map[string]string{},
 	}
 	templ.Handler(positions.Upload(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -86,10 +87,10 @@ func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		fmt.Println(errorsMap)
 		props := &positions.UploadPageProps{
 			PageContext: pageCtx,
 			SaveURL:     c.basePath + "/upload",
+			Errors:      errorsMap,
 		}
 		templ.Handler(positions.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
