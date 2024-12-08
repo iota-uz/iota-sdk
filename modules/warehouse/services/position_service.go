@@ -2,20 +2,23 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm"
 )
 
 type PositionService struct {
 	repo          position.Repository
 	publisher     event.Publisher
 	uploadService *services.UploadService
+	unitService   *UnitService
 }
 
 func NewPositionService(
@@ -27,6 +30,7 @@ func NewPositionService(
 		repo:          repo,
 		publisher:     publisher,
 		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
+		unitService:   app.Service(UnitService{}).(*UnitService),
 	}
 }
 
@@ -51,6 +55,29 @@ func (s *PositionService) GetPaginated(ctx context.Context, params *position.Fin
 	return s.repo.GetPaginated(ctx, params)
 }
 
+func (s *PositionService) findOrCreateUnit(ctx context.Context, unitName string) (*unit.Unit, error) {
+	u, err := s.unitService.GetByTitleOrShortTitle(ctx, unitName)
+	if err == nil {
+		return u, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return s.unitService.Create(ctx, &unit.CreateDTO{
+			Title:      unitName,
+			ShortTitle: unitName,
+		})
+	}
+	return nil, err
+}
+
+func (s *PositionService) createPosition(ctx context.Context, posRow *position.XlsRow, unitId uint) error {
+	pos := &position.CreateDTO{
+		Title:   posRow.Title,
+		Barcode: posRow.Barcode,
+		UnitID:  unitId,
+	}
+	return s.Create(ctx, pos)
+}
+
 func (s *PositionService) UploadFromFile(ctx context.Context, fileID uint) error {
 	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
 		return err
@@ -69,7 +96,37 @@ func (s *PositionService) UploadFromFile(ctx context.Context, fileID uint) error
 	if err != nil {
 		return err
 	}
-	fmt.Println(rows)
+	for _, row := range rows {
+		posRow, err := position.XlsRowFromStrings(row)
+		if err != nil && errors.Is(err, position.ErrInvalidRow) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		unitEntity, err := s.findOrCreateUnit(ctx, posRow.Unit)
+		if err != nil {
+			return err
+		}
+		entity, err := s.repo.GetByBarcode(ctx, posRow.Barcode)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := s.createPosition(ctx, posRow, unitEntity.ID); err != nil {
+				return err
+			}
+		} else {
+			pos := &position.UpdateDTO{
+				Title:   posRow.Title,
+				UnitID:  unitEntity.ID,
+				Barcode: posRow.Barcode,
+			}
+			if err := s.Update(ctx, entity.ID, pos); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

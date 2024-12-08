@@ -7,6 +7,7 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]*Unit, error)
 	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*Unit, error)
 	GetByID(ctx context.Context, id uint) (*Unit, error)
+	GetByTitleOrShortTitle(ctx context.Context, name string) (*Unit, error)
 	Create(ctx context.Context, upload *Unit) error
 	CreateOrUpdate(ctx context.Context, upload *Unit) error
 	Update(ctx context.Context, upload *Unit) error

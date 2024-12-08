@@ -3,7 +3,7 @@ package persistence
 import (
 	"context"
 
-	unit2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
@@ -11,7 +11,7 @@ import (
 
 type GormUnitRepository struct{}
 
-func NewUnitRepository() unit2.Repository {
+func NewUnitRepository() unit.Repository {
 	return &GormUnitRepository{}
 }
 
@@ -19,7 +19,7 @@ func (g *GormUnitRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*unit2.Unit, error) {
+) ([]*unit.Unit, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -33,7 +33,7 @@ func (g *GormUnitRepository) GetPaginated(
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	units := make([]*unit2.Unit, len(entities))
+	units := make([]*unit.Unit, len(entities))
 	for i, entity := range entities {
 		units[i] = toDomainUnit(entity)
 	}
@@ -52,7 +52,7 @@ func (g *GormUnitRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit2.Unit, error) {
+func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit.Unit, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -61,14 +61,14 @@ func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit2.Unit, error) 
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	units := make([]*unit2.Unit, len(entities))
+	units := make([]*unit.Unit, len(entities))
 	for i, entity := range entities {
 		units[i] = toDomainUnit(entity)
 	}
 	return units, nil
 }
 
-func (g *GormUnitRepository) GetByID(ctx context.Context, id uint) (*unit2.Unit, error) {
+func (g *GormUnitRepository) GetByID(ctx context.Context, id uint) (*unit.Unit, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -80,18 +80,32 @@ func (g *GormUnitRepository) GetByID(ctx context.Context, id uint) (*unit2.Unit,
 	return toDomainUnit(&entity), nil
 }
 
-func (g *GormUnitRepository) Create(ctx context.Context, data *unit2.Unit) error {
+func (g *GormUnitRepository) GetByTitleOrShortTitle(ctx context.Context, name string) (*unit.Unit, error) {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return nil, composables.ErrNoTx
+	}
+	var entity models.WarehouseUnit
+	if err := tx.Where("title = ? OR short_title = ?", name, name).First(&entity).Error; err != nil {
+		return nil, err
+	}
+	return toDomainUnit(&entity), nil
+}
+
+func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Create(toDBUnit(data)).Error; err != nil {
+	dbRow := toDBUnit(data)
+	if err := tx.Create(dbRow).Error; err != nil {
 		return err
 	}
+	data.ID = dbRow.ID
 	return nil
 }
 
-func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit2.Unit) error {
+func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -99,7 +113,7 @@ func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit2.Uni
 	return tx.Save(toDBUnit(data)).Error
 }
 
-func (g *GormUnitRepository) Update(ctx context.Context, data *unit2.Unit) error {
+func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
