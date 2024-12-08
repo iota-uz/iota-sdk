@@ -2,7 +2,6 @@ package warehouse
 
 import (
 	"embed"
-
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
@@ -31,7 +30,11 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher())
-	positionService := services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher())
+	positionService := services.NewPositionService(
+		persistence.NewPositionRepository(),
+		app.EventPublisher(),
+		app,
+	)
 	productService := services.NewProductService(persistence.NewProductRepository(), app.EventPublisher(), positionService)
 	orderService := services.NewOrderService(persistence.NewOrderRepository(), app.EventPublisher())
 

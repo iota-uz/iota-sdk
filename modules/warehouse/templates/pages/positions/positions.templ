@@ -67,9 +67,17 @@ templ PositionsTable(props *IndexPageProps) {
 
 templ PositionsContent(props *IndexPageProps) {
 	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.WarehousePositions") }
-		</h1>
+		<div class="p-4 flex justify-between items-center gap-3">
+			<h1 class="text-2xl font-medium">
+				{ props.T("NavigationLinks.WarehousePositions") }
+			</h1>
+			@button.Primary(button.Props{
+				Size: button.SizeNormal, Href: "/warehouse/positions/upload",
+				Icon: icons.FileXls(icons.Props{Size: "18"}),
+			}) {
+				{ props.T("WarehousePositions.List.Upload") }
+			}
+		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"

@@ -42,7 +42,7 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	//if err := accountRepository.Create(
 	//	ctx.Context, &moneyAccount.Account{
 	//		ID:            1,
-	//		Name:          "test",
+	//		Path:          "test",
 	//		AccountNumber: "123",
 	//		Currency:      currency.USD,
 	//		Balance:       100,
