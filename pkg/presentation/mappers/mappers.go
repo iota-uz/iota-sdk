@@ -2,6 +2,8 @@ package mappers
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
+	"slices"
 	"strconv"
 	"time"
 
@@ -113,10 +115,17 @@ func EmployeeToViewModel(entity *employee.Employee) *viewmodels.Employee {
 }
 
 func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
+	var url string
+	if slices.Contains([]string{".xls", ".xlsx"}, entity.Mimetype.Extension()) {
+		url = "/assets/" + assets.HashFS.HashName("images/excel-logo.svg")
+	} else {
+		url = "/" + entity.Path
+	}
+
 	return &viewmodels.Upload{
 		ID:        strconv.FormatUint(uint64(entity.ID), 10),
 		Hash:      entity.Hash,
-		URL:       "/" + entity.Path,
+		URL:       url,
 		Mimetype:  entity.Mimetype.String(),
 		Size:      strconv.Itoa(entity.Size),
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
