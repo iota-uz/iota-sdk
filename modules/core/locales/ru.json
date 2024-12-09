@@ -2,6 +2,15 @@
   "Errors": {
     "Internal": "Внутренная серверная ошибка"
   },
+  "Spotlight": {
+    "Placeholder": "Поиск...",
+    "NothingFound": "Ничего не найдено",
+    "Actions": {
+      "AddUser": "Добавить пользователя",
+      "AddExpense": "Добавить расход",
+      "AddPayment": "Добавить платеж"
+    }
+  },
   "ErrorPages": {
     "NotFound": {
       "Title": "404",

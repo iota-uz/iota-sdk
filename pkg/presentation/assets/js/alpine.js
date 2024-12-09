@@ -234,10 +234,52 @@ let checkboxes = () => ({
   }
 });
 
+let spotlight = () => ({
+  isOpen: false,
+  query: '',
+  highlightedIndex: 0,
+  items: ['Profile', 'Settings', 'Logout', 'Help'],
+
+  get filteredItems() {
+    if (!this.query) {
+      return this.items;
+    }
+    return this.items.filter(item => item.toLowerCase().includes(this.query.toLowerCase()));
+  },
+
+  handleShortcut(event) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+      event.preventDefault();
+      this.open();
+    }
+  },
+
+  open() {
+    this.isOpen = true;
+    this.$nextTick(() => {
+      const input = this.$refs.input;
+      if (input) {
+        input.focus();
+      }
+    });
+  },
+
+  close() {
+    this.isOpen = false;
+    this.query = '';
+    this.highlightedIndex = 0;
+  },
+
+  highlight(index) {
+    this.highlightedIndex = index;
+  },
+});
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
   Alpine.data("combobox", combobox);
   Alpine.data("checkboxes", checkboxes);
+  Alpine.data("spotlight", spotlight);
 });
