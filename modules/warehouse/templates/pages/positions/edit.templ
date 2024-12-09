@@ -33,15 +33,20 @@ templ EditForm(props *EditPageProps) {
 				Uploads:  props.Position.Images,
 			})
 			@input.Text(&input.Props{
-				Label: props.T("WarehousePositions.Single.Title"),
+				Label:       props.T("WarehousePositions.Single.Title.Label"),
+				Placeholder: props.T("WarehousePositions.Single.Title.Placeholder"),
+				Error:       props.Errors["Title"],
 				Attrs: templ.Attributes{
-					"value": props.Position.Title,
-					"name":  "FirstName",
-					"form":  "save-form",
+					"autofocus": true,
+					"value":     props.Position.Title,
+					"name":      "Title",
+					"form":      "save-form",
 				},
 			})
 			@input.Text(&input.Props{
-				Label: props.T("WarehousePositions.Single.Barcode"),
+				Label:       props.T("WarehousePositions.Single.Barcode.Label"),
+				Placeholder: props.T("WarehousePositions.Single.Barcode.Placeholder"),
+				Error:       props.Errors["Barcode"],
 				Attrs: templ.Attributes{
 					"name":  "Barcode",
 					"form":  "save-form",

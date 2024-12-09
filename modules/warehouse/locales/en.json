@@ -64,8 +64,14 @@
     },
     "Single": {
       "Images": "Images",
-      "Title": "Title",
-      "Barcode": "Barcode",
+      "Title": {
+        "Label": "Title",
+        "Placeholder": "e.g. Power drill"
+      },
+      "Barcode": {
+        "Label": "Barcode",
+        "Placeholder": "e.g. 1234567890"
+      },
       "Unit": "Unit",
       "SelectUnit": "Select unit",
       "Delete": "Delete",
