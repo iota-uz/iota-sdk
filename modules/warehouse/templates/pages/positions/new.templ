@@ -36,15 +36,18 @@ templ CreateForm(props *CreatePageProps) {
 				Multiple: true,
 			})
 			@input.Text(&input.Props{
-				Label: props.T("WarehousePositions.Single.Title"),
+				Label:       props.T("WarehousePositions.Single.Title.Label"),
+				Placeholder: props.T("WarehousePositions.Single.Title.Placeholder"),
 				Attrs: templ.Attributes{
-					"name": "Title",
-					"form": "save-form",
+					"autofocus": true,
+					"name":      "Title",
+					"form":      "save-form",
 				},
 				Error: props.Errors["Title"],
 			})
 			@input.Text(&input.Props{
-				Label: props.T("WarehousePositions.Single.Barcode"),
+				Label:       props.T("WarehousePositions.Single.Barcode.Label"),
+				Placeholder: props.T("WarehousePositions.Single.Barcode.Placeholder"),
 				Attrs: templ.Attributes{
 					"name": "Barcode",
 					"form": "save-form",

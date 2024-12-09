@@ -67,8 +67,14 @@
     },
     "Single": {
       "Images": "Изображения",
-      "Title": "Название",
-      "Barcode": "Артикул",
+      "Title": {
+        "Label": "Наименование",
+        "Placeholder": "пр.: Блок питания"
+      },
+      "Barcode": {
+        "Label": "Артикул",
+        "Placeholder": "пр.: 123456"
+      },
       "Unit": "Единица",
       "SelectUnit": "Выбрать единицу",
       "Delete": "Удалить",
