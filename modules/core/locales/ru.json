@@ -8,7 +8,8 @@
     "Actions": {
       "AddUser": "Добавить пользователя",
       "AddExpense": "Добавить расход",
-      "AddPayment": "Добавить платеж"
+      "AddPayment": "Добавить платеж",
+      "AddAccount": "Добавить счет"
     }
   },
   "ErrorPages": {

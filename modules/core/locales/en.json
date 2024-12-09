@@ -8,7 +8,8 @@
     "Actions": {
       "AddUser": "Add user",
       "AddExpense": "Add expense",
-      "AddPayment": "Add payment"
+      "AddPayment": "Add payment",
+      "AddAccount": "Add account"
     }
   },
   "ErrorPages": {

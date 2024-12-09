@@ -132,6 +132,7 @@ templ avatar() {
 templ Navbar(pageCtx *types.PageContext) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
+			@spotlight.Spotlight()
 			<div class="flex items-center justify-center">
 				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked/>
 				<label for="theme-light" class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/system:visible">
@@ -187,7 +188,6 @@ templ Navbar(pageCtx *types.PageContext) {
 
 templ Authenticated(pageCtx *types.PageContext) {
 	@Base(pageCtx) {
-		@spotlight.Spotlight()
 		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
 			@sidebar(pageCtx)
 			<div>

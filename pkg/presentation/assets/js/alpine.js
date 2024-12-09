@@ -236,16 +236,7 @@ let checkboxes = () => ({
 
 let spotlight = () => ({
   isOpen: false,
-  query: '',
   highlightedIndex: 0,
-  items: ['Profile', 'Settings', 'Logout', 'Help'],
-
-  get filteredItems() {
-    if (!this.query) {
-      return this.items;
-    }
-    return this.items.filter(item => item.toLowerCase().includes(this.query.toLowerCase()));
-  },
 
   handleShortcut(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
@@ -259,20 +250,32 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const input = this.$refs.input;
       if (input) {
-        input.focus();
+        setTimeout(() => input.focus(), 50);
       }
     });
   },
 
   close() {
     this.isOpen = false;
-    this.query = '';
     this.highlightedIndex = 0;
   },
 
-  highlight(index) {
-    this.highlightedIndex = index;
+  highlightNext() {
+    const itemsCount = document.getElementById(this.$id('spotlight')).childElementCount
+    this.highlightedIndex = (this.highlightedIndex + 1) % itemsCount;
   },
+
+  highlightPrevious() {
+    const itemsCount = document.getElementById(this.$id('spotlight')).childElementCount
+    this.highlightedIndex = (this.highlightedIndex - 1 + itemsCount) % itemsCount;
+  },
+
+  goToLink() {
+    const item = document.getElementById(this.$id('spotlight')).children[this.highlightedIndex];
+    if (item) {
+      item.children[0].click();
+    }
+  }
 });
 
 document.addEventListener("alpine:init", () => {
