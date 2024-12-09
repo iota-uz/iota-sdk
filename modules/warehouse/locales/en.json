@@ -1,4 +1,7 @@
 {
+  "Errors": {
+    "ERR_INVALID_CELL": "Error processing cell \"{{.Col}}:{{.Row}}\""
+  },
   "NavigationLinks": {
     "Warehouse": "Warehouse",
     "Products": "Products",
