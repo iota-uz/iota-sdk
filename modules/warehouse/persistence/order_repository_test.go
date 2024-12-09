@@ -72,55 +72,55 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	); err != nil {
 		t.Fatal(err)
 	}
-	//
-	//t.Run( //nolint:paralleltest
-	//	"Count", func(t *testing.T) {
-	//		count, err := orderRepository.Count(ctx.Context)
-	//		if err != nil {
-	//			t.Fatal(err)
-	//		}
-	//		if count != 1 {
-	//			t.Errorf("expected 1, got %d", count)
-	//		}
-	//	},
-	//)
-	//
-	//t.Run( //nolint:paralleltest
-	//	"GetPaginated", func(t *testing.T) {
-	//		orders, err := orderRepository.GetPaginated(ctx.Context, &order.FindParams{
-	//			Limit:  1,
-	//			Offset: 0,
-	//			SortBy: []string{"id desc"},
-	//		})
-	//		if err != nil {
-	//			t.Fatal(err)
-	//		}
-	//		if len(orders) != 1 {
-	//			t.Errorf("expected 1, got %d", len(orders))
-	//		}
-	//		if len(orders[0].Products) != 1 {
-	//			t.Errorf("expected 1, got %d", len(orders[0].Products))
-	//		}
-	//	},
-	//)
-	//
-	//t.Run( //nolint:paralleltest
-	//	"GetAll", func(t *testing.T) {
-	//		orders, err := orderRepository.GetAll(ctx.Context)
-	//		if err != nil {
-	//			t.Fatal(err)
-	//		}
-	//		if len(orders) != 1 {
-	//			t.Errorf("expected 1, got %d", len(orders))
-	//		}
-	//		if len(orders[0].Products) != 1 {
-	//			t.Errorf("expected 1, got %d", len(orders[0].Products))
-	//		}
-	//		if orders[0].Status != order.Pending {
-	//			t.Errorf("expected %s, got %s", order.Pending, orders[0].Status)
-	//		}
-	//	},
-	//)
+
+	t.Run( //nolint:paralleltest
+		"Count", func(t *testing.T) {
+			count, err := orderRepository.Count(ctx.Context)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 {
+				t.Errorf("expected 1, got %d", count)
+			}
+		},
+	)
+
+	t.Run( //nolint:paralleltest
+		"GetPaginated", func(t *testing.T) {
+			orders, err := orderRepository.GetPaginated(ctx.Context, &order.FindParams{
+				Limit:  1,
+				Offset: 0,
+				SortBy: []string{"id desc"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(orders) != 1 {
+				t.Errorf("expected 1, got %d", len(orders))
+			}
+			if len(orders[0].Products) != 1 {
+				t.Errorf("expected 1, got %d", len(orders[0].Products))
+			}
+		},
+	)
+
+	t.Run( //nolint:paralleltest
+		"GetAll", func(t *testing.T) {
+			orders, err := orderRepository.GetAll(ctx.Context)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(orders) != 1 {
+				t.Errorf("expected 1, got %d", len(orders))
+			}
+			if len(orders[0].Products) != 1 {
+				t.Errorf("expected 1, got %d", len(orders[0].Products))
+			}
+			if orders[0].Status != order.Pending {
+				t.Errorf("expected %s, got %s", order.Pending, orders[0].Status)
+			}
+		},
+	)
 
 	t.Run( //nolint:paralleltest
 		"GetByID", func(t *testing.T) {
@@ -137,23 +137,23 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		},
 	)
 
-	//t.Run( //nolint:paralleltest
-	//	"Update", func(t *testing.T) {
-	//		if err := orderRepository.Update(
-	//			ctx.Context, &order.Order{
-	//				ID:     1,
-	//				Status: order.Complete,
-	//			},
-	//		); err != nil {
-	//			t.Fatal(err)
-	//		}
-	//		orderEntity, err := orderRepository.GetByID(ctx.Context, 1)
-	//		if err != nil {
-	//			t.Fatal(err)
-	//		}
-	//		if orderEntity.Status != order.Complete {
-	//			t.Errorf("expected %s, got %s", order.Complete, orderEntity.Status)
-	//		}
-	//	},
-	//)
+	t.Run( //nolint:paralleltest
+		"Update", func(t *testing.T) {
+			if err := orderRepository.Update(
+				ctx.Context, &order.Order{
+					ID:     1,
+					Status: order.Complete,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			orderEntity, err := orderRepository.GetByID(ctx.Context, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if orderEntity.Status != order.Complete {
+				t.Errorf("expected %s, got %s", order.Complete, orderEntity.Status)
+			}
+		},
+	)
 }
