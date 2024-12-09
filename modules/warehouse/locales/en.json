@@ -137,14 +137,8 @@
         "Title": "Warehouse orders"
       },
       "New": "New order",
-      "Title": "Title",
-      "Status": "Status",
-      "SelectStatus": "Select status",
-      "Statuses": {
-        "in_progress": "In progress",
-        "completed": "Completed",
-        "canceled": "Canceled"
-      }
+      "Type": "Type",
+      "Status": "Status"
     },
     "New": {
       "Meta": {
@@ -157,13 +151,12 @@
       }
     },
     "Single": {
-      "Title": "Title",
+      "Type": "Type",
+      "TypePlaceholder": "Select type",
       "Status": "Status",
-      "SelectStatus": "Select status",
-      "Statuses": {
-        "in_progress": "In progress",
-        "completed": "Completed",
-        "canceled": "Canceled"
+      "Types": {
+        "In": "Acceptance",
+        "Out": "Shipment"
       },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse order?"
