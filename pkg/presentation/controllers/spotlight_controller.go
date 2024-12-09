@@ -85,6 +85,10 @@ func (c *SpotlightController) spotlightItems(localizer *i18n.Localizer) []*spotl
 			Title: t("Spotlight.Actions.AddAccount"),
 			Link:  "/finance/accounts/new",
 		},
+		{
+			Icon:  icons.SignOut(icons.Props{Size: "24"}),
+			Title: t("NavigationLinks.Navbar.Logout"),
+		},
 	}
 	for _, item := range navItems {
 		items = append(items, &spotlight.SpotlightItem{
