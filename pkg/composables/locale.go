@@ -33,6 +33,25 @@ func UseLocalizer(ctx context.Context) (*i18n.Localizer, bool) {
 	return l, true
 }
 
+// MustUseLocalizer returns the localizer from the context.
+// If the localizer is not found, it will panic.
+func MustUseLocalizer(ctx context.Context) *i18n.Localizer {
+	l, ok := UseLocalizer(ctx)
+	if !ok {
+		panic("localizer not found in context")
+	}
+	return l
+}
+
+// MustT returns the translation for the given message ID.
+// If the translation is not found, it will panic.
+func MustT(ctx context.Context, msgID string) string {
+	l := MustUseLocalizer(ctx)
+	return l.MustLocalize(&i18n.LocalizeConfig{
+		MessageID: msgID,
+	})
+}
+
 func loadUniTranslator() *ut.UniversalTranslator {
 	enLocale := en.New()
 	ruLocale := ru.New()

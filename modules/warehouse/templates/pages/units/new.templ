@@ -35,7 +35,7 @@ templ CreateForm(props *CreatePageProps) {
 				Error: props.Errors["Title"],
 			})
 			@input.Text(&input.Props{
-				Label: props.T("WarehouseUnits.Single.ShortTitle.Label"),
+				Label:       props.T("WarehouseUnits.Single.ShortTitle.Label"),
 				Placeholder: props.T("WarehouseUnits.Single.ShortTitle.Placeholder"),
 				Attrs: templ.Attributes{
 					"name":  "ShortTitle",
