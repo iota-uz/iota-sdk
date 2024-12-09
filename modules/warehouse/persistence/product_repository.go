@@ -106,6 +106,18 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 	return nil
 }
 
+func (g *GormProductRepository) BulkCreate(ctx context.Context, data []*product.Product) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return composables.ErrNoTx
+	}
+	dbRows := make([]*models.WarehouseProduct, len(data))
+	for i, p := range data {
+		dbRows[i] = toDBProduct(p)
+	}
+	return tx.Create(dbRows).Error
+}
+
 func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *product.Product) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

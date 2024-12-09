@@ -72,7 +72,7 @@ func toDBProduct(entity *product.Product) *models.WarehouseProduct {
 	return &models.WarehouseProduct{
 		ID:         entity.ID,
 		PositionID: entity.PositionID,
-		Rfid:       entity.Rfid,
+		Rfid:       mapping.Pointer(entity.Rfid),
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt,
 		UpdatedAt:  entity.UpdatedAt,
@@ -94,7 +94,7 @@ func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, erro
 	return &product.Product{
 		ID:         dbProduct.ID,
 		PositionID: dbProduct.PositionID,
-		Rfid:       dbProduct.Rfid,
+		Rfid:       mapping.Value(dbProduct.Rfid),
 		Position:   pos,
 		Status:     status,
 		CreatedAt:  dbProduct.CreatedAt,

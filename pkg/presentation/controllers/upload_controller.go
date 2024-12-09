@@ -83,7 +83,8 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 			Size: int(header.Size),
 		}
 
-		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		// TODO: proper error handling
+		if _, ok := dto.Ok(pageCtx.UniTranslator); !ok {
 			_, _, err := dto.ToEntity()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -92,7 +93,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 			props := &components.UploadInputProps{
 				ID:      id,
 				Uploads: nil,
-				Errors:  errorsMap,
+				Error:   "",
 				Form:    formName,
 				Name:    name,
 			}

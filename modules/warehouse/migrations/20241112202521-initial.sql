@@ -30,7 +30,7 @@ CREATE TABLE warehouse_products
 (
     id          SERIAL PRIMARY KEY,
     position_id INT          NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-    rfid        VARCHAR(255) NOT NULL UNIQUE,
+    rfid        VARCHAR(255) NULL UNIQUE,
     status      VARCHAR(255) NOT NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp

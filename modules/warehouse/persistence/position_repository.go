@@ -118,12 +118,16 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	if err := tx.Create(positionRow).Error; err != nil {
 		return err
 	}
+	data.ID = positionRow.ID
+	if len(junctionRows) == 0 {
+		return nil
+	}
 	for _, junctionRow := range junctionRows {
 		// TODO: this feels like a hack
 		junctionRow.WarehousePositionID = positionRow.ID
-		if err := tx.Create(junctionRow).Error; err != nil {
-			return err
-		}
+	}
+	if err := tx.Create(junctionRows).Error; err != nil {
+		return err
 	}
 	return nil
 }

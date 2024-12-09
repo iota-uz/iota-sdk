@@ -2,12 +2,13 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"net/http"
 
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/products"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -24,8 +25,8 @@ import (
 
 type ProductsController struct {
 	app             application.Application
-	productService  *services.ProductService
-	positionService *services.PositionService
+	productService  *product_service.ProductService
+	positionService *position_service.PositionService
 	basePath        string
 }
 
@@ -37,8 +38,8 @@ type PaginatedResponse struct {
 func NewProductsController(app application.Application) application.Controller {
 	return &ProductsController{
 		app:             app,
-		productService:  app.Service(services.ProductService{}).(*services.ProductService),
-		positionService: app.Service(services.PositionService{}).(*services.PositionService),
+		productService:  app.Service(product_service.ProductService{}).(*product_service.ProductService),
+		positionService: app.Service(position_service.PositionService{}).(*position_service.PositionService),
 		basePath:        "/warehouse/products",
 	}
 }

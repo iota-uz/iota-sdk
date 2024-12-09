@@ -7,6 +7,8 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/templates"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
@@ -32,16 +34,17 @@ func (m *Module) Register(app application.Application) error {
 	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher())
 	app.RegisterService(unitService)
 
-	positionService := services.NewPositionService(
+	productService := product_service.NewProductService(persistence.NewProductRepository(), app.EventPublisher())
+	app.RegisterService(productService)
+
+	positionService := position_service.NewPositionService(
 		persistence.NewPositionRepository(),
 		app.EventPublisher(),
 		app,
 	)
-	productService := services.NewProductService(persistence.NewProductRepository(), app.EventPublisher(), positionService)
 	orderService := services.NewOrderService(persistence.NewOrderRepository(), app.EventPublisher())
 
 	app.RegisterService(positionService)
-	app.RegisterService(productService)
 	app.RegisterService(orderService)
 
 	app.RegisterPermissions(

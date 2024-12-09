@@ -1,24 +1,27 @@
-package services
+package position_service
 
 import (
 	"context"
 	"errors"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/services"
-	"github.com/xuri/excelize/v2"
+	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"gorm.io/gorm"
 )
 
 type PositionService struct {
-	repo          position.Repository
-	publisher     event.Publisher
-	uploadService *services.UploadService
-	unitService   *UnitService
+	repo           position.Repository
+	publisher      event.Publisher
+	uploadService  *coreservices.UploadService
+	unitService    *services.UnitService
+	productService *product_service.ProductService
 }
 
 func NewPositionService(
@@ -27,10 +30,11 @@ func NewPositionService(
 	app application.Application,
 ) *PositionService {
 	return &PositionService{
-		repo:          repo,
-		publisher:     publisher,
-		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
-		unitService:   app.Service(UnitService{}).(*UnitService),
+		repo:           repo,
+		publisher:      publisher,
+		uploadService:  app.Service(coreservices.UploadService{}).(*coreservices.UploadService),
+		unitService:    app.Service(services.UnitService{}).(*services.UnitService),
+		productService: app.Service(product_service.ProductService{}).(*product_service.ProductService),
 	}
 }
 
@@ -69,16 +73,30 @@ func (s *PositionService) findOrCreateUnit(ctx context.Context, unitName string)
 	return nil, err
 }
 
-func (s *PositionService) createPosition(ctx context.Context, posRow *position.XlsRow, unitId uint) error {
-	pos := &position.CreateDTO{
+func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, unitId uint) error {
+	data := &position.CreateDTO{
 		Title:   posRow.Title,
 		Barcode: posRow.Barcode,
 		UnitID:  unitId,
 	}
-	return s.Create(ctx, pos)
+	pos, err := s.Create(ctx, data)
+	if err != nil {
+		return err
+	}
+	if posRow.Quantity == 0 {
+		return nil
+	}
+	products := make([]*product.CreateDTO, 0)
+	for i := 0; i < posRow.Quantity; i++ {
+		products = append(products, &product.CreateDTO{
+			PositionID: pos.ID,
+			Status:     string(product.InStock),
+		})
+	}
+	return s.productService.BulkCreate(ctx, products)
 }
 
-func (s *PositionService) UploadFromFile(ctx context.Context, fileID uint) error {
+func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error {
 	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
 		return err
 	}
@@ -86,41 +104,34 @@ func (s *PositionService) UploadFromFile(ctx context.Context, fileID uint) error
 	if err != nil {
 		return err
 	}
-	f, err := excelize.OpenFile(uploadEntity.Path)
+	rows, err := positionRowsFromFile(uploadEntity.Path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	sheets := f.GetSheetList()
-	rows, err := f.GetRows(sheets[0])
-	if err != nil {
-		return err
+	unitNameToID := make(map[string]uint)
+	for _, u := range uniqueUnits(rows) {
+		entity, err := s.findOrCreateUnit(ctx, u)
+		if err != nil {
+			return err
+		}
+		unitNameToID[u] = entity.ID
 	}
+
 	for _, row := range rows {
-		posRow, err := position.XlsRowFromStrings(row)
-		if err != nil && errors.Is(err, position.ErrInvalidRow) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		unitEntity, err := s.findOrCreateUnit(ctx, posRow.Unit)
-		if err != nil {
-			return err
-		}
-		entity, err := s.repo.GetByBarcode(ctx, posRow.Barcode)
+		unitID := unitNameToID[row.Unit]
+		entity, err := s.repo.GetByBarcode(ctx, row.Barcode)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if err := s.createPosition(ctx, posRow, unitEntity.ID); err != nil {
+			if err := s.createPosition(ctx, row, unitID); err != nil {
 				return err
 			}
 		} else {
 			pos := &position.UpdateDTO{
-				Title:   posRow.Title,
-				UnitID:  unitEntity.ID,
-				Barcode: posRow.Barcode,
+				Title:   row.Title,
+				UnitID:  unitID,
+				Barcode: row.Barcode,
 			}
 			if err := s.Update(ctx, entity.ID, pos); err != nil {
 				return err
@@ -130,23 +141,23 @@ func (s *PositionService) UploadFromFile(ctx context.Context, fileID uint) error
 	return nil
 }
 
-func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) error {
+func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (*position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
-		return err
+		return nil, err
 	}
 	entity, err := data.ToEntity()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {
-		return err
+		return nil, err
 	}
 	createdEvent, err := position.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return nil
+	return entity, nil
 }
 
 func (s *PositionService) Update(ctx context.Context, id uint, data *position.UpdateDTO) error {

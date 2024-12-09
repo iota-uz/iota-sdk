@@ -13,11 +13,6 @@ const (
 	Lenient
 )
 
-// Pointer is a utility function that returns a pointer to the given value.
-func Pointer[T any](v T) *T {
-	return &v
-}
-
 // StrictMapping is a wrapper around DefaultMapping with Strict behaviour.
 func StrictMapping(source interface{}, target interface{}) error {
 	return DefaultMapping(source, target, Strict)

@@ -1,4 +1,7 @@
 {
+  "Errors": {
+    "ERR_INVALID_CELL": "Ошибка при обработке ячейки \"{{.Col}}:{{.Row}}\""
+  },
   "NavigationLinks": {
     "Warehouse": "Склад",
     "Products": "Продукты",
