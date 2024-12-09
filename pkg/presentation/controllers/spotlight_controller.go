@@ -5,9 +5,10 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"net/http"
-	"regexp"
+	"sort"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -101,18 +102,17 @@ func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 		templ.Handler(spotlight.SpotlightItems([]*spotlight.SpotlightItem{})).ServeHTTP(w, r)
 		return
 	}
-	qRegex, err := regexp.Compile("(?i)" + regexp.QuoteMeta(q))
-	if err != nil {
-		http.Error(w, "invalid regex", http.StatusBadRequest)
-		return
-	}
 
 	items := c.spotlightItems(localizer)
 	var filteredItems []*spotlight.SpotlightItem
-	for _, item := range items {
-		if qRegex.MatchString(item.Title) {
-			filteredItems = append(filteredItems, item)
-		}
+	words := make([]string, len(items))
+	for i, item := range items {
+		words[i] = item.Title
+	}
+	ranks := fuzzy.RankFindNormalizedFold(q, words)
+	sort.Sort(ranks)
+	for _, rank := range ranks {
+		filteredItems = append(filteredItems, items[rank.OriginalIndex])
 	}
 	templ.Handler(spotlight.SpotlightItems(filteredItems)).ServeHTTP(w, r)
 }
