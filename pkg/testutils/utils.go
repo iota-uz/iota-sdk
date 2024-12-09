@@ -8,13 +8,18 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/logging"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
+	"log"
+	"os"
 	"strings"
+	"time"
 )
 
 type TestContext struct {
@@ -22,6 +27,7 @@ type TestContext struct {
 	GormDB  *gorm.DB
 	Context context.Context
 	Tx      *gorm.DB
+	App     application.Application
 }
 
 func DBSetup(app application.Application) error {
@@ -51,12 +57,50 @@ func DropPublicSchema(db *sql.DB) error {
 	return err
 }
 
+func MockUser(permissions ...permission.Permission) *user.User {
+	return &user.User{
+		ID:         1,
+		FirstName:  "",
+		LastName:   "",
+		MiddleName: "",
+		Password:   "",
+		Email:      "",
+		AvatarID:   nil,
+		Avatar:     nil,
+		EmployeeID: nil,
+		LastIP:     nil,
+		UILanguage: "",
+		LastLogin:  nil,
+		LastAction: nil,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+		Roles: []*role.Role{
+			{
+				ID:          1,
+				Name:        "admin",
+				Permissions: permissions,
+			},
+		},
+	}
+}
+
+func MockSession() *session.Session {
+	return &session.Session{
+		Token:     "",
+		UserID:    0,
+		IP:        "",
+		UserAgent: "",
+		ExpiresAt: time.Now(),
+		CreatedAt: time.Now(),
+	}
+}
+
 func GetTestContext() *TestContext {
 	conf := configuration.Use()
 	db, err := dbutils.ConnectDB(
 		conf.DBOpts,
 		gormlogger.New(
-			logging.ConsoleLogger(logrus.InfoLevel),
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			gormlogger.Config{
 				SlowThreshold:             0,
 				LogLevel:                  gormlogger.Info,
@@ -99,5 +143,6 @@ func GetTestContext() *TestContext {
 		GormDB:  db,
 		Tx:      tx,
 		Context: ctx,
+		App:     app,
 	}
 }
