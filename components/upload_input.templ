@@ -12,7 +12,7 @@ type UploadInputProps struct {
 	Label       string
 	Placeholder string
 	Uploads     []*viewmodels.Upload
-	Errors      map[string]string
+	Error       string
 	Accept      string
 	Name        string
 	Form        string
@@ -81,8 +81,13 @@ templ (p *UploadInputProps) render() {
 				}
 			</div>
 			<p class="text-xs uppercase">
-			    { p.Placeholder }
+				{ p.Placeholder }
 			</p>
+			if p.Error != "" {
+				<p class="text-red-500 text-xs mt-2">
+					{ p.Error }
+				</p>
+			}
 		</div>
 	</div>
 }

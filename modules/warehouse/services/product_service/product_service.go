@@ -1,28 +1,25 @@
-package services
+package product_service
 
 import (
 	"context"
-	product2 "github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
 
 type ProductService struct {
-	repo            product2.Repository
-	publisher       event.Publisher
-	positionService *PositionService
+	repo      product.Repository
+	publisher event.Publisher
 }
 
 func NewProductService(
-	repo product2.Repository,
+	repo product.Repository,
 	publisher event.Publisher,
-	positionService *PositionService,
 ) *ProductService {
 	return &ProductService{
-		repo:            repo,
-		publisher:       publisher,
-		positionService: positionService,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -33,14 +30,14 @@ func (s *ProductService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *ProductService) GetByID(ctx context.Context, id uint) (*product2.Product, error) {
+func (s *ProductService) GetByID(ctx context.Context, id uint) (*product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ProductService) GetAll(ctx context.Context) ([]*product2.Product, error) {
+func (s *ProductService) GetAll(ctx context.Context) ([]*product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
@@ -51,14 +48,14 @@ func (s *ProductService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*product2.Product, error) {
+) ([]*product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *ProductService) Create(ctx context.Context, data *product2.CreateDTO) error {
+func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) error {
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return err
 	}
@@ -69,7 +66,7 @@ func (s *ProductService) Create(ctx context.Context, data *product2.CreateDTO) e
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := product2.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := product.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -77,7 +74,32 @@ func (s *ProductService) Create(ctx context.Context, data *product2.CreateDTO) e
 	return nil
 }
 
-func (s *ProductService) Update(ctx context.Context, id uint, data *product2.UpdateDTO) error {
+func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateDTO) error {
+	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
+		return err
+	}
+	entities := make([]*product.Product, len(data))
+	for i, d := range data {
+		entity, err := d.ToEntity()
+		if err != nil {
+			return err
+		}
+		entities[i] = entity
+	}
+	if err := s.repo.BulkCreate(ctx, entities); err != nil {
+		return err
+	}
+	for i, d := range data {
+		createdEvent, err := product.NewCreatedEvent(ctx, *d, *entities[i])
+		if err != nil {
+			return err
+		}
+		s.publisher.Publish(createdEvent)
+	}
+	return nil
+}
+
+func (s *ProductService) Update(ctx context.Context, id uint, data *product.UpdateDTO) error {
 	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
 		return err
 	}
@@ -88,7 +110,7 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product2.Upd
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := product2.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := product.NewUpdatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -96,7 +118,7 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product2.Upd
 	return nil
 }
 
-func (s *ProductService) Delete(ctx context.Context, id uint) (*product2.Product, error) {
+func (s *ProductService) Delete(ctx context.Context, id uint) (*product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductDelete); err != nil {
 		return nil, err
 	}
@@ -107,7 +129,7 @@ func (s *ProductService) Delete(ctx context.Context, id uint) (*product2.Product
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := product2.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := product.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}

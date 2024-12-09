@@ -1,13 +1,13 @@
 package user
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"strings"
 	"time"
 
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/mapper"
 	"github.com/iota-agency/iota-sdk/pkg/utils/sequence"
 
 	ut "github.com/go-playground/universal-translator"
@@ -172,8 +172,8 @@ func (u *User) ToGraph() *model.User {
 		LastName:   u.LastName,
 		MiddleName: &u.MiddleName,
 		Email:      u.Email,
-		//AvatarID:   mapper.Pointer(int64(*u.AvatarID)),
-		EmployeeID: mapper.Pointer(int64(*u.EmployeeID)),
+		//AvatarID:   mapping.Pointer(int64(*u.AvatarID)),
+		EmployeeID: mapping.Pointer(int64(*u.EmployeeID)),
 		LastIP:     u.LastIP,
 		LastLogin:  u.LastLogin,
 		LastAction: u.LastAction,

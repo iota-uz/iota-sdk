@@ -58,7 +58,7 @@ type WarehouseProduct struct {
 	ID         uint
 	PositionID uint
 	Position   *WarehousePosition
-	Rfid       string
+	Rfid       *string
 	Status     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
