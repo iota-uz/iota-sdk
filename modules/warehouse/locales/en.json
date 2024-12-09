@@ -110,8 +110,14 @@
       }
     },
     "Single": {
-      "Title": "Title",
-      "ShortTitle": "Short title",
+      "Title": {
+        "Label": "Title",
+        "Placeholder": "e.g. Kilogram"
+      },
+      "ShortTitle": {
+        "Label": "Short title",
+        "Placeholder": "e.g. kg"
+      },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse unit?"
     }
