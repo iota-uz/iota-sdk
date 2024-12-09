@@ -88,8 +88,8 @@
         "Quantity": "Кол-во",
         "Below": "Ниже приведен пример файла Excel для загрузки"
       },
-      "UploadLabel": "Файлы",
-      "UploadPlaceholder": ".xls, .xlsx",
+      "UploadLabel": "Выбрать файл",
+      "UploadPlaceholder": "Выберите файл",
       "Submit": "Загрузить"
     }
   },
