@@ -113,8 +113,14 @@
       }
     },
     "Single": {
-      "Title": "Название",
-      "ShortTitle": "Краткое название",
+      "Title": {
+        "Label": "Название",
+        "Placeholder": "пр.: Килограмм"
+      },
+      "ShortTitle": {
+        "Label": "Краткое название",
+        "Placeholder": "пр.: кг"
+      },
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить эту единицу изменерения?"
     }

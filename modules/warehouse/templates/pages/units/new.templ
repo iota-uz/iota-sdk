@@ -1,10 +1,10 @@
 package units
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
@@ -25,15 +25,18 @@ templ CreateForm(props *CreatePageProps) {
 	>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
-				Label: props.T("WarehouseUnits.Single.Title"),
+				Label:       props.T("WarehouseUnits.Single.Title.Label"),
+				Placeholder: props.T("WarehouseUnits.Single.Title.Placeholder"),
 				Attrs: templ.Attributes{
-					"name":  "Title",
-					"value": props.Unit.Title,
+					"autofocus": true,
+					"name":      "Title",
+					"value":     props.Unit.Title,
 				},
 				Error: props.Errors["Title"],
 			})
 			@input.Text(&input.Props{
-				Label: props.T("WarehouseUnits.Single.ShortTitle"),
+				Label: props.T("WarehouseUnits.Single.ShortTitle.Label"),
+				Placeholder: props.T("WarehouseUnits.Single.ShortTitle.Placeholder"),
 				Attrs: templ.Attributes{
 					"name":  "ShortTitle",
 					"value": props.Unit.ShortTitle,
