@@ -3,7 +3,6 @@ package orders
 import (
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type TypeSelectProps struct {
@@ -27,7 +26,6 @@ var (
 )
 
 templ TypeSelect(props *TypeSelectProps) {
-	{{ localizer, _ := composables.UseLocalizer(ctx) }}
 	@base.Select(&base.SelectProps{
 		Label:       props.Label,
 		Placeholder: props.Placeholder,
@@ -37,11 +35,11 @@ templ TypeSelect(props *TypeSelectProps) {
 		for _, t := range Types {
 			if t.Value == props.Value {
 				<option value={ t.Value } selected>
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: t.Label}) }
+					{ composables.MustT(ctx, t.Label) }
 				</option>
 			} else {
 				<option value={ t.Value }>
-					{ localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: t.Label}) }
+					{ composables.MustT(ctx, t.Label) }
 				</option>
 			}
 		}
