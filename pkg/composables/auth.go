@@ -24,6 +24,15 @@ func UseUser(ctx context.Context) (*user.User, error) {
 	return u, nil
 }
 
+// MustUseUser returns the user from the context. If no user is found, it panics.
+func MustUseUser(ctx context.Context) *user.User {
+	u, err := UseUser(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
 func CanUser(ctx context.Context, permission permission.Permission) error {
 	u, err := UseUser(ctx)
 	if err != nil {

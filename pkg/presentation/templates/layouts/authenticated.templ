@@ -2,7 +2,6 @@ package layouts
 
 import (
 	"bytes"
-	"context"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -68,14 +67,6 @@ func isAnyChildrenActive(pathname string, children []types.NavigationItem) bool 
 	return false
 }
 
-func initials(ctx context.Context) string {
-	u, err := composables.UseUser(ctx)
-	if err != nil {
-		return ""
-	}
-	return mappers.UserToViewModel(u).Initials()
-}
-
 templ renderNavItem(i types.NavigationItem, pathname string) {
 	<li>
 		if len(i.Children) > 0 {
@@ -127,8 +118,13 @@ templ sidebar(pageCtx *types.PageContext) {
 }
 
 templ avatar() {
+	{{ u := mappers.UserToViewModel(composables.MustUseUser(ctx)) }}
 	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
-		{ initials(ctx) }
+		if u.Avatar != nil {
+			<img src={ u.Avatar.URL } alt="Avatar" class="w-9 h-9 rounded-full"/>
+		} else {
+			{ u.Initials() }
+		}
 	</summary>
 }
 
