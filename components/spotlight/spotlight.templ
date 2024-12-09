@@ -1,32 +1,46 @@
 package spotlight
 
-import "github.com/iota-agency/iota-sdk/pkg/composables"
+import (
+	"fmt"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+)
 
 templ Spotlight() {
 	<div
 		x-data="spotlight"
-		class="relative w-screen"
+		class="relative"
 		x-id="['spotlight']"
 	>
+		<button
+			@click="open()"
+			class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer"
+		>
+			@icons.MagnifyingGlass(icons.Props{
+				Size: "20",
+			})
+		</button>
 		<!-- Spotlight Trigger -->
 		<div @keydown.window="handleShortcut($event)"></div>
 		<!-- Spotlight Modal -->
 		<div
-			x-show="isOpen"
 			@keydown.escape.window="close()"
-			class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50"
+			class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50 w-screen"
+			x-show="isOpen"
 			x-cloak
 		>
 			<div
-				class="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg w-3/4"
+				class="bg-white p-6 rounded-lg shadow-lg w-3/4"
 				@click.away="close()"
 				x-transition
 			>
 				<!-- Search Input -->
 				<input
 					type="text"
-					x-model="query"
-					class="w-full border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+					@keydown.up="highlightPrevious"
+					@keydown.down="highlightNext"
+					@keydown.enter="goToLink"
+					class="w-full border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 					placeholder={ composables.MustT(ctx, "Spotlight.Placeholder") }
 					hx-get="/spotlight/search"
 					hx-trigger="input changed delay:250ms, search"
@@ -51,12 +65,11 @@ type SpotlightItem struct {
 }
 
 templ SpotlightItems(items []*SpotlightItem) {
-	// :class="{'bg-blue-500 text-white': index === highlightedIndex}"
 	if len(items) > 0 {
-		for _, item := range items {
+		for i, item := range items {
 			<li
-				class="p-2 rounded-md cursor-pointer hover:bg-blue-500 hover:text-white"
-				@mouseenter="highlight(index)"
+				class="p-2 rounded-md cursor-pointer hover:bg-gray-100"
+				:class={ fmt.Sprintf("{'bg-blue-500 text-white': highlightedIndex === %d }", i) }
 			>
 				<a href={ templ.SafeURL(item.Link) } class="flex items-center gap-2">
 					if item.Icon != nil {
@@ -67,7 +80,7 @@ templ SpotlightItems(items []*SpotlightItem) {
 			</li>
 		}
 	} else {
-		<li class="text-gray-500">
+		<li class="text-center text-gray-700">
 			{ composables.MustT(ctx, "Spotlight.NothingFound") }
 		</li>
 	}

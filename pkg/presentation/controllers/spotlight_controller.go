@@ -80,6 +80,11 @@ func (c *SpotlightController) spotlightItems(localizer *i18n.Localizer) []*spotl
 			Title: t("Spotlight.Actions.AddPayment"),
 			Link:  "/finance/payments/new",
 		},
+		{
+			Icon:  icons.PlusCircle(icons.Props{Size: "24"}),
+			Title: t("Spotlight.Actions.AddAccount"),
+			Link:  "/finance/accounts/new",
+		},
 	}
 	for _, item := range navItems {
 		items = append(items, &spotlight.SpotlightItem{
