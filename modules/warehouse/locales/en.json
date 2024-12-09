@@ -85,8 +85,8 @@
         "Quantity": "Quantity",
         "Below": "Below is an example of how the data should be entered:"
       },
-      "UploadLabel": "Files",
-      "UploadPlaceholder": ".xls, .xlsx",
+      "UploadLabel": "Choose a file",
+      "UploadPlaceholder": "Choose a file",
       "Submit": "Upload"
     }
   },
