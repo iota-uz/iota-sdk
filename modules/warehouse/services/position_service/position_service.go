@@ -96,15 +96,8 @@ func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, un
 	return s.productService.BulkCreate(ctx, products)
 }
 
-func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error {
-	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
-		return err
-	}
-	uploadEntity, err := s.uploadService.GetByID(ctx, fileID)
-	if err != nil {
-		return err
-	}
-	rows, err := positionRowsFromFile(uploadEntity.Path)
+func (s *PositionService) LoadFromFilePath(ctx context.Context, path string) error {
+	rows, err := positionRowsFromFile(path)
 	if err != nil {
 		return err
 	}
@@ -139,6 +132,17 @@ func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error
 		}
 	}
 	return nil
+}
+
+func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error {
+	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
+		return err
+	}
+	uploadEntity, err := s.uploadService.GetByID(ctx, fileID)
+	if err != nil {
+		return err
+	}
+	return s.LoadFromFilePath(ctx, uploadEntity.Path)
 }
 
 func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (*position.Position, error) {
