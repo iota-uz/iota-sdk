@@ -1,5 +1,10 @@
 # IOTA SDK Components
 
+## Requirements
+- [Alpine.js](https://alpinejs.dev)
+- [HTMX](https://htmx.org)
+- [Templ](https://templ.guide)
+
 ## Table of contents
 * [Button](#button)
   * [Usage](#usage)
@@ -13,6 +18,9 @@
 * [Combobox](#combobox)
   * [Usage](#usage-3)
   * [API](#api-3)
+* [Dialog](#dialog)
+  * [Usage](#usage-4)
+  * [API](#api-4)
 
 ## Button
 Button component to render a button or a link
@@ -247,3 +255,40 @@ templ BasicComboboxDemo() {
 | Endpoint      | `string`                                            | Endpoint for fettching dynamic list of options.
 | Searchable    | `boolean`                                           | Renders an `input` element as a trigger for search. `false` by default 
 | NotFoundText  | `string`                                            | Text to render if there are no options. 
+
+## Dialog
+A simple dialog component. Only confirmation dialog supported for now.
+
+### Usage
+
+#### Confirmation dialog
+```go
+import "github.com/iota-agency/iota-sdk/components/base/dialog"
+
+templ ConfirmationDemo() {
+  @dialog.Confirmation(&dialog.Props{
+    Heading:   "Delete this item",
+    Text:      "Are you sure you want to delete this item?",
+    Icon:      icons.Trash(icons.Props{Size: "20"}),
+    Action:    "open-delete-item-confirmation",
+    Attrs: templ.Attributes{
+      "@closing": `({target}) => {
+        if (target.returnValue === "confirm") {
+          let deleteForm = document.getElementById("delete-form");
+          htmx.trigger(deleteForm, "submit");
+        }
+      }`,
+    },
+  })
+  <button @click="$dispatch('open-delete-item-confirmation')">Delete item</button>
+}
+```
+
+### API
+| Name          | Type                                                | Description
+|---            |---                                                  |---
+| Heading       | `string`                                            | Heading text of dialog
+| Text          | `string`                                            | Text description of dialog
+| Action        | `string`                                            | Name of the action to listen to on the window to toggle the dialog. 
+| Attrs         | `templ.Attributes`                                  | Additional HTML attributes to the dialog element
+| Icon          | `templ.Component`                                   | An icon that's rendered in the middle of dialog
