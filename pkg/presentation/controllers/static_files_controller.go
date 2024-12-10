@@ -14,7 +14,11 @@ type StaticFilesController struct {
 }
 
 func (s *StaticFilesController) Register(r *mux.Router) {
-	handler := http.StripPrefix("/assets/", http.FileServer(multifs.New(s.fsInstances...)))
+	fsHandler := http.StripPrefix("/assets/", http.FileServer(multifs.New(s.fsInstances...)))
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		fsHandler.ServeHTTP(w, r)
+	})
 	r.PathPrefix("/assets/").Handler(handler)
 }
 
