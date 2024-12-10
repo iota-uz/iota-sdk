@@ -24,6 +24,9 @@
 * [Dropdown](#dropdown)
   * [Usage](#usage-5)
   * [API](#api-5)
+* [UploadInput](#upload-input)
+  * [Usage](#usage-6)
+  * [API](#api-6)
 
 ## Button
 Button component to render a button or a link
@@ -331,3 +334,34 @@ summary - `templ.Component`
 | Name          | Type                                                | Description
 |---            |---                                                  |---
 | Href          | `string`                                            | Link to resource. 
+
+
+## Upload input
+
+### Usage
+
+```go
+
+templ UploadInputDemo() {
+  @components.UploadInput(&components.UploadInputProps{
+    Label: "Select file",
+    Placeholder: "CSV, XLSX",
+    Accept:      "text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel",
+    Name:        "FileID",
+		})
+}
+```
+
+### API
+| Name          | Type                                                | Description
+|---            |---                                                  |---
+| ID            | `string`                                            | ID of the file input 
+| Label         | `string`                                            | Label text of the file input
+| Placeholder   | `string`                                            | Placeholder text of the file input
+| Error         | `string`                                            | Error message underneath the upload box.
+| Accept        | `string`                                            | Accept attribute of file input
+| Name          | `string`                                            | Name of submitted form values
+| Form          | `string`                                            | Name of the form this file input belongs to
+| Class         | `string`                                            | Additional classes to the upload box
+| Multiple      | `boolean`                                           | Whether multiple files can be selected. `false` by default
+| Uploads       | `[]*viewmodels.Upload`                               | Initial list of uploads  
