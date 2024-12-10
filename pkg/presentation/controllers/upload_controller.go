@@ -16,7 +16,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/services"
-	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 type UploadController struct {
@@ -59,7 +58,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
+	uniTranslator, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -85,7 +84,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// TODO: proper error handling
-		if _, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		if _, ok := dto.Ok(uniTranslator); !ok {
 			_, _, err := dto.ToEntity()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)

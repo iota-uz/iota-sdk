@@ -58,7 +58,7 @@ func loadUniTranslator() *ut.UniversalTranslator {
 	return ut.New(enLocale, enLocale, ruLocale)
 }
 
-func UseUniLocalizer(ctx context.Context) (ut.Translator, bool) {
+func UseUniLocalizer(ctx context.Context) (ut.Translator, error) {
 	uni := loadUniTranslator()
 	locale, _ := UseLocale(ctx, language.English).Base()
 	trans, _ := uni.GetTranslator(locale.String())
@@ -66,12 +66,12 @@ func UseUniLocalizer(ctx context.Context) (ut.Translator, bool) {
 	defer translationLock.Unlock()
 	register, ok := registerTranslations[locale.String()]
 	if !ok {
-		return nil, false
+		return nil, ErrNoLocalizer
 	}
 	if err := register(constants.Validate, trans); err != nil {
-		return nil, false
+		return nil, err
 	}
-	return trans, true
+	return trans, nil
 }
 
 func UseLocalizedOrFallback(ctx context.Context, key string, fallback string) string {

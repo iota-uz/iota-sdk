@@ -95,9 +95,9 @@ func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniTranslator, ok := composables.UseUniLocalizer(r.Context())
-	if !ok {
-		http.Error(w, composables.ErrNoLocalizer.Error(), http.StatusInternalServerError)
+	uniTranslator, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	errors, ok := dto.Ok(uniTranslator)
 	if !ok {

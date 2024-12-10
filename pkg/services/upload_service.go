@@ -3,8 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 	"gorm.io/gorm"
@@ -29,30 +27,18 @@ func NewUploadService(
 }
 
 func (s *UploadService) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
-	if err := composables.CanUser(ctx, permission.UploadRead); err != nil {
-		return nil, err
-	}
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *UploadService) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
-	if err := composables.CanUser(ctx, permission.UploadRead); err != nil {
-		return nil, err
-	}
 	return s.repo.GetByHash(ctx, hash)
 }
 
 func (s *UploadService) GetAll(ctx context.Context) ([]*upload.Upload, error) {
-	if err := composables.CanUser(ctx, permission.UploadRead); err != nil {
-		return nil, err
-	}
 	return s.repo.GetAll(ctx)
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*upload.Upload, error) {
-	if err := composables.CanUser(ctx, permission.UploadCreate); err != nil {
-		return nil, err
-	}
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -79,9 +65,6 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 }
 
 func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]*upload.Upload, error) {
-	if err := composables.CanUser(ctx, permission.UploadCreate); err != nil {
-		return nil, err
-	}
 	entities := make([]*upload.Upload, 0, len(data))
 	for _, d := range data {
 		entity, err := s.Create(ctx, d)
@@ -94,9 +77,6 @@ func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO
 }
 
 func (s *UploadService) Update(ctx context.Context, id uint, data *upload.UpdateDTO) error {
-	if err := composables.CanUser(ctx, permission.UploadUpdate); err != nil {
-		return err
-	}
 	entity, err := data.ToEntity(id)
 	if err != nil {
 		return err
@@ -113,9 +93,6 @@ func (s *UploadService) Update(ctx context.Context, id uint, data *upload.Update
 }
 
 func (s *UploadService) Delete(ctx context.Context, id uint) (*upload.Upload, error) {
-	if err := composables.CanUser(ctx, permission.UploadDelete); err != nil {
-		return nil, err
-	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
