@@ -29,7 +29,6 @@ type Params struct {
 	Authenticated bool
 	Request       *http.Request
 	Writer        http.ResponseWriter
-	Meta          map[string]interface{}
 }
 
 // UseParams returns the request parameters from the context.

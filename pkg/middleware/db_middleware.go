@@ -14,9 +14,7 @@ func Transactions(db *gorm.DB) mux.MiddlewareFunc {
 			func(w http.ResponseWriter, r *http.Request) {
 				err := db.Transaction(
 					func(tx *gorm.DB) error {
-						ctx := context.WithValue(r.Context(), constants.TxKey, tx)
-						ctx = context.WithValue(ctx, constants.DBKey, db)
-						next.ServeHTTP(w, r.WithContext(ctx))
+						next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), constants.TxKey, tx)))
 						return nil
 					},
 				)

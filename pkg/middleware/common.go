@@ -27,18 +27,7 @@ var AllowMethods = []string{
 
 type (
 	GenericConstructor func(r *http.Request, w http.ResponseWriter) interface{}
-	ParamsConstructor  func(r *http.Request, w http.ResponseWriter) *composables.Params
 )
-
-func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composables.Params {
-	return &composables.Params{
-		//nolint:exhaustruct
-		Request:   r,
-		Writer:    w,
-		IP:        r.RemoteAddr,
-		UserAgent: r.UserAgent(),
-	}
-}
 
 func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
@@ -78,7 +67,7 @@ func LogRequests() mux.MiddlewareFunc {
 	}
 }
 
-func Cors(allowOrigins []string) mux.MiddlewareFunc {
+func Cors(allowOrigins ...string) mux.MiddlewareFunc {
 	return cors.New(
 		cors.Options{
 			//nolint:exhaustruct
@@ -100,10 +89,15 @@ func ContextKeyValue(key interface{}, constructor GenericConstructor) mux.Middle
 	}
 }
 
-func RequestParams(constructor ParamsConstructor) mux.MiddlewareFunc {
+func RequestParams() mux.MiddlewareFunc {
 	return ContextKeyValue(
 		constants.ParamsKey, func(r *http.Request, w http.ResponseWriter) interface{} {
-			return constructor(r, w)
+			return &composables.Params{
+				Request:   r,
+				Writer:    w,
+				IP:        r.RemoteAddr,
+				UserAgent: r.UserAgent(),
+			}
 		},
 	)
 }
