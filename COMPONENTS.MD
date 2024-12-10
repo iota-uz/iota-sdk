@@ -344,11 +344,11 @@ summary - `templ.Component`
 
 templ UploadInputDemo() {
   @components.UploadInput(&components.UploadInputProps{
-    Label: "Select file",
+    Label:       "Select file",
     Placeholder: "CSV, XLSX",
     Accept:      "text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel",
     Name:        "FileID",
-		})
+  })
 }
 ```
 
