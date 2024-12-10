@@ -88,6 +88,7 @@ func (c *SpotlightController) spotlightItems(localizer *i18n.Localizer) []*spotl
 		{
 			Icon:  icons.SignOut(icons.Props{Size: "24"}),
 			Title: t("NavigationLinks.Navbar.Logout"),
+			Link:  "/logout",
 		},
 	}
 	for _, item := range navItems {
