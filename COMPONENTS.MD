@@ -289,6 +289,8 @@ templ ConfirmationDemo() {
 |---            |---                                                  |---
 | Heading       | `string`                                            | Heading text of dialog
 | Text          | `string`                                            | Text description of dialog
+| CancelText    | `string`                                            | Text content of the cancel button
+| ConfirmText   | `string`                                            | Text content of the confirm button
 | Action        | `string`                                            | Name of the action to listen to on the window to toggle the dialog. 
 | Attrs         | `templ.Attributes`                                  | Additional HTML attributes to the dialog element
 | Icon          | `templ.Component`                                   | An icon that's rendered in the middle of dialog
