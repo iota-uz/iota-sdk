@@ -46,7 +46,7 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 		middleware.Cors("http://localhost:3000", "ws://localhost:3000"),
 		middleware.RequestParams(),
 		middleware.LogRequests(),
-		middleware.Transactions(db),
+		middleware.Transactions(),
 		middleware.Authorization(authService),
 		middleware.WithLocalizer(bundle),
 		middleware.Tabs(tabService),
