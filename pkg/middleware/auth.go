@@ -5,6 +5,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
@@ -20,6 +21,7 @@ func Authorization(authService AuthService) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
+				start := time.Now()
 				conf := configuration.Use()
 				token, err := r.Cookie(conf.SidCookieKey)
 				if err != nil {
@@ -38,6 +40,10 @@ func Authorization(authService AuthService) mux.MiddlewareFunc {
 				}
 				params.Authenticated = true
 				ctx = context.WithValue(ctx, constants.UserKey, u)
+				logger, err := composables.UseLogger(r.Context())
+				if err == nil {
+					logger.WithField("duration", time.Since(start)).Info("middleware.Authorization")
+				}
 				next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, constants.SessionKey, sess)))
 			},
 		)

@@ -41,27 +41,31 @@ func DefaultParamsConstructor(r *http.Request, w http.ResponseWriter) *composabl
 }
 
 func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
-	return ContextKeyValue(
-		constants.LoggerKey,
-		func(r *http.Request, w http.ResponseWriter) interface{} {
-			return logger.WithFields(logrus.Fields{
-				"timestamp":  time.Now().Format(time.RFC3339),
-				"path":       r.RequestURI,
-				"method":     r.Method,
-				"host":       r.Host,
-				"ip":         r.RemoteAddr,
-				"user-agent": r.UserAgent(),
-				"request-id": uuid.New().String(),
-			})
-		},
-	)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				start := time.Now()
+				ctx := context.WithValue(r.Context(), constants.LoggerKey, logger.WithFields(logrus.Fields{
+					"timestamp":  start.Format(time.RFC3339),
+					"path":       r.RequestURI,
+					"method":     r.Method,
+					"host":       r.Host,
+					"ip":         r.RemoteAddr,
+					"user-agent": r.UserAgent(),
+					"request-id": uuid.New().String(),
+				}))
+				ctx = context.WithValue(ctx, constants.RequestStart, start)
+				next.ServeHTTP(w, r.WithContext(ctx))
+			},
+		)
+	}
 }
 
 func LogRequests() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				start := time.Now()
+				start := r.Context().Value(constants.RequestStart).(time.Time)
 				next.ServeHTTP(w, r)
 				log.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
 				logger, err := composables.UseLogger(r.Context())

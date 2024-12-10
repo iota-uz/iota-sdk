@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -14,6 +15,7 @@ func Tabs(tabService *services.TabService) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
+				start := time.Now()
 				u, err := composables.UseUser(r.Context())
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -25,6 +27,10 @@ func Tabs(tabService *services.TabService) mux.MiddlewareFunc {
 					return
 				}
 				ctx := context.WithValue(r.Context(), constants.TabsKey, tabs)
+				logger, err := composables.UseLogger(r.Context())
+				if err == nil {
+					logger.WithField("duration", time.Since(start)).Info("middleware.Tabs")
+				}
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)
