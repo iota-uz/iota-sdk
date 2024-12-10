@@ -42,7 +42,11 @@ func newSidebarLink(name, href string, icon templ.Component, active bool) sideba
 }
 
 templ (l sidebarLink) render() {
-	@button.Sidebar(button.Props{Size: button.SizeMD, Href: l.href, Class: l.class}) {
+	@button.Sidebar(button.Props{
+		Size:  button.SizeMD,
+		Href:  l.href,
+		Class: l.class,
+	}) {
 		if l.icon != nil {
 			@l.icon
 		}
@@ -103,7 +107,9 @@ templ sidebar(pageCtx *types.PageContext) {
 			</a>
 		</div>
 		<nav class="py-4 flex-1">
-			<ul class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar">
+			<ul
+				class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar"
+			>
 				for _, item := range pageCtx.NavItems {
 					@renderNavItem(item, pageCtx.Pathname)
 				}
