@@ -2,11 +2,10 @@ package controllers
 
 import (
 	"github.com/benbjohnson/hashfs"
+	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/multifs"
 	"net/http"
-
-	"github.com/gorilla/mux"
 )
 
 type StaticFilesController struct {
