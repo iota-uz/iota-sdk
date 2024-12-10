@@ -1,0 +1,26 @@
+package dashboard
+
+import (
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type IndexPageProps struct {
+	*types.PageContext
+}
+
+templ DashboardContent(props *IndexPageProps) {
+	<div>
+		<div class="m-6">
+			<div class="flex items-center gap-4">
+				Здесь будет дэшборд
+			</div>
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@DashboardContent(props)
+	}
+}

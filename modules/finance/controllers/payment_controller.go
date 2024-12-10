@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
+	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -13,7 +15,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
-	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 
 	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
@@ -44,7 +45,14 @@ func NewPaymentsController(app application.Application) application.Controller {
 
 func (c *PaymentsController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(middleware.RequireAuthorization())
+	router.Use(
+		middleware.WithTransaction(),
+		middleware.Authorize(c.app.Service(coreservices.AuthService{}).(*coreservices.AuthService)),
+		middleware.RequireAuthorization(),
+		middleware.ProvideUser(c.app.Service(coreservices.UserService{}).(*coreservices.UserService)),
+		middleware.Tabs(c.app.Service(coreservices.TabService{}).(*coreservices.TabService)),
+		middleware.NavItems(c.app),
+	)
 	router.HandleFunc("", c.Payments).Methods(http.MethodGet)
 	router.HandleFunc("", c.CreatePayment).Methods(http.MethodPost)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -15,7 +16,6 @@ import (
 	coremappers "github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
-	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 
 	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
@@ -46,7 +46,14 @@ func NewExpenseCategoriesController(app application.Application) application.Con
 
 func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(middleware.RequireAuthorization())
+	router.Use(
+		middleware.WithTransaction(),
+		middleware.Authorize(c.app.Service(coreservices.AuthService{}).(*coreservices.AuthService)),
+		middleware.RequireAuthorization(),
+		middleware.ProvideUser(c.app.Service(coreservices.UserService{}).(*coreservices.UserService)),
+		middleware.Tabs(c.app.Service(coreservices.TabService{}).(*coreservices.TabService)),
+		middleware.NavItems(c.app),
+	)
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)

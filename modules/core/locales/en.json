@@ -44,6 +44,12 @@
       "Logout": "Logout"
     }
   },
+  "Dashboard": {
+    "Meta": {
+      "Title": "Dashboard"
+    },
+    "Welcome": "Welcome to the dashboard"
+  },
   "Validations": {
     "Required": "This field is required"
   },
