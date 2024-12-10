@@ -92,16 +92,6 @@ func UseUserAgent(ctx context.Context) (string, bool) {
 	return params.UserAgent, true
 }
 
-// UseWriter returns the response writer from the context.
-// If the response writer is not found, the second return value will be false.
-func UseWriter(ctx context.Context) (http.ResponseWriter, bool) {
-	params, ok := UseParams(ctx)
-	if !ok {
-		return nil, false
-	}
-	return params.Writer, true
-}
-
 func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	user, err := UseUser(ctx)
 	if err != nil {
