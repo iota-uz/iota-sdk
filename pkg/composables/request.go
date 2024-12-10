@@ -63,16 +63,6 @@ func UseLogger(ctx context.Context) (*logrus.Entry, error) {
 	return logger.(*logrus.Entry), nil
 }
 
-// UseMeta returns the metadata from the context.
-// If the metadata is not found, the second return value will be false.
-func UseMeta(ctx context.Context) (map[string]interface{}, bool) {
-	params, ok := UseParams(ctx)
-	if !ok {
-		return nil, false
-	}
-	return params.Meta, true
-}
-
 // UseAuthenticated returns whether the user is authenticated and the second return value is true.
 // If the user is not authenticated, the second return value is false.
 func UseAuthenticated(ctx context.Context) bool {
