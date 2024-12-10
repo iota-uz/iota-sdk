@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -12,7 +13,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/account"
 	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
-	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 
 	"github.com/gorilla/mux"
@@ -36,7 +36,14 @@ func NewAccountController(app application.Application) application.Controller {
 
 func (c *AccountController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(middleware.RequireAuthorization())
+	router.Use(
+		middleware.WithTransaction(),
+		middleware.Authorize(c.app.Service(services.AuthService{}).(*services.AuthService)),
+		middleware.RequireAuthorization(),
+		middleware.ProvideUser(c.app.Service(services.UserService{}).(*services.UserService)),
+		middleware.Tabs(c.app.Service(services.TabService{}).(*services.TabService)),
+		middleware.NavItems(c.app),
+	)
 	router.HandleFunc("", c.Get).Methods(http.MethodGet)
 	router.HandleFunc("/settings", c.GetSettings).Methods(http.MethodGet)
 	router.HandleFunc("/settings", c.PostSettings).Methods(http.MethodPost)

@@ -93,20 +93,20 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 	http.SetCookie(w, cookie)
 }
 
-func (s *AuthService) Authorize(ctx context.Context, token string) (*user.User, *session.Session, error) {
+func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Session, error) {
 	sess, err := s.sessionService.GetByToken(ctx, token)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	u, err := s.usersService.GetByID(ctx, sess.UserID)
-	if err != nil {
-		return nil, nil, err
-	}
+	//u, err := s.usersService.GetByID(ctx, sess.UserID)
+	//if err != nil {
+	//	return nil, nil, err
+	//}
 	// TODO: update last action
 	// if err := s.usersService.UpdateLastAction(ctx, u.ID); err != nil {
 	//	  return nil, nil, err
 	//}
-	return u, sess, nil
+	return sess, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {

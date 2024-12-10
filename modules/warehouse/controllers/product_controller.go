@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
+	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"net/http"
 
+	"github.com/a-h/templ"
+	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
@@ -13,10 +17,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
-	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
-
-	"github.com/a-h/templ"
-	"github.com/gorilla/mux"
 
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -46,7 +46,14 @@ func NewProductsController(app application.Application) application.Controller {
 
 func (c *ProductsController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(middleware.RequireAuthorization())
+	router.Use(
+		middleware.WithTransaction(),
+		middleware.Authorize(c.app.Service(coreservices.AuthService{}).(*coreservices.AuthService)),
+		middleware.RequireAuthorization(),
+		middleware.ProvideUser(c.app.Service(coreservices.UserService{}).(*coreservices.UserService)),
+		middleware.Tabs(c.app.Service(coreservices.TabService{}).(*coreservices.TabService)),
+		middleware.NavItems(c.app),
+	)
 
 	routes := []struct {
 		Path    string

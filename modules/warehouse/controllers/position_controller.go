@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/serrors"
+	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -21,7 +23,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
-	"github.com/iota-agency/iota-sdk/pkg/shared/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
@@ -48,7 +49,15 @@ func NewPositionsController(app application.Application) application.Controller 
 
 func (c *PositionsController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(middleware.RequireAuthorization())
+	router.Use(
+		middleware.WithTransaction(),
+		middleware.Authorize(c.app.Service(coreservices.AuthService{}).(*coreservices.AuthService)),
+		middleware.RequireAuthorization(),
+		middleware.ProvideUser(c.app.Service(coreservices.UserService{}).(*coreservices.UserService)),
+		middleware.Tabs(c.app.Service(coreservices.TabService{}).(*coreservices.TabService)),
+		middleware.NavItems(c.app),
+	)
+
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)

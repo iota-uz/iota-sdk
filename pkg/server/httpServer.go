@@ -20,6 +20,15 @@ func (s *HttpServer) Start(socketAddress string) error {
 	for _, controller := range s.Controllers {
 		controller.Register(r)
 	}
+
+	//errorHandlersMiddleware := s.Middlewares
+	//errorHandlersMiddleware = append(errorHandlersMiddleware,
+	//	middleware.Authorize(c.app.Service(services.AuthService{}).(*services.AuthService)),
+	//	middleware.RequireAuthorization(),
+	//	middleware.WithTransaction(),
+	//	middleware.Tabs(c.app.Service(services.TabService{}).(*services.TabService)),
+	//	middleware.NavItems(c.app),
+	//)
 	var notFoundHandler http.Handler = controllers.NotFound()
 	var notAllowedHandler http.Handler = controllers.MethodNotAllowed()
 	for i := len(s.Middlewares) - 1; i >= 0; i-- {

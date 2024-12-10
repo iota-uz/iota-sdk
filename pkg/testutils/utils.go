@@ -134,7 +134,6 @@ func GetTestContext() *TestContext {
 			Authenticated: true,
 			Request:       nil,
 			Writer:        nil,
-			Meta:          nil,
 		},
 	)
 

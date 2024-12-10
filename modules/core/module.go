@@ -34,6 +34,7 @@ func (m *Module) Register(app application.Application) error {
 		seed.CreateUser,
 	)
 	app.RegisterControllers(
+		controllers.NewDashboardController(app),
 		controllers.NewLoginController(app),
 		controllers.NewSpotlightController(app),
 		controllers.NewAccountController(app),
