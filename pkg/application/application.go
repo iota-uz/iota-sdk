@@ -23,11 +23,14 @@ import (
 )
 
 func New(db *gorm.DB, eventPublisher event.Publisher) Application {
+	bundle := i18n.NewBundle(language.Russian)
+	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	return &ApplicationImpl{
 		db:             db,
 		eventPublisher: eventPublisher,
 		rbac:           permission.NewRbac(),
 		services:       make(map[reflect.Type]interface{}),
+		bundle:         bundle,
 	}
 }
 
@@ -46,6 +49,7 @@ type ApplicationImpl struct {
 	localeFiles    []*embed.FS
 	migrationDirs  []*embed.FS
 	seedFuncs      []SeedFunc
+	bundle         *i18n.Bundle
 }
 
 func (app *ApplicationImpl) Seed(ctx context.Context) error {
@@ -138,6 +142,21 @@ func (app *ApplicationImpl) RegisterTemplates(fs ...*embed.FS) {
 }
 
 func (app *ApplicationImpl) RegisterLocaleFiles(fs ...*embed.FS) {
+	for _, localeFs := range fs {
+		files, err := localeFs.ReadDir("locales")
+		if err != nil {
+			panic(err)
+		}
+		for _, file := range files {
+			if !file.IsDir() {
+				localeFile, err := localeFs.ReadFile("locales/" + file.Name())
+				if err != nil {
+					panic(err)
+				}
+				app.bundle.MustParseMessageFileBytes(localeFile, file.Name())
+			}
+		}
+	}
 	app.localeFiles = append(app.localeFiles, fs...)
 }
 
@@ -164,26 +183,9 @@ func (app *ApplicationImpl) Service(service interface{}) interface{} {
 	}
 	return svc
 }
-func (app *ApplicationImpl) Bundle() (*i18n.Bundle, error) {
-	bundle := i18n.NewBundle(language.Russian)
-	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
-	localeDirs := app.LocaleFiles()
-	for _, localeFs := range localeDirs {
-		files, err := localeFs.ReadDir("locales")
-		if err != nil {
-			return nil, err
-		}
-		for _, file := range files {
-			if !file.IsDir() {
-				localeFile, err := localeFs.ReadFile("locales/" + file.Name())
-				if err != nil {
-					return nil, err
-				}
-				bundle.MustParseMessageFileBytes(localeFile, file.Name())
-			}
-		}
-	}
-	return bundle, nil
+
+func (app *ApplicationImpl) Bundle() *i18n.Bundle {
+	return app.bundle
 }
 
 func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {

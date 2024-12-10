@@ -39,7 +39,7 @@ type Application interface {
 	RegisterService(service interface{})
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
-	Bundle() (*i18n.Bundle, error)
+	Bundle() *i18n.Bundle
 	RunMigrations() error
 	RollbackMigrations() error
 }
