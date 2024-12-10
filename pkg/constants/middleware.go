@@ -16,6 +16,7 @@ const (
 	LogoKey        ContextKey = "logo"
 	HeadKey        ContextKey = "head"
 	TabsKey        ContextKey = "tabs"
+	RequestStart   ContextKey = "requestStart"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())
