@@ -5,14 +5,14 @@
   * [Usage](#usage)
   * [API](#api)
 * [Input](#input)
-  * [Usage](#usage)
-  * [API](#api)
+  * [Usage](#usage-1)
+  * [API](#api-1)
 * [Select](#select)
-  * [Usage](#usage)
-  * [API](#api)
+  * [Usage](#usage-2)
+  * [API](#api-2)
 * [Combobox](#combobox)
-  * [Usage](#usage)
-  * [API](#api)
+  * [Usage](#usage-3)
+  * [API](#api-3)
 
 ## Button
 Button component to render a button or a link
