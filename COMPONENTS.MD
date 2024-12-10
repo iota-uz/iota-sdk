@@ -27,6 +27,14 @@
 * [UploadInput](#upload-input)
   * [Usage](#usage-6)
   * [API](#api-6)
+* [Alert](#alert)
+  * [Usage](#usage-7)
+* [Textarea](#textarea)
+  * [Usage](#usage-8)
+  * [API](#api-7)
+* [Pagination](#pagination)
+  * [Usage](#usage-9)
+  * [API](#api-8)
 
 ## Button
 Button component to render a button or a link
@@ -341,6 +349,7 @@ summary - `templ.Component`
 ### Usage
 
 ```go
+import "github.com/iota-agency/iota-sdk/components"
 
 templ UploadInputDemo() {
   @components.UploadInput(&components.UploadInputProps{
@@ -365,3 +374,81 @@ templ UploadInputDemo() {
 | Class         | `string`                                            | Additional classes to the upload box
 | Multiple      | `boolean`                                           | Whether multiple files can be selected. `false` by default
 | Uploads       | `[]*viewmodels.Upload`                               | Initial list of uploads  
+
+
+## Alert
+
+### Usage
+
+```go
+import "github.com/iota-agency/iota-sdk/components/alert"
+
+templ ErrorAlertDemo() {
+  @alert.Error() {
+    Error alert message
+  }
+}
+```
+
+## Textarea
+
+### Usage
+```go
+import "github.com/iota-agency/iota-sdk/components/textarea"
+
+templ BasicTextareaDemo() {
+  @textarea.Basic(&textarea.Props{
+    Label: "Message",
+    Placeholder: "Type your message here..."
+  })
+}
+```
+
+### API
+
+| Name            | Type                                                | Description
+|---              |---                                                  |---
+| Label           | `string`                                            | Label text of the textarea
+| Placeholder     | `string`                                            | Placeholder text of the textarea
+| Error           | `string`                                            | Error message underneath the textarea.
+| Class           | `string`                                            | Additional classes to the textarea element
+| WarepperClass   | `string`                                            | Wrapper class
+| Value           | `string`                                            | Value of textarea. Could be used to set initial value
+
+
+## Pagination
+
+### Usage
+
+```go
+// page.templ
+import "github.com/iota-agency/iota-sdk/components/base/pagination"
+templ Page(state *pagination.State) {
+  @pagination.Pagination(state)
+}
+
+// controller.go
+import (
+  "github.com/iota-agency/iota-sdk/components/base/pagination"
+  "github.com/a-h/templ"
+)
+
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+  // initialize state
+  state := pagination.New("/warehouses", 0, 100, 25)
+  templ.Handler(page(state), templ.WithStreaming()).ServeHTTP(w, r)
+}
+```
+
+### API
+
+| Name            | Type                                                | Description
+|---              |---                                                  |---
+| State           | [`*pagination.State`](#pagination-state)                        | Pagination state
+
+
+### Pagination State
+| Name            | Type                                                | Description
+|---              |---                                                  |---
+| Total           | `int`                                               | Total number of pages
+| Current         | `int`                                               | Current page
