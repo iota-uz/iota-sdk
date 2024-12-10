@@ -61,11 +61,7 @@ func CreateUser(ctx context.Context, app application.Application) error {
 	if err := userRepository.CreateOrUpdate(ctx, usr); err != nil {
 		return err
 	}
-	bundle, err := app.Bundle()
-	if err != nil {
-		return err
-	}
-	localizer := i18n.NewLocalizer(bundle, "ru")
+	localizer := i18n.NewLocalizer(app.Bundle(), "ru")
 	tabs := navItems2Tabs(app.NavigationItems(localizer))
 	for i, t := range tabs {
 		t.ID = uint(i + 1)

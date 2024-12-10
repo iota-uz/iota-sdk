@@ -35,6 +35,7 @@ func NewUploadController(app application.Application) application.Controller {
 
 func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
+	// TODO: middleware
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 

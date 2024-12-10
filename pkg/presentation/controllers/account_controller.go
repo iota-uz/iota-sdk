@@ -42,6 +42,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(c.app.Service(services.UserService{}).(*services.UserService)),
 		middleware.Tabs(c.app.Service(services.TabService{}).(*services.TabService)),
+		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
 	)
 	router.HandleFunc("", c.Get).Methods(http.MethodGet)

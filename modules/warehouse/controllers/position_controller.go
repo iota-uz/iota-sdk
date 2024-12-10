@@ -55,6 +55,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(c.app.Service(coreservices.UserService{}).(*coreservices.UserService)),
 		middleware.Tabs(c.app.Service(coreservices.TabService{}).(*coreservices.TabService)),
+		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
 	)
 
