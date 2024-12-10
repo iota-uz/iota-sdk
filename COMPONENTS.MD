@@ -21,6 +21,9 @@
 * [Dialog](#dialog)
   * [Usage](#usage-4)
   * [API](#api-4)
+* [Dropdown](#dropdown)
+  * [Usage](#usage-5)
+  * [API](#api-5)
 
 ## Button
 Button component to render a button or a link
@@ -294,3 +297,37 @@ templ ConfirmationDemo() {
 | Action        | `string`                                            | Name of the action to listen to on the window to toggle the dialog. 
 | Attrs         | `templ.Attributes`                                  | Additional HTML attributes to the dialog element
 | Icon          | `templ.Component`                                   | An icon that's rendered in the middle of dialog
+
+## Dropdown
+
+### Usage
+```go
+import "github.com/iota-agency/iota-sdk/components/base"
+
+templ summary() {
+  <summary>Menu</summary>
+}
+
+templ DropdownDemo(summary()) {
+  @base.DetailsDropdown(summary()) {
+    @base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
+      Account
+    }
+    @base.DropdownItem(base.DropdownItemProps{Href: "/account/settings"}) {
+      Settings
+    }
+    @base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
+      Log out
+    }
+  }
+}
+
+```
+### API
+
+summary - `templ.Component`
+
+### Dropdown Item
+| Name          | Type                                                | Description
+|---            |---                                                  |---
+| Href          | `string`                                            | Link to resource. 
