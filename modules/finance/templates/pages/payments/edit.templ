@@ -110,11 +110,12 @@ templ Edit(props *EditPageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading:   "Payments.Single.DeletePayment",
-			Text:      "Payments.Single.DeletePaymentConfirmation",
-			Localizer: props.PageContext.Localizer,
-			Icon:      icons.Trash(icons.Props{Size: "20"}),
-			Action:    "open-delete-payment-confirmation",
+			CancelText:  props.T("Cancel"),
+			ConfirmText: props.T("Delete"),
+			Heading:     props.T("Payments.Single.DeletePayment"),
+			Text:        props.T("Payments.Single.DeletePaymentConfirmation"),
+			Icon:        icons.Trash(icons.Props{Size: "20"}),
+			Action:      "open-delete-payment-confirmation",
 			Attrs: templ.Attributes{
 				"@closing": `({target}) => {
      if (target.returnValue === "confirm") {
