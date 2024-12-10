@@ -6,12 +6,13 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 )
 
 type HttpServer struct {
-	Controllers []application.Controller
-	Middlewares []mux.MiddlewareFunc
+	Controllers             []application.Controller
+	Middlewares             []mux.MiddlewareFunc
+	NotFoundHandler         http.Handler
+	MethodNotAllowedHandler http.Handler
 }
 
 func (s *HttpServer) Start(socketAddress string) error {
@@ -21,16 +22,8 @@ func (s *HttpServer) Start(socketAddress string) error {
 		controller.Register(r)
 	}
 
-	//errorHandlersMiddleware := s.Middlewares
-	//errorHandlersMiddleware = append(errorHandlersMiddleware,
-	//	middleware.Authorize(c.app.Service(services.AuthService{}).(*services.AuthService)),
-	//	middleware.RequireAuthorization(),
-	//	middleware.WithTransaction(),
-	//	middleware.Tabs(c.app.Service(services.TabService{}).(*services.TabService)),
-	//	middleware.NavItems(c.app),
-	//)
-	var notFoundHandler http.Handler = controllers.NotFound()
-	var notAllowedHandler http.Handler = controllers.MethodNotAllowed()
+	var notFoundHandler = s.NotFoundHandler
+	var notAllowedHandler = s.MethodNotAllowedHandler
 	for i := len(s.Middlewares) - 1; i >= 0; i-- {
 		notFoundHandler = s.Middlewares[i](notFoundHandler)
 		notAllowedHandler = s.Middlewares[i](notAllowedHandler)

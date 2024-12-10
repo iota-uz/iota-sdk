@@ -3,7 +3,6 @@ package layouts
 import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
-	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 var (
@@ -11,11 +10,12 @@ var (
 	htmx   = "/assets/" + assets.HashFS.HashName("js/htmx.min.js")
 )
 
-templ Base(pageCtx *types.PageContext) {
+templ Base(title string) {
 	<!DOCTYPE html>
 	<html lang="en" class="system bg-surface-100 text-100">
 		<head>
-			@composables.MustUseHead(ctx)(pageCtx)
+			<title>{ title }</title>
+			@composables.MustUseHead(ctx)
 			<script defer type="module" src={ alpine }></script>
 			<script defer async src={ htmx }></script>
 		</head>

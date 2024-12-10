@@ -16,7 +16,7 @@
     "NotFound": {
       "Title": "404",
       "Message": "Страница не найдена",
-      "Home": "Главная"
+      "Home": "Домой"
     }
   },
   "NavigationLinks": {
