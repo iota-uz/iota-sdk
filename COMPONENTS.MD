@@ -196,3 +196,54 @@ templ BasicSelectWithPrefixDemo() {
 | Attrs         | `templ.Attributes`                                  | Additional HTML attributes to the select element
 | Prefix        | `string`                                            | Prefix test of the select
 | Error         | `string`                                            | Error message underneath the select element.
+
+
+## Combobox
+A more advanced select
+
+### Usage
+
+#### Basic
+```go
+import "github.com/iota-agency/iota-sdk/components/base"
+
+templ BasicComboboxDemo() {
+  @base.Combobox(base.ComboboxProps{
+    Label: "Tags",
+    Placeholder: "Select tags",
+    Multiple: true,
+  }) {
+    <option value="tag-1">Tag 1</option>
+    <option value="tag-2">Tag 2</option>
+  }
+}
+```
+
+#### Dynamic
+```go
+import "github.com/iota-agency/iota-sdk/components/base"
+
+templ BasicComboboxDemo() {
+  @base.Combobox(base.ComboboxProps{
+    Label: "Tag",
+    Placeholder: "Select tag",
+    Endpoint: "/endpoint-that-returns-options",
+    Searchable: true,
+    NotFoundText: "No tags found",
+    Name: "tagID"
+  }) {}
+}
+```
+
+### API
+| Name          | Type                                                | Description
+|---            |---                                                  |---
+| Placeholder   | `string`                                            | Placeholder text of the combobox
+| Label         | `string`                                            | Label text of the combobox
+| Class         | `string`                                            | Additional classes to the combobox element
+| Multiple      | `boolean`                                           | Whether multiple options can be selected. `false` by default
+| Name          | `string`                                            | Name of submitted form values
+| Form          | `string`                                            | Name of the form this combobox belongs to
+| Endpoint      | `string`                                            | Endpoint for fettching dynamic list of options.
+| Searchable    | `boolean`                                           | Renders an `input` element as a trigger for search. `false` by default 
+| NotFoundText  | `string`                                            | Text to render if there are no options. 
