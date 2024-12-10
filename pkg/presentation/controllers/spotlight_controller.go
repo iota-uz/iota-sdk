@@ -106,7 +106,7 @@ func (c *SpotlightController) spotlightItems(localizer *i18n.Localizer) []*spotl
 func (c *SpotlightController) Get(w http.ResponseWriter, r *http.Request) {
 	localizer, ok := composables.UseLocalizer(r.Context())
 	if !ok {
-		http.Error(w, "no localizer", http.StatusInternalServerError)
+		http.Error(w, composables.ErrNoLocalizer.Error(), http.StatusInternalServerError)
 		return
 	}
 	q := r.URL.Query().Get("q")
