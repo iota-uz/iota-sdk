@@ -208,34 +208,6 @@ var (
 		Action:   ActionRead,
 		Modifier: ModifierAll,
 	}
-	UploadCreate = Permission{
-		ID:       uuid.MustParse("b9b4668d-8eef-4b23-b5df-e41fbc6aadee"),
-		Name:     "Upload.Create",
-		Resource: ResourceUpload,
-		Action:   ActionCreate,
-		Modifier: ModifierAll,
-	}
-	UploadRead = Permission{
-		ID:       uuid.MustParse("d5d9d214-264e-4553-a401-36893f708aa2"),
-		Name:     "Upload.Read",
-		Resource: ResourceUpload,
-		Action:   ActionRead,
-		Modifier: ModifierAll,
-	}
-	UploadUpdate = Permission{
-		ID:       uuid.MustParse("30f5f65c-f952-4435-94c8-08071b3d6f57"),
-		Name:     "Upload.Update",
-		Resource: ResourceUpload,
-		Action:   ActionUpdate,
-		Modifier: ModifierAll,
-	}
-	UploadDelete = Permission{
-		ID:       uuid.MustParse("954b1671-90c0-4df2-95c6-a66ea7d4efb5"),
-		Name:     "Upload.Delete",
-		Resource: ResourceUpload,
-		Action:   ActionDelete,
-		Modifier: ModifierAll,
-	}
 )
 
 var Permissions = []Permission{
@@ -265,8 +237,4 @@ var Permissions = []Permission{
 	EmployeeDelete,
 	SettingsUpdate,
 	SettingsRead,
-	UploadCreate,
-	UploadRead,
-	UploadUpdate,
-	UploadDelete,
 }

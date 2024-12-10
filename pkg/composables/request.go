@@ -140,9 +140,9 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 	if !found {
 		return nil, ErrNoLocalizer
 	}
-	uniTranslator, found := UseUniLocalizer(r.Context())
-	if !found {
-		return nil, ErrNoLocalizer
+	uniTranslator, err := UseUniLocalizer(r.Context())
+	if err != nil {
+		return nil, err
 	}
 	locale := UseLocale(r.Context(), language.English)
 	navItems, _ := UseNavItems(r)
