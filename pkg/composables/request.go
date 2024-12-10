@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/sirupsen/logrus"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -209,12 +208,4 @@ func UseFlashMap[K comparable, V any](w http.ResponseWriter, r *http.Request, na
 		return errorsMap, nil
 	}
 	return errorsMap, json.Unmarshal(bytes, &errorsMap)
-}
-
-func UseTiming(ctx context.Context, label string) {
-	startTime, ok := ctx.Value(constants.RequestStart).(time.Time)
-	if !ok {
-		return
-	}
-	log.Printf("%s took %s", label, time.Since(startTime))
 }
