@@ -7,6 +7,12 @@
 * [Input](#input)
   * [Usage](#usage)
   * [API](#api)
+* [Select](#select)
+  * [Usage](#usage)
+  * [API](#api)
+* [Combobox](#combobox)
+  * [Usage](#usage)
+  * [API](#api)
 
 ## Button
 Button component to render a button or a link
@@ -66,7 +72,6 @@ templ PrimaryLinkDemo() {
 Input component to render an input element
 
 ### Usage
-
 
 #### Text input
 ```go
@@ -146,3 +151,48 @@ templ PasswordIputDemo() {
 ### AddonPosition
 * `AddonRight` - right addon position
 * `AddonLeft` - left addon position
+
+## Select
+Basic select component
+
+### Usage
+
+#### Basic select
+```go
+import "github.com/iota-agency/iota-sdk/components/base"
+
+templ BasicSelectDemo() {
+  @base.Select(&base.SelectProps{
+    Label: "Language",
+    Placeholder: "Select language"
+  }) {
+    <option value="en">en</option>
+    <option value="uz">uz</option>
+  }
+}
+```
+#### Select with prefix
+```go
+import "github.com/iota-agency/iota-sdk/components/base"
+
+templ BasicSelectWithPrefixDemo() {
+  @base.Select(&base.SelectProps{
+    Prefix: "Per page",
+  }) {
+    <option>15</option>
+    <option>25</option>
+    <option>50</option>
+    <option>100</option>
+  }
+}
+```
+
+### API
+| Name          | Type                                                | Description
+|---            |---                                                  |---
+| Placeholder   | `string`                                            | Placeholder text of the select
+| Label         | `string`                                            | Label text of the select
+| Class         | `string`                                            | Additional classes to the select element
+| Attrs         | `templ.Attributes`                                  | Additional HTML attributes to the select element
+| Prefix        | `string`                                            | Prefix test of the select
+| Error         | `string`                                            | Error message underneath the select element.
