@@ -35,26 +35,24 @@ func flatNavItems(items []types.NavigationItem) []types.NavigationItem {
 }
 
 type SpotlightController struct {
-	app         application.Application
-	userService *services.UserService
-	tabService  *services.TabService
-	basePath    string
+	app        application.Application
+	tabService *services.TabService
+	basePath   string
 }
 
 func NewSpotlightController(app application.Application) application.Controller {
 	return &SpotlightController{
-		app:         app,
-		userService: app.Service(services.UserService{}).(*services.UserService),
-		tabService:  app.Service(services.TabService{}).(*services.TabService),
-		basePath:    "/spotlight",
+		app:        app,
+		tabService: app.Service(services.TabService{}).(*services.TabService),
+		basePath:   "/spotlight",
 	}
 }
 
 func (c *SpotlightController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
-		middleware.Authorize(c.app.Service(services.AuthService{}).(*services.AuthService)),
-		middleware.ProvideUser(c.userService),
+		middleware.Authorize(),
+		middleware.ProvideUser(),
 		middleware.RequireAuthorization(),
 		middleware.WithLocalizer(c.app.Bundle()),
 	)

@@ -5,7 +5,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
-	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -48,10 +47,10 @@ func (c *ProductsController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
 		middleware.WithTransaction(),
-		middleware.Authorize(c.app.Service(coreservices.AuthService{}).(*coreservices.AuthService)),
+		middleware.Authorize(),
 		middleware.RequireAuthorization(),
-		middleware.ProvideUser(c.app.Service(coreservices.UserService{}).(*coreservices.UserService)),
-		middleware.Tabs(c.app.Service(coreservices.TabService{}).(*coreservices.TabService)),
+		middleware.ProvideUser(),
+		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
 	)
