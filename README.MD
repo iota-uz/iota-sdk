@@ -39,7 +39,7 @@ Explore the modular design through the [database schema](https://dbdiagram.io/d/
 
 ## 🌟 Join Us
 
-We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.md) to get
+We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.MD) to get
 started.
 
 Join our [Discord community](https://discord.gg/zKeTEZAQqF) for support and Q&A.
