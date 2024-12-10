@@ -187,7 +187,7 @@ templ Navbar(pageCtx *types.PageContext) {
 }
 
 templ Authenticated(pageCtx *types.PageContext) {
-	@Base(pageCtx) {
+	@Base(pageCtx.Title) {
 		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
 			@sidebar(pageCtx)
 			<div>

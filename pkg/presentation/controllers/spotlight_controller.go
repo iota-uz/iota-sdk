@@ -52,7 +52,12 @@ func NewSpotlightController(app application.Application) application.Controller 
 
 func (c *SpotlightController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(middleware.RequireAuthorization())
+	router.Use(
+		middleware.Authorize(c.app.Service(services.AuthService{}).(*services.AuthService)),
+		middleware.ProvideUser(c.userService),
+		middleware.RequireAuthorization(),
+		middleware.WithLocalizer(c.app.Bundle()),
+	)
 	router.HandleFunc("/search", c.Get).Methods(http.MethodGet)
 }
 

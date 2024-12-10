@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/a-h/templ"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/types"
 )
 
 var (
@@ -31,8 +30,8 @@ func MustUseLogo(ctx context.Context) templ.Component {
 }
 
 // UseHead returns the head component from the context
-func UseHead(ctx context.Context) (types.HeadComponent, error) {
-	head, ok := ctx.Value(constants.HeadKey).(types.HeadComponent)
+func UseHead(ctx context.Context) (templ.Component, error) {
+	head, ok := ctx.Value(constants.HeadKey).(templ.Component)
 	if !ok {
 		return nil, ErrNoHeadFound
 	}
@@ -40,7 +39,7 @@ func UseHead(ctx context.Context) (types.HeadComponent, error) {
 }
 
 // MustUseHead returns the head component from the context or panics
-func MustUseHead(ctx context.Context) types.HeadComponent {
+func MustUseHead(ctx context.Context) templ.Component {
 	head, err := UseHead(ctx)
 	if err != nil {
 		panic(err)

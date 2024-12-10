@@ -16,7 +16,7 @@ type LoginProps struct {
 }
 
 templ Index(p *LoginProps) {
-	@layouts.Base(p.PageContext) {
+	@layouts.Base(p.Title) {
 		<div class="grid grid-cols-2 h-screen">
 			<div class="flex flex-col gap-16 justify-center items-center text-left">
 				<h1 class="text-2xl text-gray-950">
