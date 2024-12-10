@@ -7,10 +7,8 @@ import (
 	"errors"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -124,28 +122,6 @@ func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
 		return defaultLocale
 	}
 	return tags[0]
-}
-
-type PaginationParams struct {
-	Limit  int
-	Offset int
-	Page   int
-}
-
-func UsePaginated(r *http.Request) PaginationParams {
-	config := configuration.Use()
-	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
-	if err != nil || limit > config.MaxPageSize {
-		limit = config.PageSize
-	}
-
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-
-	return PaginationParams{
-		Limit:  limit,
-		Offset: page * limit,
-		Page:   page,
-	}
 }
 
 func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, error) {
