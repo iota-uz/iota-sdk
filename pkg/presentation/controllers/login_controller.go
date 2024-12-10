@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
 
 	ut "github.com/go-playground/universal-translator"
@@ -49,8 +50,14 @@ type LoginController struct {
 
 func (c *LoginController) Register(r *mux.Router) {
 	r.HandleFunc("/oauth/google/callback", c.authService.OauthGoogleCallback)
-	r.HandleFunc("/login", c.Get).Methods(http.MethodGet)
-	r.HandleFunc("/login", c.Post).Methods(http.MethodPost)
+
+	router := r.PathPrefix("/login").Subrouter()
+	router.Use(
+		middleware.WithTransaction(),
+		middleware.WithLocalizer(c.app.Bundle()),
+	)
+	router.HandleFunc("", c.Get).Methods(http.MethodGet)
+	router.HandleFunc("", c.Post).Methods(http.MethodPost)
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {

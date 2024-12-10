@@ -17,6 +17,7 @@ const (
 	HeadKey        ContextKey = "head"
 	TabsKey        ContextKey = "tabs"
 	RequestStart   ContextKey = "requestStart"
+	LocalizerKey   ContextKey = "localizer"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())

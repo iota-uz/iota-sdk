@@ -26,7 +26,7 @@ var (
 // UseLocalizer returns the localizer from the context.
 // If the localizer is not found, the second return value will be false.
 func UseLocalizer(ctx context.Context) (*i18n.Localizer, bool) {
-	l, ok := ctx.Value("localizer").(*i18n.Localizer)
+	l, ok := ctx.Value(constants.LocalizerKey).(*i18n.Localizer)
 	if !ok {
 		return nil, false
 	}
