@@ -4,7 +4,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/dashboard"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
 
@@ -26,10 +25,10 @@ func (c *DashboardController) Register(r *mux.Router) {
 	router := r.Methods(http.MethodGet).Subrouter()
 	router.Use(
 		middleware.WithTransaction(),
-		middleware.Authorize(c.app.Service(services.AuthService{}).(*services.AuthService)),
+		middleware.Authorize(),
 		middleware.RequireAuthorization(),
-		middleware.ProvideUser(c.app.Service(services.UserService{}).(*services.UserService)),
-		middleware.Tabs(c.app.Service(services.TabService{}).(*services.TabService)),
+		middleware.ProvideUser(),
+		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
 	)

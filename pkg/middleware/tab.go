@@ -11,7 +11,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/services"
 )
 
-func Tabs(tabService *services.TabService) mux.MiddlewareFunc {
+func Tabs() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -21,6 +21,11 @@ func Tabs(tabService *services.TabService) mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
+				app, err := composables.UseApp(r.Context())
+				if err != nil {
+					panic(err)
+				}
+				tabService := app.Service(services.TabService{}).(*services.TabService)
 				tabs, err := tabService.GetUserTabs(r.Context(), u.ID)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)

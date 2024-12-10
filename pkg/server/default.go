@@ -2,7 +2,6 @@ package server
 
 import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
@@ -23,11 +22,9 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 	db := options.Db
 	app := options.Application
 
-	if err := dbutils.CheckModels(db, RegisteredModels); err != nil {
-		return nil, err
-	}
 	app.RegisterMiddleware(
 		middleware.WithLogger(options.Logger),
+		middleware.Provide(constants.AppKey, app),
 		middleware.Provide(constants.HeadKey, layouts.Head()),
 		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
 		middleware.Provide(constants.DBKey, db),

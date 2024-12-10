@@ -1,8 +1,11 @@
 package composables
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
+	ErrAppNotFound     = errors.New("app not found")
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrNotFound        = errors.New("not found")
 	ErrUnauthorized    = errors.New("unauthorized")

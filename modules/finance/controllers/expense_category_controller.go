@@ -48,10 +48,10 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
 		middleware.WithTransaction(),
-		middleware.Authorize(c.app.Service(coreservices.AuthService{}).(*coreservices.AuthService)),
+		middleware.Authorize(),
 		middleware.RequireAuthorization(),
-		middleware.ProvideUser(c.app.Service(coreservices.UserService{}).(*coreservices.UserService)),
-		middleware.Tabs(c.app.Service(coreservices.TabService{}).(*coreservices.TabService)),
+		middleware.ProvideUser(),
+		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
 	)

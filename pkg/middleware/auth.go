@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/services"
 	"net/http"
 	"time"
 
@@ -13,15 +13,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
 )
 
-type AuthService interface {
-	Authorize(ctx context.Context, token string) (*session.Session, error)
-}
-
-type UserService interface {
-	GetByID(ctx context.Context, id uint) (*user.User, error)
-}
-
-func Authorize(authService AuthService) mux.MiddlewareFunc {
+func Authorize() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +25,11 @@ func Authorize(authService AuthService) mux.MiddlewareFunc {
 					return
 				}
 				ctx := r.Context()
+				app, err := composables.UseApp(ctx)
+				if err != nil {
+					panic(err)
+				}
+				authService := app.Service(services.AuthService{}).(*services.AuthService)
 				sess, err := authService.Authorize(ctx, token.Value)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -53,7 +50,7 @@ func Authorize(authService AuthService) mux.MiddlewareFunc {
 	}
 }
 
-func ProvideUser(userService UserService) mux.MiddlewareFunc {
+func ProvideUser() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -63,6 +60,11 @@ func ProvideUser(userService UserService) mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
+				app, err := composables.UseApp(ctx)
+				if err != nil {
+					panic(err)
+				}
+				userService := app.Service(services.UserService{}).(*services.UserService)
 				u, err := userService.GetByID(ctx, sess.UserID)
 				if err != nil {
 					next.ServeHTTP(w, r)

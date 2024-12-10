@@ -37,10 +37,10 @@ func (c *EmployeeController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
 		middleware.WithTransaction(),
-		middleware.Authorize(c.app.Service(services.AuthService{}).(*services.AuthService)),
+		middleware.Authorize(),
 		middleware.RequireAuthorization(),
-		middleware.ProvideUser(c.app.Service(services.UserService{}).(*services.UserService)),
-		middleware.Tabs(c.app.Service(services.TabService{}).(*services.TabService)),
+		middleware.ProvideUser(),
+		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
 	)
