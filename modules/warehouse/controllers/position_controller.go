@@ -62,6 +62,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("/upload", c.GetUpload).Methods(http.MethodGet)
@@ -359,5 +360,18 @@ func (c *PositionsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *PositionsController) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, err := c.positionService.Delete(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	shared.Redirect(w, r, c.basePath)
 }
