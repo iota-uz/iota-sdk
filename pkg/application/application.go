@@ -233,6 +233,9 @@ func (app *ApplicationImpl) RunMigrations() error {
 	}
 	ms := migrate.MigrationSet{}
 	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Up, 0)
+	if err != nil {
+		return err
+	}
 	applied := 0
 	tx, err := dbMap.Begin()
 	if err != nil {

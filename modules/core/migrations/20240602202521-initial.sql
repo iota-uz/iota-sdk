@@ -1,7 +1,6 @@
 -- +migrate Up
 CREATE TABLE uploads
 (
-
     id         SERIAL PRIMARY KEY,
     hash       VARCHAR(255)  NOT NULL UNIQUE,
     path       VARCHAR(1024) NOT NULL   DEFAULT '',

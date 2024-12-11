@@ -1,0 +1,15 @@
+.idea
+.DS_Store
+postgres-data/
+py-embed
+tmp/
+.env
+.env.local
+coverage
+node_modules
+static
+uploads
+*_templ.txt
+*_templ.go
+pkg/presentation/assets/css/main.min.css
+logs/

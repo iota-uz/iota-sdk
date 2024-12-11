@@ -4,6 +4,7 @@ services:
   db:
     image: postgres:15.1
     restart: always
+    command: [ "postgres", "-c", "log_statement=all", "-c", "log_destination=stderr", "-c", "logging_collector=off" ]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
