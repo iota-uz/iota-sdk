@@ -112,6 +112,12 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product.Upda
 	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
 		return err
 	}
+	existing, err := s.repo.GetByRfid(ctx, data.Rfid)
+	if existing != nil {
+		return NewErrDuplicateRfid(data.Rfid)
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
 	entity, err := data.ToEntity(id)
 	if err != nil {
 		return err
