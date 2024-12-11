@@ -18,7 +18,6 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 	"log"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -30,31 +29,14 @@ type TestContext struct {
 	App     application.Application
 }
 
-func DBSetup(app application.Application) error {
-	db, err := app.DB().DB()
-	if err != nil {
-		return err
-	}
-	if err := DropPublicSchema(db); err != nil {
-		return err
-	}
-	if err := app.RunMigrations(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func DropPublicSchema(db *sql.DB) error {
-	q := strings.Join(
-		[]string{
-			"DROP SCHEMA IF EXISTS public CASCADE",
-			"CREATE SCHEMA public",
-			"GRANT ALL ON SCHEMA public TO postgres",
-			"GRANT ALL ON SCHEMA public TO public;",
-		}, ";",
-	)
-	_, err := db.Exec(q)
-	return err
+func DropPublicSchema(db *gorm.DB) error {
+	q := `
+		DROP SCHEMA IF EXISTS public CASCADE;
+		CREATE SCHEMA public;
+		GRANT ALL ON SCHEMA public TO postgres;
+		GRANT ALL ON SCHEMA public TO public;
+	`
+	return db.Exec(q).Error
 }
 
 func MockUser(permissions ...permission.Permission) *user.User {
@@ -103,7 +85,7 @@ func GetTestContext() *TestContext {
 			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			gormlogger.Config{
 				SlowThreshold:             0,
-				LogLevel:                  gormlogger.Info,
+				LogLevel:                  gormlogger.Error,
 				IgnoreRecordNotFoundError: false,
 				Colorful:                  true,
 				ParameterizedQueries:      true,
@@ -117,14 +99,18 @@ func GetTestContext() *TestContext {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
-	tx := db.Begin()
-	sqlDB, err := tx.DB()
+	if err := DropPublicSchema(db); err != nil {
+		panic(err)
+	}
+	if err := app.RunMigrations(); err != nil {
+		panic(err)
+	}
+	sqlDB, err := db.DB()
 	if err != nil {
 		panic(err)
 	}
-	if err := DBSetup(app); err != nil {
-		panic(err)
-	}
+
+	tx := db.Begin()
 	ctx := composables.WithTx(context.Background(), tx)
 	ctx = composables.WithParams(
 		ctx,

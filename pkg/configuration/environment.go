@@ -5,7 +5,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/logger"
 	"log"
-	"strings"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -13,7 +14,9 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var singleton *Configuration
+var (
+	singleton *Configuration
+)
 
 func LoadEnv(envFiles []string) (int, error) {
 	exists := make([]bool, len(envFiles))
@@ -108,7 +111,11 @@ func (c *Configuration) load(envFiles []string) error {
 		return err
 	}
 	if n == 0 {
-		log.Printf("No .env files found. Tried: %s\n", strings.Join(envFiles, ", "))
+		wd, _ := os.Getwd()
+		log.Println("No .env files found. Tried:")
+		for _, file := range envFiles {
+			log.Println(filepath.Join(wd, file))
+		}
 	}
 	if err := env.Parse(c); err != nil {
 		return err
