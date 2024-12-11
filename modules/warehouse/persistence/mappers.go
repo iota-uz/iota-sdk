@@ -68,7 +68,7 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 	}, nil
 }
 
-func toDBProduct(entity *product.Product) *models.WarehouseProduct {
+func toDBProduct(entity *product.Product) (*models.WarehouseProduct, error) {
 	return &models.WarehouseProduct{
 		ID:         entity.ID,
 		PositionID: entity.PositionID,
@@ -76,7 +76,7 @@ func toDBProduct(entity *product.Product) *models.WarehouseProduct {
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt,
 		UpdatedAt:  entity.UpdatedAt,
-	}
+	}, nil
 }
 
 func toDomainProduct(dbProduct *models.WarehouseProduct) (*product.Product, error) {

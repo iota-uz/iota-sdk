@@ -20,6 +20,12 @@ import (
 
 var (
 	TestFilePath = "test.xlsx"
+	Data         = []map[string]interface{}{
+		{"A1": "Наименование", "B1": "Код в справочнике", "C1": "Ед. изм.", "D1": "Количество"},
+		{"A2": "Дрель Молоток N.C.V (900W)", "B2": "3241324132", "C2": "шт", "D2": 10},
+		{"A3": "Дрель Молоток N.C.V (900W)", "B3": "9230891234", "C3": "шт", "D3": 10},
+		{"A4": "Дрель Молоток N.C.V (900W)", "B4": "3242198021", "C4": "шт", "D4": 30_000},
+	}
 )
 
 func TestMain(m *testing.M) {
@@ -43,13 +49,7 @@ func createTestFile(path string) error {
 			fmt.Println(err)
 		}
 	}()
-	var data = []map[string]interface{}{
-		{"A1": "Наименование", "B1": "Код в справочнике", "C1": "Ед. изм.", "D1": "Количество"},
-		{"A2": "Дрель Молоток N.C.V (900W)", "B2": "3241324132", "C2": "шт", "D2": 10},
-		{"A3": "Дрель Молоток N.C.V (900W)", "B3": "9230891234", "C3": "шт", "D3": 10},
-		{"A4": "Дрель Молоток N.C.V (900W)", "B4": "3242198021", "C4": "шт", "D4": 10},
-	}
-	for _, v := range data {
+	for _, v := range Data {
 		for k, val := range v {
 			if err := f.SetCellValue("Sheet1", k, val); err != nil {
 				return err
@@ -64,20 +64,17 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	publisher := event.NewEventPublisher()
 
 	unitRepo := persistence.NewUnitRepository()
-	unitService := services.NewUnitService(unitRepo, publisher)
-	testCtx.App.RegisterService(unitService)
+	testCtx.App.RegisterService(services.NewUnitService(unitRepo, publisher))
 
 	productRepo := persistence.NewProductRepository()
-	productService := product_service.NewProductService(productRepo, publisher)
-	testCtx.App.RegisterService(productService)
+	testCtx.App.RegisterService(product_service.NewProductService(productRepo, publisher))
 
 	uploadRepo := corepersistence.NewUploadRepository()
 	storage, err := corepersistence.NewFSStorage()
 	if err != nil {
 		t.Error(err)
 	}
-	uploadService := coreservices.NewUploadService(uploadRepo, storage, publisher)
-	testCtx.App.RegisterService(uploadService)
+	testCtx.App.RegisterService(coreservices.NewUploadService(uploadRepo, storage, publisher))
 
 	positionRepo := persistence.NewPositionRepository()
 	positionService := position_service.NewPositionService(positionRepo, publisher, testCtx.App)
@@ -100,15 +97,15 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if len(positions) != 3 {
-		t.Errorf("expected %d, got %d", 3, len(positions))
+	if len(positions) != len(Data)-1 {
+		t.Errorf("expected %d, got %d", len(Data)-1, len(positions))
 	}
-	if positions[0].Title != "Дрель Молоток N.C.V (900W)" {
-		t.Errorf("expected %s, got %s", "Дрель Молоток N.C.V (900W)", positions[0].Title)
+	if positions[0].Title != Data[1]["A2"] {
+		t.Errorf("expected %s, got %s", Data[1]["A2"], positions[0].Title)
 	}
 
-	if positions[0].Barcode != "3241324132" {
-		t.Errorf("expected %s, got %s", "3241324132", positions[0].Barcode)
+	if positions[0].Barcode != Data[1]["B2"] {
+		t.Errorf("expected %s, got %s", Data[1]["B2"], positions[0].Barcode)
 	}
 
 	units, err := unitRepo.GetAll(ctx)
@@ -123,7 +120,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if len(products) != 30 {
-		t.Errorf("expected %d, got %d", 30, len(products))
+	if len(products) != 30_020 {
+		t.Errorf("expected %d, got %d", 30_020, len(products))
 	}
 }

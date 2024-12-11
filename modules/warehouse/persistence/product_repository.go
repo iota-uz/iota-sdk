@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"gorm.io/gorm"
 )
 
@@ -100,10 +101,11 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Create(toDBProduct(data)).Error; err != nil {
+	dbRow, err := toDBProduct(data)
+	if err != nil {
 		return err
 	}
-	return nil
+	return tx.Create(dbRow).Error
 }
 
 func (g *GormProductRepository) BulkCreate(ctx context.Context, data []*product.Product) error {
@@ -111,11 +113,21 @@ func (g *GormProductRepository) BulkCreate(ctx context.Context, data []*product.
 	if !ok {
 		return composables.ErrNoTx
 	}
-	dbRows := make([]*models.WarehouseProduct, len(data))
-	for i, p := range data {
-		dbRows[i] = toDBProduct(p)
+	dbRows, err := mapping.MapDbModels(data, toDBProduct)
+	if err != nil {
+		return err
 	}
-	return tx.Create(dbRows).Error
+	maxParams := 1000
+	for i := 0; i < len(dbRows); i += maxParams {
+		end := i + maxParams
+		if end > len(dbRows) {
+			end = len(dbRows)
+		}
+		if err := tx.Create(dbRows[i:end]).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *product.Product) error {
@@ -123,7 +135,11 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Save(toDBProduct(data)).Error
+	dbRow, err := toDBProduct(data)
+	if err != nil {
+		return err
+	}
+	return tx.Save(dbRow).Error
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
@@ -131,10 +147,11 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Save(toDBProduct(data)).Error; err != nil {
+	dbRow, err := toDBProduct(data)
+	if err != nil {
 		return err
 	}
-	return nil
+	return tx.Save(dbRow).Error
 }
 
 func (g *GormProductRepository) Delete(ctx context.Context, id uint) error {
@@ -142,8 +159,5 @@ func (g *GormProductRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Where("id = ?", id).Delete(&models.WarehouseProduct{}).Error; err != nil { //nolint:exhaustruct
-		return err
-	}
-	return nil
+	return tx.Where("id = ?", id).Delete(&models.WarehouseProduct{}).Error //nolint:exhaustruct
 }
