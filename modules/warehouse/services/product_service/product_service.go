@@ -113,7 +113,7 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product.Upda
 		return err
 	}
 	existing, err := s.repo.GetByRfid(ctx, data.Rfid)
-	if existing != nil {
+	if existing != nil && existing.ID != id {
 		return NewErrDuplicateRfid(data.Rfid)
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
