@@ -96,6 +96,18 @@ func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.
 	return toDomainProduct(&entity)
 }
 
+func (g *GormProductRepository) GetByRfid(ctx context.Context, rfid string) (*product.Product, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var entity models.WarehouseProduct
+	if err := tx.Where("rfid = ?", rfid).First(&entity).Error; err != nil {
+		return nil, err
+	}
+	return toDomainProduct(&entity)
+}
+
 func (g *GormProductRepository) Create(ctx context.Context, data *product.Product) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
