@@ -3,6 +3,7 @@ package orders
 import (
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/toggle"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -23,14 +24,12 @@ templ CreateForm(props *CreatePageProps) {
 		hx-indicator="#save-btn"
 	>
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
-			@TypeSelect(&TypeSelectProps{
-				Label:       props.T("WarehouseOrders.Single.Type"),
-				Placeholder: props.T("WarehouseOrders.Single.TypePlaceholder"),
-				Value:       props.Order.Type,
-				Error:       props.Errors["Type"],
-				Attrs: templ.Attributes{
-					"name": "Type",
-				},
+			@toggle.Toggle(toggle.ToggleProps{
+				InitialActive: props.Order.Type,
+				Options:       OrderTypes(ctx),
+				Size:          toggle.SizeMD,
+				Alignment:     toggle.AlignCenter,
+				Rounded:       toggle.RoundedCurved,
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

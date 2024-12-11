@@ -181,7 +181,7 @@
     --ease-elastic-in-out-3: cubic-bezier(.5, -.5, .1, 1.5);
     --ease-squish-2: var(--ease-elastic-in-out-2);
     --ease-squish-3: var(--ease-elastic-in-out-3);
-    
+
     /* Animation */
     --animation-slide-in-up: slide-in-up 500ms var(--ease-3);
     --animation-scale-down: scale-down 500ms var(--ease-3);
@@ -270,7 +270,9 @@
   }
 }
 
-[x-cloak] { display: none !important; }
+[x-cloak] {
+  display: none !important;
+}
 
 @layer components {
   .form-control {
@@ -502,7 +504,7 @@
     animation-delay: 1s;
   }
 
-  .btn-loading .btn-loading-indicator, 
+  .btn-loading .btn-loading-indicator,
   .htmx-request .btn-loading-indicator,
   .htmx-request.btn-loading-indicator {
     --display: block;
@@ -513,15 +515,19 @@
     border-collapse: separate;
     border-spacing: 0;
   }
+
   .table tr:first-child th:first-child {
     border-top-left-radius: var(--radius);
   }
+
   .table tr:first-child th:last-child {
     border-top-right-radius: var(--radius);
   }
+
   .table tr:last-child td:first-child {
     border-bottom-left-radius: var(--radius);
   }
+
   .table tr:last-child td:last-child {
     border-bottom-right-radius: var(--radius);
   }
@@ -559,6 +565,125 @@
     backdrop-filter: blur(8px);
     transition: backdrop-filter 500ms ease;
   }
+
+  .tab-slider {
+    @apply relative;
+  }
+
+  .tab-slider-inner {
+    @apply mb-6 flex;
+  }
+
+  .tab-slider-track {
+    @apply relative flex w-full items-center font-sans bg-slate-100 dark:bg-slate-700;
+  }
+
+  .tab-slider-item {
+    @apply relative z-20 h-full flex flex-1 items-center justify-center text-sm font-sans;
+  }
+
+  .tab-slider-item:not(.tab-active) {
+    @apply text-slate-400 dark:text-slate-400;
+  }
+
+  .tab-slider-item.tab-active {
+    @apply text-white dark:text-white;
+  }
+
+  .tab-slider-naver {
+    @apply absolute start-0 top-0 z-10 h-full bg-brand-500 dark:bg-brand-500 transition-all duration-300;
+  }
+
+  .tab-content {
+    @apply relative block;
+  }
+
+  /* Alignment classes */
+  .tabs-centered .tab-slider-inner {
+    @apply justify-center;
+  }
+
+  .tabs-end .tab-slider-inner {
+    @apply justify-end;
+  }
+
+  /* Rounded variants */
+  .tabs-rounded .tab-slider-track,
+  .tabs-rounded .tab-slider-naver {
+    @apply rounded-md;
+  }
+
+  .tabs-smooth .tab-slider-track,
+  .tabs-smooth .tab-slider-naver {
+    @apply rounded-lg;
+  }
+
+  .tabs-curved .tab-slider-track,
+  .tabs-curved .tab-slider-naver {
+    @apply rounded-xl;
+  }
+
+  .tabs-full .tab-slider-track,
+  .tabs-full .tab-slider-naver {
+    @apply rounded-full;
+  }
+
+  /* Size: sm */
+  .tabs-sm.tabs-two-slots .tab-slider-track {
+    @apply max-w-[140px];
+  }
+
+  .tabs-sm.tabs-three-slots .tab-slider-track {
+    @apply max-w-[210px];
+  }
+
+  .tabs-sm .tab-slider-track {
+    @apply h-8;
+  }
+
+  /* Size: md */
+  .tabs-md.tabs-two-slots .tab-slider-track {
+    @apply max-w-[250px];
+  }
+
+  .tabs-md.tabs-three-slots .tab-slider-track {
+    @apply max-w-[320px];
+  }
+
+  .tabs-md .tab-slider-track {
+    @apply h-10;
+  }
+
+  /* Slot-based transitions */
+  .tabs-two-slots .tab-slider-naver,
+  .tabs-two-slots .tab-slider-item {
+    @apply w-1/2;
+  }
+
+  .tabs-two-slots .tab-slider-item:first-child.tab-active ~ .tab-slider-naver {
+    @apply ms-0;
+  }
+
+  .tabs-two-slots .tab-slider-item:nth-child(2).tab-active ~ .tab-slider-naver {
+    @apply ms-[50%];
+  }
+
+  .tabs-three-slots .tab-slider-naver,
+  .tabs-three-slots .tab-slider-item {
+    @apply w-1/3;
+  }
+
+  .tabs-three-slots .tab-slider-item:first-child.tab-active ~ .tab-slider-naver {
+    @apply ms-0;
+  }
+
+  .tabs-three-slots .tab-slider-item:nth-child(2).tab-active ~ .tab-slider-naver {
+    @apply ms-[33.3%];
+  }
+
+  .tabs-three-slots .tab-slider-item:nth-child(3).tab-active ~ .tab-slider-naver {
+    @apply ms-[66.6%];
+  }
 }
 
 @layer utilities {
@@ -580,14 +705,21 @@
 
 /* Keyframes */
 @keyframes slide-in-up {
-  from { transform: translateY(100%) }
+  from {
+    transform: translateY(100%)
+  }
 }
 
 @keyframes scale-down {
-  to { transform: scale(.75) }
+  to {
+    transform: scale(.75)
+  }
 }
+
 @keyframes slide-out-down {
-  to { transform: translateY(100%) }
+  to {
+    transform: translateY(100%)
+  }
 }
 
 @keyframes dot-flashing {
