@@ -35,6 +35,9 @@
 * [Pagination](#pagination)
   * [Usage](#usage-9)
   * [API](#api-8)
+* [Table](#table)
+  * [Usage](#usage-10)
+  * [API](#api-9)
 
 ## Button
 Button component to render a button or a link
@@ -452,3 +455,41 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 |---              |---                                                  |---
 | Total           | `int`                                               | Total number of pages
 | Current         | `int`                                               | Current page
+
+## Table
+
+### Usage
+
+```go
+import "github.com/iota-agency/iota-sdk/components/base"
+
+templ TableDemo() {
+  @base.Table(&base.TableProps{
+    Columns: []*base.TableColumn{
+      {Label: "First name"},
+      {Label: "Last name"},
+    },
+  }) {
+    for _, user := range users {
+      @base.TableRow() {
+        @base.TableCell() {
+          { user.FirstName }
+        }
+        @base.TableCell() {
+          { user.LastName }
+        }
+      }
+    }
+  }
+}
+```
+
+### API
+| Name            | Type                                                | Description
+|---              |---                                                  |---
+| Columns         | [`[]*TableColumn`](#table-column)                   | Table columns
+
+### Table column
+| Name            | Type                                                | Description
+|---              |---                                                  |---
+| Label           | `string`                                            | Column header text
