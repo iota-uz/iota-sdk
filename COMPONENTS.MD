@@ -38,6 +38,9 @@
 * [Table](#table)
   * [Usage](#usage-10)
   * [API](#api-9)
+* [Card](#card)
+  * [Usage](#usage-11)
+  * [API](#api-10)
 
 ## Button
 Button component to render a button or a link
@@ -493,3 +496,20 @@ templ TableDemo() {
 | Name            | Type                                                | Description
 |---              |---                                                  |---
 | Label           | `string`                                            | Column header text
+
+
+## Card
+
+### Usage
+
+```go
+import "github.com/iota-agency/iota-sdk/components/base"
+
+templ CardDemo() {
+  @base.Card("") {
+    Content
+  }
+}
+```
+### API
+class - `string` 
