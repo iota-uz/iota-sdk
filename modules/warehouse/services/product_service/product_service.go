@@ -2,10 +2,13 @@ package product_service
 
 import (
 	"context"
+	"errors"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
+	"gorm.io/gorm"
 )
 
 type ProductService struct {
@@ -57,6 +60,12 @@ func (s *ProductService) GetPaginated(
 
 func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) error {
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
+		return err
+	}
+	existing, err := s.repo.GetByRfid(ctx, data.Rfid)
+	if existing != nil {
+		return NewErrDuplicateRfid(data.Rfid)
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 	entity, err := data.ToEntity()
