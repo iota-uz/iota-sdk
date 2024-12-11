@@ -205,13 +205,12 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		entity, err := c.productService.GetByID(r.Context(), id)
+		if err != nil {
+			c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
+			return
+		}
 		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			entity, err := c.productService.GetByID(r.Context(), id)
-			if err != nil {
-				c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
-				return
-			}
-
 			props := &products.EditPageProps{
 				PageContext: pageCtx,
 				Product:     mappers.ProductToViewModel(entity),
@@ -222,6 +221,19 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := c.productService.Update(r.Context(), id, &dto); err != nil {
+			var vErr serrors.BaseError
+			if errors.As(err, &vErr) {
+				entity.Rfid = dto.Rfid
+				props := &products.EditPageProps{
+					PageContext: pageCtx,
+					Errors: map[string]string{
+						"Rfid": vErr.Localize(pageCtx.Localizer),
+					},
+					Product: mappers.ProductToViewModel(entity),
+				}
+				c.renderTemplate(w, r, products.EditForm(props))
+				return
+			}
 			c.handleError(w, err)
 			return
 		}
