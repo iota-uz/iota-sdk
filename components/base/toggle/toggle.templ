@@ -1,0 +1,119 @@
+package toggle
+
+import "fmt"
+
+type ToggleOption struct {
+	Value string
+	Label string
+}
+
+func (t *ToggleOption) onClick() string {
+	return fmt.Sprintf("active = '%s'", t.Value)
+}
+
+func (t *ToggleOption) conditionalClass() string {
+	// We apply `.tab-active` if this option is the current active selection.
+	// The `.tab-active` class is used by the CSS to show the active state.
+	return fmt.Sprintf("{'tab-active': active == '%s'}", t.Value)
+}
+
+type ToggleSize string
+
+const (
+	SizeSM ToggleSize = "sm"
+	SizeMD ToggleSize = "md"
+)
+
+type ToggleRounded string
+
+const (
+	RoundedNone   ToggleRounded = ""
+	RoundedSm     ToggleRounded = "rounded"
+	RoundedSmooth ToggleRounded = "smooth"
+	RoundedCurved ToggleRounded = "curved"
+	RoundedFull   ToggleRounded = "full"
+)
+
+type ToggleAlignment string
+
+const (
+	AlignStart  ToggleAlignment = ""
+	AlignCenter ToggleAlignment = "centered"
+	AlignEnd    ToggleAlignment = "end"
+)
+
+type ToggleProps struct {
+	InitialActive string
+	Options       []ToggleOption
+	Size          ToggleSize
+	Rounded       ToggleRounded
+	Alignment     ToggleAlignment
+}
+
+func (t *ToggleProps) state() string {
+	return fmt.Sprintf("{ active: '%s' }", t.InitialActive)
+}
+
+func (t *ToggleProps) wrapperClasses() string {
+	classes := "tab-slider"
+	// Add size classes
+	if t.Size == SizeSM {
+		classes += " tabs-sm"
+	} else if t.Size == SizeMD {
+		classes += " tabs-md"
+	}
+
+	// Add slots classes
+	switch len(t.Options) {
+	case 2:
+		classes += " tabs-two-slots"
+	default:
+		classes += " tabs-three-slots"
+	}
+
+	// Add rounding classes
+	switch t.Rounded {
+	case RoundedSm:
+		classes += " tabs-rounded"
+	case RoundedSmooth:
+		classes += " tabs-smooth"
+	case RoundedCurved:
+		classes += " tabs-curved"
+	case RoundedFull:
+		classes += " tabs-full"
+	}
+
+	// Add alignment classes
+	switch t.Alignment {
+	case AlignCenter:
+		classes += " tabs-centered"
+	case AlignEnd:
+		classes += " tabs-end"
+	}
+
+	return classes
+}
+
+templ Toggle(props ToggleProps) {
+	<div
+		x-data={ props.state() }
+		class={ props.wrapperClasses() }
+	>
+		<div class="tab-slider-inner">
+			<div class="tab-slider-track">
+				for _, option := range props.Options {
+					<button
+						type="button"
+						class="tab-slider-item cursor-pointer"
+						@click={ option.onClick() }
+						:class={ option.conditionalClass() }
+					>
+						{ option.Label }
+					</button>
+				}
+				<div class="tab-slider-naver"></div>
+			</div>
+		</div>
+		<input type="hidden" :value="active"/>
+	</div>
+}

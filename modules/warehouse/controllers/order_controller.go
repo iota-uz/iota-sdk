@@ -203,8 +203,10 @@ func (c *OrdersController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &orders.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Order:       mappers.OrderToViewModel(&order.Order{}), //nolint:exhaustruct
-		SaveURL:     c.basePath,
+		Order: mappers.OrderToViewModel(&order.Order{
+			Type: order.TypeIn,
+		}), //nolint:exhaustruct
+		SaveURL: c.basePath,
 	}
 	templ.Handler(orders.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
