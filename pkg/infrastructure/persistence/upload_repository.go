@@ -109,6 +109,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 	if err := tx.Create(upload).Error; err != nil {
 		return err
 	}
+	data.ID = upload.ID
 	return nil
 }
 
