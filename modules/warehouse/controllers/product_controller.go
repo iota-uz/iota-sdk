@@ -1,11 +1,14 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
-	"net/http"
+	"github.com/iota-agency/iota-sdk/pkg/serrors"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -260,13 +263,12 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	entity, err := dto.ToEntity()
+	if err != nil {
+		c.handleError(w, err)
+		return
+	}
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		entity, err := dto.ToEntity()
-		if err != nil {
-			c.handleError(w, err)
-			return
-		}
-
 		props := &products.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
@@ -278,6 +280,19 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := c.productService.Create(r.Context(), &dto); err != nil {
+		var vErr serrors.BaseError
+		if errors.As(err, &vErr) {
+			props := &products.CreatePageProps{
+				PageContext: pageCtx,
+				Errors: map[string]string{
+					"Rfid": vErr.Localize(pageCtx.Localizer),
+				},
+				Product: mappers.ProductToViewModel(entity),
+				SaveURL: c.basePath,
+			}
+			c.renderTemplate(w, r, products.CreateForm(props))
+			return
+		}
 		c.handleError(w, err)
 		return
 	}

@@ -1,6 +1,7 @@
 {
   "Errors": {
-    "ERR_INVALID_CELL": "Ошибка при обработке ячейки \"{{.Col}}:{{.Row}}\""
+    "ERR_INVALID_CELL": "Ошибка при обработке ячейки \"{{.Col}}:{{.Row}}\"",
+    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует"
   },
   "NavigationLinks": {
     "Warehouse": "Склад",

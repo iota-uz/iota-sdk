@@ -7,6 +7,7 @@ type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]*Product, error)
 	GetByID(ctx context.Context, id uint) (*Product, error)
+	GetByRfid(ctx context.Context, rfid string) (*Product, error)
 	Create(ctx context.Context, data *Product) error
 	BulkCreate(ctx context.Context, data []*Product) error
 	CreateOrUpdate(ctx context.Context, data *Product) error

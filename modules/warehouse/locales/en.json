@@ -1,6 +1,7 @@
 {
   "Errors": {
-    "ERR_INVALID_CELL": "Error processing cell \"{{.Col}}:{{.Row}}\""
+    "ERR_INVALID_CELL": "Error processing cell \"{{.Col}}:{{.Row}}\"",
+    "ERR_DUPLICATE_RFID": "Rfid {{.Rfid}} already exists"
   },
   "NavigationLinks": {
     "Warehouse": "Warehouse",
