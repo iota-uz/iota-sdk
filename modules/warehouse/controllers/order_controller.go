@@ -3,6 +3,8 @@ package controllers
 import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
+	order_in "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/in"
+	order_out "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/out"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
@@ -54,10 +56,13 @@ func (c *OrdersController) Register(r *mux.Router) {
 	)
 
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/in", c.CreateInOrder).Methods(http.MethodPost)
+	router.HandleFunc("/out", c.CreateOutOrder).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/in/new", c.NewInOrder).Methods(http.MethodGet)
+	router.HandleFunc("/out/new", c.NewOutOrder).Methods(http.MethodGet)
+	router.HandleFunc("/items", c.OrderItems).Methods(http.MethodPost)
 }
 
 func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResponse, error) {
@@ -194,24 +199,42 @@ func (c *OrdersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *OrdersController) GetNew(w http.ResponseWriter, r *http.Request) {
+func (c *OrdersController) NewInOrder(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &orders.CreatePageProps{
+	props := &order_in.PageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
 		Order: mappers.OrderToViewModel(&order.Order{
 			Type: order.TypeIn,
 		}), //nolint:exhaustruct
-		SaveURL: c.basePath,
+		SaveURL:  c.basePath,
+		ItemsURL: fmt.Sprintf("%s/items", c.basePath),
 	}
-	templ.Handler(orders.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(order_in.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *OrdersController) Create(w http.ResponseWriter, r *http.Request) {
+func (c *OrdersController) NewOutOrder(w http.ResponseWriter, r *http.Request) {
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := &order_out.CreatePageProps{
+		PageContext: pageCtx,
+		Errors:      map[string]string{},
+		Order: mappers.OrderToViewModel(&order.Order{
+			Type: order.TypeOut,
+		}), //nolint:exhaustruct
+		SaveURL: c.basePath,
+	}
+	templ.Handler(order_out.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -235,12 +258,12 @@ func (c *OrdersController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &orders.CreatePageProps{
+		props := &order_in.PageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
 			Order:       mappers.OrderToViewModel(entity),
 		}
-		templ.Handler(orders.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(order_in.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
@@ -250,4 +273,64 @@ func (c *OrdersController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	dto := dtos.CreateOrderDTO{} //nolint:exhaustruct
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		entity, err := dto.ToEntity()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		props := &order_out.CreatePageProps{
+			PageContext: pageCtx,
+			Errors:      errorsMap,
+			Order:       mappers.OrderToViewModel(entity),
+		}
+		templ.Handler(order_out.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	if err := c.orderService.Create(r.Context(), &dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	items := []*viewmodels.OrderItem{
+		{
+			Position: viewmodels.Position{
+				ID:    "1",
+				Title: "Position 1",
+			},
+			Quantity: "10",
+		},
+	}
+
+	templ.Handler(order_in.OrderItemsTableBody(items), templ.WithStreaming()).ServeHTTP(w, r)
 }

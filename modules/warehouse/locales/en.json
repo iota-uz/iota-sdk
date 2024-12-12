@@ -159,6 +159,11 @@
         "In": "Acceptance",
         "Out": "Shipment"
       },
+      "Position": "Position",
+      "SearchPosition": "Search position",
+      "NoPositionsFound": "No positions found",
+      "Quantity": "Quantity in stock",
+      "Unit": "Unit",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse order?"
     }

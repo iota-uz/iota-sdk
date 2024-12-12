@@ -84,7 +84,13 @@ templ Combobox(props ComboboxProps) {
 					},
 				})
 			} else {
-				<button class="form-control flex items-center justify-between w-full gap-6" x-on:click="open = !open" x-on:keydown.down.prevent="openedWithKeyboard = true" x-on:keydown.enter.prevent="openedWithKeyboard = true" x-on:keydown.space.prevent="openedWithKeyboard = true">
+				<button
+					class="form-control flex items-center justify-between w-full gap-6"
+					x-on:click="open = !open"
+					x-on:keydown.down.prevent="openedWithKeyboard = true"
+					x-on:keydown.enter.prevent="openedWithKeyboard = true"
+					x-on:keydown.space.prevent="openedWithKeyboard = true"
+				>
 					<span class="text-sm font-normal" x-text={ fmt.Sprintf("value !== '' ? value : '%s'", props.Placeholder) }></span>
 					@icons.ChevronDown(icons.Props{
 						Size:  "16",

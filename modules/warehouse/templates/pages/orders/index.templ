@@ -55,6 +55,13 @@ templ OrdersTable(props *IndexPageProps) {
 	</div>
 }
 
+templ newOrderButton(props *IndexPageProps) {
+	<summary class="btn btn-primary btn-normal btn-with-icon shrink-0 cursor-pointer w-40">
+		@icons.PlusCircle(icons.Props{Size: "18"})
+		{ props.T("WarehouseOrders.List.New") }
+	</summary>
+}
+
 templ OrdersContent(props *IndexPageProps) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
@@ -93,12 +100,13 @@ templ OrdersContent(props *IndexPageProps) {
 					<option>Yesterday</option>
 					<option>The day before yesterday</option>
 				}
-				@button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Href: "/warehouse/orders/new",
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-				}) {
-					{ props.T("WarehouseOrders.List.New") }
+				@base.DetailsDropdown(newOrderButton(props)) {
+					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/in/new"}) {
+						{ props.T("WarehouseOrders.List.NewIn") }
+					}
+					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/out/new"}) {
+						{ props.T("WarehouseOrders.List.NewOut") }
+					}
 				}
 			</form>
 			@OrdersTable(props)
