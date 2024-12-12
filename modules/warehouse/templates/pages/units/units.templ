@@ -69,8 +69,7 @@ templ UnitsContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				@input.Text(&input.Props{
-					Addon: &input.Addon{
-						Position:  input.AddonLeft,
+					AddonLeft: &input.Addon{
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
 					Placeholder: props.T("Search"),
