@@ -3,47 +3,30 @@ package input
 import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/utils/random"
-	"github.com/iota-agency/iota-sdk/pkg/utils/sequence"
-	"strings"
-)
-
-type addonPosition int
-
-const (
-	AddonRight = addonPosition(iota + 1)
-	AddonLeft
 )
 
 type Addon struct {
 	Render    func(props *Props) templ.Component
 	Component templ.Component
-	Position  addonPosition
 }
 
 type Props struct {
-	Placeholder string
-	Label       string
-	Class       string
-	Attrs       templ.Attributes
-	Addon       *Addon
-	Error       string
-	id          string
-	typ         string
+	Placeholder  string
+	Label        string
+	Class        string
+	Attrs        templ.Attributes
+	WrapperProps templ.Attributes
+	AddonRight   *Addon
+	AddonLeft    *Addon
+	Error        string
+	id           string
+	typ          string
 }
 
 func newInput(props *Props) *Props {
 	id := random.String(12, random.LowerCharSet)
-	class := new(strings.Builder)
-	if props.Addon != nil {
-		if props.Addon.Position == AddonLeft {
-			class.WriteString("pl-10")
-		} else if props.Addon.Position == AddonRight {
-			class.WriteString("pr-10")
-		}
-	}
-	sequence.Pad(class, " ")
-	class.WriteString(props.Class)
-	return &Props{id: id, Label: props.Label, Class: class.String(), Attrs: props.Attrs, Addon: props.Addon, typ: props.typ, Placeholder: props.Placeholder, Error: props.Error}
+	props.id = id
+	return props
 }
 
 templ (p *Props) render() {
@@ -51,23 +34,23 @@ templ (p *Props) render() {
 		if len(p.Label) > 0 {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
-		<div class="w-full relative">
-			if p.Addon != nil && p.Addon.Position == AddonLeft {
-				<div class="absolute left-3 top-1/2 -translate-y-1/2">
-					if p.Addon.Render != nil {
-						@p.Addon.Render(p)
-					} else if p.Addon.Component != nil {
-						@p.Addon.Component
+		<div class="flex items-center w-full relative form-control" { p.WrapperProps... }>
+			if p.AddonLeft != nil {
+				<div class="flex pl-2.5">
+					if p.AddonLeft.Render != nil {
+						@p.AddonLeft.Render(p)
+					} else if p.AddonLeft.Component != nil {
+						@p.AddonLeft.Component
 					}
 				</div>
 			}
-			<input id={ p.id } class={ "form-control w-full", p.Class } type={ p.typ } placeholder={ p.Placeholder } { p.Attrs... }/>
-			if p.Addon != nil && p.Addon.Position == AddonRight {
-				<div class="absolute -translate-x-3 right-0 top-1/2 -translate-y-1/2 flex items-center justify-center">
-					if p.Addon.Render != nil {
-						@p.Addon.Render(p)
-					} else if p.Addon.Component != nil {
-						@p.Addon.Component
+			<input id={ p.id } class={ "form-control-input outline-none w-full", p.Class } type={ p.typ } placeholder={ p.Placeholder } { p.Attrs... }/>
+			if p.AddonRight != nil {
+				<div class="flex pr-2.5">
+					if p.AddonRight.Render != nil {
+						@p.AddonRight.Render(p)
+					} else if p.AddonRight.Component != nil {
+						@p.AddonRight.Component
 					}
 				</div>
 			}
@@ -79,19 +62,19 @@ templ (p *Props) render() {
 }
 
 templ Text(props *Props) {
-	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
+	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
 }
 
 templ Number(props *Props) {
-	@newInput(&Props{typ: "number", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
+	@newInput(&Props{typ: "number", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
 }
 
 templ Email(props *Props) {
-	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
+	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
 }
 
 templ Date(props *Props) {
-	@newInput(&Props{typ: "date", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, Addon: props.Addon, Error: props.Error}).render()
+	@newInput(&Props{typ: "date", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
 }
 
 type CheckboxProps struct {
@@ -134,7 +117,7 @@ templ Checkbox(p *CheckboxProps) {
 }
 
 templ passwordLock(p *Props) {
-	<label x-data="passwordVisibility" class="flex items-center justify-center mr-3">
+	<label x-data="passwordVisibility" class="flex items-center justify-center mx-2.5">
 		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } @change="toggle"/>
 		@icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"})
 		@icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"})
@@ -149,8 +132,7 @@ templ Password(props *Props) {
 		Attrs:       props.Attrs,
 		Placeholder: props.Placeholder,
 		Error:       props.Error,
-		Addon: &Addon{
-			Position: AddonRight,
+		AddonRight: &Addon{
 			Render: func(p *Props) templ.Component {
 				return passwordLock(p)
 			},

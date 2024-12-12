@@ -1,5 +1,6 @@
 import "./alpine.lib.min.js";
 import "./alpine-focus.min.js";
+import "./alpine-anchor.min.js";
 
 let relativeFormat = () => ({
   format(dateStr = new Date().toISOString(), locale = "ru") {
@@ -21,6 +22,25 @@ let relativeFormat = () => ({
     let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
+});
+
+let dateFns = () => ({
+  dateBefore(days) {
+    let date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split("T")[0];
+  },
+  startOfWeek(factor = 1) {
+    let date = new Date();
+    let firstDay = date.getDate() - date.getDay() + 1;
+    return new Date(date.setDate(firstDay)).toISOString().split("T")[0];
+  },
+  endOfWeek(factor = 1) {
+    let date = new Date();
+    let firstDay = date.getDate() - date.getDay() + 1;
+    let lastDay = firstDay + 6
+    return new Date(date.setDate(lastDay)).toISOString().split("T")[0];
+  }
 });
 
 let passwordVisibility = () => ({
@@ -142,9 +162,8 @@ let combobox = (searchable = false) => ({
         this.selectedIndices.add(indexInt);
       }
     } else {
-      let [selectedIndex] = this.selectedIndices;
       for (let i = 0, len = this.options.length; i < len; i++) {
-        if (i === selectedIndex) this.options[i].toggleAttribute("selected");
+        if (i === indexInt) this.options[i].toggleAttribute("selected");
         else this.options[i].removeAttribute("selected");
       }
       if (
@@ -160,6 +179,11 @@ let combobox = (searchable = false) => ({
     this.generateValue();
     this.open = false;
     this.openedWithKeyboard = false;
+    if (this.selectedIndices.size === 0) {
+      this.$refs.select.value = "";
+    }
+    this.$refs.select.dispatchEvent(new Event("change"));
+    this.activeIndex = indexInt;
   },
   toggle() {
     this.open = !this.open;
@@ -285,4 +309,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("combobox", combobox);
   Alpine.data("checkboxes", checkboxes);
   Alpine.data("spotlight", spotlight);
+  Alpine.data("dateFns", dateFns);
 });

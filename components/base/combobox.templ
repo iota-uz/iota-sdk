@@ -6,16 +6,29 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 )
 
+type TriggerProps struct {
+	ComboboxProps
+	InputAttrs  templ.Attributes
+	ButtonAttrs templ.Attributes
+}
+
+type Trigger struct {
+	Render    func(props *TriggerProps) templ.Component
+	Component templ.Component
+}
+
 type ComboboxProps struct {
 	Multiple     bool
 	Placeholder  string
 	Class        string
+	ListClass    string
 	Name         string
 	Form         string
 	Label        string
 	Endpoint     string
 	Searchable   bool
 	NotFoundText string
+	Trigger      *Trigger
 }
 
 type ComboboxOption struct {
@@ -30,7 +43,7 @@ templ ComboboxOptions(options []*ComboboxOption) {
 }
 
 templ DropdownIndicator() {
-	<button class="p-2 -m-2 duration-200 cursor-pointer" tabindex="-1" :class="open || openedWithKeyboard ? 'rotate-180' : ''" type="button" @click="open = !open">
+	<button class="inline-flex duration-200 cursor-pointer" tabindex="-1" :class="open || openedWithKeyboard ? 'rotate-180' : ''" type="button" @click="open = !open">
 		@icons.ChevronDown(icons.Props{Size: "16"})
 	</button>
 }
@@ -62,11 +75,42 @@ templ Combobox(props ComboboxProps) {
 			{ children... }
 		</select>
 		<div class="relative" x-on:click.outside="open = false, openedWithKeyboard = false">
-			if props.Searchable {
+			if props.Trigger != nil {
+				if props.Trigger.Component != nil {
+					@props.Trigger.Component
+				} else if props.Trigger.Render != nil {
+					@props.Trigger.Render(&TriggerProps{
+						InputAttrs: templ.Attributes{
+							":value":                     "value",
+							"hx-get":                     props.Endpoint,
+							"hx-trigger":                 "input changed delay:250ms, search",
+							"hx-sync":                    "this:replace",
+							"name":                       "q",
+							":hx-target":                 "'#' + $id('combobox')",
+							"hx-swap":                    "innerHTML",
+							"@input.debounce":            "onInput",
+							"x-on:keydown.enter.prevent": "setIndex(activeIndex)",
+							"autocomplete":               "off",
+							"x-ref":                      "trigger",
+						},
+						ButtonAttrs: templ.Attributes{
+							"x-on:click":                 "open = !open",
+							"x-on:keydown.down.prevent":  "openedWithKeyboard = true",
+							"x-on:keydown.enter.prevent": "openedWithKeyboard = true",
+							"x-on:keydown.space.prevent": "openedWithKeyboard = true",
+							"x-ref":                      "trigger",
+						},
+						ComboboxProps: props,
+					})
+				}
+			} else if props.Searchable {
 				@input.Text(&input.Props{
 					Placeholder: props.Placeholder,
+					WrapperProps: templ.Attributes{
+						"x-ref": "trigger",
+					},
 					Attrs: templ.Attributes{
-						":value":                     "value",
+						"x-model":                    "value",
 						"hx-get":                     props.Endpoint,
 						"hx-trigger":                 "input changed delay:250ms, search",
 						"hx-sync":                    "this:replace",
@@ -78,8 +122,7 @@ templ Combobox(props ComboboxProps) {
 						"autocomplete":               "off",
 						"x-ref":                      "input",
 					},
-					Addon: &input.Addon{
-						Position:  input.AddonRight,
+					AddonRight: &input.Addon{
 						Component: DropdownIndicator(),
 					},
 				})
@@ -90,7 +133,7 @@ templ Combobox(props ComboboxProps) {
 					x-on:keydown.down.prevent="openedWithKeyboard = true"
 					x-on:keydown.enter.prevent="openedWithKeyboard = true"
 					x-on:keydown.space.prevent="openedWithKeyboard = true"
-				>
+				type="button">
 					<span class="text-sm font-normal" x-text={ fmt.Sprintf("value !== '' ? value : '%s'", props.Placeholder) }></span>
 					@icons.ChevronDown(icons.Props{
 						Size:  "16",
@@ -105,12 +148,13 @@ templ Combobox(props ComboboxProps) {
 				x-ref="list"
 				x-cloak
 				x-show="open || openedWithKeyboard"
-				class="bg-surface-300 absolute z-10 left-0 top-11 mt-1 flex max-h-44 w-full flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm"
+				class={ "bg-surface-300 absolute z-10 left-0 top-11 mt-1 flex max-h-44 flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm w-full", props.ListClass }
 				x-on:keydown.down.prevent="$focus.wrap().next()"
 				x-on:keydown.up.prevent="$focus.wrap().previous()"
 				this.activeIndex
 				x-transition
 				x-trap="openedWithKeyboard"
+				x-anchor="$refs.trigger"
 			>
 				<template x-for="(item, index) in options" x-bind:key="index">
 					<li class="combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none" :class="activeIndex == index ? 'bg-surface-400' : ''" x-on:click="setIndex(index)" x-on:keydown.enter="setIndex(index)" x-bind:id="'option-' + index" tabindex="0">
