@@ -7,3 +7,8 @@ type Order struct {
 	CreatedAt string
 	UpdatedAt string
 }
+
+type OrderItem struct {
+	Position Position
+	Quantity string
+}
