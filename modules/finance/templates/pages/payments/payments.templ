@@ -88,15 +88,6 @@ templ PaymentsContent(props *IndexPageProps) {
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
-<<<<<<< Updated upstream
-				@input.Text(&input.Props{
-					AddonLeft: &input.Addon{
-						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-					},
-					Placeholder: props.T("Search"),
-					Attrs: templ.Attributes{
-						"name": "name",
-=======
 				@filters.Default(&filters.Props{
 					PageContext: props.PageContext,
 					Fields: []filters.SearchField{
@@ -104,7 +95,6 @@ templ PaymentsContent(props *IndexPageProps) {
 							Label: props.T("Payments.List.Amount"),
 							Key:   "amount",
 						},
->>>>>>> Stashed changes
 					},
 				})
 				@button.Primary(button.Props{

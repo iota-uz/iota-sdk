@@ -16,28 +16,40 @@ func NewExpenseRepository() expense.Repository {
 	return &GormExpenseRepository{}
 }
 
-func (g *GormExpenseRepository) tx(ctx context.Context) (*gorm.DB, error) {
+func (g *GormExpenseRepository) tx(ctx context.Context, params *expense.FindParams) (*gorm.DB, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	return tx.Preload("Transaction").Preload("Category").Preload("Category.AmountCurrency"), nil
+	categoryArgs := []interface{}{}
+	transactionArgs := []interface{}{}
+	if params.Query != "" && params.Field != "" {
+		if params.Field == "category" {
+			categoryArgs = append(categoryArgs, tx.Where("name ILIKE ?", "%"+params.Query+"%"))
+		}
+		if params.Field == "amount" {
+			transactionArgs = append(transactionArgs, tx.Where("amount::varchar ILIKE ?", "%"+params.Query+"%"))
+		}
+	}
+	return tx.InnerJoins("Transaction", transactionArgs...).InnerJoins("Category", categoryArgs...).InnerJoins("Category.AmountCurrency"), nil
 }
 
 func (g *GormExpenseRepository) GetPaginated(
-	ctx context.Context, limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *expense.FindParams,
 ) ([]*expense.Expense, error) {
-	tx, err := g.tx(ctx)
+	tx, err := g.tx(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	q := tx.Limit(limit).Offset(offset)
-	for _, s := range sortBy {
-		q = q.Order(s)
+	tx.Limit(params.Limit).Offset(params.Offset)
+	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
+		tx.Where("expenses.created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+	}
+	for _, s := range params.SortBy {
+		tx.Order(s)
 	}
 	var rows []*models.Expense
-	if err := q.Find(&rows).Error; err != nil {
+	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(rows, toDomainExpense)
@@ -56,7 +68,7 @@ func (g *GormExpenseRepository) Count(ctx context.Context) (uint, error) {
 }
 
 func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]*expense.Expense, error) {
-	tx, err := g.tx(ctx)
+	tx, err := g.tx(ctx, &expense.FindParams{})
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +80,7 @@ func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]*expense.Expense,
 }
 
 func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (*expense.Expense, error) {
-	tx, err := g.tx(ctx)
+	tx, err := g.tx(ctx, &expense.FindParams{})
 	if err != nil {
 		return nil, err
 	}

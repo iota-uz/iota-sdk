@@ -71,8 +71,16 @@ func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.Mo
 }
 
 func (c *ExpenseController) viewModelExpenses(r *http.Request) (*ExpensePaginationResponse, error) {
-	params := composables.UsePaginated(r)
-	expenseEntities, err := c.expenseService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&expense.FindParams{
+		Offset: paginationParams.Offset,
+		Limit:  paginationParams.Limit,
+		SortBy: []string{"created_at desc"},
+	}, r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error using query")
+	}
+	expenseEntities, err := c.expenseService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
@@ -85,7 +93,7 @@ func (c *ExpenseController) viewModelExpenses(r *http.Request) (*ExpensePaginati
 
 	return &ExpensePaginationResponse{
 		Expenses:        viewExpenses,
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
 
