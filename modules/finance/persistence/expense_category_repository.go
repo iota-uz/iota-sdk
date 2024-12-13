@@ -23,18 +23,18 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	q := tx.Limit(params.Limit).Offset(params.Offset)
+	tx = tx.Limit(params.Limit).Offset(params.Offset)
 	if params.Query != "" && params.Field != "" {
-		q = q.Where(fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
+		tx = tx.Where(fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
 	}
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		q = q.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
 	}
 	for _, s := range params.SortBy {
-		q = q.Order(s)
+		tx = tx.Order(s)
 	}
 	var rows []*models.ExpenseCategory
-	if err := q.Preload("AmountCurrency").Find(&rows).Error; err != nil {
+	if err := tx.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(rows, toDomainExpenseCategory)

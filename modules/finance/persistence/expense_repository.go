@@ -41,12 +41,12 @@ func (g *GormExpenseRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	tx.Limit(params.Limit).Offset(params.Offset)
+	tx = tx.Limit(params.Limit).Offset(params.Offset)
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		tx.Where("expenses.created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+		tx = tx.Where("expenses.created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
 	}
 	for _, s := range params.SortBy {
-		tx.Order(s)
+		tx = tx.Order(s)
 	}
 	var rows []*models.Expense
 	if err := tx.Find(&rows).Error; err != nil {

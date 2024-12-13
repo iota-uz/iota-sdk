@@ -68,6 +68,7 @@ templ Default(props *Props) {
 		<div x-data="{createdAt: ''}">
 			@base.Select(&base.SelectProps{
 				Placeholder: props.T("CreatedAt"),
+				Class:       "w-fit",
 				Attrs: templ.Attributes{
 					"x-model": "createdAt",
 				}},
