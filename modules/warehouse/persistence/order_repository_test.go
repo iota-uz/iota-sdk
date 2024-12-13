@@ -31,29 +31,27 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		}); err != nil {
 		t.Fatal(err)
 	}
-
-	if err := positionRepository.Create(
-		ctx.Context, &position.Position{
-			ID:        1,
-			Title:     "Position 1",
-			Barcode:   "3141592653589",
-			UnitID:    1,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}); err != nil {
+	positionEntity := &position.Position{
+		ID:        1,
+		Title:     "Position 1",
+		Barcode:   "3141592653589",
+		UnitID:    1,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	if err := positionRepository.Create(ctx.Context, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := productRepository.Create(
-		ctx.Context, &product.Product{
-			ID:         1,
-			PositionID: 1,
-			Rfid:       "EPS:321456",
-			Status:     product.Approved,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		},
-	); err != nil {
+	productEntity := &product.Product{
+		ID:         1,
+		PositionID: 1,
+		Rfid:       "EPS:321456",
+		Status:     product.Approved,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	if err := productRepository.Create(ctx.Context, productEntity); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,9 +60,10 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			ID:     1,
 			Status: order.Pending,
 			Type:   order.TypeIn,
-			Products: []*product.Product{
+			Items: []order.Item{
 				{
-					ID: 1,
+					Position: *positionEntity,
+					Products: []product.Product{*productEntity},
 				},
 			},
 			CreatedAt: time.Now(),
@@ -98,8 +97,8 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if len(orders) != 1 {
 				t.Errorf("expected 1, got %d", len(orders))
 			}
-			if len(orders[0].Products) != 1 {
-				t.Errorf("expected 1, got %d", len(orders[0].Products))
+			if len(orders[0].Items) != 1 {
+				t.Errorf("expected 1, got %d", len(orders[0].Items))
 			}
 		},
 	)
@@ -113,8 +112,8 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if len(orders) != 1 {
 				t.Errorf("expected 1, got %d", len(orders))
 			}
-			if len(orders[0].Products) != 1 {
-				t.Errorf("expected 1, got %d", len(orders[0].Products))
+			if len(orders[0].Items) != 1 {
+				t.Errorf("expected 1, got %d", len(orders[0].Items))
 			}
 			if orders[0].Status != order.Pending {
 				t.Errorf("expected %s, got %s", order.Pending, orders[0].Status)
@@ -131,8 +130,8 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if orderEntity.Status != order.Pending {
 				t.Errorf("expected %s, got %s", order.Pending, orderEntity.Status)
 			}
-			if len(orderEntity.Products) != 1 {
-				t.Errorf("expected 1, got %d", len(orderEntity.Products))
+			if len(orderEntity.Items) != 1 {
+				t.Errorf("expected 1, got %d", len(orderEntity.Items))
 			}
 		},
 	)

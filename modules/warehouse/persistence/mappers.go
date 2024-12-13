@@ -32,12 +32,15 @@ func toDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 }
 
 func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.WarehouseOrderItem) {
-	dbItems, _ := mapping.MapDbModels(data.Products, func(p *product.Product) (*models.WarehouseOrderItem, error) {
-		return &models.WarehouseOrderItem{
-			ProductID: p.ID,
-			CreatedAt: data.CreatedAt,
-		}, nil
-	})
+	var dbItems []*models.WarehouseOrderItem
+	for _, item := range data.Items {
+		for _, p := range item.Products {
+			dbItems = append(dbItems, &models.WarehouseOrderItem{
+				ProductID: p.ID,
+				CreatedAt: data.CreatedAt,
+			})
+		}
+	}
 	return &models.WarehouseOrder{
 		ID:        data.ID,
 		Status:    string(data.Status),
@@ -47,10 +50,6 @@ func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.WarehouseOr
 }
 
 func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
-	products, err := mapping.MapDbModels(dbOrder.Products, toDomainProduct)
-	if err != nil {
-		return nil, err
-	}
 	status, err := order.NewStatus(dbOrder.Status)
 	if err != nil {
 		return nil, err
@@ -59,11 +58,30 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
+	var groupedByPosition = make(map[*models.WarehousePosition][]*models.WarehouseProduct)
+	for _, p := range dbOrder.Products {
+		groupedByPosition[p.Position] = append(groupedByPosition[p.Position], p)
+	}
+	var items []order.Item
+	for k, v := range groupedByPosition {
+		products, err := mapping.MapDbModels(v, toDomainProduct)
+		if err != nil {
+			return nil, err
+		}
+		positionEntity, err := toDomainPosition(k)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, order.Item{
+			Position: *positionEntity,
+			Products: mapping.ValueSlice(products),
+		})
+	}
 	return &order.Order{
 		ID:        dbOrder.ID,
 		Status:    status,
 		Type:      typeEnum,
-		Products:  products,
+		Items:     items,
 		CreatedAt: dbOrder.CreatedAt,
 	}, nil
 }

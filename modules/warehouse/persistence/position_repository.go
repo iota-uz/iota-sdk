@@ -82,6 +82,18 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 	return toDomainPosition(&entity)
 }
 
+func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*position.Position, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var entities []*models.WarehousePosition
+	if err := tx.Where("id IN ?", ids).Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	return mapping.MapDbModels(entities, toDomainPosition)
+}
+
 func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode string) (*position.Position, error) {
 	tx, err := g.tx(ctx)
 	if err != nil {
