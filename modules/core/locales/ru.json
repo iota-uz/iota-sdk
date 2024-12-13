@@ -2,6 +2,16 @@
   "Errors": {
     "Internal": "Внутренная серверная ошибка"
   },
+  "Filters": {
+    "CreatedAt": {
+      "AllTime": "Все время",
+      "Today": "Сегодня",
+      "Yesterday": "Вчера",
+      "ThisWeek": "На этой неделе",
+      "LastWeek": "Прошлой неделе",
+      "ThisMonth": "В этом месяце"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Поиск...",
     "NothingFound": "Ничего не найдено",

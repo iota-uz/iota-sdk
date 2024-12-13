@@ -1,0 +1,86 @@
+package filters
+
+import (
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+templ SearchFieldsTrigger(trigger *base.TriggerProps) {
+	<button class="flex items-center gap-2" { trigger.ButtonAttrs... } type="button">
+		<div class="flex items-center gap-2" x-show="value.length">
+			<span class="text-300 whitespace-nowrap">Поиск по: </span>
+			<span x-show="value.length" x-text="value"></span>
+		</div>
+		@icons.ListMagnifyingGlass(icons.Props{Size: "20"})
+	</button>
+}
+
+type SearchField struct {
+	Label string
+	Key   string
+}
+
+type Props struct {
+	*types.PageContext
+	Fields []SearchField
+}
+
+templ SearchFields(props *Props) {
+	@base.Combobox(base.ComboboxProps{
+		Name:      "Field",
+		ListClass: "!w-auto",
+		Trigger: &base.Trigger{Render: func(props *base.TriggerProps) templ.Component {
+			return SearchFieldsTrigger(props)
+		}}}) {
+		for _, field := range props.Fields {
+			<option value={ field.Key }>{ field.Label }</option>
+		}
+	}
+}
+
+templ Default(props *Props) {
+	<div class="contents" x-data="dateFns">
+		@input.Text(&input.Props{
+			AddonLeft: &input.Addon{
+				Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+			},
+			AddonRight: &input.Addon{
+				Component: SearchFields(props),
+			},
+			Placeholder: props.T("Search"),
+			Attrs: templ.Attributes{
+				"name": "Query",
+			},
+		})
+		@base.Select(&base.SelectProps{
+			Prefix: props.T("PerPage"),
+			Attrs: templ.Attributes{
+				"name": "limit",
+			},
+		}) {
+			<option value="15">15</option>
+			<option value="25" selected>25</option>
+			<option value="50">50</option>
+			<option value="100">100</option>
+		}
+		<div x-data="{createdAt: ''}">
+			@base.Select(&base.SelectProps{
+				Placeholder: props.T("CreatedAt"),
+				Attrs: templ.Attributes{
+					"x-model": "createdAt",
+				}},
+			) {
+				<option value="" selected>{ props.T("Filters.CreatedAt.AllTime") }</option>
+				<option :value="`${startOfDay(0)}|${endOfDay(0)}`">{ props.T("Filters.CreatedAt.Today") }</option>
+				<option :value="`${startOfDay(1)}|${endOfDay(1)}`">{ props.T("Filters.CreatedAt.Yesterday") }</option>
+				<option :value="`${startOfWeek()}|${endOfWeek()}`">{ props.T("Filters.CreatedAt.ThisWeek") }</option>
+				<option :value="`${startOfWeek(2)}|${endOfWeek(2)}`">{ props.T("Filters.CreatedAt.LastWeek") }</option>
+				<option :value="`${startOfMonth()}|${endOfMonth()}`">{ props.T("Filters.CreatedAt.ThisMonth") }</option>
+			}
+			<input type="hidden" name="CreatedAt.From" :value="createdAt.split('|')[0]"/>
+			<input type="hidden" name="CreatedAt.To" :value="createdAt.split('|')?.[1]"/>
+		</div>
+	</div>
+}
