@@ -60,12 +60,34 @@ templ CategoriesTable(props *IndexPageProps) {
 	</div>
 }
 
+templ SearchFieldsTrigger(trigger *base.TriggerProps) {
+	<button class="flex items-center gap-2" { trigger.ButtonAttrs... } type="button">
+		<div class="flex items-center gap-2" x-show="value.length">
+			<span class="text-300 whitespace-nowrap">Поиск по: </span>
+			<span x-show="value.length" x-text="value"></span>
+		</div>
+		@icons.ListMagnifyingGlass(icons.Props{Size: "20"})
+	</button>
+}
+
+templ SearchFields(props *IndexPageProps) {
+	@base.Combobox(base.ComboboxProps{
+		Name:      "field",
+		ListClass: "!w-auto",
+		Trigger: &base.Trigger{Render: func(props *base.TriggerProps) templ.Component {
+			return SearchFieldsTrigger(props)
+		}}}) {
+		<option value="name" selected>{ props.T("ExpenseCategories.List.Name") }</option>
+		<option value="amount">{ props.T("ExpenseCategories.List.Amount") }</option>
+	}
+}
+
 templ CategoriesContent(props *IndexPageProps) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
 			{ props.T("NavigationLinks.ExpenseCategories") }
 		</h1>
-		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg" x-data="dateFns">
 			<form
 				class="p-4 flex items-center gap-3"
 				hx-get="/finance/expense-categories"
@@ -74,13 +96,15 @@ templ CategoriesContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				@input.Text(&input.Props{
-					Addon: &input.Addon{
-						Position:  input.AddonLeft,
+					AddonLeft: &input.Addon{
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					AddonRight: &input.Addon{
+						Component: SearchFields(props),
 					},
 					Placeholder: props.T("Search"),
 					Attrs: templ.Attributes{
-						"name": "name",
+						"name": "query",
 					},
 				})
 				@base.Select(&base.SelectProps{
@@ -89,14 +113,18 @@ templ CategoriesContent(props *IndexPageProps) {
 						"name": "limit",
 					},
 				}) {
-					<option>15</option>
-					<option>25</option>
-					<option>50</option>
-					<option>100</option>
+					<option value="15">15</option>
+					<option value="25" selected>25</option>
+					<option value="50">50</option>
+					<option value="100">100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
-					<option>Вчера</option>
-					<option>Позавчера</option>
+				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt"), Attrs: templ.Attributes{"name": "createdAt"}}) {
+					<option value="" selected>Все время</option>
+					<option :value="`${dateBefore(0)}|${dateBefore(0)}`">Cегодня</option>
+					<option :value="`${dateBefore(1)}|${dateBefore(1)}`">Вчера</option>
+					<option :value="`${startOfWeek()}|${endOfWeek()}`">На этой неделе</option>
+					<option :value="`${startOfWeek()}`">Прошлая неделя</option>
+					<option value="before-yesterday">В этом месяце</option>
 				}
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
