@@ -45,3 +45,21 @@ func Value[T any](v *T) T {
 	}
 	return *v
 }
+
+// ValueSlice is a utility function that returns a slice of values from a slice of pointers.
+func ValueSlice[T any](v []*T) []T {
+	values := make([]T, len(v))
+	for i, val := range v {
+		values[i] = *val
+	}
+	return values
+}
+
+// PointerSlice is a utility function that returns a slice of pointers from a slice of values.
+func PointerSlice[T any](v []T) []*T {
+	values := make([]*T, len(v))
+	for i, val := range v {
+		values[i] = &val
+	}
+	return values
+}

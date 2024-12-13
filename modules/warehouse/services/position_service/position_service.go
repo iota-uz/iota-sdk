@@ -59,6 +59,13 @@ func (s *PositionService) GetPaginated(ctx context.Context, params *position.Fin
 	return s.repo.GetPaginated(ctx, params)
 }
 
+func (s *PositionService) GetByIDs(ctx context.Context, ids []uint) ([]*position.Position, error) {
+	if err := composables.CanUser(ctx, permissions.PositionRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByIDs(ctx, ids)
+}
+
 func (s *PositionService) findOrCreateUnit(ctx context.Context, unitName string) (*unit.Unit, error) {
 	u, err := s.unitService.GetByTitleOrShortTitle(ctx, unitName)
 	if err == nil {

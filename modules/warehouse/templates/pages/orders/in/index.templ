@@ -98,8 +98,9 @@ templ New(props *PageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		@base.Card("m-6") {
 			<form
+				id="search-form"
 				hx-post={ props.ItemsURL }
-				hx-trigger="click"
+				hx-trigger="change from:select[name='PositionIDs']"
 				hx-swap="innerHTML"
 				hx-target="#order-items"
 			>
@@ -112,12 +113,12 @@ templ New(props *PageProps) {
 					Multiple:     true,
 					Endpoint:     "/warehouse/positions/search",
 				})
+				<div class="overflow-x-auto relative mt-4">
+					@OrderItemsTable(props.PageContext) {
+						@OrderItemsTableBody([]*viewmodels.OrderItem{})
+					}
+				</div>
 			</form>
-			<div class="overflow-x-auto relative mt-4" id="table">
-				@OrderItemsTable(props.PageContext) {
-					@OrderItemsTableBody([]*viewmodels.OrderItem{})
-				}
-			</div>
 		}
 		@CreateForm(props)
 	}

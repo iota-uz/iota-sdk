@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	order_in "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/in"
 	order_out "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/out"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -25,9 +26,10 @@ import (
 )
 
 type OrdersController struct {
-	app          application.Application
-	orderService *services.OrderService
-	basePath     string
+	app             application.Application
+	orderService    *services.OrderService
+	positionService *position_service.PositionService
+	basePath        string
 }
 
 type OrderPaginatedResponse struct {
@@ -37,9 +39,10 @@ type OrderPaginatedResponse struct {
 
 func NewOrdersController(app application.Application) application.Controller {
 	return &OrdersController{
-		app:          app,
-		orderService: app.Service(services.OrderService{}).(*services.OrderService),
-		basePath:     "/warehouse/orders",
+		app:             app,
+		orderService:    app.Service(services.OrderService{}).(*services.OrderService),
+		positionService: app.Service(position_service.PositionService{}).(*position_service.PositionService),
+		basePath:        "/warehouse/orders",
 	}
 }
 
@@ -322,14 +325,28 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := []*viewmodels.OrderItem{
-		{
-			Position: viewmodels.Position{
-				ID:    "1",
-				Title: "Position 1",
-			},
-			Quantity: "10",
-		},
+	dto := struct {
+		PositionIDs []uint
+	}{}
+
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	positionEntities, err := c.positionService.GetByIDs(r.Context(), dto.PositionIDs)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	items := make([]*viewmodels.OrderItem, len(positionEntities))
+
+	for i, position := range positionEntities {
+		items[i] = &viewmodels.OrderItem{
+			Position: *mappers.PositionToViewModel(position),
+			Quantity: "1",
+		}
 	}
 
 	templ.Handler(order_in.OrderItemsTableBody(items), templ.WithStreaming()).ServeHTTP(w, r)

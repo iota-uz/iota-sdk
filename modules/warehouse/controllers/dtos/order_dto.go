@@ -4,7 +4,6 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"time"
 )
@@ -55,15 +54,15 @@ func (d *CreateOrderDTO) ToEntity() (*order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	var products []*product.Product
-	for _, id := range d.ProductIDs {
-		products = append(products, &product.Product{ID: id})
-	}
+	//var products []*product.Product
+	//for _, id := range d.ProductIDs {
+	//	products = append(products, &product.Product{ID: id})
+	//}
 	return &order.Order{
-		ID:        0,
-		Type:      t,
-		Status:    s,
-		Products:  products,
+		ID:     0,
+		Type:   t,
+		Status: s,
+		//Products:  products,
 		CreatedAt: time.Now(),
 	}, nil
 }
@@ -77,15 +76,15 @@ func (d *UpdateOrderDTO) ToEntity(id uint) (*order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	var products []*product.Product
-	for _, id := range d.ProductIDs {
-		products = append(products, &product.Product{ID: id})
-	}
+	//var products []*product.Product
+	//for _, id := range d.ProductIDs {
+	//	products = append(products, &product.Product{ID: id})
+	//}
 	return &order.Order{
-		ID:        id,
-		Type:      t,
-		Status:    s,
-		Products:  products,
+		ID:     id,
+		Type:   t,
+		Status: s,
+		//Products:  products,
 		CreatedAt: time.Now(),
 	}, nil
 }
