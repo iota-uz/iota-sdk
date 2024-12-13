@@ -40,6 +40,7 @@ func NewMoneyAccountController(app application.Application) application.Controll
 	return &MoneyAccountController{
 		app:                 app,
 		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		currencyService:     app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
 		basePath:            "/finance/accounts",
 	}
 }
