@@ -40,7 +40,7 @@ templ (p *Props) render() {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
 		<div class="w-full relative">
-			<textarea id={ p.id } class={ "form-control w-full", p.Class } placeholder={ p.Placeholder } { p.Attrs... }>
+			<textarea id={ p.id } class={ "form-control form-control-input w-full", p.Class } placeholder={ p.Placeholder } { p.Attrs... }>
 				{ p.Value }
 			</textarea>
 		</div>
