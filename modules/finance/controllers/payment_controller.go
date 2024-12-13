@@ -82,8 +82,13 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 }
 
 func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginatedResponse, error) {
-	params := composables.UsePaginated(r)
-	paymentEntities, err := c.paymentService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&payment.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+		SortBy: []string{"created_at desc"},
+	}, r)
+	paymentEntities, err := c.paymentService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving payments")
 	}
@@ -95,7 +100,7 @@ func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginat
 
 	return &PaymentPaginatedResponse{
 		Payments:        viewPayments,
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
 

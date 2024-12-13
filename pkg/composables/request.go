@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	"time"
+
+	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-agency/iota-sdk/pkg/shared"
+	"github.com/sirupsen/logrus"
 
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -185,4 +187,8 @@ func UseFlashMap[K comparable, V any](w http.ResponseWriter, r *http.Request, na
 		return errorsMap, nil
 	}
 	return errorsMap, json.Unmarshal(bytes, &errorsMap)
+}
+
+func UseQuery[T comparable](v T, r *http.Request) (T, error) {
+	return v, shared.Decoder.Decode(v, r.URL.Query())
 }
