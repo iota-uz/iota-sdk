@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -18,19 +19,25 @@ func NewMoneyAccountRepository() moneyaccount.Repository {
 }
 
 func (g *GormMoneyAccountRepository) GetPaginated(
-	ctx context.Context, limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *moneyaccount.FindParams,
 ) ([]*moneyaccount.Account, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
 	var rows []*models.MoneyAccount
-	q := tx.Limit(limit).Offset(offset)
-	for _, s := range sortBy {
-		q = q.Order(s)
+	tx = tx.Limit(params.Limit).Offset(params.Offset)
+	if params.Query != "" && params.Field != "" {
+		tx = tx.Where(fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
 	}
-	if err := q.Preload("Currency").Find(&rows).Error; err != nil {
+	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
+		tx = tx.Where("money_accounts.created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+	}
+	for _, s := range params.SortBy {
+		tx = tx.Order(s)
+	}
+	fmt.Println("SQL: ", tx.Statement.SQL.String())
+	if err := tx.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(rows, toDomainMoneyAccount)

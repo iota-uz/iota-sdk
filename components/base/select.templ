@@ -35,7 +35,7 @@ templ (p *SelectProps) render() {
 					{ p.Prefix }
 				</label>
 			}
-			<select class={ "min-w-20 w-fit appearance-none form-control form-control-input h-[2.6875rem] pr-8", templ.KV("rounded-l-none", p.Prefix != ""), p.Class } id={ p.id } { p.Attrs... }>
+			<select class={ "min-w-20 w-full appearance-none form-control form-control-input h-[2.6875rem] pr-8", templ.KV("rounded-l-none", p.Prefix != ""), p.Class } id={ p.id } { p.Attrs... }>
 				if p.Placeholder != "" {
 					<option disabled selected>{ p.Placeholder }</option>
 				}

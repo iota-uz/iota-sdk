@@ -73,8 +73,16 @@ func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmo
 }
 
 func (c *MoneyAccountController) viewModelAccounts(r *http.Request) (*AccountPaginatedResponse, error) {
-	params := composables.UsePaginated(r)
-	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&moneyAccount.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+		SortBy: []string{"created_at desc"},
+	}, r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error using query")
+	}
+	accountEntities, err := c.moneyAccountService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving accounts")
 	}
@@ -87,7 +95,7 @@ func (c *MoneyAccountController) viewModelAccounts(r *http.Request) (*AccountPag
 
 	return &AccountPaginatedResponse{
 		Accounts:        viewAccounts,
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
 
