@@ -2,6 +2,9 @@
   "Errors": {
     "Internal": "Внутренная серверная ошибка"
   },
+  "ValidationErrors": {
+    "required": "Это поле обязательно для заполнения"
+  },
   "Spotlight": {
     "Placeholder": "Поиск...",
     "NothingFound": "Ничего не найдено",

@@ -161,11 +161,12 @@
         "In": "Acceptance",
         "Out": "Shipment"
       },
+      "Quantity": "Quantity",
       "Position": "Position",
       "SearchPosition": "Search position",
       "NoPositionsFound": "No positions found",
       "Barcode": "Barcode",
-      "Quantity": "Quantity in stock",
+      "InStock": "Quantity in stock",
       "OrderedQuantity": "Quantity to ship",
       "Unit": "Unit",
       "Delete": "Delete",

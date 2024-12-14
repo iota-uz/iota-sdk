@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
@@ -255,7 +256,7 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if errorsMap, ok := formDTO.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := formDTO.Ok(r.Context()); !ok {
 		props := &order_in.PageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
@@ -270,7 +271,7 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		ProductIDs: []uint{},
 	}
 	for _, positionID := range formDTO.PositionIDs {
-		quantity := formDTO.Quantities[positionID]
+		quantity := formDTO.Quantity[positionID]
 		products, err := c.orderService.GetOldestProducts(r.Context(), positionID, quantity)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -306,28 +307,29 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if errorsMap, ok := formDTO.Ok(pageCtx.UniTranslator); !ok {
-		props := &order_out.PageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
+	if errorsMap, ok := formDTO.Ok(r.Context()); !ok {
+		items, err := c.orderItems(r.Context(), formDTO.PositionIDs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		templ.Handler(order_out.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+		props := &order_out.OderItemsProps{
+
+			Items:  items,
+			Errors: errorsMap,
+		}
+		fmt.Println(errorsMap)
+		templ.Handler(order_out.OrderItems(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
 	dto := order.CreateDTO{
-		Type:       string(order.TypeIn),
+		Type:       string(order.TypeOut),
 		Status:     string(order.Pending),
 		ProductIDs: []uint{},
 	}
 	for _, positionID := range formDTO.PositionIDs {
-		quantity := formDTO.Quantities[positionID]
+		quantity := formDTO.Quantity[positionID]
 		products, err := c.orderService.GetOldestProducts(r.Context(), positionID, quantity)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -347,8 +349,27 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *OrdersController) orderItems(ctx context.Context, positionIDs []uint) ([]*viewmodels.OrderItem, error) {
+	positionEntities, err := c.positionService.GetByIDs(ctx, positionIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*viewmodels.OrderItem, len(positionEntities))
+	for i, position := range positionEntities {
+		quantity, err := c.productService.CountByPositionID(ctx, position.ID)
+		if err != nil {
+			return nil, err
+		}
+		items[i] = &viewmodels.OrderItem{
+			Position: *mappers.PositionToViewModel(position),
+			Quantity: strconv.Itoa(int(quantity)),
+		}
+	}
+	return items, nil
 }
 
 func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
@@ -364,24 +385,10 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	positionEntities, err := c.positionService.GetByIDs(r.Context(), dto.PositionIDs)
+	items, err := c.orderItems(r.Context(), dto.PositionIDs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	items := make([]*viewmodels.OrderItem, len(positionEntities))
-
-	for i, position := range positionEntities {
-		quantity, err := c.productService.CountByPositionID(r.Context(), position.ID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		items[i] = &viewmodels.OrderItem{
-			Position: *mappers.PositionToViewModel(position),
-			Quantity: strconv.Itoa(int(quantity)),
-		}
 	}
 	props := &order_out.OderItemsProps{
 		Items:  items,
