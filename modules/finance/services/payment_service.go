@@ -42,14 +42,12 @@ func (s *PaymentService) GetAll(ctx context.Context) ([]*payment.Payment, error)
 }
 
 func (s *PaymentService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *payment.FindParams,
 ) ([]*payment.Payment, error) {
 	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
 		return nil, err
 	}
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *PaymentService) Create(ctx context.Context, data *payment.CreateDTO) error {

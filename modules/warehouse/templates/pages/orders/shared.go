@@ -8,7 +8,7 @@ import (
 
 func OrderTypes(ctx context.Context) []toggle.ToggleOption {
 	return []toggle.ToggleOption{
-		{Value: "in", Label: composables.MustT(ctx, "WarehouseOrders.Single.Types.In")},
-		{Value: "out", Label: composables.MustT(ctx, "WarehouseOrders.Single.Types.Out")},
+		{Value: "in", Label: composables.MustT(ctx, "WarehouseOrders.Single.Types.in")},
+		{Value: "out", Label: composables.MustT(ctx, "WarehouseOrders.Single.Types.out")},
 	}
 }

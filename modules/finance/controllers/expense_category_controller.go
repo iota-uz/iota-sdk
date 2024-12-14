@@ -1,8 +1,9 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
+
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -72,8 +73,17 @@ func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*v
 }
 
 func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {
-	params := composables.UsePaginated(r)
-	expenseEntities, err := c.expenseCategoryService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&category.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+		SortBy: []string{"created_at desc"},
+	}, r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error using query")
+	}
+
+	expenseEntities, err := c.expenseCategoryService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
@@ -86,7 +96,7 @@ func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request
 
 	return &ExpenseCategoryPaginatedResponse{
 		Categories:      viewCategories,
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
 

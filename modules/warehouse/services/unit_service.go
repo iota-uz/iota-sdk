@@ -46,14 +46,12 @@ func (s *UnitService) GetAll(ctx context.Context) ([]*unit.Unit, error) {
 }
 
 func (s *UnitService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *unit.FindParams,
 ) ([]*unit.Unit, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *UnitService) Create(ctx context.Context, data *unit.CreateDTO) (*unit.Unit, error) {
