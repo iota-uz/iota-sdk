@@ -17,6 +17,28 @@ type PageProps struct {
 	ItemsURL string
 }
 
+templ quantityInput(item *viewmodels.OrderItem, errors map[string]string) {
+	<div class="flex flex-col w-full">
+		<label>
+			<input
+				name={ fmt.Sprintf("Quantity[%s]", item.Position.ID) }
+				type="number"
+				class="bg-gray-50 border border-gray-300 text-center text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-16 p-1.5"
+			/>
+		</label>
+		if errors["Quantity"] != "" {
+			<small class="text-xs text-red-500 mt-1">
+				{ errors["Quantity"] }
+			</small>
+		}
+		if errors[item.Position.ID] != "" {
+			<small class="text-xs text-red-500 mt-1">
+				{ errors[item.Position.ID] }
+			</small>
+		}
+	</div>
+}
+
 type OderItemsProps struct {
 	Errors map[string]string
 	Items  []*viewmodels.OrderItem
@@ -45,20 +67,7 @@ templ OrderItems(props *OderItemsProps) {
 					{ item.Position.Unit.Title }
 				</td>
 				<td class="px-4">
-					<div class="flex flex-col w-full">
-						<label>
-							<input
-								name={ fmt.Sprintf("Quantities[%s]", item.Position.ID) }
-								type="number"
-								class="bg-gray-50 border border-gray-300 text-center text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-16 p-1.5"
-							/>
-						</label>
-						if props.Errors[item.Position.ID] != "" {
-							<small class="text-xs text-red-500 mt-1">
-								{ props.Errors[item.Position.ID] }
-							</small>
-						}
-					</div>
+					@quantityInput(item, props.Errors)
 				</td>
 			</tr>
 		}
@@ -124,7 +133,7 @@ templ New(props *PageProps) {
 						"hx-indicator": "this",
 						"hx-target":    "#order-items",
 						"hx-swap":      "innerHTML",
-						"form":         "search-form",
+						"hx-include":   "#search-form",
 					},
 				}) {
 					{ props.T("Save") }

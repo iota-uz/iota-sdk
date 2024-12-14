@@ -2,6 +2,9 @@
   "Errors": {
     "Internal": "Internal server error"
   },
+  "ValidationErrors": {
+    "required": "This field is required"
+  },
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
