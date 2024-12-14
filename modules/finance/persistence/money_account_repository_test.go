@@ -48,7 +48,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 
 	t.Run( //nolint:paralleltest
 		"GetPaginated", func(t *testing.T) {
-			accounts, err := accountRepository.GetPaginated(ctx.Context, 1, 0, []string{})
+			accounts, err := accountRepository.GetPaginated(ctx.Context, &moneyAccount.FindParams{Limit: 1})
 			if err != nil {
 				t.Fatal(err)
 			}

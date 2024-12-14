@@ -36,14 +36,12 @@ func (s *MoneyAccountService) GetAll(ctx context.Context) ([]*moneyaccount.Accou
 }
 
 func (s *MoneyAccountService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *moneyaccount.FindParams,
 ) ([]*moneyaccount.Account, error) {
 	if err := composables.CanUser(ctx, permission.AccountRead); err != nil {
 		return nil, err
 	}
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.repo.GetPaginated(ctx, params)
 }
 
 // TODO: what the hell am i supposed to do with this?

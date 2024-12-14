@@ -39,7 +39,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) { //nolint:paralleltest
 
 	t.Run( //nolint:paralleltest
 		"GetPaginated", func(t *testing.T) {
-			accounts, err := unitRepository.GetPaginated(ctx.Context, 1, 0, []string{})
+			accounts, err := unitRepository.GetPaginated(ctx.Context, &unit.FindParams{Limit: 1})
 			if err != nil {
 				t.Fatal(err)
 			}

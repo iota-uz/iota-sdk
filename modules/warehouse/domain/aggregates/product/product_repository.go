@@ -2,13 +2,28 @@ package product
 
 import "context"
 
+type DateRange struct {
+	From string
+	To   string
+}
+
+type FindParams struct {
+	Limit     int
+	Offset    int
+	SortBy    []string
+	Query     string
+	Field     string
+	Status    string
+	CreatedAt DateRange
+}
+
 type QueryOptions struct {
 	Limit  int
 	SortBy []string
 }
 
 type Repository interface {
-	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*Product, error)
+	GetPaginated(ctx context.Context, params *FindParams) ([]*Product, error)
 	Count(ctx context.Context) (int64, error)
 	CountByPositionID(ctx context.Context, positionID uint) (int64, error)
 	GetAll(ctx context.Context) ([]*Product, error)

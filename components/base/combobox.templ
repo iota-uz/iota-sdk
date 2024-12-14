@@ -166,7 +166,7 @@ templ Combobox(props ComboboxProps) {
 						x-bind:id="'option-' + index"
 						tabindex="0"
 					>
-						<span x-text="item.textContent"></span>
+						<span class="whitespace-nowrap" x-text="item.textContent"></span>
 						@icons.Check(icons.Props{Size: "16", Attributes: templ.Attributes{
 							"x-cloak": "",
 							"x-show":  "selectedIndices.has(Number(index))",

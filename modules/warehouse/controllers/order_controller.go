@@ -74,12 +74,16 @@ func (c *OrdersController) Register(r *mux.Router) {
 }
 
 func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResponse, error) {
-	params := composables.UsePaginated(r)
-	entities, err := c.orderService.GetPaginated(r.Context(), &order.FindParams{
-		Limit:  params.Limit,
-		Offset: params.Offset,
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&order.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
 		SortBy: []string{"created_at desc"},
-	})
+	}, r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving orders")
+	}
+	entities, err := c.orderService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving orders")
 	}
@@ -88,7 +92,7 @@ func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResp
 		return nil, errors.Wrap(err, "Error counting orders")
 	}
 	return &OrderPaginatedResponse{
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 		Orders:          mapping.MapViewModels(entities, mappers.OrderToViewModel),
 	}, nil
 }

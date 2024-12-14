@@ -84,9 +84,16 @@ func (c *ProductsController) preparePageContext(r *http.Request, titleKey string
 }
 
 func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedResponse, error) {
-	params := composables.UsePaginated(r)
-
-	productEntities, err := c.productService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&product.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+		SortBy: []string{"created_at desc"},
+	}, r)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving query: %w", err)
+	}
+	productEntities, err := c.productService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving products: %w", err)
 	}
@@ -100,7 +107,7 @@ func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedRe
 
 	return &PaginatedResponse{
 		Products:        viewProducts,
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
 

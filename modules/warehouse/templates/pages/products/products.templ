@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
-	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
+	"github.com/iota-agency/iota-sdk/components/filters"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
@@ -68,30 +68,25 @@ templ ProductsContent(props *IndexPageProps) {
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
-				@input.Text(&input.Props{
-					AddonLeft: &input.Addon{
-						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-					},
-					Placeholder: props.T("Search"),
-					Attrs: templ.Attributes{
-						"name": "name",
+				@filters.Search(props.PageContext, []filters.SearchField{
+					{
+						Label: props.T("Products.List.Position"),
+						Key:   "position",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: props.T("PerPage"),
 					Attrs: templ.Attributes{
-						"name": "limit",
+						"name": "Status",
 					},
 				}) {
-					<option>15</option>
-					<option>25</option>
-					<option>50</option>
-					<option>100</option>
+					<option disabled selected>{ props.T("Products.Single.SelectStatus") }</option>
+					<option value="">{ props.T("All") }</option>
+					for _, option := range Statuses {
+						<option value={ option.Value }>{ props.T(option.MessageId) }</option>
+					}
 				}
-				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
-					<option>Yesterday</option>
-					<option>The day before yesterday</option>
-				}
+				@filters.PageSize(props.PageContext)
+				@filters.CreatedAt(props.PageContext)
 				@button.Primary(button.Props{
 					Size: button.SizeNormal, Href: "/warehouse/products/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
