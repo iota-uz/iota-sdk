@@ -2,11 +2,19 @@ package position
 
 import "context"
 
+type DateRange struct {
+	From string
+	To   string
+}
+
 type FindParams struct {
-	Limit  int
-	Offset int
-	SortBy []string
-	Search string
+	Limit     int
+	Offset    int
+	SortBy    []string
+	Query     string
+	Field     string
+	UnitID    string
+	CreatedAt DateRange
 }
 
 type Repository interface {

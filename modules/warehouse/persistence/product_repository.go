@@ -42,6 +42,9 @@ func (g *GormProductRepository) GetPaginated(
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		tx = tx.Where("warehouse_products.created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
 	}
+	if params.Status != "" {
+		tx = tx.Where("status = ?", params.Status)
+	}
 	tx, err = helpers.ApplySort(tx, params.SortBy)
 	if err != nil {
 		return nil, err

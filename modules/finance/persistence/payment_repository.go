@@ -24,18 +24,18 @@ func (g *GormPaymentRepository) GetPaginated(
 		return nil, composables.ErrNoTx
 	}
 	var rows []*models.Payment
-	q := tx.Limit(params.Limit).Offset(params.Offset)
+	tx = tx.Limit(params.Limit).Offset(params.Offset)
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		q = q.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
 	}
 	for _, s := range params.SortBy {
-		q = q.Order(s)
+		tx = tx.Order(s)
 	}
-	args := []interface{}{}
+	transactionArgs := []interface{}{}
 	if params.Query != "" && params.Field != "" {
-		args = append(args, fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
+		transactionArgs = append(transactionArgs, fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
 	}
-	if err := q.Preload("Transaction", args...).Find(&rows).Error; err != nil {
+	if err := tx.Preload("Transaction", transactionArgs...).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(rows, toDomainPayment)

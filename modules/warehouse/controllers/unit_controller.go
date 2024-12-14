@@ -61,8 +61,15 @@ func (c *UnitsController) Register(r *mux.Router) {
 }
 
 func (c *UnitsController) viewModelUnits(r *http.Request) (*UnitPaginatedResponse, error) {
-	params := composables.UsePaginated(r)
-	entities, err := c.unitService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&unit.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+	}, r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving query")
+	}
+	entities, err := c.unitService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving units")
 	}
@@ -72,7 +79,7 @@ func (c *UnitsController) viewModelUnits(r *http.Request) (*UnitPaginatedRespons
 		return nil, errors.Wrap(err, "Error counting units")
 	}
 	return &UnitPaginatedResponse{
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 		Units:           viewUnits,
 	}, nil
 }
