@@ -51,6 +51,8 @@
         "Title": "Warehouse positions"
       },
       "New": "New position",
+      "NewIn": "New acceptance",
+      "NewOut": "New shipment",
       "Upload": "Upload .xlsx",
       "Position": "Position",
       "Barcode": "Barcode",
@@ -162,7 +164,9 @@
       "Position": "Position",
       "SearchPosition": "Search position",
       "NoPositionsFound": "No positions found",
+      "Barcode": "Barcode",
       "Quantity": "Quantity in stock",
+      "OrderedQuantity": "Quantity to ship",
       "Unit": "Unit",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse order?"

@@ -42,7 +42,7 @@ func (m *Module) Register(app application.Application) error {
 		app.EventPublisher(),
 		app,
 	)
-	orderService := services.NewOrderService(persistence.NewOrderRepository(), app.EventPublisher())
+	orderService := services.NewOrderService(app.EventPublisher())
 
 	app.RegisterService(positionService)
 	app.RegisterService(orderService)
