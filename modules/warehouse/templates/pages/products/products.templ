@@ -68,15 +68,25 @@ templ ProductsContent(props *IndexPageProps) {
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
-				@filters.Default(&filters.Props{
-					PageContext: props.PageContext,
-					Fields: []filters.SearchField{
-						{
-							Label: props.T("Products.List.Position"),
-							Key:   "position",
-						},
+				@filters.Search(props.PageContext, []filters.SearchField{
+					{
+						Label: props.T("Products.List.Position"),
+						Key:   "position",
 					},
 				})
+				@base.Select(&base.SelectProps{
+					Attrs: templ.Attributes{
+						"name": "Status",
+					},
+				}) {
+					<option disabled selected>{ props.T("Products.Single.SelectStatus") }</option>
+					<option value="">{ props.T("All") }</option>
+					for _, option := range Statuses {
+						<option value={ option.Value }>{ props.T(option.MessageId) }</option>
+					}
+				}
+				@filters.PageSize(props.PageContext)
+				@filters.CreatedAt(props.PageContext)
 				@button.Primary(button.Props{
 					Size: button.SizeNormal, Href: "/warehouse/products/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),

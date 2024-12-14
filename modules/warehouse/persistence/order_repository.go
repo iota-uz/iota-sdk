@@ -2,6 +2,8 @@ package persistence
 
 import (
 	"context"
+	"fmt"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -29,13 +31,26 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 	if err != nil {
 		return nil, err
 	}
-	q := tx.Limit(params.Limit).Offset(params.Offset)
-	q, err = helpers.ApplySort(q, params.SortBy)
+	tx = tx.Limit(params.Limit).Offset(params.Offset)
+	if params.Query != "" && params.Field != "" {
+		tx = tx.Where(fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
+	}
+	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
+		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+	}
+	if params.Status != "" {
+		tx = tx.Where("status = ?", params.Status)
+	}
+
+	if params.Type != "" {
+		tx = tx.Where("type = ?", params.Type)
+	}
+	tx, err = helpers.ApplySort(tx, params.SortBy)
 	if err != nil {
 		return nil, err
 	}
 	var rows []*models.WarehouseOrder
-	if err := q.Find(&rows).Error; err != nil {
+	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for i, row := range rows {
