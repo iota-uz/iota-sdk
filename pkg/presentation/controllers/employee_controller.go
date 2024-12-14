@@ -161,7 +161,7 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
+		errorsMap, ok := dto.Ok(r.Context())
 		if ok {
 			if err := c.employeeService.Update(r.Context(), id, &dto); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -220,7 +220,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		entity := dto.ToEntity()
 		props := &employees.CreatePageProps{
 			PageContext: pageCtx,

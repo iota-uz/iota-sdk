@@ -1,9 +1,12 @@
 package employee
 
 import (
-	ut "github.com/go-playground/universal-translator"
+	"context"
+	"fmt"
 	"github.com/go-playground/validator/v10"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
 )
 
@@ -27,29 +30,52 @@ type UpdateDTO struct {
 	Coefficient float64
 }
 
-func (d *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
+func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := composables.UseLocalizer(ctx)
+	if !ok {
+		panic(composables.ErrNoLocalizer)
+	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
 	if errs == nil {
 		return errorMessages, true
 	}
-
 	for _, err := range errs.(validator.ValidationErrors) {
-		errorMessages[err.Field()] = err.Translate(l)
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Users.Single.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
 	}
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
+func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := composables.UseLocalizer(ctx)
+	if !ok {
+		panic(composables.ErrNoLocalizer)
+	}
+	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
 	if errs == nil {
-		return errors, true
+		return errorMessages, true
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
-		errors[err.Field()] = err.Translate(l)
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Users.Single.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
 	}
-	return errors, len(errors) == 0
+	return errorMessages, len(errorMessages) == 0
 }
 
 func (d *CreateDTO) ToEntity() *Employee {
