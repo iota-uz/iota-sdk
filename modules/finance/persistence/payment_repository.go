@@ -2,6 +2,8 @@ package persistence
 
 import (
 	"context"
+	"fmt"
+
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -15,19 +17,25 @@ func NewPaymentRepository() payment.Repository {
 }
 
 func (g *GormPaymentRepository) GetPaginated(
-	ctx context.Context, limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *payment.FindParams,
 ) ([]*payment.Payment, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
 	var rows []*models.Payment
-	q := tx.Limit(limit).Offset(offset)
-	for _, s := range sortBy {
-		q = q.Order(s)
+	tx = tx.Limit(params.Limit).Offset(params.Offset)
+	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
+		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
 	}
-	if err := q.Preload("Transaction").Find(&rows).Error; err != nil {
+	for _, s := range params.SortBy {
+		tx = tx.Order(s)
+	}
+	transactionArgs := []interface{}{}
+	if params.Query != "" && params.Field != "" {
+		transactionArgs = append(transactionArgs, fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
+	}
+	if err := tx.Preload("Transaction", transactionArgs...).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(rows, toDomainPayment)

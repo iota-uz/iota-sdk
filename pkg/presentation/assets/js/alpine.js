@@ -25,21 +25,44 @@ let relativeFormat = () => ({
 });
 
 let dateFns = () => ({
-  dateBefore(days) {
+  startOfDay(days = 0) {
     let date = new Date();
     date.setDate(date.getDate() - days);
-    return date.toISOString().split("T")[0];
+    date.setHours(0, 0, 0, 0);
+    return date.toISOString();
+  },
+  endOfDay(days = 0) {
+    let date = new Date();
+    date.setDate(date.getDate() - days);
+    date.setHours(24, 0, 0, 0);
+    return date.toISOString();
   },
   startOfWeek(factor = 1) {
     let date = new Date();
-    let firstDay = date.getDate() - date.getDay() + 1;
-    return new Date(date.setDate(firstDay)).toISOString().split("T")[0];
+    let firstDay = date.getDate() - (date.getDay() * factor);
+    date.setDate(firstDay)
+    date.setHours(0, 0, 0, 0);
+    return new Date(date).toISOString();
   },
   endOfWeek(factor = 1) {
     let date = new Date();
-    let firstDay = date.getDate() - date.getDay() + 1;
+    let firstDay = date.getDate() - (date.getDay() * factor)
     let lastDay = firstDay + 6
-    return new Date(date.setDate(lastDay)).toISOString().split("T")[0];
+    date.setDate(lastDay);
+    date.setHours(0, 0, 0, 0);
+    return new Date(date.setDate(lastDay)).toISOString();
+  },
+  startOfMonth(months = 0) {
+    let date = new Date();
+    let newDate = new Date(date.getFullYear(), date.getMonth() - months, 1);
+    newDate.setHours(0, 0, 0, 0);
+    return newDate.toISOString();
+  },
+  endOfMonth(months = 0) {
+    let date = new Date();
+    let newDate = new Date(date.getFullYear(), date.getMonth() + months + 1, 0);
+    newDate.setHours(24, 0, 0, 0);
+    return newDate.toISOString();
   }
 });
 

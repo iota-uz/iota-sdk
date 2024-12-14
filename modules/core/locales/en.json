@@ -2,6 +2,16 @@
   "Errors": {
     "Internal": "Internal server error"
   },
+  "Filters": {
+    "CreatedAt": {
+      "AllTime": "All the time",
+      "Today": "Today",
+      "Yesterday": "Yesterday",
+      "ThisWeek": "This week",
+      "LastWeek": "Last week",
+      "ThisMonth": "This month"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
@@ -298,5 +308,6 @@
   "Search": "Search",
   "PerPage": "Per page",
   "Cancel": "Cancel",
-  "Back": "Back"
+  "Back": "Back",
+  "All": "All"
 }
