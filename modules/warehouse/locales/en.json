@@ -158,8 +158,12 @@
       "TypePlaceholder": "Select type",
       "Status": "Status",
       "Types": {
-        "In": "Acceptance",
-        "Out": "Shipment"
+        "in": "Acceptance",
+        "out": "Shipment"
+      },
+      "Statuses": {
+        "pending": "Pending",
+        "complete": "Complete"
       },
       "Quantity": "Quantity",
       "Position": "Position",

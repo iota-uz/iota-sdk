@@ -31,11 +31,9 @@ func (s *ExpenseCategoryService) GetAll(ctx context.Context) ([]*category2.Expen
 }
 
 func (s *ExpenseCategoryService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *category2.FindParams,
 ) ([]*category2.ExpenseCategory, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *ExpenseCategoryService) Create(ctx context.Context, data *category2.CreateDTO) error {

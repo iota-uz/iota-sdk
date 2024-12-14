@@ -2,6 +2,8 @@ package persistence
 
 import (
 	"context"
+	"fmt"
+
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -15,19 +17,24 @@ func NewExpenseCategoryRepository() category.Repository {
 }
 
 func (g *GormExpenseCategoryRepository) GetPaginated(
-	ctx context.Context, limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *category.FindParams,
 ) ([]*category.ExpenseCategory, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	q := tx.Limit(limit).Offset(offset)
-	for _, s := range sortBy {
-		q = q.Order(s)
+	tx = tx.Limit(params.Limit).Offset(params.Offset)
+	if params.Query != "" && params.Field != "" {
+		tx = tx.Where(fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
+	}
+	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
+		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+	}
+	for _, s := range params.SortBy {
+		tx = tx.Order(s)
 	}
 	var rows []*models.ExpenseCategory
-	if err := q.Preload("AmountCurrency").Find(&rows).Error; err != nil {
+	if err := tx.Preload("AmountCurrency").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(rows, toDomainExpenseCategory)
