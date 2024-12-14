@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	order_in "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/in"
 	order_out "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/out"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
+	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -29,6 +31,7 @@ type OrdersController struct {
 	app             application.Application
 	orderService    *services.OrderService
 	positionService *position_service.PositionService
+	productService  *product_service.ProductService
 	basePath        string
 }
 
@@ -42,6 +45,7 @@ func NewOrdersController(app application.Application) application.Controller {
 		app:             app,
 		orderService:    app.Service(services.OrderService{}).(*services.OrderService),
 		positionService: app.Service(position_service.PositionService{}).(*position_service.PositionService),
+		productService:  app.Service(product_service.ProductService{}).(*product_service.ProductService),
 		basePath:        "/warehouse/orders",
 	}
 }
@@ -62,7 +66,7 @@ func (c *OrdersController) Register(r *mux.Router) {
 	router.HandleFunc("/in", c.CreateInOrder).Methods(http.MethodPost)
 	router.HandleFunc("/out", c.CreateOutOrder).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	//router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
 	router.HandleFunc("/in/new", c.NewInOrder).Methods(http.MethodGet)
 	router.HandleFunc("/out/new", c.NewOutOrder).Methods(http.MethodGet)
 	router.HandleFunc("/items", c.OrderItems).Methods(http.MethodPost)
@@ -147,60 +151,61 @@ func (c *OrdersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(orders.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *OrdersController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
-		return
-	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
-		return
-	}
-	r.Form.Del("_action")
-
-	switch action {
-	case shared.FormActionDelete:
-		if _, err := c.orderService.Delete(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	case shared.FormActionSave:
-		dto := dtos.UpdateOrderDTO{} //nolint:exhaustruct
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.Edit.Meta.Title", ""))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			entity, err := c.orderService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving order", http.StatusInternalServerError)
-				return
-			}
-			props := &orders.EditPageProps{
-				PageContext: pageCtx,
-				Order:       mappers.OrderToViewModel(entity),
-				Errors:      errorsMap,
-				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
-				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
-			}
-			templ.Handler(orders.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-		if err := c.orderService.Update(r.Context(), id, &dto); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-	shared.Redirect(w, r, c.basePath)
-}
+//
+//func (c *OrdersController) PostEdit(w http.ResponseWriter, r *http.Request) {
+//	id, err := shared.ParseID(r)
+//	if err != nil {
+//		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+//		return
+//	}
+//	action := shared.FormAction(r.FormValue("_action"))
+//	if !action.IsValid() {
+//		http.Error(w, "Invalid action", http.StatusBadRequest)
+//		return
+//	}
+//	r.Form.Del("_action")
+//
+//	switch action {
+//	case shared.FormActionDelete:
+//		if _, err := c.orderService.Delete(r.Context(), id); err != nil {
+//			http.Error(w, err.Error(), http.StatusInternalServerError)
+//			return
+//		}
+//	case shared.FormActionSave:
+//		dto := dtos.UpdateOrderDTO{} //nolint:exhaustruct
+//		var pageCtx *types.PageContext
+//		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.Edit.Meta.Title", ""))
+//		if err != nil {
+//			http.Error(w, err.Error(), http.StatusInternalServerError)
+//			return
+//		}
+//		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+//			http.Error(w, err.Error(), http.StatusBadRequest)
+//			return
+//		}
+//		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+//			entity, err := c.orderService.GetByID(r.Context(), id)
+//			if err != nil {
+//				http.Error(w, "Error retrieving order", http.StatusInternalServerError)
+//				return
+//			}
+//			props := &orders.EditPageProps{
+//				PageContext: pageCtx,
+//				Order:       mappers.OrderToViewModel(entity),
+//				Errors:      errorsMap,
+//				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+//				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+//			}
+//			templ.Handler(orders.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+//			return
+//		}
+//		if err := c.orderService.Update(r.Context(), id, &dto); err != nil {
+//			http.Error(w, err.Error(), http.StatusInternalServerError)
+//			return
+//		}
+//	}
+//	shared.Redirect(w, r, c.basePath)
+//}
 
 func (c *OrdersController) NewInOrder(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
@@ -211,11 +216,8 @@ func (c *OrdersController) NewInOrder(w http.ResponseWriter, r *http.Request) {
 	props := &order_in.PageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Order: mappers.OrderToViewModel(&order.Order{
-			Type: order.TypeIn,
-		}), //nolint:exhaustruct
-		SaveURL:  c.basePath,
-		ItemsURL: fmt.Sprintf("%s/items", c.basePath),
+		SaveURL:     fmt.Sprintf("%s/in", c.basePath),
+		ItemsURL:    fmt.Sprintf("%s/items", c.basePath),
 	}
 	templ.Handler(order_in.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -226,13 +228,11 @@ func (c *OrdersController) NewOutOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &order_out.CreatePageProps{
+	props := &order_out.PageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Order: mappers.OrderToViewModel(&order.Order{
-			Type: order.TypeOut,
-		}), //nolint:exhaustruct
-		SaveURL: c.basePath,
+		SaveURL:     fmt.Sprintf("%s/out", c.basePath),
+		ItemsURL:    fmt.Sprintf("%s/items", c.basePath),
 	}
 	templ.Handler(order_out.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -243,8 +243,8 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	dto := dtos.CreateOrderDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	formDTO := dtos.CreateOrderDTO{} //nolint:exhaustruct
+	if err := shared.Decoder.Decode(&formDTO, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -255,22 +255,38 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		entity, err := dto.ToEntity()
+	if errorsMap, ok := formDTO.Ok(pageCtx.UniTranslator); !ok {
+		props := &order_in.PageProps{
+			PageContext: pageCtx,
+			Errors:      errorsMap,
+		}
+		templ.Handler(order_in.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	dto := order.CreateDTO{
+		Type:       string(order.TypeIn),
+		Status:     string(order.Pending),
+		ProductIDs: []uint{},
+	}
+	for _, positionID := range formDTO.PositionIDs {
+		quantity := formDTO.Quantities[positionID]
+		products, err := c.orderService.GetOldestProducts(r.Context(), positionID, quantity)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &order_in.PageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
-			Order:       mappers.OrderToViewModel(entity),
+		if len(products) < int(quantity) {
+			// TODO: Localize this message
+			http.Error(w, "Not enough products", http.StatusBadRequest)
+			return
 		}
-		templ.Handler(order_in.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		return
+		for _, product := range products {
+			dto.ProductIDs = append(dto.ProductIDs, product.ID)
+		}
 	}
 
-	if err := c.orderService.Create(r.Context(), &dto); err != nil {
+	if err := c.orderService.Create(r.Context(), dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -284,8 +300,8 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	dto := dtos.CreateOrderDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	formDTO := dtos.CreateOrderDTO{} //nolint:exhaustruct
+	if err := shared.Decoder.Decode(&formDTO, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -296,22 +312,38 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		entity, err := dto.ToEntity()
+	if errorsMap, ok := formDTO.Ok(pageCtx.UniTranslator); !ok {
+		props := &order_out.PageProps{
+			PageContext: pageCtx,
+			Errors:      errorsMap,
+		}
+		templ.Handler(order_out.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	dto := order.CreateDTO{
+		Type:       string(order.TypeIn),
+		Status:     string(order.Pending),
+		ProductIDs: []uint{},
+	}
+	for _, positionID := range formDTO.PositionIDs {
+		quantity := formDTO.Quantities[positionID]
+		products, err := c.orderService.GetOldestProducts(r.Context(), positionID, quantity)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &order_out.CreatePageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
-			Order:       mappers.OrderToViewModel(entity),
+		if len(products) < int(quantity) {
+			// TODO: Localize this message
+			http.Error(w, "Not enough products", http.StatusBadRequest)
+			return
 		}
-		templ.Handler(order_out.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		return
+		for _, product := range products {
+			dto.ProductIDs = append(dto.ProductIDs, product.ID)
+		}
 	}
 
-	if err := c.orderService.Create(r.Context(), &dto); err != nil {
+	if err := c.orderService.Create(r.Context(), dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -325,9 +357,7 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := struct {
-		PositionIDs []uint
-	}{}
+	dto := dtos.CreateOrderDTO{}
 
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -343,11 +373,20 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 	items := make([]*viewmodels.OrderItem, len(positionEntities))
 
 	for i, position := range positionEntities {
+		quantity, err := c.productService.CountByPositionID(r.Context(), position.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		items[i] = &viewmodels.OrderItem{
 			Position: *mappers.PositionToViewModel(position),
-			Quantity: "1",
+			Quantity: strconv.Itoa(int(quantity)),
 		}
 	}
+	props := &order_out.OderItemsProps{
+		Items:  items,
+		Errors: map[string]string{},
+	}
 
-	templ.Handler(order_in.OrderItemsTableBody(items), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(order_out.OrderItems(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

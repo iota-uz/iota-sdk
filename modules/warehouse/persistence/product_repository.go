@@ -41,15 +41,7 @@ func (g *GormProductRepository) GetPaginated(
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	products := make([]*product.Product, len(entities))
-	for i, entity := range entities {
-		p, err := toDomainProduct(entity)
-		if err != nil {
-			return nil, err
-		}
-		products[i] = p
-	}
-	return products, nil
+	return mapping.MapDbModels(entities, toDomainProduct)
 }
 
 func (g *GormProductRepository) Count(ctx context.Context) (int64, error) {
@@ -64,6 +56,35 @@ func (g *GormProductRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
+func (g *GormProductRepository) CountByPositionID(ctx context.Context, positionID uint) (int64, error) {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return 0, composables.ErrNoTx
+	}
+	var count int64
+	if err := tx.Model(&models.WarehouseProduct{}).Where("position_id = ?", positionID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (g *GormProductRepository) GetByPositionID(ctx context.Context, positionID uint, opts *product.QueryOptions) ([]*product.Product, error) {
+	tx, err := g.tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := tx.Where("position_id = ?", positionID)
+	q, err = helpers.ApplySort(q, opts.SortBy)
+	if err != nil {
+		return nil, err
+	}
+	var entities []*models.WarehouseProduct
+	if err := q.Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	return mapping.MapDbModels(entities, toDomainProduct)
+}
+
 func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product, error) {
 	tx, err := g.tx(ctx)
 	if err != nil {
@@ -73,15 +94,7 @@ func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product,
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	products := make([]*product.Product, len(entities))
-	for i, entity := range entities {
-		p, err := toDomainProduct(entity)
-		if err != nil {
-			return nil, err
-		}
-		products[i] = p
-	}
-	return products, nil
+	return mapping.MapDbModels(entities, toDomainProduct)
 }
 
 func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.Product, error) {
