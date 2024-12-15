@@ -47,32 +47,26 @@ func NewProductsController(app application.Application) application.Controller {
 }
 
 func (c *ProductsController) Register(r *mux.Router) {
-	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(
-		middleware.WithTransaction(),
+	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
-	)
-
-	routes := []struct {
-		Path    string
-		Method  string
-		Handler func(http.ResponseWriter, *http.Request)
-	}{
-		{"", http.MethodGet, c.List},
-		{"", http.MethodPost, c.Create},
-		{"/{id:[0-9]+}", http.MethodGet, c.GetEdit},
-		{"/{id:[0-9]+}", http.MethodPost, c.PostEdit},
-		{"/new", http.MethodGet, c.GetNew},
 	}
 
-	for _, route := range routes {
-		router.HandleFunc(route.Path, route.Handler).Methods(route.Method)
-	}
+	getRouter := r.PathPrefix(c.basePath).Subrouter()
+	getRouter.Use(commonMiddleware...)
+	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
+	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+
+	setRouter := r.PathPrefix(c.basePath).Subrouter()
+	setRouter.Use(commonMiddleware...)
+	setRouter.Use(middleware.WithTransaction())
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
 }
 
 func (c *ProductsController) handleError(w http.ResponseWriter, err error) {

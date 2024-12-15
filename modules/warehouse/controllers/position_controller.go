@@ -64,13 +64,14 @@ func (c *PositionsController) Register(r *mux.Router) {
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	getRouter.HandleFunc("/upload", c.GetUpload).Methods(http.MethodGet)
 
-	nonGetRouter := r.PathPrefix(c.basePath).Subrouter()
-	nonGetRouter.Use(append(commonMiddleware, middleware.WithTransaction())...)
+	setRouter := r.PathPrefix(c.basePath).Subrouter()
+	setRouter.Use(commonMiddleware...)
+	setRouter.Use(middleware.WithTransaction())
 
-	nonGetRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	nonGetRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	nonGetRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-	nonGetRouter.HandleFunc("/upload", c.HandleUpload).Methods(http.MethodPost)
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	setRouter.HandleFunc("/upload", c.HandleUpload).Methods(http.MethodPost)
 }
 
 func (c *PositionsController) GetUpload(w http.ResponseWriter, r *http.Request) {
