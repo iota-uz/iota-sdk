@@ -51,13 +51,16 @@ type LoginController struct {
 func (c *LoginController) Register(r *mux.Router) {
 	r.HandleFunc("/oauth/google/callback", c.authService.OauthGoogleCallback)
 
-	router := r.PathPrefix("/login").Subrouter()
-	router.Use(
-		middleware.WithTransaction(),
+	getRouter := r.PathPrefix("/login").Subrouter()
+	getRouter.Use(middleware.WithLocalizer(c.app.Bundle()))
+	getRouter.HandleFunc("", c.Get).Methods(http.MethodGet)
+
+	setRouter := r.PathPrefix("/login").Subrouter()
+	setRouter.Use(
 		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.WithTransaction(),
 	)
-	router.HandleFunc("", c.Get).Methods(http.MethodGet)
-	router.HandleFunc("", c.Post).Methods(http.MethodPost)
+	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {

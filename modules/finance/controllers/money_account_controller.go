@@ -46,22 +46,27 @@ func NewMoneyAccountController(app application.Application) application.Controll
 }
 
 func (c *MoneyAccountController) Register(r *mux.Router) {
-	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(
-		middleware.WithTransaction(),
+	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
-	)
-	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	}
+
+	getRouter := r.PathPrefix(c.basePath).Subrouter()
+	getRouter.Use(commonMiddleware...)
+	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+
+	setRouter := r.PathPrefix(c.basePath).Subrouter()
+	setRouter.Use(commonMiddleware...)
+	setRouter.Use(middleware.WithTransaction())
+	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {

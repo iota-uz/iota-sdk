@@ -52,25 +52,29 @@ func NewOrdersController(app application.Application) application.Controller {
 }
 
 func (c *OrdersController) Register(r *mux.Router) {
-	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(
-		middleware.WithTransaction(),
+	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
-	)
+	}
 
-	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/in", c.CreateInOrder).Methods(http.MethodPost)
-	router.HandleFunc("/out", c.CreateOutOrder).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	//router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	router.HandleFunc("/in/new", c.NewInOrder).Methods(http.MethodGet)
-	router.HandleFunc("/out/new", c.NewOutOrder).Methods(http.MethodGet)
-	router.HandleFunc("/items", c.OrderItems).Methods(http.MethodPost)
+	getRouter := r.PathPrefix(c.basePath).Subrouter()
+	getRouter.Use(commonMiddleware...)
+	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	getRouter.HandleFunc("/in/new", c.NewInOrder).Methods(http.MethodGet)
+	getRouter.HandleFunc("/out/new", c.NewOutOrder).Methods(http.MethodGet)
+
+	setRouter := r.PathPrefix(c.basePath).Subrouter()
+	setRouter.Use(commonMiddleware...)
+	setRouter.Use(middleware.WithTransaction())
+	setRouter.HandleFunc("/in", c.CreateInOrder).Methods(http.MethodPost)
+	setRouter.HandleFunc("/out", c.CreateOutOrder).Methods(http.MethodPost)
+	//setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/items", c.OrderItems).Methods(http.MethodPost)
 }
 
 func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResponse, error) {
