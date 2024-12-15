@@ -47,26 +47,30 @@ func NewPositionsController(app application.Application) application.Controller 
 }
 
 func (c *PositionsController) Register(r *mux.Router) {
-	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(
-		middleware.WithTransaction(),
+	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(c.app),
-	)
+	}
+	getRouter := r.PathPrefix(c.basePath).Subrouter()
+	getRouter.Use(commonMiddleware...)
 
-	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	router.HandleFunc("/upload", c.GetUpload).Methods(http.MethodGet)
-	router.HandleFunc("/upload", c.HandleUpload).Methods(http.MethodPost)
+	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	getRouter.HandleFunc("/search", c.Search).Methods(http.MethodGet)
+	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	getRouter.HandleFunc("/upload", c.GetUpload).Methods(http.MethodGet)
+
+	nonGetRouter := r.PathPrefix(c.basePath).Subrouter()
+	nonGetRouter.Use(append(commonMiddleware, middleware.WithTransaction())...)
+
+	nonGetRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	nonGetRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	nonGetRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	nonGetRouter.HandleFunc("/upload", c.HandleUpload).Methods(http.MethodPost)
 }
 
 func (c *PositionsController) GetUpload(w http.ResponseWriter, r *http.Request) {
