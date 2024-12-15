@@ -192,3 +192,10 @@ func UseFlashMap[K comparable, V any](w http.ResponseWriter, r *http.Request, na
 func UseQuery[T comparable](v T, r *http.Request) (T, error) {
 	return v, shared.Decoder.Decode(v, r.URL.Query())
 }
+
+func UseForm[T comparable](v T, r *http.Request) (T, error) {
+	if err := r.ParseForm(); err != nil {
+		return v, err
+	}
+	return v, shared.Decoder.Decode(v, r.Form)
+}
