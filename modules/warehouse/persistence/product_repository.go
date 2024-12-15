@@ -115,7 +115,7 @@ func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.
 		return nil, err
 	}
 	var entity models.WarehouseProduct
-	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
+	if err := tx.Where("warehouse_products.id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}
 	return toDomainProduct(&entity)
