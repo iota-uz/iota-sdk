@@ -200,15 +200,15 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := product.UpdateDTO{}
 		pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
 		if err != nil {
 			c.handleError(w, err)
 			return
 		}
 
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		dto, err := composables.UseForm(&product.UpdateDTO{}, r)
+		if err != nil {
+			c.handleError(w, fmt.Errorf("error parsing form: %w", err))
 			return
 		}
 
@@ -227,7 +227,7 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := c.productService.Update(r.Context(), id, &dto); err != nil {
+		if err := c.productService.Update(r.Context(), id, dto); err != nil {
 			var vErr serrors.BaseError
 			if errors.As(err, &vErr) {
 				entity.Rfid = dto.Rfid
@@ -265,13 +265,8 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := product.CreateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&product.CreateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -298,7 +293,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.productService.Create(r.Context(), &dto); err != nil {
+	if err := c.productService.Create(r.Context(), dto); err != nil {
 		var vErr serrors.BaseError
 		if errors.As(err, &vErr) {
 			props := &products.CreatePageProps{

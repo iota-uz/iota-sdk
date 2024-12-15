@@ -22,7 +22,7 @@ func (g *GormProductRepository) tx(ctx context.Context, params *product.FindPara
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	positionArgs := []interface{}{}
+	var positionArgs []interface{}
 	if params.Query != "" && params.Field != "" {
 		if params.Field == "position" {
 			positionArgs = append(positionArgs, tx.Where("title ILIKE ?", "%"+params.Query+"%"))
@@ -81,7 +81,7 @@ func (g *GormProductRepository) CountByPositionID(ctx context.Context, positionI
 }
 
 func (g *GormProductRepository) GetByPositionID(ctx context.Context, positionID uint, opts *product.QueryOptions) ([]*product.Product, error) {
-	tx, err := g.tx(ctx)
+	tx, err := g.tx(ctx, &product.FindParams{})
 	if err != nil {
 		return nil, err
 	}

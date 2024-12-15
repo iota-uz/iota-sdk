@@ -1,10 +1,13 @@
 package controllers
 
 import (
-	ut "github.com/go-playground/universal-translator"
+	"context"
+	"fmt"
 	"github.com/go-playground/validator/v10"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type SaveAccountDTO struct {
@@ -15,16 +18,28 @@ type SaveAccountDTO struct {
 	AvatarID   uint
 }
 
-func (u *SaveAccountDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
+func (u *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := composables.UseLocalizer(ctx)
+	if !ok {
+		panic(composables.ErrNoLocalizer)
+	}
+	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(u)
 	if errs == nil {
-		return errors, true
+		return errorMessages, true
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
-		errors[err.Field()] = err.Translate(l)
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Users.Single.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
 	}
-	return errors, len(errors) == 0
+	return errorMessages, len(errorMessages) == 0
 }
 
 func (u *SaveAccountDTO) ToEntity(id uint) (*user.User, error) {
