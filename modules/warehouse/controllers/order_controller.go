@@ -72,7 +72,6 @@ func (c *OrdersController) Register(r *mux.Router) {
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("/in", c.CreateInOrder).Methods(http.MethodPost)
 	setRouter.HandleFunc("/out", c.CreateOutOrder).Methods(http.MethodPost)
-	//setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
 	setRouter.HandleFunc("/items", c.OrderItems).Methods(http.MethodPost)
 }
 
@@ -96,7 +95,9 @@ func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResp
 	}
 	return &OrderPaginatedResponse{
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
-		Orders:          mapping.MapViewModels(entities, mappers.OrderToViewModel),
+		Orders: mapping.MapViewModels(entities, func(o *order.Order) *viewmodels.Order {
+			return mappers.OrderToViewModel(o, map[uint]int{})
+		}),
 	}, nil
 }
 
@@ -141,14 +142,14 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var countByPositionID map[string]int
+	countByPositionID := make(map[uint]int)
 	for _, item := range entity.Items {
 		count, err := c.productService.CountByPositionID(r.Context(), item.Position.ID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		countByPositionID[strconv.Itoa(int(item.Position.ID))] = int(count)
+		countByPositionID[item.Position.ID] = int(count)
 	}
 
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.View.Meta.Title", ""))
@@ -156,10 +157,7 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	viewModel := mappers.OrderToViewModel(entity)
-	for _, item := range viewModel.Items {
-		item.InStock = strconv.Itoa(countByPositionID[item.Position.ID])
-	}
+	viewModel := mappers.OrderToViewModel(entity, countByPositionID)
 	props := &orders.ViewPageProps{
 		PageContext: pageCtx,
 		Order:       viewModel,
