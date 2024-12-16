@@ -73,6 +73,7 @@ func (c *OrdersController) Register(r *mux.Router) {
 	setRouter.HandleFunc("/in", c.CreateInOrder).Methods(http.MethodPost)
 	setRouter.HandleFunc("/out", c.CreateOutOrder).Methods(http.MethodPost)
 	setRouter.HandleFunc("/items", c.OrderItems).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResponse, error) {
@@ -161,6 +162,7 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 	props := &orders.ViewPageProps{
 		PageContext: pageCtx,
 		Order:       viewModel,
+		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(orders.View(props), templ.WithStreaming()).ServeHTTP(w, r)
 
@@ -348,4 +350,19 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templ.Handler(orderout.OrderItems(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *OrdersController) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if _, err := c.orderService.Delete(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	shared.Redirect(w, r, c.basePath)
 }
