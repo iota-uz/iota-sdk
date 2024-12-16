@@ -24,6 +24,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
+	"strconv"
 )
 
 type OrdersController struct {
@@ -140,14 +141,28 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var countByPositionID map[string]int
+	for _, item := range entity.Items {
+		count, err := c.productService.CountByPositionID(r.Context(), item.Position.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		countByPositionID[strconv.Itoa(int(item.Position.ID))] = int(count)
+	}
+
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.View.Meta.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	viewModel := mappers.OrderToViewModel(entity)
+	for _, item := range viewModel.Items {
+		item.InStock = strconv.Itoa(countByPositionID[item.Position.ID])
+	}
 	props := &orders.ViewPageProps{
 		PageContext: pageCtx,
-		Order:       mappers.OrderToViewModel(entity),
+		Order:       viewModel,
 	}
 	templ.Handler(orders.View(props), templ.WithStreaming()).ServeHTTP(w, r)
 
@@ -311,21 +326,15 @@ func (c *OrdersController) orderItems(ctx context.Context, positionIDs []uint) (
 		}
 		items[i] = &viewmodels.OrderItem{
 			Position: *mappers.PositionToViewModel(position),
-			Products: make([]viewmodels.Product, quantity),
+			InStock:  strconv.FormatUint(uint64(quantity), 10),
 		}
 	}
 	return items, nil
 }
 
 func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := dtos.CreateOrderDTO{}
-
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&dtos.CreateOrderDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
