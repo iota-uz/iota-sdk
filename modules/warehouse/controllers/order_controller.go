@@ -27,6 +27,28 @@ import (
 	"strconv"
 )
 
+type OrderItem struct {
+	PositionID    uint
+	PositionTitle string
+	Barcode       string
+	Unit          string
+	InStock       uint
+	Quantity      uint
+	Error         string
+}
+
+func OrderItemToViewModel(item OrderItem) orderout.OrderItem {
+	return orderout.OrderItem{
+		PositionID:    strconv.FormatUint(uint64(item.PositionID), 10),
+		PositionTitle: item.PositionTitle,
+		Barcode:       item.Barcode,
+		Unit:          item.Unit,
+		InStock:       strconv.FormatUint(uint64(item.InStock), 10),
+		Quantity:      strconv.FormatUint(uint64(item.Quantity), 10),
+		Error:         item.Error,
+	}
+}
+
 type OrdersController struct {
 	app             application.Application
 	orderService    *services.OrderService
@@ -199,13 +221,8 @@ func (c *OrdersController) NewOutOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	formDTO := dtos.CreateOrderDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&formDTO, r.Form); err != nil {
+	formDTO, err := composables.UseForm(&dtos.CreateOrderDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -262,17 +279,22 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	items, err := c.orderItems(r.Context(), formDTO)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if errorsMap, ok := formDTO.Ok(r.Context()); !ok {
-		items, err := c.orderItems(r.Context(), formDTO.PositionIDs)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		props := &orderout.OderItemsProps{
-			Items:  items,
+		props := &orderout.FormProps{
 			Errors: errorsMap,
+			Items:  mapping.MapViewModels(items, OrderItemToViewModel),
 		}
-		templ.Handler(orderout.OrderItems(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(orderout.Form(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
@@ -281,21 +303,29 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		Status:     string(order.Pending),
 		ProductIDs: []uint{},
 	}
-	for _, positionID := range formDTO.PositionIDs {
-		quantity := formDTO.Quantity[positionID]
-		products, err := c.orderService.GetOldestProducts(r.Context(), positionID, quantity)
+	var hasErrors bool
+	for i, item := range items {
+		quantity := formDTO.Quantity[item.PositionID]
+		products, err := c.orderService.GetOldestProducts(r.Context(), item.PositionID, quantity)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		if len(products) < int(quantity) {
-			// TODO: Localize this message
-			http.Error(w, "Not enough products", http.StatusBadRequest)
-			return
+			hasErrors = true
+			items[i].Error = pageCtx.T("Errors.ERR_NOT_ENOUGH_PRODUCTS")
 		}
 		for _, product := range products {
 			dto.ProductIDs = append(dto.ProductIDs, product.ID)
 		}
+	}
+	if hasErrors {
+		props := &orderout.FormProps{
+			Errors: map[string]string{},
+			Items:  mapping.MapViewModels(items, OrderItemToViewModel),
+		}
+		templ.Handler(orderout.Form(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
 
 	if err := c.orderService.Create(r.Context(), dto); err != nil {
@@ -305,21 +335,30 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *OrdersController) orderItems(ctx context.Context, positionIDs []uint) ([]*viewmodels.OrderItem, error) {
-	positionEntities, err := c.positionService.GetByIDs(ctx, positionIDs)
+func (c *OrdersController) orderItems(ctx context.Context, dto *dtos.CreateOrderDTO) ([]OrderItem, error) {
+	positionEntities, err := c.positionService.GetByIDs(ctx, dto.PositionIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]*viewmodels.OrderItem, len(positionEntities))
+	items := make([]OrderItem, len(positionEntities))
 	for i, position := range positionEntities {
-		quantity, err := c.productService.CountInStock(ctx, position.ID)
+		inStock, err := c.productService.CountInStock(ctx, position.ID)
 		if err != nil {
 			return nil, err
 		}
-		items[i] = &viewmodels.OrderItem{
-			Position: *mappers.PositionToViewModel(position),
-			InStock:  strconv.FormatUint(uint64(quantity), 10),
+		quantity, ok := dto.Quantity[position.ID]
+		if !ok {
+			quantity = 1
+		}
+		items[i] = OrderItem{
+			PositionID:    position.ID,
+			PositionTitle: position.Title,
+			Barcode:       position.Barcode,
+			Quantity:      quantity,
+			Unit:          position.Unit.Title,
+			InStock:       uint(inStock),
+			Error:         "",
 		}
 	}
 	return items, nil
@@ -332,17 +371,14 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := c.orderItems(r.Context(), dto.PositionIDs)
+	items, err := c.orderItems(r.Context(), dto)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &orderout.OderItemsProps{
-		Items:  items,
-		Errors: map[string]string{},
-	}
 
-	templ.Handler(orderout.OrderItems(props), templ.WithStreaming()).ServeHTTP(w, r)
+	viewModelItems := mapping.MapViewModels(items, OrderItemToViewModel)
+	templ.Handler(orderout.OrderItemsTable(viewModelItems), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *OrdersController) Delete(w http.ResponseWriter, r *http.Request) {

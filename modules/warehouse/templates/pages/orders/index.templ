@@ -70,9 +70,11 @@ templ OrdersTable(props *IndexPageProps) {
 }
 
 templ newOrderButton() {
-	<summary class="btn btn-primary btn-normal btn-with-icon shrink-0 cursor-pointer w-40">
+	<summary class="btn btn-primary btn-normal btn-with-icon shrink-0 cursor-pointer">
 		@icons.PlusCircle(icons.Props{Size: "18"})
-		{ composables.MustT(ctx, "WarehouseOrders.List.New") }
+		<p class="break-keep">
+			{ composables.MustT(ctx, "WarehouseOrders.List.New") }
+		</p>
 	</summary>
 }
 
