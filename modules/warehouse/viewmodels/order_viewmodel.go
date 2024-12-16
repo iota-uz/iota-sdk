@@ -47,6 +47,7 @@ func (o *Order) TotalProducts() string {
 type OrderItem struct {
 	Position Position
 	Products []Product
+	InStock  string
 }
 
 func (oi *OrderItem) Quantity() string {
