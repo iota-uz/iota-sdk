@@ -68,13 +68,14 @@ func (g *GormProductRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormProductRepository) CountByPositionID(ctx context.Context, positionID uint) (int64, error) {
+func (g *GormProductRepository) CountInStock(ctx context.Context, positionID uint) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, composables.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.WarehouseProduct{}).Where("position_id = ?", positionID).Count(&count).Error; err != nil {
+	q := tx.Model(&models.WarehouseProduct{}).Where("position_id = ?", positionID).Where("status = ?", string(product.InStock))
+	if err := q.Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
