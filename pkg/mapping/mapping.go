@@ -3,11 +3,8 @@ package mapping
 import "reflect"
 
 // MapViewModels maps entities to view models
-func MapViewModels[T any, V any](
-	entities []T,
-	mapFunc func(T) *V,
-) []*V {
-	viewModels := make([]*V, len(entities))
+func MapViewModels[T any, V any](entities []T, mapFunc func(T) V) []V {
+	viewModels := make([]V, len(entities))
 	for i, entity := range entities {
 		viewModels[i] = mapFunc(entity)
 	}
@@ -17,9 +14,9 @@ func MapViewModels[T any, V any](
 // MapDbModels maps entities to db models
 func MapDbModels[T any, V any](
 	entities []T,
-	mapFunc func(T) (*V, error),
-) ([]*V, error) {
-	viewModels := make([]*V, len(entities))
+	mapFunc func(T) (V, error),
+) ([]V, error) {
+	viewModels := make([]V, len(entities))
 	for i, entity := range entities {
 		viewModel, err := mapFunc(entity)
 		if err != nil {

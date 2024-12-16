@@ -19,7 +19,7 @@ type Order struct {
 func (o *Order) LocalizedStatus(l *i18n.Localizer) string {
 	return l.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
-			ID: fmt.Sprintf("WarehouseOrders.Single.Statuses.%s", o.Status),
+			ID: fmt.Sprintf("WarehouseOrders.Statuses.%s", o.Status),
 		},
 	})
 }
@@ -27,7 +27,7 @@ func (o *Order) LocalizedStatus(l *i18n.Localizer) string {
 func (o *Order) LocalizedType(l *i18n.Localizer) string {
 	return l.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
-			ID: fmt.Sprintf("WarehouseOrders.Single.Types.%s", o.Type),
+			ID: fmt.Sprintf("WarehouseOrders.Types.%s", o.Type),
 		},
 	})
 }
