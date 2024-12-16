@@ -16,6 +16,17 @@ type Order struct {
 	UpdatedAt string
 }
 
+func (o *Order) LocalizedTitle(l *i18n.Localizer) string {
+	return l.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{
+			ID: "WarehouseOrders.View.Title",
+		},
+		TemplateData: map[string]interface{}{
+			"ID": o.ID,
+		},
+	})
+}
+
 func (o *Order) LocalizedStatus(l *i18n.Localizer) string {
 	return l.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
