@@ -26,6 +26,12 @@ type PageContext struct {
 	Pathname      string
 }
 
-func (p *PageContext) T(k string) string {
-	return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: k})
+func (p *PageContext) T(k string, args ...map[string]interface{}) string {
+	if len(args) > 1 {
+		panic("T(): too many arguments")
+	}
+	if len(args) == 0 {
+		return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: k})
+	}
+	return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: k, TemplateData: args[0]})
 }

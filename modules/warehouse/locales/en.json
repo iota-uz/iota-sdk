@@ -154,6 +154,9 @@
       "Meta": {
         "Title": "View warehouse order"
       },
+      "Title": "Order #{{.ID}}",
+      "Status": "Status",
+      "CreatedAt": "Created at",
       "Position": "Position",
       "Barcode": "Barcode",
       "InStock": "In stock",
