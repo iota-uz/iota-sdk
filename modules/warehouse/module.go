@@ -43,9 +43,11 @@ func (m *Module) Register(app application.Application) error {
 		app,
 	)
 	orderService := services.NewOrderService(app.EventPublisher())
+	inventoryService := services.NewInventoryService(app.EventPublisher())
 
 	app.RegisterService(positionService)
 	app.RegisterService(orderService)
+	app.RegisterService(inventoryService)
 
 	app.RegisterPermissions(
 		permissions.ProductCreate,
@@ -64,12 +66,17 @@ func (m *Module) Register(app application.Application) error {
 		permissions.UnitRead,
 		permissions.UnitUpdate,
 		permissions.UnitDelete,
+		permissions.InventoryCreate,
+		permissions.InventoryRead,
+		permissions.InventoryUpdate,
+		permissions.InventoryDelete,
 	)
 	app.RegisterControllers(
 		controllers.NewProductsController(app),
 		controllers.NewPositionsController(app),
 		controllers.NewUnitsController(app),
 		controllers.NewOrdersController(app),
+		controllers.NewInventoryController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
@@ -116,6 +123,13 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 					Href: "/warehouse/orders",
 					Permissions: []permission.Permission{
 						permissions.OrderRead,
+					},
+				},
+				{
+					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseInventory"}),
+					Href: "/warehouse/inventory",
+					Permissions: []permission.Permission{
+						permissions.InventoryRead,
 					},
 				},
 			},

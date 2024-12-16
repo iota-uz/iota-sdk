@@ -25,6 +25,17 @@ let relativeFormat = () => ({
 });
 
 let dateFns = () => ({
+  formatter: new Intl.DateTimeFormat("ru", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric"
+  }),
+  now() {
+    return this.formatter.format(new Date());
+  },
   startOfDay(days = 0) {
     let date = new Date();
     date.setDate(date.getDate() - days);
@@ -167,13 +178,50 @@ let combobox = (searchable = false) => ({
   open: false,
   openedWithKeyboard: false,
   options: [],
-  selectedIndex: null,
   activeIndex: null,
   selectedIndices: new Set(),
+  // selectedValues: new Set(),
+  selectedValues: new Map(),
+  activeValue: null,
   multiple: false,
   value: "",
   observer: null,
+  values: [],
   searchable,
+  setValue(value) {
+    if (value == null || !(this.open || this.openedWithKeyboard)) return;
+    let index, option
+    for (let i = 0, len = this.options.length; i < len; i++) {
+      let o = this.options[i];
+      if (o.value === value) {
+        index = i;
+        option = o;
+      }
+    }
+    if (index == null || index > this.options.length - 1) return;
+    if (this.multiple) {
+      this.options[index].toggleAttribute("selected");
+      if (this.selectedValues.has(value)) {
+        this.selectedValues.delete(value);
+      } else {
+        this.selectedValues.set(value, {
+          value,
+          label: option.textContent,
+        });
+      }
+    }
+    console.log(Object.values(this.selectedValues))
+    this.open = false;
+    this.openedWithKeyboard = false;
+    if (this.selectedValues.size === 0) {
+      this.$refs.select.value = "";
+    }
+    this.$refs.select.dispatchEvent(new Event("change"));
+    this.activeValue = value;
+    this.values = this.selectedValues.values();
+    this.$refs.input.value = "";
+    this.$refs.input.focus();
+  },
   setIndex(index) {
     if (index == null || index > this.options.length - 1 || !(this.open || this.openedWithKeyboard)) return;
     let indexInt = Number(index);
@@ -226,11 +274,20 @@ let combobox = (searchable = false) => ({
       }
     }
   },
+  setActiveValue(value) {
+    for (let i = 0, len = this.options.length; i < len; i++) {
+      let option = this.options[i];
+      if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
+        this.activeValue = option.value;
+      }
+    }
+  },
   onInput() {
     if (!this.open) this.open = true;
   },
   highlightMatchingOption(pressedKey) {
     this.setActiveIndex(pressedKey);
+    this.setActiveValue(pressedKey);
     let allOptions = this.$refs.list.querySelectorAll(".combobox-option");
     if (this.activeIndex !== null) {
       allOptions[this.activeIndex]?.focus();
@@ -253,6 +310,7 @@ let combobox = (searchable = false) => ({
         this.options = this.$el.querySelectorAll("option");
         this.selectedIndices.clear();
         this.setActiveIndex(this.$refs.input.value);
+        this.setActiveValue(this.$refs.input.value);
       });
       this.observer.observe(this.$el, {
         childList: true

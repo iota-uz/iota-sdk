@@ -54,9 +54,14 @@ CREATE TABLE warehouse_order_items
 
 CREATE TABLE inventory_checks
 (
-    id         SERIAL PRIMARY KEY,
-    status     VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    id           SERIAL PRIMARY KEY,
+    status       VARCHAR(255) NOT NULL,
+    name         VARCHAR(255) NOT NULL,
+    type         VARCHAR(255) NOT NULL,
+    created_at   TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    finished_at  TIMESTAMP WITH TIME ZONE,
+    created_by   INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    finished_by  INT REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE TABLE inventory_check_results

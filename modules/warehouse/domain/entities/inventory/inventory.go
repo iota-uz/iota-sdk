@@ -5,15 +5,20 @@ import (
 )
 
 type Check struct {
-	ID        int64
-	Status    *Status
-	Results   []*CheckResult
-	CreatedAt time.Time
+	ID         uint
+	Status     Status
+	Type       Type
+	Name       string
+	Results    []*CheckResult
+	CreatedAt  time.Time
+	FinishedAt time.Time
+	CreatedBy  uint
+	FinishedBy uint
 }
 
 type CheckResult struct {
-	ID               int64
-	PositionID       int64
+	ID               uint
+	PositionID       uint
 	ExpectedQuantity int
 	ActualQuantity   int
 	Difference       int

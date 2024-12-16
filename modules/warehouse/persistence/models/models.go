@@ -14,9 +14,14 @@ type WarehouseUnit struct {
 }
 
 type InventoryCheck struct {
-	ID        uint
-	Status    string
-	CreatedAt time.Time
+	ID         uint
+	Status     string
+	Type       string
+	Name       string
+	CreatedAt  time.Time
+	FinishedAt time.Time
+	CreatedBy  uint
+	FinishedBy uint
 }
 
 type InventoryCheckResult struct {
