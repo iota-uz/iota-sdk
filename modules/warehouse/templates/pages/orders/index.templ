@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/components/filters"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -68,10 +69,10 @@ templ OrdersTable(props *IndexPageProps) {
 	</div>
 }
 
-templ newOrderButton(props *IndexPageProps) {
+templ newOrderButton() {
 	<summary class="btn btn-primary btn-normal btn-with-icon shrink-0 cursor-pointer w-40">
 		@icons.PlusCircle(icons.Props{Size: "18"})
-		{ props.T("WarehouseOrders.List.New") }
+		{ composables.MustT(ctx, "WarehouseOrders.List.New") }
 	</summary>
 }
 
@@ -123,7 +124,7 @@ templ OrdersContent(props *IndexPageProps) {
 				@filters.PageSize(props.PageContext)
 				@filters.CreatedAt(props.PageContext)
 				<div class="flex-grow"></div>
-				@base.DetailsDropdown(newOrderButton(props)) {
+				@base.DetailsDropdown(newOrderButton()) {
 					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/in/new"}) {
 						{ props.T("WarehouseOrders.List.NewIn") }
 					}

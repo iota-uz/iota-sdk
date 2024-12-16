@@ -12,7 +12,8 @@ import (
 
 type ViewPageProps struct {
 	*types.PageContext
-	Order *viewmodels.Order
+	Order     *viewmodels.Order
+	DeleteURL string
 }
 
 templ viewTable(props *ViewPageProps) {
@@ -93,16 +94,14 @@ templ View(props *ViewPageProps) {
 				</div>
 			}
 			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
-				@button.Primary(button.Props{
+				@button.Danger(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
+						"hx-delete":    props.DeleteURL,
 						"hx-indicator": "this",
-						"hx-target":    "#order-items",
-						"hx-swap":      "innerHTML",
-						"hx-include":   "#search-form",
 					},
 				}) {
-					{ props.T("Save") }
+					{ props.T("Delete") }
 				}
 			</div>
 		</div>
