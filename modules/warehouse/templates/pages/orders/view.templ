@@ -20,16 +20,19 @@ templ viewTable(props *ViewPageProps) {
 		<thead>
 			<tr class="bg-surface-500 text-200">
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.Single.Position") }
+					{ props.T("WarehouseOrders.View.Position") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.Single.Barcode") }
+					{ props.T("WarehouseOrders.View.Barcode") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.Single.Quantity") }
+					{ props.T("WarehouseOrders.View.InStock") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.Single.Unit") }
+					{ props.T("WarehouseOrders.View.Quantity") }
+				</th>
+				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
+					{ props.T("WarehouseOrders.View.Unit") }
 				</th>
 			</tr>
 		</thead>
@@ -37,7 +40,7 @@ templ viewTable(props *ViewPageProps) {
 			if len(items) == 0 {
 				<tr>
 					<td class="p-4 text-center" colspan="5">
-						{ composables.MustT(ctx, "WarehouseOrders.Single.NoItems") }
+						{ composables.MustT(ctx, "WarehouseOrders.View.NoItems") }
 					</td>
 				</tr>
 			} else {

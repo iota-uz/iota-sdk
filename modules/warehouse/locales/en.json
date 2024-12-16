@@ -153,20 +153,26 @@
     "View": {
       "Meta": {
         "Title": "View warehouse order"
-      }
+      },
+      "Position": "Position",
+      "Barcode": "Barcode",
+      "InStock": "In stock",
+      "Quantity": "Quantity",
+      "Unit": "Unit",
+      "NoItems": "No items"
+    },
+    "Types": {
+      "in": "Acceptance",
+      "out": "Shipment"
+    },
+    "Statuses": {
+      "pending": "Pending",
+      "complete": "Complete"
     },
     "Single": {
       "Type": "Type",
       "TypePlaceholder": "Select type",
       "Status": "Status",
-      "Types": {
-        "in": "Acceptance",
-        "out": "Shipment"
-      },
-      "Statuses": {
-        "pending": "Pending",
-        "complete": "Complete"
-      },
       "Quantity": "Quantity",
       "Position": "Position",
       "PositionIDs": "Positions",
