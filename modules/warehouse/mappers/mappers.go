@@ -1,15 +1,17 @@
 package mappers
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	coreviewmodels "github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
-	"strconv"
-	"time"
 )
 
 func ProductToViewModel(entity *product.Product) *viewmodels.Product {
@@ -60,6 +62,16 @@ func OrderToViewModel(entity *order.Order) *viewmodels.Order {
 		ID:        strconv.FormatUint(uint64(entity.ID), 10),
 		Type:      string(entity.Type),
 		Status:    string(entity.Status),
+		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
+	return &viewmodels.Check{
+		ID:        strconv.FormatUint(uint64(entity.ID), 10),
+		Name:      entity.Name,
+		Type:      entity.Type.String(),
+		Status:    entity.Status.String(),
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 	}
 }

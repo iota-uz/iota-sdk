@@ -8,7 +8,8 @@
     "Products": "Продукты",
     "WarehousePositions": "Наименования",
     "WarehouseOrders": "Заявки/Накладные",
-    "WarehouseUnits": "Единицы измерения"
+    "WarehouseUnits": "Единицы измерения",
+    "WarehouseInventory": "Инвентаризация"
   },
   "Products": {
     "List": {
@@ -176,6 +177,41 @@
       "Unit": "Ед. измерения",
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить эту заявку?"
+    }
+  },
+  "WarehouseInventory": {
+    "List": {
+      "Meta": {
+        "Title": "Инвентаризация"
+      },
+      "New": "Новая инвентаризация",
+      "Name": "Наименование",
+      "Type": "Тип",
+      "Status": "Статус"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Новая инвентаризация"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать инвентаризацию"
+      }
+    },
+    "Single": {
+      "Name": {
+        "Label": "Наименование",
+        "Placeholder": "пр.: Проверка от 16.12.2024"
+      },
+      "Type": "Тип",
+      "Inventory": "Инвентаризация",
+      "Types": {
+        "full": "Полная",
+        "partial": "Частичная"
+      },
+      "Delete": "Удалить",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить эту инвентаризацию?"
     }
   }
 }

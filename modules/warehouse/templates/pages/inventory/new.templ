@@ -1,0 +1,153 @@
+package inventory
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/input"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type CreatePageProps struct {
+	*types.PageContext
+	Check           *viewmodels.Check
+	Positions       []*viewmodels.Position
+	PaginationState *pagination.State
+	Errors          map[string]string
+	SaveURL         string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.SaveURL }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		<div class="contents" x-data="dateFns">
+			@base.Card("grid grid-cols-3 gap-4 m-6") {
+				@input.Text(&input.Props{
+					Label:       props.T("WarehouseInventory.Single.Name.Label"),
+					Placeholder: props.T("WarehouseInventory.Single.Name.Placeholder"),
+					Attrs: templ.Attributes{
+						"autofocus": true,
+						"name":      "Name",
+						":value":    fmt.Sprintf("'%s ' + now()", props.T("WarehouseInventory.Single.Inventory")),
+					},
+					Error: props.Errors["Name"],
+				})
+				@base.Select(&base.SelectProps{
+					Label: props.T("WarehouseInventory.Single.Type"),
+					Attrs: templ.Attributes{
+						"name": "Type",
+					},
+				}) {
+					<option value={ string(inventory.Full) }>{ props.T("WarehouseInventory.Single.Types.full") }</option>
+					<option value={ string(inventory.Partial) }>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
+				}
+			}
+			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+				<form
+					id="save-form"
+					method="post"
+					hx-post={ props.SaveURL }
+					hx-indicator="#save-btn"
+					hx-target="#edit-content"
+					hx-swap="outerHTML"
+				>
+					@button.Primary(button.Props{
+						Size: button.SizeMD,
+						Attrs: templ.Attributes{
+							"name":  "_action",
+							"value": "save",
+							"id":    "save-btn",
+						},
+					}) {
+						{ props.T("Save") }
+					}
+				</form>
+			</div>
+		</div>
+	</form>
+}
+
+templ PartialCreateForm(props *CreatePageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.SaveURL }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		<div class="contents" x-data="dateFns">
+			@base.Card("flex flex-col gap-6 m-6") {
+				<div class="grid grid-cols-3 gap-4">
+					@input.Text(&input.Props{
+						Label:       props.T("WarehouseInventory.Single.Name.Label"),
+						Placeholder: props.T("WarehouseInventory.Single.Name.Placeholder"),
+						Attrs: templ.Attributes{
+							"autofocus": true,
+							"name":      "Name",
+							"disabled":  "true",
+							"value":     props.Check.Name,
+						},
+						Error: props.Errors["Name"],
+					})
+					@base.Select(&base.SelectProps{
+						Label: props.T("WarehouseInventory.Single.Type"),
+						Attrs: templ.Attributes{
+							"name":     "Type",
+							"disabled": "true",
+						},
+					}) {
+						<option value={ string(inventory.Full) }>{ props.T("WarehouseInventory.Single.Types.full") }</option>
+						<option value={ string(inventory.Partial) } selected>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
+					}
+				</div>
+				<div class="flex flex-col">
+					@input.Text(&input.Props{
+						Label:       "Positions",
+						Placeholder: "Search positions",
+					})
+					<div></div>
+				</div>
+			}
+			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+				<form
+					id="save-form"
+					method="post"
+					hx-post={ props.SaveURL }
+					hx-indicator="#save-btn"
+					hx-target="#edit-content"
+					hx-swap="outerHTML"
+				>
+					@button.Primary(button.Props{
+						Size: button.SizeMD,
+						Attrs: templ.Attributes{
+							"name":  "_action",
+							"value": "save",
+							"id":    "save-btn",
+						},
+					}) {
+						{ props.T("Save") }
+					}
+				</form>
+			</div>
+		</div>
+	</form>
+}
+
+templ New(props *CreatePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
+	}
+}
+
+templ NewPartial(props *CreatePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@PartialCreateForm(props)
+	}
+}

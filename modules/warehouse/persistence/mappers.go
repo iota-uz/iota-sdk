@@ -4,6 +4,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
@@ -159,4 +160,38 @@ func toDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
 	}, junctionRows
+}
+
+func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory.Check, error) {
+	status, err := inventory.NewStatus(dbInventoryCheck.Status)
+	if err != nil {
+		return nil, err
+	}
+	typ, err := inventory.NewType(dbInventoryCheck.Type)
+	if err != nil {
+		return nil, err
+	}
+	return &inventory.Check{
+		ID:         dbInventoryCheck.ID,
+		Status:     status,
+		Type:       typ,
+		Name:       dbInventoryCheck.Name,
+		CreatedAt:  dbInventoryCheck.CreatedAt,
+		FinishedAt: dbInventoryCheck.FinishedAt,
+		CreatedBy:  dbInventoryCheck.CreatedBy,
+		FinishedBy: dbInventoryCheck.FinishedBy,
+	}, nil
+}
+
+func toDBInventoryCheck(check *inventory.Check) *models.InventoryCheck {
+	return &models.InventoryCheck{
+		ID:         check.ID,
+		Status:     check.Status.String(),
+		Type:       check.Type.String(),
+		Name:       check.Name,
+		CreatedAt:  check.CreatedAt,
+		FinishedAt: check.FinishedAt,
+		FinishedBy: check.FinishedBy,
+		CreatedBy:  check.CreatedBy,
+	}
 }
