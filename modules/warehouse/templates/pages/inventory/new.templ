@@ -107,12 +107,43 @@ templ PartialCreateForm(props *CreatePageProps) {
 						<option value={ string(inventory.Partial) } selected>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
 					}
 				</div>
-				<div class="flex flex-col">
+				<div class="flex flex-col gap-4">
 					@input.Text(&input.Props{
 						Label:       "Positions",
 						Placeholder: "Search positions",
 					})
-					<div></div>
+					<div class="flex flex-col gap-4 table-wrapper">
+						@base.Table(&base.TableProps{
+							Columns: []*base.TableColumn{
+								{Label: props.T("WarehousePositions.List.Position"), Key: "title"},
+								{Label: props.T("WarehousePositions.List.Barcode"), Key: "barcode"},
+								{Label: props.T("WarehousePositions.List.Unit"), Key: "unit"},
+								{Label: props.T("Actions"), Class: "w-16"},
+							},
+						}) {
+							for _, position := range props.Positions {
+								@base.TableRow() {
+									@base.TableCell() {
+										{ position.Title }
+									}
+									@base.TableCell() {
+										{ position.Barcode }
+									}
+									@base.TableCell() {
+										{ position.Unit.Title }
+									}
+									@base.TableCell() {
+										@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "button"}}) {
+											{ props.T("Add") }
+										}
+									}
+								}
+							}
+						}
+						if len(props.PaginationState.Pages()) > 1 {
+							@pagination.Pagination(props.PaginationState)
+						}
+					</div>
 				</div>
 			}
 			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
