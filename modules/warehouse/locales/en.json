@@ -29,6 +29,11 @@
         "Title": "Edit product"
       }
     },
+    "Statuses": {
+      "in_stock": "In stock",
+      "approved": "Approved",
+      "in_development": "In development"
+    },
     "Single": {
       "Rfid": "RFID",
       "Position": "Position",
@@ -36,11 +41,6 @@
       "NoPositionsFound": "No positions found",
       "Status": "Status",
       "SelectStatus": "Select status",
-      "Statuses": {
-        "in_stock": "In stock",
-        "approved": "Approved",
-        "in_development": "In development"
-      },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this product?"
     }

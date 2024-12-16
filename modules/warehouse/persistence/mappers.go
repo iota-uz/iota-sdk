@@ -59,14 +59,14 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 		return nil, err
 	}
 	var idToPosition = make(map[uint]*models.WarehousePosition)
-	var groupedByPosition = make(map[uint][]*models.WarehouseProduct)
+	var groupedByPositionID = make(map[uint][]*models.WarehouseProduct)
 	for _, p := range dbOrder.Products {
-		idToPosition[p.ID] = p.Position
-		groupedByPosition[p.PositionID] = append(groupedByPosition[p.PositionID], p)
+		idToPosition[p.PositionID] = p.Position
+		groupedByPositionID[p.PositionID] = append(groupedByPositionID[p.PositionID], p)
 	}
 	var items []order.Item
-	for positionID, products := range groupedByPosition {
-		products, err := mapping.MapDbModels(products, toDomainProduct)
+	for positionID, products := range groupedByPositionID {
+		domainProducts, err := mapping.MapDbModels(products, toDomainProduct)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +76,7 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 		}
 		items = append(items, order.Item{
 			Position: *positionEntity,
-			Products: mapping.ValueSlice(products),
+			Products: mapping.ValueSlice(domainProducts),
 		})
 	}
 	return &order.Order{

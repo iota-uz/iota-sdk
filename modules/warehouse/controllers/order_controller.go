@@ -145,7 +145,7 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 
 	countByPositionID := make(map[uint]int)
 	for _, item := range entity.Items {
-		count, err := c.productService.CountByPositionID(r.Context(), item.Position.ID)
+		count, err := c.productService.CountInStock(r.Context(), item.Position.ID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -278,7 +278,6 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 			Items:  items,
 			Errors: errorsMap,
 		}
-		fmt.Println(errorsMap)
 		templ.Handler(orderout.OrderItems(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
@@ -320,7 +319,7 @@ func (c *OrdersController) orderItems(ctx context.Context, positionIDs []uint) (
 
 	items := make([]*viewmodels.OrderItem, len(positionEntities))
 	for i, position := range positionEntities {
-		quantity, err := c.productService.CountByPositionID(ctx, position.ID)
+		quantity, err := c.productService.CountInStock(ctx, position.ID)
 		if err != nil {
 			return nil, err
 		}

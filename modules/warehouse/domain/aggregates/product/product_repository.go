@@ -25,7 +25,7 @@ type QueryOptions struct {
 type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]*Product, error)
 	Count(ctx context.Context) (int64, error)
-	CountByPositionID(ctx context.Context, positionID uint) (int64, error)
+	CountInStock(ctx context.Context, positionID uint) (int64, error)
 	GetAll(ctx context.Context) ([]*Product, error)
 	GetByID(ctx context.Context, id uint) (*Product, error)
 	GetByRfid(ctx context.Context, rfid string) (*Product, error)
