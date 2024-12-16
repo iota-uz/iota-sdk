@@ -28,13 +28,10 @@ templ viewTable(props *ViewPageProps) {
 					{ props.T("WarehouseOrders.View.Barcode") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.View.InStock") }
+					{ props.T("WarehouseOrders.View.Unit") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
 					{ props.T("WarehouseOrders.View.Quantity") }
-				</th>
-				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.View.Unit") }
 				</th>
 			</tr>
 		</thead>
@@ -55,13 +52,10 @@ templ viewTable(props *ViewPageProps) {
 							{ item.Position.Barcode }
 						</td>
 						<td class="p-4">
-							{ item.InStock }
+							{ item.Position.Unit.Title }
 						</td>
 						<td class="p-4">
 							{ item.Quantity() }
-						</td>
-						<td class="p-4">
-							{ item.Position.Unit.Title }
 						</td>
 					</tr>
 				}
