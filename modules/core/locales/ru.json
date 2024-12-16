@@ -3,7 +3,8 @@
     "Internal": "Внутренная серверная ошибка"
   },
   "ValidationErrors": {
-    "required": "Это поле обязательно для заполнения"
+    "required": "Это поле обязательно для заполнения",
+    "emptySelect": "Выберите значение"
   },
   "Filters": {
     "CreatedAt": {
