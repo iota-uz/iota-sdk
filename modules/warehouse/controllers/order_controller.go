@@ -256,13 +256,8 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	formDTO := dtos.CreateOrderDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&formDTO, r.Form); err != nil {
+	formDTO, err := composables.UseForm(&dtos.CreateOrderDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -274,7 +269,6 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 			return
 		}
 		props := &orderout.OderItemsProps{
-
 			Items:  items,
 			Errors: errorsMap,
 		}

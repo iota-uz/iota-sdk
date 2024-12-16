@@ -1,7 +1,9 @@
 {
   "Errors": {
     "ERR_INVALID_CELL": "Ошибка при обработке ячейки \"{{.Col}}:{{.Row}}\"",
-    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует"
+    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует",
+    "ERR_DUPLICATE_BARCODE": "Артикул {{.Barcode}} уже существует",
+    "ERR_NOT_ENOUGH_PRODUCTS": "Недостаточно продукции на складе"
   },
   "NavigationLinks": {
     "Warehouse": "Склад",

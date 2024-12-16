@@ -54,7 +54,7 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	typeEnum, err := order.NewType(dbOrder.Type)
+	orderType, err := order.NewType(dbOrder.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 	return &order.Order{
 		ID:        dbOrder.ID,
 		Status:    status,
-		Type:      typeEnum,
+		Type:      orderType,
 		Items:     items,
 		CreatedAt: dbOrder.CreatedAt,
 	}, nil
