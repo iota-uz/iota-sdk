@@ -122,6 +122,7 @@ templ OrdersContent(props *IndexPageProps) {
 				}
 				@filters.PageSize(props.PageContext)
 				@filters.CreatedAt(props.PageContext)
+				<div class="flex-grow"></div>
 				@base.DetailsDropdown(newOrderButton(props)) {
 					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/in/new"}) {
 						{ props.T("WarehouseOrders.List.NewIn") }
