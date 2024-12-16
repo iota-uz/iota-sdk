@@ -161,7 +161,6 @@
       "CreatedAt": "Created at",
       "Position": "Position",
       "Barcode": "Barcode",
-      "InStock": "In stock",
       "Quantity": "Quantity",
       "Unit": "Unit",
       "NoItems": "No items"
