@@ -1,0 +1,17 @@
+type WarehousePosition {
+    id: ID!
+    title: String!
+    barcode: String
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedWarehousePositions {
+    data: [WarehousePosition!]!
+    total: Int64!
+}
+
+extend type Query {
+    warehousePosition(id: ID!): WarehousePosition
+    warehousePositions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedWarehousePositions!
+}

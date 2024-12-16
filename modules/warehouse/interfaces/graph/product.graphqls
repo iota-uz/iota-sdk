@@ -1,0 +1,18 @@
+type Product {
+    id: ID!
+    position: WarehousePosition!
+    rfid: String!
+    status: String!
+    createdAt: Time!
+    updatedAt: Time!
+}
+
+type PaginatedProducts {
+    data: [Product!]!
+    total: Int64!
+}
+
+extend type Query {
+    product(id: ID!): Product
+    products(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedProducts!
+}

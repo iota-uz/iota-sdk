@@ -1,0 +1,6 @@
+scalar Time
+scalar Int64
+
+type Query {
+    hello(name: String): String
+}
