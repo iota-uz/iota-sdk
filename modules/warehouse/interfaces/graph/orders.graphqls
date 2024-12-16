@@ -1,0 +1,23 @@
+type OrderItem {
+    position: WarehousePosition!
+    products: [Product!]!
+    quantity: Int!
+}
+
+type Order {
+    id: ID!
+    type: String!
+    status: String!
+    items: [OrderItem!]!
+    createdAt: Time!
+}
+
+type PaginatedOrders {
+    data: [Order!]!
+    total: Int64!
+}
+
+extend type Query {
+    order(id: ID!): Order
+    orders(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedOrders!
+}
