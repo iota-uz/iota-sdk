@@ -2,6 +2,7 @@ package viewmodels
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -10,6 +11,7 @@ type Order struct {
 	ID        string
 	Type      string
 	Status    string
+	Items     []OrderItem
 	CreatedAt string
 	UpdatedAt string
 }
@@ -30,7 +32,23 @@ func (o *Order) LocalizedType(l *i18n.Localizer) string {
 	})
 }
 
+func (o *Order) DistinctPositions() string {
+	return strconv.Itoa(len(o.Items))
+}
+
+func (o *Order) TotalProducts() string {
+	var totalProducts int
+	for _, pos := range o.Items {
+		totalProducts += len(pos.Products)
+	}
+	return strconv.Itoa(totalProducts)
+}
+
 type OrderItem struct {
 	Position Position
-	Quantity string
+	Products []Product
+}
+
+func (oi *OrderItem) Quantity() string {
+	return strconv.Itoa(len(oi.Products))
 }

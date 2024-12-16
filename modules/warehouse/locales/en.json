@@ -141,16 +141,18 @@
       },
       "New": "New order",
       "Type": "Type",
-      "Status": "Status"
+      "Status": "Status",
+      "Products": "PCS.",
+      "Positions": "Positions"
     },
     "New": {
       "Meta": {
         "Title": "New warehouse order"
       }
     },
-    "Edit": {
+    "View": {
       "Meta": {
-        "Title": "Edit warehouse order"
+        "Title": "View warehouse order"
       }
     },
     "Single": {
@@ -167,6 +169,7 @@
       },
       "Quantity": "Quantity",
       "Position": "Position",
+      "PositionIDs": "Positions",
       "SearchPosition": "Search position",
       "NoPositionsFound": "No positions found",
       "Barcode": "Barcode",

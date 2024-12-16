@@ -39,7 +39,7 @@ templ OrderItems(props *OderItemsProps) {
 					{ item.Position.Barcode }
 				</td>
 				<td class="p-4">
-					{ item.Quantity }
+					{ item.Quantity() }
 				</td>
 				<td class="p-4">
 					{ item.Position.Unit.Title }

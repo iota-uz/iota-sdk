@@ -24,6 +24,8 @@ templ OrdersTable(props *IndexPageProps) {
 			Columns: []*base.TableColumn{
 				{Label: props.T("WarehouseOrders.List.Type"), Key: "title"},
 				{Label: props.T("WarehouseOrders.List.Status"), Key: "shortTitle"},
+				{Label: props.T("WarehouseOrders.List.Positions"), Key: "positions"},
+				{Label: props.T("WarehouseOrders.List.Products"), Key: "products"},
 				{Label: props.T("CreatedAt"), Key: "updatedAt"},
 				{Label: props.T("Actions"), Class: "w-16"},
 			},
@@ -37,13 +39,19 @@ templ OrdersTable(props *IndexPageProps) {
 						{ order.LocalizedStatus(props.Localizer) }
 					}
 					@base.TableCell() {
+						{ order.DistinctPositions() }
+					}
+					@base.TableCell() {
+						{ order.TotalProducts() }
+					}
+					@base.TableCell() {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", order.CreatedAt) }></span>
 						</div>
 					}
 					@base.TableCell() {
 						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/orders/%s", order.ID)}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
+							@icons.Eye(icons.Props{Size: "20"})
 						}
 					}
 				}
@@ -109,10 +117,6 @@ templ OrdersContent(props *IndexPageProps) {
 				}
 				@filters.PageSize(props.PageContext)
 				@filters.CreatedAt(props.PageContext)
-				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
-					<option>Yesterday</option>
-					<option>The day before yesterday</option>
-				}
 				@base.DetailsDropdown(newOrderButton(props)) {
 					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/in/new"}) {
 						{ props.T("WarehouseOrders.List.NewIn") }

@@ -6,6 +6,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	coreviewmodels "github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 	"strconv"
@@ -55,11 +56,21 @@ func UnitToViewModel(entity *unit.Unit) *viewmodels.Unit {
 	}
 }
 
+func OrderItemToViewModel(entity order.Item) *viewmodels.OrderItem {
+	return &viewmodels.OrderItem{
+		Position: *PositionToViewModel(&entity.Position),
+		Products: mapping.ValueSlice(
+			mapping.MapViewModels(mapping.PointerSlice(entity.Products), ProductToViewModel),
+		),
+	}
+}
+
 func OrderToViewModel(entity *order.Order) *viewmodels.Order {
 	return &viewmodels.Order{
 		ID:        strconv.FormatUint(uint64(entity.ID), 10),
 		Type:      string(entity.Type),
 		Status:    string(entity.Status),
+		Items:     mapping.ValueSlice(mapping.MapViewModels(entity.Items, OrderItemToViewModel)),
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 	}
 }
