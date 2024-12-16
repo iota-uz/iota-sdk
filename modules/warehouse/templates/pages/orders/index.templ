@@ -50,7 +50,12 @@ templ OrdersTable(props *IndexPageProps) {
 						</div>
 					}
 					@base.TableCell() {
-						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/orders/%s", order.ID)}) {
+						@button.Secondary(button.Props{
+							Fixed: true,
+							Size:  button.SizeSM,
+							Class: "btn-fixed",
+							Href:  fmt.Sprintf("/warehouse/orders/%s", order.ID),
+						}) {
 							@icons.Eye(icons.Props{Size: "20"})
 						}
 					}
@@ -93,10 +98,10 @@ templ OrdersContent(props *IndexPageProps) {
 						{ props.T("All") }
 					</option>
 					<option value="pending">
-						{ props.T("WarehouseOrders.Single.Statuses.pending") }
+						{ props.T("WarehouseOrders.Statuses.pending") }
 					</option>
 					<option value="complete">
-						{ props.T("WarehouseOrders.Single.Statuses.complete") }
+						{ props.T("WarehouseOrders.Statuses.complete") }
 					</option>
 				}
 				@base.Select(&base.SelectProps{
@@ -109,10 +114,10 @@ templ OrdersContent(props *IndexPageProps) {
 						{ props.T("All") }
 					</option>
 					<option value="in">
-						{ props.T("WarehouseOrders.Single.Types.in") }
+						{ props.T("WarehouseOrders.Types.in") }
 					</option>
 					<option value="out">
-						{ props.T("WarehouseOrders.Single.Types.out") }
+						{ props.T("WarehouseOrders.Types.out") }
 					</option>
 				}
 				@filters.PageSize(props.PageContext)

@@ -153,20 +153,26 @@
     "View": {
       "Meta": {
         "Title": "Просмотр заявки"
-      }
+      },
+      "Position": "Наименование",
+      "Barcode": "Артикул",
+      "InStock": "На складе",
+      "Quantity": "Количество",
+      "Unit": "Ед. измерения",
+      "NoItems": "Нет наименований"
+    },
+    "Types": {
+      "in": "Отгрузка",
+      "out": "Приемка"
+    },
+    "Statuses": {
+      "pending": "В процессе",
+      "complete": "Завершен"
     },
     "Single": {
       "Type": "Тип",
       "TypePlaceholder": "Выберите тип",
       "Status": "Статус",
-      "Types": {
-        "in": "Отгрузка",
-        "out": "Приемка"
-      },
-      "Statuses": {
-        "pending": "В процессе",
-        "complete": "Завершен"
-      },
       "Quantity": "Количество",
       "PositionIDs": "Наименования",
       "NoItems": "Нет наименований",
