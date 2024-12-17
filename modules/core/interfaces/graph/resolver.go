@@ -1,6 +1,10 @@
 package graph
 
-import "github.com/iota-agency/iota-sdk/pkg/application"
+import (
+	"github.com/iota-agency/iota-sdk/pkg/application"
+)
+
+//go:generate go run github.com/99designs/gqlgen generate
 
 // This file will not be regenerated automatically.
 //

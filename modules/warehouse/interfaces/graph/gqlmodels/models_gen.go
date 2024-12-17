@@ -50,7 +50,7 @@ type Query struct {
 type WarehousePosition struct {
 	ID        int64     `json:"id"`
 	Title     string    `json:"title"`
-	Barcode   *string   `json:"barcode,omitempty"`
+	Barcode   string    `json:"barcode"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

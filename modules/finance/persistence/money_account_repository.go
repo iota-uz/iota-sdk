@@ -36,7 +36,6 @@ func (g *GormMoneyAccountRepository) GetPaginated(
 	for _, s := range params.SortBy {
 		tx = tx.Order(s)
 	}
-	fmt.Println("SQL: ", tx.Statement.SQL.String())
 	if err := tx.Preload("Currency").Find(&rows).Error; err != nil {
 		return nil, err
 	}

@@ -1,0 +1,14 @@
+scalar Time
+scalar Int64
+
+type Query {
+    hello(name: String): String
+}
+
+type Mutation {
+    add(a: Int!, b: Int!): Int!
+}
+
+type Subscription {
+    counter: Int!
+}

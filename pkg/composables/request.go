@@ -43,6 +43,16 @@ func WithParams(ctx context.Context, params *Params) context.Context {
 	return context.WithValue(ctx, constants.ParamsKey, params)
 }
 
+// UseWriter returns the response writer from the context.
+// If the response writer is not found, the second return value will be false.
+func UseWriter(ctx context.Context) (http.ResponseWriter, bool) {
+	params, ok := UseParams(ctx)
+	if !ok {
+		return nil, false
+	}
+	return params.Writer, true
+}
+
 // UseApp returns the user from the context.
 // If the user is not found, the second return value will be false.
 func UseApp(ctx context.Context) (application.Application, error) {

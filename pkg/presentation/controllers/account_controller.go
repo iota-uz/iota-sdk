@@ -39,7 +39,7 @@ func (c *AccountController) Register(r *mux.Router) {
 	router.Use(
 		middleware.WithTransaction(),
 		middleware.Authorize(),
-		middleware.RequireAuthorization(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),

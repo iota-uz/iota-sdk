@@ -1,7 +1,6 @@
 package user
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"strings"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
-	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -162,22 +160,5 @@ func (u *UpdateDTO) ToEntity(id uint) *User {
 		EmployeeID: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
-	}
-}
-
-func (u *User) ToGraph() *model.User {
-	return &model.User{
-		ID:         int64(u.ID),
-		FirstName:  u.FirstName,
-		LastName:   u.LastName,
-		MiddleName: &u.MiddleName,
-		Email:      u.Email,
-		//AvatarID:   mapping.Pointer(int64(*u.AvatarID)),
-		EmployeeID: mapping.Pointer(int64(*u.EmployeeID)),
-		LastIP:     u.LastIP,
-		LastLogin:  u.LastLogin,
-		LastAction: u.LastAction,
-		CreatedAt:  u.CreatedAt,
-		UpdatedAt:  u.UpdatedAt,
 	}
 }
