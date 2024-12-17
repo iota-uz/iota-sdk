@@ -9,6 +9,7 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
@@ -37,8 +38,20 @@ type OrderItem struct {
 	Error         string
 }
 
-func OrderItemToViewModel(item OrderItem) orderout.OrderItem {
+func OrderOutItemToViewModel(item OrderItem) orderout.OrderItem {
 	return orderout.OrderItem{
+		PositionID:    strconv.FormatUint(uint64(item.PositionID), 10),
+		PositionTitle: item.PositionTitle,
+		Barcode:       item.Barcode,
+		Unit:          item.Unit,
+		InStock:       strconv.FormatUint(uint64(item.InStock), 10),
+		Quantity:      strconv.FormatUint(uint64(item.Quantity), 10),
+		Error:         item.Error,
+	}
+}
+
+func OrderInItemToViewModel(item OrderItem) orderin.OrderItem {
+	return orderin.OrderItem{
 		PositionID:    strconv.FormatUint(uint64(item.PositionID), 10),
 		PositionTitle: item.PositionTitle,
 		Barcode:       item.Barcode,
@@ -165,9 +178,20 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var status product.Status
+	switch entity.Type {
+	case order.TypeIn:
+		status = product.InDevelopment
+	case order.TypeOut:
+		status = product.InStock
+
+	}
 	countByPositionID := make(map[uint]int)
 	for _, item := range entity.Items {
-		count, err := c.productService.CountInStock(r.Context(), item.Position.ID)
+		count, err := c.productService.CountInStock(r.Context(), &product.CountParams{
+			PositionID: item.Position.ID,
+			Status:     status,
+		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -199,8 +223,9 @@ func (c *OrdersController) NewInOrder(w http.ResponseWriter, r *http.Request) {
 	props := &orderin.PageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
+		Items:       []orderin.OrderItem{},
 		SaveURL:     fmt.Sprintf("%s/in", c.basePath),
-		ItemsURL:    fmt.Sprintf("%s/items", c.basePath),
+		ItemsURL:    fmt.Sprintf("%s/items?status=%s", c.basePath, product.InDevelopment),
 	}
 	templ.Handler(orderin.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -215,7 +240,7 @@ func (c *OrdersController) NewOutOrder(w http.ResponseWriter, r *http.Request) {
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
 		SaveURL:     fmt.Sprintf("%s/out", c.basePath),
-		ItemsURL:    fmt.Sprintf("%s/items", c.basePath),
+		ItemsURL:    fmt.Sprintf("%s/items?status=%s", c.basePath, product.InStock),
 	}
 	templ.Handler(orderout.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -232,13 +257,17 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	items, err := c.orderItems(r.Context(), formDTO, product.InDevelopment)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if errorsMap, ok := formDTO.Ok(r.Context()); !ok {
-		props := &orderin.PageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
+		props := &orderin.FormProps{
+			Errors: errorsMap,
+			Items:  mapping.MapViewModels(items, OrderInItemToViewModel),
 		}
-		templ.Handler(orderin.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(orderin.Form(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
@@ -247,21 +276,35 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		Status:     string(order.Pending),
 		ProductIDs: []uint{},
 	}
-	for _, positionID := range formDTO.PositionIDs {
-		quantity := formDTO.Quantity[positionID]
-		products, err := c.orderService.GetOldestProducts(r.Context(), positionID, quantity)
+	var hasErrors bool
+	for i, item := range items {
+		quantity := int(formDTO.Quantity[item.PositionID])
+		products, err := c.orderService.FindByPositionID(r.Context(), &product.FindByPositionParams{
+			PositionID: item.PositionID,
+			SortBy:     []string{"created_at asc"},
+			Limit:      quantity,
+			Status:     product.InDevelopment,
+		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if len(products) < int(quantity) {
-			// TODO: Localize this message
-			http.Error(w, "Not enough products", http.StatusBadRequest)
-			return
+		if len(products) < quantity {
+			hasErrors = true
+			items[i].Error = pageCtx.T("Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT")
 		}
-		for _, product := range products {
-			dto.ProductIDs = append(dto.ProductIDs, product.ID)
+		for _, p := range products {
+			dto.ProductIDs = append(dto.ProductIDs, p.ID)
 		}
+	}
+
+	if hasErrors {
+		props := &orderin.FormProps{
+			Errors: map[string]string{},
+			Items:  mapping.MapViewModels(items, OrderInItemToViewModel),
+		}
+		templ.Handler(orderin.Form(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
 
 	if err := c.orderService.Create(r.Context(), dto); err != nil {
@@ -284,7 +327,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	items, err := c.orderItems(r.Context(), formDTO)
+	items, err := c.orderItems(r.Context(), formDTO, product.InStock)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -292,7 +335,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 	if errorsMap, ok := formDTO.Ok(r.Context()); !ok {
 		props := &orderout.FormProps{
 			Errors: errorsMap,
-			Items:  mapping.MapViewModels(items, OrderItemToViewModel),
+			Items:  mapping.MapViewModels(items, OrderOutItemToViewModel),
 		}
 		templ.Handler(orderout.Form(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -305,24 +348,29 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 	}
 	var hasErrors bool
 	for i, item := range items {
-		quantity := formDTO.Quantity[item.PositionID]
-		products, err := c.orderService.GetOldestProducts(r.Context(), item.PositionID, quantity)
+		quantity := int(formDTO.Quantity[item.PositionID])
+		products, err := c.orderService.FindByPositionID(r.Context(), &product.FindByPositionParams{
+			PositionID: item.PositionID,
+			SortBy:     []string{"created_at asc"},
+			Limit:      quantity,
+			Status:     product.InStock,
+		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if len(products) < int(quantity) {
+		if len(products) < quantity {
 			hasErrors = true
-			items[i].Error = pageCtx.T("Errors.ERR_NOT_ENOUGH_PRODUCTS")
+			items[i].Error = pageCtx.T("Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK")
 		}
-		for _, product := range products {
-			dto.ProductIDs = append(dto.ProductIDs, product.ID)
+		for _, p := range products {
+			dto.ProductIDs = append(dto.ProductIDs, p.ID)
 		}
 	}
 	if hasErrors {
 		props := &orderout.FormProps{
 			Errors: map[string]string{},
-			Items:  mapping.MapViewModels(items, OrderItemToViewModel),
+			Items:  mapping.MapViewModels(items, OrderOutItemToViewModel),
 		}
 		templ.Handler(orderout.Form(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -335,7 +383,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *OrdersController) orderItems(ctx context.Context, dto *dtos.CreateOrderDTO) ([]OrderItem, error) {
+func (c *OrdersController) orderItems(ctx context.Context, dto *dtos.CreateOrderDTO, status product.Status) ([]OrderItem, error) {
 	positionEntities, err := c.positionService.GetByIDs(ctx, dto.PositionIDs)
 	if err != nil {
 		return nil, err
@@ -343,7 +391,10 @@ func (c *OrdersController) orderItems(ctx context.Context, dto *dtos.CreateOrder
 
 	items := make([]OrderItem, len(positionEntities))
 	for i, position := range positionEntities {
-		inStock, err := c.productService.CountInStock(ctx, position.ID)
+		inStock, err := c.productService.CountInStock(ctx, &product.CountParams{
+			PositionID: position.ID,
+			Status:     status,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -371,13 +422,19 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := c.orderItems(r.Context(), dto)
+	status, err := product.NewStatus(r.URL.Query().Get("status"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	items, err := c.orderItems(r.Context(), dto, status)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	viewModelItems := mapping.MapViewModels(items, OrderItemToViewModel)
+	viewModelItems := mapping.MapViewModels(items, OrderOutItemToViewModel)
 	templ.Handler(orderout.OrderItemsTable(viewModelItems), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
