@@ -6,7 +6,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
@@ -17,7 +16,12 @@ import (
 
 // Order is the resolver for the order field.
 func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, error) {
-	panic(fmt.Errorf("not implemented: Order - order"))
+	orderService := r.app.Service(services.OrderService{}).(*services.OrderService)
+	domainOrder, err := orderService.GetByID(ctx, uint(id))
+	if err != nil {
+		return nil, err
+	}
+	return mappers.OrderToGraphModel(domainOrder), nil
 }
 
 // Orders is the resolver for the orders field.
