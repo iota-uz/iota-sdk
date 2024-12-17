@@ -10,14 +10,14 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/mappers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/orders"
+	orderin "github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/orders/in"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/orders/out"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders"
-	orderin "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/in"
-	orderout "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/orders/out"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -88,7 +88,7 @@ func NewOrdersController(app application.Application) application.Controller {
 func (c *OrdersController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
-		middleware.RequireAuthorization(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),

@@ -3,8 +3,6 @@ package session
 import (
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"time"
-
-	"github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 
 type Session struct {
@@ -36,15 +34,4 @@ func (d *CreateDTO) ToEntity() *Session {
 
 func (s *Session) IsExpired() bool {
 	return s.ExpiresAt.Before(time.Now())
-}
-
-func (s *Session) ToGraph() *model.Session {
-	return &model.Session{
-		Token:     s.Token,
-		UserID:    int64(s.UserID),
-		IP:        s.IP,
-		UserAgent: s.UserAgent,
-		ExpiresAt: s.ExpiresAt,
-		CreatedAt: s.CreatedAt,
-	}
 }

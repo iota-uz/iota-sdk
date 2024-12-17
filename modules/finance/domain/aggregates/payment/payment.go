@@ -7,7 +7,6 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 
 var validate = validator.New(validator.WithRequiredStructEnabled())
@@ -111,15 +110,5 @@ func (p *UpdateDTO) ToEntity(id uint) *Payment {
 		User:             &user.User{ID: p.UserID}, //nolint:exhaustruct
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
-	}
-}
-
-func (p *Payment) ToGraph() *model.Payment {
-	return &model.Payment{
-		ID:            int64(p.ID),
-		StageID:       int64(p.StageID),
-		TransactionID: int64(p.TransactionID),
-		CreatedAt:     p.CreatedAt,
-		UpdatedAt:     p.UpdatedAt,
 	}
 }

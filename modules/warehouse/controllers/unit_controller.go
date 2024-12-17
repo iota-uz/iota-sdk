@@ -2,6 +2,9 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/mappers"
+	units2 "github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/units"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
 
@@ -10,10 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/units"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -43,7 +43,7 @@ func NewUnitsController(app application.Application) application.Controller {
 func (c *UnitsController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
-		middleware.RequireAuthorization(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
@@ -104,15 +104,15 @@ func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &units.IndexPageProps{
+	props := &units2.IndexPageProps{
 		PageContext:     pageCtx,
 		Units:           paginated.Units,
 		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
-		templ.Handler(units.UnitsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(units2.UnitsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(units.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(units2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -137,12 +137,12 @@ func (c *UnitsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
 		return
 	}
-	props := &units.EditPageProps{
+	props := &units2.EditPageProps{
 		PageContext: pageCtx,
 		Unit:        mappers.UnitToViewModel(entity),
 		Errors:      map[string]string{},
 	}
-	templ.Handler(units.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(units2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *UnitsController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -196,13 +196,13 @@ func (c *UnitsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
 				return
 			}
-			props := &units.EditPageProps{
+			props := &units2.EditPageProps{
 				PageContext: pageCtx,
 				Unit:        mappers.UnitToViewModel(entity),
 				Errors:      errorsMap,
 				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 			}
-			templ.Handler(units.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(units2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		if err := c.unitService.Update(r.Context(), id, &dto); err != nil {
@@ -219,13 +219,13 @@ func (c *UnitsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &units.CreatePageProps{
+	props := &units2.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
 		Unit:        mappers.UnitToViewModel(&unit.Unit{}), //nolint:exhaustruct
 		SaveURL:     c.basePath,
 	}
-	templ.Handler(units.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(units2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
@@ -252,12 +252,12 @@ func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &units.CreatePageProps{
+		props := &units2.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
 			Unit:        mappers.UnitToViewModel(entity),
 		}
-		templ.Handler(units.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(units2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

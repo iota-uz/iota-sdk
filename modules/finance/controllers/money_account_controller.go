@@ -48,7 +48,7 @@ func NewMoneyAccountController(app application.Application) application.Controll
 func (c *MoneyAccountController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
-		middleware.RequireAuthorization(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),

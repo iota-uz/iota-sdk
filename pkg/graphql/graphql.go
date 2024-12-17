@@ -1,34 +1,17 @@
-package graph
+package graphql
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"net/http"
-	"time"
-
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
+	"net/http"
+	"time"
 )
 
-//go:generate go run github.com/99designs/gqlgen generate
-
-// This file will not be regenerated automatically.
-//
-// It serves as dependency injection for your app, add any dependencies you require here.
-
-type Resolver struct {
-	app application.Application
-}
-
-func NewDefaultServer(app application.Application) *handler.Server {
-	srv := handler.New(NewExecutableSchema(
-		Config{ //nolint:exhaustruct
-			Resolvers: &Resolver{
-				app: app,
-			},
-		},
-	))
+func NewDefaultGraphServer(schema graphql.ExecutableSchema) *handler.Server {
+	srv := handler.New(schema)
 	srv.AddTransport(transport.Websocket{ //nolint:exhaustruct
 		KeepAlivePingInterval: 10 * time.Second,
 		Upgrader: websocket.Upgrader{ //nolint:exhaustruct

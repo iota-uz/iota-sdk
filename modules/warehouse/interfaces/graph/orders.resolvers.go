@@ -7,6 +7,10 @@ package graph
 import (
 	"context"
 	"fmt"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 )
@@ -18,5 +22,21 @@ func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, erro
 
 // Orders is the resolver for the orders field.
 func (r *queryResolver) Orders(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedOrders, error) {
-	panic(fmt.Errorf("not implemented: Orders - orders"))
+	orderService := r.app.Service(services.OrderService{}).(*services.OrderService)
+	orders, err := orderService.GetPaginated(ctx, &order.FindParams{
+		Offset: offset,
+		Limit:  limit,
+		SortBy: sortBy,
+	})
+	if err != nil {
+		return nil, err
+	}
+	total, err := orderService.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &model.PaginatedOrders{
+		Data:  mapping.MapViewModels(orders, mappers.OrderToGraphModel),
+		Total: total,
+	}, nil
 }

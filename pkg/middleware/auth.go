@@ -77,7 +77,7 @@ func ProvideUser() mux.MiddlewareFunc {
 	}
 }
 
-func RequireAuthorization() mux.MiddlewareFunc {
+func RedirectNotAuthenticated() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -87,6 +87,24 @@ func RequireAuthorization() mux.MiddlewareFunc {
 				}
 				if !params.Authenticated {
 					http.Redirect(w, r, "/login", http.StatusFound)
+					return
+				}
+				next.ServeHTTP(w, r)
+			},
+		)
+	}
+}
+
+func RequireAuthorization() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				params, ok := composables.UseParams(r.Context())
+				if !ok {
+					panic("params not found. Add RequestParams middleware up the chain")
+				}
+				if !params.Authenticated {
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
 					return
 				}
 				next.ServeHTTP(w, r)

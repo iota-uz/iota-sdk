@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	model "github.com/iota-agency/iota-sdk/pkg/interfaces/graph/gqlmodels"
 )
 
 type Role struct {
@@ -34,14 +33,4 @@ func (r *Role) Can(perm permission.Permission) bool {
 		}
 	}
 	return false
-}
-
-func (r *Role) ToGraph() *model.Role {
-	return &model.Role{
-		ID:          int64(r.ID),
-		Name:        r.Name,
-		Description: &r.Description,
-		CreatedAt:   r.CreatedAt,
-		UpdatedAt:   r.UpdatedAt,
-	}
 }

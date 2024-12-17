@@ -1,0 +1,19 @@
+type Session {
+    token: String!
+    userId: ID!
+    ip: String!
+    userAgent: String!
+    expiresAt: Time!
+    createdAt: Time!
+}
+
+extend type Mutation {
+    authenticate(email: String!, password: String!): Session!
+    googleAuthenticate: String!
+
+    deleteSession(token: String!): Boolean!
+}
+
+extend type Subscription {
+    sessionDeleted: ID!
+}

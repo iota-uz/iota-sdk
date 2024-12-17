@@ -3,6 +3,9 @@ package controllers
 import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers/dtos"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/mappers"
+	positions2 "github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/positions"
+	viewmodels2 "github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/serrors"
@@ -14,10 +17,7 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/positions"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -33,7 +33,7 @@ type PositionsController struct {
 }
 
 type PositionPaginatedResponse struct {
-	Positions       []*viewmodels.Position
+	Positions       []*viewmodels2.Position
 	PaginationState *pagination.State
 }
 
@@ -49,7 +49,7 @@ func NewPositionsController(app application.Application) application.Controller 
 func (c *PositionsController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
-		middleware.RequireAuthorization(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
@@ -80,12 +80,12 @@ func (c *PositionsController) GetUpload(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &positions.UploadPageProps{
+	props := &positions2.UploadPageProps{
 		PageContext: pageCtx,
 		SaveURL:     c.basePath + "/upload",
 		Errors:      map[string]string{},
 	}
-	templ.Handler(positions.Upload(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(positions2.Upload(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Request) {
@@ -104,26 +104,26 @@ func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		props := &positions.UploadPageProps{
+		props := &positions2.UploadPageProps{
 			PageContext: pageCtx,
 			SaveURL:     c.basePath + "/upload",
 			Errors:      errorsMap,
 		}
-		templ.Handler(positions.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(positions2.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
 	if err := c.positionService.UpdateWithFile(r.Context(), dto.FileID); err != nil {
 		var vErr serrors.BaseError
 		if errors.As(err, &vErr) {
-			props := &positions.UploadPageProps{
+			props := &positions2.UploadPageProps{
 				PageContext: pageCtx,
 				SaveURL:     c.basePath + "/upload",
 				Errors: map[string]string{
 					"FileID": vErr.Localize(pageCtx.Localizer),
 				},
 			}
-			templ.Handler(positions.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(positions2.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -157,7 +157,7 @@ func (c *PositionsController) viewModelPositions(r *http.Request) (*PositionPagi
 	}, nil
 }
 
-func (c *PositionsController) viewModelUnits(r *http.Request) ([]*viewmodels.Unit, error) {
+func (c *PositionsController) viewModelUnits(r *http.Request) ([]*viewmodels2.Unit, error) {
 	entities, err := c.unitService.GetAll(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving units")
@@ -187,16 +187,16 @@ func (c *PositionsController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &positions.IndexPageProps{
+	props := &positions2.IndexPageProps{
 		PageContext:     pageCtx,
 		Positions:       paginated.Positions,
 		Units:           unitViewModels,
 		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
-		templ.Handler(positions.PositionsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(positions2.PositionsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(positions.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(positions2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -226,7 +226,7 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &positions.EditPageProps{
+	props := &positions2.EditPageProps{
 		PageContext: pageCtx,
 		Position:    mappers.PositionToViewModel(entity),
 		Units:       unitViewModels,
@@ -234,7 +234,7 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
 		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 	}
-	templ.Handler(positions.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(positions2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +299,7 @@ func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			props := &positions.EditPageProps{
+			props := &positions2.EditPageProps{
 				PageContext: pageCtx,
 				Position:    mappers.PositionToViewModel(entity),
 				Units:       unitViewModels,
@@ -307,7 +307,7 @@ func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
 				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 			}
-			templ.Handler(positions.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(positions2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		if err := c.positionService.Update(r.Context(), id, &dto); err != nil {
@@ -329,14 +329,14 @@ func (c *PositionsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &positions.CreatePageProps{
+	props := &positions2.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
 		Position:    mappers.PositionToViewModel(&position.Position{}), //nolint:exhaustruct
 		SaveURL:     c.basePath,
 		Units:       unitViewModels,
 	}
-	templ.Handler(positions.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(positions2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PositionsController) Create(w http.ResponseWriter, r *http.Request) {
@@ -363,12 +363,12 @@ func (c *PositionsController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &positions.CreatePageProps{
+		props := &positions2.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
 			Position:    mappers.PositionToViewModel(entity),
 		}
-		templ.Handler(positions.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(positions2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

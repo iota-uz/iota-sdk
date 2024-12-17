@@ -36,7 +36,7 @@ func NewEmployeeController(app application.Application) application.Controller {
 func (c *EmployeeController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
-		middleware.RequireAuthorization(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),

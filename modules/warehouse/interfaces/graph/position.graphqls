@@ -1,7 +1,7 @@
 type WarehousePosition {
     id: ID!
     title: String!
-    barcode: String
+    barcode: String!
     createdAt: Time!
     updatedAt: Time!
 }

@@ -3,6 +3,9 @@ package controllers
 import (
 	"errors"
 	"fmt"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/mappers"
+	products2 "github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/products"
+	viewmodels2 "github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"net/http"
 
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
@@ -14,9 +17,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/products"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 
@@ -33,7 +33,7 @@ type ProductsController struct {
 }
 
 type PaginatedResponse struct {
-	Products        []*viewmodels.Product
+	Products        []*viewmodels2.Product
 	PaginationState *pagination.State
 }
 
@@ -49,7 +49,7 @@ func NewProductsController(app application.Application) application.Controller {
 func (c *ProductsController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
-		middleware.RequireAuthorization(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
@@ -105,7 +105,7 @@ func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedRe
 	}, nil
 }
 
-func (c *ProductsController) getViewModelPositions(r *http.Request) ([]*viewmodels.Position, error) {
+func (c *ProductsController) getViewModelPositions(r *http.Request) ([]*viewmodels2.Position, error) {
 	positions, err := c.positionService.GetAll(r.Context())
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving positions: %w", err)
@@ -132,16 +132,16 @@ func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &products.IndexPageProps{
+	props := &products2.IndexPageProps{
 		PageContext:     pageCtx,
 		Products:        paginated.Products,
 		PaginationState: paginated.PaginationState,
 	}
 	var template templ.Component
 	if isHxRequest {
-		template = products.ProductsTable(props)
+		template = products2.ProductsTable(props)
 	} else {
-		template = products.Index(props)
+		template = products2.Index(props)
 	}
 	c.renderTemplate(w, r, template)
 }
@@ -165,12 +165,12 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &products.EditPageProps{
+	props := &products2.EditPageProps{
 		PageContext: pageCtx,
 		Product:     mappers.ProductToViewModel(entity),
 		Errors:      map[string]string{},
 	}
-	c.renderTemplate(w, r, products.Edit(props))
+	c.renderTemplate(w, r, products2.Edit(props))
 }
 
 func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
@@ -212,12 +212,12 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			props := &products.EditPageProps{
+			props := &products2.EditPageProps{
 				PageContext: pageCtx,
 				Product:     mappers.ProductToViewModel(entity),
 				Errors:      errorsMap,
 			}
-			c.renderTemplate(w, r, products.EditForm(props))
+			c.renderTemplate(w, r, products2.EditForm(props))
 			return
 		}
 
@@ -225,14 +225,14 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			var vErr serrors.BaseError
 			if errors.As(err, &vErr) {
 				entity.Rfid = dto.Rfid
-				props := &products.EditPageProps{
+				props := &products2.EditPageProps{
 					PageContext: pageCtx,
 					Errors: map[string]string{
 						"Rfid": vErr.Localize(pageCtx.Localizer),
 					},
 					Product: mappers.ProductToViewModel(entity),
 				}
-				c.renderTemplate(w, r, products.EditForm(props))
+				c.renderTemplate(w, r, products2.EditForm(props))
 				return
 			}
 			c.handleError(w, err)
@@ -249,13 +249,13 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &products.CreatePageProps{
+	props := &products2.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
 		Product:     mappers.ProductToViewModel(&product.Product{}),
 		SaveURL:     c.basePath,
 	}
-	c.renderTemplate(w, r, products.New(props))
+	c.renderTemplate(w, r, products2.New(props))
 }
 
 func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
@@ -277,20 +277,20 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		props := &products.CreatePageProps{
+		props := &products2.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
 			Product:     mappers.ProductToViewModel(entity),
 			SaveURL:     c.basePath,
 		}
-		c.renderTemplate(w, r, products.CreateForm(props))
+		c.renderTemplate(w, r, products2.CreateForm(props))
 		return
 	}
 
 	if err := c.productService.Create(r.Context(), dto); err != nil {
 		var vErr serrors.BaseError
 		if errors.As(err, &vErr) {
-			props := &products.CreatePageProps{
+			props := &products2.CreatePageProps{
 				PageContext: pageCtx,
 				Errors: map[string]string{
 					"Rfid": vErr.Localize(pageCtx.Localizer),
@@ -298,7 +298,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 				Product: mappers.ProductToViewModel(entity),
 				SaveURL: c.basePath,
 			}
-			c.renderTemplate(w, r, products.CreateForm(props))
+			c.renderTemplate(w, r, products2.CreateForm(props))
 			return
 		}
 		c.handleError(w, err)
