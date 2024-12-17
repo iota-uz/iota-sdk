@@ -45,12 +45,8 @@ func (s *OrderService) GetPaginated(ctx context.Context, params *order.FindParam
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *OrderService) GetOldestProducts(ctx context.Context, positionID uint, quantity uint) ([]*product.Product, error) {
-	queryOpts := &product.QueryOptions{
-		SortBy: []string{"created_at asc"},
-		Limit:  int(quantity),
-	}
-	return s.productRepo.GetByPositionID(ctx, positionID, queryOpts)
+func (s *OrderService) FindByPositionID(ctx context.Context, queryOpts *product.FindByPositionParams) ([]*product.Product, error) {
+	return s.productRepo.FindByPositionID(ctx, queryOpts)
 }
 
 func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
@@ -84,12 +80,6 @@ func (s *OrderService) Update(ctx context.Context, id uint, data order.UpdateDTO
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	// TODO: Uncomment this code after creating the event
-	//updatedEvent, err := order.NewUpdatedEvent(ctx, *data, *entity)
-	//if err != nil {
-	//	return err
-	//}
-	//s.publisher.Publish(updatedEvent)
 	return nil
 }
 
@@ -104,12 +94,6 @@ func (s *OrderService) Delete(ctx context.Context, id uint) (*order.Order, error
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	// TODO: Uncomment this code after creating the event
-	//deletedEvent, err := order.NewDeletedEvent(ctx, *entity)
-	//if err != nil {
-	//	return err
-	//}
-	//s.publisher.Publish(deletedEvent)
 	return entity, nil
 }
 
