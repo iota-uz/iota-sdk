@@ -3,13 +3,14 @@
     "ERR_INVALID_CELL": "Ошибка при обработке ячейки \"{{.Col}}:{{.Row}}\"",
     "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует",
     "ERR_DUPLICATE_BARCODE": "Артикул {{.Barcode}} уже существует",
-    "ERR_NOT_ENOUGH_PRODUCTS": "Недостаточно продукции на складе"
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Недостаточно продукции на складе",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Недостаточно продукции в разработке"
   },
   "NavigationLinks": {
     "Warehouse": "Склад",
     "Products": "Продукты",
     "WarehousePositions": "Наименования",
-    "WarehouseOrders": "Заявки/Накладные",
+    "WarehouseOrders": "Накладные",
     "WarehouseUnits": "Единицы измерения"
   },
   "Products": {
@@ -166,8 +167,8 @@
       "NoItems": "Нет наименований"
     },
     "Types": {
-      "in": "Отгрузка",
-      "out": "Приемка"
+      "in": "Приемка",
+      "out": "Отгрузка"
     },
     "Statuses": {
       "pending": "В процессе",
