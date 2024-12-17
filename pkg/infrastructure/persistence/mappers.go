@@ -16,7 +16,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
-func toDomainUser(dbUser *models.User) *user.User {
+func ToDomainUser(dbUser *models.User) *user.User {
 	roles := make([]*role.Role, len(dbUser.Roles))
 	for i, r := range dbUser.Roles {
 		roles[i] = toDomainRole(&r)

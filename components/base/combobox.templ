@@ -48,6 +48,19 @@ templ DropdownIndicator() {
 	</button>
 }
 
+templ SelectedValues() {
+	<ul class="flex items-center gap-2">
+		<template x-for="item in Array.from(selectedValues.values())">
+			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100">
+				<span x-text="item.label"></span>
+				<button class="text-brand-500 cursor-pointer" type="button" @click="() => selectedValues.delete(item.value)">
+					@icons.XCircle(icons.Props{Size: "20"})
+				</button>
+			</li>
+		</template>
+	</ul>
+}
+
 templ Combobox(props ComboboxProps) {
 	<div
 		x-data={ fmt.Sprintf("combobox(%t)", props.Searchable) }
@@ -89,7 +102,7 @@ templ Combobox(props ComboboxProps) {
 							":hx-target":                 "'#' + $id('combobox')",
 							"hx-swap":                    "innerHTML",
 							"@input.debounce":            "onInput",
-							"x-on:keydown.enter.prevent": "setIndex(activeIndex)",
+							"x-on:keydown.enter.prevent": "setValue(activeValue)",
 							"autocomplete":               "off",
 							"x-ref":                      "trigger",
 						},
@@ -109,6 +122,12 @@ templ Combobox(props ComboboxProps) {
 					WrapperProps: templ.Attributes{
 						"x-ref": "trigger",
 					},
+					AddonLeft: &input.Addon{
+						Component: SelectedValues(),
+						Attrs: templ.Attributes{
+							"x-show": "selectedValues.size > 0",
+						},
+					},
 					Attrs: templ.Attributes{
 						"x-model":                    "value",
 						"hx-get":                     props.Endpoint,
@@ -118,7 +137,7 @@ templ Combobox(props ComboboxProps) {
 						":hx-target":                 "'#' + $id('combobox')",
 						"hx-swap":                    "innerHTML",
 						"@input.debounce":            "onInput",
-						"x-on:keydown.enter.prevent": "setIndex(activeIndex)",
+						"x-on:keydown.enter.prevent": "setValue(activeValue)",
 						"autocomplete":               "off",
 						"x-ref":                      "input",
 					},
@@ -152,7 +171,6 @@ templ Combobox(props ComboboxProps) {
 				class={ "bg-surface-300 absolute z-10 left-0 top-11 mt-1 flex max-h-44 flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm w-full", props.ListClass }
 				x-on:keydown.down.prevent="$focus.wrap().next()"
 				x-on:keydown.up.prevent="$focus.wrap().previous()"
-				this.activeIndex
 				x-transition
 				x-trap="openedWithKeyboard"
 				x-anchor="$refs.trigger"
@@ -160,16 +178,16 @@ templ Combobox(props ComboboxProps) {
 				<template x-for="(item, index) in options" x-bind:key="index">
 					<li
 						class="combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none"
-						:class="activeIndex == index ? 'bg-surface-400' : ''"
-						x-on:click="setIndex(index)"
-						x-on:keydown.enter="setIndex(index)"
+						:class="activeValue == item.value ? 'bg-surface-400' : ''"
+						x-on:click="setValue(item.value)"
+						x-on:keydown.enter="setValue(item.value)"
 						x-bind:id="'option-' + index"
 						tabindex="0"
 					>
 						<span class="whitespace-nowrap" x-text="item.textContent"></span>
 						@icons.Check(icons.Props{Size: "16", Attributes: templ.Attributes{
 							"x-cloak": "",
-							"x-show":  "selectedIndices.has(Number(index))",
+							"x-show":  "selectedValues.has(item.value)",
 						}})
 					</li>
 				</template>

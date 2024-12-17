@@ -2,18 +2,22 @@ package inventory
 
 import (
 	"time"
+
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 )
 
 type Check struct {
-	ID         uint
-	Status     Status
-	Type       Type
-	Name       string
-	Results    []*CheckResult
-	CreatedAt  time.Time
-	FinishedAt time.Time
-	CreatedBy  uint
-	FinishedBy uint
+	ID           uint
+	Status       Status
+	Type         Type
+	Name         string
+	Results      []*CheckResult
+	CreatedAt    time.Time
+	FinishedAt   time.Time
+	CreatedByID  uint
+	CreatedBy    *user.User
+	FinishedBy   *user.User
+	FinishedByID uint
 }
 
 type CheckResult struct {

@@ -68,10 +68,12 @@ func OrderToViewModel(entity *order.Order) *viewmodels.Order {
 
 func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
 	return &viewmodels.Check{
-		ID:        strconv.FormatUint(uint64(entity.ID), 10),
-		Name:      entity.Name,
-		Type:      entity.Type.String(),
-		Status:    entity.Status.String(),
-		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
+		ID:         strconv.FormatUint(uint64(entity.ID), 10),
+		Name:       entity.Name,
+		Type:       entity.Type.String(),
+		Status:     entity.Status.String(),
+		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
+		CreatedBy:  entity.CreatedBy,
+		FinishedBy: entity.FinishedBy,
 	}
 }

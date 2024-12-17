@@ -32,12 +32,21 @@ func (g *GormInventoryRepository) GetPaginated(
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
 	}
+
+	if params.Status != "" {
+		tx = tx.Where("status = ?", params.Status)
+	}
+
+	if params.Type != "" {
+		tx = tx.Where("type = ?", params.Type)
+	}
+
 	tx, err := helpers.ApplySort(tx, params.SortBy)
 	if err != nil {
 		return nil, err
 	}
 	var entities []*models.InventoryCheck
-	if err := tx.Find(&entities).Error; err != nil {
+	if err := tx.Preload("CreatedBy").Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return mapping.MapDbModels(entities, toDomainInventoryCheck)
@@ -79,24 +88,15 @@ func (g *GormInventoryRepository) GetByID(ctx context.Context, id uint) (*invent
 	return toDomainInventoryCheck(&entity)
 }
 
-func (g *GormInventoryRepository) GetByTitleOrShortTitle(ctx context.Context, name string) (*inventory.Check, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entity models.InventoryCheck
-	if err := tx.Where("title = ? OR short_title = ?", name, name).First(&entity).Error; err != nil {
-		return nil, err
-	}
-	return toDomainInventoryCheck(&entity)
-}
-
 func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Check) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	dbRow := toDBInventoryCheck(data)
+	dbRow, err := toDBInventoryCheck(data)
+	if err != nil {
+		return err
+	}
 	if err := tx.Create(dbRow).Error; err != nil {
 		return err
 	}
@@ -109,7 +109,11 @@ func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Ch
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Updates(toDBInventoryCheck(data)).Error
+	dbRow, err := toDBInventoryCheck(data)
+	if err != nil {
+		return err
+	}
+	return tx.Updates(dbRow).Error
 }
 
 func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {

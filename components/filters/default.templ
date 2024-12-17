@@ -9,9 +9,9 @@ import (
 
 templ SearchFieldsTrigger(trigger *base.TriggerProps) {
 	<button class="flex items-center gap-2" { trigger.ButtonAttrs... } type="button">
-		<div class="flex items-center gap-2 whitespace-nowrap" x-show="value.length">
+		<div class="flex items-center gap-2 whitespace-nowrap" x-show="selectedValues.size > 0">
 			<span class="text-300">Поиск по: </span>
-			<span x-show="value.length" x-text="value"></span>
+			<span x-show="selectedValues.size > 0" x-text="Array.from(selectedValues.values()).map((v) => v.label).join(', ')"></span>
 		</div>
 		@icons.ListMagnifyingGlass(icons.Props{Size: "20"})
 	</button>

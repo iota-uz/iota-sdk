@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
@@ -40,6 +41,19 @@ func (g *GormPositionRepository) GetPaginated(
 	if params.Query != "" && params.Field != "" {
 		tx = tx.Where(fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
 	}
+	if len(params.Fields) > 0 {
+		args := []interface{}{}
+		queries := []string{}
+		for _, field := range params.Fields {
+			if field == "" {
+				continue
+			}
+			queries, args = append(queries, fmt.Sprintf("%s::varchar ILIKE ?", field)), append(args, "%"+params.Query+"%")
+		}
+		if len(queries) > 0 {
+			tx.Where(strings.Join(queries, " OR "), args...)
+		}
+	}
 	if params.UnitID != "" {
 		tx = tx.Where("unit_id = ?", params.UnitID)
 	}
@@ -76,6 +90,22 @@ func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Positi
 		return nil, err
 	}
 	return mapping.MapDbModels(entities, toDomainPosition)
+}
+
+func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint, error) {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return []uint{}, composables.ErrNoTx
+	}
+	var entities []*models.WarehousePosition
+	if err := tx.Select([]string{"id"}).Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	out := make([]uint, len(entities))
+	for i, entity := range entities {
+		out[i] = entity.ID
+	}
+	return out, nil
 }
 
 func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {

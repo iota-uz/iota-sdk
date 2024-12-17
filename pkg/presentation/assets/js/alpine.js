@@ -180,13 +180,10 @@ let combobox = (searchable = false) => ({
   options: [],
   activeIndex: null,
   selectedIndices: new Set(),
-  // selectedValues: new Set(),
   selectedValues: new Map(),
   activeValue: null,
   multiple: false,
-  value: "",
   observer: null,
-  values: [],
   searchable,
   setValue(value) {
     if (value == null || !(this.open || this.openedWithKeyboard)) return;
@@ -209,8 +206,25 @@ let combobox = (searchable = false) => ({
           label: option.textContent,
         });
       }
+    } else {
+      for (let i = 0, len = this.options.length; i < len; i++) {
+        let option = this.options[i];
+        if (option.value === value) this.options[i].toggleAttribute("selected");
+        else this.options[i].removeAttribute("selected");
+      }
+      if (
+        this.selectedValues.size > 0 &&
+        !this.selectedValues.has(value)
+      ) {
+        this.selectedValues.clear();
+      }
+      if (this.selectedValues.has(value)) {
+        this.selectedValues.delete(value);
+      } else this.selectedValues.set(value, {
+        value,
+        label: option.textContent,
+      });
     }
-    console.log(Object.values(this.selectedValues))
     this.open = false;
     this.openedWithKeyboard = false;
     if (this.selectedValues.size === 0) {
@@ -218,53 +232,13 @@ let combobox = (searchable = false) => ({
     }
     this.$refs.select.dispatchEvent(new Event("change"));
     this.activeValue = value;
-    this.values = this.selectedValues.values();
-    this.$refs.input.value = "";
-    this.$refs.input.focus();
-  },
-  setIndex(index) {
-    if (index == null || index > this.options.length - 1 || !(this.open || this.openedWithKeyboard)) return;
-    let indexInt = Number(index);
-    if (this.multiple) {
-      this.options[index].toggleAttribute("selected");
-      if (this.selectedIndices.has(indexInt)) {
-        this.selectedIndices.delete(indexInt);
-      } else {
-        this.selectedIndices.add(indexInt);
-      }
-    } else {
-      for (let i = 0, len = this.options.length; i < len; i++) {
-        if (i === indexInt) this.options[i].toggleAttribute("selected");
-        else this.options[i].removeAttribute("selected");
-      }
-      if (
-        this.selectedIndices.size > 0 &&
-        !this.selectedIndices.has(indexInt)
-      ) {
-        this.selectedIndices.clear();
-      }
-      if (this.selectedIndices.has(indexInt)) {
-        this.selectedIndices.delete(indexInt);
-      } else this.selectedIndices.add(indexInt);
+    if (this.$refs.input) {
+      this.$refs.input.value = "";
+      this.$refs.input.focus();
     }
-    this.generateValue();
-    this.open = false;
-    this.openedWithKeyboard = false;
-    if (this.selectedIndices.size === 0) {
-      this.$refs.select.value = "";
-    }
-    this.$refs.select.dispatchEvent(new Event("change"));
-    this.activeIndex = indexInt;
   },
   toggle() {
     this.open = !this.open;
-  },
-  generateValue() {
-    let values = [];
-    for (let i of this.selectedIndices.values()) {
-      values.push(this.options[i].textContent);
-    }
-    this.value = values.join(", ");
   },
   setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
@@ -279,6 +253,7 @@ let combobox = (searchable = false) => ({
       let option = this.options[i];
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeValue = option.value;
+        return option;
       }
     }
   },
@@ -301,16 +276,20 @@ let combobox = (searchable = false) => ({
         let option = this.options[i];
         if (option.selected) {
           this.activeIndex = i;
-          if (this.selectedIndices > 0 && !this.multiple) continue;
-          this.selectedIndices.add(i);
+          this.activeValue = option.value;
+          if (this.selectedValues.size > 0 && !this.multiple) continue;
+          this.selectedValues.set(option.value, {
+            label: option.textContent,
+            value: option.value,
+          })
         }
       }
-      this.generateValue();
       this.observer = new MutationObserver(() => {
         this.options = this.$el.querySelectorAll("option");
-        this.selectedIndices.clear();
-        this.setActiveIndex(this.$refs.input.value);
-        this.setActiveValue(this.$refs.input.value);
+        if (this.$refs.input) {
+          this.setActiveIndex(this.$refs.input.value);
+          this.setActiveValue(this.$refs.input.value);
+        }
       });
       this.observer.observe(this.$el, {
         childList: true
