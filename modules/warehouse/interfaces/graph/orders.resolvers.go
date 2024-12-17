@@ -8,7 +8,6 @@ import (
 	"context"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
@@ -16,8 +15,7 @@ import (
 
 // Order is the resolver for the order field.
 func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, error) {
-	orderService := r.app.Service(services.OrderService{}).(*services.OrderService)
-	domainOrder, err := orderService.GetByID(ctx, uint(id))
+	domainOrder, err := r.orderService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err
 	}
@@ -26,8 +24,7 @@ func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, erro
 
 // Orders is the resolver for the orders field.
 func (r *queryResolver) Orders(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedOrders, error) {
-	orderService := r.app.Service(services.OrderService{}).(*services.OrderService)
-	orders, err := orderService.GetPaginated(ctx, &order.FindParams{
+	orders, err := r.orderService.GetPaginated(ctx, &order.FindParams{
 		Offset: offset,
 		Limit:  limit,
 		SortBy: sortBy,
@@ -35,7 +32,7 @@ func (r *queryResolver) Orders(ctx context.Context, offset int, limit int, sortB
 	if err != nil {
 		return nil, err
 	}
-	total, err := orderService.Count(ctx)
+	total, err := r.orderService.Count(ctx)
 	if err != nil {
 		return nil, err
 	}
