@@ -58,13 +58,40 @@ func (c *InventoryController) Register(r *mux.Router) {
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new/partial", c.GetNewPartial).Methods(http.MethodGet)
+	getRouter.HandleFunc("/positions/search", c.SearchPositions).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/partial", c.CreatePartial).Methods(http.MethodPost)
 }
 
+func (c *InventoryController) viewModelChecks(r *http.Request) (*InventoryCheckPaginatedResponse, error) {
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&inventory.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+		SortBy: []string{"created_at desc"},
+	}, r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving query")
+	}
+	entities, err := c.inventoryService.GetPaginated(r.Context(), params)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving inventory checks")
+	}
+	viewChecks := mapping.MapViewModels(entities, mappers.CheckToViewModel)
+	total, err := c.inventoryService.Count(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error counting inventory checks")
+	}
+	return &InventoryCheckPaginatedResponse{
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
+		Checks:          viewChecks,
+	}, nil
+
+}
 func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -75,11 +102,17 @@ func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	paginated, err := c.viewModelChecks(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &inventorytemplate.IndexPageProps{
 		PageContext:     pageCtx,
-		Checks:          []*viewmodels.Check{},
-		PaginationState: pagination.New("/warehouse/inventory", 0, 0, 0),
+		Checks:          paginated.Checks,
+		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
 		templ.Handler(inventorytemplate.InventoryTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -149,7 +182,7 @@ func (c *InventoryController) GetNewPartial(w http.ResponseWriter, r *http.Reque
 		Check:           mappers.CheckToViewModel(check), //nolint:exhaustruct
 		Positions:       paginated.Positions,
 		PaginationState: paginated.PaginationState,
-		SaveURL:         c.basePath,
+		SaveURL:         c.basePath + "/partial",
 	}
 	templ.Handler(inventorytemplate.NewPartial(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -201,5 +234,78 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 		shared.Redirect(w, r, fmt.Sprintf("%s/new/partial?%s", c.basePath, values.Encode()))
 		return
 	}
+
+	if _, err := c.inventoryService.Create(r.Context(), &dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *InventoryController) SearchPositions(w http.ResponseWriter, r *http.Request) {
+	paginated, err := c.viewModelPositions(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := &inventorytemplate.CreatePageProps{
+		PageContext:     pageCtx,
+		Errors:          map[string]string{},
+		Positions:       paginated.Positions,
+		PaginationState: paginated.PaginationState,
+		SaveURL:         c.basePath,
+	}
+	templ.Handler(inventorytemplate.AllPositionsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *InventoryController) CreatePartial(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	dto := inventory.CreateCheckDTO{}
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	u, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		entity, err := dto.ToEntity(u.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		props := &inventorytemplate.CreatePageProps{
+			PageContext: pageCtx,
+			Errors:      errorsMap,
+			Check:       mappers.CheckToViewModel(entity),
+		}
+		templ.Handler(inventorytemplate.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	if _, err := c.inventoryService.Create(r.Context(), &dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	shared.Redirect(w, r, c.basePath)
 }

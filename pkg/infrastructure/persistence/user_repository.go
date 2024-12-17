@@ -35,7 +35,7 @@ func (g *GormUserRepository) GetPaginated(
 	}
 	entities := make([]*user.User, len(rows))
 	for i, row := range rows {
-		entities[i] = toDomainUser(row)
+		entities[i] = ToDomainUser(row)
 	}
 	return entities, nil
 }
@@ -63,7 +63,7 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 	}
 	entities := make([]*user.User, len(users))
 	for i, row := range users {
-		entities[i] = toDomainUser(row)
+		entities[i] = ToDomainUser(row)
 	}
 	return entities, nil
 }
@@ -77,7 +77,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, 
 	if err := tx.Preload("Roles").Preload("Avatar").Preload("Roles.Permissions").First(&row, id).Error; err != nil {
 		return nil, err
 	}
-	return toDomainUser(&row), nil
+	return ToDomainUser(&row), nil
 }
 
 func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
@@ -89,7 +89,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	if err := tx.Preload("Roles").Preload("Roles.Permissions").First(&row, "email = ?", email).Error; err != nil {
 		return nil, err
 	}
-	return toDomainUser(&row), nil
+	return ToDomainUser(&row), nil
 }
 
 func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User) error {

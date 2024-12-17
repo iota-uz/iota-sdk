@@ -171,27 +171,48 @@ func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 	if err != nil {
 		return nil, err
 	}
-	return &inventory.Check{
-		ID:         dbInventoryCheck.ID,
-		Status:     status,
-		Type:       typ,
-		Name:       dbInventoryCheck.Name,
-		CreatedAt:  dbInventoryCheck.CreatedAt,
-		FinishedAt: dbInventoryCheck.FinishedAt,
-		CreatedBy:  dbInventoryCheck.CreatedBy,
-		FinishedBy: dbInventoryCheck.FinishedBy,
+	check := &inventory.Check{
+		ID:           dbInventoryCheck.ID,
+		Status:       status,
+		Type:         typ,
+		Name:         dbInventoryCheck.Name,
+		CreatedAt:    dbInventoryCheck.CreatedAt,
+		FinishedAt:   mapping.Value(dbInventoryCheck.FinishedAt),
+		CreatedBy:    persistence.ToDomainUser(dbInventoryCheck.CreatedBy),
+		FinishedByID: mapping.Value(dbInventoryCheck.FinishedByID),
+		CreatedByID:  dbInventoryCheck.CreatedByID,
+	}
+	if dbInventoryCheck.FinishedBy != nil {
+		check.FinishedBy = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
+	}
+	return check, nil
+}
+
+func toDBInventoryCheckResult(result *inventory.CheckResult) (*models.InventoryCheckResult, error) {
+	return &models.InventoryCheckResult{
+		ID:               result.ID,
+		PositionID:       result.PositionID,
+		ExpectedQuantity: result.ExpectedQuantity,
+		ActualQuantity:   result.ActualQuantity,
+		Difference:       result.Difference,
+		CreatedAt:        result.CreatedAt,
 	}, nil
 }
 
-func toDBInventoryCheck(check *inventory.Check) *models.InventoryCheck {
-	return &models.InventoryCheck{
-		ID:         check.ID,
-		Status:     check.Status.String(),
-		Type:       check.Type.String(),
-		Name:       check.Name,
-		CreatedAt:  check.CreatedAt,
-		FinishedAt: check.FinishedAt,
-		FinishedBy: check.FinishedBy,
-		CreatedBy:  check.CreatedBy,
+func toDBInventoryCheck(check *inventory.Check) (*models.InventoryCheck, error) {
+	results, err := mapping.MapDbModels(check.Results, toDBInventoryCheckResult)
+	if err != nil {
+		return nil, err
 	}
+	return &models.InventoryCheck{
+		ID:           check.ID,
+		Status:       check.Status.String(),
+		Type:         check.Type.String(),
+		Name:         check.Name,
+		Results:      results,
+		CreatedAt:    check.CreatedAt,
+		FinishedAt:   mapping.Pointer(check.FinishedAt),
+		FinishedByID: mapping.Pointer(check.FinishedByID),
+		CreatedByID:  check.CreatedByID,
+	}, nil
 }

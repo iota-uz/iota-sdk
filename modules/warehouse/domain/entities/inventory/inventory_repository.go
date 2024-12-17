@@ -13,6 +13,8 @@ type FindParams struct {
 	SortBy    []string
 	Query     string
 	Field     string
+	Status    string
+	Type      string
 	CreatedAt DateRange
 }
 

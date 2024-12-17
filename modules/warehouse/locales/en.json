@@ -186,7 +186,11 @@
       "New": "New inventory",
       "Name": "Name",
       "Type": "Type",
-      "Status": "Status"
+      "Status": "Status",
+      "CreatedBy": "Created by",
+      "FinishedBy": "Finished by",
+      "SelectStatus": "Select status",
+      "SelectType": "Select type"
     },
     "New": {
       "Meta": {
@@ -209,6 +213,17 @@
         "full": "Full",
         "partial": "Partial"
       },
+      "Statuses": {
+        "success": "Success",
+        "incomplete": "Incomplete",
+        "failed": "Failed"
+      },
+      "Positions": {
+        "Label": "Positions",
+        "Placeholder": "Position title or barcode..."
+      },
+      "Added": "Added",
+      "AllPositions": "All positions",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this inventory check?"
     }

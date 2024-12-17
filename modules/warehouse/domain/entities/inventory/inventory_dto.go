@@ -6,16 +6,18 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 )
 
 type CreateCheckDTO struct {
-	Type      string
-	Name      string
+	Type      string `validate:"required"`
+	Name      string `validate:"required"`
 	Positions []uint
 }
 
 type UpdateCheckDTO struct {
 	FinishedAt time.Time
+	Status     string
 	Name       string
 }
 
@@ -58,30 +60,34 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 	for _, id := range d.Positions {
 		results = append(results, &CheckResult{
 			PositionID: id,
-			CreatedAt:  time.Now(),
 		})
 	}
 	return &Check{
-		ID:        0,
-		Status:    s,
-		Type:      t,
-		Name:      d.Name,
-		Results:   results,
-		CreatedAt: time.Now(),
-		CreatedBy: createdBy,
+		ID:          0,
+		Status:      s,
+		Type:        t,
+		Name:        d.Name,
+		Results:     results,
+		CreatedAt:   time.Now(),
+		CreatedBy:   &user.User{ID: createdBy},
+		CreatedByID: createdBy,
 	}, nil
 }
 
 func (d *UpdateCheckDTO) ToEntity(id uint, finishedBy uint) (*Check, error) {
-	s, err := NewStatus(string(Incomplete))
+	s, err := NewStatus(d.Status)
 	if err != nil {
 		return nil, err
 	}
-	return &Check{
-		ID:         id,
-		Status:     s,
-		Name:       d.Name,
-		FinishedBy: finishedBy,
-		FinishedAt: d.FinishedAt,
-	}, nil
+	check := &Check{
+		ID:     id,
+		Status: s,
+		Name:   d.Name,
+	}
+	if s.Get() == Success {
+		check.FinishedAt = d.FinishedAt
+		check.FinishedBy = &user.User{ID: finishedBy}
+		check.FinishedByID = finishedBy
+	}
+	return check, nil
 }
