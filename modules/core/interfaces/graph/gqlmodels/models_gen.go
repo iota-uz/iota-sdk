@@ -9,6 +9,11 @@ import (
 type Mutation struct {
 }
 
+type PaginatedUsers struct {
+	Data  []*User `json:"data"`
+	Total int64   `json:"total"`
+}
+
 type Query struct {
 }
 
@@ -22,4 +27,14 @@ type Session struct {
 }
 
 type Subscription struct {
+}
+
+type User struct {
+	ID         int64     `json:"id"`
+	FirstName  string    `json:"firstName"`
+	LastName   string    `json:"lastName"`
+	Email      string    `json:"email"`
+	UILanguage string    `json:"uILanguage"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+	CreatedAt  time.Time `json:"createdAt"`
 }

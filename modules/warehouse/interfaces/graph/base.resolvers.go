@@ -6,12 +6,11 @@ package graph
 
 import (
 	"context"
-	"fmt"
 )
 
 // Hello is the resolver for the hello field.
 func (r *queryResolver) Hello(ctx context.Context, name *string) (*string, error) {
-	panic(fmt.Errorf("not implemented: Hello - hello"))
+	return name, nil
 }
 
 // Query returns QueryResolver implementation.

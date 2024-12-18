@@ -6,11 +6,11 @@ package graph
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
-
-	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 )
 
 // Product is the resolver for the product field.
