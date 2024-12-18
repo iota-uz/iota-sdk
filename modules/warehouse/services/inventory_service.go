@@ -83,7 +83,10 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 		}
 	}
 	for _, result := range entity.Results {
-		quantity, err := s.productRepo.CountByPositionID(ctx, result.PositionID)
+		quantity, err := s.productRepo.CountWithFilters(ctx, &product.CountParams{
+			PositionID: result.PositionID,
+			Status:     product.InStock,
+		})
 		if err != nil {
 			return nil, err
 		}
