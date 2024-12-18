@@ -7,13 +7,13 @@ package graph
 import (
 	"context"
 	"fmt"
+	"net/http"
+
+	model "github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/services"
-	"net/http"
-
-	model "github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 )
 
 // Authenticate is the resolver for the authenticate field.

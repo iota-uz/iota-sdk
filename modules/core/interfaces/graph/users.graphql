@@ -1,0 +1,19 @@
+type User {
+    id: ID!
+    firstName: String!
+    lastName: String!
+    email: String!
+    uILanguage: String!
+    updatedAt: Time!
+    createdAt: Time!
+}
+
+type PaginatedUsers {
+    data: [User!]!
+    total: Int64!
+}
+
+extend type Query {
+    user(id: ID!): User
+    users(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUsers!
+}
