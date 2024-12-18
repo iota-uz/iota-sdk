@@ -59,12 +59,16 @@ func (c *InventoryController) Register(r *mux.Router) {
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new/partial", c.GetNewPartial).Methods(http.MethodGet)
 	getRouter.HandleFunc("/positions/search", c.SearchPositions).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}/partial", c.GetEditPartial).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/partial", c.CreatePartial).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *InventoryController) viewModelChecks(r *http.Request) (*InventoryCheckPaginatedResponse, error) {
@@ -240,6 +244,141 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *InventoryController) GetEdit(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		types.NewPageData("WarehouseInventory.Edit.Meta.Title", ""),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	entity, err := c.inventoryService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
+		return
+	}
+	props := &inventorytemplate.EditPageProps{
+		PageContext: pageCtx,
+		Check:       mappers.CheckToViewModel(entity),
+		Errors:      map[string]string{},
+		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+	}
+	templ.Handler(inventorytemplate.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *InventoryController) GetEditPartial(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		types.NewPageData("WarehouseInventory.Edit.Meta.Title", ""),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	entity, err := c.inventoryService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
+		return
+	}
+	paginated, err := c.viewModelPositions(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := &inventorytemplate.EditPageProps{
+		PageContext:     pageCtx,
+		Check:           mappers.CheckToViewModel(entity),
+		Errors:          map[string]string{},
+		DeleteURL:       fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		SaveURL:         fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		Positions:       paginated.Positions,
+		PaginationState: paginated.PaginationState,
+	}
+	templ.Handler(inventorytemplate.PartialEdit(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *InventoryController) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := c.inventoryService.Delete(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *InventoryController) PostEdit(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+	action := shared.FormAction(r.FormValue("_action"))
+	if !action.IsValid() {
+		http.Error(w, "Invalid action", http.StatusBadRequest)
+		return
+	}
+	r.Form.Del("_action")
+
+	switch action {
+	case shared.FormActionDelete:
+		if _, err := c.inventoryService.Delete(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	case shared.FormActionSave:
+		dto := inventory.UpdateCheckDTO{} //nolint:exhaustruct
+		var pageCtx *types.PageContext
+		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+			entity, err := c.inventoryService.GetByID(r.Context(), id)
+			if err != nil {
+				http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
+				return
+			}
+			props := &inventorytemplate.EditPageProps{
+				PageContext: pageCtx,
+				Check:       mappers.CheckToViewModel(entity),
+				Errors:      errorsMap,
+				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+			}
+			templ.Handler(inventorytemplate.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			return
+		}
+		if err := c.inventoryService.Update(r.Context(), id, &dto); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	shared.Redirect(w, r, c.basePath)
 }
 

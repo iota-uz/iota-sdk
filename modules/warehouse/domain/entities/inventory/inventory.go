@@ -3,6 +3,7 @@ package inventory
 import (
 	"time"
 
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 )
 
@@ -23,6 +24,7 @@ type Check struct {
 type CheckResult struct {
 	ID               uint
 	PositionID       uint
+	Position         *position.Position
 	ExpectedQuantity int
 	ActualQuantity   int
 	Difference       int

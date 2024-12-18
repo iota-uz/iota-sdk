@@ -17,7 +17,6 @@ type CreateCheckDTO struct {
 
 type UpdateCheckDTO struct {
 	FinishedAt time.Time
-	Status     string
 	Name       string
 }
 
@@ -74,20 +73,10 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 	}, nil
 }
 
-func (d *UpdateCheckDTO) ToEntity(id uint, finishedBy uint) (*Check, error) {
-	s, err := NewStatus(d.Status)
-	if err != nil {
-		return nil, err
-	}
+func (d *UpdateCheckDTO) ToEntity(id uint) (*Check, error) {
 	check := &Check{
-		ID:     id,
-		Status: s,
-		Name:   d.Name,
-	}
-	if s.Get() == Success {
-		check.FinishedAt = d.FinishedAt
-		check.FinishedBy = &user.User{ID: finishedBy}
-		check.FinishedByID = finishedBy
+		ID:   id,
+		Name: d.Name,
 	}
 	return check, nil
 }

@@ -33,6 +33,7 @@ type InventoryCheckResult struct {
 	ID               uint
 	InventoryCheckID uint
 	PositionID       uint
+	Position         *WarehousePosition
 	ExpectedQuantity int
 	ActualQuantity   int
 	Difference       int

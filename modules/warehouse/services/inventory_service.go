@@ -45,21 +45,14 @@ func (s *InventoryService) GetAll(ctx context.Context) ([]*inventory.Check, erro
 func (s *InventoryService) GetPaginated(
 	ctx context.Context, params *inventory.FindParams,
 ) ([]*inventory.Check, error) {
-	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
+	if err := composables.CanUser(ctx, permissions.InventoryRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetPaginated(ctx, params)
 }
 
-// var results []*CheckResult
-// for _, id := range d.Positions {
-// 	results = append(results, &CheckResult{
-// 		PositionID: id,
-// 	})
-// }
-
 func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateCheckDTO) (*inventory.Check, error) {
-	if err := composables.CanUser(ctx, permissions.UnitCreate); err != nil {
+	if err := composables.CanUser(ctx, permissions.InventoryCreate); err != nil {
 		return nil, err
 	}
 	user, err := composables.UseUser(ctx)
@@ -101,14 +94,10 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 }
 
 func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.UpdateCheckDTO) error {
-	if err := composables.CanUser(ctx, permissions.UnitUpdate); err != nil {
+	if err := composables.CanUser(ctx, permissions.InventoryUpdate); err != nil {
 		return err
 	}
-	user, err := composables.UseUser(ctx)
-	if err != nil {
-		return err
-	}
-	entity, err := data.ToEntity(id, user.ID)
+	entity, err := data.ToEntity(id)
 	if err != nil {
 		return err
 	}
@@ -124,7 +113,7 @@ func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.
 }
 
 func (s *InventoryService) Delete(ctx context.Context, id uint) (*inventory.Check, error) {
-	if err := composables.CanUser(ctx, permissions.UnitDelete); err != nil {
+	if err := composables.CanUser(ctx, permissions.InventoryDelete); err != nil {
 		return nil, err
 	}
 	entity, err := s.repo.GetByID(ctx, id)
