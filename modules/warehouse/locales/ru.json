@@ -1,15 +1,18 @@
 {
   "Errors": {
     "ERR_INVALID_CELL": "Ошибка при обработке ячейки \"{{.Col}}:{{.Row}}\"",
-    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует"
+    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует",
+    "ERR_DUPLICATE_BARCODE": "Артикул {{.Barcode}} уже существует",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Недостаточно продукции на складе",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Недостаточно продукции в разработке"
   },
   "NavigationLinks": {
     "Warehouse": "Склад",
     "Products": "Продукты",
     "WarehousePositions": "Наименования",
-    "WarehouseOrders": "Заявки/Накладные",
-    "WarehouseUnits": "Единицы измерения",
-    "WarehouseInventory": "Инвентаризация"
+    "WarehouseInventory": "Инвентаризация",
+    "WarehouseOrders": "Накладные",
+    "WarehouseUnits": "Единицы измерения"
   },
   "Products": {
     "List": {
@@ -30,6 +33,11 @@
         "Title": "Редактировать продукт"
       }
     },
+    "Statuses": {
+      "in_stock": "На складе",
+      "approved": "Одобрено",
+      "in_development": "В разработке"
+    },
     "Single": {
       "Position": "Наименование",
       "Rfid": "RFID",
@@ -37,11 +45,6 @@
       "NoPositionsFound": "Наименований не найдено",
       "Status": "Статус",
       "SelectStatus": "Выберите статус",
-      "Statuses": {
-        "in_stock": "На складе",
-        "approved": "Одобрено",
-        "in_development": "В разработке"
-      },
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить этот продукт?"
     }
@@ -136,37 +139,48 @@
   "WarehouseOrders": {
     "List": {
       "Meta": {
-        "Title": "Заявки/Накладные"
+        "Title": "Накладные"
       },
-      "New": "Новая заявка",
+      "New": "Новая накладная",
       "NewIn": "Приемка",
       "NewOut": "Отгрузка",
       "Type": "Тип",
-      "Status": "Статус"
+      "Status": "Статус",
+      "Products": "Единиц",
+      "Positions": "Наименований"
     },
     "New": {
       "Meta": {
-        "Title": "Новая заявка"
+        "Title": "Новая накладная"
       }
     },
-    "Edit": {
+    "View": {
       "Meta": {
-        "Title": "Редактировать заявку"
-      }
+        "Title": "Просмотр накладной"
+      },
+      "Title": "Накладная #{{.ID}}",
+      "Status": "Статус",
+      "CreatedAt": "Дата создания",
+      "Position": "Наименование",
+      "Barcode": "Артикул",
+      "Quantity": "Количество",
+      "Unit": "Ед. измерения",
+      "NoItems": "Нет наименований"
+    },
+    "Types": {
+      "in": "Приемка",
+      "out": "Отгрузка"
+    },
+    "Statuses": {
+      "pending": "В процессе",
+      "complete": "Завершен"
     },
     "Single": {
       "Type": "Тип",
       "TypePlaceholder": "Выберите тип",
       "Status": "Статус",
-      "Types": {
-        "in": "Отгрузка",
-        "out": "Приемка"
-      },
-      "Statuses": {
-        "pending": "В процессе",
-        "complete": "Завершен"
-      },
       "Quantity": "Количество",
+      "PositionIDs": "Наименования",
       "NoItems": "Нет наименований",
       "Position": "Наименование",
       "SearchPosition": "Поиск наименования",

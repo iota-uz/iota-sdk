@@ -1,10 +1,9 @@
-package order_in
+package orderout
 
 import (
 	"fmt"
 	"github.com/iota-agency/iota-sdk/components/base"
 	"github.com/iota-agency/iota-sdk/components/base/button"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -15,52 +14,116 @@ type PageProps struct {
 	Errors   map[string]string
 	SaveURL  string
 	ItemsURL string
+	Items    []OrderItem
 }
 
-type OderItemsProps struct {
+type FormProps struct {
 	Errors map[string]string
-	Items  []*viewmodels.OrderItem
+	Items  []OrderItem
 }
 
-templ OrderItems(props *OderItemsProps) {
-	if len(props.Items) == 0 {
-		<tr>
-			<td class="p-4 text-center" colspan="5">
-				{ composables.MustT(ctx, "WarehouseOrders.Single.NoItems") }
-			</td>
-		</tr>
-	} else {
-		for _, item := range props.Items {
-			<tr>
-				<td class="p-4">
-					{ item.Position.Title }
-				</td>
-				<td class="p-4">
-					{ item.Position.Barcode }
-				</td>
-				<td class="p-4">
-					{ item.Quantity }
-				</td>
-				<td class="p-4">
-					{ item.Position.Unit.Title }
-				</td>
-				<td class="px-4">
-					<div class="flex flex-col w-full">
-						<label>
-							<input
-								name={ fmt.Sprintf("Quantities[%s]", item.Position.ID) }
-								type="number"
-								class="bg-gray-50 border border-gray-300 text-center text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-16 p-1.5"
-							/>
-						</label>
-						if props.Errors[item.Position.ID] != "" {
-							<small class="text-xs text-red-500 mt-1">{ props.Errors[item.Position.ID] }</small>
-						}
-					</div>
-				</td>
-			</tr>
+type OrderItem struct {
+	PositionID    string
+	PositionTitle string
+	Barcode       string
+	Unit          string
+	InStock       string
+	Quantity      string
+	Error         string
+}
+
+templ quantityInput(item OrderItem) {
+	<div class="flex flex-col w-full">
+		<label>
+			<input
+				name={ fmt.Sprintf("Quantity[%s]", item.PositionID) }
+				type="number"
+				value={ item.Quantity }
+				class="bg-gray-50 border border-gray-300 text-center text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-16 p-1.5"
+			/>
+		</label>
+		if item.Error != "" {
+			<small class="text-xs text-red-500 mt-1">
+				{ item.Error }
+			</small>
 		}
+	</div>
+}
+
+templ OrderItemsTable(items []OrderItem) {
+	<table
+		id="order-items-table"
+		class="min-w-full table-auto rounded-b-lg table bg-surface-600 text-sm"
+	>
+		<thead>
+			<tr class="bg-surface-500 text-200">
+				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
+					{ composables.MustT(ctx, "WarehouseOrders.Single.Position") }
+				</th>
+				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
+					{ composables.MustT(ctx, "WarehouseOrders.Single.Barcode") }
+				</th>
+				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
+					{ composables.MustT(ctx, "WarehouseOrders.Single.Quantity") }
+				</th>
+				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
+					{ composables.MustT(ctx, "WarehouseOrders.Single.Unit") }
+				</th>
+				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
+					{ composables.MustT(ctx, "WarehouseOrders.Single.OrderedQuantity") }
+				</th>
+			</tr>
+		</thead>
+		<tbody>
+			if len(items) == 0 {
+				<tr>
+					<td class="p-4 text-center" colspan="5">
+						{ composables.MustT(ctx, "WarehouseOrders.Single.NoItems") }
+					</td>
+				</tr>
+			} else {
+				for _, item := range items {
+					<tr>
+						<td class="p-4">
+							{ item.PositionTitle }
+						</td>
+						<td class="p-4">
+							{ item.Barcode }
+						</td>
+						<td class="p-4">
+							{ item.InStock }
+						</td>
+						<td class="p-4">
+							{ item.Unit }
+						</td>
+						<td class="px-4">
+							@quantityInput(item)
+						</td>
+					</tr>
+				}
+			}
+		</tbody>
+	</table>
+}
+
+templ Form(props *FormProps) {
+	@base.Combobox(base.ComboboxProps{
+		Label:        composables.MustT(ctx, "WarehouseOrders.Single.Position"),
+		Placeholder:  composables.MustT(ctx, "WarehouseOrders.Single.SearchPosition"),
+		Searchable:   true,
+		NotFoundText: composables.MustT(ctx, "WarehouseOrders.Single.NoPositionsFound"),
+		Name:         "PositionIDs",
+		Multiple:     true,
+		Endpoint:     "/warehouse/positions/search",
+	})
+	if props.Errors["PositionIDs"] != "" {
+		<small class="text-xs text-red-500 mt-1">
+			{ props.Errors["PositionIDs"] }
+		</small>
 	}
+	<div class="overflow-x-auto relative mt-4">
+		@OrderItemsTable(props.Items)
+	</div>
 }
 
 templ New(props *PageProps) {
@@ -72,68 +135,27 @@ templ New(props *PageProps) {
 					hx-post={ props.ItemsURL }
 					hx-trigger="change from:select[name='PositionIDs']"
 					hx-swap="innerHTML"
-					hx-target="#order-items"
+					hx-target="#order-items-table"
 				>
-					@base.Combobox(base.ComboboxProps{
-						Label:        props.T("WarehouseOrders.Single.Position"),
-						Placeholder:  props.T("WarehouseOrders.Single.SearchPosition"),
-						Searchable:   true,
-						NotFoundText: props.T("WarehouseOrders.Single.NoPositionsFound"),
-						Name:         "PositionIDs",
-						Multiple:     true,
-						Endpoint:     "/warehouse/positions/search",
+					@Form(&FormProps{
+						Errors: props.Errors,
+						Items:  props.Items,
 					})
-					<div class="overflow-x-auto relative mt-4">
-						<table class="min-w-full table-auto rounded-b-lg table bg-surface-600 text-sm">
-							<thead>
-								<tr class="bg-surface-500 text-200">
-									<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-										{ props.T("WarehouseOrders.Single.Position") }
-									</th>
-									<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-										{ props.T("WarehouseOrders.Single.Barcode") }
-									</th>
-									<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-										{ props.T("WarehouseOrders.Single.InStock") }
-									</th>
-									<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-										{ props.T("WarehouseOrders.Single.Unit") }
-									</th>
-									<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-										{ props.T("WarehouseOrders.Single.OrderedQuantity") }
-									</th>
-								</tr>
-							</thead>
-							<tbody id="order-items">
-								@OrderItems(&OderItemsProps{
-									Items:  []*viewmodels.OrderItem{},
-									Errors: props.Errors,
-								})
-							</tbody>
-						</table>
-					</div>
 				</form>
 			}
 			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
-				<form
-					id="save-form"
-					method="post"
-					hx-post={ props.SaveURL }
-					hx-indicator="#save-btn"
-					hx-target="#order-items"
-					hx-swap="innerHTML"
-				>
-					@button.Primary(button.Props{
-						Size: button.SizeMD,
-						Attrs: templ.Attributes{
-							"name":  "_action",
-							"value": "save",
-							"id":    "save-btn",
-						},
-					}) {
-						{ props.T("Save") }
-					}
-				</form>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"hx-post":      props.SaveURL,
+						"hx-indicator": "this",
+						"hx-target":    "#search-form",
+						"hx-swap":      "innerHTML",
+						"hx-include":   "#search-form",
+					},
+				}) {
+					{ props.T("Save") }
+				}
 			</div>
 		</div>
 	}

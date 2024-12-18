@@ -55,33 +55,35 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	typeEnum, err := order.NewType(dbOrder.Type)
+	orderType, err := order.NewType(dbOrder.Type)
 	if err != nil {
 		return nil, err
 	}
-	var groupedByPosition = make(map[*models.WarehousePosition][]*models.WarehouseProduct)
+	var idToPosition = make(map[uint]*models.WarehousePosition)
+	var groupedByPositionID = make(map[uint][]*models.WarehouseProduct)
 	for _, p := range dbOrder.Products {
-		groupedByPosition[p.Position] = append(groupedByPosition[p.Position], p)
+		idToPosition[p.PositionID] = p.Position
+		groupedByPositionID[p.PositionID] = append(groupedByPositionID[p.PositionID], p)
 	}
 	var items []order.Item
-	for k, v := range groupedByPosition {
-		products, err := mapping.MapDbModels(v, toDomainProduct)
+	for positionID, products := range groupedByPositionID {
+		domainProducts, err := mapping.MapDbModels(products, toDomainProduct)
 		if err != nil {
 			return nil, err
 		}
-		positionEntity, err := toDomainPosition(k)
+		positionEntity, err := toDomainPosition(idToPosition[positionID])
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, order.Item{
 			Position: *positionEntity,
-			Products: mapping.ValueSlice(products),
+			Products: mapping.ValueSlice(domainProducts),
 		})
 	}
 	return &order.Order{
 		ID:        dbOrder.ID,
 		Status:    status,
-		Type:      typeEnum,
+		Type:      orderType,
 		Items:     items,
 		CreatedAt: dbOrder.CreatedAt,
 	}, nil

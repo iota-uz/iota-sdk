@@ -1,7 +1,10 @@
 {
   "Errors": {
     "ERR_INVALID_CELL": "Error processing cell \"{{.Col}}:{{.Row}}\"",
-    "ERR_DUPLICATE_RFID": "Rfid {{.Rfid}} already exists"
+    "ERR_DUPLICATE_RFID": "Rfid {{.Rfid}} already exists",
+    "ERR_DUPLICATE_BARCODE": "Barcode {{.Barcode}} already exists",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Not enough products in stock",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Not enough products in development"
   },
   "NavigationLinks": {
     "Warehouse": "Warehouse",
@@ -30,6 +33,11 @@
         "Title": "Edit product"
       }
     },
+    "Statuses": {
+      "in_stock": "In stock",
+      "approved": "Approved",
+      "in_development": "In development"
+    },
     "Single": {
       "Rfid": "RFID",
       "Position": "Position",
@@ -37,11 +45,6 @@
       "NoPositionsFound": "No positions found",
       "Status": "Status",
       "SelectStatus": "Select status",
-      "Statuses": {
-        "in_stock": "In stock",
-        "approved": "Approved",
-        "in_development": "In development"
-      },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this product?"
     }
@@ -142,32 +145,43 @@
       },
       "New": "New order",
       "Type": "Type",
-      "Status": "Status"
+      "Status": "Status",
+      "Products": "PCS.",
+      "Positions": "Positions"
     },
     "New": {
       "Meta": {
         "Title": "New warehouse order"
       }
     },
-    "Edit": {
+    "View": {
       "Meta": {
-        "Title": "Edit warehouse order"
-      }
+        "Title": "View warehouse order"
+      },
+      "Title": "Order #{{.ID}}",
+      "Status": "Status",
+      "CreatedAt": "Created at",
+      "Position": "Position",
+      "Barcode": "Barcode",
+      "Quantity": "Quantity",
+      "Unit": "Unit",
+      "NoItems": "No items"
+    },
+    "Types": {
+      "in": "Acceptance",
+      "out": "Shipment"
+    },
+    "Statuses": {
+      "pending": "Pending",
+      "complete": "Complete"
     },
     "Single": {
       "Type": "Type",
       "TypePlaceholder": "Select type",
       "Status": "Status",
-      "Types": {
-        "in": "Acceptance",
-        "out": "Shipment"
-      },
-      "Statuses": {
-        "pending": "Pending",
-        "complete": "Complete"
-      },
       "Quantity": "Quantity",
       "Position": "Position",
+      "PositionIDs": "Positions",
       "SearchPosition": "Search position",
       "NoPositionsFound": "No positions found",
       "Barcode": "Barcode",

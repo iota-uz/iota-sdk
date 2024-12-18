@@ -30,13 +30,26 @@ func (d *CreateOrderDTO) Ok(ctx context.Context) (map[string]string, bool) {
 		return errorMessages, true
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
-		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+		if err.Tag() == "required" && err.Field() == "PositionIDs" {
+			translatedField := l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "WarehouseOrders.Single.PositionIDs",
+			})
+			errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "ValidationErrors.emptySelect",
+				TemplateData: map[string]string{
+					"Field": translatedField,
+				},
+			})
+			continue
+		}
+		translatedField := l.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: fmt.Sprintf("WarehouseOrders.Single.%s", err.Field()),
 		})
+
 		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
 			TemplateData: map[string]string{
-				"Field": translatedFieldName,
+				"Field": translatedField,
 			},
 		})
 	}
