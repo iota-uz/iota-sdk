@@ -48,17 +48,18 @@ let dateFns = () => ({
     date.setHours(24, 0, 0, 0);
     return date.toISOString();
   },
-  startOfWeek(factor = 1) {
+  startOfWeek(factor = 0) {
     let date = new Date();
-    let firstDay = date.getDate() - (date.getDay() * factor);
+    let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
+    console.log("FIRST DAY: ", firstDay, "FACTOR: ", factor)
     date.setDate(firstDay)
     date.setHours(0, 0, 0, 0);
     return new Date(date).toISOString();
   },
-  endOfWeek(factor = 1) {
+  endOfWeek(factor = 0) {
     let date = new Date();
-    let firstDay = date.getDate() - (date.getDay() * factor)
-    let lastDay = firstDay + 6
+    let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
+    let lastDay = firstDay + 7
     date.setDate(lastDay);
     date.setHours(0, 0, 0, 0);
     return new Date(date.setDate(lastDay)).toISOString();
