@@ -65,8 +65,8 @@ func OrderInItemToViewModel(item OrderItem) orderin.OrderItem {
 type OrdersController struct {
 	app             application.Application
 	orderService    *services.OrderService
-	positionService *position_service.PositionService
-	productService  *product_service.ProductService
+	positionService *positionservice.PositionService
+	productService  *productservice.ProductService
 	basePath        string
 }
 
@@ -79,8 +79,8 @@ func NewOrdersController(app application.Application) application.Controller {
 	return &OrdersController{
 		app:             app,
 		orderService:    app.Service(services.OrderService{}).(*services.OrderService),
-		positionService: app.Service(position_service.PositionService{}).(*position_service.PositionService),
-		productService:  app.Service(product_service.ProductService{}).(*product_service.ProductService),
+		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
+		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
 		basePath:        "/warehouse/orders",
 	}
 }

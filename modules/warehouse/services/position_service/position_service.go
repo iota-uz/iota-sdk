@@ -1,4 +1,4 @@
-package position_service
+package positionservice
 
 import (
 	"context"
@@ -21,7 +21,7 @@ type PositionService struct {
 	publisher      event.Publisher
 	uploadService  *coreservices.UploadService
 	unitService    *services.UnitService
-	productService *product_service.ProductService
+	productService *productservice.ProductService
 }
 
 func NewPositionService(
@@ -34,7 +34,7 @@ func NewPositionService(
 		publisher:      publisher,
 		uploadService:  app.Service(coreservices.UploadService{}).(*coreservices.UploadService),
 		unitService:    app.Service(services.UnitService{}).(*services.UnitService),
-		productService: app.Service(product_service.ProductService{}).(*product_service.ProductService),
+		productService: app.Service(productservice.ProductService{}).(*productservice.ProductService),
 	}
 }
 

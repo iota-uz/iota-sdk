@@ -1,4 +1,4 @@
-package product_service
+package productservice
 
 import (
 	"fmt"

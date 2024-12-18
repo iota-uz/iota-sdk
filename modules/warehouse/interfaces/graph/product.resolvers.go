@@ -6,17 +6,38 @@ package graph
 
 import (
 	"context"
-	"fmt"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 )
 
 // Product is the resolver for the product field.
 func (r *queryResolver) Product(ctx context.Context, id int64) (*model.Product, error) {
-	panic(fmt.Errorf("not implemented: Product - product"))
+	domainProduct, err := r.productService.GetByID(ctx, uint(id))
+	if err != nil {
+		return nil, err
+	}
+	return mappers.ProductToGraphModel(domainProduct), nil
 }
 
 // Products is the resolver for the products field.
 func (r *queryResolver) Products(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedProducts, error) {
-	panic(fmt.Errorf("not implemented: Products - products"))
+	domainProducts, err := r.productService.GetPaginated(ctx, &product.FindParams{
+		Offset: offset,
+		Limit:  limit,
+		SortBy: sortBy,
+	})
+	if err != nil {
+		return nil, err
+	}
+	total, err := r.productService.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &model.PaginatedProducts{
+		Data:  mapping.MapViewModels(domainProducts, mappers.ProductToGraphModel),
+		Total: total,
+	}, nil
 }

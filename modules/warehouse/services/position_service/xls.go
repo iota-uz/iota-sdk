@@ -1,4 +1,4 @@
-package position_service
+package positionservice
 
 import (
 	"github.com/iota-agency/iota-sdk/pkg/utils/sequence"

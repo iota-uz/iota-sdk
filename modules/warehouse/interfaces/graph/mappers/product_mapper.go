@@ -5,10 +5,10 @@ import (
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 )
 
-func ProductToGraphModel(entity product.Product) *model.Product {
+func ProductToGraphModel(entity *product.Product) *model.Product {
 	var pos *model.WarehousePosition
 	if entity.Position != nil {
-		pos = PositionToGraphModel(*entity.Position)
+		pos = PositionToGraphModel(entity.Position)
 	}
 	return &model.Product{
 		ID:        int64(entity.ID),
