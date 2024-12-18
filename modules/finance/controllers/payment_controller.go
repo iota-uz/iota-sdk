@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
@@ -280,7 +279,6 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		fmt.Println("ERRORS MAP: ", errorsMap)
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -33,11 +33,11 @@ func (s *ProductService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *ProductService) CountByPositionID(ctx context.Context, positionID uint) (int64, error) {
+func (s *ProductService) CountInStock(ctx context.Context, opts *product.CountParams) (int64, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return 0, err
 	}
-	return s.repo.CountByPositionID(ctx, positionID)
+	return s.repo.CountWithFilters(ctx, opts)
 }
 
 func (s *ProductService) GetByID(ctx context.Context, id uint) (*product.Product, error) {

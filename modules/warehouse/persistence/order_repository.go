@@ -75,7 +75,8 @@ func (g *GormOrderRepository) getProducts(ctx context.Context, id uint) ([]*mode
 	var rows []*models.WarehouseProduct
 	for _, entity := range entities {
 		var product models.WarehouseProduct
-		if err := tx.Where("id = ?", entity.ProductID).First(&product).Error; err != nil {
+		q := tx.Where("id = ?", entity.ProductID).Preload("Position").Preload("Position.Unit")
+		if err := q.First(&product).Error; err != nil {
 			return nil, err
 		}
 		rows = append(rows, &product)
