@@ -92,11 +92,11 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return nil, err
 	}
-	// createdEvent, err := inventory.NewCreatedEvent(ctx, *data, *entity)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// s.publisher.Publish(createdEvent)
+	createdEvent, err := inventory.NewCreatedEvent(ctx, *data, *entity)
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(createdEvent)
 	return entity, nil
 }
 
@@ -111,11 +111,11 @@ func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	// updatedEvent, err := inventory.NewUpdatedEvent(ctx, *data, *entity)
-	// if err != nil {
-	// 	return err
-	// }
-	// s.publisher.Publish(updatedEvent)
+	updatedEvent, err := inventory.NewUpdatedEvent(ctx, *data, *entity)
+	if err != nil {
+		return err
+	}
+	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
@@ -130,11 +130,11 @@ func (s *InventoryService) Delete(ctx context.Context, id uint) (*inventory.Chec
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	// deletedEvent, err := inventory.NewDeletedEvent(ctx, *entity)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// s.publisher.Publish(deletedEvent)
+	deletedEvent, err := inventory.NewDeletedEvent(ctx, *entity)
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }
 func (s *InventoryService) Count(ctx context.Context) (uint, error) {
