@@ -10,6 +10,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	coreviewmodels "github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
 )
@@ -71,9 +72,26 @@ func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		Name:       entity.Name,
 		Type:       entity.Type.String(),
+		Results:    mapping.MapViewModels(entity.Results, CheckResultToViewModel),
 		Status:     entity.Status.String(),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		CreatedBy:  entity.CreatedBy,
 		FinishedBy: entity.FinishedBy,
+	}
+}
+
+func CheckResultToViewModel(entity *inventory.CheckResult) *viewmodels.CheckResult {
+	var pos *viewmodels.Position
+	if entity.Position != nil {
+		pos = PositionToViewModel(entity.Position)
+	}
+	return &viewmodels.CheckResult{
+		ID:               strconv.FormatUint(uint64(entity.ID), 10),
+		PositionID:       strconv.FormatUint(uint64(entity.PositionID), 10),
+		Position:         pos,
+		ExpectedQuantity: strconv.FormatUint(uint64(entity.ExpectedQuantity), 10),
+		ActualQuantity:   strconv.FormatUint(uint64(entity.ActualQuantity), 10),
+		Difference:       strconv.FormatUint(uint64(entity.Difference), 10),
+		CreatedAt:        entity.CreatedAt.Format(time.RFC3339),
 	}
 }

@@ -82,7 +82,7 @@ func (g *GormInventoryRepository) GetByID(ctx context.Context, id uint) (*invent
 		return nil, composables.ErrNoTx
 	}
 	var entity models.InventoryCheck
-	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
+	if err := tx.Preload("Results.Position.Unit").Where("id = ?", id).First(&entity).Error; err != nil {
 		return nil, err
 	}
 	return toDomainInventoryCheck(&entity)
@@ -121,5 +121,5 @@ func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Where("id = ?", id).Delete(&models.WarehouseUnit{}).Error //nolint:exhaustruct
+	return tx.Where("id = ?", id).Delete(&models.InventoryCheck{}).Error //nolint:exhaustruct
 }

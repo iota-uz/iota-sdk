@@ -171,16 +171,23 @@ func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 	if err != nil {
 		return nil, err
 	}
+	results, err := mapping.MapDbModels(dbInventoryCheck.Results, toDomainInventoryCheckResult)
+	if err != nil {
+		return nil, err
+	}
 	check := &inventory.Check{
 		ID:           dbInventoryCheck.ID,
 		Status:       status,
 		Type:         typ,
 		Name:         dbInventoryCheck.Name,
+		Results:      results,
 		CreatedAt:    dbInventoryCheck.CreatedAt,
 		FinishedAt:   mapping.Value(dbInventoryCheck.FinishedAt),
-		CreatedBy:    persistence.ToDomainUser(dbInventoryCheck.CreatedBy),
 		FinishedByID: mapping.Value(dbInventoryCheck.FinishedByID),
 		CreatedByID:  dbInventoryCheck.CreatedByID,
+	}
+	if dbInventoryCheck.CreatedBy != nil {
+		check.CreatedBy = persistence.ToDomainUser(dbInventoryCheck.CreatedBy)
 	}
 	if dbInventoryCheck.FinishedBy != nil {
 		check.FinishedBy = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
@@ -192,6 +199,22 @@ func toDBInventoryCheckResult(result *inventory.CheckResult) (*models.InventoryC
 	return &models.InventoryCheckResult{
 		ID:               result.ID,
 		PositionID:       result.PositionID,
+		ExpectedQuantity: result.ExpectedQuantity,
+		ActualQuantity:   result.ActualQuantity,
+		Difference:       result.Difference,
+		CreatedAt:        result.CreatedAt,
+	}, nil
+}
+
+func toDomainInventoryCheckResult(result *models.InventoryCheckResult) (*inventory.CheckResult, error) {
+	pos, err := toDomainPosition(result.Position)
+	if err != nil {
+		return nil, err
+	}
+	return &inventory.CheckResult{
+		ID:               result.ID,
+		PositionID:       result.PositionID,
+		Position:         pos,
 		ExpectedQuantity: result.ExpectedQuantity,
 		ActualQuantity:   result.ActualQuantity,
 		Difference:       result.Difference,

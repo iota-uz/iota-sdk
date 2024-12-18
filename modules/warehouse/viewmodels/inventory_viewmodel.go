@@ -22,6 +22,7 @@ type Check struct {
 type CheckResult struct {
 	ID               string
 	PositionID       string
+	Position         *Position
 	ExpectedQuantity string
 	ActualQuantity   string
 	Difference       string

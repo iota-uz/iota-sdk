@@ -209,6 +209,7 @@
       },
       "Type": "Type",
       "Inventory": "Inventory",
+      "FactualQuantity": "Fact quantity / quantity in 1C",
       "Types": {
         "full": "Full",
         "partial": "Partial"

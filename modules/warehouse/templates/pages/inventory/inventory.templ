@@ -19,6 +19,13 @@ type IndexPageProps struct {
 	PaginationState *pagination.State
 }
 
+func inventoryCheckHref(check *viewmodels.Check) string {
+	if check.Type == string(inventory.Partial) {
+		return fmt.Sprintf("/warehouse/inventory/%s/partial", check.ID)
+	}
+	return fmt.Sprintf("/warehouse/inventory/%s", check.ID)
+}
+
 templ InventoryTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
