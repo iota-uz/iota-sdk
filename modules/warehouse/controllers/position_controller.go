@@ -27,7 +27,7 @@ import (
 
 type PositionsController struct {
 	app             application.Application
-	positionService *position_service.PositionService
+	positionService *positionservice.PositionService
 	unitService     *services.UnitService
 	basePath        string
 }
@@ -40,7 +40,7 @@ type PositionPaginatedResponse struct {
 func NewPositionsController(app application.Application) application.Controller {
 	return &PositionsController{
 		app:             app,
-		positionService: app.Service(position_service.PositionService{}).(*position_service.PositionService),
+		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
 		unitService:     app.Service(services.UnitService{}).(*services.UnitService),
 		basePath:        "/warehouse/positions",
 	}

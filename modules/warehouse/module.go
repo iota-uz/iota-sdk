@@ -34,10 +34,10 @@ func (m *Module) Register(app application.Application) error {
 	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher())
 	app.RegisterService(unitService)
 
-	productService := product_service.NewProductService(persistence.NewProductRepository(), app.EventPublisher())
+	productService := productservice.NewProductService(persistence.NewProductRepository(), app.EventPublisher())
 	app.RegisterService(productService)
 
-	positionService := position_service.NewPositionService(
+	positionService := positionservice.NewPositionService(
 		persistence.NewPositionRepository(),
 		app.EventPublisher(),
 		app,

@@ -1,4 +1,4 @@
-package position_service
+package positionservice
 
 import "slices"
 

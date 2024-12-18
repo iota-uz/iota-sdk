@@ -27,8 +27,8 @@ import (
 
 type ProductsController struct {
 	app             application.Application
-	productService  *product_service.ProductService
-	positionService *position_service.PositionService
+	productService  *productservice.ProductService
+	positionService *positionservice.PositionService
 	basePath        string
 }
 
@@ -40,8 +40,8 @@ type PaginatedResponse struct {
 func NewProductsController(app application.Application) application.Controller {
 	return &ProductsController{
 		app:             app,
-		productService:  app.Service(product_service.ProductService{}).(*product_service.ProductService),
-		positionService: app.Service(position_service.PositionService{}).(*position_service.PositionService),
+		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
+		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
 		basePath:        "/warehouse/products",
 	}
 }

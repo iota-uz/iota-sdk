@@ -1,4 +1,4 @@
-package position_service_test
+package positionservice_test
 
 import (
 	"context"
@@ -67,7 +67,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	testCtx.App.RegisterService(services.NewUnitService(unitRepo, publisher))
 
 	productRepo := persistence.NewProductRepository()
-	testCtx.App.RegisterService(product_service.NewProductService(productRepo, publisher))
+	testCtx.App.RegisterService(productservice.NewProductService(productRepo, publisher))
 
 	uploadRepo := corepersistence.NewUploadRepository()
 	storage, err := corepersistence.NewFSStorage()
@@ -77,7 +77,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	testCtx.App.RegisterService(coreservices.NewUploadService(uploadRepo, storage, publisher))
 
 	positionRepo := persistence.NewPositionRepository()
-	positionService := position_service.NewPositionService(positionRepo, publisher, testCtx.App)
+	positionService := positionservice.NewPositionService(positionRepo, publisher, testCtx.App)
 
 	ctx := context.WithValue(testCtx.Context, constants.UserKey, testutils.MockUser(
 		permissions.PositionCreate,
