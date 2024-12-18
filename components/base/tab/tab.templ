@@ -39,6 +39,15 @@ templ Button(value string) {
 	}
 }
 
+templ Link(href string, active bool) {
+	@button.Ghost(button.Props{
+		Href:  href,
+		Class: templ.CSSClasses{"rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full", templ.KV("after:bg-brand-500", active)},
+	}) {
+		{ children... }
+	}
+}
+
 templ Content(value string) {
 	<div x-show={ fmt.Sprintf("selectedTab === '%s'", value) }>
 		{ children... }

@@ -35,6 +35,13 @@ func (s *InventoryService) GetByID(ctx context.Context, id uint) (*inventory.Che
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *InventoryService) GetByIDWithDifference(ctx context.Context, id uint) (*inventory.Check, error) {
+	if err := composables.CanUser(ctx, permissions.InventoryRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByIDWithDifference(ctx, id)
+}
+
 func (s *InventoryService) GetAll(ctx context.Context) ([]*inventory.Check, error) {
 	if err := composables.CanUser(ctx, permissions.InventoryRead); err != nil {
 		return nil, err

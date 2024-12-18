@@ -211,6 +211,7 @@
       "Type": "Тип",
       "Inventory": "Инвентаризация",
       "FactualQuantity": "Факт. кол-во/кол-во в 1С",
+      "Difference": "Разница",
       "Types": {
         "full": "Полная",
         "partial": "Частичная"
