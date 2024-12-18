@@ -83,7 +83,7 @@ templ CreatedAt(pageCtx *types.PageContext) {
 				<option :value="`${startOfDay(0)}|${endOfDay(0)}`">{ pageCtx.T("Filters.CreatedAt.Today") }</option>
 				<option :value="`${startOfDay(1)}|${endOfDay(1)}`">{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
 				<option :value="`${startOfWeek()}|${endOfWeek()}`">{ pageCtx.T("Filters.CreatedAt.ThisWeek") }</option>
-				<option :value="`${startOfWeek(2)}|${endOfWeek(2)}`">{ pageCtx.T("Filters.CreatedAt.LastWeek") }</option>
+				<option :value="`${startOfWeek(1)}|${endOfWeek(1)}`">{ pageCtx.T("Filters.CreatedAt.LastWeek") }</option>
 				<option :value="`${startOfMonth()}|${endOfMonth()}`">{ pageCtx.T("Filters.CreatedAt.ThisMonth") }</option>
 			}
 			<input type="hidden" name="CreatedAt.From" :value="createdAt.split('|')[0]"/>
