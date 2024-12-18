@@ -61,6 +61,7 @@ func (c *InventoryController) Register(r *mux.Router) {
 	getRouter.HandleFunc("/positions/search", c.SearchPositions).Methods(http.MethodGet)
 	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 	getRouter.HandleFunc("/{id:[0-9]+}/partial", c.GetEditPartial).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}/difference", c.GetEditDifference).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
@@ -264,7 +265,38 @@ func (c *InventoryController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	entity, err := c.inventoryService.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving inventory check", http.StatusInternalServerError)
+		return
+	}
+	props := &inventorytemplate.EditPageProps{
+		PageContext: pageCtx,
+		Check:       mappers.CheckToViewModel(entity),
+		Errors:      map[string]string{},
+		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+	}
+	templ.Handler(inventorytemplate.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *InventoryController) GetEditDifference(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	pageCtx, err := composables.UsePageCtx(
+		r,
+		types.NewPageData("WarehouseInventory.Edit.Meta.Title", ""),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	entity, err := c.inventoryService.GetByIDWithDifference(r.Context(), id)
+	if err != nil {
+		fmt.Println("DIFFERENCE: ", err)
+		http.Error(w, "Error retrieving inventory check", http.StatusInternalServerError)
 		return
 	}
 	props := &inventorytemplate.EditPageProps{

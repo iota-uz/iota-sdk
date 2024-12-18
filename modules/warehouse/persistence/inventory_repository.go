@@ -88,6 +88,18 @@ func (g *GormInventoryRepository) GetByID(ctx context.Context, id uint) (*invent
 	return toDomainInventoryCheck(&entity)
 }
 
+func (g *GormInventoryRepository) GetByIDWithDifference(ctx context.Context, id uint) (*inventory.Check, error) {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return nil, composables.ErrNoTx
+	}
+	var entity models.InventoryCheck
+	if err := tx.Preload("Results", "actual_quantity != expected_quantity").Preload("Results.Position.Unit").Where("id = ?", id).First(&entity).Error; err != nil {
+		return nil, err
+	}
+	return toDomainInventoryCheck(&entity)
+}
+
 func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Check) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

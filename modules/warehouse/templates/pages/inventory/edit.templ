@@ -53,6 +53,16 @@ templ EditForm(props *EditPageProps) {
 					<option value={ string(inventory.Partial) } selected?={ props.Check.Type == string(inventory.Partial) }>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
 				}
 			</div>
+			@tab.Root(tab.Props{}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Link(fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID), props.PageContext.Pathname == fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID)) {
+						{ props.T("All") }
+					}
+					@tab.Link(fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID), props.PageContext.Pathname == fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID)) {
+						{ props.T("WarehouseInventory.Single.Difference") }
+					}
+				}
+			}
 			<div class="flex flex-col gap-4 table-selected">
 				@base.Table(&base.TableProps{
 					Columns: []*base.TableColumn{
