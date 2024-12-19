@@ -23,6 +23,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/nicksnyder/go-i18n/v2 v2.4.1
+	github.com/repeale/fp-go v0.11.1
 	github.com/rs/cors v1.11.1
 	github.com/rubenv/sql-migrate v1.7.0
 	github.com/sashabaranov/go-openai v1.36.0
@@ -67,7 +68,6 @@ require (
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
-	github.com/repeale/fp-go v0.11.1 // indirect
 	github.com/richardlehane/mscfb v1.0.4 // indirect
 	github.com/richardlehane/msoleps v1.0.4 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
