@@ -140,6 +140,18 @@ func (g *GormProductRepository) GetByRfid(ctx context.Context, rfid string) (*pr
 	return toDomainProduct(&entity)
 }
 
+func (g *GormProductRepository) GetByRfidMany(ctx context.Context, tags []string) ([]*product.Product, error) {
+	tx, err := g.tx(ctx, &product.FindParams{})
+	if err != nil {
+		return nil, err
+	}
+	var entities []*models.WarehouseProduct
+	if err := tx.Where("rfid IN (?)", tags).Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	return mapping.MapDbModels(entities, toDomainProduct)
+}
+
 func (g *GormProductRepository) Create(ctx context.Context, data *product.Product) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

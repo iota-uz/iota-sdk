@@ -12,7 +12,19 @@ type PaginatedProducts {
     total: Int64!
 }
 
+input CreateProductsFromTags {
+    positionId: ID!
+    tags: [String!]!
+}
+
+type ValidateProductsResult {
+    valid: [String!]!
+    invalid: [String!]!
+}
+
 extend type Query {
     product(id: ID!): Product
     products(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedProducts!
+    createProductsFromTags(input: CreateProductsFromTags!): [Product!]!
+    validateProducts(tags: [String!]!): ValidateProductsResult!
 }

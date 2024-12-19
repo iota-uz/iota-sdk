@@ -19,6 +19,11 @@ type UpdateDTO struct {
 	Status     string
 }
 
+type CreateProductsFromTagsDTO struct {
+	Tags       []string
+	PositionID uint
+}
+
 func (d *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)

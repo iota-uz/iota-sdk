@@ -3,7 +3,6 @@ package productservice
 import (
 	"context"
 	"errors"
-
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
@@ -88,29 +87,74 @@ func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) er
 	return nil
 }
 
-func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateDTO) error {
+func (s *ProductService) CreateProductsFromTags(
+	ctx context.Context, data *product.CreateProductsFromTagsDTO,
+) ([]*product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
-		return err
+		return nil, err
+	}
+	dtos := make([]*product.CreateDTO, len(data.Tags))
+	for i, tag := range data.Tags {
+		dtos[i] = &product.CreateDTO{
+			Rfid:       tag,
+			PositionID: data.PositionID,
+			Status:     string(product.InStock),
+		}
+	}
+	entities, err := s.BulkCreate(ctx, dtos)
+	if err != nil {
+		return nil, err
+	}
+	return entities, nil
+}
+
+func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([]*product.Product, []*product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
+		return nil, nil, err
+	}
+	entities, err := s.repo.GetByRfidMany(ctx, tags)
+	if err != nil {
+		return nil, nil, err
+	}
+	var valid []*product.Product
+	var invalid []*product.Product
+	for _, entity := range entities {
+		if entity.Status == product.InDevelopment {
+			valid = append(valid, entity)
+			entity.Status = product.Approved
+		} else {
+			invalid = append(invalid, entity)
+		}
+		if err := s.repo.Update(ctx, entity); err != nil {
+			return nil, nil, err
+		}
+	}
+	return valid, invalid, nil
+}
+
+func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateDTO) ([]*product.Product, error) {
+	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
+		return nil, err
 	}
 	entities := make([]*product.Product, len(data))
 	for i, d := range data {
 		entity, err := d.ToEntity()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		entities[i] = entity
 	}
 	if err := s.repo.BulkCreate(ctx, entities); err != nil {
-		return err
+		return nil, err
 	}
 	for i, d := range data {
 		createdEvent, err := product.NewCreatedEvent(ctx, *d, *entities[i])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		s.publisher.Publish(createdEvent)
 	}
-	return nil
+	return entities, nil
 }
 
 func (s *ProductService) Update(ctx context.Context, id uint, data *product.UpdateDTO) error {

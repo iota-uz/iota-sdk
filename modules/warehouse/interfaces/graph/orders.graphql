@@ -20,4 +20,5 @@ type PaginatedOrders {
 extend type Query {
     order(id: ID!): Order
     orders(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedOrders!
+    completeOrder(id: ID!): Order
 }
