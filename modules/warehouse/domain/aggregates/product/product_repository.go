@@ -30,16 +30,17 @@ type CountParams struct {
 }
 
 type Repository interface {
-	GetPaginated(ctx context.Context, params *FindParams) ([]*Product, error)
-	Count(ctx context.Context) (int64, error)
-	CountWithFilters(ctx context.Context, opts *CountParams) (int64, error)
-	GetAll(ctx context.Context) ([]*Product, error)
-	GetByID(ctx context.Context, id uint) (*Product, error)
-	GetByRfid(ctx context.Context, rfid string) (*Product, error)
-	FindByPositionID(ctx context.Context, opts *FindByPositionParams) ([]*Product, error)
-	Create(ctx context.Context, data *Product) error
-	BulkCreate(ctx context.Context, data []*Product) error
-	CreateOrUpdate(ctx context.Context, data *Product) error
-	Update(ctx context.Context, data *Product) error
-	Delete(ctx context.Context, id uint) error
+	GetPaginated(context.Context, *FindParams) ([]*Product, error)
+	Count(context.Context) (int64, error)
+	CountWithFilters(context.Context, *CountParams) (int64, error)
+	GetAll(context.Context) ([]*Product, error)
+	GetByID(context.Context, uint) (*Product, error)
+	GetByRfid(context.Context, string) (*Product, error)
+	GetByRfidMany(context.Context, []string) ([]*Product, error)
+	FindByPositionID(context.Context, *FindByPositionParams) ([]*Product, error)
+	Create(context.Context, *Product) error
+	BulkCreate(context.Context, []*Product) error
+	CreateOrUpdate(context.Context, *Product) error
+	Update(context.Context, *Product) error
+	Delete(context.Context, uint) error
 }

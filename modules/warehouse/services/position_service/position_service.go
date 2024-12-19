@@ -100,7 +100,8 @@ func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, un
 			Status:     string(product.InStock),
 		})
 	}
-	return s.productService.BulkCreate(ctx, products)
+	_, err = s.productService.BulkCreate(ctx, products)
+	return err
 }
 
 func (s *PositionService) LoadFromFilePath(ctx context.Context, path string) error {

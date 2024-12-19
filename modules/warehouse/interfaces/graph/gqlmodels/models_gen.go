@@ -6,6 +6,25 @@ import (
 	"time"
 )
 
+type CreateProductsFromTags struct {
+	PositionID int64    `json:"positionId"`
+	Tags       []string `json:"tags"`
+}
+
+type InventoryItem struct {
+	PositionID int64 `json:"positionId"`
+	Found      int   `json:"found"`
+}
+
+type InventoryPosition struct {
+	ID    int64    `json:"id"`
+	Title string   `json:"title"`
+	Tags  []string `json:"tags"`
+}
+
+type Mutation struct {
+}
+
 type Order struct {
 	ID        int64        `json:"id"`
 	Type      string       `json:"type"`
@@ -45,6 +64,11 @@ type Product struct {
 }
 
 type Query struct {
+}
+
+type ValidateProductsResult struct {
+	Valid   []string `json:"valid"`
+	Invalid []string `json:"invalid"`
 }
 
 type WarehousePosition struct {

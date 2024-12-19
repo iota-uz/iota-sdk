@@ -1,0 +1,18 @@
+type InventoryPosition {
+    id: ID!
+    title: String!
+    tags: [String!]!
+}
+
+input InventoryItem {
+    positionId: ID!
+    found: Int!
+}
+
+extend type Query {
+    inventoryPositions(offset: Int!, limit: Int!, sortBy: [String!]): [InventoryPosition!]!
+}
+
+extend type Mutation {
+    completeInventoryCheck(items: [InventoryItem!]!): InventoryPosition!
+}

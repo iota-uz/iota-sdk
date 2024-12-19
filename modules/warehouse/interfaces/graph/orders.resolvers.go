@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
@@ -40,4 +41,9 @@ func (r *queryResolver) Orders(ctx context.Context, offset int, limit int, sortB
 		Data:  mapping.MapViewModels(orders, mappers.OrderToGraphModel),
 		Total: total,
 	}, nil
+}
+
+// CompleteOrder is the resolver for the completeOrder field.
+func (r *queryResolver) CompleteOrder(ctx context.Context, id int64) (*model.Order, error) {
+	panic(fmt.Errorf("not implemented: CompleteOrder - completeOrder"))
 }
