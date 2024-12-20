@@ -7,23 +7,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
 )
-
-func NewLogger(level logger.LogLevel) logger.Interface {
-	return logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             time.Second,
-			LogLevel:                  level,
-			IgnoreRecordNotFoundError: true,
-			ParameterizedQueries:      true,
-			Colorful:                  true,
-		},
-	)
-}
 
 func ConnectDB(dbOpts string, loggerInstance logger.Interface) (*gorm.DB, error) {
 	db, err := gorm.Open(

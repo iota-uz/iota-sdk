@@ -15,7 +15,7 @@ seed:
 
 # Run tests
 test:
-	go test -v ./...
+	go test -v ./... -coverprofile=./coverage/coverage.out
 
 # Run tests with file watching
 test-watch:
@@ -24,6 +24,12 @@ test-watch:
 # Run tests inside docker
 test-docker:
 	docker compose -f docker-compose.testing.yml up --build erp_local
+
+coverage-score:
+	go tool cover -func ./coverage/coverage.out | grep "total:" | awk '{print ((int($$3) > 80) != 1) }'
+
+report:
+	go tool cover -html=coverage.out -o ./coverage/cover.html
 
 # Run PostgreSQL
 localdb:
