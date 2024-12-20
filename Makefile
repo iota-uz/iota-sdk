@@ -21,6 +21,10 @@ test:
 test-watch:
 	gow test -v ./...
 
+# Run tests inside docker
+test-docker:
+	docker compose -f docker-compose.testing.yml up --build erp_local
+
 # Run PostgreSQL
 localdb:
 	docker compose -f docker-compose.dev.yml up
@@ -32,10 +36,6 @@ migrate-up:
 # Downgrade database migrations (down)
 migrate-down:
 	go run cmd/migrate/main.go down
-
-# Start development server with hot-reloading
-dev:
-	air
 
 # Compile TailwindCSS (with watch)
 css-watch:
