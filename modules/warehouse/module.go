@@ -2,8 +2,10 @@ package warehouse
 
 import (
 	"embed"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/graph"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates"
@@ -89,6 +91,14 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
 	app.RegisterModule(m)
+	app.RegisterGraphSchema(application.GraphSchema{
+		Value: graph.NewExecutableSchema(graph.Config{
+			Resolvers: &graph.Resolver{
+				App: app,
+			},
+		}),
+		BasePath: "/warehouse",
+	})
 	return nil
 }
 
