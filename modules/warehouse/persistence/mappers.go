@@ -31,25 +31,28 @@ func toDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	}
 }
 
-func toDBOrder(data *order.Order) (*models.WarehouseOrder, []*models.WarehouseOrderItem) {
-	var dbItems []*models.WarehouseOrderItem
-	for _, item := range data.Items {
-		for _, p := range item.Products {
-			dbItems = append(dbItems, &models.WarehouseOrderItem{
-				ProductID: p.ID,
-				CreatedAt: data.CreatedAt,
-			})
+func ToDBOrder(data order.Order) (*models.WarehouseOrder, error) {
+	var dbProducts []*models.WarehouseProduct
+	for _, item := range data.Items() {
+		for _, domainProduct := range item.Products() {
+			dbProduct, err := toDBProduct(domainProduct)
+			if err != nil {
+				return nil, err
+			}
+			dbProducts = append(dbProducts, dbProduct)
 		}
 	}
-	return &models.WarehouseOrder{
-		ID:        data.ID,
-		Status:    string(data.Status),
-		Type:      string(data.Type),
-		CreatedAt: data.CreatedAt,
-	}, dbItems
+	dbOrder := &models.WarehouseOrder{
+		ID:        data.ID(),
+		Status:    string(data.Status()),
+		Type:      string(data.Type()),
+		Products:  dbProducts,
+		CreatedAt: data.CreatedAt(),
+	}
+	return dbOrder, nil
 }
 
-func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
+func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 	status, err := order.NewStatus(dbOrder.Status)
 	if err != nil {
 		return nil, err
@@ -64,7 +67,7 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 		idToPosition[p.PositionID] = p.Position
 		groupedByPositionID[p.PositionID] = append(groupedByPositionID[p.PositionID], p)
 	}
-	var items []order.Item
+	domainOrder := order.New(orderType, status)
 	for positionID, products := range groupedByPositionID {
 		domainProducts, err := mapping.MapDbModels(products, toDomainProduct)
 		if err != nil {
@@ -74,18 +77,11 @@ func toDomainOrder(dbOrder *models.WarehouseOrder) (*order.Order, error) {
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, order.Item{
-			Position: *positionEntity,
-			Products: mapping.ValueSlice(domainProducts),
-		})
+		if err := domainOrder.AddItem(*positionEntity, domainProducts...); err != nil {
+			return nil, err
+		}
 	}
-	return &order.Order{
-		ID:        dbOrder.ID,
-		Status:    status,
-		Type:      orderType,
-		Items:     items,
-		CreatedAt: dbOrder.CreatedAt,
-	}, nil
+	return domainOrder, nil
 }
 
 func toDBProduct(entity *product.Product) (*models.WarehouseProduct, error) {

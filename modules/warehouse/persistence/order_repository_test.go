@@ -12,13 +12,12 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/testutils"
 )
 
-func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
+func TestGormOrderRepository_CRUD(t *testing.T) {
 	ctx := testutils.GetTestContext()
 	defer ctx.Tx.Commit()
 
 	unitRepository := persistence.NewUnitRepository()
 	positionRepository := persistence.NewPositionRepository()
-	productRepository := persistence.NewProductRepository()
 	orderRepository := persistence.NewOrderRepository()
 
 	if err := unitRepository.Create(
@@ -43,36 +42,18 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		t.Fatal(err)
 	}
 
-	productEntity := &product.Product{
-		ID:         1,
-		PositionID: 1,
-		Rfid:       "EPS:321456",
-		Status:     product.Approved,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}
-	if err := productRepository.Create(ctx.Context, productEntity); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := orderRepository.Create(
-		ctx.Context, &order.Order{
-			ID:     1,
-			Status: order.Pending,
-			Type:   order.TypeIn,
-			Items: []order.Item{
-				{
-					Position: *positionEntity,
-					Products: []product.Product{*productEntity},
-				},
-			},
-			CreatedAt: time.Now(),
-		},
+	orderEntity := order.New(order.TypeIn, order.Pending)
+	if err := orderEntity.AddItem(
+		*positionEntity,
+		product.New("EPS:242323", 1, product.Approved, positionEntity),
 	); err != nil {
 		t.Fatal(err)
 	}
+	if err := orderRepository.Create(ctx.Context, orderEntity); err != nil {
+		t.Fatal(err)
+	}
 
-	t.Run( //nolint:paralleltest
+	t.Run(
 		"Count", func(t *testing.T) {
 			count, err := orderRepository.Count(ctx.Context)
 			if err != nil {
@@ -84,7 +65,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
 		"GetPaginated", func(t *testing.T) {
 			orders, err := orderRepository.GetPaginated(ctx.Context, &order.FindParams{
 				Limit:  1,
@@ -97,13 +78,13 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if len(orders) != 1 {
 				t.Errorf("expected 1, got %d", len(orders))
 			}
-			if len(orders[0].Items) != 1 {
-				t.Errorf("expected 1, got %d", len(orders[0].Items))
+			if len(orders[0].Items()) != 1 {
+				t.Errorf("expected 1, got %d", len(orders[0].Items()))
 			}
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
 		"GetAll", func(t *testing.T) {
 			orders, err := orderRepository.GetAll(ctx.Context)
 			if err != nil {
@@ -112,46 +93,68 @@ func TestGormOrderRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if len(orders) != 1 {
 				t.Errorf("expected 1, got %d", len(orders))
 			}
-			if len(orders[0].Items) != 1 {
-				t.Errorf("expected 1, got %d", len(orders[0].Items))
+			firstOrder := orders[0]
+			if len(firstOrder.Items()) != 1 {
+				t.Errorf("expected 1, got %d", len(firstOrder.Items()))
 			}
-			if orders[0].Status != order.Pending {
-				t.Errorf("expected %s, got %s", order.Pending, orders[0].Status)
+			if firstOrder.Status() != order.Pending {
+				t.Errorf("expected %s, got %s", order.Pending, firstOrder.Status())
 			}
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
 		"GetByID", func(t *testing.T) {
-			orderEntity, err := orderRepository.GetByID(ctx.Context, 1)
+			entity, err := orderRepository.GetByID(ctx.Context, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if orderEntity.Status != order.Pending {
-				t.Errorf("expected %s, got %s", order.Pending, orderEntity.Status)
+			if entity.Status() != order.Pending {
+				t.Errorf("expected %s, got %s", order.Pending, entity.Status())
 			}
-			if len(orderEntity.Items) != 1 {
-				t.Errorf("expected 1, got %d", len(orderEntity.Items))
+			if len(entity.Items()) != 1 {
+				t.Errorf("expected 1, got %d", len(entity.Items()))
 			}
 		},
 	)
 
-	t.Run( //nolint:paralleltest
+	t.Run(
 		"Update", func(t *testing.T) {
-			if err := orderRepository.Update(
-				ctx.Context, &order.Order{
-					ID:     1,
-					Status: order.Complete,
-				},
-			); err != nil {
-				t.Fatal(err)
-			}
-			orderEntity, err := orderRepository.GetByID(ctx.Context, 1)
+			entity, err := orderRepository.GetByID(ctx.Context, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if orderEntity.Status != order.Complete {
-				t.Errorf("expected %s, got %s", order.Complete, orderEntity.Status)
+			if err := entity.Complete(); err != nil {
+				t.Fatal(err)
+			}
+			if err := orderRepository.Update(ctx.Context, entity); err != nil {
+				t.Fatal(err)
+			}
+			updatedOrder, err := orderRepository.GetByID(ctx.Context, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if updatedOrder.Status() != order.Complete {
+				t.Errorf("expected %s, got %s", order.Complete, updatedOrder.Status())
+			}
+			item := updatedOrder.Items()[0]
+			if item.Products()[0].Status != product.InStock {
+				t.Errorf("expected %s, got %s", product.InStock, item.Products()[0].Status)
+			}
+		},
+	)
+
+	t.Run(
+		"Delete", func(t *testing.T) {
+			if err := orderRepository.Delete(ctx.Context, 1); err != nil {
+				t.Fatal(err)
+			}
+			count, err := orderRepository.Count(ctx.Context)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Errorf("expected 0, got %d", count)
 			}
 		},
 	)

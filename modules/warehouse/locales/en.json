@@ -4,7 +4,9 @@
     "ERR_DUPLICATE_RFID": "Rfid {{.Rfid}} already exists",
     "ERR_DUPLICATE_BARCODE": "Barcode {{.Barcode}} already exists",
     "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Not enough products in stock",
-    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Not enough products in development"
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Not enough products in development",
+    "ERR_ORDER_IS_ALREADY_COMPLETE": "Order is already complete",
+    "ERR_PRODUCT_IS_SHIPPED": "Product is already shipped"
   },
   "NavigationLinks": {
     "Warehouse": "Warehouse",

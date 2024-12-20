@@ -38,9 +38,11 @@ type Repository interface {
 	GetByRfid(context.Context, string) (*Product, error)
 	GetByRfidMany(context.Context, []string) ([]*Product, error)
 	FindByPositionID(context.Context, *FindByPositionParams) ([]*Product, error)
+	UpdateStatus(context.Context, []uint, Status) error
 	Create(context.Context, *Product) error
 	BulkCreate(context.Context, []*Product) error
 	CreateOrUpdate(context.Context, *Product) error
 	Update(context.Context, *Product) error
+	BulkDelete(context.Context, []uint) error
 	Delete(context.Context, uint) error
 }

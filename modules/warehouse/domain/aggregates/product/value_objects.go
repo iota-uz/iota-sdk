@@ -3,6 +3,7 @@ package product
 import "errors"
 
 const (
+	Shipped       Status = "shipped"
 	InStock       Status = "in_stock"
 	InDevelopment Status = "in_development"
 	Approved      Status = "approved"

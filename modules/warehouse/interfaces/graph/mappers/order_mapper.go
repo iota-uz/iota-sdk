@@ -8,20 +8,21 @@ import (
 )
 
 func OrderItemsToGraphModel(item order.Item) *model.OrderItem {
+	pos := item.Position()
 	return &model.OrderItem{
-		Position: PositionToGraphModel(&item.Position),
-		Products: mapping.MapViewModels(item.Products, func(p product.Product) *model.Product {
-			return ProductToGraphModel(&p)
+		Position: PositionToGraphModel(&pos),
+		Products: mapping.MapViewModels(item.Products(), func(p *product.Product) *model.Product {
+			return ProductToGraphModel(p)
 		}),
 	}
 }
 
-func OrderToGraphModel(o *order.Order) *model.Order {
+func OrderToGraphModel(o order.Order) *model.Order {
 	return &model.Order{
-		ID:        int64(o.ID),
-		Type:      string(o.Type),
-		Status:    string(o.Status),
-		Items:     mapping.MapViewModels(o.Items, OrderItemsToGraphModel),
-		CreatedAt: o.CreatedAt,
+		ID:        int64(o.ID()),
+		Type:      string(o.Type()),
+		Status:    string(o.Status()),
+		Items:     mapping.MapViewModels(o.Items(), OrderItemsToGraphModel),
+		CreatedAt: o.CreatedAt(),
 	}
 }

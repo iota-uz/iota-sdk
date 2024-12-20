@@ -67,7 +67,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create server: %v", err)
 	}
-	log.Printf("starting server on %s", conf.SocketAddress)
 	if err := serverInstance.Start(conf.SocketAddress); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}

@@ -1,11 +1,10 @@
-package services
+package orderservice
 
 import (
 	"context"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
@@ -16,29 +15,33 @@ type OrderService struct {
 	publisher   event.Publisher
 }
 
-func NewOrderService(publisher event.Publisher) *OrderService {
+func NewOrderService(
+	publisher event.Publisher,
+	orderRepo order.Repository,
+	productRepo product.Repository,
+) *OrderService {
 	return &OrderService{
-		repo:        persistence.NewOrderRepository(),
-		productRepo: persistence.NewProductRepository(),
+		repo:        orderRepo,
+		productRepo: productRepo,
 		publisher:   publisher,
 	}
 }
 
-func (s *OrderService) GetByID(ctx context.Context, id uint) (*order.Order, error) {
+func (s *OrderService) GetByID(ctx context.Context, id uint) (order.Order, error) {
 	if err := composables.CanUser(ctx, permissions.OrderRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *OrderService) GetAll(ctx context.Context) ([]*order.Order, error) {
+func (s *OrderService) GetAll(ctx context.Context) ([]order.Order, error) {
 	if err := composables.CanUser(ctx, permissions.OrderRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetAll(ctx)
 }
 
-func (s *OrderService) GetPaginated(ctx context.Context, params *order.FindParams) ([]*order.Order, error) {
+func (s *OrderService) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
 	if err := composables.CanUser(ctx, permissions.OrderRead); err != nil {
 		return nil, err
 	}
@@ -60,13 +63,24 @@ func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	// TODO: Uncomment this code after creating the event
-	//createdEvent, err := order.NewCreatedEvent(ctx, *data, *entity)
-	//if err != nil {
+	return nil
+}
+
+func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, error) {
+	//if err := composables.CanUser(ctx, permissions.OrderComplete); err != nil {
 	//	return err
 	//}
-	//s.publisher.Publish(createdEvent)
-	return nil
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := entity.Complete(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Update(ctx, entity); err != nil {
+		return nil, err
+	}
+	return entity, nil
 }
 
 func (s *OrderService) Update(ctx context.Context, id uint, data order.UpdateDTO) error {
@@ -83,7 +97,7 @@ func (s *OrderService) Update(ctx context.Context, id uint, data order.UpdateDTO
 	return nil
 }
 
-func (s *OrderService) Delete(ctx context.Context, id uint) (*order.Order, error) {
+func (s *OrderService) Delete(ctx context.Context, id uint) (order.Order, error) {
 	if err := composables.CanUser(ctx, permissions.OrderDelete); err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ type Product struct {
 func (p *Product) LocalizedStatus(l *i18n.Localizer) string {
 	return l.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
-			ID: fmt.Sprintf("Products.Statuses.%s", p.Status),
+			ID: fmt.Sprintf("products.Statuses.%s", p.Status),
 		},
 	})
 }

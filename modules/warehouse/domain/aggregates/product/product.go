@@ -5,6 +5,17 @@ import (
 	"time"
 )
 
+func New(rfid string, positionID uint, status Status, position *position.Position) *Product {
+	return &Product{
+		PositionID: positionID,
+		Rfid:       rfid,
+		Status:     status,
+		Position:   position,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+}
+
 type Product struct {
 	ID         uint
 	PositionID uint
