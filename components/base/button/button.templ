@@ -9,6 +9,7 @@ const (
 	VariantPrimaryOutline
 	VariantSidebar
 	VariantDanger
+	VariantGhost
 )
 
 const (
@@ -24,6 +25,7 @@ var variants = map[Variant]string{
 	VariantSidebar:        "btn-sidebar",
 	VariantPrimaryOutline: "btn-primary-outline",
 	VariantDanger:         "btn-danger",
+	VariantGhost:          "btn-ghost",
 }
 
 var sizes = map[Size]string{
@@ -40,7 +42,7 @@ type Props struct {
 	Href    string
 	Rounded bool
 	Loading bool
-	Class   string
+	Class   any
 	Icon    templ.Component
 	Attrs   templ.Attributes
 }
@@ -153,6 +155,22 @@ templ Danger(props Props) {
 templ Sidebar(props Props) {
 	@base(Props{
 		variant: VariantSidebar,
+		Size:    props.Size,
+		Class:   props.Class,
+		Href:    props.Href,
+		Fixed:   props.Fixed,
+		Rounded: props.Rounded,
+		Attrs:   props.Attrs,
+		Icon:    props.Icon,
+		Loading: props.Loading,
+	}) {
+		{ children... }
+	}
+}
+
+templ Ghost(props Props) {
+	@base(Props{
+		variant: VariantGhost,
 		Size:    props.Size,
 		Class:   props.Class,
 		Href:    props.Href,
