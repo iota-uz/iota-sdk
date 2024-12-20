@@ -1,0 +1,8 @@
+type Example {
+  id: Int!
+  content: String!
+}
+
+extend type Query {
+  examples: [Example!]!
+}
