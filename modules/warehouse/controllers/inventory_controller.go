@@ -10,11 +10,11 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/mappers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/mappers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	inventorytemplate "github.com/iota-agency/iota-sdk/modules/warehouse/templates/pages/inventory"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
@@ -26,7 +26,7 @@ import (
 type InventoryController struct {
 	app              application.Application
 	inventoryService *services.InventoryService
-	positionService  *position_service.PositionService
+	positionService  *positionservice.PositionService
 	basePath         string
 }
 
@@ -40,7 +40,7 @@ func NewInventoryController(app application.Application) application.Controller 
 		app:              app,
 		basePath:         "/warehouse/inventory",
 		inventoryService: app.Service(services.InventoryService{}).(*services.InventoryService),
-		positionService:  app.Service(position_service.PositionService{}).(*position_service.PositionService),
+		positionService:  app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
 	}
 }
 
