@@ -29,16 +29,6 @@ type TestContext struct {
 	App     application.Application
 }
 
-func DropPublicSchema(db *gorm.DB) error {
-	q := `
-		DROP SCHEMA IF EXISTS public CASCADE;
-		CREATE SCHEMA public;
-		GRANT ALL ON SCHEMA public TO postgres;
-		GRANT ALL ON SCHEMA public TO public;
-	`
-	return db.Exec(q).Error
-}
-
 func MockUser(permissions ...permission.Permission) *user.User {
 	return &user.User{
 		ID:         1,
@@ -99,7 +89,7 @@ func GetTestContext() *TestContext {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
-	if err := DropPublicSchema(db); err != nil {
+	if err := app.RollbackMigrations(); err != nil {
 		panic(err)
 	}
 	if err := app.RunMigrations(); err != nil {

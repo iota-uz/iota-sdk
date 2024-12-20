@@ -26,7 +26,7 @@ func (g *GormOrderRepository) tx(ctx context.Context) (*gorm.DB, error) {
 	return tx, nil
 }
 
-func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]*order.Order, error) {
+func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
 	tx, err := g.tx(ctx)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 		}
 		rows[i].Products = products
 	}
-	return mapping.MapDbModels(rows, toDomainOrder)
+	return mapping.MapDbModels(rows, ToDomainOrder)
 }
 
 func (g *GormOrderRepository) getProducts(ctx context.Context, id uint) ([]*models.WarehouseProduct, error) {
@@ -75,7 +75,7 @@ func (g *GormOrderRepository) getProducts(ctx context.Context, id uint) ([]*mode
 	var rows []*models.WarehouseProduct
 	for _, entity := range entities {
 		var product models.WarehouseProduct
-		q := tx.Where("id = ?", entity.ProductID).Preload("Position").Preload("Position.Unit")
+		q := tx.Where("id = ?", entity.WarehouseProductID).Preload("Position").Preload("Position.Unit")
 		if err := q.First(&product).Error; err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormOrderRepository) GetAll(ctx context.Context) ([]*order.Order, error) {
+func (g *GormOrderRepository) GetAll(ctx context.Context) ([]order.Order, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -113,10 +113,10 @@ func (g *GormOrderRepository) GetAll(ctx context.Context) ([]*order.Order, error
 		}
 		rows[i].Products = products
 	}
-	return mapping.MapDbModels(rows, toDomainOrder)
+	return mapping.MapDbModels(rows, ToDomainOrder)
 }
 
-func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (*order.Order, error) {
+func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -130,40 +130,39 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (*order.Orde
 		return nil, err
 	}
 	row.Products = products
-	return toDomainOrder(&row)
+	return ToDomainOrder(&row)
 }
 
-func (g *GormOrderRepository) Create(ctx context.Context, data *order.Order) error {
+func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	or, orderItems := toDBOrder(data)
-	if err := tx.Create(or).Error; err != nil {
+	dbOrder, err := ToDBOrder(data)
+	if err != nil {
 		return err
 	}
-	for _, item := range orderItems {
-		item.WarehouseOrderID = or.ID
-	}
-	return tx.Create(orderItems).Error
+	return tx.Create(dbOrder).Error
 }
 
-func (g *GormOrderRepository) Update(ctx context.Context, data *order.Order) error {
+func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	or, orderItems := toDBOrder(data)
-	if err := tx.Updates(or).Error; err != nil {
+	dbOrder, err := ToDBOrder(data)
+	if err != nil {
 		return err
 	}
-	if err := tx.Where("warehouse_order_id = ?", or.ID).Delete(&models.WarehouseOrderItem{}).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Updates(dbOrder).Error; err != nil {
 		return err
 	}
-	if len(orderItems) == 0 {
-		return nil
+	for _, p := range dbOrder.Products {
+		if err := tx.Updates(p).Error; err != nil {
+			return err
+		}
 	}
-	return tx.Create(orderItems).Error
+	return tx.Model(dbOrder).Association("products").Replace(dbOrder.Products)
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {

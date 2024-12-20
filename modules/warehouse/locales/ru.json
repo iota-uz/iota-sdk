@@ -4,7 +4,9 @@
     "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует",
     "ERR_DUPLICATE_BARCODE": "Артикул {{.Barcode}} уже существует",
     "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Недостаточно продукции на складе",
-    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Недостаточно продукции в разработке"
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Недостаточно продукции в разработке",
+    "ERR_ORDER_IS_ALREADY_COMPLETE": "Заявка уже завершена",
+    "ERR_PRODUCT_IS_SHIPPED": "Продукт уже отгружен"
   },
   "NavigationLinks": {
     "Warehouse": "Склад",

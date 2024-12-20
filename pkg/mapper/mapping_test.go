@@ -3,7 +3,6 @@ package mapper
 import "testing"
 
 func TestStrictMapping(t *testing.T) {
-	t.Parallel()
 	type Source struct {
 		Field1 string
 		Field2 int
@@ -32,7 +31,6 @@ func TestStrictMapping(t *testing.T) {
 }
 
 func TestStrictMappingWithDifferentTypes(t *testing.T) {
-	t.Parallel()
 	type Source struct {
 		Field1 string
 		Field2 int

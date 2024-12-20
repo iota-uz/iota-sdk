@@ -3,7 +3,6 @@ package order
 import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"time"
 )
 
 type CreateDTO struct {
@@ -18,7 +17,7 @@ type UpdateDTO struct {
 	ProductIDs []uint
 }
 
-func (d *CreateDTO) ToEntity() (*Order, error) {
+func (d *CreateDTO) ToEntity() (Order, error) {
 	t, err := NewType(d.Type)
 	if err != nil {
 		return nil, err
@@ -27,22 +26,16 @@ func (d *CreateDTO) ToEntity() (*Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	var items []Item
+	entity := New(t, s)
 	for _, id := range d.ProductIDs {
-		items = append(items, Item{
-			Position: position.Position{},
-			Products: []product.Product{{ID: id}},
-		})
+		if err := entity.AddItem(position.Position{}, &product.Product{ID: id}); err != nil {
+			return nil, err
+		}
 	}
-	return &Order{
-		Type:      t,
-		Status:    s,
-		Items:     items,
-		CreatedAt: time.Now(),
-	}, nil
+	return entity, nil
 }
 
-func (d *UpdateDTO) ToEntity(id uint) (*Order, error) {
+func (d *UpdateDTO) ToEntity(id uint) (Order, error) {
 	t, err := NewType(d.Type)
 	if err != nil {
 		return nil, err
@@ -51,18 +44,12 @@ func (d *UpdateDTO) ToEntity(id uint) (*Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	var items []Item
+	entity := New(t, s)
 	for _, productID := range d.ProductIDs {
-		items = append(items, Item{
-			Position: position.Position{},
-			Products: []product.Product{{ID: productID}},
-		})
+		if err := entity.AddItem(position.Position{}, &product.Product{ID: productID}); err != nil {
+			return nil, err
+		}
 	}
-	return &Order{
-		ID:        id,
-		Type:      t,
-		Status:    s,
-		Items:     items,
-		CreatedAt: time.Now(),
-	}, nil
+	entity.SetID(id)
+	return entity, nil
 }

@@ -119,7 +119,7 @@ func (c *ProductsController) renderTemplate(w http.ResponseWriter, r *http.Reque
 }
 
 func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := c.preparePageContext(r, "Products.List.Meta.Title")
+	pageCtx, err := c.preparePageContext(r, "products.List.Meta.Title")
 	if err != nil {
 		c.handleError(w, err)
 		return
@@ -153,7 +153,7 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
+	pageCtx, err := c.preparePageContext(r, "products.Edit.Meta.Title")
 	if err != nil {
 		c.handleError(w, err)
 		return
@@ -194,7 +194,7 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
+		pageCtx, err := c.preparePageContext(r, "products.Edit.Meta.Title")
 		if err != nil {
 			c.handleError(w, err)
 			return
@@ -243,7 +243,7 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := c.preparePageContext(r, "Products.New.Meta.Title")
+	pageCtx, err := c.preparePageContext(r, "products.New.Meta.Title")
 	if err != nil {
 		c.handleError(w, err)
 		return
@@ -265,7 +265,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := c.preparePageContext(r, "Products.New.Meta.Title")
+	pageCtx, err := c.preparePageContext(r, "products.New.Meta.Title")
 	if err != nil {
 		c.handleError(w, err)
 		return

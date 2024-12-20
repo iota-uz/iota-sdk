@@ -15,17 +15,24 @@ import (
 	orderin "github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/orders/in"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates/pages/orders/out"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/fp"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"net/http"
 	"strconv"
+)
+
+var (
+	OrdersToViewModels = fp.Map[order.Order, *viewmodels.Order](func(o order.Order) *viewmodels.Order {
+		return mappers.OrderToViewModel(o, map[uint]int{})
+	})
 )
 
 type OrderItem struct {
@@ -64,7 +71,7 @@ func OrderInItemToViewModel(item OrderItem) orderin.OrderItem {
 
 type OrdersController struct {
 	app             application.Application
-	orderService    *services.OrderService
+	orderService    *orderservice.OrderService
 	positionService *positionservice.PositionService
 	productService  *productservice.ProductService
 	basePath        string
@@ -78,7 +85,7 @@ type OrderPaginatedResponse struct {
 func NewOrdersController(app application.Application) application.Controller {
 	return &OrdersController{
 		app:             app,
-		orderService:    app.Service(services.OrderService{}).(*services.OrderService),
+		orderService:    app.Service(orderservice.OrderService{}).(*orderservice.OrderService),
 		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
 		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
 		basePath:        "/warehouse/orders",
@@ -131,9 +138,7 @@ func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResp
 	}
 	return &OrderPaginatedResponse{
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
-		Orders: mapping.MapViewModels(entities, func(o *order.Order) *viewmodels.Order {
-			return mappers.OrderToViewModel(o, map[uint]int{})
-		}),
+		Orders:          OrdersToViewModels(entities),
 	}, nil
 }
 
@@ -179,7 +184,7 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var status product.Status
-	switch entity.Type {
+	switch entity.Type() {
 	case order.TypeIn:
 		status = product.InDevelopment
 	case order.TypeOut:
@@ -187,16 +192,16 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 
 	}
 	countByPositionID := make(map[uint]int)
-	for _, item := range entity.Items {
+	for _, item := range entity.Items() {
 		count, err := c.productService.CountInStock(r.Context(), &product.CountParams{
-			PositionID: item.Position.ID,
+			PositionID: item.Position().ID,
 			Status:     status,
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		countByPositionID[item.Position.ID] = int(count)
+		countByPositionID[item.Position().ID] = int(count)
 	}
 
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.View.Meta.Title", ""))

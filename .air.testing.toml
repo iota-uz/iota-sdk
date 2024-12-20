@@ -1,34 +1,38 @@
 root = "."
 testdata_dir = "testdata"
-tmp_dir = "tmp"
 
 [build]
-args_bin = []
-bin = "./tmp/main"
-cmd = "go build -o ./tmp/main cmd/server/main.go"
-delay = 1000
+cmd = "go test -v ./..."
+args = [] # Replace default args with test command
+# Binary name after build (not used in this setup)
+bin = ""
+# Specify working directory if needed
+full_bin = ""
+# Timeout for the build process
+delay = 2000 # in milliseconds
+kill_signal = "SIGINT"
+# Patterns to watch
 exclude_dir = ["tmp", "vendor", "testdata", "postgres-data", "static", "py-embed", "e2e"]
 exclude_file = []
-exclude_regex = ["_test.go", "_templ.go"]
+exclude_regex = []
 exclude_unchanged = false
 follow_symlink = false
-full_bin = ""
 include_dir = []
-include_ext = ["go", "templ", "html", "json", "js", "css"]
+include_ext = ["go", "templ", "json"]
 include_file = []
 kill_delay = "0s"
 log = "build-errors.log"
 poll = false
 poll_interval = 0
 post_cmd = []
-pre_cmd = [
-    "templ generate",
-    "tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css -o pkg/presentation/assets/css/main.min.css --minify"
-]
+pre_cmd = []
 rerun = false
 rerun_delay = 500
 send_interrupt = false
 stop_on_error = false
+
+[run]
+cmd = ""
 
 [color]
 app = ""
@@ -36,11 +40,6 @@ build = "yellow"
 main = "magenta"
 runner = "green"
 watcher = "cyan"
-
-[proxy]
-enabled = true
-proxy_port = 8080
-app_port = 3200
 
 [log]
 main_only = false

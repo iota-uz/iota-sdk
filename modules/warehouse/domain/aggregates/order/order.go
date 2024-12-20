@@ -6,19 +6,21 @@ import (
 	"time"
 )
 
-type Order struct {
-	ID        uint
-	Type      Type
-	Status    Status
-	Items     []Item
-	CreatedAt time.Time
+type Order interface {
+	ID() uint
+	Type() Type
+	Status() Status
+	Items() []Item
+	CreatedAt() time.Time
+
+	SetID(id uint)
+
+	AddItem(position position.Position, products ...*product.Product) error
+	Complete() error
 }
 
-type Item struct {
-	Position position.Position
-	Products []product.Product
-}
-
-func (i *Item) Quantity() int {
-	return len(i.Products)
+type Item interface {
+	Position() position.Position
+	Products() []*product.Product
+	Quantity() int
 }

@@ -48,17 +48,12 @@ Before starting, ensure the following tools are installed on your system:
    air
    ```
 
-7. **Enable Templ in watch mode**:
-   ```bash
-   templ generate -watch
-   ```
-
-8. **Compile TailwindCSS**:
+7. **Compile TailwindCSS**:
    ```bash
    tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css -o pkg/presentation/assets/css/main.min.css --minify --watch
    ```
 
-9. **Access the GraphQL Schema**:  
+8. **Access the GraphQL Schema**:  
    Open Postman and connect to:  
    [http://localhost:3200/query](http://localhost:3200/query)
 

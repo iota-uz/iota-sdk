@@ -8,6 +8,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/application"
@@ -42,7 +43,11 @@ func (m *Module) Register(app application.Application) error {
 		app.EventPublisher(),
 		app,
 	)
-	orderService := services.NewOrderService(app.EventPublisher())
+	orderService := orderservice.NewOrderService(
+		app.EventPublisher(),
+		persistence.NewOrderRepository(),
+		persistence.NewProductRepository(),
+	)
 
 	app.RegisterService(positionService)
 	app.RegisterService(orderService)
@@ -92,7 +97,7 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 			Href: "/warehouse",
 			Children: []types.NavigationItem{
 				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Products"}),
+					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.products"}),
 					Href: "/warehouse/products",
 					Permissions: []permission.Permission{
 						permissions.ProductRead,

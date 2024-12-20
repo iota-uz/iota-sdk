@@ -210,6 +210,22 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 	return tx.Save(dbRow).Error
 }
 
+func (g *GormProductRepository) UpdateStatus(ctx context.Context, uints []uint, status product.Status) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return composables.ErrNoTx
+	}
+	return tx.Model(&models.WarehouseProduct{}).Where("id IN (?)", uints).Update("status", status).Error
+}
+
+func (g *GormProductRepository) BulkDelete(ctx context.Context, IDs []uint) error {
+	tx, ok := composables.UseTx(ctx)
+	if !ok {
+		return composables.ErrNoTx
+	}
+	return tx.Where("id IN (?)", IDs).Delete(&models.WarehouseProduct{}).Error
+}
+
 func (g *GormProductRepository) Delete(ctx context.Context, id uint) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {

@@ -46,10 +46,10 @@ CREATE TABLE warehouse_orders
 
 CREATE TABLE warehouse_order_items
 (
-    warehouse_order_id INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
-    product_id         INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    PRIMARY KEY (warehouse_order_id, product_id)
+    warehouse_order_id   INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
+    warehouse_product_id INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
+    created_at           TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    PRIMARY KEY (warehouse_order_id, warehouse_product_id)
 );
 
 CREATE TABLE inventory_checks
@@ -71,11 +71,11 @@ CREATE TABLE inventory_check_results
 );
 
 -- +migrate Down
-DROP TABLE warehouse_order_items;
-DROP TABLE warehouse_orders;
-DROP TABLE inventory_check_results;
-DROP TABLE inventory_checks;
-DROP TABLE warehouse_products;
-DROP TABLE warehouse_position_images;
-DROP TABLE warehouse_positions;
-DROP TABLE warehouse_units;
+DROP TABLE IF EXISTS inventory_check_results CASCADE;
+DROP TABLE IF EXISTS warehouse_order_items CASCADE;
+DROP TABLE IF EXISTS warehouse_orders CASCADE;
+DROP TABLE IF EXISTS inventory_checks CASCADE;
+DROP TABLE IF EXISTS warehouse_products CASCADE;
+DROP TABLE IF EXISTS warehouse_positions CASCADE;
+DROP TABLE IF EXISTS warehouse_position_images CASCADE;
+DROP TABLE IF EXISTS warehouse_units CASCADE;

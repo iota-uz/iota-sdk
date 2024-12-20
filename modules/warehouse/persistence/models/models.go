@@ -38,9 +38,9 @@ type WarehouseOrder struct {
 }
 
 type WarehouseOrderItem struct {
-	WarehouseOrderID uint
-	ProductID        uint
-	CreatedAt        time.Time
+	WarehouseOrderID   uint
+	WarehouseProductID uint
+	CreatedAt          time.Time
 }
 
 type WarehousePosition struct {
