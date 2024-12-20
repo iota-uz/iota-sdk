@@ -42,6 +42,6 @@ func TestPublisher_Subscribe(t *testing.T) {
 		t.Error("should be called")
 	}
 	if data != "test" {
-		t.Error("wrong data")
+		t.Errorf("expected: %v, got: %v", "test", data)
 	}
 }
