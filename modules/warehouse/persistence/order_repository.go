@@ -162,7 +162,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 			return err
 		}
 	}
-	return tx.Model(dbOrder).Association("products").Replace(dbOrder.Products)
+	return tx.Model(dbOrder).Association("Products").Replace(dbOrder.Products)
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {

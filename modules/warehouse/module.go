@@ -114,7 +114,7 @@ func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationIt
 			Href: "/warehouse",
 			Children: []types.NavigationItem{
 				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.products"}),
+					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Products"}),
 					Href: "/warehouse/products",
 					Permissions: []permission.Permission{
 						permissions.ProductRead,
