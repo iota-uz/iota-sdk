@@ -241,7 +241,7 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("q")
 	entities, err := c.positionService.GetPaginated(r.Context(), &position.FindParams{
 		Query: search,
-		Field: "name",
+		Field: "title",
 		Limit: 10,
 	})
 	if err != nil {

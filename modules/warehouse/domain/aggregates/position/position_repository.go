@@ -13,6 +13,7 @@ type FindParams struct {
 	SortBy    []string
 	Query     string
 	Field     string
+	Fields    []string
 	UnitID    string
 	CreatedAt DateRange
 }
@@ -20,6 +21,7 @@ type FindParams struct {
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]*Position, error)
+	GetAllPositionIds(ctx context.Context) ([]uint, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]*Position, error)
 	GetByID(ctx context.Context, id uint) (*Position, error)
 	GetByIDs(ctx context.Context, ids []uint) ([]*Position, error)

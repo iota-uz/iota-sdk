@@ -6,10 +6,11 @@ import (
 )
 
 const (
-	ResourceProduct  permission.Resource = "product"
-	ResourcePosition permission.Resource = "position"
-	ResourceOrder    permission.Resource = "order"
-	ResourceUnit     permission.Resource = "unit"
+	ResourceProduct   permission.Resource = "product"
+	ResourcePosition  permission.Resource = "position"
+	ResourceOrder     permission.Resource = "order"
+	ResourceUnit      permission.Resource = "unit"
+	ResourceInventory permission.Resource = "inventory"
 )
 
 var (
@@ -125,6 +126,34 @@ var (
 		Action:   permission.ActionDelete,
 		Modifier: permission.ModifierAll,
 	}
+	InventoryCreate = permission.Permission{
+		ID:       uuid.MustParse("0193cef6-2b1a-74a1-8081-cd7c9c6270bf"),
+		Name:     "Inventory.Create",
+		Resource: ResourceInventory,
+		Action:   permission.ActionCreate,
+		Modifier: permission.ModifierAll,
+	}
+	InventoryRead = permission.Permission{
+		ID:       uuid.MustParse("0193cef6-5382-7619-89ee-570e5d814f17"),
+		Name:     "Inventory.Read",
+		Resource: ResourceInventory,
+		Action:   permission.ActionRead,
+		Modifier: permission.ModifierAll,
+	}
+	InventoryUpdate = permission.Permission{
+		ID:       uuid.MustParse("0193cef6-6b32-789a-8cc5-fcd7418cc0b6"),
+		Name:     "Inventory.Update",
+		Resource: ResourceInventory,
+		Action:   permission.ActionUpdate,
+		Modifier: permission.ModifierAll,
+	}
+	InventoryDelete = permission.Permission{
+		ID:       uuid.MustParse("0193cef6-858d-7eae-a069-908068574bea"),
+		Name:     "Inventory.Delete",
+		Resource: ResourceInventory,
+		Action:   permission.ActionDelete,
+		Modifier: permission.ModifierAll,
+	}
 )
 
 var Permissions = []permission.Permission{
@@ -144,4 +173,8 @@ var Permissions = []permission.Permission{
 	UnitRead,
 	UnitUpdate,
 	UnitDelete,
+	InventoryCreate,
+	InventoryRead,
+	InventoryUpdate,
+	InventoryDelete,
 }

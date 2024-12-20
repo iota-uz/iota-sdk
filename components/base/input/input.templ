@@ -8,6 +8,8 @@ import (
 type Addon struct {
 	Render    func(props *Props) templ.Component
 	Component templ.Component
+	Class     string
+	Attrs     templ.Attributes
 }
 
 type Props struct {
@@ -36,7 +38,7 @@ templ (p *Props) render() {
 		}
 		<div class="flex items-center w-full relative form-control" { p.WrapperProps... }>
 			if p.AddonLeft != nil {
-				<div class="flex pl-2.5">
+				<div class={ "flex pl-2.5", p.AddonLeft.Class } { p.AddonLeft.Attrs... }>
 					if p.AddonLeft.Render != nil {
 						@p.AddonLeft.Render(p)
 					} else if p.AddonLeft.Component != nil {
@@ -46,7 +48,7 @@ templ (p *Props) render() {
 			}
 			<input id={ p.id } class={ "form-control-input outline-none w-full", p.Class } type={ p.typ } placeholder={ p.Placeholder } { p.Attrs... }/>
 			if p.AddonRight != nil {
-				<div class="flex pr-2.5">
+				<div class={ "flex pr-2.5", p.AddonRight.Class } { p.AddonRight.Attrs... }>
 					if p.AddonRight.Render != nil {
 						@p.AddonRight.Render(p)
 					} else if p.AddonRight.Component != nil {
