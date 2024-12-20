@@ -10,6 +10,7 @@
     "Warehouse": "Склад",
     "Products": "Продукты",
     "WarehousePositions": "Наименования",
+    "WarehouseInventory": "Инвентаризация",
     "WarehouseOrders": "Накладные",
     "WarehouseUnits": "Единицы измерения"
   },
@@ -190,6 +191,58 @@
       "Unit": "Ед. измерения",
       "Delete": "Удалить",
       "DeleteConfirmation": "Вы уверены, что хотите удалить эту заявку?"
+    }
+  },
+  "WarehouseInventory": {
+    "List": {
+      "Meta": {
+        "Title": "Инвентаризация"
+      },
+      "New": "Новая инвентаризация",
+      "Name": "Наименование",
+      "Type": "Тип",
+      "Status": "Статус",
+      "CreatedBy": "Создал",
+      "FinishedBy": "Закончил",
+      "SelectStatus": "Выбрать статус",
+      "SelectType": "Выбрать тип"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Новая инвентаризация"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать инвентаризацию"
+      }
+    },
+    "Single": {
+      "Name": {
+        "Label": "Наименование",
+        "Placeholder": "пр.: Проверка от 16.12.2024"
+      },
+      "Type": "Тип",
+      "Inventory": "Инвентаризация",
+      "FactualQuantity": "Факт. кол-во/кол-во в 1С",
+      "Difference": "Разница",
+      "Types": {
+        "full": "Полная",
+        "partial": "Частичная"
+      },
+      "Statuses": {
+        "success": "Успешно",
+        "incomplete": "В процессе",
+        "failed": "Не успешно"
+      },
+      "Positions": {
+        "Label": "Наименование",
+        "Placeholder": "Наименование или артикул..."
+      },
+      "Added": "Добавленные",
+      "AllPositions": "Все наименования",
+      "Delete": "Удалить",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить эту инвентаризацию?"
     }
   }
 }

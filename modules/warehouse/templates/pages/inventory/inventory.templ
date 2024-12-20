@@ -1,0 +1,139 @@
+package inventory
+
+import (
+	"fmt"
+	"github.com/iota-agency/iota-sdk/components/base"
+	"github.com/iota-agency/iota-sdk/components/base/button"
+	"github.com/iota-agency/iota-sdk/components/base/pagination"
+	"github.com/iota-agency/iota-sdk/components/filters"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/viewmodels"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/types"
+)
+
+type IndexPageProps struct {
+	*types.PageContext
+	Checks          []*viewmodels.Check
+	PaginationState *pagination.State
+}
+
+func inventoryCheckHref(check *viewmodels.Check) string {
+	if check.Type == string(inventory.Partial) {
+		return fmt.Sprintf("/warehouse/inventory/%s/partial", check.ID)
+	}
+	return fmt.Sprintf("/warehouse/inventory/%s", check.ID)
+}
+
+templ InventoryTable(props *IndexPageProps) {
+	<div class="flex flex-col gap-4 table-wrapper">
+		@base.Table(&base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: props.T("WarehouseInventory.List.Name"), Key: "name"},
+				{Label: props.T("WarehouseInventory.List.Status"), Key: "status"},
+				{Label: props.T("WarehouseInventory.List.Type"), Key: "type"},
+				{Label: props.T("WarehouseInventory.List.CreatedBy"), Key: "createdBy"},
+				{Label: props.T("WarehouseInventory.List.FinishedBy"), Key: "finishedBy"},
+				{Label: props.T("Actions"), Class: "w-16"},
+			},
+		}) {
+			for _, check := range props.Checks {
+				@base.TableRow() {
+					@base.TableCell() {
+						{ check.Name }
+					}
+					@base.TableCell() {
+						<div
+							class={ "text-sm max-w-fit px-2 py-1 rounded-md font-medium", 
+							templ.KV("bg-green-100 text-green-600", check.Status == string(inventory.Success)), 
+							templ.KV("bg-yellow-100 text-yellow-700", check.Status == string(inventory.Incomplete)),
+							templ.KV("bg-red-100 text-red-500", check.Status == string(inventory.Failed)) }
+						>
+							{ check.LocalizedStatus(props.Localizer) }
+						</div>
+					}
+					@base.TableCell() {
+						{ check.LocalizedType(props.Localizer) }
+					}
+					@base.TableCell() {
+						{ check.CreatedBy.FullName() }
+					}
+					@base.TableCell() {
+						if check.FinishedBy != nil {
+							{ check.FinishedBy.FullName() }
+						}
+					}
+					@base.TableCell() {
+						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/inventory/%s", check.ID)}) {
+							@icons.PencilSimple(icons.Props{Size: "20"})
+						}
+					}
+				}
+			}
+		}
+		if len(props.PaginationState.Pages()) > 1 {
+			@pagination.Pagination(props.PaginationState)
+		}
+	</div>
+}
+
+templ InventoryContent(props *IndexPageProps) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ props.T("NavigationLinks.WarehouseInventory") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/warehouse/inventory"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@filters.Search(props.PageContext, []filters.SearchField{
+					{
+						Label: props.T("WarehouseInventory.List.Name"),
+						Key:   "name",
+					},
+				})
+				@base.Select(&base.SelectProps{
+					Attrs: templ.Attributes{
+						"name": "Status",
+					},
+				}) {
+					<option selected disabled>{ props.T("WarehouseInventory.List.SelectStatus") }</option>
+					<option value="">{ props.T("All") }</option>
+					<option value={ string(inventory.Success) }>{ props.T("WarehouseInventory.Single.Statuses.success") }</option>
+					<option value={ string(inventory.Incomplete) }>{ props.T("WarehouseInventory.Single.Statuses.incomplete") }</option>
+					<option value={ string(inventory.Failed) }>{ props.T("WarehouseInventory.Single.Statuses.failed") }</option>
+				}
+				@base.Select(&base.SelectProps{
+					Attrs: templ.Attributes{
+						"name": "Type",
+					},
+				}) {
+					<option selected disabled>{ props.T("WarehouseInventory.List.SelectType") }</option>
+					<option value="">{ props.T("All") }</option>
+					<option value={ string(inventory.Full) }>{ props.T("WarehouseInventory.Single.Types.full") }</option>
+					<option value={ string(inventory.Partial) }>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
+				}
+				@filters.PageSize(props.PageContext)
+				@filters.CreatedAt(props.PageContext)
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/warehouse/inventory/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ props.T("WarehouseInventory.List.New") }
+				}
+			</form>
+			@InventoryTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@InventoryContent(props)
+	}
+}

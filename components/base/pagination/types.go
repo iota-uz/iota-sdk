@@ -3,6 +3,7 @@ package pagination
 import (
 	"fmt"
 	"math"
+	"strconv"
 )
 
 type Page struct {
@@ -26,6 +27,10 @@ type State struct {
 	Total   int
 	Current int
 	pages   []Page
+}
+
+func (s *State) TotalStr() string {
+	return strconv.Itoa(s.Total)
 }
 
 func (s *State) Pages() []Page {

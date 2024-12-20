@@ -3,6 +3,7 @@ package shared
 import "github.com/go-playground/form"
 
 var Decoder = form.NewDecoder()
+var Encoder = form.NewEncoder()
 
 type FormAction string
 

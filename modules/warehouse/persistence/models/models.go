@@ -1,8 +1,10 @@
 package models
 
 import (
-	coremodels "github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 	"time"
+
+	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
+	coremodels "github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
 type WarehouseUnit struct {
@@ -14,15 +16,24 @@ type WarehouseUnit struct {
 }
 
 type InventoryCheck struct {
-	ID        uint
-	Status    string
-	CreatedAt time.Time
+	ID           uint
+	Status       string
+	Type         string
+	Name         string
+	Results      []*InventoryCheckResult `gorm:"foreignKey:InventoryCheckID"`
+	CreatedAt    time.Time
+	FinishedAt   *time.Time
+	CreatedByID  uint
+	CreatedBy    *models.User `gorm:"foreignKey:CreatedByID"`
+	FinishedByID *uint
+	FinishedBy   *models.User `gorm:"foreignKey:FinishedByID"`
 }
 
 type InventoryCheckResult struct {
 	ID               uint
 	InventoryCheckID uint
 	PositionID       uint
+	Position         *WarehousePosition
 	ExpectedQuantity int
 	ActualQuantity   int
 	Difference       int
