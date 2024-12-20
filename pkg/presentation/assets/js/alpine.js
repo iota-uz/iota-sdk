@@ -25,6 +25,17 @@ let relativeFormat = () => ({
 });
 
 let dateFns = () => ({
+  formatter: new Intl.DateTimeFormat("ru", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric"
+  }),
+  now() {
+    return this.formatter.format(new Date());
+  },
   startOfDay(days = 0) {
     let date = new Date();
     date.setDate(date.getDate() - days);
@@ -37,17 +48,18 @@ let dateFns = () => ({
     date.setHours(24, 0, 0, 0);
     return date.toISOString();
   },
-  startOfWeek(factor = 1) {
+  startOfWeek(factor = 0) {
     let date = new Date();
-    let firstDay = date.getDate() - (date.getDay() * factor);
+    let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
+    console.log("FIRST DAY: ", firstDay, "FACTOR: ", factor)
     date.setDate(firstDay)
     date.setHours(0, 0, 0, 0);
     return new Date(date).toISOString();
   },
-  endOfWeek(factor = 1) {
+  endOfWeek(factor = 0) {
     let date = new Date();
-    let firstDay = date.getDate() - (date.getDay() * factor)
-    let lastDay = firstDay + 6
+    let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
+    let lastDay = firstDay + 7
     date.setDate(lastDay);
     date.setHours(0, 0, 0, 0);
     return new Date(date.setDate(lastDay)).toISOString();
@@ -167,56 +179,67 @@ let combobox = (searchable = false) => ({
   open: false,
   openedWithKeyboard: false,
   options: [],
-  selectedIndex: null,
   activeIndex: null,
   selectedIndices: new Set(),
+  selectedValues: new Map(),
+  activeValue: null,
   multiple: false,
-  value: "",
   observer: null,
   searchable,
-  setIndex(index) {
-    if (index == null || index > this.options.length - 1 || !(this.open || this.openedWithKeyboard)) return;
-    let indexInt = Number(index);
+  setValue(value) {
+    if (value == null || !(this.open || this.openedWithKeyboard)) return;
+    let index, option
+    for (let i = 0, len = this.options.length; i < len; i++) {
+      let o = this.options[i];
+      if (o.value === value) {
+        index = i;
+        option = o;
+      }
+    }
+    if (index == null || index > this.options.length - 1) return;
     if (this.multiple) {
       this.options[index].toggleAttribute("selected");
-      if (this.selectedIndices.has(indexInt)) {
-        this.selectedIndices.delete(indexInt);
+      if (this.selectedValues.has(value)) {
+        this.selectedValues.delete(value);
       } else {
-        this.selectedIndices.add(indexInt);
+        this.selectedValues.set(value, {
+          value,
+          label: option.textContent,
+        });
       }
     } else {
       for (let i = 0, len = this.options.length; i < len; i++) {
-        if (i === indexInt) this.options[i].toggleAttribute("selected");
+        let option = this.options[i];
+        if (option.value === value) this.options[i].toggleAttribute("selected");
         else this.options[i].removeAttribute("selected");
       }
       if (
-        this.selectedIndices.size > 0 &&
-        !this.selectedIndices.has(indexInt)
+        this.selectedValues.size > 0 &&
+        !this.selectedValues.has(value)
       ) {
-        this.selectedIndices.clear();
+        this.selectedValues.clear();
       }
-      if (this.selectedIndices.has(indexInt)) {
-        this.selectedIndices.delete(indexInt);
-      } else this.selectedIndices.add(indexInt);
+      if (this.selectedValues.has(value)) {
+        this.selectedValues.delete(value);
+      } else this.selectedValues.set(value, {
+        value,
+        label: option.textContent,
+      });
     }
-    this.generateValue();
     this.open = false;
     this.openedWithKeyboard = false;
-    if (this.selectedIndices.size === 0) {
+    if (this.selectedValues.size === 0) {
       this.$refs.select.value = "";
     }
     this.$refs.select.dispatchEvent(new Event("change"));
-    this.activeIndex = indexInt;
+    this.activeValue = value;
+    if (this.$refs.input) {
+      this.$refs.input.value = "";
+      this.$refs.input.focus();
+    }
   },
   toggle() {
     this.open = !this.open;
-  },
-  generateValue() {
-    let values = [];
-    for (let i of this.selectedIndices.values()) {
-      values.push(this.options[i].textContent);
-    }
-    this.value = values.join(", ");
   },
   setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
@@ -226,11 +249,21 @@ let combobox = (searchable = false) => ({
       }
     }
   },
+  setActiveValue(value) {
+    for (let i = 0, len = this.options.length; i < len; i++) {
+      let option = this.options[i];
+      if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
+        this.activeValue = option.value;
+        return option;
+      }
+    }
+  },
   onInput() {
     if (!this.open) this.open = true;
   },
   highlightMatchingOption(pressedKey) {
     this.setActiveIndex(pressedKey);
+    this.setActiveValue(pressedKey);
     let allOptions = this.$refs.list.querySelectorAll(".combobox-option");
     if (this.activeIndex !== null) {
       allOptions[this.activeIndex]?.focus();
@@ -244,15 +277,20 @@ let combobox = (searchable = false) => ({
         let option = this.options[i];
         if (option.selected) {
           this.activeIndex = i;
-          if (this.selectedIndices > 0 && !this.multiple) continue;
-          this.selectedIndices.add(i);
+          this.activeValue = option.value;
+          if (this.selectedValues.size > 0 && !this.multiple) continue;
+          this.selectedValues.set(option.value, {
+            label: option.textContent,
+            value: option.value,
+          })
         }
       }
-      this.generateValue();
       this.observer = new MutationObserver(() => {
         this.options = this.$el.querySelectorAll("option");
-        this.selectedIndices.clear();
-        this.setActiveIndex(this.$refs.input.value);
+        if (this.$refs.input) {
+          this.setActiveIndex(this.$refs.input.value);
+          this.setActiveValue(this.$refs.input.value);
+        }
       });
       this.observer.observe(this.$el, {
         childList: true

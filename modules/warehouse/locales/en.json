@@ -13,7 +13,8 @@
     "Products": "Products",
     "WarehousePositions": "Warehouse positions",
     "WarehouseOrders": "Warehouse orders",
-    "WarehouseUnits": "Warehouse units"
+    "WarehouseUnits": "Warehouse units",
+    "WarehouseInventory": "Warehouse inventory"
   },
   "Products": {
     "List": {
@@ -191,6 +192,58 @@
       "Unit": "Unit",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse order?"
+    }
+  },
+  "WarehouseInventory": {
+    "List": {
+      "Meta": {
+        "Title": "Warehouse inventory"
+      },
+      "New": "New inventory",
+      "Name": "Name",
+      "Type": "Type",
+      "Status": "Status",
+      "CreatedBy": "Created by",
+      "FinishedBy": "Finished by",
+      "SelectStatus": "Select status",
+      "SelectType": "Select type"
+    },
+    "New": {
+      "Meta": {
+        "Title": "New warehouse inventory"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Edit warehouse inventory"
+      }
+    },
+    "Single": {
+      "Name": {
+        "Label": "Name",
+        "Placeholder": "e.g. Inventory check from 16.12.2024"
+      },
+      "Type": "Type",
+      "Inventory": "Inventory",
+      "FactualQuantity": "Fact quantity / quantity in 1C",
+      "Difference": "Difference",
+      "Types": {
+        "full": "Full",
+        "partial": "Partial"
+      },
+      "Statuses": {
+        "success": "Success",
+        "incomplete": "Incomplete",
+        "failed": "Failed"
+      },
+      "Positions": {
+        "Label": "Positions",
+        "Placeholder": "Position title or barcode..."
+      },
+      "Added": "Added",
+      "AllPositions": "All positions",
+      "Delete": "Delete",
+      "DeleteConfirmation": "Are you sure you want to delete this inventory check?"
     }
   }
 }
