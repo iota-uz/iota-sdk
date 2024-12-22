@@ -32,27 +32,24 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher())
-	app.RegisterServices(unitService)
-
-	productService := productservice.NewProductService(persistence.NewProductRepository(), app.EventPublisher())
-	app.RegisterServices(productService)
-
-	positionService := positionservice.NewPositionService(
-		persistence.NewPositionRepository(),
-		app.EventPublisher(),
-		app,
+	app.RegisterServices(
+		services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher()),
+		productservice.NewProductService(persistence.NewProductRepository(), app.EventPublisher()),
 	)
-	orderService := orderservice.NewOrderService(
-		app.EventPublisher(),
-		persistence.NewOrderRepository(),
-		persistence.NewProductRepository(),
-	)
-	inventoryService := services.NewInventoryService(app.EventPublisher())
 
-	app.RegisterServices(positionService)
-	app.RegisterServices(orderService)
-	app.RegisterServices(inventoryService)
+	app.RegisterServices(
+		positionservice.NewPositionService(
+			persistence.NewPositionRepository(),
+			app.EventPublisher(),
+			app,
+		),
+		orderservice.NewOrderService(
+			app.EventPublisher(),
+			persistence.NewOrderRepository(),
+			persistence.NewProductRepository(),
+		),
+		services.NewInventoryService(app.EventPublisher()),
+	)
 
 	app.RegisterPermissions(
 		permissions.ProductCreate,
