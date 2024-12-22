@@ -33,10 +33,10 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	unitService := services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher())
-	app.RegisterService(unitService)
+	app.RegisterServices(unitService)
 
 	productService := productservice.NewProductService(persistence.NewProductRepository(), app.EventPublisher())
-	app.RegisterService(productService)
+	app.RegisterServices(productService)
 
 	positionService := positionservice.NewPositionService(
 		persistence.NewPositionRepository(),
@@ -50,9 +50,9 @@ func (m *Module) Register(app application.Application) error {
 	)
 	inventoryService := services.NewInventoryService(app.EventPublisher())
 
-	app.RegisterService(positionService)
-	app.RegisterService(orderService)
-	app.RegisterService(inventoryService)
+	app.RegisterServices(positionService)
+	app.RegisterServices(orderService)
+	app.RegisterServices(inventoryService)
 
 	app.RegisterPermissions(
 		permissions.ProductCreate,

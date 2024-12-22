@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/iota-agency/iota-sdk/modules"
+	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/logging"
-	"github.com/iota-agency/iota-sdk/pkg/server"
 	gormlogger "gorm.io/gorm/logger"
 	"log"
 	"os"
@@ -46,7 +47,7 @@ func Migrate() error {
 	if err != nil {
 		panic(err)
 	}
-	app := server.ConstructApp(db)
+	app := application.New(db, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		return err
 	}

@@ -36,7 +36,7 @@ type Application interface {
 	RegisterTemplates(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterMigrationDirs(fs ...*embed.FS)
-	RegisterService(service interface{})
+	RegisterServices(services ...interface{})
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
 	Bundle() *i18n.Bundle

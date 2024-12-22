@@ -1,10 +1,10 @@
 package persistence_test
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
 	financepersistence "github.com/iota-agency/iota-sdk/modules/finance/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/testutils"
 	"testing"
 	"time"
