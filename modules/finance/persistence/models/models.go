@@ -1,7 +1,7 @@
 package models
 
 import (
-	coremodels "github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
+	coremodels "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
 )
 

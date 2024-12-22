@@ -4,10 +4,12 @@ import (
 	"github.com/benbjohnson/hashfs"
 	internalassets "github.com/iota-agency/iota-sdk/internal/assets"
 	"github.com/iota-agency/iota-sdk/modules"
+	"github.com/iota-agency/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/logging"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
 	gormlogger "gorm.io/gorm/logger"
@@ -39,7 +41,7 @@ func main() {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
 
-	app := server.ConstructApp(db)
+	app := application.New(db, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}

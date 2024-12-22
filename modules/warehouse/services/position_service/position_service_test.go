@@ -3,6 +3,8 @@ package positionservice_test
 import (
 	"context"
 	"fmt"
+	persistence2 "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
+	coreservices "github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
@@ -10,8 +12,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	corepersistence "github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
-	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/testutils"
 	"github.com/xuri/excelize/v2"
 	"os"
@@ -64,17 +64,17 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	publisher := event.NewEventPublisher()
 
 	unitRepo := persistence.NewUnitRepository()
-	testCtx.App.RegisterService(services.NewUnitService(unitRepo, publisher))
+	testCtx.App.RegisterServices(services.NewUnitService(unitRepo, publisher))
 
 	productRepo := persistence.NewProductRepository()
-	testCtx.App.RegisterService(productservice.NewProductService(productRepo, publisher))
+	testCtx.App.RegisterServices(productservice.NewProductService(productRepo, publisher))
 
-	uploadRepo := corepersistence.NewUploadRepository()
-	storage, err := corepersistence.NewFSStorage()
+	uploadRepo := persistence2.NewUploadRepository()
+	storage, err := persistence2.NewFSStorage()
 	if err != nil {
 		t.Error(err)
 	}
-	testCtx.App.RegisterService(coreservices.NewUploadService(uploadRepo, storage, publisher))
+	testCtx.App.RegisterServices(coreservices.NewUploadService(uploadRepo, storage, publisher))
 
 	positionRepo := persistence.NewPositionRepository()
 	positionService := positionservice.NewPositionService(positionRepo, publisher, testCtx.App)

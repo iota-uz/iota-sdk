@@ -1,11 +1,11 @@
 package server
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"

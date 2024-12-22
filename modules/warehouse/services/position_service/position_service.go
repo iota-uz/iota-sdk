@@ -3,6 +3,7 @@ package positionservice
 import (
 	"context"
 	"errors"
+	coreservices "github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
@@ -12,7 +13,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"gorm.io/gorm"
 )
 

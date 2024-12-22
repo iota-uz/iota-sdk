@@ -12,7 +12,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
-	"github.com/iota-agency/iota-sdk/pkg/server"
+	"github.com/iota-agency/iota-sdk/pkg/event"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -85,7 +85,7 @@ func GetTestContext() *TestContext {
 	if err != nil {
 		panic(err)
 	}
-	app := server.ConstructApp(db)
+	app := application.New(db, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}

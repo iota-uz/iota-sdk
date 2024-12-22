@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -13,7 +14,6 @@ import (
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
 func ToDomainUser(dbUser *models.User) *user.User {
