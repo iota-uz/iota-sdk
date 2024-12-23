@@ -51,7 +51,7 @@ func Migrate() error {
 	if err != nil {
 		panic(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, conf.DBOpts)
 	if err != nil {
