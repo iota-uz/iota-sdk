@@ -16,17 +16,19 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
 	"gorm.io/gorm"
 )
 
-func New(db *gorm.DB, eventPublisher event.Publisher) Application {
+func New(db *gorm.DB, pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	return &ApplicationImpl{
 		db:             db,
+		pool:           pool,
 		eventPublisher: eventPublisher,
 		rbac:           permission.NewRbac(),
 		services:       make(map[reflect.Type]interface{}),
@@ -37,6 +39,7 @@ func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 // ApplicationImpl with a dynamically extendable service registry
 type ApplicationImpl struct {
 	db             *gorm.DB
+	pool           *pgxpool.Pool
 	eventPublisher event.Publisher
 	rbac           *permission.Rbac
 	services       map[reflect.Type]interface{}

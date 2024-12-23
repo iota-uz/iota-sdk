@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -17,8 +19,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	app := application.New(db, event.NewEventPublisher())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pool, err := pgxpool.New(ctx, conf.DBOpts)
+	if err != nil {
+		panic(err)
+	}
+	app := application.New(db, pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
