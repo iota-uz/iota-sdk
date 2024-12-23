@@ -32,11 +32,10 @@ func Default(options *DefaultOptions) (*server.HttpServer, error) {
 		middleware.RequestParams(),
 		middleware.LogRequests(),
 	)
-	serverInstance := &server.HttpServer{
-		Middlewares:             app.Middleware(),
-		Controllers:             app.Controllers(),
-		NotFoundHandler:         controllers.NotFound(options.Application),
-		MethodNotAllowedHandler: controllers.MethodNotAllowed(),
-	}
+	serverInstance := server.NewHttpServer(
+		app,
+		controllers.NotFound(options.Application),
+		controllers.MethodNotAllowed(),
+	)
 	return serverInstance, nil
 }

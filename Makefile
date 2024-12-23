@@ -2,9 +2,6 @@
 TAILWIND_INPUT := pkg/presentation/assets/css/main.css
 TAILWIND_OUTPUT := pkg/presentation/assets/css/main.min.css
 
-# Default target
-default: dev
-
 # Install dependencies
 deps:
 	go get -u ./...
