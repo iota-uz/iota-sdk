@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/iota-agency/iota-sdk/pkg/server"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -18,22 +19,20 @@ type DefaultOptions struct {
 	Db            *gorm.DB
 }
 
-func Default(options *DefaultOptions) (*HttpServer, error) {
-	db := options.Db
+func Default(options *DefaultOptions) (*server.HttpServer, error) {
 	app := options.Application
-
 	app.RegisterMiddleware(
 		middleware.WithLogger(options.Logger),
 		middleware.Provide(constants.AppKey, app),
 		middleware.Provide(constants.HeadKey, layouts.Head()),
 		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
-		middleware.Provide(constants.DBKey, db),
-		middleware.Provide(constants.TxKey, db),
+		middleware.Provide(constants.DBKey, options.Db),
+		middleware.Provide(constants.TxKey, options.Db),
 		middleware.Cors("http://localhost:3000", "ws://localhost:3000"),
 		middleware.RequestParams(),
 		middleware.LogRequests(),
 	)
-	serverInstance := &HttpServer{
+	serverInstance := &server.HttpServer{
 		Middlewares:             app.Middleware(),
 		Controllers:             app.Controllers(),
 		NotFoundHandler:         controllers.NotFound(options.Application),
