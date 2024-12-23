@@ -12,10 +12,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 //go:embed locales/*.json
@@ -85,57 +81,9 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
-	app.RegisterModule(m)
 	return nil
 }
 
 func (m *Module) Name() string {
 	return "warehouse"
-}
-
-func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationItem {
-	return []types.NavigationItem{
-		{
-			Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Warehouse"}),
-			Icon: icons.Warehouse(icons.Props{Size: "20"}),
-			Href: "/warehouse",
-			Children: []types.NavigationItem{
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Products"}),
-					Href: "/warehouse/products",
-					Permissions: []permission.Permission{
-						permissions.ProductRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehousePositions"}),
-					Href: "/warehouse/positions",
-					Permissions: []permission.Permission{
-						permissions.PositionRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseUnits"}),
-					Href: "/warehouse/units",
-					Permissions: []permission.Permission{
-						permissions.UnitRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseOrders"}),
-					Href: "/warehouse/orders",
-					Permissions: []permission.Permission{
-						permissions.OrderRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseInventory"}),
-					Href: "/warehouse/inventory",
-					Permissions: []permission.Permission{
-						permissions.InventoryRead,
-					},
-				},
-			},
-		},
-	}
 }

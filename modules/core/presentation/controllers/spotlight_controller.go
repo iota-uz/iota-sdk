@@ -60,7 +60,7 @@ func (c *SpotlightController) Register(r *mux.Router) {
 }
 
 func (c *SpotlightController) spotlightItems(localizer *i18n.Localizer) []*spotlight.SpotlightItem {
-	navItems := flatNavItems(c.app.NavigationItems(localizer))
+	navItems := flatNavItems(c.app.NavItems(localizer))
 	t := func(id string) string {
 		return localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: id,

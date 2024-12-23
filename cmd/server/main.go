@@ -1,16 +1,18 @@
 package main
 
 import (
-	"github.com/benbjohnson/hashfs"
 	internalassets "github.com/iota-agency/iota-sdk/internal/assets"
+	"github.com/iota-agency/iota-sdk/internal/server"
 	"github.com/iota-agency/iota-sdk/modules"
+	"github.com/iota-agency/iota-sdk/modules/core"
 	"github.com/iota-agency/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-agency/iota-sdk/modules/finance"
+	"github.com/iota-agency/iota-sdk/modules/warehouse"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 	"github.com/iota-agency/iota-sdk/pkg/logging"
-	"github.com/iota-agency/iota-sdk/pkg/server"
 	_ "github.com/lib/pq"
 	gormlogger "gorm.io/gorm/logger"
 	"log"
@@ -45,14 +47,12 @@ func main() {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}
-	assetsFs := append(
-		[]*hashfs.FS{
-			internalassets.HashFS,
-		},
-		app.HashFsAssets()...,
-	)
+	app.RegisterNavItems(core.NavItems...)
+	app.RegisterNavItems(warehouse.NavItems...)
+	app.RegisterNavItems(finance.NavItems...)
+	app.RegisterHashFsAssets(internalassets.HashFS)
 	app.RegisterControllers(
-		controllers.NewStaticFilesController(assetsFs),
+		controllers.NewStaticFilesController(app.HashFsAssets()),
 	)
 
 	if err := dbutils.CheckModels(db, server.RegisteredModels); err != nil {

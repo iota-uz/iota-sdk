@@ -2,7 +2,7 @@ package seed
 
 import (
 	"context"
-	persistence2 "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
@@ -31,9 +31,9 @@ func navItems2Tabs(navItems []types.NavigationItem) []*tab.Tab {
 }
 
 func CreateUser(ctx context.Context, app application.Application) error {
-	userRepository := persistence2.NewUserRepository()
-	roleRepository := persistence2.NewRoleRepository()
-	tabsRepository := persistence2.NewTabRepository()
+	userRepository := persistence.NewUserRepository()
+	roleRepository := persistence.NewRoleRepository()
+	tabsRepository := persistence.NewTabRepository()
 
 	if err := roleRepository.CreateOrUpdate(ctx, &role.Role{
 		ID:          CEO.ID,
@@ -62,7 +62,7 @@ func CreateUser(ctx context.Context, app application.Application) error {
 		return err
 	}
 	localizer := i18n.NewLocalizer(app.Bundle(), "ru")
-	tabs := navItems2Tabs(app.NavigationItems(localizer))
+	tabs := navItems2Tabs(app.NavItems(localizer))
 	for i, t := range tabs {
 		t.ID = uint(i + 1)
 		t.UserID = usr.ID

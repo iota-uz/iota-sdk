@@ -16,7 +16,6 @@ import (
 type Application interface {
 	DB() *gorm.DB
 	EventPublisher() event.Publisher
-	Modules() []Module
 	Controllers() []Controller
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
@@ -26,9 +25,9 @@ type Application interface {
 	MigrationDirs() []*embed.FS
 	Seed(ctx context.Context) error
 	Permissions() []permission.Permission
+	NavItems(localizer *i18n.Localizer) []types.NavigationItem
+	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
-	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
-	RegisterModule(module Module)
 	RegisterPermissions(permissions ...permission.Permission)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterSeedFuncs(seedFuncs ...SeedFunc)
@@ -53,5 +52,4 @@ type Controller interface {
 type Module interface {
 	Name() string
 	Register(app Application) error
-	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 }

@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/iota-agency/iota-sdk/pkg/types"
 	"log"
 	"reflect"
 	"strings"
@@ -15,12 +16,27 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
 	"gorm.io/gorm"
 )
+
+func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.NavigationItem {
+	translated := make([]types.NavigationItem, 0, len(items))
+	for _, item := range items {
+		translated = append(translated, types.NavigationItem{
+			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: item.Name,
+			}),
+			Href:        item.Href,
+			Children:    translate(localizer, item.Children),
+			Icon:        item.Icon,
+			Permissions: item.Permissions,
+		})
+	}
+	return translated
+}
 
 func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 	bundle := i18n.NewBundle(language.Russian)
@@ -50,6 +66,15 @@ type ApplicationImpl struct {
 	migrationDirs  []*embed.FS
 	seedFuncs      []SeedFunc
 	bundle         *i18n.Bundle
+	navItems       []types.NavigationItem
+}
+
+func (app *ApplicationImpl) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
+	return translate(localizer, app.navItems)
+}
+
+func (app *ApplicationImpl) RegisterNavItems(items ...types.NavigationItem) {
+	app.navItems = append(app.navItems, items...)
 }
 
 func (app *ApplicationImpl) Seed(ctx context.Context) error {
@@ -81,10 +106,6 @@ func (app *ApplicationImpl) EventPublisher() event.Publisher {
 	return app.eventPublisher
 }
 
-func (app *ApplicationImpl) Modules() []Module {
-	return app.modules
-}
-
 func (app *ApplicationImpl) Controllers() []Controller {
 	return app.controllers
 }
@@ -109,20 +130,8 @@ func (app *ApplicationImpl) MigrationDirs() []*embed.FS {
 	return app.migrationDirs
 }
 
-func (app *ApplicationImpl) NavigationItems(l *i18n.Localizer) []types.NavigationItem {
-	var result []types.NavigationItem
-	for _, m := range app.modules {
-		result = append(result, m.NavigationItems(l)...)
-	}
-	return result
-}
-
 func (app *ApplicationImpl) RegisterControllers(controllers ...Controller) {
 	app.controllers = append(app.controllers, controllers...)
-}
-
-func (app *ApplicationImpl) RegisterModule(module Module) {
-	app.modules = append(app.modules, module)
 }
 
 func (app *ApplicationImpl) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {
