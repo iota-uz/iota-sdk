@@ -3,6 +3,10 @@ package testutils
 import (
 	"context"
 	"database/sql"
+	"log"
+	"os"
+	"time"
+
 	"github.com/iota-agency/iota-sdk/modules"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
@@ -13,12 +17,10 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
 	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
 )
 
 type TestContext struct {
@@ -85,7 +87,10 @@ func GetTestContext() *TestContext {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(db, event.NewEventPublisher())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pool, err := pgxpool.New(ctx, conf.DBOpts)
+	app := application.New(db, pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
@@ -101,7 +106,7 @@ func GetTestContext() *TestContext {
 	}
 
 	tx := db.Begin()
-	ctx := composables.WithTx(context.Background(), tx)
+	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithParams(
 		ctx,
 		&composables.Params{
