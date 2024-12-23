@@ -7,6 +7,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -16,10 +17,12 @@ type DefaultOptions struct {
 	Configuration *configuration.Configuration
 	Application   application.Application
 	Db            *gorm.DB
+	Pool          *pgxpool.Pool
 }
 
 func Default(options *DefaultOptions) (*HttpServer, error) {
 	db := options.Db
+	pool := options.Pool
 	app := options.Application
 
 	app.RegisterMiddleware(
@@ -29,6 +32,7 @@ func Default(options *DefaultOptions) (*HttpServer, error) {
 		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
 		middleware.Provide(constants.DBKey, db),
 		middleware.Provide(constants.TxKey, db),
+		middleware.Provide(constants.PoolKey, pool),
 		middleware.Cors("http://localhost:3000", "ws://localhost:3000"),
 		middleware.RequestParams(),
 		middleware.LogRequests(),

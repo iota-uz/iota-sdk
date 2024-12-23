@@ -11,6 +11,8 @@ const (
 	AllNavItemsKey ContextKey = "allNavItems"
 	DBKey          ContextKey = "db"
 	TxKey          ContextKey = "tx"
+	PoolTxKey      ContextKey = "poolTx"
+	PoolKey        ContextKey = "pool"
 	ParamsKey      ContextKey = "params"
 	LoggerKey      ContextKey = "logger"
 	AppKey         ContextKey = "app"
