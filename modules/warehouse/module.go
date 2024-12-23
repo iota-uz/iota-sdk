@@ -84,7 +84,6 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUnitsController(app),
 		controllers.NewOrdersController(app),
 		controllers.NewInventoryController(app),
-		controllers.NewGraphQLController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
