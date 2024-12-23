@@ -47,6 +47,7 @@ type SeedFunc func(ctx context.Context, app Application) error
 
 type Controller interface {
 	Register(r *mux.Router)
+	Key() string
 }
 
 type Module interface {

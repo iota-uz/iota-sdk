@@ -12,6 +12,10 @@ type GraphQLController struct {
 	app application.Application
 }
 
+func (c *GraphQLController) Key() string {
+	return "/graphql/warehouse"
+}
+
 func (c *GraphQLController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

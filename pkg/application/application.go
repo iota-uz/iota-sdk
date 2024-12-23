@@ -45,6 +45,7 @@ func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 		db:             db,
 		eventPublisher: eventPublisher,
 		rbac:           permission.NewRbac(),
+		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
 		bundle:         bundle,
 	}
@@ -57,7 +58,7 @@ type ApplicationImpl struct {
 	rbac           *permission.Rbac
 	services       map[reflect.Type]interface{}
 	modules        []Module
-	controllers    []Controller
+	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
 	hashFsAssets   []*hashfs.FS
 	assets         []*embed.FS
@@ -107,7 +108,11 @@ func (app *ApplicationImpl) EventPublisher() event.Publisher {
 }
 
 func (app *ApplicationImpl) Controllers() []Controller {
-	return app.controllers
+	controllers := make([]Controller, 0, len(app.controllers))
+	for _, c := range app.controllers {
+		controllers = append(controllers, c)
+	}
+	return controllers
 }
 
 func (app *ApplicationImpl) Assets() []*embed.FS {
@@ -131,7 +136,9 @@ func (app *ApplicationImpl) MigrationDirs() []*embed.FS {
 }
 
 func (app *ApplicationImpl) RegisterControllers(controllers ...Controller) {
-	app.controllers = append(app.controllers, controllers...)
+	for _, c := range controllers {
+		app.controllers[c.Key()] = c
+	}
 }
 
 func (app *ApplicationImpl) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {

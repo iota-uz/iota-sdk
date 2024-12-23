@@ -28,6 +28,7 @@ type ExpenseController struct {
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
+
 type ExpensePaginationResponse struct {
 	Expenses        []*viewmodels.Expense
 	PaginationState *pagination.State
@@ -41,6 +42,10 @@ func NewExpensesController(app application.Application) application.Controller {
 		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
 		basePath:               "/finance/expenses",
 	}
+}
+
+func (c *ExpenseController) Key() string {
+	return c.basePath
 }
 
 func (c *ExpenseController) Register(r *mux.Router) {

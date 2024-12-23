@@ -45,6 +45,10 @@ func NewMoneyAccountController(app application.Application) application.Controll
 	}
 }
 
+func (c *MoneyAccountController) Key() string {
+	return c.basePath
+}
+
 func (c *MoneyAccountController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

@@ -48,6 +48,10 @@ type LoginController struct {
 	authService *services.AuthService
 }
 
+func (c *LoginController) Key() string {
+	return "/login"
+}
+
 func (c *LoginController) Register(r *mux.Router) {
 	r.HandleFunc("/oauth/google/callback", c.authService.OauthGoogleCallback)
 
