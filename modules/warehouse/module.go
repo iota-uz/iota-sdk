@@ -5,14 +5,14 @@ import (
 
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/graph"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
+	orderservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
+	positionservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
+	productservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
@@ -91,11 +91,10 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
 	app.RegisterModule(m)
+
 	app.RegisterGraphSchema(application.GraphSchema{
 		Value: graph.NewExecutableSchema(graph.Config{
-			Resolvers: &graph.Resolver{
-				App: app,
-			},
+			Resolvers: graph.NewResolver(app),
 		}),
 		BasePath: "/warehouse",
 	})
