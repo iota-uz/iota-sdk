@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	coreservices "github.com/iota-agency/iota-sdk/modules/core/services"
 	"net/http"
 
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
@@ -15,7 +16,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	coremappers "github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
-	coreservices "github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 

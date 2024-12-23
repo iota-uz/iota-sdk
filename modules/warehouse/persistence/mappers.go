@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
@@ -8,7 +9,6 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 )
 

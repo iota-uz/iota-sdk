@@ -20,7 +20,7 @@ Before starting, ensure the following tools are installed on your system:
 
 2. **Install dependencies**:
    ```bash
-   go get -u -d ./...
+   go get -u ./...
    ```
 
 3. **Set up TailwindCSS**:
@@ -40,7 +40,7 @@ Before starting, ensure the following tools are installed on your system:
 
 5. **Apply database migrations**:
    ```bash
-   go run cmd/migrate/main.go
+   go run cmd/migrate/main.go up
    ```
 
 6. **Start hot-reloading with Air**:

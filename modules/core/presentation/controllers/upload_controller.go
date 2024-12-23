@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"net/http"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 )
 
 type UploadController struct {

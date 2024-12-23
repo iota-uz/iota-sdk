@@ -177,10 +177,12 @@ func (app *ApplicationImpl) RegisterSeedFuncs(seedFuncs ...SeedFunc) {
 	app.seedFuncs = append(app.seedFuncs, seedFuncs...)
 }
 
-// RegisterService registers a new service in the application by its type
-func (app *ApplicationImpl) RegisterService(service interface{}) {
-	serviceType := reflect.TypeOf(service).Elem()
-	app.services[serviceType] = service
+// RegisterServices registers a new service in the application by its type
+func (app *ApplicationImpl) RegisterServices(services ...interface{}) {
+	for _, service := range services {
+		serviceType := reflect.TypeOf(service).Elem()
+		app.services[serviceType] = service
+	}
 }
 
 // Service retrieves a service by its type

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	services2 "github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 	"net/http"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/account"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 
@@ -20,16 +20,16 @@ import (
 
 type AccountController struct {
 	app         application.Application
-	userService *services.UserService
-	tabService  *services.TabService
+	userService *services2.UserService
+	tabService  *services2.TabService
 	basePath    string
 }
 
 func NewAccountController(app application.Application) application.Controller {
 	return &AccountController{
 		app:         app,
-		userService: app.Service(services.UserService{}).(*services.UserService),
-		tabService:  app.Service(services.TabService{}).(*services.TabService),
+		userService: app.Service(services2.UserService{}).(*services2.UserService),
+		tabService:  app.Service(services2.TabService{}).(*services2.TabService),
 		basePath:    "/account",
 	}
 }

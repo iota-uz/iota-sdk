@@ -2,11 +2,11 @@ package seed
 
 import (
 	"context"
+	persistence2 "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -31,9 +31,9 @@ func navItems2Tabs(navItems []types.NavigationItem) []*tab.Tab {
 }
 
 func CreateUser(ctx context.Context, app application.Application) error {
-	userRepository := persistence.NewUserRepository()
-	roleRepository := persistence.NewRoleRepository()
-	tabsRepository := persistence.NewTabRepository()
+	userRepository := persistence2.NewUserRepository()
+	roleRepository := persistence2.NewRoleRepository()
+	tabsRepository := persistence2.NewTabRepository()
 
 	if err := roleRepository.CreateOrUpdate(ctx, &role.Role{
 		ID:          CEO.ID,
