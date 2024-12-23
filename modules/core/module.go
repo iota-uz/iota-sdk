@@ -2,7 +2,9 @@ package core
 
 import (
 	"embed"
+
 	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-agency/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/modules/core/seed"
 	"github.com/iota-agency/iota-sdk/modules/core/services"
@@ -59,6 +61,12 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUploadController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
+	app.RegisterGraphSchema(application.GraphSchema{
+		Value: graph.NewExecutableSchema(graph.Config{
+			Resolvers: graph.NewResolver(app),
+		}),
+		BasePath: "/",
+	})
 	return nil
 }
 

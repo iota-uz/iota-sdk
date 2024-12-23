@@ -2,15 +2,17 @@ package warehouse
 
 import (
 	"embed"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
+	orderservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
+	positionservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
+	productservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 )
 
@@ -75,12 +77,18 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUnitsController(app),
 		controllers.NewOrdersController(app),
 		controllers.NewInventoryController(app),
-		controllers.NewGraphQLController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
+
+	app.RegisterGraphSchema(application.GraphSchema{
+		Value: graph.NewExecutableSchema(graph.Config{
+			Resolvers: graph.NewResolver(app),
+		}),
+		BasePath: "/warehouse",
+	})
 	return nil
 }
 

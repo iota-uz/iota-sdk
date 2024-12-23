@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"embed"
+
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
@@ -11,6 +13,11 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"gorm.io/gorm"
 )
+
+type GraphSchema struct {
+	Value    graphql.ExecutableSchema
+	BasePath string
+}
 
 // Application with a dynamically extendable service registry
 type Application interface {
@@ -35,6 +42,8 @@ type Application interface {
 	RegisterTemplates(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterMigrationDirs(fs ...*embed.FS)
+	RegisterGraphSchema(schema GraphSchema)
+	GraphSchemas() []GraphSchema
 	RegisterServices(services ...interface{})
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}

@@ -65,6 +65,7 @@ type ApplicationImpl struct {
 	templates      []*embed.FS
 	localeFiles    []*embed.FS
 	migrationDirs  []*embed.FS
+	graphSchemas   []GraphSchema
 	seedFuncs      []SeedFunc
 	bundle         *i18n.Bundle
 	navItems       []types.NavigationItem
@@ -135,6 +136,10 @@ func (app *ApplicationImpl) MigrationDirs() []*embed.FS {
 	return app.migrationDirs
 }
 
+func (app *ApplicationImpl) GraphSchemas() []GraphSchema {
+	return app.graphSchemas
+}
+
 func (app *ApplicationImpl) RegisterControllers(controllers ...Controller) {
 	for _, c := range controllers {
 		app.controllers[c.Key()] = c
@@ -155,6 +160,10 @@ func (app *ApplicationImpl) RegisterAssets(fs ...*embed.FS) {
 
 func (app *ApplicationImpl) RegisterTemplates(fs ...*embed.FS) {
 	app.templates = append(app.templates, fs...)
+}
+
+func (app *ApplicationImpl) RegisterGraphSchema(schema GraphSchema) {
+	app.graphSchemas = append(app.graphSchemas, schema)
 }
 
 func (app *ApplicationImpl) RegisterLocaleFiles(fs ...*embed.FS) {
