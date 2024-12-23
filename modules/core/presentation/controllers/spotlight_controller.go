@@ -48,6 +48,10 @@ func NewSpotlightController(app application.Application) application.Controller 
 	}
 }
 
+func (c *SpotlightController) Key() string {
+	return c.basePath
+}
+
 func (c *SpotlightController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(

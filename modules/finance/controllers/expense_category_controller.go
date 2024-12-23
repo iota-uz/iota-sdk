@@ -45,6 +45,10 @@ func NewExpenseCategoriesController(app application.Application) application.Con
 	}
 }
 
+func (c *ExpenseCategoriesController) Key() string {
+	return c.basePath
+}
+
 func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

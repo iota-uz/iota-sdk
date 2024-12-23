@@ -33,6 +33,10 @@ func NewEmployeeController(app application.Application) application.Controller {
 	}
 }
 
+func (c *EmployeeController) Key() string {
+	return c.basePath
+}
+
 func (c *EmployeeController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

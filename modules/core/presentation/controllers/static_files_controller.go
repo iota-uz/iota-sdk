@@ -12,6 +12,10 @@ type StaticFilesController struct {
 	fsInstances []*hashfs.FS
 }
 
+func (s *StaticFilesController) Key() string {
+	return "/assets"
+}
+
 func (s *StaticFilesController) Register(r *mux.Router) {
 	fsHandler := http.StripPrefix("/assets/", http.FileServer(multifs.New(s.fsInstances...)))
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

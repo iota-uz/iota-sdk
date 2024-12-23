@@ -32,6 +32,10 @@ func NewUploadController(app application.Application) application.Controller {
 	}
 }
 
+func (c *UploadController) Key() string {
+	return "/upload"
+}
+
 func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
 	// TODO: middleware

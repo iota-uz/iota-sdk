@@ -43,6 +43,10 @@ func NewPaymentsController(app application.Application) application.Controller {
 	}
 }
 
+func (c *PaymentsController) Key() string {
+	return c.basePath
+}
+
 func (c *PaymentsController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

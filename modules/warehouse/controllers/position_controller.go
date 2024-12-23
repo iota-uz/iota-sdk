@@ -46,6 +46,10 @@ func NewPositionsController(app application.Application) application.Controller 
 	}
 }
 
+func (c *PositionsController) Key() string {
+	return c.basePath
+}
+
 func (c *PositionsController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

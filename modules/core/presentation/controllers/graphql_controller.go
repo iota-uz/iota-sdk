@@ -11,6 +11,10 @@ type GraphQLController struct {
 	app application.Application
 }
 
+func (g *GraphQLController) Key() string {
+	return "/graphql/core"
+}
+
 func (g *GraphQLController) Register(r *mux.Router) {
 	schema := graph.NewExecutableSchema(
 		graph.Config{

@@ -46,6 +46,10 @@ func NewProductsController(app application.Application) application.Controller {
 	}
 }
 
+func (c *ProductsController) Key() string {
+	return c.basePath
+}
+
 func (c *ProductsController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

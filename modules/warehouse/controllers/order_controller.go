@@ -92,6 +92,10 @@ func NewOrdersController(app application.Application) application.Controller {
 	}
 }
 
+func (c *OrdersController) Key() string {
+	return c.basePath
+}
+
 func (c *OrdersController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),

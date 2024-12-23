@@ -34,6 +34,10 @@ func NewAccountController(app application.Application) application.Controller {
 	}
 }
 
+func (c *AccountController) Key() string {
+	return c.basePath
+}
+
 func (c *AccountController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
