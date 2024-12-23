@@ -33,26 +33,26 @@ func (m *Module) Register(app application.Application) error {
 		persistence.NewMoneyAccountRepository(),
 		app.EventPublisher(),
 	)
-	app.RegisterService(
+	app.RegisterServices(
 		services.NewPaymentService(
 			persistence.NewPaymentRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
 		),
 	)
-	app.RegisterService(
+	app.RegisterServices(
 		services.NewExpenseCategoryService(
 			persistence.NewExpenseCategoryRepository(),
 			app.EventPublisher(),
 		))
-	app.RegisterService(
+	app.RegisterServices(
 		services.NewExpenseService(
 			persistence.NewExpenseRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
 		),
 	)
-	app.RegisterService(moneyAccountService)
+	app.RegisterServices(moneyAccountService)
 
 	app.RegisterControllers(
 		controllers.NewExpensesController(app),

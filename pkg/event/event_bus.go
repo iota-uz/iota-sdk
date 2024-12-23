@@ -2,11 +2,6 @@ package event
 
 import "reflect"
 
-type Event interface {
-	Name() string
-	Data() interface{}
-}
-
 type Subscriber struct {
 	Handler interface{}
 }
@@ -27,11 +22,8 @@ func NewEventPublisher() Publisher {
 	return &publisherImpl{}
 }
 
-func (p *publisherImpl) checkSignature(handler interface{}, args []interface{}) bool {
+func matchSignature(handler interface{}, args []interface{}) bool {
 	t := reflect.TypeOf(handler)
-	if t.Kind() != reflect.Func {
-		return false
-	}
 	if t.NumIn() != len(args) {
 		return false
 	}
@@ -46,7 +38,7 @@ func (p *publisherImpl) checkSignature(handler interface{}, args []interface{}) 
 func (p *publisherImpl) Publish(args ...interface{}) {
 	for _, subscriber := range p.Subscribers {
 		v := reflect.ValueOf(subscriber.Handler)
-		if !p.checkSignature(subscriber.Handler, args) {
+		if !matchSignature(subscriber.Handler, args) {
 			continue
 		}
 		in := make([]reflect.Value, len(args))

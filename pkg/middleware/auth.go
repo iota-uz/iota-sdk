@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"context"
+	services2 "github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 	"net/http"
 	"time"
 
@@ -29,7 +29,7 @@ func Authorize() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err)
 				}
-				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				authService := app.Service(services2.AuthService{}).(*services2.AuthService)
 				sess, err := authService.Authorize(ctx, token.Value)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -64,7 +64,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err)
 				}
-				userService := app.Service(services.UserService{}).(*services.UserService)
+				userService := app.Service(services2.UserService{}).(*services2.UserService)
 				u, err := userService.GetByID(ctx, sess.UserID)
 				if err != nil {
 					next.ServeHTTP(w, r)

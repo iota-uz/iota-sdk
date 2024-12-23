@@ -1,10 +1,8 @@
 package models
 
 import (
+	coremodels "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
-
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
-	coremodels "github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 )
 
 type WarehouseUnit struct {
@@ -24,9 +22,9 @@ type InventoryCheck struct {
 	CreatedAt    time.Time
 	FinishedAt   *time.Time
 	CreatedByID  uint
-	CreatedBy    *models.User `gorm:"foreignKey:CreatedByID"`
+	CreatedBy    *coremodels.User `gorm:"foreignKey:CreatedByID"`
 	FinishedByID *uint
-	FinishedBy   *models.User `gorm:"foreignKey:FinishedByID"`
+	FinishedBy   *coremodels.User `gorm:"foreignKey:FinishedByID"`
 }
 
 type InventoryCheckResult struct {

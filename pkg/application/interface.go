@@ -45,7 +45,7 @@ type Application interface {
 	RegisterMigrationDirs(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
-	RegisterService(service interface{})
+	RegisterServices(services ...interface{})
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
 	Bundle() *i18n.Bundle

@@ -1,8 +1,8 @@
 package graph
 
 import (
+	"github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/services"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate

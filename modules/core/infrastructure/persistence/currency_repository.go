@@ -2,10 +2,10 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
-	"github.com/iota-agency/iota-sdk/pkg/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 )
 
