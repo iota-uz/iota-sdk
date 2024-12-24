@@ -53,6 +53,7 @@ func main() {
 	app.RegisterHashFsAssets(internalassets.HashFS)
 	app.RegisterControllers(
 		controllers.NewStaticFilesController(app.HashFsAssets()),
+		controllers.NewGraphQLController(app),
 	)
 
 	if err := dbutils.CheckModels(db, server.RegisteredModels); err != nil {
