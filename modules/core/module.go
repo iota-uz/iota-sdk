@@ -12,6 +12,8 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
 )
 
+//go:generate go run github.com/99designs/gqlgen generate
+
 //go:embed locales/*.json
 var localeFiles embed.FS
 

@@ -1,7 +1,7 @@
 package opt
 
 import (
-	"github.com/repeale/fp-go"
+	"github.com/iota-agency/iota-sdk/pkg/fp"
 )
 
 // Base struct

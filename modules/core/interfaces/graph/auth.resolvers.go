@@ -7,11 +7,11 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/iota-agency/iota-sdk/modules/core/services"
 	"net/http"
 
 	model "github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/mappers"
+	"github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 )

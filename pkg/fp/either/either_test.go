@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	opt "github.com/repeale/fp-go/option"
+	opt "github.com/iota-agency/iota-sdk/pkg/fp/option"
 )
 
 func isOdd(n int) bool {

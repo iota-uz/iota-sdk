@@ -34,7 +34,7 @@ type User struct {
 	FirstName  string    `json:"firstName"`
 	LastName   string    `json:"lastName"`
 	Email      string    `json:"email"`
-	UILanguage string    `json:"uILanguage"`
+	UILanguage string    `json:"uiLanguage"`
 	UpdatedAt  time.Time `json:"updatedAt"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
