@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
