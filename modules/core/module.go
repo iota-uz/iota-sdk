@@ -58,7 +58,6 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewSpotlightController(app),
 		controllers.NewAccountController(app),
 		controllers.NewEmployeeController(app),
-		controllers.NewGraphQLController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
 	)
