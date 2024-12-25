@@ -11,11 +11,12 @@ func ProductToGraphModel(entity *product.Product) *model.Product {
 		pos = PositionToGraphModel(entity.Position)
 	}
 	return &model.Product{
-		ID:        int64(entity.ID),
-		Status:    string(entity.Status),
-		Rfid:      entity.Rfid,
-		Position:  pos,
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
+		ID:         int64(entity.ID),
+		Status:     string(entity.Status),
+		Rfid:       entity.Rfid,
+		Position:   pos,
+		PositionID: int64(entity.PositionID),
+		CreatedAt:  entity.CreatedAt,
+		UpdatedAt:  entity.UpdatedAt,
 	}
 }

@@ -40,11 +40,19 @@ var (
 		},
 		Children: nil,
 	}
+	UnitsItem = types.NavigationItem{
+		Name: "NavigationLinks.WarehouseUnits",
+		Href: "/warehouse/units",
+		Permissions: []permission.Permission{
+			permissions.UnitRead,
+		},
+		Children: nil,
+	}
 	WarehouseItem = types.NavigationItem{
 		Name:     "NavigationLinks.Warehouse",
 		Icon:     icons.Warehouse(icons.Props{Size: "20"}),
 		Href:     "/warehouse",
-		Children: []types.NavigationItem{ProductsItem, PositionsItem, OrdersItem, InventoryItem},
+		Children: []types.NavigationItem{ProductsItem, PositionsItem, OrdersItem, UnitsItem, InventoryItem},
 	}
 )
 

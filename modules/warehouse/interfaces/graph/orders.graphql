@@ -17,8 +17,16 @@ type PaginatedOrders {
     total: Int64!
 }
 
+input OrderQuery {
+    type: String
+    status: String
+    limit: Int!
+    offset: Int!
+    sortBy: [String!]
+}
+
 extend type Query {
     order(id: ID!): Order
-    orders(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedOrders!
+    orders(query: OrderQuery!): PaginatedOrders!
     completeOrder(id: ID!): Order
 }
