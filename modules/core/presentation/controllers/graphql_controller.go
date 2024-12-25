@@ -25,7 +25,6 @@ func (g *GraphQLController) Key() string {
 }
 
 func (g *GraphQLController) Register(r *mux.Router) {
-	// TODO: activate when the graph package is implemented
 	schema := graph.NewExecutableSchema(
 		graph.Config{ //nolint:exhaustruct
 			Resolvers: graph.NewResolver(g.app),
