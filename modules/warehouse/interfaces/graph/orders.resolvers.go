@@ -18,6 +18,11 @@ import (
 
 // Order is the resolver for the order field.
 func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	domainOrder, err := r.orderService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err

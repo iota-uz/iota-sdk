@@ -6,6 +6,9 @@ package graph
 
 import (
 	"context"
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/serrors"
 
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
@@ -15,6 +18,11 @@ import (
 
 // WarehousePosition is the resolver for the warehousePosition field.
 func (r *queryResolver) WarehousePosition(ctx context.Context, id int64) (*model.WarehousePosition, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	domainPosition, err := r.positionService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err
@@ -24,6 +32,11 @@ func (r *queryResolver) WarehousePosition(ctx context.Context, id int64) (*model
 
 // WarehousePositions is the resolver for the warehousePositions field.
 func (r *queryResolver) WarehousePositions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedWarehousePositions, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	domainPositions, err := r.positionService.GetPaginated(ctx, &position.FindParams{
 		Offset: offset,
 		Limit:  limit,
