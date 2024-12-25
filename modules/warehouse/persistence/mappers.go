@@ -68,7 +68,7 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 		idToPosition[p.PositionID] = p.Position
 		groupedByPositionID[p.PositionID] = append(groupedByPositionID[p.PositionID], p)
 	}
-	domainOrder := order.New(orderType, status)
+	domainOrder := order.NewWithID(dbOrder.ID, orderType, status)
 	for positionID, products := range groupedByPositionID {
 		domainProducts, err := mapping.MapDbModels(products, toDomainProduct)
 		if err != nil {

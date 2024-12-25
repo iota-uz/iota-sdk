@@ -15,6 +15,16 @@ func New(orderType Type, status Status) Order {
 	}
 }
 
+func NewWithID(id uint, orderType Type, status Status) Order {
+	return &orderImpl{
+		id:        id,
+		_type:     orderType,
+		status:    status,
+		items:     make([]*itemImpl, 0),
+		createdAt: time.Now(),
+	}
+}
+
 type orderImpl struct {
 	id        uint
 	_type     Type

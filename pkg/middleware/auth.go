@@ -2,7 +2,8 @@ package middleware
 
 import (
 	"context"
-	services2 "github.com/iota-agency/iota-sdk/modules/core/services"
+	"errors"
+	"github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"net/http"
 	"time"
@@ -10,16 +11,30 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
 )
+
+func getToken(r *http.Request) (string, error) {
+	conf := configuration.Use()
+	token, err := r.Cookie(conf.SidCookieKey)
+	if errors.Is(err, http.ErrNoCookie) {
+		v := r.Header.Get("Authorization")
+		if v == "" {
+			return "", errors.New("no token found")
+		}
+		return v, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return token.Value, nil
+}
 
 func Authorize() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
-				conf := configuration.Use()
-				token, err := r.Cookie(conf.SidCookieKey)
+				token, err := getToken(r)
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
@@ -29,8 +44,8 @@ func Authorize() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err)
 				}
-				authService := app.Service(services2.AuthService{}).(*services2.AuthService)
-				sess, err := authService.Authorize(ctx, token.Value)
+				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
@@ -55,8 +70,8 @@ func ProvideUser() mux.MiddlewareFunc {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				ctx := r.Context()
-				sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-				if !ok {
+				sess, err := composables.UseSession(ctx)
+				if err != nil {
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -64,7 +79,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err)
 				}
-				userService := app.Service(services2.UserService{}).(*services2.UserService)
+				userService := app.Service(services.UserService{}).(*services.UserService)
 				u, err := userService.GetByID(ctx, sess.UserID)
 				if err != nil {
 					next.ServeHTTP(w, r)

@@ -16,9 +16,9 @@ func (r *mutationResolver) CompleteInventoryCheck(ctx context.Context, items []*
 	panic(fmt.Errorf("not implemented: CompleteInventoryCheck - completeInventoryCheck"))
 }
 
-// InventoryPositions is the resolver for the inventoryPositions field.
-func (r *queryResolver) InventoryPositions(ctx context.Context, offset int, limit int, sortBy []string) ([]*model.InventoryPosition, error) {
-	panic(fmt.Errorf("not implemented: InventoryPositions - inventoryPositions"))
+// Inventory is the resolver for the inventory field.
+func (r *queryResolver) Inventory(ctx context.Context) ([]*model.InventoryPosition, error) {
+	panic(fmt.Errorf("not implemented: Inventory - inventory"))
 }
 
 // Mutation returns MutationResolver implementation.
