@@ -9,6 +9,7 @@ import (
 
 	model "github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/mappers"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 )
 
@@ -23,7 +24,11 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error) {
-	domainUsers, err := r.userService.GetPaginated(ctx, limit, offset, sortBy)
+	domainUsers, err := r.userService.GetPaginated(ctx, &user.FindParams{
+		Limit:  limit,
+		Offset: offset,
+		SortBy: sortBy,
+	})
 	if err != nil {
 		return nil, err
 	}

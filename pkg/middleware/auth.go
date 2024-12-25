@@ -2,10 +2,11 @@ package middleware
 
 import (
 	"context"
-	services2 "github.com/iota-agency/iota-sdk/modules/core/services"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"net/http"
 	"time"
+
+	services2 "github.com/iota-agency/iota-sdk/modules/core/services"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/configuration"

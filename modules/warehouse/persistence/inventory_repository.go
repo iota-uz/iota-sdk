@@ -3,31 +3,32 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"strings"
-
-	coremodels "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+	"strings"
 )
 
-type GormInventoryRepository struct{}
+var (
+	ErrInventoryCheckNotFound = errors.New("inventory check not found")
+)
 
-func NewInventoryRepository() inventory.Repository {
-	return &GormInventoryRepository{}
+type GormInventoryRepository struct {
+	userRepo     user.Repository
+	positionRepo position.Repository
 }
 
-func FormatLimitOffset(limit, offset int) string {
-	if limit > 0 && offset > 0 {
-		return fmt.Sprintf("LIMIT %d OFFSET %d", limit, offset)
-	} else if limit > 0 {
-		return fmt.Sprintf("LIMIT %d", limit)
-	} else if offset > 0 {
-		return fmt.Sprintf("OFFSET %d", offset)
+func NewInventoryRepository(userRepo user.Repository, positionRepo position.Repository) inventory.Repository {
+	return &GormInventoryRepository{
+		userRepo:     userRepo,
+		positionRepo: positionRepo,
 	}
-	return ""
 }
 
 func (g *GormInventoryRepository) GetPaginated(
@@ -38,6 +39,9 @@ func (g *GormInventoryRepository) GetPaginated(
 		return nil, err
 	}
 	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.ID != 0 {
+		where, args = append(where, fmt.Sprintf("ic.id = $%d", len(args)+1)), append(args, params.ID)
+	}
 
 	if params.Status != "" {
 		where, args = append(where, fmt.Sprintf("ic.status = $%d", len(args)+1)), append(args, params.Status)
@@ -56,25 +60,22 @@ func (g *GormInventoryRepository) GetPaginated(
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT ic.id, status, type, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id, u.id as user_id, u.first_name, u.last_name, u.middle_name
+		SELECT ic.id, status, type, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id
 		FROM inventory_checks ic
-		INNER JOIN users u ON u.id = created_by_id 
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY id DESC
-		`+FormatLimitOffset(params.Limit, params.Offset),
+		`+repo.FormatLimitOffset(params.Limit, params.Offset),
 		args...,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	checks := make([]*models.InventoryCheck, 0)
+	checks := make([]*inventory.Check, 0)
 	for rows.Next() {
 		var check models.InventoryCheck
 		var finishedAt sql.NullTime
 		var finishedByID sql.NullInt32
-		var middleName sql.NullString
-		var createdBy coremodels.User
 		if err := rows.Scan(
 			&check.ID,
 			&check.Status,
@@ -84,16 +85,8 @@ func (g *GormInventoryRepository) GetPaginated(
 			&finishedAt,
 			&check.CreatedByID,
 			&finishedByID,
-			&createdBy.ID,
-			&createdBy.FirstName,
-			&createdBy.LastName,
-			&middleName,
 		); err != nil {
 			return nil, err
-		}
-
-		if middleName.Valid {
-			createdBy.MiddleName = &middleName.String
 		}
 
 		if finishedAt.Valid {
@@ -101,18 +94,36 @@ func (g *GormInventoryRepository) GetPaginated(
 		}
 
 		if finishedByID.Valid {
-			val := uint(finishedByID.Int32)
-			check.FinishedByID = &val
+			check.FinishedByID = mapping.Pointer(uint(finishedByID.Int32))
+		}
+		domainCheck, err := toDomainInventoryCheck(&check)
+		if err != nil {
+			return nil, err
+		}
+		if domainCheck.CreatedBy, err = g.userRepo.GetByID(ctx, domainCheck.CreatedByID); err != nil {
+			return nil, err
+		}
+		if domainCheck.FinishedByID != 0 {
+			if domainCheck.FinishedBy, err = g.userRepo.GetByID(ctx, domainCheck.FinishedByID); err != nil {
+				return nil, err
+			}
 		}
 
-		check.CreatedBy = &createdBy
-
-		checks = append(checks, &check)
+		if params.AttachResults {
+			if domainCheck.Results, err = g.getCheckResults(ctx, &findCheckResultsParams{
+				checkID:        domainCheck.ID,
+				attachPosition: true,
+				withDifference: params.WithDifference,
+			}); err != nil {
+				return nil, err
+			}
+		}
+		checks = append(checks, domainCheck)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(checks, toDomainInventoryCheck)
+	return checks, nil
 }
 
 func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {
@@ -130,235 +141,43 @@ func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {
 }
 
 func (g *GormInventoryRepository) GetAll(ctx context.Context) ([]*inventory.Check, error) {
-	pool, err := composables.UsePool(ctx)
-	rows, err := pool.Query(ctx, `
-		SELECT ic.id, status, type, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id, u.id as user_id, u.first_name, u.last_name, u.middle_name
-		FROM inventory_checks ic
-		INNER JOIN users u ON u.id = created_by_id 
-		ORDER BY id DESC`)
+	checks, err := g.GetPaginated(ctx, &inventory.FindParams{
+		Limit: 100000,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	checks := make([]*models.InventoryCheck, 0)
-	for rows.Next() {
-		var check models.InventoryCheck
-		var finishedAt sql.NullTime
-		var finishedByID sql.NullInt32
-		var middleName sql.NullString
-		var createdBy coremodels.User
-		if err := rows.Scan(
-			&check.ID,
-			&check.Status,
-			&check.Type,
-			&check.Name,
-			&check.CreatedAt,
-			&finishedAt,
-			&check.CreatedByID,
-			&finishedByID,
-			&createdBy.ID,
-			&createdBy.FirstName,
-			&createdBy.LastName,
-			&middleName,
-		); err != nil {
-			return nil, err
-		}
-
-		if middleName.Valid {
-			createdBy.MiddleName = &middleName.String
-		}
-
-		if finishedAt.Valid {
-			check.FinishedAt = &finishedAt.Time
-		}
-
-		if finishedByID.Valid {
-			val := uint(finishedByID.Int32)
-			check.FinishedByID = &val
-		}
-
-		check.CreatedBy = &createdBy
-
-		checks = append(checks, &check)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return mapping.MapDbModels(checks, toDomainInventoryCheck)
+	return checks, nil
 }
 
 func (g *GormInventoryRepository) GetByID(ctx context.Context, id uint) (*inventory.Check, error) {
-	pool, err := composables.UsePool(ctx)
+	checks, err := g.GetPaginated(ctx, &inventory.FindParams{
+		ID:            id,
+		AttachResults: true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	rows, err := pool.Query(ctx, `
-		SELECT ic.id, status, type, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id, u.id as user_id, u.first_name, u.last_name, u.middle_name,
-		icr.id, icr.position_id, icr.inventory_check_id, icr.expected_quantity, icr.actual_quantity, icr.difference, icr.created_at,
-		wp.id, wp.title, wp.barcode,
-		wu.title, wu.short_title
-		FROM inventory_checks ic
-		INNER JOIN users u ON u.id = created_by_id 
-		INNER JOIN inventory_check_results icr ON icr.inventory_check_id = ic.id
-		INNER JOIN warehouse_positions wp ON wp.id = icr.position_id
-		INNER JOIN warehouse_units wu ON wu.id = wp.unit_id
-		WHERE ic.id = $1
-	`, id)
-	if err != nil {
-		fmt.Println("ERR: ", err)
-		return nil, err
+	if len(checks) == 0 {
+		return nil, ErrInventoryCheckNotFound
 	}
-
-	check := models.InventoryCheck{
-		Results: make([]*models.InventoryCheckResult, 0),
-	}
-
-	for rows.Next() {
-		var finishedAt sql.NullTime
-		var finishedByID sql.NullInt32
-		var middleName sql.NullString
-		var createdBy coremodels.User
-		result := models.InventoryCheckResult{
-			Position: &models.WarehousePosition{
-				Unit: &models.WarehouseUnit{},
-			},
-		}
-
-		if err := rows.Scan(
-			&check.ID,
-			&check.Status,
-			&check.Type,
-			&check.Name,
-			&check.CreatedAt,
-			&finishedAt,
-			&check.CreatedByID,
-			&finishedByID,
-			&createdBy.ID,
-			&createdBy.FirstName,
-			&createdBy.LastName,
-			&middleName,
-			&result.ID,
-			&result.PositionID,
-			&result.InventoryCheckID,
-			&result.ExpectedQuantity,
-			&result.ActualQuantity,
-			&result.Difference,
-			&result.CreatedAt,
-			&result.Position.ID,
-			&result.Position.Title,
-			&result.Position.Barcode,
-			&result.Position.Unit.Title,
-			&result.Position.Unit.ShortTitle,
-		); err != nil {
-			fmt.Println("ERR: ", err)
-			return nil, err
-		}
-
-		if middleName.Valid {
-			createdBy.MiddleName = &middleName.String
-		}
-
-		if finishedAt.Valid {
-			check.FinishedAt = &finishedAt.Time
-		}
-
-		if finishedByID.Valid {
-			val := uint(finishedByID.Int32)
-			check.FinishedByID = &val
-		}
-		check.CreatedBy = &createdBy
-		check.Results = append(check.Results, &result)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return toDomainInventoryCheck(&check)
+	return checks[0], nil
 }
 
 func (g *GormInventoryRepository) GetByIDWithDifference(ctx context.Context, id uint) (*inventory.Check, error) {
-	pool, err := composables.UsePool(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := pool.Query(ctx, `
-		SELECT ic.id, status, type, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id, u.id as user_id, u.first_name, u.last_name, u.middle_name,
-		icr.id, icr.position_id, icr.inventory_check_id, icr.expected_quantity, icr.actual_quantity, icr.difference, icr.created_at,
-		wp.id, wp.title, wp.barcode,
-		wu.title, wu.short_title
-		FROM inventory_checks ic
-		INNER JOIN users u ON u.id = created_by_id 
-		INNER JOIN inventory_check_results icr ON icr.inventory_check_id = ic.id AND icr.actual_quantity != icr.expected_quantity
-		INNER JOIN warehouse_positions wp ON wp.id = icr.position_id
-		INNER JOIN warehouse_units wu ON wu.id = wp.unit_id
-		WHERE ic.id = $1
-	`, id)
+	checks, err := g.GetPaginated(ctx, &inventory.FindParams{
+		ID:             id,
+		WithDifference: true,
+		AttachResults:  true,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	check := models.InventoryCheck{
-		Results: make([]*models.InventoryCheckResult, 0),
+	if len(checks) == 0 {
+		return nil, ErrInventoryCheckNotFound
 	}
-
-	for rows.Next() {
-		var finishedAt sql.NullTime
-		var finishedByID sql.NullInt32
-		var middleName sql.NullString
-		var createdBy coremodels.User
-		result := models.InventoryCheckResult{
-			Position: &models.WarehousePosition{
-				Unit: &models.WarehouseUnit{},
-			},
-		}
-
-		if err := rows.Scan(
-			&check.ID,
-			&check.Status,
-			&check.Type,
-			&check.Name,
-			&check.CreatedAt,
-			&finishedAt,
-			&check.CreatedByID,
-			&finishedByID,
-			&createdBy.ID,
-			&createdBy.FirstName,
-			&createdBy.LastName,
-			&middleName,
-			&result.ID,
-			&result.PositionID,
-			&result.InventoryCheckID,
-			&result.ExpectedQuantity,
-			&result.ActualQuantity,
-			&result.Difference,
-			&result.CreatedAt,
-			&result.Position.ID,
-			&result.Position.Title,
-			&result.Position.Barcode,
-			&result.Position.Unit.Title,
-			&result.Position.Unit.ShortTitle,
-		); err != nil {
-			return nil, err
-		}
-
-		if middleName.Valid {
-			createdBy.MiddleName = &middleName.String
-		}
-
-		if finishedAt.Valid {
-			check.FinishedAt = &finishedAt.Time
-		}
-
-		if finishedByID.Valid {
-			val := uint(finishedByID.Int32)
-			check.FinishedByID = &val
-		}
-		check.CreatedBy = &createdBy
-		check.Results = append(check.Results, &result)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return toDomainInventoryCheck(&check)
+	return checks[0], nil
 }
 
 func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Check) error {
@@ -415,4 +234,72 @@ func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+type findCheckResultsParams struct {
+	id             uint
+	checkID        uint
+	attachPosition bool
+	withDifference bool
+}
+
+func (g *GormInventoryRepository) getCheckResults(
+	ctx context.Context, params *findCheckResultsParams,
+) ([]*inventory.CheckResult, error) {
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return nil, err
+	}
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.id != 0 {
+		where, args = append(where, fmt.Sprintf("ic.id = $%d", len(args)+1)), append(args, params.id)
+	}
+
+	if params.checkID != 0 {
+		where, args = append(where, fmt.Sprintf("icr.inventory_check_id = $%d", len(args)+1)), append(args, params.checkID)
+	}
+
+	if params.withDifference {
+		where = append(where, "icr.expected_quantity != icr.actual_quantity")
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT id, inventory_check_id, position_id, expected_quantity, actual_quantity, difference, created_at
+		FROM inventory_check_results icr
+		WHERE `+strings.Join(where, " AND ")+`
+		ORDER BY id DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	results := make([]*inventory.CheckResult, 0)
+	for rows.Next() {
+		var result models.InventoryCheckResult
+		if err := rows.Scan(
+			&result.ID,
+			&result.InventoryCheckID,
+			&result.PositionID,
+			&result.ExpectedQuantity,
+			&result.ActualQuantity,
+			&result.Difference,
+			&result.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		domainResult, err := toDomainInventoryCheckResult(&result)
+		if err != nil {
+			return nil, err
+		}
+		if params.attachPosition {
+			if domainResult.Position, err = g.positionRepo.GetByID(ctx, result.PositionID); err != nil {
+				return nil, err
+			}
+		}
+		results = append(results, domainResult)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
 }

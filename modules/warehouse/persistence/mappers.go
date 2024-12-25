@@ -185,10 +185,10 @@ func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 		CreatedByID:  dbInventoryCheck.CreatedByID,
 	}
 	if dbInventoryCheck.CreatedBy != nil {
-		check.CreatedBy = persistence.ToDomainUser(dbInventoryCheck.CreatedBy)
+		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy)
 	}
 	if dbInventoryCheck.FinishedBy != nil {
-		check.FinishedBy = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
+		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
 	}
 	return check, nil
 }
@@ -205,14 +205,14 @@ func toDBInventoryCheckResult(result *inventory.CheckResult) (*models.InventoryC
 }
 
 func toDomainInventoryCheckResult(result *models.InventoryCheckResult) (*inventory.CheckResult, error) {
-	pos, err := toDomainPosition(result.Position)
-	if err != nil {
-		return nil, err
-	}
+	// pos, err := toDomainPosition(result.Position)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	return &inventory.CheckResult{
-		ID:               result.ID,
-		PositionID:       result.PositionID,
-		Position:         pos,
+		ID:         result.ID,
+		PositionID: result.PositionID,
+		// Position:         pos,
 		ExpectedQuantity: result.ExpectedQuantity,
 		ActualQuantity:   result.ActualQuantity,
 		Difference:       result.Difference,

@@ -8,13 +8,16 @@ type DateRange struct {
 }
 
 type FindParams struct {
-	Limit     int
-	Offset    int
-	SortBy    []string
-	Query     string
-	Field     string
-	Status    string
-	CreatedAt DateRange
+	ID         uint
+	Limit      int
+	Offset     int
+	SortBy     []string
+	Query      string
+	Field      string
+	Status     string
+	PositionID uint
+	CreatedAt  DateRange
+	Rfids      []string
 }
 
 type FindByPositionParams struct {

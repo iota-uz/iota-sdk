@@ -16,11 +16,11 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 )
 
-func ToDomainUser(dbUser *models.User) *user.User {
+func ToDomainUser(dbUser *models.User) (*user.User, error) {
 	roles := make([]*role.Role, len(dbUser.Roles))
-	for i, r := range dbUser.Roles {
-		roles[i] = toDomainRole(&r)
-	}
+	// for i, r := range dbUser.Roles {
+	// 	roles[i] = toDomainRole(&r)
+	// }
 	var middleName string
 	if dbUser.MiddleName != nil {
 		middleName = *dbUser.MiddleName
@@ -51,7 +51,7 @@ func ToDomainUser(dbUser *models.User) *user.User {
 		CreatedAt:  dbUser.CreatedAt,
 		UpdatedAt:  dbUser.UpdatedAt,
 		Roles:      roles,
-	}
+	}, nil
 }
 
 func toDBUser(entity *user.User) (*models.User, []models.Role) {
@@ -90,25 +90,26 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 	}, roles
 }
 
-func toDomainRole(dbRole *models.Role) *role.Role {
-	permissions := make([]permission.Permission, len(dbRole.Permissions))
-	for i, p := range dbRole.Permissions {
-		permissions[i] = *toDomainPermission(&p)
-	}
+func toDomainRole(dbRole *models.Role) (*role.Role, error) {
+	// permissions := make([]permission.Permission, len(dbRole.Permissions))
+	// for i, p := range dbRole.Permissions {
+	// 	permissions[i] = *toDomainPermission(&p)
+	// }
 	return &role.Role{
 		ID:          dbRole.ID,
 		Name:        dbRole.Name,
 		Description: dbRole.Description,
-		Permissions: permissions,
-		CreatedAt:   dbRole.CreatedAt,
-		UpdatedAt:   dbRole.UpdatedAt,
-	}
+		Permissions: make([]permission.Permission, 0),
+		// Permissions: permissions,
+		CreatedAt: dbRole.CreatedAt,
+		UpdatedAt: dbRole.UpdatedAt,
+	}, nil
 }
 
 func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
 	permissions := make([]models.Permission, len(entity.Permissions))
 	for i, p := range entity.Permissions {
-		permissions[i] = *toDBPermission(&p)
+		permissions[i] = toDBPermission(p)
 	}
 	return &models.Role{
 		ID:          entity.ID,
@@ -120,8 +121,8 @@ func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
 	}, permissions
 }
 
-func toDBPermission(entity *permission.Permission) *models.Permission {
-	return &models.Permission{
+func toDBPermission(entity permission.Permission) models.Permission {
+	return models.Permission{
 		ID:       entity.ID,
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
@@ -130,14 +131,14 @@ func toDBPermission(entity *permission.Permission) *models.Permission {
 	}
 }
 
-func toDomainPermission(dbPermission *models.Permission) *permission.Permission {
-	return &permission.Permission{
+func toDomainPermission(dbPermission models.Permission) (permission.Permission, error) {
+	return permission.Permission{
 		ID:       dbPermission.ID,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),
 		Action:   permission.Action(dbPermission.Action),
 		Modifier: permission.Modifier(dbPermission.Modifier),
-	}
+	}, nil
 }
 
 func toDomainProject(dbProject *models.Project) *project.Project {
