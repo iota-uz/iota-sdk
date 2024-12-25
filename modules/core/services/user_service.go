@@ -35,8 +35,8 @@ func (s *UserService) GetByID(ctx context.Context, id uint) (*user.User, error) 
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *UserService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*user.User, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+func (s *UserService) GetPaginated(ctx context.Context, params *user.FindParams) ([]*user.User, error) {
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *UserService) Create(ctx context.Context, data *user.User) error {

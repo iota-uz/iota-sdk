@@ -10,6 +10,8 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/event"
+
+	userpersistence "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 )
 
 type InventoryService struct {
@@ -20,10 +22,13 @@ type InventoryService struct {
 }
 
 func NewInventoryService(publisher event.Publisher) *InventoryService {
+	unitRepo := persistence.NewUnitRepository()
+	positionRepo := persistence.NewPositionRepository(unitRepo)
+	userRepo := userpersistence.NewUserRepository()
 	return &InventoryService{
-		repo:         persistence.NewInventoryRepository(),
-		positionRepo: persistence.NewPositionRepository(),
-		productRepo:  persistence.NewProductRepository(),
+		repo:         persistence.NewInventoryRepository(userRepo, positionRepo),
+		productRepo:  persistence.NewProductRepository(positionRepo),
+		positionRepo: positionRepo,
 		publisher:    publisher,
 	}
 }

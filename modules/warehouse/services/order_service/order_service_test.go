@@ -29,8 +29,8 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	defer testCtx.Tx.Commit()
 
 	unitRepo := persistence.NewUnitRepository()
-	positionRepo := persistence.NewPositionRepository()
-	productRepo := persistence.NewProductRepository()
+	positionRepo := persistence.NewPositionRepository(unitRepo)
+	productRepo := persistence.NewProductRepository(positionRepo)
 	orderRepo := persistence.NewOrderRepository()
 	orderService := orderservice.NewOrderService(testCtx.App.EventPublisher(), orderRepo, productRepo)
 

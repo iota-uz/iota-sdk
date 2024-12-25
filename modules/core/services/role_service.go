@@ -26,12 +26,12 @@ func (s *RoleService) GetAll(ctx context.Context) ([]*role.Role, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *RoleService) GetByID(ctx context.Context, id int64) (*role.Role, error) {
+func (s *RoleService) GetByID(ctx context.Context, id uint) (*role.Role, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *RoleService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*role.Role, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+func (s *RoleService) GetPaginated(ctx context.Context, params *role.FindParams) ([]*role.Role, error) {
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *RoleService) Create(ctx context.Context, data *role.Role) error {
@@ -50,7 +50,7 @@ func (s *RoleService) Update(ctx context.Context, data *role.Role) error {
 	return nil
 }
 
-func (s *RoleService) Delete(ctx context.Context, id int64) error {
+func (s *RoleService) Delete(ctx context.Context, id uint) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
