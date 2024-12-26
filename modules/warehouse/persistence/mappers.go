@@ -227,8 +227,8 @@ func toDBInventoryCheck(check *inventory.Check) (*models.InventoryCheck, error) 
 	}
 	return &models.InventoryCheck{
 		ID:           check.ID,
-		Status:       check.Status.String(),
-		Type:         check.Type.String(),
+		Status:       string(check.Status),
+		Type:         string(check.Type),
 		Name:         check.Name,
 		Results:      results,
 		CreatedAt:    check.CreatedAt,
