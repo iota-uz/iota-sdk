@@ -5,6 +5,8 @@ import (
 )
 
 type FindParams struct {
+	ID     uint
+	Hash   string
 	Limit  int
 	Offset int
 	SortBy []string

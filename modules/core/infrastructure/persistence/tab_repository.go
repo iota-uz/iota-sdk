@@ -2,12 +2,18 @@ package persistence
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
+
 	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
-	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
+)
+
+var (
+	ErrTabNotFound = errors.New("tab not found")
 )
 
 type GormTabRepository struct{}
@@ -17,106 +23,175 @@ func NewTabRepository() tab.Repository {
 }
 
 func (g *GormTabRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&models.Tab{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM tabs
+	`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	q, err := helpers.ApplySort(tx, params.SortBy)
+	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var entities []*models.Tab
-	if err := q.Find(&entities).Error; err != nil {
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.UserID != 0 {
+		where, args = append(where, fmt.Sprintf("user_id = $%d", len(args)+1)), append(args, params.UserID)
+	}
+
+	if params.ID != 0 {
+		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT id, href, user_id, position FROM tabs
+		WHERE `+strings.Join(where, " AND "), args...)
+
+	if err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(entities, ToDomainTab)
+	defer rows.Close()
+
+	tabs := make([]*tab.Tab, 0)
+	for rows.Next() {
+		var tab models.Tab
+		if err := rows.Scan(
+			&tab.ID,
+			&tab.Href,
+			&tab.UserID,
+			&tab.Position,
+		); err != nil {
+			return nil, err
+		}
+
+		domainTab, err := ToDomainTab(&tab)
+		if err != nil {
+			return nil, err
+		}
+		tabs = append(tabs, domainTab)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return tabs, nil
 }
 
 func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entities []*models.Tab
-	if err := tx.Where("user_id = ?", userID).Find(&entities).Error; err != nil {
+	tabs, err := g.GetAll(ctx, &tab.FindParams{
+		UserID: userID,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(entities, ToDomainTab)
+	return tabs, nil
 }
 
 func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entity models.Tab
-	if err := tx.Where("id = ?", id).First(&entity).Error; err != nil {
+	tabs, err := g.GetAll(ctx, &tab.FindParams{
+		ID: id,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return ToDomainTab(&entity)
+	if len(tabs) == 0 {
+		return nil, ErrTabNotFound
+	}
+	return tabs[0], nil
 }
 
 func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
 	tab := ToDBTab(data)
-	if err := tx.Create(tab).Error; err != nil {
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO tabs (href, user_id, position) VALUES ($1, $2, $3) RETURNING id
+	`, tab.Href, tab.UserID, tab.Position).Scan(&data.ID); err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit(ctx)
+}
+
+func (g *GormTabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) error {
+	tx, ok := composables.UsePoolTx(ctx)
+	if !ok {
+		return composables.ErrNoTx
+	}
+	for _, data := range tabs {
+		tab := ToDBTab(data)
+		if err := tx.QueryRow(ctx, `
+		INSERT INTO tabs (href, user_id, position) VALUES ($1, $2, $3) RETURNING id
+	`, tab.Href, tab.UserID, tab.Position).Scan(&data.ID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Save(ToDBTab(data)).Error
+	u, err := g.GetByID(ctx, data.ID)
+	if err != nil && !errors.Is(err, ErrTabNotFound) {
+		return err
+	}
+	if u != nil {
+		if err := g.Update(ctx, data); err != nil {
+			return err
+		}
+	} else {
+		if err := g.Create(ctx, data); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
 	tab := ToDBTab(data)
-	if err := tx.Save(tab).Error; err != nil {
+	if _, err := tx.Exec(ctx, `
+		UPDATE tabs
+		SET href = $1, position = $2
+		WHERE id = $3
+	`, tab.Href, tab.Position, tab.ID); err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (g *GormTabRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Where("id = ?", id).Delete(&models.Tab{}).Error; err != nil { //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `DELETE FROM tabs where id = $1`, id); err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (g *GormTabRepository) DeleteUserTabs(ctx context.Context, userID uint) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Where("user_id = ?", userID).Delete(&models.Tab{}).Error; err != nil { //nolint:exhaustruct
+	if _, err := pool.Exec(ctx, `DELETE FROM tabs where user_id = $1`, userID); err != nil {
 		return err
 	}
 	return nil

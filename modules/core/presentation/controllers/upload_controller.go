@@ -1,12 +1,14 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/core/services"
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/iota-agency/iota-sdk/modules/core/services"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-agency/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -40,6 +42,8 @@ func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
 	// TODO: middleware
 	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(middleware.Authorize())
+	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
 	workDir, err := os.Getwd()
