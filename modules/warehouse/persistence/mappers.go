@@ -86,9 +86,14 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 }
 
 func toDBProduct(entity *product.Product) (*models.WarehouseProduct, error) {
+	position := &models.WarehousePosition{}
+	if entity.Position != nil {
+		position, _ = toDBPosition(entity.Position)
+	}
 	return &models.WarehouseProduct{
 		ID:         entity.ID,
 		PositionID: entity.PositionID,
+		Position:   position,
 		Rfid:       mapping.Pointer(entity.Rfid),
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt,
@@ -150,11 +155,13 @@ func toDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 			},
 		)
 	}
+	dbUnit := toDBUnit(&entity.Unit)
 	return &models.WarehousePosition{
 		ID:        entity.ID,
 		Title:     entity.Title,
 		Barcode:   entity.Barcode,
 		UnitID:    entity.UnitID,
+		Unit:      dbUnit,
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
 	}, junctionRows

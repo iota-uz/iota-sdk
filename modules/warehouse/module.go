@@ -36,7 +36,8 @@ func (m *Module) Register(app application.Application) error {
 	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
 	app.RegisterServices(unitService)
 	positionRepo := persistence.NewPositionRepository(unitRepo)
-	productService := productservice.NewProductService(persistence.NewProductRepository(positionRepo), app.EventPublisher())
+	productRepo := persistence.NewProductRepository(positionRepo)
+	productService := productservice.NewProductService(productRepo, app.EventPublisher())
 	app.RegisterServices(productService)
 	app.RegisterServices(
 		services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher()),
@@ -51,7 +52,7 @@ func (m *Module) Register(app application.Application) error {
 		),
 		orderservice.NewOrderService(
 			app.EventPublisher(),
-			persistence.NewOrderRepository(),
+			persistence.NewOrderRepository(productRepo),
 			persistence.NewProductRepository(positionRepo),
 		),
 		services.NewInventoryService(app.EventPublisher()),
