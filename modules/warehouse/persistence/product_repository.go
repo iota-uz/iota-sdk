@@ -232,17 +232,18 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 	if !ok {
 		return composables.ErrNoTx
 	}
-	dbRow, err := toDBProduct(data)
-	if err != nil {
+	p, err := g.GetByID(ctx, data.ID)
+	if err != nil && !errors.Is(err, ErrProductNotFound) {
 		return err
 	}
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO warehouse_products (id, position_id, rfid, status) 
-		VALUES (COALESCE(NULLIF($1, 0), DEFAULT), $2, $3, $4)
-		ON CONFLICT (id)
-		DO UPDATE SET position_id = EXCLUDED.position_id, rfid = EXCLUDED.rfid, status = EXCLUDED.status
-	`, dbRow.ID, dbRow.PositionID, dbRow.Rfid, dbRow.Status).Scan(&data.ID); err != nil {
-		return err
+	if p != nil {
+		if err := g.Update(ctx, data); err != nil {
+			return err
+		} else {
+			if err := g.Create(ctx, data); err != nil {
+				return err
+			}
+		}
 	}
 	return tx.Commit(ctx)
 }
