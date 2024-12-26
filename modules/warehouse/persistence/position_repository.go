@@ -199,18 +199,24 @@ func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode strin
 }
 
 func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	positionRow, uploadRows := toDBPosition(data)
-	if err := tx.Save(positionRow).Error; err != nil {
+	p, err := g.GetByID(ctx, data.ID)
+	if err != nil && !errors.Is(err, ErrPositionNotFound) {
 		return err
 	}
-	if len(uploadRows) == 0 {
-		return nil
+	if p != nil {
+		if err := g.Update(ctx, data); err != nil {
+			return err
+		}
+	} else {
+		if err := g.Create(ctx, data); err != nil {
+			return err
+		}
 	}
-	return tx.Save(uploadRows).Error
+	return tx.Commit(ctx)
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {

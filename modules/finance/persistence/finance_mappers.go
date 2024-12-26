@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"errors"
+
 	corepersistence "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
@@ -10,6 +11,7 @@ import (
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/mapping"
 )
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
@@ -102,16 +104,11 @@ func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCatego
 }
 
 func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.ExpenseCategory, error) {
-	currencyEntity, err := corepersistence.ToDomainCurrency(&dbCategory.AmountCurrency)
-	if err != nil {
-		return nil, err
-	}
 	return &category.ExpenseCategory{
 		ID:          dbCategory.ID,
 		Name:        dbCategory.Name,
-		Description: *dbCategory.Description,
+		Description: mapping.Value(dbCategory.Description),
 		Amount:      dbCategory.Amount,
-		Currency:    *currencyEntity,
 		CreatedAt:   dbCategory.CreatedAt,
 		UpdatedAt:   dbCategory.UpdatedAt,
 	}, nil

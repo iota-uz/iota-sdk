@@ -147,24 +147,38 @@ func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit
 	if !ok {
 		return composables.ErrNoTx
 	}
-	dbRow := toDBUnit(data)
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO warehouse_units wu (id, title, short_title)
-		VALUES (COALESCE(NULLIF($1, 0), DEFAULT), $2, $3) RETURNING id
-		ON CONFLICT (id)
-		DO UPDATE SET title = EXCLUDED.title, short_title = EXCLUDED.short_title
-	`, dbRow.ID, dbRow.Title, dbRow.ShortTitle).Scan(&data.ID); err != nil {
+	u, err := g.GetByID(ctx, data.ID)
+	if err != nil && !errors.Is(err, ErrUnitNotFound) {
 		return err
+	}
+	if u != nil {
+		if err := g.Update(ctx, data); err != nil {
+			return err
+		}
+	} else {
+		if err := g.Create(ctx, data); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }
 
 func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Updates(toDBUnit(data)).Error
+	dbRow := toDBUnit(data)
+	if _, err := tx.Exec(ctx, `
+		UPDATE warehouse_units wu 
+		SET 
+		title = COALESCE(NULLIF($1, ''), wu.title),
+		short_title = COALESCE(NULLIF($2, ''), wu.short_title)
+		WHERE wu.id = $3
+	`, dbRow.Title, dbRow.ShortTitle, dbRow.ID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {

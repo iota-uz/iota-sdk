@@ -1,8 +1,9 @@
 package controllers
 
 import (
-	coreservices "github.com/iota-agency/iota-sdk/modules/core/services"
 	"net/http"
+
+	coreservices "github.com/iota-agency/iota-sdk/modules/core/services"
 
 	"github.com/iota-agency/iota-sdk/pkg/middleware"
 
@@ -68,9 +69,9 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
-	getRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {

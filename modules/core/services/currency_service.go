@@ -19,8 +19,8 @@ func NewCurrencyService(repo currency.Repository, publisher event.Publisher) *Cu
 	}
 }
 
-func (s *CurrencyService) GetByID(ctx context.Context, id uint) (*currency.Currency, error) {
-	return s.Repo.GetByID(ctx, id)
+func (s *CurrencyService) GetByCode(ctx context.Context, id string) (*currency.Currency, error) {
+	return s.Repo.GetByCode(ctx, id)
 }
 
 func (s *CurrencyService) GetAll(ctx context.Context) ([]*currency.Currency, error) {
@@ -28,11 +28,9 @@ func (s *CurrencyService) GetAll(ctx context.Context) ([]*currency.Currency, err
 }
 
 func (s *CurrencyService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *currency.FindParams,
 ) ([]*currency.Currency, error) {
-	return s.Repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.Repo.GetPaginated(ctx, params)
 }
 
 func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) error {
@@ -69,16 +67,16 @@ func (s *CurrencyService) Update(ctx context.Context, data *currency.UpdateDTO) 
 	return nil
 }
 
-func (s *CurrencyService) Delete(ctx context.Context, id uint) (*currency.Currency, error) {
+func (s *CurrencyService) Delete(ctx context.Context, code string) (*currency.Currency, error) {
 	deletedEvent, err := currency.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
 	}
-	entity, err := s.Repo.GetByID(ctx, id)
+	entity, err := s.Repo.GetByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Repo.Delete(ctx, id); err != nil {
+	if err := s.Repo.Delete(ctx, code); err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = *entity
