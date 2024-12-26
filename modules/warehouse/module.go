@@ -2,21 +2,21 @@ package warehouse
 
 import (
 	"embed"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
+	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
+	orderservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
+	positionservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
+	productservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
+
+//go:generate go run github.com/99designs/gqlgen generate
 
 //go:embed locales/*.json
 var localeFiles embed.FS
@@ -35,26 +35,27 @@ func (m *Module) Register(app application.Application) error {
 	unitRepo := persistence.NewUnitRepository()
 	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
 	app.RegisterServices(unitService)
-
 	positionRepo := persistence.NewPositionRepository(unitRepo)
 	productService := productservice.NewProductService(persistence.NewProductRepository(positionRepo), app.EventPublisher())
 	app.RegisterServices(productService)
-
-	positionService := positionservice.NewPositionService(
-		positionRepo,
-		app.EventPublisher(),
-		app,
+	app.RegisterServices(
+		services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher()),
+		productservice.NewProductService(persistence.NewProductRepository(positionRepo), app.EventPublisher()),
 	)
-	orderService := orderservice.NewOrderService(
-		app.EventPublisher(),
-		persistence.NewOrderRepository(),
-		persistence.NewProductRepository(positionRepo),
-	)
-	inventoryService := services.NewInventoryService(app.EventPublisher())
 
-	app.RegisterServices(positionService)
-	app.RegisterServices(orderService)
-	app.RegisterServices(inventoryService)
+	app.RegisterServices(
+		positionservice.NewPositionService(
+			positionRepo,
+			app.EventPublisher(),
+			app,
+		),
+		orderservice.NewOrderService(
+			app.EventPublisher(),
+			persistence.NewOrderRepository(),
+			persistence.NewProductRepository(positionRepo),
+		),
+		services.NewInventoryService(app.EventPublisher()),
+	)
 
 	app.RegisterPermissions(
 		permissions.ProductCreate,
@@ -84,63 +85,21 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUnitsController(app),
 		controllers.NewOrdersController(app),
 		controllers.NewInventoryController(app),
-		controllers.NewGraphQLController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.RegisterTemplates(&templates.FS)
-	app.RegisterModule(m)
+
+	app.RegisterGraphSchema(application.GraphSchema{
+		Value: graph.NewExecutableSchema(graph.Config{
+			Resolvers: graph.NewResolver(app),
+		}),
+		BasePath: "/warehouse",
+	})
 	return nil
 }
 
 func (m *Module) Name() string {
 	return "warehouse"
-}
-
-func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationItem {
-	return []types.NavigationItem{
-		{
-			Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Warehouse"}),
-			Icon: icons.Warehouse(icons.Props{Size: "20"}),
-			Href: "/warehouse",
-			Children: []types.NavigationItem{
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Products"}),
-					Href: "/warehouse/products",
-					Permissions: []permission.Permission{
-						permissions.ProductRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehousePositions"}),
-					Href: "/warehouse/positions",
-					Permissions: []permission.Permission{
-						permissions.PositionRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseUnits"}),
-					Href: "/warehouse/units",
-					Permissions: []permission.Permission{
-						permissions.UnitRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseOrders"}),
-					Href: "/warehouse/orders",
-					Permissions: []permission.Permission{
-						permissions.OrderRead,
-					},
-				},
-				{
-					Name: localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.WarehouseInventory"}),
-					Href: "/warehouse/inventory",
-					Permissions: []permission.Permission{
-						permissions.InventoryRead,
-					},
-				},
-			},
-		},
-	}
 }

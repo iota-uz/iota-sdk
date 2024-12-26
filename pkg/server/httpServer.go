@@ -8,6 +8,18 @@ import (
 	"github.com/gorilla/mux"
 )
 
+func NewHttpServer(
+	app application.Application,
+	notFoundHandler, methodNotAllowedHandler http.Handler,
+) *HttpServer {
+	return &HttpServer{
+		Controllers:             app.Controllers(),
+		Middlewares:             app.Middleware(),
+		NotFoundHandler:         notFoundHandler,
+		MethodNotAllowedHandler: methodNotAllowedHandler,
+	}
+}
+
 type HttpServer struct {
 	Controllers             []application.Controller
 	Middlewares             []mux.MiddlewareFunc

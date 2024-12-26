@@ -3,13 +3,11 @@ package middleware
 import (
 	"context"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/constants"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"net/http"
 )
 
@@ -30,8 +28,8 @@ func filterItems(items []types.NavigationItem, user *user.User) []types.Navigati
 }
 
 func hrefExists(href string, tabs []*tab.Tab) bool {
-	for _, tab := range tabs {
-		if tab.Href == href {
+	for _, t := range tabs {
+		if t.Href == href {
 			return true
 		}
 	}
@@ -61,23 +59,17 @@ func getEnabledNavItems(items []types.NavigationItem, tabs []*tab.Tab) []types.N
 	return out
 }
 
-func getNavItems(
-	app application.Application,
-	localizer *i18n.Localizer,
-	user *user.User,
-	tabs []*tab.Tab,
-) ([]types.NavigationItem, []types.NavigationItem) {
-	filtered := filterItems(app.NavigationItems(localizer), user)
-	return getEnabledNavItems(filtered, tabs), filtered
-}
-
-func NavItems(app application.Application) mux.MiddlewareFunc {
+func NavItems() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
+				app, err := composables.UseApp(r.Context())
+				if err != nil {
+					panic(err.Error())
+				}
 				localizer, ok := composables.UseLocalizer(r.Context())
 				if !ok {
-					panic("localizer not found")
+					panic("localizer not found in context")
 				}
 				u, err := composables.UseUser(r.Context())
 				if err != nil {
@@ -89,9 +81,9 @@ func NavItems(app application.Application) mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
-				items, allItems := getNavItems(app, localizer, u, tabs)
-				ctx := context.WithValue(r.Context(), constants.NavItemsKey, items)
-				ctx = context.WithValue(ctx, constants.AllNavItemsKey, allItems)
+				filtered := filterItems(app.NavItems(localizer), u)
+				ctx := context.WithValue(r.Context(), constants.AllNavItemsKey, filtered)
+				ctx = context.WithValue(ctx, constants.NavItemsKey, getEnabledNavItems(filtered, tabs))
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)

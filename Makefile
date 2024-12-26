@@ -2,9 +2,6 @@
 TAILWIND_INPUT := pkg/presentation/assets/css/main.css
 TAILWIND_OUTPUT := pkg/presentation/assets/css/main.min.css
 
-# Default target
-default: dev
-
 # Install dependencies
 deps:
 	go get -u ./...
@@ -12,6 +9,9 @@ deps:
 # Seed database
 seed:
 	go run cmd/seed/main.go
+
+generate:
+	go generate ./... && templ generate
 
 # Run tests
 test:
@@ -51,10 +51,6 @@ css-watch:
 css:
 	tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify
 
-# Generate templ files
-templ:
-	templ generate
-
 # Run linter
 lint:
 	golangci-lint run ./...
@@ -76,4 +72,4 @@ release:
 	git push
 	git checkout main
 
-.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css templ lint clean setup release
+.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint clean setup release

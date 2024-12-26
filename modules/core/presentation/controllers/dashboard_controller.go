@@ -21,6 +21,10 @@ type DashboardController struct {
 	app application.Application
 }
 
+func (c *DashboardController) Key() string {
+	return "/"
+}
+
 func (c *DashboardController) Register(r *mux.Router) {
 	router := r.Methods(http.MethodGet).Subrouter()
 	router.Use(
@@ -29,7 +33,7 @@ func (c *DashboardController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(c.app),
+		middleware.NavItems(),
 	)
 	router.HandleFunc("/", c.Get)
 }

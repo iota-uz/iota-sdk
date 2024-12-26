@@ -2,16 +2,17 @@ package core
 
 import (
 	"embed"
+
 	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-agency/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-agency/iota-sdk/modules/core/seed"
 	"github.com/iota-agency/iota-sdk/modules/core/services"
 	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
+
+//go:generate go run github.com/99designs/gqlgen generate
 
 //go:embed locales/*.json
 var localeFiles embed.FS
@@ -57,26 +58,19 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewSpotlightController(app),
 		controllers.NewAccountController(app),
 		controllers.NewEmployeeController(app),
-		controllers.NewGraphQLController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
-	app.RegisterModule(m)
+	app.RegisterGraphSchema(application.GraphSchema{
+		Value: graph.NewExecutableSchema(graph.Config{
+			Resolvers: graph.NewResolver(app),
+		}),
+		BasePath: "/",
+	})
 	return nil
 }
 
 func (m *Module) Name() string {
 	return "core"
-}
-
-func (m *Module) NavigationItems(localizer *i18n.Localizer) []types.NavigationItem {
-	return []types.NavigationItem{
-		{
-			Name:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NavigationLinks.Dashboard"}),
-			Icon:     icons.Gauge(icons.Props{Size: "20"}),
-			Href:     "/",
-			Children: nil,
-		},
-	}
 }

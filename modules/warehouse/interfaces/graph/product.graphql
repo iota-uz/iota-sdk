@@ -1,6 +1,7 @@
 type Product {
     id: ID!
     position: WarehousePosition!
+    positionID: ID!
     rfid: String!
     status: String!
     createdAt: Time!

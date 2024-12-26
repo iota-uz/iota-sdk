@@ -9,7 +9,7 @@ cmd = "go build -o ./tmp/main cmd/server/main.go"
 delay = 1000
 exclude_dir = ["tmp", "vendor", "testdata", "postgres-data", "static", "py-embed", "e2e"]
 exclude_file = []
-exclude_regex = ["_test.go", "_templ.go"]
+exclude_regex = ["_test.go", "_templ.go", ".resolvers.go", "generated.go"]
 exclude_unchanged = false
 follow_symlink = false
 full_bin = ""
@@ -22,8 +22,8 @@ poll = false
 poll_interval = 0
 post_cmd = []
 pre_cmd = [
-    "templ generate",
-    "tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css -o pkg/presentation/assets/css/main.min.css --minify"
+    "make generate",
+    "make css"
 ]
 rerun = false
 rerun_delay = 500

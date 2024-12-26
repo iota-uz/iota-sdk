@@ -6,19 +6,22 @@ package graph
 
 import (
 	"context"
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/serrors"
+
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
-	"github.com/iota-agency/iota-sdk/pkg/fp"
-)
-
-var (
-	ProductsToGraphModel = fp.Map[*product.Product, *model.Product](mappers.ProductToGraphModel)
-	ProductsToTags       = fp.Map[*product.Product, string](func(p *product.Product) string { return p.Rfid })
 )
 
 // Product is the resolver for the product field.
 func (r *queryResolver) Product(ctx context.Context, id int64) (*model.Product, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	domainProduct, err := r.productService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err
@@ -28,6 +31,11 @@ func (r *queryResolver) Product(ctx context.Context, id int64) (*model.Product, 
 
 // Products is the resolver for the products field.
 func (r *queryResolver) Products(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedProducts, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	domainProducts, err := r.productService.GetPaginated(ctx, &product.FindParams{
 		Offset: offset,
 		Limit:  limit,
@@ -48,6 +56,11 @@ func (r *queryResolver) Products(ctx context.Context, offset int, limit int, sor
 
 // CreateProductsFromTags is the resolver for the createProductsFromTags field.
 func (r *queryResolver) CreateProductsFromTags(ctx context.Context, input model.CreateProductsFromTags) ([]*model.Product, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	domainProducts, err := r.productService.CreateProductsFromTags(ctx, &product.CreateProductsFromTagsDTO{
 		Tags:       input.Tags,
 		PositionID: uint(input.PositionID),
@@ -60,6 +73,11 @@ func (r *queryResolver) CreateProductsFromTags(ctx context.Context, input model.
 
 // ValidateProducts is the resolver for the validateProducts field.
 func (r *queryResolver) ValidateProducts(ctx context.Context, tags []string) (*model.ValidateProductsResult, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	validProducts, invalidProducts, err := r.productService.ValidateProducts(ctx, tags)
 	if err != nil {
 		return nil, err

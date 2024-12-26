@@ -18,6 +18,10 @@ func NewLogoutController(app application.Application) application.Controller {
 	}
 }
 
+func (c *LogoutController) Key() string {
+	return "/logout"
+}
+
 func (c *LogoutController) Register(r *mux.Router) {
 	r.HandleFunc("/logout", c.Logout).Methods(http.MethodGet)
 }

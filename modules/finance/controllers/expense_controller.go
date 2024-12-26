@@ -28,6 +28,7 @@ type ExpenseController struct {
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
+
 type ExpensePaginationResponse struct {
 	Expenses        []*viewmodels.Expense
 	PaginationState *pagination.State
@@ -43,6 +44,10 @@ func NewExpensesController(app application.Application) application.Controller {
 	}
 }
 
+func (c *ExpenseController) Key() string {
+	return c.basePath
+}
+
 func (c *ExpenseController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
@@ -50,7 +55,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(c.app),
+		middleware.NavItems(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)

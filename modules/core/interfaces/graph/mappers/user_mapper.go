@@ -7,11 +7,12 @@ import (
 
 func UserToGraphModel(u *user.User) *model.User {
 	return &model.User{
-		ID:        int64(u.ID),
-		Email:     u.Email,
-		FirstName: u.FirstName,
-		LastName:  u.LastName,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
+		ID:         int64(u.ID),
+		Email:      u.Email,
+		FirstName:  u.FirstName,
+		LastName:   u.LastName,
+		UILanguage: string(u.UILanguage),
+		CreatedAt:  u.CreatedAt,
+		UpdatedAt:  u.UpdatedAt,
 	}
 }

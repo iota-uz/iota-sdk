@@ -23,7 +23,6 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/nicksnyder/go-i18n/v2 v2.4.1
-	github.com/repeale/fp-go v0.11.1
 	github.com/rs/cors v1.11.1
 	github.com/rubenv/sql-migrate v1.7.0
 	github.com/sashabaranov/go-openai v1.36.0
@@ -58,7 +57,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.7.1 // indirect

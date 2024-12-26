@@ -6,14 +6,23 @@ package graph
 
 import (
 	"context"
+
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-agency/iota-sdk/pkg/serrors"
 )
 
 // Order is the resolver for the order field.
 func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
 	domainOrder, err := r.orderService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err
@@ -22,12 +31,24 @@ func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, erro
 }
 
 // Orders is the resolver for the orders field.
-func (r *queryResolver) Orders(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedOrders, error) {
-	orders, err := r.orderService.GetPaginated(ctx, &order.FindParams{
-		Offset: offset,
-		Limit:  limit,
-		SortBy: sortBy,
-	})
+func (r *queryResolver) Orders(ctx context.Context, query model.OrderQuery) (*model.PaginatedOrders, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, nil
+	}
+	params := &order.FindParams{
+		Offset: query.Offset,
+		Limit:  query.Limit,
+		SortBy: query.SortBy,
+	}
+	if query.Type != nil {
+		params.Type = *query.Type
+	}
+	if query.Status != nil {
+		params.Status = *query.Status
+	}
+	orders, err := r.orderService.GetPaginated(ctx, params)
 	if err != nil {
 		return nil, err
 	}
