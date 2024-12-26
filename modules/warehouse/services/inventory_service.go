@@ -58,6 +58,10 @@ func (s *InventoryService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
+func (s *InventoryService) Positions(ctx context.Context) ([]*inventory.Position, error) {
+	return s.repo.Positions(ctx)
+}
+
 func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateCheckDTO) (*inventory.Check, error) {
 	if err := composables.CanUser(ctx, permissions.InventoryCreate); err != nil {
 		return nil, err
@@ -81,7 +85,7 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 		})
 	}
 	for _, result := range entity.Results {
-		quantity, err := s.productRepo.CountWithFilters(ctx, &product.CountParams{
+		quantity, err := s.productRepo.Count(ctx, &product.CountParams{
 			PositionID: result.PositionID,
 			Status:     product.InStock,
 		})

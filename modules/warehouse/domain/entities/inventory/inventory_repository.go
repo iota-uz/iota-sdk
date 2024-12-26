@@ -23,6 +23,7 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]*Check, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]*Check, error)
 	GetByID(ctx context.Context, id uint) (*Check, error)
+	Positions(ctx context.Context) ([]*Position, error)
 	GetByIDWithDifference(ctx context.Context, id uint) (*Check, error)
 	Create(ctx context.Context, upload *Check) error
 	Update(ctx context.Context, upload *Check) error

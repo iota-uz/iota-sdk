@@ -98,7 +98,7 @@ func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedRe
 
 	viewProducts := mapping.MapViewModels(productEntities, mappers.ProductToViewModel)
 
-	total, err := c.productService.Count(r.Context())
+	total, err := c.productService.Count(r.Context(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error counting products: %w", err)
 	}

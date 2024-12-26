@@ -20,6 +20,13 @@ type Check struct {
 	FinishedByID uint
 }
 
+type Position struct {
+	ID       uint
+	Title    string
+	Quantity int
+	RfidTags []string
+}
+
 type CheckResult struct {
 	ID               uint
 	PositionID       uint

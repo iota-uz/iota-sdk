@@ -56,29 +56,26 @@ func (g *GormProductRepository) GetPaginated(
 	return mapping.MapDbModels(entities, toDomainProduct)
 }
 
-func (g *GormProductRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormProductRepository) Count(ctx context.Context, opts *product.CountParams) (int64, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return 0, composables.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&models.WarehouseProduct{}).Count(&count).Error; err != nil { //nolint:exhaustruct
-		return 0, err
+	q := tx.Model(&models.WarehouseProduct{})
+	if opts == nil {
+		if err := q.Count(&count).Error; err != nil {
+			return 0, err
+		}
+		return count, nil
 	}
-	return count, nil
-}
-
-func (g *GormProductRepository) CountWithFilters(ctx context.Context, opts *product.CountParams) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	if opts.PositionID != 0 {
+		q = q.Where("position_id = ?", opts.PositionID)
 	}
-	var count int64
-	q := tx.Model(&models.WarehouseProduct{}).Where("position_id = ?", opts.PositionID)
 	if opts.Status != "" {
 		q = q.Where("status = ?", opts.Status)
 	}
-	if err := q.Count(&count).Error; err != nil {
+	if err := q.Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil

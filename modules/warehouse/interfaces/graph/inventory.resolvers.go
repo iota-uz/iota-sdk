@@ -31,7 +31,11 @@ func (r *queryResolver) Inventory(ctx context.Context) ([]*model.InventoryPositi
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
 		return nil, nil
 	}
-	panic(fmt.Errorf("not implemented: Inventory - inventory"))
+	positions, err := r.inventoryService.Positions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return InventoryPositionsToGraphModel(positions), nil
 }
 
 // Mutation returns MutationResolver implementation.

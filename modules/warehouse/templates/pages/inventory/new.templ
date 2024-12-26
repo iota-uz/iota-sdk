@@ -7,8 +7,6 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/button"
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
-	"github.com/iota-agency/iota-sdk/components/base/tab"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
 	"github.com/iota-agency/iota-sdk/pkg/types"
@@ -47,15 +45,6 @@ templ CreateForm(props *CreatePageProps) {
 					},
 					Error: props.Errors["Name"],
 				})
-				@base.Select(&base.SelectProps{
-					Label: props.T("WarehouseInventory.Single.Type"),
-					Attrs: templ.Attributes{
-						"name": "Type",
-					},
-				}) {
-					<option value={ string(inventory.Full) }>{ props.T("WarehouseInventory.Single.Types.full") }</option>
-					<option value={ string(inventory.Partial) }>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
-				}
 			}
 			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 				@button.Primary(button.Props{
@@ -115,146 +104,8 @@ templ AllPositionsTable(props *CreatePageProps) {
 	</div>
 }
 
-templ PartialCreateForm(props *CreatePageProps) {
-	<form
-		class="flex flex-col justify-between h-full"
-		hx-post={ props.SaveURL }
-		hx-swap="outerHTML"
-		hx-indicator="#save-btn"
-	>
-		<div class="contents" x-data="dateFns">
-			@base.Card("flex flex-col gap-6 m-6") {
-				<div class="grid grid-cols-3 gap-4">
-					@input.Text(&input.Props{
-						Label:       props.T("WarehouseInventory.Single.Name.Label"),
-						Placeholder: props.T("WarehouseInventory.Single.Name.Placeholder"),
-						Attrs: templ.Attributes{
-							"name":  "Name",
-							"value": props.Check.Name,
-						},
-						Class: "pointer-events-none opacity-50 cursor-not-allowed",
-						Error: props.Errors["Name"],
-					})
-					@base.Select(&base.SelectProps{
-						Label: props.T("WarehouseInventory.Single.Type"),
-						Attrs: templ.Attributes{
-							"name": "Type",
-						},
-						Class: "pointer-events-none opacity-50 cursor-not-allowed",
-					}) {
-						<option value={ string(inventory.Full) }>{ props.T("WarehouseInventory.Single.Types.full") }</option>
-						<option value={ string(inventory.Partial) } selected>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
-					}
-				</div>
-				<div class="flex flex-col gap-4" x-data="{selected: new Map()}">
-					@tab.Root(tab.Props{DefaultValue: "all"}) {
-						@tab.List(tab.ListProps{Class: "mb-4"}) {
-							@tab.Button("selected") {
-								<div class="flex items-center gap-3">
-									<span>
-										{ props.T("WarehouseInventory.Single.Added") }
-									</span>
-									<span class="inline-flex items-center justify-center shrink-0 bg-brand-500 text-white min-w-6 h-6 px-2 rounded-full text-sm" x-text="selected.size"></span>
-								</div>
-							}
-							@tab.Button("all") {
-								<div class="flex items-center gap-3">
-									<span>
-										{ props.T("WarehouseInventory.Single.AllPositions") }
-									</span>
-									<span class="inline-flex items-center justify-center shrink-0 bg-brand-500 text-white min-w-6 h-6 px-2 rounded-full text-sm">
-										{ props.PaginationState.TotalStr() }
-									</span>
-								</div>
-							}
-						}
-						@tab.Content("selected") {
-							<div class="flex flex-col gap-4 table-selected">
-								@base.Table(&base.TableProps{
-									Columns: []*base.TableColumn{
-										{Label: props.T("WarehousePositions.List.Position"), Key: "title"},
-										{Label: props.T("WarehousePositions.List.Barcode"), Key: "barcode"},
-										{Label: props.T("WarehousePositions.List.Unit"), Key: "unit"},
-										{Label: props.T("Actions"), Class: "w-16"},
-									},
-								}) {
-									<template x-for="(position, index) in Array.from(selected.values())">
-										@base.TableRow() {
-											@base.TableCell() {
-												<span x-text="position.Title"></span>
-												<input type="hidden" name="Positions" :value="position.ID"/>
-											}
-											@base.TableCell() {
-												<span x-text="position.Barcode"></span>
-											}
-											@base.TableCell() {
-												<span x-text="position.Unit.ShortTitle"></span>
-											}
-											@base.TableCell() {
-												@button.Secondary(
-													button.Props{
-														Size: button.SizeSM,
-														Attrs: templ.Attributes{
-															"type":   "button",
-															"@click": "() => selected.delete(Number(position.ID))",
-														},
-													}) {
-													{ props.T("Remove") }
-												}
-											}
-										}
-									</template>
-								}
-							</div>
-						}
-						@tab.Content("all") {
-							<div class="flex flex-col gap-4">
-								<div class="contents" x-data="{value: ''}" hx-include="this">
-									@input.Text(&input.Props{
-										Label:       props.T("WarehouseInventory.Single.Positions.Label"),
-										Placeholder: props.T("WarehouseInventory.Single.Positions.Placeholder"),
-										Attrs: templ.Attributes{
-											"name":       "Query",
-											"hx-get":     "/warehouse/inventory/positions/search",
-											"hx-trigger": "keyup changed delay:500ms",
-											"hx-target":  ".table-all",
-											"hx-swap":    "outerHTML",
-											"x-model":    "value",
-										},
-									})
-									<input type="hidden" name="Fields" value="Title"/>
-									<input type="hidden" name="Fields" value="Barcode"/>
-								</div>
-								@AllPositionsTable(props)
-							</div>
-						}
-					}
-				</div>
-			}
-			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
-				@button.Primary(button.Props{
-					Size: button.SizeMD,
-					Attrs: templ.Attributes{
-						"name":  "_action",
-						"value": "save",
-						"id":    "save-btn",
-					},
-				}) {
-					{ props.T("Save") }
-				}
-			</div>
-		</div>
-	</form>
-}
-
 templ New(props *CreatePageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		@CreateForm(props)
-	}
-}
-
-templ NewPartial(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
-		@PartialCreateForm(props)
 	}
 }

@@ -56,10 +56,6 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 	if err != nil {
 		return nil, err
 	}
-	t, err := NewType(d.Type)
-	if err != nil {
-		return nil, err
-	}
 	var results []*CheckResult
 	for _, p := range d.Positions {
 		results = append(results, &CheckResult{
@@ -70,7 +66,6 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 	return &Check{
 		ID:          0,
 		Status:      s,
-		Type:        t,
 		Name:        d.Name,
 		Results:     results,
 		CreatedAt:   time.Now(),
