@@ -31,8 +31,7 @@ type CountParams struct {
 
 type Repository interface {
 	GetPaginated(context.Context, *FindParams) ([]*Product, error)
-	Count(context.Context) (int64, error)
-	CountWithFilters(context.Context, *CountParams) (int64, error)
+	Count(context.Context, *CountParams) (int64, error)
 	GetAll(context.Context) ([]*Product, error)
 	GetByID(context.Context, uint) (*Product, error)
 	GetByRfid(context.Context, string) (*Product, error)

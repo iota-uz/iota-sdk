@@ -44,7 +44,7 @@ func (r *queryResolver) Products(ctx context.Context, offset int, limit int, sor
 	if err != nil {
 		return nil, err
 	}
-	total, err := r.productService.Count(ctx)
+	total, err := r.productService.Count(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
