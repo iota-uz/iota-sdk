@@ -70,17 +70,15 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 	if err != nil {
 		return nil, err
 	}
-	if entity.Type.Get() == inventory.Full {
-		entity.Results = make([]*inventory.CheckResult, 0)
-		positionIds, err := s.positionRepo.GetAllPositionIds(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, id := range positionIds {
-			entity.Results = append(entity.Results, &inventory.CheckResult{
-				PositionID: id,
-			})
-		}
+	entity.Results = make([]*inventory.CheckResult, 0)
+	positionIds, err := s.positionRepo.GetAllPositionIds(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range positionIds {
+		entity.Results = append(entity.Results, &inventory.CheckResult{
+			PositionID: id,
+		})
 	}
 	for _, result := range entity.Results {
 		quantity, err := s.productRepo.CountWithFilters(ctx, &product.CountParams{

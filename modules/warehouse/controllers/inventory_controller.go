@@ -61,7 +61,6 @@ func (c *InventoryController) Register(r *mux.Router) {
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new/partial", c.GetNewPartial).Methods(http.MethodGet)
 	getRouter.HandleFunc("/positions/search", c.SearchPositions).Methods(http.MethodGet)
 	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 	getRouter.HandleFunc("/{id:[0-9]+}/difference", c.GetEditDifference).Methods(http.MethodGet)
@@ -70,7 +69,6 @@ func (c *InventoryController) Register(r *mux.Router) {
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/partial", c.CreatePartial).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
@@ -168,33 +166,6 @@ func (c *InventoryController) viewModelPositions(r *http.Request) (*PositionPagi
 	}, nil
 }
 
-func (c *InventoryController) GetNewPartial(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseInventory.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	check, err := composables.UseQuery(&inventory.Check{}, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	paginated, err := c.viewModelPositions(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	props := &inventorytemplate.CreatePageProps{
-		PageContext:     pageCtx,
-		Errors:          map[string]string{},
-		Check:           mappers.CheckToViewModel(check), //nolint:exhaustruct
-		Positions:       paginated.Positions,
-		PaginationState: paginated.PaginationState,
-		SaveURL:         c.basePath + "/partial",
-	}
-	templ.Handler(inventorytemplate.NewPartial(props), templ.WithStreaming()).ServeHTTP(w, r)
-}
-
 func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -230,16 +201,6 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 			Check:       mappers.CheckToViewModel(entity),
 		}
 		templ.Handler(inventorytemplate.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		return
-	}
-
-	if dto.Type == string(inventory.Partial) {
-		values, err := shared.Encoder.Encode(dto)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		shared.Redirect(w, r, fmt.Sprintf("%s/new/partial?%s", c.basePath, values.Encode()))
 		return
 	}
 
@@ -399,50 +360,4 @@ func (c *InventoryController) SearchPositions(w http.ResponseWriter, r *http.Req
 		SaveURL:         c.basePath,
 	}
 	templ.Handler(inventorytemplate.AllPositionsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
-}
-
-func (c *InventoryController) CreatePartial(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	dto := inventory.CreateCheckDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	u, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		entity, err := dto.ToEntity(u.ID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		props := &inventorytemplate.CreatePageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
-			Check:       mappers.CheckToViewModel(entity),
-		}
-		templ.Handler(inventorytemplate.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		return
-	}
-
-	if _, err := c.inventoryService.Create(r.Context(), &dto); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	shared.Redirect(w, r, c.basePath)
 }

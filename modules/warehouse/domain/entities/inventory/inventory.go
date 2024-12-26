@@ -10,7 +10,6 @@ import (
 type Check struct {
 	ID           uint
 	Status       Status
-	Type         Type
 	Name         string
 	Results      []*CheckResult
 	CreatedAt    time.Time
