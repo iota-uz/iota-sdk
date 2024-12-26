@@ -20,6 +20,16 @@ type Check struct {
 	FinishedByID uint
 }
 
+func (c *Check) AddResult(positionID uint, expected, actual int) {
+	c.Results = append(c.Results, &CheckResult{
+		PositionID:       positionID,
+		ExpectedQuantity: expected,
+		ActualQuantity:   actual,
+		Difference:       expected - actual,
+		CreatedAt:        time.Now(),
+	})
+}
+
 type Position struct {
 	ID       uint
 	Title    string

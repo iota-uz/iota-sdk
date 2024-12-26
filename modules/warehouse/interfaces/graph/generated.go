@@ -126,7 +126,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	CompleteInventoryCheck(ctx context.Context, items []*model.InventoryItem) (*model.InventoryPosition, error)
+	CompleteInventoryCheck(ctx context.Context, items []*model.InventoryItem) (bool, error)
 }
 type QueryResolver interface {
 	Hello(ctx context.Context, name *string) (*string, error)
@@ -1370,9 +1370,9 @@ func (ec *executionContext) _Mutation_completeInventoryCheck(ctx context.Context
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.InventoryPosition)
+	res := resTmp.(bool)
 	fc.Result = res
-	return ec.marshalNInventoryPosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPosition(ctx, field.Selections, res)
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_completeInventoryCheck(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1382,15 +1382,7 @@ func (ec *executionContext) fieldContext_Mutation_completeInventoryCheck(ctx con
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_InventoryPosition_id(ctx, field)
-			case "title":
-				return ec.fieldContext_InventoryPosition_title(ctx, field)
-			case "tags":
-				return ec.fieldContext_InventoryPosition_tags(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type InventoryPosition", field.Name)
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	defer func() {
@@ -6637,10 +6629,6 @@ func (ec *executionContext) unmarshalNInventoryItem2ᚕᚖgithubᚗcomᚋiotaᚑ
 func (ec *executionContext) unmarshalNInventoryItem2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItem(ctx context.Context, v interface{}) (*model.InventoryItem, error) {
 	res, err := ec.unmarshalInputInventoryItem(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNInventoryPosition2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPosition(ctx context.Context, sel ast.SelectionSet, v model.InventoryPosition) graphql.Marshaler {
-	return ec._InventoryPosition(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPositionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.InventoryPosition) graphql.Marshaler {
