@@ -1,6 +1,15 @@
 # IOTA SDK
 
-<img width="300" style="display: block; margin: 32px auto;" src="https://www.iota.uz/images/common/logotype.svg">
+![Dashboard](images/dashboard.png)
+
+## 🛠 Built With
+
+- [Go](https://go.dev): A statically typed, compiled programming language designed for high performance.
+- [htmx](https://htmx.org): Enables modern interactivity with minimal JavaScript.
+- [Alpine.js](https://alpinejs.dev): A lightweight JavaScript framework for reactive components.
+- [Templ](https://templ.sh): A powerful templating system for building server-rendered web applications.
+
+---
 
 ## A Modular and Configurable ERP Solution
 
@@ -15,7 +24,6 @@ tools and integrations.
 
 - **Configurable Architecture**: Fully modular components to customize workflows.
 - **Industry-Specific Modules**: Finance, manufacturing, warehouse management, and more.
-- **Modern Development Practices**: Built with **Go** for performance and scalability.
 - **GraphQL API**: Simplifies querying and data management.
 - **Open Source**: Fully extensible and transparent.
 
@@ -36,8 +44,11 @@ Explore the modular design through the [database schema](https://dbdiagram.io/d/
 
 **UHR** - Unified Hourly Rate (a common standard in IOTA SDK for cost tracking and resource management).
 
+---
 
 ## 🌟 Join Us
+
+<img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">
 
 We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.MD) to get
 started.
