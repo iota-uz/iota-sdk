@@ -219,7 +219,8 @@ func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Ch
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE inventory_checks ic SET name = COALESCE(NULLIF($1, ''), ic.name)
-	`, dbRow.Name); err != nil {
+		WHERE ic.id = $2
+	`, dbRow.Name, dbRow.ID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

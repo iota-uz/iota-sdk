@@ -31,7 +31,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository(unitRepo)
 	productRepo := persistence.NewProductRepository(positionRepo)
-	orderRepo := persistence.NewOrderRepository()
+	orderRepo := persistence.NewOrderRepository(productRepo)
 	orderService := orderservice.NewOrderService(testCtx.App.EventPublisher(), orderRepo, productRepo)
 
 	if err := unitRepo.Create(testCtx.Context, &unit.Unit{

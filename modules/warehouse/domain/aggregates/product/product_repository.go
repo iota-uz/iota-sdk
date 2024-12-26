@@ -18,6 +18,7 @@ type FindParams struct {
 	PositionID uint
 	CreatedAt  DateRange
 	Rfids      []string
+	OrderID    uint
 }
 
 type FindByPositionParams struct {
