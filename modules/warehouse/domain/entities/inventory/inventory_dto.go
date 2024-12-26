@@ -15,7 +15,6 @@ type PositionCheckDTO struct {
 }
 
 type CreateCheckDTO struct {
-	Type      string `validate:"required"`
 	Name      string `validate:"required"`
 	Positions []*PositionCheckDTO
 }
