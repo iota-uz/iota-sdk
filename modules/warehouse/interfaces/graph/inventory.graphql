@@ -10,7 +10,7 @@ input InventoryItem {
 }
 
 extend type Query {
-    inventoryPositions(offset: Int!, limit: Int!, sortBy: [String!]): [InventoryPosition!]!
+    inventory: [InventoryPosition!]!
 }
 
 extend type Mutation {

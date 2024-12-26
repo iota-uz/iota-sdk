@@ -45,6 +45,10 @@ func NewMoneyAccountController(app application.Application) application.Controll
 	}
 }
 
+func (c *MoneyAccountController) Key() string {
+	return c.basePath
+}
+
 func (c *MoneyAccountController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
@@ -52,7 +56,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(c.app),
+		middleware.NavItems(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()

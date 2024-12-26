@@ -312,7 +312,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.LastName(childComplexity), true
 
-	case "User.uILanguage":
+	case "User.uiLanguage":
 		if e.complexity.User.UILanguage == nil {
 			break
 		}
@@ -1142,8 +1142,8 @@ func (ec *executionContext) fieldContext_PaginatedUsers_data(_ context.Context, 
 				return ec.fieldContext_User_lastName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
-			case "uILanguage":
-				return ec.fieldContext_User_uILanguage(ctx, field)
+			case "uiLanguage":
+				return ec.fieldContext_User_uiLanguage(ctx, field)
 			case "updatedAt":
 				return ec.fieldContext_User_updatedAt(ctx, field)
 			case "createdAt":
@@ -1295,8 +1295,8 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 				return ec.fieldContext_User_lastName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
-			case "uILanguage":
-				return ec.fieldContext_User_uILanguage(ctx, field)
+			case "uiLanguage":
+				return ec.fieldContext_User_uiLanguage(ctx, field)
 			case "updatedAt":
 				return ec.fieldContext_User_updatedAt(ctx, field)
 			case "createdAt":
@@ -2065,8 +2065,8 @@ func (ec *executionContext) fieldContext_User_email(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _User_uILanguage(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_User_uILanguage(ctx, field)
+func (ec *executionContext) _User_uiLanguage(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_uiLanguage(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -2096,7 +2096,7 @@ func (ec *executionContext) _User_uILanguage(ctx context.Context, field graphql.
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_User_uILanguage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_User_uiLanguage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
@@ -4319,8 +4319,8 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "uILanguage":
-			out.Values[i] = ec._User_uILanguage(ctx, field, obj)
+		case "uiLanguage":
+			out.Values[i] = ec._User_uiLanguage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

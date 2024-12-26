@@ -40,6 +40,10 @@ func NewUnitsController(app application.Application) application.Controller {
 	}
 }
 
+func (c *UnitsController) Key() string {
+	return c.basePath
+}
+
 func (c *UnitsController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
@@ -47,7 +51,7 @@ func (c *UnitsController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(c.app),
+		middleware.NavItems(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()

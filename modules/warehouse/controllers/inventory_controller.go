@@ -44,6 +44,10 @@ func NewInventoryController(app application.Application) application.Controller 
 	}
 }
 
+func (c *InventoryController) Key() string {
+	return c.basePath
+}
+
 func (c *InventoryController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
@@ -51,7 +55,7 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(c.app),
+		middleware.NavItems(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)

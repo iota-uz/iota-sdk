@@ -39,6 +39,14 @@ type OrderItem struct {
 	Quantity int                `json:"quantity"`
 }
 
+type OrderQuery struct {
+	Type   *string  `json:"type,omitempty"`
+	Status *string  `json:"status,omitempty"`
+	Limit  int      `json:"limit"`
+	Offset int      `json:"offset"`
+	SortBy []string `json:"sortBy,omitempty"`
+}
+
 type PaginatedOrders struct {
 	Data  []*Order `json:"data"`
 	Total int64    `json:"total"`
@@ -55,12 +63,13 @@ type PaginatedWarehousePositions struct {
 }
 
 type Product struct {
-	ID        int64              `json:"id"`
-	Position  *WarehousePosition `json:"position"`
-	Rfid      string             `json:"rfid"`
-	Status    string             `json:"status"`
-	CreatedAt time.Time          `json:"createdAt"`
-	UpdatedAt time.Time          `json:"updatedAt"`
+	ID         int64              `json:"id"`
+	Position   *WarehousePosition `json:"position"`
+	PositionID int64              `json:"positionID"`
+	Rfid       string             `json:"rfid"`
+	Status     string             `json:"status"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	UpdatedAt  time.Time          `json:"updatedAt"`
 }
 
 type Query struct {

@@ -34,6 +34,10 @@ func NewAccountController(app application.Application) application.Controller {
 	}
 }
 
+func (c *AccountController) Key() string {
+	return c.basePath
+}
+
 func (c *AccountController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
@@ -43,7 +47,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(c.app),
+		middleware.NavItems(),
 	)
 	router.HandleFunc("", c.Get).Methods(http.MethodGet)
 	router.HandleFunc("/settings", c.GetSettings).Methods(http.MethodGet)

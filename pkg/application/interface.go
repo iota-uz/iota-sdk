@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"embed"
+
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
@@ -12,11 +14,15 @@ import (
 	"gorm.io/gorm"
 )
 
+type GraphSchema struct {
+	Value    graphql.ExecutableSchema
+	BasePath string
+}
+
 // Application with a dynamically extendable service registry
 type Application interface {
 	DB() *gorm.DB
 	EventPublisher() event.Publisher
-	Modules() []Module
 	Controllers() []Controller
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
@@ -26,9 +32,9 @@ type Application interface {
 	MigrationDirs() []*embed.FS
 	Seed(ctx context.Context) error
 	Permissions() []permission.Permission
+	NavItems(localizer *i18n.Localizer) []types.NavigationItem
+	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
-	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
-	RegisterModule(module Module)
 	RegisterPermissions(permissions ...permission.Permission)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterSeedFuncs(seedFuncs ...SeedFunc)
@@ -36,6 +42,8 @@ type Application interface {
 	RegisterTemplates(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterMigrationDirs(fs ...*embed.FS)
+	RegisterGraphSchema(schema GraphSchema)
+	GraphSchemas() []GraphSchema
 	RegisterServices(services ...interface{})
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
@@ -48,10 +56,10 @@ type SeedFunc func(ctx context.Context, app Application) error
 
 type Controller interface {
 	Register(r *mux.Router)
+	Key() string
 }
 
 type Module interface {
 	Name() string
 	Register(app Application) error
-	NavigationItems(localizer *i18n.Localizer) []types.NavigationItem
 }

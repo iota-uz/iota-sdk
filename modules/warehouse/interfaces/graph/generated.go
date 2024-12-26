@@ -88,21 +88,22 @@ type ComplexityRoot struct {
 	}
 
 	Product struct {
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Position  func(childComplexity int) int
-		Rfid      func(childComplexity int) int
-		Status    func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Position   func(childComplexity int) int
+		PositionID func(childComplexity int) int
+		Rfid       func(childComplexity int) int
+		Status     func(childComplexity int) int
+		UpdatedAt  func(childComplexity int) int
 	}
 
 	Query struct {
 		CompleteOrder          func(childComplexity int, id int64) int
 		CreateProductsFromTags func(childComplexity int, input model.CreateProductsFromTags) int
 		Hello                  func(childComplexity int, name *string) int
-		InventoryPositions     func(childComplexity int, offset int, limit int, sortBy []string) int
+		Inventory              func(childComplexity int) int
 		Order                  func(childComplexity int, id int64) int
-		Orders                 func(childComplexity int, offset int, limit int, sortBy []string) int
+		Orders                 func(childComplexity int, query model.OrderQuery) int
 		Product                func(childComplexity int, id int64) int
 		Products               func(childComplexity int, offset int, limit int, sortBy []string) int
 		ValidateProducts       func(childComplexity int, tags []string) int
@@ -129,9 +130,9 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	Hello(ctx context.Context, name *string) (*string, error)
-	InventoryPositions(ctx context.Context, offset int, limit int, sortBy []string) ([]*model.InventoryPosition, error)
+	Inventory(ctx context.Context) ([]*model.InventoryPosition, error)
 	Order(ctx context.Context, id int64) (*model.Order, error)
-	Orders(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedOrders, error)
+	Orders(ctx context.Context, query model.OrderQuery) (*model.PaginatedOrders, error)
 	CompleteOrder(ctx context.Context, id int64) (*model.Order, error)
 	WarehousePosition(ctx context.Context, id int64) (*model.WarehousePosition, error)
 	WarehousePositions(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedWarehousePositions, error)
@@ -312,6 +313,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Product.Position(childComplexity), true
 
+	case "Product.positionID":
+		if e.complexity.Product.PositionID == nil {
+			break
+		}
+
+		return e.complexity.Product.PositionID(childComplexity), true
+
 	case "Product.rfid":
 		if e.complexity.Product.Rfid == nil {
 			break
@@ -369,17 +377,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Hello(childComplexity, args["name"].(*string)), true
 
-	case "Query.inventoryPositions":
-		if e.complexity.Query.InventoryPositions == nil {
+	case "Query.inventory":
+		if e.complexity.Query.Inventory == nil {
 			break
 		}
 
-		args, err := ec.field_Query_inventoryPositions_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.InventoryPositions(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
+		return e.complexity.Query.Inventory(childComplexity), true
 
 	case "Query.order":
 		if e.complexity.Query.Order == nil {
@@ -403,7 +406,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Orders(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
+		return e.complexity.Query.Orders(childComplexity, args["query"].(model.OrderQuery)), true
 
 	case "Query.product":
 		if e.complexity.Query.Product == nil {
@@ -524,6 +527,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputCreateProductsFromTags,
 		ec.unmarshalInputInventoryItem,
+		ec.unmarshalInputOrderQuery,
 	)
 	first := true
 
@@ -804,92 +808,6 @@ func (ec *executionContext) field_Query_hello_argsName(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Query_inventoryPositions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Query_inventoryPositions_argsOffset(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["offset"] = arg0
-	arg1, err := ec.field_Query_inventoryPositions_argsLimit(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["limit"] = arg1
-	arg2, err := ec.field_Query_inventoryPositions_argsSortBy(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["sortBy"] = arg2
-	return args, nil
-}
-func (ec *executionContext) field_Query_inventoryPositions_argsOffset(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["offset"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-	if tmp, ok := rawArgs["offset"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_inventoryPositions_argsLimit(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["limit"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-	if tmp, ok := rawArgs["limit"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_inventoryPositions_argsSortBy(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) ([]string, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["sortBy"]
-	if !ok {
-		var zeroVal []string
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-	if tmp, ok := rawArgs["sortBy"]; ok {
-		return ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
-	}
-
-	var zeroVal []string
-	return zeroVal, nil
-}
-
 func (ec *executionContext) field_Query_order_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -925,86 +843,32 @@ func (ec *executionContext) field_Query_order_argsID(
 func (ec *executionContext) field_Query_orders_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	arg0, err := ec.field_Query_orders_argsOffset(ctx, rawArgs)
+	arg0, err := ec.field_Query_orders_argsQuery(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg0
-	arg1, err := ec.field_Query_orders_argsLimit(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["limit"] = arg1
-	arg2, err := ec.field_Query_orders_argsSortBy(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["sortBy"] = arg2
+	args["query"] = arg0
 	return args, nil
 }
-func (ec *executionContext) field_Query_orders_argsOffset(
+func (ec *executionContext) field_Query_orders_argsQuery(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (int, error) {
+) (model.OrderQuery, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
-	_, ok := rawArgs["offset"]
+	_, ok := rawArgs["query"]
 	if !ok {
-		var zeroVal int
+		var zeroVal model.OrderQuery
 		return zeroVal, nil
 	}
 
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-	if tmp, ok := rawArgs["offset"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("query"))
+	if tmp, ok := rawArgs["query"]; ok {
+		return ec.unmarshalNOrderQuery2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderQuery(ctx, tmp)
 	}
 
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_orders_argsLimit(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["limit"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-	if tmp, ok := rawArgs["limit"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_orders_argsSortBy(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) ([]string, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["sortBy"]
-	if !ok {
-		var zeroVal []string
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
-	if tmp, ok := rawArgs["sortBy"]; ok {
-		return ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
-	}
-
-	var zeroVal []string
+	var zeroVal model.OrderQuery
 	return zeroVal, nil
 }
 
@@ -1870,6 +1734,8 @@ func (ec *executionContext) fieldContext_OrderItem_products(_ context.Context, f
 				return ec.fieldContext_Product_id(ctx, field)
 			case "position":
 				return ec.fieldContext_Product_position(ctx, field)
+			case "positionID":
+				return ec.fieldContext_Product_positionID(ctx, field)
 			case "rfid":
 				return ec.fieldContext_Product_rfid(ctx, field)
 			case "status":
@@ -2072,6 +1938,8 @@ func (ec *executionContext) fieldContext_PaginatedProducts_data(_ context.Contex
 				return ec.fieldContext_Product_id(ctx, field)
 			case "position":
 				return ec.fieldContext_Product_position(ctx, field)
+			case "positionID":
+				return ec.fieldContext_Product_positionID(ctx, field)
 			case "rfid":
 				return ec.fieldContext_Product_rfid(ctx, field)
 			case "status":
@@ -2331,6 +2199,50 @@ func (ec *executionContext) fieldContext_Product_position(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Product_positionID(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Product_positionID(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PositionID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int64)
+	fc.Result = res
+	return ec.marshalNID2int64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Product_positionID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Product",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Product_rfid(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Product_rfid(ctx, field)
 	if err != nil {
@@ -2559,8 +2471,8 @@ func (ec *executionContext) fieldContext_Query_hello(ctx context.Context, field 
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_inventoryPositions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_inventoryPositions(ctx, field)
+func (ec *executionContext) _Query_inventory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_inventory(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -2573,7 +2485,7 @@ func (ec *executionContext) _Query_inventoryPositions(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().InventoryPositions(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
+		return ec.resolvers.Query().Inventory(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2590,7 +2502,7 @@ func (ec *executionContext) _Query_inventoryPositions(ctx context.Context, field
 	return ec.marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPositionᚄ(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_inventoryPositions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_inventory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -2607,17 +2519,6 @@ func (ec *executionContext) fieldContext_Query_inventoryPositions(ctx context.Co
 			}
 			return nil, fmt.Errorf("no field named %q was found under type InventoryPosition", field.Name)
 		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_inventoryPositions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
 	}
 	return fc, nil
 }
@@ -2700,7 +2601,7 @@ func (ec *executionContext) _Query_orders(ctx context.Context, field graphql.Col
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Orders(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
+		return ec.resolvers.Query().Orders(rctx, fc.Args["query"].(model.OrderQuery))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2976,6 +2877,8 @@ func (ec *executionContext) fieldContext_Query_product(ctx context.Context, fiel
 				return ec.fieldContext_Product_id(ctx, field)
 			case "position":
 				return ec.fieldContext_Product_position(ctx, field)
+			case "positionID":
+				return ec.fieldContext_Product_positionID(ctx, field)
 			case "rfid":
 				return ec.fieldContext_Product_rfid(ctx, field)
 			case "status":
@@ -3106,6 +3009,8 @@ func (ec *executionContext) fieldContext_Query_createProductsFromTags(ctx contex
 				return ec.fieldContext_Product_id(ctx, field)
 			case "position":
 				return ec.fieldContext_Product_position(ctx, field)
+			case "positionID":
+				return ec.fieldContext_Product_positionID(ctx, field)
 			case "rfid":
 				return ec.fieldContext_Product_rfid(ctx, field)
 			case "status":
@@ -5471,6 +5376,61 @@ func (ec *executionContext) unmarshalInputInventoryItem(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputOrderQuery(ctx context.Context, obj interface{}) (model.OrderQuery, error) {
+	var it model.OrderQuery
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"type", "status", "limit", "offset", "sortBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "type":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Type = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
+		case "sortBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortBy = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -5838,6 +5798,11 @@ func (ec *executionContext) _Product(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "positionID":
+			out.Values[i] = ec._Product_positionID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "rfid":
 			out.Values[i] = ec._Product_rfid(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -5919,7 +5884,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "inventoryPositions":
+		case "inventory":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -5928,7 +5893,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_inventoryPositions(ctx, field)
+				res = ec._Query_inventory(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -6838,6 +6803,11 @@ func (ec *executionContext) marshalNOrderItem2ᚖgithubᚗcomᚋiotaᚑagencyᚋ
 		return graphql.Null
 	}
 	return ec._OrderItem(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNOrderQuery2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderQuery(ctx context.Context, v interface{}) (model.OrderQuery, error) {
+	res, err := ec.unmarshalInputOrderQuery(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNPaginatedOrders2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedOrders(ctx context.Context, sel ast.SelectionSet, v model.PaginatedOrders) graphql.Marshaler {
