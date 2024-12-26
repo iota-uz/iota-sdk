@@ -3,9 +3,10 @@ package services
 import (
 	"context"
 	"errors"
+
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-agency/iota-sdk/pkg/event"
-	"gorm.io/gorm"
 )
 
 type UploadService struct {
@@ -44,7 +45,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 		return nil, err
 	}
 	up, err := s.repo.GetByHash(ctx, entity.Hash)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
 		return nil, err
 	}
 	if up != nil {

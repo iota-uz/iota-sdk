@@ -39,13 +39,13 @@ func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab,
 func (s *TabService) CreateMany(ctx context.Context, data []*tab.CreateDTO) ([]*tab.Tab, error) {
 	entities := make([]*tab.Tab, 0, len(data))
 	for _, d := range data {
-		entity, err := s.Create(ctx, d)
+		entity, err := d.ToEntity()
 		if err != nil {
 			return nil, err
 		}
 		entities = append(entities, entity)
 	}
-	return entities, nil
+	return entities, s.repo.CreateMany(ctx, entities)
 }
 
 func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) error {

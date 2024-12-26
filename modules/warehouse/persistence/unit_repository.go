@@ -186,7 +186,7 @@ func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_units where ID = $1`, id); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_units where id = $1`, id); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
