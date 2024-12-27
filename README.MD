@@ -29,6 +29,25 @@ tools and integrations.
 
 ---
 
+## 📅 Roadmap
+
+We have an ambitious roadmap to enhance IOTA SDK's capabilities and provide a robust framework for ERP needs across
+various industries. Here's what's in the pipeline:
+
+### Core Modules
+
+- **Finance & Accounting**: Develop comprehensive tools for managing financial operations, including general ledger,
+  accounts payable/receivable, and payroll.
+
+### Upcoming Features
+
+- **BI-Chat**: Introduce a business intelligence chatbot for real-time data insights and reporting.
+- **Password Vault**: Securely store and manage sensitive credentials within the platform.
+- **CRM**: Build a customer relationship management module to streamline client interactions and sales processes.
+- **DSL Integration**: Integrate domain-specific languages (V8/Python) for scripting and customizations.
+
+---
+
 ## 🌟 Join Us
 
 <img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">
@@ -37,3 +56,4 @@ We welcome contributions to improve and expand IOTA SDK! Check out our [contribu
 started.
 
 Join our [Discord community](https://discord.gg/zKeTEZAQqF) for support and Q&A.
+
