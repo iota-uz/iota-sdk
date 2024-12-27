@@ -129,9 +129,9 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order
 }
 
 func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbOrder, err := ToDBOrder(data)
 	if err != nil {
@@ -150,13 +150,13 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbOrder, err := ToDBOrder(data)
 	if err != nil {
@@ -184,16 +184,16 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_orders WHERE id = $1`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
@@ -35,25 +37,37 @@ func (s *RoleService) GetPaginated(ctx context.Context, params *role.FindParams)
 }
 
 func (s *RoleService) Create(ctx context.Context, data *role.Role) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("role.created", data)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *RoleService) Update(ctx context.Context, data *role.Role) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("role.updated", data)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *RoleService) Delete(ctx context.Context, id uint) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.publisher.Publish("role.deleted", id)
-	return nil
+	return tx.Commit(ctx)
 }
