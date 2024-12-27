@@ -5,7 +5,7 @@ import (
 )
 
 type AuthenticationLog struct {
-	ID        int64
+	ID        uint
 	UserID    uint
 	IP        string
 	UserAgent string

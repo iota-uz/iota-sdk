@@ -9,6 +9,7 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/authlog"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
@@ -325,5 +326,25 @@ func toDomainSession(dbSession *models.Session) *session.Session {
 		UserAgent: dbSession.UserAgent,
 		CreatedAt: dbSession.CreatedAt,
 		ExpiresAt: dbSession.ExpiresAt,
+	}
+}
+
+func toDBAuthenticationLog(log *authlog.AuthenticationLog) *models.AuthenticationLog {
+	return &models.AuthenticationLog{
+		ID:        log.ID,
+		UserID:    log.UserID,
+		IP:        log.IP,
+		UserAgent: log.UserAgent,
+		CreatedAt: log.CreatedAt,
+	}
+}
+
+func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.AuthenticationLog {
+	return &authlog.AuthenticationLog{
+		ID:        dbLog.ID,
+		UserID:    dbLog.UserID,
+		IP:        dbLog.IP,
+		UserAgent: dbLog.UserAgent,
+		CreatedAt: dbLog.CreatedAt,
 	}
 }

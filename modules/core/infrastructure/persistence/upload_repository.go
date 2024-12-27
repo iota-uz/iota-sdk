@@ -122,9 +122,9 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 }
 
 func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	upload := ToDBUpload(data)
 	if err := tx.QueryRow(ctx, `
@@ -133,13 +133,13 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 	`, upload.Hash, upload.Path, upload.Size, upload.Mimetype).Scan(&data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	upload := ToDBUpload(data)
 	if _, err := tx.Exec(ctx, `
@@ -153,13 +153,13 @@ func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) 
 	`, upload.Hash, upload.Path, upload.Size, upload.Mimetype, upload.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM uploads where id = $1`, id); err != nil {
 		return err

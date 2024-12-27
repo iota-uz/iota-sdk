@@ -141,9 +141,9 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 }
 
 func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	entity, permissions := toDBRole(data)
 	if err := tx.QueryRow(ctx, `
@@ -160,12 +160,12 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
 		return composables.ErrNoTx
 	}
 	entity, permissions := toDBRole(data)
@@ -188,18 +188,18 @@ func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error 
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM roles WHERE id = $1
 	`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

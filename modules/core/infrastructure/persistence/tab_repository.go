@@ -109,9 +109,9 @@ func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, err
 }
 
 func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	tab := ToDBTab(data)
 	if err := tx.QueryRow(ctx, `
@@ -119,13 +119,13 @@ func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
 	`, tab.Href, tab.UserID, tab.Position).Scan(&data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormTabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	for _, data := range tabs {
 		tab := ToDBTab(data)
@@ -135,14 +135,10 @@ func (g *GormTabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) err
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
 	u, err := g.GetByID(ctx, data.ID)
 	if err != nil && !errors.Is(err, ErrTabNotFound) {
 		return err
@@ -156,13 +152,13 @@ func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) e
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	tab := ToDBTab(data)
 	if _, err := tx.Exec(ctx, `
@@ -172,26 +168,26 @@ func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
 	`, tab.Href, tab.Position, tab.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormTabRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM tabs where id = $1`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormTabRepository) DeleteUserTabs(ctx context.Context, userID uint) error {
-	pool, err := composables.UsePool(ctx)
+	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM tabs where user_id = $1`, userID); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM tabs where user_id = $1`, userID); err != nil {
 		return err
 	}
 	return nil

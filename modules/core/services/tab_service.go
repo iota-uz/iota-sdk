@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 )
 
@@ -26,6 +28,10 @@ func (s *TabService) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, 
 }
 
 func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	entity, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -33,10 +39,14 @@ func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab,
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return entity, err
 	}
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 
-func (s *TabService) CreateMany(ctx context.Context, data []*tab.CreateDTO) ([]*tab.Tab, error) {
+func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data []*tab.CreateDTO) ([]*tab.Tab, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	entities := make([]*tab.Tab, 0, len(data))
 	for _, d := range data {
 		entity, err := d.ToEntity()
@@ -45,7 +55,13 @@ func (s *TabService) CreateMany(ctx context.Context, data []*tab.CreateDTO) ([]*
 		}
 		entities = append(entities, entity)
 	}
-	return entities, s.repo.CreateMany(ctx, entities)
+	if err := s.repo.CreateMany(ctx, entities); err != nil {
+		return nil, err
+	}
+	if err := s.repo.DeleteUserTabs(ctx, userID); err != nil {
+		return nil, err
+	}
+	return entities, tx.Commit(ctx)
 }
 
 func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) error {
@@ -61,8 +77,4 @@ func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) e
 
 func (s *TabService) Delete(ctx context.Context, id uint) error {
 	return s.repo.Delete(ctx, id)
-}
-
-func (s *TabService) DeleteUserTabs(ctx context.Context, userID uint) error {
-	return s.repo.DeleteUserTabs(ctx, userID)
 }

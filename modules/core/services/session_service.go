@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
@@ -37,6 +39,10 @@ func (s *SessionService) GetPaginated(
 }
 
 func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
@@ -46,21 +52,29 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 		return err
 	}
 	s.publisher.Publish(createdEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *SessionService) Update(ctx context.Context, data *session.Session) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("session.updated", data)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *SessionService) Delete(ctx context.Context, token string) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Delete(ctx, token); err != nil {
 		return err
 	}
 	s.publisher.Publish("session.deleted", token)
-	return nil
+	return tx.Commit(ctx)
 }

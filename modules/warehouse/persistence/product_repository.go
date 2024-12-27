@@ -201,9 +201,9 @@ func (g *GormProductRepository) GetByRfidMany(ctx context.Context, tags []string
 }
 
 func (g *GormProductRepository) Create(ctx context.Context, data *product.Product) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow, err := toDBProduct(data)
 	if err != nil {
@@ -215,7 +215,7 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 	`, dbRow.PositionID, dbRow.Rfid, dbRow.Status).Scan(&data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormProductRepository) BulkCreate(ctx context.Context, data []*product.Product) error {
@@ -228,10 +228,6 @@ func (g *GormProductRepository) BulkCreate(ctx context.Context, data []*product.
 }
 
 func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *product.Product) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
 	p, err := g.GetByID(ctx, data.ID)
 	if err != nil && !errors.Is(err, ErrProductNotFound) {
 		return err
@@ -245,13 +241,13 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 			}
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow, err := toDBProduct(data)
 	if err != nil {
@@ -263,13 +259,13 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 	`, dbRow.PositionID, dbRow.Rfid, dbRow.Status, dbRow.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormProductRepository) UpdateStatus(ctx context.Context, uints []uint, status product.Status) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE warehouse_products wp SET status = $1
@@ -277,29 +273,29 @@ func (g *GormProductRepository) UpdateStatus(ctx context.Context, uints []uint, 
 	`, status, uints); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormProductRepository) BulkDelete(ctx context.Context, IDs []uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		DELETE warehouse_products WHERE id = ANY($1) 
 	`, IDs); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormProductRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_products WHERE id = $1`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

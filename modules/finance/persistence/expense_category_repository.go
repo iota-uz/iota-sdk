@@ -132,9 +132,9 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*
 }
 
 func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *category.ExpenseCategory) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow := toDBExpenseCategory(data)
 	if err := tx.QueryRow(ctx, `
@@ -144,13 +144,13 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *catego
 	`, dbRow.Name, dbRow.Description, dbRow.Amount, dbRow.AmountCurrencyID).Scan(&data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *category.ExpenseCategory) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow := toDBExpenseCategory(data)
 	if _, err := tx.Exec(ctx, `
@@ -164,18 +164,18 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *catego
 	`, dbRow.Name, dbRow.Description, dbRow.Amount, dbRow.AmountCurrencyID, data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		DELETE from expense_categories WHERE id = $1
 	`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

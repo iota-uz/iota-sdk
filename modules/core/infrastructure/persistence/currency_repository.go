@@ -107,9 +107,9 @@ func (g *GormCurrencyRepository) GetByCode(ctx context.Context, code string) (*c
 }
 
 func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	row := ToDBCurrency(entity)
 	if _, err := tx.Exec(ctx, `
@@ -117,13 +117,13 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Cu
 	`, row.Code, row.Name, row.Symbol); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Currency) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	row := ToDBCurrency(entity)
 	if _, err := tx.Exec(ctx, `
@@ -133,14 +133,10 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Cu
 	`, row.Name, row.Symbol, row.Code); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency.Currency) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
 	u, err := g.GetByCode(ctx, string(currency.Code))
 	if err != nil && !errors.Is(err, ErrCurrencyNotFound) {
 		return err
@@ -154,16 +150,16 @@ func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *c
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormCurrencyRepository) Delete(ctx context.Context, code string) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
 		return composables.ErrNoTx
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM currencies where code = $1`, code); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
