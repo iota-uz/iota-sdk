@@ -1,6 +1,6 @@
 # IOTA SDK
 
-![Dashboard](images/dashboard.png)
+![Dashboard](images/showcase.jpg)
 
 ## 🛠 Built With
 
