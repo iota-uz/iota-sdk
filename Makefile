@@ -21,6 +21,10 @@ test:
 test-watch:
 	gow test -v ./...
 
+# Generate dependency graph
+graph:
+	goda graph ./modules/... | dot -Tpng -o dependencies.png
+
 # Run tests inside docker
 test-docker:
 	docker compose -f docker-compose.testing.yml up --build erp_local
