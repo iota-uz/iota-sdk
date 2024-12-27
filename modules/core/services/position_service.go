@@ -31,11 +31,9 @@ func (s *PositionService) GetByID(ctx context.Context, id int64) (*position.Posi
 }
 
 func (s *PositionService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *PositionService) Create(ctx context.Context, data *position.Position) error {

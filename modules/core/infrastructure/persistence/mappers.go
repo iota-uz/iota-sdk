@@ -1,8 +1,9 @@
 package persistence
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
+
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
@@ -11,7 +12,9 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/position"
 	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
+	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 )
@@ -281,4 +284,46 @@ func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
 		Position: dbTab.Position,
 		UserID:   dbTab.UserID,
 	}, nil
+}
+
+func toDomainPosition(dbPosition *models.Position) (*position.Position, error) {
+	return &position.Position{
+		ID:          dbPosition.ID,
+		Name:        dbPosition.Name,
+		Description: dbPosition.Description,
+		CreatedAt:   dbPosition.CreatedAt,
+		UpdatedAt:   dbPosition.UpdatedAt,
+	}, nil
+}
+
+func toDBPosition(position *position.Position) *models.Position {
+	return &models.Position{
+		ID:          position.ID,
+		Name:        position.Name,
+		Description: position.Description,
+		CreatedAt:   position.CreatedAt,
+		UpdatedAt:   position.UpdatedAt,
+	}
+}
+
+func toDBSession(session *session.Session) *models.Session {
+	return &models.Session{
+		UserID:    session.UserID,
+		Token:     session.Token,
+		IP:        session.IP,
+		UserAgent: session.UserAgent,
+		CreatedAt: session.CreatedAt,
+		ExpiresAt: session.ExpiresAt,
+	}
+}
+
+func toDomainSession(dbSession *models.Session) *session.Session {
+	return &session.Session{
+		UserID:    dbSession.UserID,
+		Token:     dbSession.Token,
+		IP:        dbSession.IP,
+		UserAgent: dbSession.UserAgent,
+		CreatedAt: dbSession.CreatedAt,
+		ExpiresAt: dbSession.ExpiresAt,
+	}
 }

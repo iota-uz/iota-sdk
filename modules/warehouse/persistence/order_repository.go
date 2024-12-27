@@ -172,13 +172,12 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 	`, dbOrder.Type, dbOrder.Status, dbOrder.ID); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `
+			DELETE FROM warehouse_order_items WHERE warehouse_order_id = $1
+		`, dbOrder.ID); err != nil {
+		return err
+	}
 	for _, product := range dbOrder.Products {
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM warehouse_order_items WHERE warehouse_product_id = $1 AND warehouse_order_id = $2
-		`, product.ID, dbOrder.ID); err != nil {
-			return err
-		}
-
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
 		`, dbOrder.ID, product.ID); err != nil {

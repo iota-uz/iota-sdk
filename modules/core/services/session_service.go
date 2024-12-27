@@ -31,11 +31,9 @@ func (s *SessionService) GetByToken(ctx context.Context, id string) (*session.Se
 }
 
 func (s *SessionService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *session.FindParams,
 ) ([]*session.Session, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
@@ -59,10 +57,10 @@ func (s *SessionService) Update(ctx context.Context, data *session.Session) erro
 	return nil
 }
 
-func (s *SessionService) Delete(ctx context.Context, id int64) error {
-	if err := s.repo.Delete(ctx, id); err != nil {
+func (s *SessionService) Delete(ctx context.Context, token string) error {
+	if err := s.repo.Delete(ctx, token); err != nil {
 		return err
 	}
-	s.publisher.Publish("session.deleted", id)
+	s.publisher.Publish("session.deleted", token)
 	return nil
 }
