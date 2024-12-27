@@ -5,9 +5,9 @@ import (
 )
 
 type Position struct {
-	ID          int64
+	ID          uint
 	Name        string
-	Description *string
-	CreatedAt   *time.Time
-	UpdatedAt   *time.Time
+	Description string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }

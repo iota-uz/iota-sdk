@@ -2,8 +2,19 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/position"
+	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+)
+
+var (
+	ErrPositionNotFound = errors.New("position not found")
 )
 
 type GormPositionRepository struct{}
@@ -13,81 +24,127 @@ func NewPositionRepository() position.Repository {
 }
 
 func (g *GormPositionRepository) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
+	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var uploads []*position.Position
-	q := tx.Limit(limit).Offset(offset)
-	for _, s := range sortBy {
-		q = q.Order(s)
-	}
-	if err := q.Find(&uploads).Error; err != nil {
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return uploads, nil
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.ID != 0 {
+		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT id, name, description, created_at, updated_at FROM positions
+		WHERE `+strings.Join(where, " AND ")+`
+		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
+	`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	positions := make([]*position.Position, 0)
+	for rows.Next() {
+		var position models.Position
+		var description sql.NullString
+		if err := rows.Scan(
+			&position.ID,
+			&position.Name,
+			&description,
+			&position.CreatedAt,
+			&position.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		position.Description = description.String
+		domainPosition, err := toDomainPosition(&position)
+		if err != nil {
+			return nil, err
+		}
+		positions = append(positions, domainPosition)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return positions, nil
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&position.Position{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM positions
+	`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Position, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entities []*position.Position
-	if err := tx.Find(&entities).Error; err != nil {
-		return nil, err
-	}
-	return entities, nil
+	return g.GetPaginated(ctx, &position.FindParams{
+		Limit: 100000,
+	})
 }
 
 func (g *GormPositionRepository) GetByID(ctx context.Context, id int64) (*position.Position, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entity position.Position
-	if err := tx.First(&entity, id).Error; err != nil {
+	positions, err := g.GetPaginated(ctx, &position.FindParams{
+		ID: id,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &entity, nil
+
+	if len(positions) == 0 {
+		return nil, ErrPositionNotFound
+	}
+	return positions[0], nil
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Create(data).Error
+	dbRow := toDBPosition(data)
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO positions (name, description) VALUES ($1, $2)
+	`, dbRow.Name, dbRow.Description).Scan(&data.ID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Save(data).Error
+	dbRow := toDBPosition(data)
+	if _, err := tx.Exec(ctx, `
+		UPDATE positions 
+		SET name = $1, description = $2
+		WHERE id = $3
+	`, dbRow.Name, dbRow.Description, dbRow.ID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id int64) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Delete(&position.Position{}, id).Error //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM positions WHERE id = $1
+	`, id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

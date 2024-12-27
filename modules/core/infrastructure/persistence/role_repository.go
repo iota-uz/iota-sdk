@@ -91,32 +91,23 @@ func (g *GormRoleRepository) GetPaginated(
 }
 
 func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&models.Role{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM roles
+	`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
-	return nil, nil
-	// tx, ok := composables.UseTx(ctx)
-	// if !ok {
-	// 	return nil, composables.ErrNoTx
-	// }
-	// var rows []*models.Role
-	// if err := tx.Preload("Permissions").Find(&rows).Error; err != nil {
-	// 	return nil, err
-	// }
-	// var entities []*role.Role
-	// for _, row := range rows {
-	// 	entities = append(entities, toDomainRole(row))
-	// }
-	// return entities, nil
+	return g.GetPaginated(ctx, &role.FindParams{
+		Limit: 100000,
+	})
 }
 
 func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role.Role, error) {
@@ -127,60 +118,88 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role.Role, 
 		return nil, err
 	}
 	if len(roles) == 0 {
-		return nil, ErrPermissionNotFound
+		return nil, ErrRoleNotFound
 	}
 	return roles[0], nil
 }
 
 func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	entity, permissions := toDBRole(data)
-	if err := tx.Save(entity).Error; err != nil {
+	u, err := g.GetByID(ctx, data.ID)
+	if err != nil && !errors.Is(err, ErrRoleNotFound) {
 		return err
 	}
-	if err := tx.Model(entity).Association("Permissions").Replace(permissions); err != nil {
-		return err
+	if u != nil {
+		if err := g.Update(ctx, data); err != nil {
+			return err
+		}
+	} else {
+		if err := g.Create(ctx, data); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
 	entity, permissions := toDBRole(data)
-	if err := tx.Create(entity).Error; err != nil {
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO roles (name, description)
+		VALUES ($1, $2)
+	`, entity.Name, entity.Description).Scan(&data.ID); err != nil {
 		return err
 	}
-	if err := tx.Model(entity).Association("Permissions").Append(permissions); err != nil {
-		return err
+	for _, permission := range permissions {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO role_permissions (role_id, permission_id)
+			VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
+		`, data.ID, permission.ID); err != nil {
+			return err
+		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
 	entity, permissions := toDBRole(data)
-	if err := tx.Updates(entity).Error; err != nil {
+	if _, err := tx.Exec(ctx, `
+		UPDATE roles
+		SET name = $1, description = $2
+		WHERE id = $3
+	`, entity.Name, entity.Description, entity.ID); err != nil {
 		return err
 	}
-	if err := tx.Model(entity).Association("Permissions").Replace(permissions); err != nil {
+
+	if _, err := tx.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1`, entity.ID); err != nil {
 		return err
 	}
-	return nil
+	for _, permission := range permissions {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO role_permissions (role_id, permission_id)
+			VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
+		`, entity.ID, permission.ID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
+	tx, ok := composables.UsePoolTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
 	}
-	return tx.Delete(&models.Role{}, id).Error //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM roles WHERE id = $1
+	`, id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

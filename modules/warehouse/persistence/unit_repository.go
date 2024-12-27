@@ -143,10 +143,6 @@ func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error 
 }
 
 func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
 	u, err := g.GetByID(ctx, data.ID)
 	if err != nil && !errors.Is(err, ErrUnitNotFound) {
 		return err
@@ -160,7 +156,7 @@ func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error {
