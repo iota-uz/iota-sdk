@@ -44,7 +44,7 @@ various industries. Here's what's in the pipeline:
 - **BI-Chat**: Introduce a business intelligence chatbot for real-time data insights and reporting.
 - **Password Vault**: Securely store and manage sensitive credentials within the platform.
 - **CRM**: Build a customer relationship management module to streamline client interactions and sales processes.
-- **DSL Integration**: Integrate domain-specific languages (V8/Python) for scripting and customizations.
+- **DSL**: Integrate V8/Python for scripting and customizations.
 
 ---
 
