@@ -105,45 +105,6 @@ func (g *GormProductRepository) GetPaginated(
 }
 
 func (g *GormProductRepository) Count(ctx context.Context, opts *product.CountParams) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
-	}
-	var count int64
-	q := tx.Model(&models.WarehouseProduct{})
-	if opts == nil {
-		if err := q.Count(&count).Error; err != nil {
-			return 0, err
-		}
-		return count, nil
-	}
-	if opts.PositionID != 0 {
-		q = q.Where("position_id = ?", opts.PositionID)
-	}
-	if opts.Status != "" {
-		q = q.Where("status = ?", opts.Status)
-	}
-	if err := q.Count(&count).Error; err != nil { //nolint:exhaustruct
-		return 0, err
-	}
-	return count, nil
-}
-
-func (g *GormProductRepository) Count(ctx context.Context, opts *product.CountParams) (int64, error) {
-	pool, err := composables.UsePool(ctx)
-	if err != nil {
-		return 0, err
-	}
-	var count int64
-	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM warehouse_products
-	`).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-func (g *GormProductRepository) CountWithFilters(ctx context.Context, opts *product.CountParams) (int64, error) {
 	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return 0, err
