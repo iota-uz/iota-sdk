@@ -6,13 +6,13 @@ package graph
 
 import (
 	"context"
-	"github.com/99designs/gqlgen/graphql"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/serrors"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-agency/iota-sdk/pkg/serrors"
 )
 
 // Product is the resolver for the product field.
@@ -44,7 +44,7 @@ func (r *queryResolver) Products(ctx context.Context, offset int, limit int, sor
 	if err != nil {
 		return nil, err
 	}
-	total, err := r.productService.Count(ctx)
+	total, err := r.productService.Count(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

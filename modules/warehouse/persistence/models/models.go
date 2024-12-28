@@ -2,6 +2,7 @@ package models
 
 import (
 	coremodels "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/lib/pq"
 	"time"
 )
 
@@ -16,7 +17,6 @@ type WarehouseUnit struct {
 type InventoryCheck struct {
 	ID           uint
 	Status       string
-	Type         string
 	Name         string
 	Results      []*InventoryCheckResult `gorm:"foreignKey:InventoryCheckID"`
 	CreatedAt    time.Time
@@ -25,6 +25,13 @@ type InventoryCheck struct {
 	CreatedBy    *coremodels.User `gorm:"foreignKey:CreatedByID"`
 	FinishedByID *uint
 	FinishedBy   *coremodels.User `gorm:"foreignKey:FinishedByID"`
+}
+
+type InventoryPosition struct {
+	ID       uint
+	Title    string
+	Quantity int
+	RfidTags pq.StringArray `gorm:"type:text[]"`
 }
 
 type InventoryCheckResult struct {

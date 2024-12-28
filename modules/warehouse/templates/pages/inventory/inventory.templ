@@ -20,9 +20,6 @@ type IndexPageProps struct {
 }
 
 func inventoryCheckHref(check *viewmodels.Check) string {
-	if check.Type == string(inventory.Partial) {
-		return fmt.Sprintf("/warehouse/inventory/%s/partial", check.ID)
-	}
 	return fmt.Sprintf("/warehouse/inventory/%s", check.ID)
 }
 
@@ -107,16 +104,6 @@ templ InventoryContent(props *IndexPageProps) {
 					<option value={ string(inventory.Success) }>{ props.T("WarehouseInventory.Single.Statuses.success") }</option>
 					<option value={ string(inventory.Incomplete) }>{ props.T("WarehouseInventory.Single.Statuses.incomplete") }</option>
 					<option value={ string(inventory.Failed) }>{ props.T("WarehouseInventory.Single.Statuses.failed") }</option>
-				}
-				@base.Select(&base.SelectProps{
-					Attrs: templ.Attributes{
-						"name": "Type",
-					},
-				}) {
-					<option selected disabled>{ props.T("WarehouseInventory.List.SelectType") }</option>
-					<option value="">{ props.T("All") }</option>
-					<option value={ string(inventory.Full) }>{ props.T("WarehouseInventory.Single.Types.full") }</option>
-					<option value={ string(inventory.Partial) }>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
 				}
 				@filters.PageSize(props.PageContext)
 				@filters.CreatedAt(props.PageContext)

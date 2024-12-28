@@ -63,6 +63,10 @@ func (s *InventoryService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
+func (s *InventoryService) Positions(ctx context.Context) ([]*inventory.Position, error) {
+	return s.repo.Positions(ctx)
+}
+
 func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateCheckDTO) (*inventory.Check, error) {
 	if err := composables.CanUser(ctx, permissions.InventoryCreate); err != nil {
 		return nil, err
@@ -75,27 +79,17 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 	if err != nil {
 		return nil, err
 	}
-	if entity.Type.Get() == inventory.Full {
-		entity.Results = make([]*inventory.CheckResult, 0)
-		positionIds, err := s.positionRepo.GetAllPositionIds(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, id := range positionIds {
-			entity.Results = append(entity.Results, &inventory.CheckResult{
-				PositionID: id,
-			})
-		}
+	found := make(map[uint]uint)
+	for _, pos := range data.Positions {
+		found[pos.PositionID] = pos.Found
 	}
-	for _, result := range entity.Results {
-		quantity, err := s.productRepo.CountWithFilters(ctx, &product.CountParams{
-			PositionID: result.PositionID,
-			Status:     product.InStock,
-		})
-		if err != nil {
-			return nil, err
-		}
-		result.ExpectedQuantity = int(quantity)
+	positions, err := s.repo.Positions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entity.Results = make([]*inventory.CheckResult, 0, len(positions))
+	for _, pos := range positions {
+		entity.AddResult(pos.ID, pos.Quantity, int(found[pos.ID]))
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return nil, err

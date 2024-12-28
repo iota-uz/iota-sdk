@@ -167,12 +167,17 @@ func toDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 	}, junctionRows
 }
 
+func toDomainInventoryPosition(dbPosition *models.InventoryPosition) (*inventory.Position, error) {
+	return &inventory.Position{
+		ID:       dbPosition.ID,
+		Title:    dbPosition.Title,
+		Quantity: dbPosition.Quantity,
+		RfidTags: dbPosition.RfidTags,
+	}, nil
+}
+
 func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory.Check, error) {
 	status, err := inventory.NewStatus(dbInventoryCheck.Status)
-	if err != nil {
-		return nil, err
-	}
-	typ, err := inventory.NewType(dbInventoryCheck.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +188,6 @@ func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 	check := &inventory.Check{
 		ID:           dbInventoryCheck.ID,
 		Status:       status,
-		Type:         typ,
 		Name:         dbInventoryCheck.Name,
 		Results:      results,
 		CreatedAt:    dbInventoryCheck.CreatedAt,
@@ -234,8 +238,7 @@ func toDBInventoryCheck(check *inventory.Check) (*models.InventoryCheck, error) 
 	}
 	return &models.InventoryCheck{
 		ID:           check.ID,
-		Status:       check.Status.String(),
-		Type:         check.Type.String(),
+		Status:       string(check.Status),
 		Name:         check.Name,
 		Results:      results,
 		CreatedAt:    check.CreatedAt,

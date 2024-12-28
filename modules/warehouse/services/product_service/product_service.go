@@ -26,18 +26,18 @@ func NewProductService(
 	}
 }
 
-func (s *ProductService) Count(ctx context.Context) (int64, error) {
+func (s *ProductService) Count(ctx context.Context, params *product.CountParams) (int64, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return 0, err
 	}
-	return s.repo.Count(ctx)
+	return s.repo.Count(ctx, params)
 }
 
-func (s *ProductService) CountInStock(ctx context.Context, opts *product.CountParams) (int64, error) {
+func (s *ProductService) CountInStock(ctx context.Context, params *product.CountParams) (int64, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return 0, err
 	}
-	return s.repo.CountWithFilters(ctx, opts)
+	return s.repo.Count(ctx, params)
 }
 
 func (s *ProductService) GetByID(ctx context.Context, id uint) (*product.Product, error) {
