@@ -34,12 +34,12 @@ func UseTx(ctx context.Context) (*gorm.DB, bool) {
 	return tx, true
 }
 
-func UsePoolTx(ctx context.Context) (pgx.Tx, bool) {
+func UsePoolTx(ctx context.Context) (pgx.Tx, error) {
 	tx, ok := ctx.Value(constants.PoolTxKey).(pgx.Tx)
 	if !ok {
-		return nil, false
+		return nil, ErrNoTx
 	}
-	return tx, true
+	return tx, nil
 }
 
 // WithDB returns a new context with the database.

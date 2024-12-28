@@ -198,9 +198,9 @@ func (g *GormInventoryRepository) GetByIDWithDifference(ctx context.Context, id 
 }
 
 func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Check) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow, err := toDBInventoryCheck(data)
 	if err != nil {
@@ -222,13 +222,13 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 			}
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Check) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow, err := toDBInventoryCheck(data)
 	if err != nil {
@@ -240,18 +240,18 @@ func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Ch
 	`, dbRow.Name, dbRow.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM inventory_checks WHERE id = $1`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 type findCheckResultsParams struct {

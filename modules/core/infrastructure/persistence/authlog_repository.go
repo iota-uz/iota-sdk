@@ -2,9 +2,18 @@ package persistence
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/authlog"
-	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
+	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+)
+
+var (
+	ErrAuthlogNotFound = errors.New("auth log not found")
 )
 
 type GormAuthLogRepository struct{}
@@ -14,91 +23,124 @@ func NewAuthLogRepository() authlog.Repository {
 }
 
 func (g *GormAuthLogRepository) GetPaginated(
-	ctx context.Context,
-	limit,
-	offset int,
-	sortBy []string,
+	ctx context.Context, params *authlog.FindParams,
 ) ([]*authlog.AuthenticationLog, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy)
+	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var entities []*authlog.AuthenticationLog
-	if err := q.Find(&entities).Error; err != nil {
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.ID != 0 {
+		where, args = append(where, fmt.Sprintf("id = ANY($%d)", len(args)+1)), append(args, params.ID)
+	}
+
+	if params.UserID != 0 {
+		where, args = append(where, fmt.Sprintf("user_id = $%d", len(args)+1)), append(args, params.UserID)
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT id, user_id, ip, user_agent, created_at
+		FROM authentication_logs
+		WHERE `+strings.Join(where, " AND ")+`
+		ORDER BY id DESC
+		`+repo.FormatLimitOffset(params.Limit, params.Offset),
+		args...,
+	)
+	if err != nil {
 		return nil, err
 	}
-	return entities, nil
+	defer rows.Close()
+	logs := make([]*authlog.AuthenticationLog, 0)
+	for rows.Next() {
+		var log models.AuthenticationLog
+		if err := rows.Scan(
+			&log.ID,
+			&log.UserID,
+			&log.IP,
+			&log.UserAgent,
+			&log.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		logs = append(logs, toDomainAuthenticationLog(&log))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return logs, nil
 }
 
 func (g *GormAuthLogRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&authlog.AuthenticationLog{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM authentication_logs
+	`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormAuthLogRepository) GetAll(ctx context.Context) ([]*authlog.AuthenticationLog, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entities []*authlog.AuthenticationLog
-	if err := tx.Find(&entities).Error; err != nil {
-		return nil, err
-	}
-	return entities, nil
+	return g.GetPaginated(ctx, &authlog.FindParams{
+		Limit: 100000,
+	})
 }
 
-func (g *GormAuthLogRepository) GetByID(ctx context.Context, id int64) (*authlog.AuthenticationLog, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entity authlog.AuthenticationLog
-	if err := tx.First(&entity, id).Error; err != nil {
+func (g *GormAuthLogRepository) GetByID(ctx context.Context, id uint) (*authlog.AuthenticationLog, error) {
+	logs, err := g.GetPaginated(ctx, &authlog.FindParams{
+		ID: id,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &entity, nil
+	if len(logs) == 0 {
+		return nil, ErrAuthlogNotFound
+	}
+	return logs[0], nil
 }
 
 func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.AuthenticationLog) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Create(data).Error; err != nil {
+	dbRow := toDBAuthenticationLog(data)
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO authentication_logs (user_id, ip, user_agent) VALUES ($1, $2, $3)
+	`, dbRow.UserID, dbRow.IP, dbRow.UserAgent).Scan(&data.ID); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (g *GormAuthLogRepository) Update(ctx context.Context, data *authlog.AuthenticationLog) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Save(data).Error; err != nil {
+	dbRow := toDBAuthenticationLog(data)
+	if _, err := tx.Exec(ctx, `
+		UPDATE authentication_logs
+		SET ip = $1, user_agent = $2
+		WHERE id = $3
+	`, dbRow.IP, dbRow.UserAgent, dbRow.ID); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (g *GormAuthLogRepository) Delete(ctx context.Context, id int64) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormAuthLogRepository) Delete(ctx context.Context, id uint) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Delete(&authlog.AuthenticationLog{}, id).Error; err != nil { //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM authentication_logs WHERE id = $1
+	`, id); err != nil {
 		return err
 	}
 	return nil

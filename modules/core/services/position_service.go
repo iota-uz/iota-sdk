@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/domain/entities/position"
 	"github.com/iota-agency/iota-sdk/pkg/event"
 )
@@ -37,25 +39,37 @@ func (s *PositionService) GetPaginated(
 }
 
 func (s *PositionService) Create(ctx context.Context, data *position.Position) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("position.created", data)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *PositionService) Update(ctx context.Context, data *position.Position) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("position.updated", data)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *PositionService) Delete(ctx context.Context, id int64) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.publisher.Publish("position.deleted", id)
-	return nil
+	return tx.Commit(ctx)
 }

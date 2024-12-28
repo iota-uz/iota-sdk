@@ -49,6 +49,7 @@ func ExpenseCategoryToViewModel(entity *category.ExpenseCategory) *viewmodels.Ex
 		Name:               entity.Name,
 		Amount:             fmt.Sprintf("%.2f", entity.Amount),
 		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount, entity.Currency.Symbol),
+		CurrencyCode:       string(entity.Currency.Code),
 		Description:        entity.Description,
 		UpdatedAt:          entity.UpdatedAt.Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt.Format(time.RFC3339),

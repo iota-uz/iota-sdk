@@ -199,10 +199,6 @@ func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode strin
 }
 
 func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
 	p, err := g.GetByID(ctx, data.ID)
 	if err != nil && !errors.Is(err, ErrPositionNotFound) {
 		return err
@@ -216,13 +212,13 @@ func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *posit
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	positionRow, junctionRows := toDBPosition(data)
 	if err := tx.QueryRow(ctx, `
@@ -239,13 +235,13 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	positionRow, uploadRows := toDBPosition(data)
 	if _, err := tx.Exec(ctx, `
@@ -271,16 +267,16 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_positions WHERE id = $1`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

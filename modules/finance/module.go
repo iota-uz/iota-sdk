@@ -32,6 +32,8 @@ func (m *Module) Register(app application.Application) error {
 		app.EventPublisher(),
 	)
 	currencyRepo := corepersistence.NewCurrencyRepository()
+	transactionRepo := persistence.NewTransactionRepository()
+	categoryRepo := persistence.NewExpenseCategoryRepository(currencyRepo)
 	app.RegisterServices(
 		services.NewPaymentService(
 			persistence.NewPaymentRepository(),
@@ -39,11 +41,11 @@ func (m *Module) Register(app application.Application) error {
 			moneyAccountService,
 		),
 		services.NewExpenseCategoryService(
-			persistence.NewExpenseCategoryRepository(currencyRepo),
+			categoryRepo,
 			app.EventPublisher(),
 		),
 		services.NewExpenseService(
-			persistence.NewExpenseRepository(),
+			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
 			app.EventPublisher(),
 			moneyAccountService,
 		),

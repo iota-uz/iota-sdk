@@ -124,9 +124,9 @@ func (g *GormPermissionRepository) CreateOrUpdate(ctx context.Context, data *per
 }
 
 func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.Permission) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbPerm := toDBPermission(*data)
 	if err := tx.QueryRow(ctx, `
@@ -135,13 +135,13 @@ func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.
 	`, dbPerm.Name, dbPerm.Resource, dbPerm.Action, dbPerm.Modifier).Scan(&data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormPermissionRepository) Update(ctx context.Context, data *permission.Permission) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbPerm := toDBPermission(*data)
 	if _, err := tx.Exec(ctx, `
@@ -151,13 +151,13 @@ func (g *GormPermissionRepository) Update(ctx context.Context, data *permission.
 	`, dbPerm.Name, dbPerm.Resource, dbPerm.Action, dbPerm.Modifier, dbPerm.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := uuid.Parse(id); err != nil {
 		return err
@@ -167,5 +167,5 @@ func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error 
 	`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

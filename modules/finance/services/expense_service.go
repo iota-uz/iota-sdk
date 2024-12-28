@@ -51,6 +51,10 @@ func (s *ExpenseService) GetPaginated(
 }
 
 func (s *ExpenseService) Create(ctx context.Context, data *expense.CreateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
 		return err
 	}
@@ -69,10 +73,14 @@ func (s *ExpenseService) Create(ctx context.Context, data *expense.CreateDTO) er
 		return err
 	}
 	s.publisher.Publish(createdEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *ExpenseService) Update(ctx context.Context, id uint, data *expense.UpdateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
 		return err
 	}
@@ -91,10 +99,11 @@ func (s *ExpenseService) Update(ctx context.Context, id uint, data *expense.Upda
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *ExpenseService) Delete(ctx context.Context, id uint) (*expense.Expense, error) {
+	tx, err := composables.UsePoolTx(ctx)
 	if err := composables.CanUser(ctx, permissions.ExpenseDelete); err != nil {
 		return nil, err
 	}
@@ -110,7 +119,7 @@ func (s *ExpenseService) Delete(ctx context.Context, id uint) (*expense.Expense,
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 
 func (s *ExpenseService) Count(ctx context.Context) (uint, error) {
