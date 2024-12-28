@@ -60,7 +60,7 @@ Before starting, ensure the following tools are installed on your system:
    Open your browser and navigate to:  
    [http://localhost:8080](http://localhost:8080)
 
-9. Use the following credentials to log in:
+   Use the following credentials to log in:
 
    **Email:**
    ```text
