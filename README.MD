@@ -4,10 +4,10 @@
 
 ## 🔗 Links
 
-- **[Discord Community](https://discord.gg/zKeTEZAQqF)**: Join our community for support and Q&A.
-- **[Contributing Guide](docs/CONTRIBUTING.MD)**: Learn how to contribute to the project.
-- **[Figma Designs (Coming soon...)](https://www.figma.com/)**: Access and contribute to our open-source designs.
-- **[Roadmap (Coming soon...)](docs/)**: Explore our upcoming features and milestones.
+- [Discord Community](https://discord.gg/zKeTEZAQqF): Join our community for support and Q&A.
+- [Contribution Guide](docs/CONTRIBUTING.MD): Learn how to contribute to the project.
+- [Figma Designs (Coming soon...)](https://www.figma.com/): Access and contribute to our open-source designs.
+- [Roadmap (Coming soon...)](docs/): Explore our upcoming features and milestones.
 
 ## 🛠 Built With
 
