@@ -38,23 +38,28 @@ Before starting, ensure the following tools are installed on your system:
    make localdb
    ```
 
-5. **Apply database migrations**:
+5. **Run code gen**:
+   ```bash
+   make generate
+   ```
+
+6. **Apply database migrations**:
    ```bash
    make migrate-up && make seed
    ```
 
-6. **Run TailwindCSS in watch mode**:
+7. **Run TailwindCSS in watch mode**:
    ```bash
    # in a separate terminal
    make css-watch
    ```
 
-7. **Start dev server with Air hot reloading**:
+8. **Start dev server with Air hot reloading**:
    ```bash
    air
    ```
 
-8. **Access the web app**:
+9. **Access the web app**:
 
    Open your browser and navigate to:  
    [http://localhost:8080](http://localhost:8080)
@@ -70,6 +75,6 @@ Before starting, ensure the following tools are installed on your system:
    TestPass123!
    ```
 
-9. **Access the GraphQL Schema**:  
-   Open Postman and connect to:  
-   [http://localhost:3200/query](http://localhost:3200/query)
+10. **Access the GraphQL Schema**:  
+    Open Postman and connect to:  
+    [http://localhost:3200/query](http://localhost:3200/query)
