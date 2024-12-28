@@ -2,6 +2,13 @@
 
 ![Dashboard](images/showcase.jpg)
 
+## 🔗 Links
+
+- **[Discord Community](https://discord.gg/zKeTEZAQqF)**: Join our community for support and Q&A.
+- **[Contributing Guide](docs/CONTRIBUTING.MD)**: Learn how to contribute to the project.
+- **[Figma Designs (Coming soon...)](https://www.figma.com/)**: Access and contribute to our open-source designs.
+- **[Roadmap (Coming soon...)](docs/)**: Explore our upcoming features and milestones.
+
 ## 🛠 Built With
 
 - [Go](https://go.dev): A statically typed, compiled programming language designed for high performance.
@@ -9,7 +16,7 @@
 - [Alpine.js](https://alpinejs.dev): A lightweight JavaScript framework for reactive components.
 - [Templ](https://templ.sh): A powerful templating system for building server-rendered web applications.
 
----
+---  
 
 ## A Modular and Configurable ERP Solution
 
@@ -18,7 +25,7 @@ sectors, including **finance**, **manufacturing**, and **warehouse management**.
 Odoo, IOTA SDK provides an intuitive framework to accelerate enterprise operations and unlock efficiency with powerful
 tools and integrations.
 
----
+---  
 
 ## 🚀 Key Features
 
@@ -27,7 +34,7 @@ tools and integrations.
 - **GraphQL API**: Simplifies querying and data management.
 - **Open Source**: Fully extensible and transparent.
 
----
+---  
 
 ## 📅 Roadmap
 
@@ -42,21 +49,25 @@ various industries. Here's what's in the pipeline:
 ### Upcoming Features
 
 - **HR Management**: Integrate a human resources management module for employee onboarding, payroll, and benefits.
-- **CRM**: Integrate a customer relationship management module to streamline client interactions and sales processes.
+- **CRM**: Build a customer relationship management module to streamline client interactions and sales processes.
 - **BI-Chat**: Introduce a business intelligence chatbot for real-time data insights and reporting.
 - **Password Vault**: Securely store and manage sensitive credentials within the platform.
-- **CRM**: Build a customer relationship management module to streamline client interactions and sales processes.
 - **DSL**: Integrate V8/Python for scripting and customizations.
 - **Logging**: Implement a logging system for tracking user actions and system events.
+- **Invoice and Document Generation**: Leverage [GOBL](https://github.com/invopop/gobl) for generating and managing
+  invoices and other essential business documents.
+- **Documentation Website**: Launch a comprehensive docs website to streamline onboarding and provide detailed guidance
+  for developers and users.
+- **Demo Stand**: Develop an interactive demo stand to showcase IOTA SDK’s capabilities for prospective users and
+  contributors.
+- **Open Source Designs and Documentation**: Share Figma designs and other internal documentation to help the community
+  understand the vision and contribute more effectively.
 
----
+---  
 
 ## 🌟 Join Us
 
-<img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">
+<img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">  
 
 We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
 started.
-
-Join our [Discord community](https://discord.gg/zKeTEZAQqF) for support and Q&A.
-
