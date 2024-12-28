@@ -55,6 +55,7 @@ Before starting, ensure the following tools are installed on your system:
    ```
 
 8. **Access the web app**:
+
    Open your browser and navigate to:  
    [http://localhost:8080](http://localhost:8080)
 
