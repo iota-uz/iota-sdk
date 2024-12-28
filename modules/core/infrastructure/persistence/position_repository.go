@@ -107,9 +107,9 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id int64) (*positi
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow := toDBPosition(data)
 	if err := tx.QueryRow(ctx, `
@@ -117,13 +117,13 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	`, dbRow.Name, dbRow.Description).Scan(&data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow := toDBPosition(data)
 	if _, err := tx.Exec(ctx, `
@@ -133,18 +133,18 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	`, dbRow.Name, dbRow.Description, dbRow.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id int64) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM positions WHERE id = $1
 	`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

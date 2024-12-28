@@ -68,6 +68,10 @@ func (s *InventoryService) Positions(ctx context.Context) ([]*inventory.Position
 }
 
 func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateCheckDTO) (*inventory.Check, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := composables.CanUser(ctx, permissions.InventoryCreate); err != nil {
 		return nil, err
 	}
@@ -99,10 +103,14 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 
 func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.UpdateCheckDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := composables.CanUser(ctx, permissions.InventoryUpdate); err != nil {
 		return err
 	}
@@ -118,10 +126,14 @@ func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *InventoryService) Delete(ctx context.Context, id uint) (*inventory.Check, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := composables.CanUser(ctx, permissions.InventoryDelete); err != nil {
 		return nil, err
 	}
@@ -137,7 +149,7 @@ func (s *InventoryService) Delete(ctx context.Context, id uint) (*inventory.Chec
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 func (s *InventoryService) Count(ctx context.Context) (uint, error) {
 	return s.repo.Count(ctx)

@@ -128,9 +128,9 @@ func (g *GormUnitRepository) GetByTitleOrShortTitle(ctx context.Context, name st
 }
 
 func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow := toDBUnit(data)
 	if err := tx.QueryRow(ctx, `
@@ -139,7 +139,7 @@ func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error 
 	`, dbRow.Title, dbRow.ShortTitle).Scan(&data.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit) error {
@@ -160,9 +160,9 @@ func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit
 }
 
 func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbRow := toDBUnit(data)
 	if _, err := tx.Exec(ctx, `
@@ -174,16 +174,16 @@ func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error 
 	`, dbRow.Title, dbRow.ShortTitle, dbRow.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_units where id = $1`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

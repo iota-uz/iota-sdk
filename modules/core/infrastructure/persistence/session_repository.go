@@ -104,9 +104,9 @@ func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*
 }
 
 func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbSession := toDBSession(data)
 	if _, err := tx.Exec(ctx, `
@@ -115,13 +115,13 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 	`, dbSession.Token, dbSession.UserID, dbSession.ExpiresAt, dbSession.IP, dbSession.UserAgent); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbSession := toDBSession(data)
 	if _, err := tx.Exec(ctx, `
@@ -131,13 +131,13 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 	`, dbSession.ExpiresAt, dbSession.IP, dbSession.UserAgent, dbSession.Token); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (g *GormSessionRepository) Delete(ctx context.Context, token string) error {
-	tx, ok := composables.UsePoolTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM sessions WHERE token = $1

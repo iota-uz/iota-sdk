@@ -53,6 +53,7 @@ func (s *OrderService) FindByPositionID(ctx context.Context, queryOpts *product.
 }
 
 func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
 	if err := composables.CanUser(ctx, permissions.OrderCreate); err != nil {
 		return err
 	}
@@ -63,10 +64,14 @@ func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	//if err := composables.CanUser(ctx, permissions.OrderComplete); err != nil {
 	//	return err
 	//}
@@ -80,10 +85,14 @@ func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, erro
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return nil, err
 	}
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 
 func (s *OrderService) Update(ctx context.Context, id uint, data order.UpdateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := composables.CanUser(ctx, permissions.OrderUpdate); err != nil {
 		return err
 	}
@@ -94,10 +103,14 @@ func (s *OrderService) Update(ctx context.Context, id uint, data order.UpdateDTO
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *OrderService) Delete(ctx context.Context, id uint) (order.Order, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := composables.CanUser(ctx, permissions.OrderDelete); err != nil {
 		return nil, err
 	}
@@ -108,7 +121,7 @@ func (s *OrderService) Delete(ctx context.Context, id uint) (order.Order, error)
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 
 func (s *OrderService) Count(ctx context.Context) (int64, error) {
