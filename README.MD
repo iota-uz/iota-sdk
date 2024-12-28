@@ -1,6 +1,22 @@
 # IOTA SDK
 
-<img width="300" style="display: block; margin: 32px auto;" src="https://www.iota.uz/images/common/logotype.svg">
+![Dashboard](images/showcase.jpg)
+
+## 🔗 Links
+
+- [Discord Community](https://discord.gg/zKeTEZAQqF): Join our community for support and Q&A.
+- [Contribution Guide](docs/CONTRIBUTING.MD): Learn how to contribute to the project.
+- [Figma Designs (Coming soon...)](https://www.figma.com/): Access and contribute to our open-source designs.
+- [Roadmap (Coming soon...)](docs/): Explore our upcoming features and milestones.
+
+## 🛠 Built With
+
+- [Go](https://go.dev): A statically typed, compiled programming language designed for high performance.
+- [htmx](https://htmx.org): Enables modern interactivity with minimal JavaScript.
+- [Alpine.js](https://alpinejs.dev): A lightweight JavaScript framework for reactive components.
+- [Templ](https://templ.sh): A powerful templating system for building server-rendered web applications.
+
+---  
 
 ## A Modular and Configurable ERP Solution
 
@@ -9,37 +25,49 @@ sectors, including **finance**, **manufacturing**, and **warehouse management**.
 Odoo, IOTA SDK provides an intuitive framework to accelerate enterprise operations and unlock efficiency with powerful
 tools and integrations.
 
----
+---  
 
 ## 🚀 Key Features
 
 - **Configurable Architecture**: Fully modular components to customize workflows.
 - **Industry-Specific Modules**: Finance, manufacturing, warehouse management, and more.
-- **Modern Development Practices**: Built with **Go** for performance and scalability.
 - **GraphQL API**: Simplifies querying and data management.
 - **Open Source**: Fully extensible and transparent.
 
----
+---  
 
-## 📚 Overview
+## 📅 Roadmap
 
-### Architecture
+We have an ambitious roadmap to enhance IOTA SDK's capabilities and provide a robust framework for ERP needs across
+various industries. Here's what's in the pipeline:
 
-Visualize the system's architecture using
-this [interactive diagram](https://www.figma.com/board/fxj4bk8lE0qby1gcj44KqU/Architecture?node-id=0-1&t=Zhnwq55AM34EhhY4-1).
+### Core Modules
 
-### Database Schema
+- **Finance & Accounting**: Develop comprehensive tools for managing financial operations, including general ledger,
+  accounts payable/receivable, and payroll.
 
-Explore the modular design through the [database schema](https://dbdiagram.io/d/ERP-SDK-65fd8cb4ae072629ceb7f50e).
+### Upcoming Features
 
-### Glossary
+- **HR Management**: Integrate a human resources management module for employee onboarding, payroll, and benefits.
+- **CRM**: Build a customer relationship management module to streamline client interactions and sales processes.
+- **BI-Chat**: Introduce a business intelligence chatbot for real-time data insights and reporting.
+- **Password Vault**: Securely store and manage sensitive credentials within the platform.
+- **DSL**: Integrate V8/Python for scripting and customizations.
+- **Logging**: Implement a logging system for tracking user actions and system events.
+- **Invoice and Document Generation**: Leverage [GOBL](https://github.com/invopop/gobl) for generating and managing
+  invoices and other essential business documents.
+- **Documentation Website**: Launch a comprehensive docs website to streamline onboarding and provide detailed guidance
+  for developers and users.
+- **Demo Stand**: Develop an interactive demo stand to showcase IOTA SDK’s capabilities for prospective users and
+  contributors.
+- **Open Source Designs and Documentation**: Share Figma designs and other internal documentation to help the community
+  understand the vision and contribute more effectively.
 
-**UHR** - Unified Hourly Rate (a common standard in IOTA SDK for cost tracking and resource management).
-
+---  
 
 ## 🌟 Join Us
 
-We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.MD) to get
-started.
+<img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">  
 
-Join our [Discord community](https://discord.gg/zKeTEZAQqF) for support and Q&A.
+We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
+started.

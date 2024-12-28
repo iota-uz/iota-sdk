@@ -14,5 +14,5 @@ extend type Query {
 }
 
 extend type Mutation {
-    completeInventoryCheck(items: [InventoryItem!]!): InventoryPosition!
+    completeInventoryCheck(items: [InventoryItem!]!): Boolean!
 }

@@ -6,14 +6,14 @@ package graph
 
 import (
 	"context"
-	"github.com/99designs/gqlgen/graphql"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/serrors"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
 	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/mappers"
+	"github.com/iota-agency/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-agency/iota-sdk/pkg/serrors"
 )
 
 // WarehousePosition is the resolver for the warehousePosition field.

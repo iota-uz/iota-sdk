@@ -8,7 +8,6 @@ import (
 	"github.com/iota-agency/iota-sdk/components/base/input"
 	"github.com/iota-agency/iota-sdk/components/base/pagination"
 	"github.com/iota-agency/iota-sdk/components/base/tab"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/layouts"
@@ -39,18 +38,6 @@ templ EditForm(props *EditPageProps) {
 						"form":  "save-form",
 					},
 				})
-				@base.Select(&base.SelectProps{
-					Label: props.T("WarehouseInventory.Single.Type"),
-					Attrs: templ.Attributes{
-						"value":    props.Check.Type,
-						"name":     "Type",
-						"form":     "save-form",
-						"disabled": "true",
-					},
-				}) {
-					<option value={ string(inventory.Full) } selected?={ props.Check.Type == string(inventory.Full) }>{ props.T("WarehouseInventory.Single.Types.full") }</option>
-					<option value={ string(inventory.Partial) } selected?={ props.Check.Type == string(inventory.Partial) }>{ props.T("WarehouseInventory.Single.Types.partial") }</option>
-				}
 			</div>
 			@tab.Root(tab.Props{}) {
 				@tab.List(tab.ListProps{}) {

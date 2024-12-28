@@ -10,7 +10,6 @@ import (
 type Check struct {
 	ID           uint
 	Status       Status
-	Type         Type
 	Name         string
 	Results      []*CheckResult
 	CreatedAt    time.Time
@@ -19,6 +18,23 @@ type Check struct {
 	CreatedBy    *user.User
 	FinishedBy   *user.User
 	FinishedByID uint
+}
+
+func (c *Check) AddResult(positionID uint, expected, actual int) {
+	c.Results = append(c.Results, &CheckResult{
+		PositionID:       positionID,
+		ExpectedQuantity: expected,
+		ActualQuantity:   actual,
+		Difference:       expected - actual,
+		CreatedAt:        time.Now(),
+	})
+}
+
+type Position struct {
+	ID       uint
+	Title    string
+	Quantity int
+	RfidTags []string
 }
 
 type CheckResult struct {

@@ -9,10 +9,14 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 )
 
+type PositionCheckDTO struct {
+	PositionID uint
+	Found      uint
+}
+
 type CreateCheckDTO struct {
-	Type      string `validate:"required"`
 	Name      string `validate:"required"`
-	Positions []uint
+	Positions []*PositionCheckDTO
 }
 
 type UpdateCheckDTO struct {
@@ -51,20 +55,16 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 	if err != nil {
 		return nil, err
 	}
-	t, err := NewType(d.Type)
-	if err != nil {
-		return nil, err
-	}
 	var results []*CheckResult
-	for _, id := range d.Positions {
+	for _, p := range d.Positions {
 		results = append(results, &CheckResult{
-			PositionID: id,
+			PositionID:     p.PositionID,
+			ActualQuantity: int(p.Found),
 		})
 	}
 	return &Check{
 		ID:          0,
 		Status:      s,
-		Type:        t,
 		Name:        d.Name,
 		Results:     results,
 		CreatedAt:   time.Now(),
