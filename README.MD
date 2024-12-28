@@ -41,10 +41,13 @@ various industries. Here's what's in the pipeline:
 
 ### Upcoming Features
 
+- **HR Management**: Integrate a human resources management module for employee onboarding, payroll, and benefits.
+- **CRM**: Integrate a customer relationship management module to streamline client interactions and sales processes.
 - **BI-Chat**: Introduce a business intelligence chatbot for real-time data insights and reporting.
 - **Password Vault**: Securely store and manage sensitive credentials within the platform.
 - **CRM**: Build a customer relationship management module to streamline client interactions and sales processes.
 - **DSL**: Integrate V8/Python for scripting and customizations.
+- **Logging**: Implement a logging system for tracking user actions and system events.
 
 ---
 
