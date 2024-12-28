@@ -4,7 +4,7 @@ TAILWIND_OUTPUT := pkg/presentation/assets/css/main.min.css
 
 # Install dependencies
 deps:
-	go get -u ./...
+	go get ./...
 
 # Seed database
 seed:
