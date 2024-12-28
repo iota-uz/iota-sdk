@@ -1,6 +1,6 @@
-import "./alpine.lib.min.js";
-import "./alpine-focus.min.js";
-import "./alpine-anchor.min.js";
+import "./lib/alpine.lib.min.js";
+import "./lib/alpine-focus.min.js";
+import "./lib/alpine-anchor.min.js";
 
 let relativeFormat = () => ({
   format(dateStr = new Date().toISOString(), locale = "ru") {
