@@ -18,12 +18,22 @@ Before starting, ensure the following tools are installed on your system:
    git clone https://github.com/iota-agency/iota-sdk.git
    ```
 
-2. **Install dependencies**:
+2. **Run code gen**:
+   ```bash
+   make generate
+   ```
+
+3. **Make env file**:
+   ```bash
+   cp .env.example .env
+   ```
+
+4. **Install dependencies**:
    ```bash
    make deps
    ```
 
-3. **Set up TailwindCSS**:
+5. **Set up TailwindCSS**:
    ```bash
    pnpm install -g tailwindcss
    # or
@@ -33,48 +43,43 @@ Before starting, ensure the following tools are installed on your system:
    chmod +x tailwindcss-linux-x64
    ```
 
-4. **Run PostgreSQL**:
+6. **Run PostgreSQL**:
    ```bash
    make localdb
    ```
 
-5. **Run code gen**:
-   ```bash
-   make generate
-   ```
-
-6. **Apply database migrations**:
+7. **Apply database migrations**:
    ```bash
    make migrate-up && make seed
    ```
 
-7. **Run TailwindCSS in watch mode**:
+8. **Run TailwindCSS in watch mode**:
    ```bash
    # in a separate terminal
    make css-watch
    ```
 
-8. **Start dev server with Air hot reloading**:
+9. **Start dev server with Air hot reloading**:
    ```bash
    air
    ```
 
-9. **Access the web app**:
+10. **Access the web app**:
 
-   Open your browser and navigate to:  
-   [http://localhost:8080](http://localhost:8080)
+    Open your browser and navigate to:  
+    [http://localhost:8080](http://localhost:8080)
 
-   Use the following credentials to log in:
+    Use the following credentials to log in:
 
-   **Email:**
-   ```text
-   test@gmail.com
-   ```
-   **Password:**
-   ```text
-   TestPass123!
-   ```
+    **Email:**
+    ```text
+    test@gmail.com
+    ```
+    **Password:**
+    ```text
+    TestPass123!
+    ```
 
-10. **Access the GraphQL Schema**:  
+11. **Access the GraphQL Schema**:  
     Open Postman and connect to:  
     [http://localhost:3200/query](http://localhost:3200/query)
