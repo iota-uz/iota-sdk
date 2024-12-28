@@ -55,7 +55,7 @@ various industries. Here's what's in the pipeline:
 
 <img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">
 
-We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](CONTRIBUTING.MD) to get
+We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
 started.
 
 Join our [Discord community](https://discord.gg/zKeTEZAQqF) for support and Q&A.
