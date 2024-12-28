@@ -11,10 +11,10 @@
   "NavigationLinks": {
     "Warehouse": "Warehouse",
     "Products": "Products",
-    "WarehousePositions": "Warehouse positions",
-    "WarehouseOrders": "Warehouse orders",
-    "WarehouseUnits": "Warehouse units",
-    "WarehouseInventory": "Warehouse inventory"
+    "WarehousePositions": "Positions",
+    "WarehouseOrders": "Orders",
+    "WarehouseUnits": "Units",
+    "WarehouseInventory": "Inventory"
   },
   "Products": {
     "List": {
@@ -146,6 +146,8 @@
         "Title": "Warehouse orders"
       },
       "New": "New order",
+      "NewIn": "Acceptance",
+      "NewOut": "Shipment",
       "Type": "Type",
       "Status": "Status",
       "Products": "PCS.",
@@ -182,8 +184,9 @@
       "TypePlaceholder": "Select type",
       "Status": "Status",
       "Quantity": "Quantity",
-      "Position": "Position",
       "PositionIDs": "Positions",
+      "NoItems": "No items",
+      "Position": "Position",
       "SearchPosition": "Search position",
       "NoPositionsFound": "No positions found",
       "Barcode": "Barcode",
@@ -191,7 +194,7 @@
       "OrderedQuantity": "Quantity to ship",
       "Unit": "Unit",
       "Delete": "Delete",
-      "DeleteConfirmation": "Are you sure you want to delete this warehouse order?"
+      "DeleteConfirmation": "Are you sure you want to delete this order?"
     }
   },
   "WarehouseInventory": {

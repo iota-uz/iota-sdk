@@ -50,7 +50,7 @@ func CreateUser(ctx context.Context, app application.Application) error {
 		FirstName:  "Admin",
 		LastName:   "User",
 		Email:      "test@gmail.com",
-		UILanguage: user.UILanguageRU,
+		UILanguage: user.UILanguageEN,
 		Roles: []*role.Role{
 			&CEO,
 		},
