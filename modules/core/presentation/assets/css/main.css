@@ -113,7 +113,7 @@
     --clr-primary-btn-border-hover: var(--primary-600);
 
     /* Secondary btn */
-    --clr-secondary-btn-bg: var(--gray-100);
+    --clr-secondary-btn-bg: var(--white);
     --clr-secondary-btn-bg-active: var(--gray-300);
     --clr-secondary-btn-bg-hover: var(--gray-200);
     --clr-secondary-btn-text: var(--black);
