@@ -66,14 +66,4 @@ clean:
 # Full setup
 setup: deps localdb migrate-up css lint
 
-# Release pipeline
-release:
-	git checkout build
-	templ generate
-	git merge main
-	git add -f '*_templ.go'
-	git commit -m"add build files"
-	git push
-	git checkout main
-
-.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint clean setup release
+.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint clean setup
