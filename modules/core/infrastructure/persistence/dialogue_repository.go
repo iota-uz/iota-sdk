@@ -2,13 +2,13 @@ package persistence
 
 import (
 	"context"
-	dialogue2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type GormDialogueRepository struct{}
 
-func NewDialogueRepository() dialogue2.Repository {
+func NewDialogueRepository() dialogue.Repository {
 	return &GormDialogueRepository{}
 }
 
@@ -16,12 +16,12 @@ func (g *GormDialogueRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*dialogue2.Dialogue, error) {
+) ([]*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var uploads []*dialogue2.Dialogue
+	var uploads []*dialogue.Dialogue
 	q := tx.Limit(limit).Offset(offset)
 	for _, s := range sortBy {
 		q = q.Order(s)
@@ -38,49 +38,49 @@ func (g *GormDialogueRepository) Count(ctx context.Context) (int64, error) {
 		return 0, composables.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&dialogue2.Dialogue{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&dialogue.Dialogue{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormDialogueRepository) GetAll(ctx context.Context) ([]*dialogue2.Dialogue, error) {
+func (g *GormDialogueRepository) GetAll(ctx context.Context) ([]*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var entities []*dialogue2.Dialogue
+	var entities []*dialogue.Dialogue
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
-func (g *GormDialogueRepository) GetByID(ctx context.Context, id int64) (*dialogue2.Dialogue, error) {
+func (g *GormDialogueRepository) GetByID(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var entity dialogue2.Dialogue
+	var entity dialogue.Dialogue
 	if err := tx.First(&entity, id).Error; err != nil {
 		return nil, err
 	}
 	return &entity, nil
 }
 
-func (g *GormDialogueRepository) GetByUserID(ctx context.Context, userID int64) ([]*dialogue2.Dialogue, error) {
+func (g *GormDialogueRepository) GetByUserID(ctx context.Context, userID int64) ([]*dialogue.Dialogue, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var entities []*dialogue2.Dialogue
+	var entities []*dialogue.Dialogue
 	if err := tx.Where("user_id = ?", userID).Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
-func (g *GormDialogueRepository) Create(ctx context.Context, data *dialogue2.Dialogue) error {
+func (g *GormDialogueRepository) Create(ctx context.Context, data *dialogue.Dialogue) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -91,7 +91,7 @@ func (g *GormDialogueRepository) Create(ctx context.Context, data *dialogue2.Dia
 	return nil
 }
 
-func (g *GormDialogueRepository) Update(ctx context.Context, data *dialogue2.Dialogue) error {
+func (g *GormDialogueRepository) Update(ctx context.Context, data *dialogue.Dialogue) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -107,7 +107,7 @@ func (g *GormDialogueRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Delete(&dialogue2.Dialogue{}, id).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Delete(&dialogue.Dialogue{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

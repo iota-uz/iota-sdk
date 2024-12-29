@@ -2,7 +2,7 @@ package persistence
 
 import (
 	"context"
-	employee2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
@@ -10,7 +10,7 @@ import (
 
 type GormEmployeeRepository struct{}
 
-func NewEmployeeRepository() employee2.Repository {
+func NewEmployeeRepository() employee.Repository {
 	return &GormEmployeeRepository{}
 }
 
@@ -18,7 +18,7 @@ func (g *GormEmployeeRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*employee2.Employee, error) {
+) ([]*employee.Employee, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -32,7 +32,7 @@ func (g *GormEmployeeRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*employee2.Employee, len(rows))
+	entities := make([]*employee.Employee, len(rows))
 	for i, r := range rows {
 		entities[i] = toDomainEmployee(r)
 	}
@@ -51,7 +51,7 @@ func (g *GormEmployeeRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormEmployeeRepository) GetAll(ctx context.Context) ([]*employee2.Employee, error) {
+func (g *GormEmployeeRepository) GetAll(ctx context.Context) ([]*employee.Employee, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -60,14 +60,14 @@ func (g *GormEmployeeRepository) GetAll(ctx context.Context) ([]*employee2.Emplo
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*employee2.Employee, len(rows))
+	entities := make([]*employee.Employee, len(rows))
 	for i, r := range rows {
 		entities[i] = toDomainEmployee(r)
 	}
 	return entities, nil
 }
 
-func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (*employee2.Employee, error) {
+func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (*employee.Employee, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -79,7 +79,7 @@ func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (*employe
 	return toDomainEmployee(&entity), nil
 }
 
-func (g *GormEmployeeRepository) Create(ctx context.Context, data *employee2.Employee) error {
+func (g *GormEmployeeRepository) Create(ctx context.Context, data *employee.Employee) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -95,7 +95,7 @@ func (g *GormEmployeeRepository) Create(ctx context.Context, data *employee2.Emp
 	return nil
 }
 
-func (g *GormEmployeeRepository) Update(ctx context.Context, data *employee2.Employee) error {
+func (g *GormEmployeeRepository) Update(ctx context.Context, data *employee.Employee) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

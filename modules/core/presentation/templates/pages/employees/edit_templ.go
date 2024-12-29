@@ -66,7 +66,11 @@ func EditForm(props *EditPageProps) templ.Component {
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: props.T("Employees.Single.FirstName"),
-				Attrs: templ.Attributes{"name": "FirstName", "value": props.Employee.FirstName},
+				Attrs: templ.Attributes{
+					"value": props.Employee.FirstName,
+					"name":  "FirstName",
+					"form":  "save-form",
+				},
 				Error: props.Errors["FirstName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -78,7 +82,11 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: props.T("Employees.Single.LastName"),
-				Attrs: templ.Attributes{"name": "LastName", "value": props.Employee.LastName},
+				Attrs: templ.Attributes{
+					"value": props.Employee.LastName,
+					"name":  "LastName",
+					"form":  "save-form",
+				},
 				Error: props.Errors["LastName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -90,7 +98,11 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: props.T("Employees.Single.MiddleName"),
-				Attrs: templ.Attributes{"name": "MiddleName", "value": props.Employee.MiddleName},
+				Attrs: templ.Attributes{
+					"value": props.Employee.MiddleName,
+					"name":  "MiddleName",
+					"form":  "save-form",
+				},
 				Error: props.Errors["MiddleName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -102,7 +114,11 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: props.T("Employees.Single.Phone"),
-				Attrs: templ.Attributes{"name": "Phone", "value": props.Employee.Phone},
+				Attrs: templ.Attributes{
+					"value": props.Employee.Phone,
+					"name":  "Phone",
+					"form":  "save-form",
+				},
 				Error: props.Errors["Phone"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -114,7 +130,11 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
 				Label: props.T("Employees.Single.Salary"),
-				Attrs: templ.Attributes{"name": "Salary", "value": props.Employee.Salary},
+				Attrs: templ.Attributes{
+					"value": props.Employee.Salary,
+					"name":  "Salary",
+					"form":  "save-form",
+				},
 				Error: props.Errors["Salary"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -126,7 +146,11 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: props.T("Employees.Single.Email"),
-				Attrs: templ.Attributes{"name": "Email", "value": props.Employee.Email},
+				Attrs: templ.Attributes{
+					"value": props.Employee.Email,
+					"name":  "Email",
+					"form":  "save-form",
+				},
 				Error: props.Errors["Email"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -145,7 +169,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.DeleteURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 62, Col: 31}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 86, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -170,7 +194,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 79, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 103, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -198,7 +222,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 85, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 109, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -223,7 +247,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 98, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/edit.templ`, Line: 122, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

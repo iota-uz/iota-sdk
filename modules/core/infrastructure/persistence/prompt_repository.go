@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
-	prompt2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormPromptRepository struct{}
 
-func NewPromptRepository() prompt2.Repository {
+func NewPromptRepository() prompt.Repository {
 	return &GormPromptRepository{}
 }
 
@@ -17,7 +17,7 @@ func (g *GormPromptRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*prompt2.Prompt, error) {
+) ([]*prompt.Prompt, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -27,7 +27,7 @@ func (g *GormPromptRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	var entities []*prompt2.Prompt
+	var entities []*prompt.Prompt
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
@@ -40,37 +40,37 @@ func (g *GormPromptRepository) Count(ctx context.Context) (int64, error) {
 		return 0, composables.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&prompt2.Prompt{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&prompt.Prompt{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormPromptRepository) GetAll(ctx context.Context) ([]*prompt2.Prompt, error) {
+func (g *GormPromptRepository) GetAll(ctx context.Context) ([]*prompt.Prompt, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var entities []*prompt2.Prompt
+	var entities []*prompt.Prompt
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
-func (g *GormPromptRepository) GetByID(ctx context.Context, id string) (*prompt2.Prompt, error) {
+func (g *GormPromptRepository) GetByID(ctx context.Context, id string) (*prompt.Prompt, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var entity prompt2.Prompt
+	var entity prompt.Prompt
 	if err := tx.First(&entity, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &entity, nil
 }
 
-func (g *GormPromptRepository) Create(ctx context.Context, data *prompt2.Prompt) error {
+func (g *GormPromptRepository) Create(ctx context.Context, data *prompt.Prompt) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -81,7 +81,7 @@ func (g *GormPromptRepository) Create(ctx context.Context, data *prompt2.Prompt)
 	return nil
 }
 
-func (g *GormPromptRepository) Update(ctx context.Context, data *prompt2.Prompt) error {
+func (g *GormPromptRepository) Update(ctx context.Context, data *prompt.Prompt) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -97,7 +97,7 @@ func (g *GormPromptRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Delete(&prompt2.Prompt{}, id).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Delete(&prompt.Prompt{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil
