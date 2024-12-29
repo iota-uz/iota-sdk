@@ -30,7 +30,7 @@ templ ModelSelect() {
 
 templ ChatSideBar(props *ChatPageProps) {
 	<!-- Chat Actions -->
-	<div class="flex gap-2 border-b border-gray-200 p-3">
+	<div class="flex gap-2 border-b border-gray-200 p-4">
 		@button.Secondary(button.Props{
 			Href:  "/bi-chat/new",
 			Class: "flex-grow",
@@ -82,12 +82,15 @@ templ BiChatPage(props *ChatPageProps) {
 				<div class="px-10">
 					<div class="grid grid-cols-2 gap-2">
 						for _, suggestion := range props.Suggestions {
-							<button class="border border-gray-200 hover:bg-gray-100 py-3 rounded-md">
+							@button.Secondary(button.Props{
+								Class: "cursor-pointer justify-between",
+							}) {
 								{ suggestion }
-							</button>
+								@icons.ArrowCircleUp(icons.Props{Size: "18"})
+							}
 						}
 					</div>
-					<div class="my-4">
+					<div class="my-6">
 						@input.Text(&input.Props{
 							Placeholder: props.T("BiChat.MessagePlaceholder"),
 						})

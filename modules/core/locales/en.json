@@ -60,6 +60,11 @@
     "Welcome": "Welcome to the dashboard"
   },
   "BiChat": {
+    "Meta": {
+      "Index": {
+        "Title": "BI-Chat"
+      }
+    },
     "Title": "BI-Chat",
     "NewDialog": "New dialog",
     "MessagePlaceholder": "Type a message...",
