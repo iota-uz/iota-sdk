@@ -48,7 +48,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex flex-col gap-4 table-wrapper\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -90,7 +90,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 						}
 						ctx = templ.InitializeContext(ctx)
 						if len(position.Images) > 0 {
-							templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 2)
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<img src=\"")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -103,7 +103,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 3)
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"w-12 h-12\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -114,7 +114,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 4)
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -145,7 +145,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 5)
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -176,7 +176,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 6)
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -207,7 +207,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 7)
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -223,7 +223,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 8)
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div x-data=\"relativeformat\"><span x-text=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -236,7 +236,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 9)
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"></span></div>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -246,7 +246,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 10)
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -318,7 +318,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 11)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -347,7 +347,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 			templ_7745c5c3_Var16 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 12)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"m-6\"><div class=\"flex justify-between items-center gap-3\"><h1 class=\"text-2xl font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -360,7 +360,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 13)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</h1>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -394,7 +394,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 14)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div class=\"mt-5 bg-surface-600 border border-primary rounded-lg\"><form class=\"p-4 flex items-center gap-3\" hx-get=\"/warehouse/positions\" hx-trigger=\"keyup changed delay:500ms from:(form input), change changed from:(form select)\" hx-target=\".table-wrapper\" hx-swap=\"outerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -423,7 +423,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 15)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<option selected disabled>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -436,7 +436,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 16)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</option> <option value=\"\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -449,12 +449,12 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 17)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</option> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, unit := range props.Units {
-				templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 18)
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<option value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -467,7 +467,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 19)
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -480,7 +480,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 20)
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</option>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -533,7 +533,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 21)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -541,7 +541,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 22)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

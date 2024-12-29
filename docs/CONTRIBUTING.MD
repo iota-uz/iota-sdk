@@ -15,7 +15,7 @@ Before starting, ensure the following tools are installed on your system:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/iota-agency/iota-sdk.git
+   git clone https://github.com/iota-uz/iota-sdk.git
    ```
 
 2. **Run code gen**:

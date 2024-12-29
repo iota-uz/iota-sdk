@@ -48,7 +48,7 @@ Button component to render a button or a link
 ### Usage
 #### Primary button
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/button"
+import "github.com/iota-uz/iota-sdk/components/base/button"
 
 templ PrimaryButtonDemo() {
   @button.Primary(button.Props{Size: button.SizeNormal}) {
@@ -58,7 +58,7 @@ templ PrimaryButtonDemo() {
 ```
 #### Button link
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/button"
+import "github.com/iota-uz/iota-sdk/components/base/button"
 
 templ PrimaryLinkDemo() {
   @button.Primary(button.Props{Size: button.SizeNormal, Href: "https://iota.uz"}) {
@@ -68,7 +68,7 @@ templ PrimaryLinkDemo() {
 ```
 #### Danger button with icon
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/button"
+import "github.com/iota-uz/iota-sdk/components/base/button"
 
 templ PrimaryLinkDemo() {
   @button.Danger(button.Props{Size: button.SizeNormal, Icon: icons.PlusCirlce(icons.Props{Size:"16"})}) {
@@ -103,7 +103,7 @@ Input component to render an input element
 
 #### Text input
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/input"
+import "github.com/iota-uz/iota-sdk/components/base/input"
 
 templ TextInputDemo() {
   @input.Text(&input.Props{
@@ -114,7 +114,7 @@ templ TextInputDemo() {
 ```
 #### Search input
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/input"
+import "github.com/iota-uz/iota-sdk/components/base/input"
 
 templ SearchInputDemo() {
   @input.Text(&input.Props{
@@ -128,7 +128,7 @@ templ SearchInputDemo() {
 ```
 #### Email input
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/input"
+import "github.com/iota-uz/iota-sdk/components/base/input"
 
 templ EmailInputDemo() {
   @input.Email(&input.Props{
@@ -139,7 +139,7 @@ templ EmailInputDemo() {
 ```
 #### Date input
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/input"
+import "github.com/iota-uz/iota-sdk/components/base/input"
 
 templ DateInputDemo() {
   @input.Date(&input.Props{
@@ -149,7 +149,7 @@ templ DateInputDemo() {
 ```
 #### Password input
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/input"
+import "github.com/iota-uz/iota-sdk/components/base/input"
 
 templ PasswordIputDemo() {
   @input.Password(&input.Props{
@@ -187,7 +187,7 @@ Basic select component
 
 #### Basic select
 ```go
-import "github.com/iota-agency/iota-sdk/components/base"
+import "github.com/iota-uz/iota-sdk/components/base"
 
 templ BasicSelectDemo() {
   @base.Select(&base.SelectProps{
@@ -201,7 +201,7 @@ templ BasicSelectDemo() {
 ```
 #### Select with prefix
 ```go
-import "github.com/iota-agency/iota-sdk/components/base"
+import "github.com/iota-uz/iota-sdk/components/base"
 
 templ BasicSelectWithPrefixDemo() {
   @base.Select(&base.SelectProps{
@@ -233,7 +233,7 @@ A more advanced select
 
 #### Basic
 ```go
-import "github.com/iota-agency/iota-sdk/components/base"
+import "github.com/iota-uz/iota-sdk/components/base"
 
 templ BasicComboboxDemo() {
   @base.Combobox(base.ComboboxProps{
@@ -249,7 +249,7 @@ templ BasicComboboxDemo() {
 
 #### Dynamic
 ```go
-import "github.com/iota-agency/iota-sdk/components/base"
+import "github.com/iota-uz/iota-sdk/components/base"
 
 templ BasicComboboxDemo() {
   @base.Combobox(base.ComboboxProps{
@@ -283,7 +283,7 @@ A simple dialog component. Only confirmation dialog supported for now.
 
 #### Confirmation dialog
 ```go
-import "github.com/iota-agency/iota-sdk/components/base/dialog"
+import "github.com/iota-uz/iota-sdk/components/base/dialog"
 
 templ ConfirmationDemo() {
   @dialog.Confirmation(&dialog.Props{
@@ -319,7 +319,7 @@ templ ConfirmationDemo() {
 
 ### Usage
 ```go
-import "github.com/iota-agency/iota-sdk/components/base"
+import "github.com/iota-uz/iota-sdk/components/base"
 
 templ summary() {
   <summary>Menu</summary>
@@ -355,7 +355,7 @@ summary - `templ.Component`
 ### Usage
 
 ```go
-import "github.com/iota-agency/iota-sdk/components"
+import "github.com/iota-uz/iota-sdk/components"
 
 templ UploadInputDemo() {
   @components.UploadInput(&components.UploadInputProps{
@@ -387,7 +387,7 @@ templ UploadInputDemo() {
 ### Usage
 
 ```go
-import "github.com/iota-agency/iota-sdk/components/alert"
+import "github.com/iota-uz/iota-sdk/components/alert"
 
 templ ErrorAlertDemo() {
   @alert.Error() {
@@ -400,7 +400,7 @@ templ ErrorAlertDemo() {
 
 ### Usage
 ```go
-import "github.com/iota-agency/iota-sdk/components/textarea"
+import "github.com/iota-uz/iota-sdk/components/textarea"
 
 templ BasicTextareaDemo() {
   @textarea.Basic(&textarea.Props{
@@ -428,14 +428,14 @@ templ BasicTextareaDemo() {
 
 ```go
 // page.templ
-import "github.com/iota-agency/iota-sdk/components/base/pagination"
+import "github.com/iota-uz/iota-sdk/components/base/pagination"
 templ Page(state *pagination.State) {
   @pagination.Pagination(state)
 }
 
 // controller.go
 import (
-  "github.com/iota-agency/iota-sdk/components/base/pagination"
+  "github.com/iota-uz/iota-sdk/components/base/pagination"
   "github.com/a-h/templ"
 )
 
@@ -464,7 +464,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 ### Usage
 
 ```go
-import "github.com/iota-agency/iota-sdk/components/base"
+import "github.com/iota-uz/iota-sdk/components/base"
 
 templ TableDemo() {
   @base.Table(&base.TableProps{
@@ -503,7 +503,7 @@ templ TableDemo() {
 ### Usage
 
 ```go
-import "github.com/iota-agency/iota-sdk/components/base"
+import "github.com/iota-uz/iota-sdk/components/base"
 
 templ CardDemo() {
   @base.Card("") {
