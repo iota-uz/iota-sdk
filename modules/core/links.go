@@ -19,4 +19,11 @@ var UsersLink = types.NavigationItem{
 	Children: nil,
 }
 
-var NavItems = []types.NavigationItem{DashboardLink, UsersLink}
+var EmployeesLink = types.NavigationItem{
+	Name:     "NavigationLinks.Employees",
+	Icon:     icons.Users(icons.Props{Size: "20"}),
+	Href:     "/operations/employees",
+	Children: nil,
+}
+
+var NavItems = []types.NavigationItem{DashboardLink, UsersLink, EmployeesLink}
