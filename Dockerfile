@@ -16,8 +16,8 @@ RUN go install github.com/a-h/templ/cmd/templ@latest && go install github.com/mi
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN templ generate && go vet ./...
-RUN tailwindcss -c tailwind.config.js -i pkg/presentation/assets/css/main.css -o pkg/presentation/assets/css/main.min.css --minify
+RUN make generate && go vet ./...
+RUN make css
 
 FROM install-stage AS production
 RUN go build -o run_server cmd/server/main.go
