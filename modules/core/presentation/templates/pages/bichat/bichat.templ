@@ -1,0 +1,90 @@
+package bichat
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type HistoryItem struct {
+	Title string
+	Link  string
+}
+
+type ChatPageProps struct {
+	*types.PageContext
+	History     []*HistoryItem
+	Suggestions []string
+}
+
+templ ModelSelect() {
+	<label>
+		<select class="w-full bg-white border border-gray-200 rounded-md shadow-sm">
+			<option value="1">Модель 1</option>
+			<option value="2">Модель 2</option>
+			<option value="3">Модель 3</option>
+		</select>
+	</label>
+}
+
+templ ChatSideBar(props *ChatPageProps) {
+	<div>
+		<!-- Chat Actions -->
+		<div>
+			@button.Secondary(button.Props{
+				Href:  "/bi-chat/new",
+				Class: "w-full",
+				Icon:  icons.PlusCircle(icons.Props{Size: "18"}),
+			}) {
+				{ props.T("BiChat.NewDialog") }
+			}
+		</div>
+		<!-- Main Content -->
+		if len(props.History) > 0 {
+			<div class="flex-1 overflow-y-auto">
+				<ul class="space-y-2">
+					for _, item := range props.History {
+						<li class="p-4 border border-gray-200 rounded-md shadow-sm hover:bg-gray-100 cursor-pointer">
+							{ item.Title }
+						</li>
+					}
+				</ul>
+			</div>
+		} else {
+			<div class="flex-1 flex flex-col justify-center items-center text-gray-500">
+				<img
+					src="/assets/images/no-history.png"
+					alt="No history image"
+				/>
+				<p class="font-semibold">Нет истории чата</p>
+				<p class="text-gray-400">Нажмите кнопку "Новый диалог", чтобы начать новый чат</p>
+			</div>
+		}
+	</div>
+}
+
+templ BiChatPage(props *ChatPageProps) {
+	<div class="p-6 flex flex-col h-full">
+		<!-- Header -->
+		<h1 class="text-2xl font-medium">
+			{ props.T("BiChat.Title") }
+		</h1>
+		<div class="grid grid-cols-3 bg-white">
+			@ChatSideBar(props)
+			<div class="col-span-2">
+				<div class="grid grid-cols-2 gap-2">
+					for _, suggestion := range props.Suggestions {
+						<button class="flex-1 bg-gray-200 py-3 rounded-md">{ suggestion }</button>
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ Index(props *ChatPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@BiChatPage(props)
+	}
+}
