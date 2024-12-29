@@ -40,15 +40,9 @@ jobs:
       - name: Generate templates and run go vet
         run: |
           templ generate
+          git diff --exit-code
           go vet ./...
           go test -v ./...
-
-      - name: Add generated files to commit
-        run: |
-          git config --global user.email "github@actions.com"
-          git config --global user.name "GitHub Actions"
-          git add -f '*_templ.go'
-          git commit -m "Add generated assets"
 
       - name: Create and push tag
         env:
