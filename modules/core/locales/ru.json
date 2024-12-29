@@ -55,6 +55,11 @@
     "Welcome": "Добро пожаловать на панель управления"
   },
   "BiChat": {
+    "Meta": {
+      "Index": {
+        "Title": "BI-Чат"
+      }
+    },
     "Title": "BI-Чат",
     "NewDialog": "Новый диалог",
     "MessagePlaceholder": "Введите сообщение...",

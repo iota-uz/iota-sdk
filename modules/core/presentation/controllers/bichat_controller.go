@@ -51,7 +51,7 @@ func (c *BiChatController) Register(r *mux.Router) {
 func (c *BiChatController) Index(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
-		types.NewPageData("Employees.Meta.List.Title", ""),
+		types.NewPageData("BiChat.Meta.Index.Title", ""),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
