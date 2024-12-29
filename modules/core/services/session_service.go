@@ -2,16 +2,16 @@ package services
 
 import (
 	"context"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/session"
+	session2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type SessionService struct {
-	repo      session.Repository
+	repo      session2.Repository
 	publisher event.Publisher
 }
 
-func NewSessionService(repo session.Repository, publisher event.Publisher) *SessionService {
+func NewSessionService(repo session2.Repository, publisher event.Publisher) *SessionService {
 	return &SessionService{
 		repo:      repo,
 		publisher: publisher,
@@ -22,11 +22,11 @@ func (s *SessionService) GetCount(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *SessionService) GetAll(ctx context.Context) ([]*session.Session, error) {
+func (s *SessionService) GetAll(ctx context.Context) ([]*session2.Session, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *SessionService) GetByToken(ctx context.Context, id string) (*session.Session, error) {
+func (s *SessionService) GetByToken(ctx context.Context, id string) (*session2.Session, error) {
 	return s.repo.GetByToken(ctx, id)
 }
 
@@ -34,16 +34,16 @@ func (s *SessionService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*session.Session, error) {
+) ([]*session2.Session, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
+func (s *SessionService) Create(ctx context.Context, data *session2.CreateDTO) error {
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := session.NewCreatedEvent(*data, *entity)
+	createdEvent, err := session2.NewCreatedEvent(*data, *entity)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 	return nil
 }
 
-func (s *SessionService) Update(ctx context.Context, data *session.Session) error {
+func (s *SessionService) Update(ctx context.Context, data *session2.Session) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}

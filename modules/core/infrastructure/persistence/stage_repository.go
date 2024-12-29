@@ -2,13 +2,13 @@ package persistence
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	stage "github.com/iota-uz/iota-sdk/pkg/domain/entities/project_stages"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
-func NewProjectStageRepository() stage.Repository {
+func NewProjectStageRepository() project_stages.Repository {
 	return &GormStageRepository{}
 }
 
@@ -18,7 +18,7 @@ func (g *GormStageRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*stage.ProjectStage, error) {
+) ([]*project_stages.ProjectStage, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -32,7 +32,7 @@ func (g *GormStageRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	stages := make([]*stage.ProjectStage, len(rows))
+	stages := make([]*project_stages.ProjectStage, len(rows))
 	for i, row := range rows {
 		stages[i] = toDomainProjectStage(row)
 	}
@@ -51,7 +51,7 @@ func (g *GormStageRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormStageRepository) GetAll(ctx context.Context) ([]*stage.ProjectStage, error) {
+func (g *GormStageRepository) GetAll(ctx context.Context) ([]*project_stages.ProjectStage, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -60,14 +60,14 @@ func (g *GormStageRepository) GetAll(ctx context.Context) ([]*stage.ProjectStage
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	stages := make([]*stage.ProjectStage, len(rows))
+	stages := make([]*project_stages.ProjectStage, len(rows))
 	for i, row := range rows {
 		stages[i] = toDomainProjectStage(row)
 	}
 	return stages, nil
 }
 
-func (g *GormStageRepository) GetByID(ctx context.Context, id uint) (*stage.ProjectStage, error) {
+func (g *GormStageRepository) GetByID(ctx context.Context, id uint) (*project_stages.ProjectStage, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -79,7 +79,7 @@ func (g *GormStageRepository) GetByID(ctx context.Context, id uint) (*stage.Proj
 	return toDomainProjectStage(entity), nil
 }
 
-func (g *GormStageRepository) Create(ctx context.Context, entity *stage.ProjectStage) error {
+func (g *GormStageRepository) Create(ctx context.Context, entity *project_stages.ProjectStage) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -90,7 +90,7 @@ func (g *GormStageRepository) Create(ctx context.Context, entity *stage.ProjectS
 	return nil
 }
 
-func (g *GormStageRepository) Update(ctx context.Context, entity *stage.ProjectStage) error {
+func (g *GormStageRepository) Update(ctx context.Context, entity *project_stages.ProjectStage) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

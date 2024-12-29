@@ -3,9 +3,9 @@ package composables
 import (
 	"context"
 	"errors"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
 )
 
 var (

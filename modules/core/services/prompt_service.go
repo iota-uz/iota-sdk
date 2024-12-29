@@ -2,16 +2,16 @@ package services
 
 import (
 	"context"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/prompt"
+	prompt2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type PromptService struct {
-	repo      prompt.Repository
+	repo      prompt2.Repository
 	publisher event.Publisher
 }
 
-func NewPromptService(repo prompt.Repository, publisher event.Publisher) *PromptService {
+func NewPromptService(repo prompt2.Repository, publisher event.Publisher) *PromptService {
 	return &PromptService{
 		repo:      repo,
 		publisher: publisher,
@@ -22,11 +22,11 @@ func (s *PromptService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *PromptService) GetAll(ctx context.Context) ([]*prompt.Prompt, error) {
+func (s *PromptService) GetAll(ctx context.Context) ([]*prompt2.Prompt, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *PromptService) GetByID(ctx context.Context, id string) (*prompt.Prompt, error) {
+func (s *PromptService) GetByID(ctx context.Context, id string) (*prompt2.Prompt, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -34,11 +34,11 @@ func (s *PromptService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*prompt.Prompt, error) {
+) ([]*prompt2.Prompt, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *PromptService) Create(ctx context.Context, data *prompt.Prompt) error {
+func (s *PromptService) Create(ctx context.Context, data *prompt2.Prompt) error {
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (s *PromptService) Create(ctx context.Context, data *prompt.Prompt) error {
 	return nil
 }
 
-func (s *PromptService) Update(ctx context.Context, data *prompt.Prompt) error {
+func (s *PromptService) Update(ctx context.Context, data *prompt2.Prompt) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}

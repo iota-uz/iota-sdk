@@ -2,18 +2,19 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
 
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/templates/pages/moneyaccounts"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	coremappers "github.com/iota-uz/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type MoneyAccountController struct {

@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/telegramsession"
 	"sync"
 
 	"github.com/gotd/td/session"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/telegramsession"
 	"github.com/jmoiron/sqlx"
 )
 

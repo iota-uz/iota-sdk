@@ -1,17 +1,17 @@
 package controllers
 
 import (
-	services2 "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/account"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/pages/account"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 
@@ -20,16 +20,16 @@ import (
 
 type AccountController struct {
 	app         application.Application
-	userService *services2.UserService
-	tabService  *services2.TabService
+	userService *services.UserService
+	tabService  *services.TabService
 	basePath    string
 }
 
 func NewAccountController(app application.Application) application.Controller {
 	return &AccountController{
 		app:         app,
-		userService: app.Service(services2.UserService{}).(*services2.UserService),
-		tabService:  app.Service(services2.TabService{}).(*services2.TabService),
+		userService: app.Service(services.UserService{}).(*services.UserService),
+		tabService:  app.Service(services.TabService{}).(*services.TabService),
 		basePath:    "/account",
 	}
 }

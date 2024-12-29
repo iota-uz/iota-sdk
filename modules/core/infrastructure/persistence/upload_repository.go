@@ -2,21 +2,21 @@ package persistence
 
 import (
 	"context"
+	upload2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormUploadRepository struct{}
 
-func NewUploadRepository() upload.Repository {
+func NewUploadRepository() upload2.Repository {
 	return &GormUploadRepository{}
 }
 
 func (g *GormUploadRepository) GetPaginated(
-	ctx context.Context, params *upload.FindParams,
-) ([]*upload.Upload, error) {
+	ctx context.Context, params *upload2.FindParams,
+) ([]*upload2.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -30,7 +30,7 @@ func (g *GormUploadRepository) GetPaginated(
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
-	uploads := make([]*upload.Upload, len(entities))
+	uploads := make([]*upload2.Upload, len(entities))
 	for i, entity := range entities {
 		// TODO: proper implementation
 		u, err := g.GetByID(ctx, entity.ID)
@@ -54,7 +54,7 @@ func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, error) {
+func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload2.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -64,7 +64,7 @@ func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, er
 		return nil, err
 	}
 
-	orders := make([]*upload.Upload, len(entities))
+	orders := make([]*upload2.Upload, len(entities))
 	for i, entity := range entities {
 		// TODO: proper implementation
 		o, err := g.GetByID(ctx, entity.ID)
@@ -76,7 +76,7 @@ func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, er
 	return orders, nil
 }
 
-func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
+func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload2.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -88,7 +88,7 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Up
 	return ToDomainUpload(&entity), nil
 }
 
-func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
+func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload2.Upload, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -100,7 +100,7 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 	return ToDomainUpload(&entity), nil
 }
 
-func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
+func (g *GormUploadRepository) Create(ctx context.Context, data *upload2.Upload) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -113,7 +113,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 	return nil
 }
 
-func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
+func (g *GormUploadRepository) Update(ctx context.Context, data *upload2.Upload) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

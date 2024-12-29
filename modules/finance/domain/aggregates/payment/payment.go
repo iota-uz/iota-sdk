@@ -1,8 +1,8 @@
 package payment
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"

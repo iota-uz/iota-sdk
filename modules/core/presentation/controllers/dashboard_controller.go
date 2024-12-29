@@ -1,9 +1,9 @@
 package controllers
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 

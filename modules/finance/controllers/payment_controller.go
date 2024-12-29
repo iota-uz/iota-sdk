@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type PaymentsController struct {

@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/pages/error_pages"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 )
 
 func NotFound(app application.Application) http.HandlerFunc {

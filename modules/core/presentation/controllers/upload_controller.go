@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"net/http"
@@ -11,11 +12,10 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/mappers"
 )
 
 type UploadController struct {

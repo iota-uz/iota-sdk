@@ -3,8 +3,8 @@ package category
 import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/currency"
 	"time"
 )
 
@@ -48,7 +48,7 @@ func (e *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (e *CreateDTO) ToEntity() (*ExpenseCategory, error) {
-	code, err := currency.NewCode(e.CurrencyCode)
+	code, err := currency2.NewCode(e.CurrencyCode)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (e *CreateDTO) ToEntity() (*ExpenseCategory, error) {
 		ID:          0,
 		Name:        e.Name,
 		Amount:      e.Amount,
-		Currency:    currency.Currency{Code: code}, //nolint:exhaustruct
+		Currency:    currency2.Currency{Code: code}, //nolint:exhaustruct
 		Description: e.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -65,7 +65,7 @@ func (e *CreateDTO) ToEntity() (*ExpenseCategory, error) {
 }
 
 func (e *UpdateDTO) ToEntity(id uint) (*ExpenseCategory, error) {
-	code, err := currency.NewCode(e.CurrencyCode)
+	code, err := currency2.NewCode(e.CurrencyCode)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (e *UpdateDTO) ToEntity(id uint) (*ExpenseCategory, error) {
 		ID:          id,
 		Name:        e.Name,
 		Amount:      e.Amount,
-		Currency:    currency.Currency{Code: code}, //nolint:exhaustruct
+		Currency:    currency2.Currency{Code: code}, //nolint:exhaustruct
 		Description: e.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),

@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
+	user2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 	"gorm.io/gorm"
 )
 
-func NewUserRepository() user.Repository {
+func NewUserRepository() user2.Repository {
 	return &GormUserRepository{}
 }
 
@@ -19,7 +19,7 @@ func (g *GormUserRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*user.User, error) {
+) ([]*user2.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -33,7 +33,7 @@ func (g *GormUserRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*user.User, len(rows))
+	entities := make([]*user2.User, len(rows))
 	for i, row := range rows {
 		entities[i] = ToDomainUser(row)
 	}
@@ -52,7 +52,7 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
+func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user2.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -61,14 +61,14 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 	if err := tx.Find(&users).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*user.User, len(users))
+	entities := make([]*user2.User, len(users))
 	for i, row := range users {
 		entities[i] = ToDomainUser(row)
 	}
 	return entities, nil
 }
 
-func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
+func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user2.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -80,7 +80,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, 
 	return ToDomainUser(&row), nil
 }
 
-func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user2.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -92,7 +92,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	return ToDomainUser(&row), nil
 }
 
-func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User) error {
+func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user2.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -104,7 +104,7 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User
 	return tx.Model(dbUser).Association("Roles").Replace(dbRoles)
 }
 
-func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {
+func (g *GormUserRepository) Create(ctx context.Context, user *user2.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -116,7 +116,7 @@ func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error 
 	return tx.Model(dbUser).Association("Roles").Append(dbRoles)
 }
 
-func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error {
+func (g *GormUserRepository) Update(ctx context.Context, user *user2.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

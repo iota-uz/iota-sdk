@@ -2,17 +2,16 @@ package services
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
 	"github.com/iota-uz/iota-sdk/pkg/event"
-
-	stage "github.com/iota-uz/iota-sdk/pkg/domain/entities/project_stages"
 )
 
 type ProjectStageService struct {
-	repo      stage.Repository
+	repo      project_stages.Repository
 	publisher event.Publisher
 }
 
-func NewProjectStageService(repo stage.Repository, publisher event.Publisher) *ProjectStageService {
+func NewProjectStageService(repo project_stages.Repository, publisher event.Publisher) *ProjectStageService {
 	return &ProjectStageService{
 		repo:      repo,
 		publisher: publisher,
@@ -23,11 +22,11 @@ func (s *ProjectStageService) Count(ctx context.Context) (uint, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *ProjectStageService) GetAll(ctx context.Context) ([]*stage.ProjectStage, error) {
+func (s *ProjectStageService) GetAll(ctx context.Context) ([]*project_stages.ProjectStage, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *ProjectStageService) GetByID(ctx context.Context, id uint) (*stage.ProjectStage, error) {
+func (s *ProjectStageService) GetByID(ctx context.Context, id uint) (*project_stages.ProjectStage, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -35,12 +34,12 @@ func (s *ProjectStageService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*stage.ProjectStage, error) {
+) ([]*project_stages.ProjectStage, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *ProjectStageService) Create(ctx context.Context, data *stage.CreateDTO) error {
-	createdEvent, err := stage.NewCreatedEvent(ctx, *data)
+func (s *ProjectStageService) Create(ctx context.Context, data *project_stages.CreateDTO) error {
+	createdEvent, err := project_stages.NewCreatedEvent(ctx, *data)
 	if err != nil {
 		return err
 	}
@@ -53,8 +52,8 @@ func (s *ProjectStageService) Create(ctx context.Context, data *stage.CreateDTO)
 	return nil
 }
 
-func (s *ProjectStageService) Update(ctx context.Context, id uint, data *stage.UpdateDTO) error {
-	updatedEvent, err := stage.NewUpdatedEvent(ctx, *data)
+func (s *ProjectStageService) Update(ctx context.Context, id uint, data *project_stages.UpdateDTO) error {
+	updatedEvent, err := project_stages.NewUpdatedEvent(ctx, *data)
 	if err != nil {
 		return err
 	}
@@ -67,8 +66,8 @@ func (s *ProjectStageService) Update(ctx context.Context, id uint, data *stage.U
 	return nil
 }
 
-func (s *ProjectStageService) Delete(ctx context.Context, id uint) (*stage.ProjectStage, error) {
-	deletedEvent, err := stage.NewDeletedEvent(ctx)
+func (s *ProjectStageService) Delete(ctx context.Context, id uint) (*project_stages.ProjectStage, error) {
+	deletedEvent, err := project_stages.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
 	}

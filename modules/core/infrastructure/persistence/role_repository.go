@@ -2,15 +2,15 @@ package persistence
 
 import (
 	"context"
+	role2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormRoleRepository struct{}
 
-func NewRoleRepository() role.Repository {
+func NewRoleRepository() role2.Repository {
 	return &GormRoleRepository{}
 }
 
@@ -18,7 +18,7 @@ func (g *GormRoleRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*role.Role, error) {
+) ([]*role2.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -28,7 +28,7 @@ func (g *GormRoleRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	var entities []*role.Role
+	var entities []*role2.Role
 	if err := q.Preload("Permissions").Find(&entities).Error; err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
+func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role2.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -56,14 +56,14 @@ func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
 	if err := tx.Preload("Permissions").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var entities []*role.Role
+	var entities []*role2.Role
 	for _, row := range rows {
 		entities = append(entities, toDomainRole(row))
 	}
 	return entities, nil
 }
 
-func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role.Role, error) {
+func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role2.Role, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -75,7 +75,7 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role.Role,
 	return toDomainRole(&entity), nil
 }
 
-func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role2.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -90,7 +90,7 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 	return nil
 }
 
-func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Create(ctx context.Context, data *role2.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -105,7 +105,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 	return nil
 }
 
-func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Update(ctx context.Context, data *role2.Role) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

@@ -2,12 +2,12 @@ package finance
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/finance/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 

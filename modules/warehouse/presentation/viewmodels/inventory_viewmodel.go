@@ -2,8 +2,8 @@ package viewmodels
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

@@ -2,9 +2,9 @@ package moneyaccount
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/session"
 )
 
 func NewCreatedEvent(ctx context.Context, data CreateDTO, result Account) (*CreatedEvent, error) {

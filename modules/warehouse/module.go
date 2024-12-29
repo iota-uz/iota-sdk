@@ -2,6 +2,7 @@ package warehouse
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/assets"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/controllers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
@@ -12,7 +13,6 @@ import (
 	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
 	productservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/icons"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 

@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	permission2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"log"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	migrate "github.com/rubenv/sql-migrate"
@@ -45,7 +45,7 @@ func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 	return &ApplicationImpl{
 		db:             db,
 		eventPublisher: eventPublisher,
-		rbac:           permission.NewRbac(),
+		rbac:           permission2.NewRbac(),
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
 		spotlight:      spotlight.New(),
@@ -57,7 +57,7 @@ func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 type ApplicationImpl struct {
 	db             *gorm.DB
 	eventPublisher event.Publisher
-	rbac           *permission.Rbac
+	rbac           *permission2.Rbac
 	services       map[reflect.Type]interface{}
 	modules        []Module
 	controllers    map[string]Controller
@@ -93,7 +93,7 @@ func (app *ApplicationImpl) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (app *ApplicationImpl) Permissions() []permission.Permission {
+func (app *ApplicationImpl) Permissions() []permission2.Permission {
 	return app.rbac.Permissions()
 }
 
@@ -101,7 +101,7 @@ func (app *ApplicationImpl) Middleware() []mux.MiddlewareFunc {
 	return app.middleware
 }
 
-func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permission) {
+func (app *ApplicationImpl) RegisterPermissions(permissions ...permission2.Permission) {
 	app.rbac.Register(permissions...)
 }
 
