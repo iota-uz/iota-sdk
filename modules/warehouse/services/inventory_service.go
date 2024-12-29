@@ -11,7 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 
-	userpersistence "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
+	userpersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 )
 
 type InventoryService struct {

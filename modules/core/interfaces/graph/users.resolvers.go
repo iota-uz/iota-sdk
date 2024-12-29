@@ -7,9 +7,9 @@ package graph
 import (
 	"context"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 

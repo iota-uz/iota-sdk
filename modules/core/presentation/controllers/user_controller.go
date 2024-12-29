@@ -67,7 +67,11 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := composables.UsePaginated(r)
-	us, err := c.userService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	us, err := c.userService.GetPaginated(r.Context(), &user.FindParams{
+		Limit:  params.Limit,
+		Offset: params.Offset,
+		SortBy: []string{},
+	})
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return

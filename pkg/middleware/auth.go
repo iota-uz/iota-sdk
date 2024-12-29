@@ -3,16 +3,14 @@ package middleware
 import (
 	"context"
 	"errors"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"net/http"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/modules/core/services"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-
 	"github.com/gorilla/mux"
+
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )

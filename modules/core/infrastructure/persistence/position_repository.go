@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (

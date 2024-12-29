@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"

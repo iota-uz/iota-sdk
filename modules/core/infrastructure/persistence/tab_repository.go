@@ -2,24 +2,22 @@ package persistence
 
 import (
 	"context"
-	tab2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
-
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
+
 var (
 	ErrTabNotFound = errors.New("tab not found")
 )
 
 type GormTabRepository struct{}
 
-func NewTabRepository() tab2.Repository {
+func NewTabRepository() tab.Repository {
 	return &GormTabRepository{}
 }
 
@@ -37,7 +35,7 @@ func (g *GormTabRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormTabRepository) GetAll(ctx context.Context, params *tab2.FindParams) ([]*tab2.Tab, error) {
+func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
 	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
@@ -86,7 +84,7 @@ func (g *GormTabRepository) GetAll(ctx context.Context, params *tab2.FindParams)
 	return tabs, nil
 }
 
-func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab2.Tab, error) {
+func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, error) {
 	tabs, err := g.GetAll(ctx, &tab.FindParams{
 		UserID: userID,
 	})
@@ -96,7 +94,7 @@ func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*ta
 	return tabs, nil
 }
 
-func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab2.Tab, error) {
+func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, error) {
 	tabs, err := g.GetAll(ctx, &tab.FindParams{
 		ID: id,
 	})
@@ -109,7 +107,7 @@ func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab2.Tab, er
 	return tabs[0], nil
 }
 
-func (g *GormTabRepository) Create(ctx context.Context, data *tab2.Tab) error {
+func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
@@ -139,7 +137,7 @@ func (g *GormTabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) err
 	return nil
 }
 
-func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab2.Tab) error {
+func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) error {
 	u, err := g.GetByID(ctx, data.ID)
 	if err != nil && !errors.Is(err, ErrTabNotFound) {
 		return err
@@ -156,7 +154,7 @@ func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab2.Tab) 
 	return nil
 }
 
-func (g *GormTabRepository) Update(ctx context.Context, data *tab2.Tab) error {
+func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err

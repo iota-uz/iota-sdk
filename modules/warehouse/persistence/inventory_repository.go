@@ -5,14 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
-	"strings"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -47,10 +48,6 @@ func (g *GormInventoryRepository) GetPaginated(
 		where, args = append(where, fmt.Sprintf("ic.status = $%d", len(args)+1)), append(args, params.Status)
 	}
 
-	if params.Type != "" {
-		where, args = append(where, fmt.Sprintf("ic.type = $%d", len(args)+1)), append(args, params.Type)
-	}
-
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		where, args = append(where, fmt.Sprintf("ic.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
@@ -79,7 +76,6 @@ func (g *GormInventoryRepository) GetPaginated(
 		if err := rows.Scan(
 			&check.ID,
 			&check.Status,
-			&check.Type,
 			&check.Name,
 			&check.CreatedAt,
 			&finishedAt,
@@ -207,9 +203,9 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 		return err
 	}
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO inventory_checks (status, name, type, created_by_id) 
-		VALUES ($1, $2, $3, $4) RETURNING id
-	`, dbRow.Status, dbRow.Name, dbRow.Type, dbRow.CreatedByID).Scan(&data.ID); err != nil {
+		INSERT INTO inventory_checks (status, name, created_by_id) 
+		VALUES ($1, $2, $3) RETURNING id
+	`, dbRow.Status, dbRow.Name, dbRow.CreatedByID).Scan(&data.ID); err != nil {
 		return err
 	}
 

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	transaction2 "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 

@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (

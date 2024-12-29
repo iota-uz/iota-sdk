@@ -2,44 +2,44 @@ package services
 
 import (
 	"context"
-	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 
-	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type CurrencyService struct {
-	Repo      currency2.Repository
+	Repo      currency.Repository
 	Publisher event.Publisher
 }
 
-func NewCurrencyService(repo currency2.Repository, publisher event.Publisher) *CurrencyService {
+func NewCurrencyService(repo currency.Repository, publisher event.Publisher) *CurrencyService {
 	return &CurrencyService{
 		Repo:      repo,
 		Publisher: publisher,
 	}
 }
 
-func (s *CurrencyService) GetByCode(ctx context.Context, id string) (*currency2.Currency, error) {
+func (s *CurrencyService) GetByCode(ctx context.Context, id string) (*currency.Currency, error) {
 	return s.Repo.GetByCode(ctx, id)
 }
 
-func (s *CurrencyService) GetAll(ctx context.Context) ([]*currency2.Currency, error) {
+func (s *CurrencyService) GetAll(ctx context.Context) ([]*currency.Currency, error) {
 	return s.Repo.GetAll(ctx)
 }
 
 func (s *CurrencyService) GetPaginated(
 	ctx context.Context, params *currency.FindParams,
-) ([]*currency2.Currency, error) {
+) ([]*currency.Currency, error) {
 	return s.Repo.GetPaginated(ctx, params)
 }
 
-func (s *CurrencyService) Create(ctx context.Context, data *currency2.CreateDTO) error {
+func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
 	}
-	createdEvent, err := currency2.NewCreatedEvent(ctx, *data)
+	createdEvent, err := currency.NewCreatedEvent(ctx, *data)
 	if err != nil {
 		return err
 	}
@@ -55,8 +55,8 @@ func (s *CurrencyService) Create(ctx context.Context, data *currency2.CreateDTO)
 	return tx.Commit(ctx)
 }
 
-func (s *CurrencyService) Update(ctx context.Context, data *currency2.UpdateDTO) error {
-	updatedEvent, err := currency2.NewUpdatedEvent(ctx, *data)
+func (s *CurrencyService) Update(ctx context.Context, data *currency.UpdateDTO) error {
+	updatedEvent, err := currency.NewUpdatedEvent(ctx, *data)
 	if err != nil {
 		return err
 	}
@@ -72,12 +72,12 @@ func (s *CurrencyService) Update(ctx context.Context, data *currency2.UpdateDTO)
 	return nil
 }
 
-func (s *CurrencyService) Delete(ctx context.Context, code string) (*currency2.Currency, error) {
+func (s *CurrencyService) Delete(ctx context.Context, code string) (*currency.Currency, error) {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	deletedEvent, err := currency2.NewDeletedEvent(ctx)
+	deletedEvent, err := currency.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
 	}
