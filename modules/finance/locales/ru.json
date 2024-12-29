@@ -1,0 +1,122 @@
+{
+  "NavigationLinks": {
+    "Accounts": "Счета",
+    "Expenses": "Расходы",
+    "ExpenseCategories": "Категории расходов",
+    "Payments": "Платежи"
+  },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Категории расходов"
+      },
+      "Edit": {
+        "Title": "Редактировать категорию"
+      },
+      "New": {
+        "Title": "Новая категория"
+      }
+    },
+    "List": {
+      "New": "Новая категория",
+      "Name": "Название",
+      "Amount": "Сумма"
+    },
+    "Single": {
+      "EditUser": "Редактировать категорию",
+      "Name": "Название",
+      "Amount": "Сумма",
+      "Currency": "Валюта",
+      "SelectCurrency": "Выбрать валюту",
+      "Description": "Описание",
+      "Delete": "Удалить категорию",
+      "DeleteConfirmation": "Вы уверены что хотите удалить эту категорию расходов?"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "Платежи"
+      },
+      "Edit": {
+        "Title": "Редактировать платеж"
+      },
+      "New": {
+        "Title": "Добавить платеж"
+      }
+    },
+    "List": {
+      "New": "Добавить платеж",
+      "Amount": "Сумма"
+    },
+    "Single": {
+      "Account": "Счет",
+      "SelectAccount": "Выбрать счет",
+      "Edit": "Редактировать платеж",
+      "Name": "Название",
+      "Amount": "Сумма",
+      "Date": "Дата",
+      "Comment": "Комментарий",
+      "Stage": "Этап",
+      "SelectStage": "Выбрать этап"
+    }
+  },
+  "Expenses": {
+    "Meta": {
+      "List": {
+        "Title": "Расходы"
+      },
+      "Edit": {
+        "Title": "Редактировать расход"
+      },
+      "New": {
+        "Title": "Добавить расход"
+      }
+    },
+    "List": {
+      "New": "Добавить расход",
+      "Category": "Категория",
+      "Amount": "Сумма"
+    },
+    "Single": {
+      "Account": "Счет",
+      "SelectAccount": "Выбрать счет",
+      "Category": "Категория",
+      "SelectCategory": "Выбрать категорию",
+      "Edit": "Редактировать расход",
+      "Name": "Название",
+      "Amount": "Сумма",
+      "Date": "Дата",
+      "Comment": "Комментарий",
+      "Delete": "Удалить расход",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот расход?"
+    }
+  },
+  "Accounts": {
+    "Meta": {
+      "List": {
+        "Title": "Счета"
+      },
+      "Edit": {
+        "Title": "Редактировать счет"
+      },
+      "New": {
+        "Title": "Добавить счет"
+      }
+    },
+    "List": {
+      "New": "Добавить счет",
+      "Name": "Название",
+      "Balance": "Баланс"
+    },
+    "Single": {
+      "Edit": "Редактировать счет",
+      "Name": "Название",
+      "Balance": "Баланс",
+      "Description": "Описание",
+      "AccountNumber": "Номер счета",
+      "Delete": "Удалить счет",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот счет?"
+    }
+  }
+}

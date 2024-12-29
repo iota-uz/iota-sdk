@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	user2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
@@ -42,12 +42,12 @@ func (u *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (u *SaveAccountDTO) ToEntity(id uint) (*user.User, error) {
-	lang, err := user.NewUILanguage(u.UILanguage)
+func (u *SaveAccountDTO) ToEntity(id uint) (*user2.User, error) {
+	lang, err := user2.NewUILanguage(u.UILanguage)
 	if err != nil {
 		return nil, err
 	}
-	return &user.User{
+	return &user2.User{
 		ID:         id,
 		FirstName:  u.FirstName,
 		LastName:   u.LastName,

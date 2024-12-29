@@ -3,7 +3,7 @@ package productservice
 import (
 	"fmt"
 
-	"github.com/iota-agency/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

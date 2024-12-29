@@ -14,7 +14,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/99designs/gqlgen/graphql/executor"
-	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 

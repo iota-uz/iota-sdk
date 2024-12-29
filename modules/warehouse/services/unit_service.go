@@ -3,10 +3,10 @@ package services
 import (
 	"context"
 
-	unit "github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	unit "github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type UnitService struct {

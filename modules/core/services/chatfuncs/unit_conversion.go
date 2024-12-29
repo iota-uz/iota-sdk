@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/llm/gpt-functions"
+	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"net/http"
 
 	"gorm.io/gorm"

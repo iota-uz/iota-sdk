@@ -3,11 +3,12 @@ package middleware
 import (
 	"context"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 )
 
@@ -63,7 +64,7 @@ func NavItems() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				app, err := composables.UseApp(r.Context())
+				app, err := application.UseApp(r.Context())
 				if err != nil {
 					panic(err.Error())
 				}

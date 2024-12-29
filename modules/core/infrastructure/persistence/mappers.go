@@ -1,23 +1,21 @@
 package persistence
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
 
 	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/authlog"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/position"
-	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
 )
 
 func ToDomainUser(dbUser *models.User) (*user.User, error) {

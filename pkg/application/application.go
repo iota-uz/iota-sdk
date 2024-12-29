@@ -6,6 +6,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	permission2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"log"
 	"reflect"
 	"strings"
@@ -15,8 +18,7 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	migrate "github.com/rubenv/sql-migrate"
@@ -47,9 +49,10 @@ func New(db *gorm.DB, pool *pgxpool.Pool, eventPublisher event.Publisher) Applic
 		db:             db,
 		pool:           pool,
 		eventPublisher: eventPublisher,
-		rbac:           permission.NewRbac(),
+		rbac:           permission2.NewRbac(),
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
+		spotlight:      spotlight.New(),
 		bundle:         bundle,
 	}
 }
@@ -59,20 +62,23 @@ type ApplicationImpl struct {
 	db             *gorm.DB
 	pool           *pgxpool.Pool
 	eventPublisher event.Publisher
-	rbac           *permission.Rbac
+	rbac           *permission2.Rbac
 	services       map[reflect.Type]interface{}
 	modules        []Module
 	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
 	hashFsAssets   []*hashfs.FS
 	assets         []*embed.FS
-	templates      []*embed.FS
-	localeFiles    []*embed.FS
 	migrationDirs  []*embed.FS
 	graphSchemas   []GraphSchema
 	seedFuncs      []SeedFunc
 	bundle         *i18n.Bundle
+	spotlight      spotlight.Spotlight
 	navItems       []types.NavigationItem
+}
+
+func (app *ApplicationImpl) Spotlight() spotlight.Spotlight {
+	return app.spotlight
 }
 
 func (app *ApplicationImpl) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
@@ -92,7 +98,7 @@ func (app *ApplicationImpl) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (app *ApplicationImpl) Permissions() []permission.Permission {
+func (app *ApplicationImpl) Permissions() []permission2.Permission {
 	return app.rbac.Permissions()
 }
 
@@ -100,7 +106,7 @@ func (app *ApplicationImpl) Middleware() []mux.MiddlewareFunc {
 	return app.middleware
 }
 
-func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permission) {
+func (app *ApplicationImpl) RegisterPermissions(permissions ...permission2.Permission) {
 	app.rbac.Register(permissions...)
 }
 
@@ -126,14 +132,6 @@ func (app *ApplicationImpl) Assets() []*embed.FS {
 
 func (app *ApplicationImpl) HashFsAssets() []*hashfs.FS {
 	return app.hashFsAssets
-}
-
-func (app *ApplicationImpl) Templates() []*embed.FS {
-	return app.templates
-}
-
-func (app *ApplicationImpl) LocaleFiles() []*embed.FS {
-	return app.localeFiles
 }
 
 func (app *ApplicationImpl) MigrationDirs() []*embed.FS {
@@ -162,10 +160,6 @@ func (app *ApplicationImpl) RegisterAssets(fs ...*embed.FS) {
 	app.assets = append(app.assets, fs...)
 }
 
-func (app *ApplicationImpl) RegisterTemplates(fs ...*embed.FS) {
-	app.templates = append(app.templates, fs...)
-}
-
 func (app *ApplicationImpl) RegisterGraphSchema(schema GraphSchema) {
 	app.graphSchemas = append(app.graphSchemas, schema)
 }
@@ -186,7 +180,6 @@ func (app *ApplicationImpl) RegisterLocaleFiles(fs ...*embed.FS) {
 			}
 		}
 	}
-	app.localeFiles = append(app.localeFiles, fs...)
 }
 
 func (app *ApplicationImpl) RegisterMigrationDirs(fs ...*embed.FS) {

@@ -3,13 +3,14 @@ package application
 import (
 	"context"
 	"embed"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"gorm.io/gorm"
 )
@@ -27,11 +28,10 @@ type Application interface {
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
-	Templates() []*embed.FS
-	LocaleFiles() []*embed.FS
 	MigrationDirs() []*embed.FS
 	Seed(ctx context.Context) error
 	Permissions() []permission.Permission
+	Spotlight() spotlight.Spotlight
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
@@ -39,7 +39,6 @@ type Application interface {
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterSeedFuncs(seedFuncs ...SeedFunc)
 	RegisterAssets(fs ...*embed.FS)
-	RegisterTemplates(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterMigrationDirs(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)

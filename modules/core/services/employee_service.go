@@ -2,16 +2,16 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	employee2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type EmployeeService struct {
-	repo      employee.Repository
+	repo      employee2.Repository
 	publisher event.Publisher
 }
 
-func NewEmployeeService(repo employee.Repository, publisher event.Publisher) *EmployeeService {
+func NewEmployeeService(repo employee2.Repository, publisher event.Publisher) *EmployeeService {
 	return &EmployeeService{
 		repo:      repo,
 		publisher: publisher,
@@ -22,11 +22,11 @@ func (s *EmployeeService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *EmployeeService) GetAll(ctx context.Context) ([]*employee.Employee, error) {
+func (s *EmployeeService) GetAll(ctx context.Context) ([]*employee2.Employee, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *EmployeeService) GetByID(ctx context.Context, id uint) (*employee.Employee, error) {
+func (s *EmployeeService) GetByID(ctx context.Context, id uint) (*employee2.Employee, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -34,16 +34,16 @@ func (s *EmployeeService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*employee.Employee, error) {
+) ([]*employee2.Employee, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *EmployeeService) Create(ctx context.Context, data *employee.CreateDTO) error {
+func (s *EmployeeService) Create(ctx context.Context, data *employee2.CreateDTO) error {
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	ev, err := employee.NewCreatedEvent(ctx, *data, *entity)
+	ev, err := employee2.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -51,12 +51,12 @@ func (s *EmployeeService) Create(ctx context.Context, data *employee.CreateDTO) 
 	return nil
 }
 
-func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.UpdateDTO) error {
+func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee2.UpdateDTO) error {
 	entity := data.ToEntity(id)
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	ev, err := employee.NewUpdatedEvent(ctx, *data, *entity)
+	ev, err := employee2.NewUpdatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.Up
 	return nil
 }
 
-func (s *EmployeeService) Delete(ctx context.Context, id uint) (*employee.Employee, error) {
+func (s *EmployeeService) Delete(ctx context.Context, id uint) (*employee2.Employee, error) {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (s *EmployeeService) Delete(ctx context.Context, id uint) (*employee.Employ
 	if err != nil {
 		return nil, err
 	}
-	ev, err := employee.NewDeletedEvent(ctx, *entity)
+	ev, err := employee2.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}

@@ -1,8 +1,8 @@
 package mappers
 
 import (
-	model "github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 )
 
 func UserToGraphModel(u *user.User) *model.User {

@@ -2,18 +2,18 @@ package persistence
 
 import (
 	"context"
-	"database/sql"
+	user2 "database/sql"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-agency/iota-sdk/pkg/mapping"
 
-	// "github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
+	// "github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +21,7 @@ var (
 	ErrUserNotFound = errors.New("user not found")
 )
 
-func NewUserRepository() user.Repository {
+func NewUserRepository() user2.Repository {
 	return &GormUserRepository{
 		roleRepo: NewRoleRepository(),
 	}
@@ -33,7 +33,7 @@ type GormUserRepository struct {
 
 func (g *GormUserRepository) GetPaginated(
 	ctx context.Context, params *user.FindParams,
-) ([]*user.User, error) {
+) ([]*user2.User, error) {
 	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
+func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user2.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -144,14 +144,14 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 	if err := tx.Find(&users).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*user.User, len(users))
+	entities := make([]*user2.User, len(users))
 	for i, row := range users {
 		entities[i], _ = ToDomainUser(row)
 	}
 	return entities, nil
 }
 
-func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
+func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user2.User, error) {
 	users, err := g.GetPaginated(ctx, &user.FindParams{
 		ID: id,
 	})
@@ -165,7 +165,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, 
 	}
 }
 
-func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user2.User, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -177,7 +177,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	return ToDomainUser(&row)
 }
 
-func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User) error {
+func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user2.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -189,7 +189,7 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User
 	return tx.Model(dbUser).Association("Roles").Replace(dbRoles)
 }
 
-func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {
+func (g *GormUserRepository) Create(ctx context.Context, user *user2.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -201,7 +201,7 @@ func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error 
 	return tx.Model(dbUser).Association("Roles").Append(dbRoles)
 }
 
-func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error {
+func (g *GormUserRepository) Update(ctx context.Context, user *user2.User) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

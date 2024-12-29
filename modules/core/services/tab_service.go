@@ -2,32 +2,30 @@ package services
 
 import (
 	"context"
-
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
+	tab2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 )
 
 type TabService struct {
-	repo tab.Repository
+	repo tab2.Repository
 }
 
-func NewTabService(repo tab.Repository) *TabService {
+func NewTabService(repo tab2.Repository) *TabService {
 	return &TabService{repo}
 }
 
-func (s *TabService) GetByID(ctx context.Context, id uint) (*tab.Tab, error) {
+func (s *TabService) GetByID(ctx context.Context, id uint) (*tab2.Tab, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *TabService) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
+func (s *TabService) GetAll(ctx context.Context, params *tab2.FindParams) ([]*tab2.Tab, error) {
 	return s.repo.GetAll(ctx, params)
 }
 
-func (s *TabService) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, error) {
+func (s *TabService) GetUserTabs(ctx context.Context, userID uint) ([]*tab2.Tab, error) {
 	return s.repo.GetUserTabs(ctx, userID)
 }
 
-func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab, error) {
+func (s *TabService) Create(ctx context.Context, data *tab2.CreateDTO) (*tab2.Tab, error) {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return nil, err
@@ -42,12 +40,12 @@ func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab,
 	return entity, tx.Commit(ctx)
 }
 
-func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data []*tab.CreateDTO) ([]*tab.Tab, error) {
+func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data []*tab2.CreateDTO) ([]*tab2.Tab, error) {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	entities := make([]*tab.Tab, 0, len(data))
+	entities := make([]*tab2.Tab, 0, len(data))
 	for _, d := range data {
 		entity, err := d.ToEntity()
 		if err != nil {
@@ -64,7 +62,7 @@ func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data [
 	return entities, tx.Commit(ctx)
 }
 
-func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) error {
+func (s *TabService) Update(ctx context.Context, id uint, data *tab2.UpdateDTO) error {
 	entity, err := data.ToEntity(id)
 	if err != nil {
 		return err

@@ -3,7 +3,7 @@ package tgserver
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/utils/env"
+	"github.com/iota-uz/iota-sdk/pkg/utils/env"
 	"strconv"
 
 	"github.com/gotd/td/telegram"

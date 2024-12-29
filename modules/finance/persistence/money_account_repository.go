@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 type GormMoneyAccountRepository struct{}

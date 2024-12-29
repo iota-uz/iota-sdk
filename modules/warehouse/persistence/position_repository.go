@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (

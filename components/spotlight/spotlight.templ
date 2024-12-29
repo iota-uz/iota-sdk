@@ -2,8 +2,8 @@ package spotlight
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 templ Spotlight() {
@@ -58,13 +58,13 @@ templ Spotlight() {
 	</div>
 }
 
-type SpotlightItem struct {
-	Icon  templ.Component
+type Item struct {
 	Title string
+	Icon  templ.Component
 	Link  string
 }
 
-templ SpotlightItems(items []*SpotlightItem) {
+templ SpotlightItems(items []*Item) {
 	if len(items) > 0 {
 		for i, item := range items {
 			<li

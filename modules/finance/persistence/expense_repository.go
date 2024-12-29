@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 	"gorm.io/gorm"
 )
 

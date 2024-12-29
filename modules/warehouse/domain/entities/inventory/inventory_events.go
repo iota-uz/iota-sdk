@@ -2,10 +2,10 @@ package inventory
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 func NewCreatedEvent(ctx context.Context, data CreateCheckDTO, result Check) (*CreatedEvent, error) {

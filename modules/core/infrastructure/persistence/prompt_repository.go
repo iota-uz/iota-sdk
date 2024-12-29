@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/prompt"
-	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormPromptRepository struct{}

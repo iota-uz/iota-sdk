@@ -3,14 +3,14 @@ package middleware
 import (
 	"context"
 	"github.com/google/uuid"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/rs/cors"
 )
 

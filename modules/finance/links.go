@@ -1,8 +1,8 @@
 package finance
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 var (

@@ -3,6 +3,9 @@ package middleware
 import (
 	"context"
 	"errors"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"net/http"
 	"time"
 
@@ -10,8 +13,8 @@ import (
 	"github.com/iota-agency/iota-sdk/pkg/composables"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 func getToken(r *http.Request) (string, error) {
@@ -41,7 +44,7 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 				ctx := r.Context()
-				app, err := composables.UseApp(ctx)
+				app, err := application.UseApp(ctx)
 				if err != nil {
 					panic(err)
 				}
@@ -76,7 +79,7 @@ func ProvideUser() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
-				app, err := composables.UseApp(ctx)
+				app, err := application.UseApp(ctx)
 				if err != nil {
 					panic(err)
 				}

@@ -1,0 +1,58 @@
+package projects
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type CreatePageProps struct {
+	*types.PageContext
+	Project *viewmodels.Project
+	Errors  map[string]string
+	SaveURL string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.SaveURL }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@input.Text(&input.Props{
+				Label: props.T("Projects.Single.Name"),
+				Attrs: templ.Attributes{"name": "Name", "value": props.Project.Name},
+				Error: props.Errors["Name"],
+			})
+			@textarea.Basic(&textarea.Props{
+				Label:        props.T("Projects.Single.Description"),
+				Attrs:        templ.Attributes{"name": "Description"},
+				WrapperClass: "col-span-3",
+				Value:        props.Project.Description,
+				Error:        props.Errors["Description"],
+			})
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ props.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreatePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
+	}
+}

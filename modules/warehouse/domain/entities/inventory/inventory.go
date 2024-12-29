@@ -1,10 +1,10 @@
 package inventory
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 )
 
 type Check struct {

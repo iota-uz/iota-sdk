@@ -1,6 +1,6 @@
 ## New release
 
-Go to the releases [workflow](https://github.com/iota-agency/iota-sdk/actions/workflows/release.yml).
+Go to the releases [workflow](https://github.com/iota-uz/iota-sdk/actions/workflows/release.yml).
 
 Click on the `Run workflow` button.
 Specify the version number and the release notes.

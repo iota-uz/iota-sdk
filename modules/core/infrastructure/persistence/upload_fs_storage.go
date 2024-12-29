@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 type FSStorage struct{}

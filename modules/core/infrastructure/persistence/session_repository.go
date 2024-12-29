@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
-	"errors"
+	session2 "errors"
 	"fmt"
 	"strings"
 
 	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
-	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -18,13 +18,13 @@ var (
 
 type GormSessionRepository struct{}
 
-func NewSessionRepository() session.Repository {
+func NewSessionRepository() session2.Repository {
 	return &GormSessionRepository{}
 }
 
 func (g *GormSessionRepository) GetPaginated(
 	ctx context.Context, params *session.FindParams,
-) ([]*session.Session, error) {
+) ([]*session2.Session, error) {
 	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*
 	return sessions[0], nil
 }
 
-func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
+func (g *GormSessionRepository) Create(ctx context.Context, data *session2.Session) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 	return nil
 }
 
-func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
+func (g *GormSessionRepository) Update(ctx context.Context, data *session2.Session) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err

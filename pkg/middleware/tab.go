@@ -2,13 +2,14 @@ package middleware
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 func Tabs() mux.MiddlewareFunc {
@@ -21,7 +22,7 @@ func Tabs() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
-				app, err := composables.UseApp(r.Context())
+				app, err := application.UseApp(r.Context())
 				if err != nil {
 					panic(err)
 				}

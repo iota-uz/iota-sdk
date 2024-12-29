@@ -3,22 +3,20 @@ package services
 import (
 	"context"
 	"errors"
-
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	upload2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/event"
+	"gorm.io/gorm"
 )
 
 type UploadService struct {
-	repo      upload.Repository
-	storage   upload.Storage
+	repo      upload2.Repository
+	storage   upload2.Storage
 	publisher event.Publisher
 }
 
 func NewUploadService(
-	repo upload.Repository,
-	storage upload.Storage,
+	repo upload2.Repository,
+	storage upload2.Storage,
 	publisher event.Publisher,
 ) *UploadService {
 	return &UploadService{
@@ -28,19 +26,19 @@ func NewUploadService(
 	}
 }
 
-func (s *UploadService) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
+func (s *UploadService) GetByID(ctx context.Context, id uint) (*upload2.Upload, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *UploadService) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
+func (s *UploadService) GetByHash(ctx context.Context, hash string) (*upload2.Upload, error) {
 	return s.repo.GetByHash(ctx, hash)
 }
 
-func (s *UploadService) GetAll(ctx context.Context) ([]*upload.Upload, error) {
+func (s *UploadService) GetAll(ctx context.Context) ([]*upload2.Upload, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*upload.Upload, error) {
+func (s *UploadService) Create(ctx context.Context, data *upload2.CreateDTO) (*upload2.Upload, error) {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return nil, err
@@ -62,7 +60,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return nil, err
 	}
-	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := upload2.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +68,12 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	return entity, tx.Commit(ctx)
 }
 
-func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]*upload.Upload, error) {
+func (s *UploadService) CreateMany(ctx context.Context, data []*upload2.CreateDTO) ([]*upload2.Upload, error) {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	entities := make([]*upload.Upload, 0, len(data))
+	entities := make([]*upload2.Upload, 0, len(data))
 	for _, d := range data {
 		entity, err := s.Create(ctx, d)
 		if err != nil {
@@ -86,7 +84,7 @@ func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO
 	return entities, tx.Commit(ctx)
 }
 
-func (s *UploadService) Update(ctx context.Context, id uint, data *upload.UpdateDTO) error {
+func (s *UploadService) Update(ctx context.Context, id uint, data *upload2.UpdateDTO) error {
 
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
@@ -99,7 +97,7 @@ func (s *UploadService) Update(ctx context.Context, id uint, data *upload.Update
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := upload.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := upload2.NewUpdatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -107,7 +105,7 @@ func (s *UploadService) Update(ctx context.Context, id uint, data *upload.Update
 	return tx.Commit(ctx)
 }
 
-func (s *UploadService) Delete(ctx context.Context, id uint) (*upload.Upload, error) {
+func (s *UploadService) Delete(ctx context.Context, id uint) (*upload2.Upload, error) {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return nil, err
@@ -119,7 +117,7 @@ func (s *UploadService) Delete(ctx context.Context, id uint) (*upload.Upload, er
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := upload.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := upload2.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}
