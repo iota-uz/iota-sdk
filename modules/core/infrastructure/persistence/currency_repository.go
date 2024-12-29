@@ -2,7 +2,7 @@ package persistence
 
 import (
 	"context"
-	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -11,7 +11,7 @@ import (
 
 type GormCurrencyRepository struct{}
 
-func NewCurrencyRepository() currency2.Repository {
+func NewCurrencyRepository() currency.Repository {
 	return &GormCurrencyRepository{}
 }
 
@@ -19,7 +19,7 @@ func (g *GormCurrencyRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*currency2.Currency, error) {
+) ([]*currency.Currency, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -47,7 +47,7 @@ func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency2.Currency, error) {
+func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency.Currency, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -59,7 +59,7 @@ func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency2.Curre
 	return mapping.MapDbModels(rows, ToDomainCurrency)
 }
 
-func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currency2.Currency, error) {
+func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currency.Currency, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -71,7 +71,7 @@ func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currenc
 	return ToDomainCurrency(&entity)
 }
 
-func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency2.Currency) error {
+func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -80,7 +80,7 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency2.C
 	return tx.Create(row).Error
 }
 
-func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency2.Currency) error {
+func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Currency) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -89,7 +89,7 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency2.C
 	return tx.Save(row).Error
 }
 
-func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency2.Currency) error {
+func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency.Currency) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -103,7 +103,7 @@ func (g *GormCurrencyRepository) Delete(ctx context.Context, id uint) error {
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Delete(&currency2.Currency{}, id).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Delete(&currency.Currency{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil

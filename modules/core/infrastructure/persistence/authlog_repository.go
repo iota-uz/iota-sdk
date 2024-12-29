@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
-	authlog2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormAuthLogRepository struct{}
 
-func NewAuthLogRepository() authlog2.Repository {
+func NewAuthLogRepository() authlog.Repository {
 	return &GormAuthLogRepository{}
 }
 
@@ -18,7 +18,7 @@ func (g *GormAuthLogRepository) GetPaginated(
 	limit,
 	offset int,
 	sortBy []string,
-) ([]*authlog2.AuthenticationLog, error) {
+) ([]*authlog.AuthenticationLog, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -28,7 +28,7 @@ func (g *GormAuthLogRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	var entities []*authlog2.AuthenticationLog
+	var entities []*authlog.AuthenticationLog
 	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
@@ -41,37 +41,37 @@ func (g *GormAuthLogRepository) Count(ctx context.Context) (int64, error) {
 		return 0, composables.ErrNoTx
 	}
 	var count int64
-	if err := tx.Model(&authlog2.AuthenticationLog{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Model(&authlog.AuthenticationLog{}).Count(&count).Error; err != nil { //nolint:exhaustruct
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormAuthLogRepository) GetAll(ctx context.Context) ([]*authlog2.AuthenticationLog, error) {
+func (g *GormAuthLogRepository) GetAll(ctx context.Context) ([]*authlog.AuthenticationLog, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var entities []*authlog2.AuthenticationLog
+	var entities []*authlog.AuthenticationLog
 	if err := tx.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 	return entities, nil
 }
 
-func (g *GormAuthLogRepository) GetByID(ctx context.Context, id int64) (*authlog2.AuthenticationLog, error) {
+func (g *GormAuthLogRepository) GetByID(ctx context.Context, id int64) (*authlog.AuthenticationLog, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
 	}
-	var entity authlog2.AuthenticationLog
+	var entity authlog.AuthenticationLog
 	if err := tx.First(&entity, id).Error; err != nil {
 		return nil, err
 	}
 	return &entity, nil
 }
 
-func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog2.AuthenticationLog) error {
+func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.AuthenticationLog) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -82,7 +82,7 @@ func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog2.Authe
 	return nil
 }
 
-func (g *GormAuthLogRepository) Update(ctx context.Context, data *authlog2.AuthenticationLog) error {
+func (g *GormAuthLogRepository) Update(ctx context.Context, data *authlog.AuthenticationLog) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -98,7 +98,7 @@ func (g *GormAuthLogRepository) Delete(ctx context.Context, id int64) error {
 	if !ok {
 		return composables.ErrNoTx
 	}
-	if err := tx.Delete(&authlog2.AuthenticationLog{}, id).Error; err != nil { //nolint:exhaustruct
+	if err := tx.Delete(&authlog.AuthenticationLog{}, id).Error; err != nil { //nolint:exhaustruct
 		return err
 	}
 	return nil
