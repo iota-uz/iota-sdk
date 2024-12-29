@@ -1,4 +1,4 @@
-module github.com/iota-agency/iota-sdk
+module github.com/iota-uz/iota-sdk
 
 go 1.23.2
 

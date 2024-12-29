@@ -1,10 +1,10 @@
 package warehouse
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 var (

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/commands"
+	"github.com/iota-uz/iota-sdk/pkg/commands"
 )
 
 func main() {

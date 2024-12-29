@@ -3,23 +3,23 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/iota-agency/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/components/base/pagination"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
-	"github.com/iota-agency/iota-sdk/modules/finance/services"
-	"github.com/iota-agency/iota-sdk/modules/finance/templates/pages/payments"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
-	"github.com/iota-agency/iota-sdk/pkg/shared"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/finance/templates/pages/payments"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 
-	"github.com/iota-agency/iota-sdk/modules/finance/mappers"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type PaymentsController struct {

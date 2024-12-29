@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
 )
 
 type TabService struct {

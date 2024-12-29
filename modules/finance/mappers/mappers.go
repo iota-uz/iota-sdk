@@ -2,11 +2,11 @@ package mappers
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
-	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
 	"strconv"
 	"time"
 )

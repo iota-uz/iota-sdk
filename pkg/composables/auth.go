@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/session"
 )
 
 var (

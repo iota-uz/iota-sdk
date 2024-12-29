@@ -2,16 +2,16 @@ package core
 
 import (
 	"embed"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph"
-	"github.com/iota-agency/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-agency/iota-sdk/modules/core/seed"
-	"github.com/iota-agency/iota-sdk/modules/core/services"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/core/seed"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/assets"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate

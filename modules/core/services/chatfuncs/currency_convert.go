@@ -3,7 +3,7 @@ package chatfuncs
 import (
 	"encoding/json"
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/llm/gpt-functions"
+	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 )
 
 var SupportedCurrencies = []string{

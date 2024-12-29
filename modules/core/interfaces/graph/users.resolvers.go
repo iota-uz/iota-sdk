@@ -7,9 +7,9 @@ package graph
 import (
 	"context"
 
-	model "github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/mappers"
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
+	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 // User is the resolver for the user field.

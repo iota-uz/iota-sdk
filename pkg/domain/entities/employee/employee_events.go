@@ -2,9 +2,9 @@ package employee
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/session"
 )
 
 func NewCreatedEvent(ctx context.Context, data CreateDTO, result Employee) (*CreatedEvent, error) {

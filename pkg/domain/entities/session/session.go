@@ -1,7 +1,7 @@
 package session
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"time"
 )
 

@@ -1,8 +1,8 @@
 package position
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
 	"time"
 )
 

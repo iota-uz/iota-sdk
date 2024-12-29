@@ -1,7 +1,7 @@
 package product
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"time"
 )
 

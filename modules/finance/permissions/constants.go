@@ -2,7 +2,7 @@ package permissions
 
 import (
 	"github.com/google/uuid"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
 )
 
 const (

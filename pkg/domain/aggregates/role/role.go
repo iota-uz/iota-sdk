@@ -3,7 +3,7 @@ package role
 import (
 	"time"
 
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
 )
 
 type Role struct {

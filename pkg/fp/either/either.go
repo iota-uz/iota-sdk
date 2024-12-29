@@ -1,6 +1,6 @@
 package either
 
-import opt "github.com/iota-agency/iota-sdk/pkg/fp/option"
+import opt "github.com/iota-uz/iota-sdk/pkg/fp/option"
 
 // Base struct
 type Either[L, R any] struct {

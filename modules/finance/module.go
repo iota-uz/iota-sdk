@@ -2,13 +2,13 @@ package finance
 
 import (
 	"embed"
-	"github.com/iota-agency/iota-sdk/modules/finance/controllers"
-	"github.com/iota-agency/iota-sdk/modules/finance/permissions"
-	"github.com/iota-agency/iota-sdk/modules/finance/persistence"
-	"github.com/iota-agency/iota-sdk/modules/finance/services"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
-	"github.com/iota-agency/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/modules/finance/controllers"
+	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
+	"github.com/iota-uz/iota-sdk/modules/finance/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:embed locales/*.json

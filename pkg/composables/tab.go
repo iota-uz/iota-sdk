@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/iota-agency/iota-sdk/pkg/constants"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
 )
 
 var (

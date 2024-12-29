@@ -2,10 +2,10 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
-	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	stage "github.com/iota-uz/iota-sdk/pkg/domain/entities/project_stages"
+	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 func NewProjectStageRepository() stage.Repository {

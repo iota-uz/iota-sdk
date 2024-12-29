@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"net/http"
 
 	"github.com/gorilla/mux"

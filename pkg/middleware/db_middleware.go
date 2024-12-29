@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"gorm.io/gorm"
 	"net/http"
 )
