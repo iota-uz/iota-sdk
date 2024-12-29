@@ -3,6 +3,7 @@ package bichat
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -78,10 +79,19 @@ templ BiChatPage(props *ChatPageProps) {
 			</div>
 			<div class="flex flex-col flex-1">
 				<div class="flex-1"></div>
-				<div class="grid grid-cols-2 gap-2 px-10">
-					for _, suggestion := range props.Suggestions {
-						<button class="flex-1 bg-gray-200 py-3 rounded-md">{ suggestion }</button>
-					}
+				<div class="px-10">
+					<div class="grid grid-cols-2 gap-2">
+						for _, suggestion := range props.Suggestions {
+							<button class="border border-gray-200 hover:bg-gray-100 py-3 rounded-md">
+								{ suggestion }
+							</button>
+						}
+					</div>
+					<div class="my-4">
+						@input.Text(&input.Props{
+							Placeholder: props.T("BiChat.MessagePlaceholder"),
+						})
+					</div>
 				</div>
 			</div>
 		</div>
