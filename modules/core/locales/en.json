@@ -61,7 +61,11 @@
   },
   "BiChat": {
     "Title": "BI-Chat",
-    "NewDialog": "New dialog"
+    "NewDialog": "New dialog",
+    "History": {
+      "Empty": "Empty history",
+      "HelpText": "Press \"New dialog\" to start a new dialog"
+    }
   },
   "Users": {
     "Meta": {
