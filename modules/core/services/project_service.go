@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/project"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type ProjectService struct {

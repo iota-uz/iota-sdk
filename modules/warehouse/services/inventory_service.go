@@ -3,13 +3,13 @@ package services
 import (
 	"context"
 
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type InventoryService struct {

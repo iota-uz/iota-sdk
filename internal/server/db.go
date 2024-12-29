@@ -1,9 +1,9 @@
 package server
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
-	financemodels "github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
-	warehousemodels "github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	financemodels "github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
+	warehousemodels "github.com/iota-uz/iota-sdk/modules/warehouse/persistence/models"
 )
 
 var RegisteredModels = []interface{}{

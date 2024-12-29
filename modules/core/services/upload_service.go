@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 	"gorm.io/gorm"
 )
 

@@ -1,12 +1,12 @@
 package category
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/currency"
 	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 type ExpenseCategory struct {

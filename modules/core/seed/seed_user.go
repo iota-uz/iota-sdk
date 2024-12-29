@@ -2,12 +2,12 @@ package seed
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 

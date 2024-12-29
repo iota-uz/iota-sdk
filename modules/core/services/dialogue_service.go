@@ -3,15 +3,15 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/llm/gpt-functions"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"io"
 	"log"
 
-	localComposables "github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/dialogue"
+	localComposables "github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/dialogue"
 	"github.com/sashabaranov/go-openai"
 )
 

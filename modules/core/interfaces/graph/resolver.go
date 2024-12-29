@@ -1,8 +1,8 @@
 package graph
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/core/services"
-	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
 // This file will not be regenerated automatically.

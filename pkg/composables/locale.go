@@ -7,7 +7,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	en_translations "github.com/go-playground/validator/v10/translations/en"
 	ru_translations "github.com/go-playground/validator/v10/translations/ru"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"golang.org/x/text/language"
 	"sync"
 

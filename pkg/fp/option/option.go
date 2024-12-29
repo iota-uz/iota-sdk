@@ -1,7 +1,7 @@
 package opt
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/fp"
+	"github.com/iota-uz/iota-sdk/pkg/fp"
 )
 
 // Base struct

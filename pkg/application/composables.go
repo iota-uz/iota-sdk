@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 	"errors"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 var (

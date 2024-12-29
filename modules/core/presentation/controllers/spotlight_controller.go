@@ -3,12 +3,12 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	spotlightui "github.com/iota-agency/iota-sdk/components/spotlight"
-	"github.com/iota-agency/iota-sdk/modules/core/services"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/middleware"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	spotlightui "github.com/iota-uz/iota-sdk/components/spotlight"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 )
 

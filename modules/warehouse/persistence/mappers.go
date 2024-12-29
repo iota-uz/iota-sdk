@@ -1,15 +1,15 @@
 package persistence
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/order"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func toDBUnit(unit *unit.Unit) *models.WarehouseUnit {

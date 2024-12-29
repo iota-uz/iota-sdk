@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type RoleService struct {

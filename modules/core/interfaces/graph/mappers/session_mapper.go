@@ -1,8 +1,8 @@
 package mappers
 
 import (
-	model "github.com/iota-agency/iota-sdk/modules/core/interfaces/graph/gqlmodels"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/session"
+	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/session"
 )
 
 func SessionToGraphModel(s *session.Session) *model.Session {

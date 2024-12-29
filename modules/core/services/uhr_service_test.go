@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/costcomponent"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/costcomponent"
 	"testing"
 )
 

@@ -2,22 +2,22 @@ package mappers
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/assets"
 	"slices"
 	"strconv"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/currency"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
 
-	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/project"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
-	stage "github.com/iota-agency/iota-sdk/pkg/domain/entities/project_stages"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/viewmodels"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/project"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/employee"
+	stage "github.com/iota-uz/iota-sdk/pkg/domain/entities/project_stages"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {

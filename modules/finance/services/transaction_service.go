@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	transaction2 "github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	transaction2 "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type TransactionService struct {

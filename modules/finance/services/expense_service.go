@@ -3,10 +3,10 @@ package services
 import (
 	"context"
 
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
-	"github.com/iota-agency/iota-sdk/modules/finance/permissions"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
+	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type ExpenseService struct {

@@ -3,7 +3,7 @@ package dbutils
 import (
 	"errors"
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/graphql/helpers"
+	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

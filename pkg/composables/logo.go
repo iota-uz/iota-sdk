@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/a-h/templ"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 var (

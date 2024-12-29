@@ -1,11 +1,11 @@
 package graph
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
-	positionservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
-	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/order_service"
+	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
 // This file will not be regenerated automatically.

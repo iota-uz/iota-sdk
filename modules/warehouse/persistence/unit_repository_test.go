@@ -1,9 +1,9 @@
 package persistence_test
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
-	"github.com/iota-agency/iota-sdk/pkg/testutils"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"testing"
 	"time"
 )

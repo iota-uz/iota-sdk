@@ -3,14 +3,14 @@ package application
 import (
 	"context"
 	"embed"
-	"github.com/iota-agency/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"gorm.io/gorm"
 )

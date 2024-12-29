@@ -4,14 +4,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/utils/sequence"
+	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/utils/sequence"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-agency/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"golang.org/x/crypto/bcrypt"
 )
 
