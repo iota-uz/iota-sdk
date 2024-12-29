@@ -63,6 +63,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
 		controllers.NewUsersController(app),
+		controllers.NewEmployeeController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{

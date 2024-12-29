@@ -20,10 +20,10 @@ type IndexPageProps struct {
 templ EmployeesTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: "Employees.List.FullName", Key: "fullname"},
-			{Label: "Employees.List.Email", Key: "email"},
-			{Label: "UpdatedAt", Key: "updatedAt"},
-			{Label: "Actions", Class: "w-16"},
+			{Label: props.T("Employees.List.FullName"), Key: "fullname"},
+			{Label: props.T("Employees.List.Email"), Key: "email"},
+			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+			{Label: props.T("Actions"), Class: "w-16"},
 		},
 	}) {
 		for _, employee := range props.Employees {

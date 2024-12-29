@@ -241,10 +241,10 @@ func EmployeesTable(props *IndexPageProps) templ.Component {
 		})
 		templ_7745c5c3_Err = base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: "Employees.List.FullName", Key: "fullname"},
-				{Label: "Employees.List.Email", Key: "email"},
-				{Label: "UpdatedAt", Key: "updatedAt"},
-				{Label: "Actions", Class: "w-16"},
+				{Label: props.T("Employees.List.FullName"), Key: "fullname"},
+				{Label: props.T("Employees.List.Email"), Key: "email"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
 			},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
