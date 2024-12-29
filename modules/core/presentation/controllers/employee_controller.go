@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -75,14 +75,10 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errors.Wrap(err, "Error retrieving employees").Error(), http.StatusInternalServerError)
 		return
 	}
-	viewEmployees := make([]*viewmodels.Employee, len(employeeEntities))
-	for i, entity := range employeeEntities {
-		viewEmployees[i] = mappers.EmployeeToViewModel(entity)
-	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &employees.IndexPageProps{
 		PageContext: pageCtx,
-		Employees:   viewEmployees,
+		Employees:   mapping.MapViewModels(employeeEntities, mappers.EmployeeToViewModel),
 		NewURL:      fmt.Sprintf("%s/new", c.basePath),
 	}
 	if isHxRequest {
@@ -157,7 +153,7 @@ func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := employee.UpdateDTO{} //nolint:exhaustruct
+		dto := employee.UpdateDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Employees.Meta.Edit.Title", ""))
 		if err != nil {
