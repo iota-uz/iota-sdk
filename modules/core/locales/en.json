@@ -45,12 +45,7 @@
     "Enums": "Enums",
     "TaskTypes": "Task Types",
     "Positions": "Positions",
-    "Finances": "Finances",
-    "Accounts": "Accounts",
-    "Expenses": "Expenses",
     "Projects": "Projects",
-    "ExpenseCategories": "Expense categories",
-    "Payments": "Payments",
     "Reports": "Reports",
     "Navbar": {
       "Profile": "Profile",
@@ -80,7 +75,7 @@
       }
     },
     "List": {
-      "NewUser": "New User",
+      "New": "New User",
       "FullName": "Full name",
       "LastAction": "Last action"
     },
@@ -97,93 +92,6 @@
       "EnterPassword": "Enter password",
       "DeleteUser": "DeleteUser",
       "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
-    }
-  },
-  "ExpenseCategories": {
-    "Meta": {
-      "List": {
-        "Title": "Expense categories"
-      },
-      "Edit": {
-        "Title": "Edit category"
-      },
-      "New": {
-        "Title": "New category"
-      }
-    },
-    "List": {
-      "NewCategory": "New Category",
-      "Name": "Name",
-      "Amount": "Amount"
-    },
-    "Single": {
-      "EditUser": "Edit category",
-      "Name": "Name",
-      "Amount": "Amount",
-      "Currency": "Currency",
-      "SelectCurrency": "Select currency",
-      "Description": "Description",
-      "Delete": "Delete category",
-      "DeleteConfirmation": "Are you sure you want to delete this expense category?"
-    }
-  },
-  "Payments": {
-    "Meta": {
-      "List": {
-        "Title": "Payments"
-      },
-      "Edit": {
-        "Title": "Edit payment"
-      },
-      "New": {
-        "Title": "Add payment"
-      }
-    },
-    "List": {
-      "New": "Add payment",
-      "Amount": "Amount"
-    },
-    "Single": {
-      "Account": "Account",
-      "SelectAccount": "Select account",
-      "Edit": "Edit payment",
-      "Name": "Name",
-      "Amount": "Amount",
-      "Date": "Date",
-      "Comment": "Comment",
-      "Stage": "Stage",
-      "SelectStage": "Select stage"
-    }
-  },
-  "Expenses": {
-    "Meta": {
-      "List": {
-        "Title": "Expenses"
-      },
-      "Edit": {
-        "Title": "Edit expense"
-      },
-      "New": {
-        "Title": "Add expense"
-      }
-    },
-    "List": {
-      "New": "Add expense",
-      "Category": "Category",
-      "Amount": "Amount"
-    },
-    "Single": {
-      "Account": "Account",
-      "SelectAccount": "Select account",
-      "Category": "Category",
-      "SelectCategory": "Select category",
-      "Edit": "Edit expense",
-      "Name": "Name",
-      "Amount": "Amount",
-      "Date": "Date",
-      "Comment": "Comment",
-      "Delete": "Delete expense",
-      "DeleteConfirmation": "Are you sure you want to delete this expense?"
     }
   },
   "Projects": {
@@ -209,33 +117,6 @@
       "Description": "Description",
       "Delete": "Delete project",
       "DeleteConfirmation": "Are you sure you want to delete this project?"
-    }
-  },
-  "Accounts": {
-    "Meta": {
-      "List": {
-        "Title": "Accounts"
-      },
-      "Edit": {
-        "Title": "Edit account"
-      },
-      "New": {
-        "Title": "Add account"
-      }
-    },
-    "List": {
-      "New": "Add account",
-      "Name": "Name",
-      "Balance": "Balance"
-    },
-    "Single": {
-      "Edit": "Edit account",
-      "Name": "Name",
-      "Balance": "Balance",
-      "Description": "Description",
-      "AccountNumber": "Account number",
-      "Delete": "Delete account",
-      "DeleteConfirmation": "Are you sure you want to delete this account?"
     }
   },
   "Employees": {

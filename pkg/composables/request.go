@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/pkg/application"
 	"github.com/iota-agency/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 
@@ -51,16 +50,6 @@ func UseWriter(ctx context.Context) (http.ResponseWriter, bool) {
 		return nil, false
 	}
 	return params.Writer, true
-}
-
-// UseApp returns the user from the context.
-// If the user is not found, the second return value will be false.
-func UseApp(ctx context.Context) (application.Application, error) {
-	app := ctx.Value(constants.AppKey)
-	if app == nil {
-		return nil, ErrAppNotFound
-	}
-	return app.(application.Application), nil
 }
 
 // UseRequest returns the request from the context.

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"embed"
+	"github.com/iota-agency/iota-sdk/pkg/spotlight"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/benbjohnson/hashfs"
@@ -27,11 +28,10 @@ type Application interface {
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
-	Templates() []*embed.FS
-	LocaleFiles() []*embed.FS
 	MigrationDirs() []*embed.FS
 	Seed(ctx context.Context) error
 	Permissions() []permission.Permission
+	Spotlight() spotlight.Spotlight
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
@@ -39,7 +39,6 @@ type Application interface {
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterSeedFuncs(seedFuncs ...SeedFunc)
 	RegisterAssets(fs ...*embed.FS)
-	RegisterTemplates(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterMigrationDirs(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)

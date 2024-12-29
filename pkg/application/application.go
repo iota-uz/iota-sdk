@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/iota-agency/iota-sdk/pkg/spotlight"
 	"github.com/iota-agency/iota-sdk/pkg/types"
 	"log"
 	"reflect"
@@ -47,6 +48,7 @@ func New(db *gorm.DB, eventPublisher event.Publisher) Application {
 		rbac:           permission.NewRbac(),
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
+		spotlight:      spotlight.New(),
 		bundle:         bundle,
 	}
 }
@@ -62,13 +64,16 @@ type ApplicationImpl struct {
 	middleware     []mux.MiddlewareFunc
 	hashFsAssets   []*hashfs.FS
 	assets         []*embed.FS
-	templates      []*embed.FS
-	localeFiles    []*embed.FS
 	migrationDirs  []*embed.FS
 	graphSchemas   []GraphSchema
 	seedFuncs      []SeedFunc
 	bundle         *i18n.Bundle
+	spotlight      spotlight.Spotlight
 	navItems       []types.NavigationItem
+}
+
+func (app *ApplicationImpl) Spotlight() spotlight.Spotlight {
+	return app.spotlight
 }
 
 func (app *ApplicationImpl) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
@@ -124,14 +129,6 @@ func (app *ApplicationImpl) HashFsAssets() []*hashfs.FS {
 	return app.hashFsAssets
 }
 
-func (app *ApplicationImpl) Templates() []*embed.FS {
-	return app.templates
-}
-
-func (app *ApplicationImpl) LocaleFiles() []*embed.FS {
-	return app.localeFiles
-}
-
 func (app *ApplicationImpl) MigrationDirs() []*embed.FS {
 	return app.migrationDirs
 }
@@ -158,10 +155,6 @@ func (app *ApplicationImpl) RegisterAssets(fs ...*embed.FS) {
 	app.assets = append(app.assets, fs...)
 }
 
-func (app *ApplicationImpl) RegisterTemplates(fs ...*embed.FS) {
-	app.templates = append(app.templates, fs...)
-}
-
 func (app *ApplicationImpl) RegisterGraphSchema(schema GraphSchema) {
 	app.graphSchemas = append(app.graphSchemas, schema)
 }
@@ -182,7 +175,6 @@ func (app *ApplicationImpl) RegisterLocaleFiles(fs ...*embed.FS) {
 			}
 		}
 	}
-	app.localeFiles = append(app.localeFiles, fs...)
 }
 
 func (app *ApplicationImpl) RegisterMigrationDirs(fs ...*embed.FS) {
