@@ -2,18 +2,18 @@ package warehouse
 
 import (
 	"embed"
-
-	"github.com/iota-agency/iota-sdk/modules/warehouse/assets"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/controllers"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/presentation/templates"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/services"
-	orderservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/order_service"
-	positionservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/position_service"
-	productservice "github.com/iota-agency/iota-sdk/modules/warehouse/services/product_service"
-	"github.com/iota-agency/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/assets"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/controllers"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
+	orderservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/order_service"
+	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
+	productservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -90,7 +90,32 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
-	app.RegisterTemplates(&templates.FS)
+	sl := app.Spotlight()
+	for _, l := range NavItems {
+		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
+	}
+	app.Spotlight().Register(
+		spotlight.NewItem(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"WarehousePositions.List.New",
+			"/warehouse/positions/new",
+		),
+		spotlight.NewItem(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"Products.List.New",
+			"/warehouse/products/new",
+		),
+		spotlight.NewItem(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"WarehouseOrders.List.New",
+			"/warehouse/orders/new",
+		),
+		spotlight.NewItem(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"WarehouseUnits.List.New",
+			"/warehouse/units/new",
+		),
+	)
 
 	app.RegisterGraphSchema(application.GraphSchema{
 		Value: graph.NewExecutableSchema(graph.Config{

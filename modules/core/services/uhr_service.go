@@ -1,9 +1,9 @@
 package services
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/costcomponent"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/employee"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/settings"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/costcomponent"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/settings"
 )
 
 type UhrService struct {

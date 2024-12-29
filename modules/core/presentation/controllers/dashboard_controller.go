@@ -1,14 +1,14 @@
 package controllers
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/middleware"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/pages/dashboard"
-	"github.com/iota-agency/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 func NewDashboardController(app application.Application) application.Controller {

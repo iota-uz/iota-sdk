@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/iota-agency/iota-sdk/pkg/utils/fs"
+	"github.com/iota-uz/iota-sdk/pkg/utils/fs"
 	"github.com/joho/godotenv"
 )
 

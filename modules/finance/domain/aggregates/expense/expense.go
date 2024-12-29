@@ -1,8 +1,8 @@
 package expense
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"time"
 )
 

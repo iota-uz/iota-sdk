@@ -1,0 +1,134 @@
+package users
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type EditFormProps struct {
+	*types.PageContext
+	User   *user.User
+	Roles  []*role.Role
+	Errors map[string]string
+}
+
+templ EditForm(props *EditFormProps) {
+	<div class="flex flex-col justify-between h-full" id="edit-content">
+		@base.Card("grid grid-cols-3 gap-4 m-6") {
+			@input.Text(&input.Props{
+				Label: props.T("Users.Single.FirstName"),
+				Attrs: templ.Attributes{
+					"value": props.User.FirstName,
+					"name":  "FirstName",
+					"form":  "save-form",
+				},
+				Error: props.Errors["FirstName"],
+			})
+			@input.Text(&input.Props{
+				Label: props.T("Users.Single.LastName"),
+				Attrs: templ.Attributes{
+					"value": props.User.LastName,
+					"name":  "LastName",
+					"form":  "save-form",
+				},
+				Error: props.Errors["LastName"],
+			})
+			@input.Password(&input.Props{
+				Label:       props.T("Users.Single.Password"),
+				Placeholder: props.T("Users.Single.EnterPassword"),
+				Attrs: templ.Attributes{
+					"autocomplete": "new-password",
+					"name":         "Password",
+					"form":         "save-form",
+				},
+			})
+			@RoleSelect(&RoleSelectProps{
+				PageContext: props.PageContext,
+				Roles:       props.Roles,
+				Selected:    props.User.Roles,
+				Error:       props.Errors["RoleID"],
+			})
+			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+				Label:       props.T("Users.Single.Language"),
+				Placeholder: props.T("Users.Single.SelectLanguage"),
+				Value:       string(props.User.UILanguage),
+				Attrs:       templ.Attributes{"name": "Language"},
+			})
+		}
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="delete-form"
+				hx-delete={ fmt.Sprintf("/users/%d", props.User.ID) }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-user-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-user-confirmation')",
+						"id":     "delete-user-btn",
+					},
+				}) {
+					{ props.T("Delete") }
+				}
+			</form>
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ fmt.Sprintf("/users/%d", props.User.ID) }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ props.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditFormProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@EditForm(props)
+		@dialog.Confirmation(&dialog.Props{
+			Heading: props.T("Users.Single.DeleteUser"),
+			Text:    props.T("Users.Single.DeleteUserConfirmation"),
+			Icon:    icons.Trash(icons.Props{Size: "20"}),
+			Action:  "open-delete-user-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+		})
+	}
+}

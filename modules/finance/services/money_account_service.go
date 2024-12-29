@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 
-	moneyaccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type MoneyAccountService struct {

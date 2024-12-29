@@ -15,7 +15,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
+	model "github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )

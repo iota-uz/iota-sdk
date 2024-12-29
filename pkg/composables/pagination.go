@@ -1,7 +1,7 @@
 package composables
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"net/http"
 	"strconv"
 )

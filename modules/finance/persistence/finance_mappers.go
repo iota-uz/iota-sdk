@@ -2,16 +2,14 @@ package persistence
 
 import (
 	"errors"
-
-	corepersistence "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense"
-	category "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/money_account"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/aggregates/payment"
-	"github.com/iota-agency/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-agency/iota-sdk/modules/finance/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
 )
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {

@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
-	"errors"
+	role2 "errors"
 	"fmt"
 	"strings"
 
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/aggregates/role"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
 )
 
 var (
@@ -20,7 +20,7 @@ type GormRoleRepository struct {
 	permissionRepo permission.Repository
 }
 
-func NewRoleRepository() role.Repository {
+func NewRoleRepository() role2.Repository {
 	return &GormRoleRepository{
 		permissionRepo: NewPermissionRepository(),
 	}
@@ -28,7 +28,7 @@ func NewRoleRepository() role.Repository {
 
 func (g *GormRoleRepository) GetPaginated(
 	ctx context.Context, params *role.FindParams,
-) ([]*role.Role, error) {
+) ([]*role2.Role, error) {
 	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
 	})
 }
 
-func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role.Role, error) {
+func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role2.Role, error) {
 	roles, err := g.GetPaginated(ctx, &role.FindParams{
 		ID: id,
 	})
@@ -123,7 +123,7 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role.Role, 
 	return roles[0], nil
 }
 
-func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role2.Role) error {
 	u, err := g.GetByID(ctx, data.ID)
 	if err != nil && !errors.Is(err, ErrRoleNotFound) {
 		return err
@@ -140,7 +140,7 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 	return nil
 }
 
-func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Create(ctx context.Context, data *role2.Role) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 	return nil
 }
 
-func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Update(ctx context.Context, data *role2.Role) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return composables.ErrNoTx

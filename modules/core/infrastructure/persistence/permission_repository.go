@@ -2,18 +2,10 @@ package persistence
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
-
-	"github.com/google/uuid"
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/permission"
-)
-
-var (
-	ErrPermissionNotFound = errors.New("permission not found")
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormPermissionRepository struct{}

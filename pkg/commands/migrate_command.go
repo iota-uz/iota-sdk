@@ -8,12 +8,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/iota-agency/iota-sdk/modules"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/application/dbutils"
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/event"
-	"github.com/iota-agency/iota-sdk/pkg/logging"
+	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/application/dbutils"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	gormlogger "gorm.io/gorm/logger"
 )

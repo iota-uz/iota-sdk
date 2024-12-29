@@ -2,14 +2,16 @@ package core
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph"
-	"github.com/iota-agency/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-agency/iota-sdk/modules/core/seed"
-	"github.com/iota-agency/iota-sdk/modules/core/services"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/presentation/assets"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/core/seed"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -60,6 +62,8 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewEmployeeController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
+		controllers.NewUsersController(app),
+		controllers.NewEmployeeController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
@@ -68,6 +72,17 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
+	sl := app.Spotlight()
+	for _, l := range NavItems {
+		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
+	}
+	app.Spotlight().Register(
+		spotlight.NewItem(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"Users.List.New",
+			"/users/new",
+		),
+	)
 	return nil
 }
 

@@ -1,7 +1,7 @@
 package mapping_test
 
 import (
-	"github.com/iota-agency/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"testing"
 )
 

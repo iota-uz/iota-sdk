@@ -2,8 +2,8 @@ package persistence
 
 import (
 	"context"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type GormDialogueRepository struct{}

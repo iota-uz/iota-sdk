@@ -9,11 +9,11 @@ import (
 )
 
 type SessionService struct {
-	repo      session.Repository
+	repo      session2.Repository
 	publisher event.Publisher
 }
 
-func NewSessionService(repo session.Repository, publisher event.Publisher) *SessionService {
+func NewSessionService(repo session2.Repository, publisher event.Publisher) *SessionService {
 	return &SessionService{
 		repo:      repo,
 		publisher: publisher,
@@ -24,21 +24,21 @@ func (s *SessionService) GetCount(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *SessionService) GetAll(ctx context.Context) ([]*session.Session, error) {
+func (s *SessionService) GetAll(ctx context.Context) ([]*session2.Session, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *SessionService) GetByToken(ctx context.Context, id string) (*session.Session, error) {
+func (s *SessionService) GetByToken(ctx context.Context, id string) (*session2.Session, error) {
 	return s.repo.GetByToken(ctx, id)
 }
 
 func (s *SessionService) GetPaginated(
 	ctx context.Context, params *session.FindParams,
-) ([]*session.Session, error) {
+) ([]*session2.Session, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
+func (s *SessionService) Create(ctx context.Context, data *session2.CreateDTO) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := session.NewCreatedEvent(*data, *entity)
+	createdEvent, err := session2.NewCreatedEvent(*data, *entity)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 	return tx.Commit(ctx)
 }
 
-func (s *SessionService) Update(ctx context.Context, data *session.Session) error {
+func (s *SessionService) Update(ctx context.Context, data *session2.Session) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err

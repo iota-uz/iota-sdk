@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/iota-agency/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -10,10 +10,10 @@ import (
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
-	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph"
-	"github.com/iota-agency/iota-sdk/pkg/application"
-	"github.com/iota-agency/iota-sdk/pkg/configuration"
-	"github.com/iota-agency/iota-sdk/pkg/graphql"
+	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/graphql"
 )
 
 type GraphQLController struct {

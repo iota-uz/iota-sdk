@@ -1,8 +1,8 @@
 package mappers
 
 import (
-	"github.com/iota-agency/iota-sdk/modules/warehouse/domain/entities/inventory"
-	model "github.com/iota-agency/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	model "github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph/gqlmodels"
 )
 
 func InventoryPositionToGraphModel(entity *inventory.Position) *model.InventoryPosition {

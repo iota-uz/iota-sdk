@@ -2,18 +2,16 @@ package services
 
 import (
 	"context"
-
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/authlog"
-	"github.com/iota-agency/iota-sdk/pkg/event"
+	authlog2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type AuthLogService struct {
-	repo      authlog.Repository
+	repo      authlog2.Repository
 	publisher event.Publisher
 }
 
-func NewAuthLogService(repo authlog.Repository, publisher event.Publisher) *AuthLogService {
+func NewAuthLogService(repo authlog2.Repository, publisher event.Publisher) *AuthLogService {
 	return &AuthLogService{
 		repo:      repo,
 		publisher: publisher,
@@ -24,21 +22,21 @@ func (s *AuthLogService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *AuthLogService) GetAll(ctx context.Context) ([]*authlog.AuthenticationLog, error) {
+func (s *AuthLogService) GetAll(ctx context.Context) ([]*authlog2.AuthenticationLog, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *AuthLogService) GetByID(ctx context.Context, id uint) (*authlog.AuthenticationLog, error) {
+func (s *AuthLogService) GetByID(ctx context.Context, id uint) (*authlog2.AuthenticationLog, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *AuthLogService) GetPaginated(
 	ctx context.Context, params *authlog.FindParams,
-) ([]*authlog.AuthenticationLog, error) {
+) ([]*authlog2.AuthenticationLog, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *AuthLogService) Create(ctx context.Context, data *authlog.AuthenticationLog) error {
+func (s *AuthLogService) Create(ctx context.Context, data *authlog2.AuthenticationLog) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
@@ -50,7 +48,7 @@ func (s *AuthLogService) Create(ctx context.Context, data *authlog.Authenticatio
 	return tx.Commit(ctx)
 }
 
-func (s *AuthLogService) Update(ctx context.Context, data *authlog.AuthenticationLog) error {
+func (s *AuthLogService) Update(ctx context.Context, data *authlog2.AuthenticationLog) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err

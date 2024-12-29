@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
-	"errors"
+	upload2 "errors"
 	"fmt"
 	"strings"
 
-	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence/models"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
-	"github.com/iota-agency/iota-sdk/pkg/domain/entities/upload"
-	"github.com/iota-agency/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -18,13 +18,13 @@ var (
 
 type GormUploadRepository struct{}
 
-func NewUploadRepository() upload.Repository {
+func NewUploadRepository() upload2.Repository {
 	return &GormUploadRepository{}
 }
 
 func (g *GormUploadRepository) GetPaginated(
-	ctx context.Context, params *upload.FindParams,
-) ([]*upload.Upload, error) {
+	ctx context.Context, params *upload2.FindParams,
+) ([]*upload2.Upload, error) {
 	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func (g *GormUploadRepository) GetPaginated(
 		return nil, err
 	}
 	defer rows.Close()
-	uploads := make([]*upload.Upload, 0)
+	uploads := make([]*upload2.Upload, 0)
 	for rows.Next() {
 		var upload models.Upload
 		if err := rows.Scan(
@@ -95,7 +95,7 @@ func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, er
 	})
 }
 
-func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
+func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload2.Upload, error) {
 	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
 		ID: id,
 	})
@@ -108,7 +108,7 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Up
 	return uploads[0], nil
 }
 
-func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
+func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload2.Upload, error) {
 	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
 		Hash: hash,
 	})
@@ -121,7 +121,7 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 	return uploads[0], nil
 }
 
-func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
+func (g *GormUploadRepository) Create(ctx context.Context, data *upload2.Upload) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 	return nil
 }
 
-func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
+func (g *GormUploadRepository) Update(ctx context.Context, data *upload2.Upload) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
