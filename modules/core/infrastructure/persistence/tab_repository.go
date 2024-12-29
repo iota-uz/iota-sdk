@@ -2,17 +2,17 @@ package persistence
 
 import (
 	"context"
+	tab2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 type GormTabRepository struct{}
 
-func NewTabRepository() tab.Repository {
+func NewTabRepository() tab2.Repository {
 	return &GormTabRepository{}
 }
 
@@ -28,7 +28,7 @@ func (g *GormTabRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
+func (g *GormTabRepository) GetAll(ctx context.Context, params *tab2.FindParams) ([]*tab2.Tab, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -44,7 +44,7 @@ func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) 
 	return mapping.MapDbModels(entities, ToDomainTab)
 }
 
-func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, error) {
+func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab2.Tab, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -56,7 +56,7 @@ func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*ta
 	return mapping.MapDbModels(entities, ToDomainTab)
 }
 
-func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, error) {
+func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab2.Tab, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -68,7 +68,7 @@ func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, err
 	return ToDomainTab(&entity)
 }
 
-func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
+func (g *GormTabRepository) Create(ctx context.Context, data *tab2.Tab) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -80,7 +80,7 @@ func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
 	return nil
 }
 
-func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) error {
+func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab2.Tab) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -88,7 +88,7 @@ func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) e
 	return tx.Save(ToDBTab(data)).Error
 }
 
-func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
+func (g *GormTabRepository) Update(ctx context.Context, data *tab2.Tab) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

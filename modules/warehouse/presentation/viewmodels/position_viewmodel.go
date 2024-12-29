@@ -1,6 +1,8 @@
 package viewmodels
 
-import "github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+)
 
 type Position struct {
 	ID        string

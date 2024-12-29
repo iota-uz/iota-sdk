@@ -2,15 +2,15 @@ package persistence
 
 import (
 	"context"
+	permission2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
 type GormPermissionRepository struct{}
 
-func NewPermissionRepository() permission.Repository {
+func NewPermissionRepository() permission2.Repository {
 	return &GormPermissionRepository{}
 }
 
@@ -18,7 +18,7 @@ func (g *GormPermissionRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*permission.Permission, error) {
+) ([]*permission2.Permission, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -32,7 +32,7 @@ func (g *GormPermissionRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*permission.Permission, len(rows))
+	entities := make([]*permission2.Permission, len(rows))
 	for i, row := range rows {
 		entities[i] = toDomainPermission(row)
 	}
@@ -51,7 +51,7 @@ func (g *GormPermissionRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormPermissionRepository) GetAll(ctx context.Context) ([]*permission.Permission, error) {
+func (g *GormPermissionRepository) GetAll(ctx context.Context) ([]*permission2.Permission, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -60,14 +60,14 @@ func (g *GormPermissionRepository) GetAll(ctx context.Context) ([]*permission.Pe
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*permission.Permission, len(rows))
+	entities := make([]*permission2.Permission, len(rows))
 	for i, row := range rows {
 		entities[i] = toDomainPermission(row)
 	}
 	return entities, nil
 }
 
-func (g *GormPermissionRepository) GetByID(ctx context.Context, id uint) (*permission.Permission, error) {
+func (g *GormPermissionRepository) GetByID(ctx context.Context, id uint) (*permission2.Permission, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -79,7 +79,7 @@ func (g *GormPermissionRepository) GetByID(ctx context.Context, id uint) (*permi
 	return toDomainPermission(&row), nil
 }
 
-func (g *GormPermissionRepository) CreateOrUpdate(ctx context.Context, data *permission.Permission) error {
+func (g *GormPermissionRepository) CreateOrUpdate(ctx context.Context, data *permission2.Permission) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -87,7 +87,7 @@ func (g *GormPermissionRepository) CreateOrUpdate(ctx context.Context, data *per
 	return tx.Save(toDBPermission(data)).Error
 }
 
-func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.Permission) error {
+func (g *GormPermissionRepository) Create(ctx context.Context, data *permission2.Permission) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -95,7 +95,7 @@ func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.
 	return tx.Create(toDBPermission(data)).Error
 }
 
-func (g *GormPermissionRepository) Update(ctx context.Context, data *permission.Permission) error {
+func (g *GormPermissionRepository) Update(ctx context.Context, data *permission2.Permission) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

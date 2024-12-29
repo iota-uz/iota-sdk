@@ -2,8 +2,8 @@ package persistence_test
 
 import (
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
 	"testing"
 	"time"
 

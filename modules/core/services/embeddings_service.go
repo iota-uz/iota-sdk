@@ -5,11 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/embedding"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"net/http"
-
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/embedding"
 )
 
 type EmbeddingService struct {

@@ -3,9 +3,10 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/employee"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -13,10 +14,9 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/employees"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/templates/pages/employees"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type EmployeeController struct {

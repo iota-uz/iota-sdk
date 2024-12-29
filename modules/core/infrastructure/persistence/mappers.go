@@ -1,22 +1,22 @@
 package persistence
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	user2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	permission2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/project"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/employee"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/permission"
-	stage "github.com/iota-uz/iota-sdk/pkg/domain/entities/project_stages"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/tab"
-	"github.com/iota-uz/iota-sdk/pkg/domain/entities/upload"
 )
 
-func ToDomainUser(dbUser *models.User) *user.User {
+func ToDomainUser(dbUser *models.User) *user2.User {
 	roles := make([]*role.Role, len(dbUser.Roles))
 	for i, r := range dbUser.Roles {
 		roles[i] = toDomainRole(&r)
@@ -34,7 +34,7 @@ func ToDomainUser(dbUser *models.User) *user.User {
 		avatar = *ToDomainUpload(dbUser.Avatar)
 	}
 
-	return &user.User{
+	return &user2.User{
 		ID:         dbUser.ID,
 		FirstName:  dbUser.FirstName,
 		LastName:   dbUser.LastName,
@@ -44,7 +44,7 @@ func ToDomainUser(dbUser *models.User) *user.User {
 		AvatarID:   dbUser.AvatarID,
 		Avatar:     &avatar,
 		EmployeeID: dbUser.EmployeeID,
-		UILanguage: user.UILanguage(dbUser.UiLanguage),
+		UILanguage: user2.UILanguage(dbUser.UiLanguage),
 		LastIP:     dbUser.LastIP,
 		LastLogin:  dbUser.LastLogin,
 		LastAction: dbUser.LastAction,
@@ -54,7 +54,7 @@ func ToDomainUser(dbUser *models.User) *user.User {
 	}
 }
 
-func toDBUser(entity *user.User) (*models.User, []models.Role) {
+func toDBUser(entity *user2.User) (*models.User, []models.Role) {
 	roles := make([]models.Role, len(entity.Roles))
 	for i, r := range entity.Roles {
 		dbRole, _ := toDBRole(r)
@@ -91,7 +91,7 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 }
 
 func toDomainRole(dbRole *models.Role) *role.Role {
-	permissions := make([]permission.Permission, len(dbRole.Permissions))
+	permissions := make([]permission2.Permission, len(dbRole.Permissions))
 	for i, p := range dbRole.Permissions {
 		permissions[i] = *toDomainPermission(&p)
 	}
@@ -120,7 +120,7 @@ func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
 	}, permissions
 }
 
-func toDBPermission(entity *permission.Permission) *models.Permission {
+func toDBPermission(entity *permission2.Permission) *models.Permission {
 	return &models.Permission{
 		ID:       entity.ID,
 		Name:     entity.Name,
@@ -130,13 +130,13 @@ func toDBPermission(entity *permission.Permission) *models.Permission {
 	}
 }
 
-func toDomainPermission(dbPermission *models.Permission) *permission.Permission {
-	return &permission.Permission{
+func toDomainPermission(dbPermission *models.Permission) *permission2.Permission {
+	return &permission2.Permission{
 		ID:       dbPermission.ID,
 		Name:     dbPermission.Name,
-		Resource: permission.Resource(dbPermission.Resource),
-		Action:   permission.Action(dbPermission.Action),
-		Modifier: permission.Modifier(dbPermission.Modifier),
+		Resource: permission2.Resource(dbPermission.Resource),
+		Action:   permission2.Action(dbPermission.Action),
+		Modifier: permission2.Modifier(dbPermission.Modifier),
 	}
 }
 
@@ -238,7 +238,7 @@ func ToDomainUpload(dbUpload *models.Upload) *upload.Upload {
 	}
 }
 
-func ToDBCurrency(entity *currency.Currency) *models.Currency {
+func ToDBCurrency(entity *currency2.Currency) *models.Currency {
 	return &models.Currency{
 		Code:      string(entity.Code),
 		Name:      entity.Name,
@@ -248,16 +248,16 @@ func ToDBCurrency(entity *currency.Currency) *models.Currency {
 	}
 }
 
-func ToDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
-	code, err := currency.NewCode(dbCurrency.Code)
+func ToDomainCurrency(dbCurrency *models.Currency) (*currency2.Currency, error) {
+	code, err := currency2.NewCode(dbCurrency.Code)
 	if err != nil {
 		return nil, err
 	}
-	symbol, err := currency.NewSymbol(dbCurrency.Symbol)
+	symbol, err := currency2.NewSymbol(dbCurrency.Symbol)
 	if err != nil {
 		return nil, err
 	}
-	return &currency.Currency{
+	return &currency2.Currency{
 		Code:   code,
 		Name:   dbCurrency.Name,
 		Symbol: symbol,

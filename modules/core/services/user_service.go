@@ -2,24 +2,24 @@ package services
 
 import (
 	"context"
+	user2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type UserService struct {
-	repo      user.Repository
+	repo      user2.Repository
 	publisher event.Publisher
 }
 
-func NewUserService(repo user.Repository, publisher event.Publisher) *UserService {
+func NewUserService(repo user2.Repository, publisher event.Publisher) *UserService {
 	return &UserService{
 		repo:      repo,
 		publisher: publisher,
 	}
 }
 
-func (s *UserService) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (s *UserService) GetByEmail(ctx context.Context, email string) (*user2.User, error) {
 	return s.repo.GetByEmail(ctx, email)
 }
 
@@ -27,20 +27,20 @@ func (s *UserService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *UserService) GetAll(ctx context.Context) ([]*user.User, error) {
+func (s *UserService) GetAll(ctx context.Context) ([]*user2.User, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *UserService) GetByID(ctx context.Context, id uint) (*user.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id uint) (*user2.User, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *UserService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*user.User, error) {
+func (s *UserService) GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*user2.User, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *UserService) Create(ctx context.Context, data *user.User) error {
-	createdEvent, err := user.NewCreatedEvent(ctx, *data)
+func (s *UserService) Create(ctx context.Context, data *user2.User) error {
+	createdEvent, err := user2.NewCreatedEvent(ctx, *data)
 	if err != nil {
 		return err
 	}
@@ -63,8 +63,8 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastLogin(ctx, id)
 }
 
-func (s *UserService) Update(ctx context.Context, data *user.User) error {
-	updatedEvent, err := user.NewUpdatedEvent(ctx, *data)
+func (s *UserService) Update(ctx context.Context, data *user2.User) error {
+	updatedEvent, err := user2.NewUpdatedEvent(ctx, *data)
 	if err != nil {
 		return err
 	}
@@ -76,8 +76,8 @@ func (s *UserService) Update(ctx context.Context, data *user.User) error {
 	return nil
 }
 
-func (s *UserService) Delete(ctx context.Context, id uint) (*user.User, error) {
-	deletedEvent, err := user.NewDeletedEvent(ctx)
+func (s *UserService) Delete(ctx context.Context, id uint) (*user2.User, error) {
+	deletedEvent, err := user2.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
 	}

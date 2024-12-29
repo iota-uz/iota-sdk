@@ -2,14 +2,14 @@ package persistence
 
 import (
 	"context"
+	project2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/domain/aggregates/project"
 )
 
 type GormProjectRepository struct{}
 
-func NewProjectRepository() project.Repository {
+func NewProjectRepository() project2.Repository {
 	return &GormProjectRepository{}
 }
 
@@ -17,7 +17,7 @@ func (g *GormProjectRepository) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*project.Project, error) {
+) ([]*project2.Project, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -30,7 +30,7 @@ func (g *GormProjectRepository) GetPaginated(
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*project.Project, len(rows))
+	entities := make([]*project2.Project, len(rows))
 	for i, r := range rows {
 		entities[i] = toDomainProject(r)
 	}
@@ -49,7 +49,7 @@ func (g *GormProjectRepository) Count(ctx context.Context) (uint, error) {
 	return uint(count), nil
 }
 
-func (g *GormProjectRepository) GetAll(ctx context.Context) ([]*project.Project, error) {
+func (g *GormProjectRepository) GetAll(ctx context.Context) ([]*project2.Project, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -58,14 +58,14 @@ func (g *GormProjectRepository) GetAll(ctx context.Context) ([]*project.Project,
 	if err := tx.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	entities := make([]*project.Project, len(rows))
+	entities := make([]*project2.Project, len(rows))
 	for i, r := range rows {
 		entities[i] = toDomainProject(r)
 	}
 	return entities, nil
 }
 
-func (g *GormProjectRepository) GetByID(ctx context.Context, id uint) (*project.Project, error) {
+func (g *GormProjectRepository) GetByID(ctx context.Context, id uint) (*project2.Project, error) {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return nil, composables.ErrNoTx
@@ -77,7 +77,7 @@ func (g *GormProjectRepository) GetByID(ctx context.Context, id uint) (*project.
 	return toDomainProject(&row), nil
 }
 
-func (g *GormProjectRepository) Create(ctx context.Context, data *project.Project) error {
+func (g *GormProjectRepository) Create(ctx context.Context, data *project2.Project) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx
@@ -86,7 +86,7 @@ func (g *GormProjectRepository) Create(ctx context.Context, data *project.Projec
 	return tx.Create(entity).Error
 }
 
-func (g *GormProjectRepository) Update(ctx context.Context, data *project.Project) error {
+func (g *GormProjectRepository) Update(ctx context.Context, data *project2.Project) error {
 	tx, ok := composables.UseTx(ctx)
 	if !ok {
 		return composables.ErrNoTx

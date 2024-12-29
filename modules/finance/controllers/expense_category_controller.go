@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"net/http"
 
@@ -10,18 +11,17 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	coremappers "github.com/iota-uz/iota-sdk/pkg/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/presentation/viewmodels"
 )
 
 type ExpenseCategoriesController struct {

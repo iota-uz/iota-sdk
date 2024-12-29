@@ -2,7 +2,7 @@ package persistence_test
 
 //import (
 //	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-//	"github.com/iota-uz/iota-sdk/pkg/domain/entities/currency"
+//	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 //	"github.com/iota-uz/iota-sdk/pkg/infrastructure/persistence"
 //	"github.com/iota-uz/iota-sdk/pkg/testutils"
 //	"testing"
