@@ -6,7 +6,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-agency/iota-sdk/modules/warehouse/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )

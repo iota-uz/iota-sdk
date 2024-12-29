@@ -2,8 +2,8 @@ package finance
 
 import (
 	"embed"
-	corepersistence "github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/components/icons"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence"

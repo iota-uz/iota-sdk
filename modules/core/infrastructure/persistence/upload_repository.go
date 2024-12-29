@@ -2,7 +2,7 @@ package persistence
 
 import (
 	"context"
-	upload2 "errors"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -18,13 +18,13 @@ var (
 
 type GormUploadRepository struct{}
 
-func NewUploadRepository() upload2.Repository {
+func NewUploadRepository() upload.Repository {
 	return &GormUploadRepository{}
 }
 
 func (g *GormUploadRepository) GetPaginated(
-	ctx context.Context, params *upload2.FindParams,
-) ([]*upload2.Upload, error) {
+	ctx context.Context, params *upload.FindParams,
+) ([]*upload.Upload, error) {
 	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func (g *GormUploadRepository) GetPaginated(
 		return nil, err
 	}
 	defer rows.Close()
-	uploads := make([]*upload2.Upload, 0)
+	uploads := make([]*upload.Upload, 0)
 	for rows.Next() {
 		var upload models.Upload
 		if err := rows.Scan(
@@ -95,7 +95,7 @@ func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, er
 	})
 }
 
-func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload2.Upload, error) {
+func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
 	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
 		ID: id,
 	})
@@ -108,7 +108,7 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload2.U
 	return uploads[0], nil
 }
 
-func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload2.Upload, error) {
+func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
 	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
 		Hash: hash,
 	})
@@ -121,7 +121,7 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 	return uploads[0], nil
 }
 
-func (g *GormUploadRepository) Create(ctx context.Context, data *upload2.Upload) error {
+func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload2.Upload)
 	return nil
 }
 
-func (g *GormUploadRepository) Update(ctx context.Context, data *upload2.Upload) error {
+func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
 	tx, err := composables.UsePoolTx(ctx)
 	if err != nil {
 		return err

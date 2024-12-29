@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {

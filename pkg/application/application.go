@@ -6,15 +6,10 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	permission2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"log"
 	"reflect"
 	"strings"
 	"time"
-
-	"github.com/iota-agency/iota-sdk/pkg/types"
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
@@ -24,6 +19,10 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
 	"gorm.io/gorm"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.NavigationItem {
@@ -49,7 +48,7 @@ func New(db *gorm.DB, pool *pgxpool.Pool, eventPublisher event.Publisher) Applic
 		db:             db,
 		pool:           pool,
 		eventPublisher: eventPublisher,
-		rbac:           permission2.NewRbac(),
+		rbac:           permission.NewRbac(),
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
 		spotlight:      spotlight.New(),
@@ -62,7 +61,7 @@ type ApplicationImpl struct {
 	db             *gorm.DB
 	pool           *pgxpool.Pool
 	eventPublisher event.Publisher
-	rbac           *permission2.Rbac
+	rbac           *permission.Rbac
 	services       map[reflect.Type]interface{}
 	modules        []Module
 	controllers    map[string]Controller
@@ -98,7 +97,7 @@ func (app *ApplicationImpl) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (app *ApplicationImpl) Permissions() []permission2.Permission {
+func (app *ApplicationImpl) Permissions() []permission.Permission {
 	return app.rbac.Permissions()
 }
 
@@ -106,7 +105,7 @@ func (app *ApplicationImpl) Middleware() []mux.MiddlewareFunc {
 	return app.middleware
 }
 
-func (app *ApplicationImpl) RegisterPermissions(permissions ...permission2.Permission) {
+func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permission) {
 	app.rbac.Register(permissions...)
 }
 

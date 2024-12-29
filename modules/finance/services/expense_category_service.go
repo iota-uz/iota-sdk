@@ -4,7 +4,7 @@ import (
 	"context"
 
 	category2 "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	"github.com/iota-agency/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
