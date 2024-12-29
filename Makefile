@@ -1,6 +1,6 @@
 # Variables
-TAILWIND_INPUT := pkg/presentation/assets/css/main.css
-TAILWIND_OUTPUT := pkg/presentation/assets/css/main.min.css
+TAILWIND_INPUT := modules/core/presentation/assets/css/main.css
+TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 
 # Install dependencies
 deps:
