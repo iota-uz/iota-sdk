@@ -58,13 +58,13 @@ templ Spotlight() {
 	</div>
 }
 
-type SpotlightItem struct {
-	Icon  templ.Component
+type Item struct {
 	Title string
+	Icon  templ.Component
 	Link  string
 }
 
-templ SpotlightItems(items []*SpotlightItem) {
+templ SpotlightItems(items []*Item) {
 	if len(items) > 0 {
 		for i, item := range items {
 			<li

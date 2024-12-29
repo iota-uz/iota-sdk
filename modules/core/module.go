@@ -2,6 +2,8 @@ package core
 
 import (
 	"embed"
+	"github.com/iota-agency/iota-sdk/pkg/presentation/templates/icons"
+	"github.com/iota-agency/iota-sdk/pkg/spotlight"
 
 	"github.com/iota-agency/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-agency/iota-sdk/modules/core/interfaces/graph"
@@ -69,6 +71,17 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
+	sl := app.Spotlight()
+	for _, l := range NavItems {
+		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
+	}
+	app.Spotlight().Register(
+		spotlight.NewItem(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"Users.List.New",
+			"/users/new",
+		),
+	)
 	return nil
 }
 
