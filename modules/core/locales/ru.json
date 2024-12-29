@@ -30,7 +30,7 @@
   "NavigationLinks": {
     "Dashboard": "Панель управления",
     "Users": "Пользователи",
-    "BI-Chat": "BI-Чат",
+    "BiChat": "BI-Чат",
     "KnowledgeBase": "База знаний",
     "Operations": "Операции",
     "Employees": "Сотрудники",
@@ -54,8 +54,9 @@
     },
     "Welcome": "Добро пожаловать на панель управления"
   },
-  "Validations": {
-    "Required": "Это поле обязательно для заполнения"
+  "BiChat": {
+    "Title": "BI-Чат",
+    "NewDialog": "Новый диалог"
   },
   "Users": {
     "Meta": {
