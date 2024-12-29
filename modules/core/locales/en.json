@@ -36,7 +36,7 @@
   "NavigationLinks": {
     "Dashboard": "Dashboard",
     "Users": "Users",
-    "BI-Chat": "BI-Chat",
+    "BiChat": "BI-Chat",
     "KnowledgeBase": "Knowledge Base",
     "Operations": "Operations",
     "Employees": "Employees",
@@ -59,8 +59,9 @@
     },
     "Welcome": "Welcome to the dashboard"
   },
-  "Validations": {
-    "Required": "This field is required"
+  "BiChat": {
+    "Title": "BI-Chat",
+    "NewDialog": "New dialog"
   },
   "Users": {
     "Meta": {
