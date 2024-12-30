@@ -2,102 +2,146 @@ package persistence
 
 import (
 	"context"
-	session2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"fmt"
+	"github.com/go-faster/errors"
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+)
+
+var (
+	ErrSessionNotFound = errors.New("session not found")
 )
 
 type GormSessionRepository struct{}
 
-func NewSessionRepository() session2.Repository {
+func NewSessionRepository() session.Repository {
 	return &GormSessionRepository{}
 }
 
 func (g *GormSessionRepository) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
-) ([]*session2.Session, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy)
+	ctx context.Context, params *session.FindParams,
+) ([]*session.Session, error) {
+	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var entities []*session2.Session
-	if err := q.Find(&entities).Error; err != nil {
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.Token != "" {
+		where, args = append(where, fmt.Sprintf("token = $%d", len(args)+1)), append(args, params.Token)
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT token, user_id, expires_at, ip, user_agent, created_at FROM sessions
+		WHERE `+strings.Join(where, " AND ")+`
+		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
+	`, args...)
+
+	if err != nil {
 		return nil, err
 	}
-	return entities, nil
+	defer rows.Close()
+
+	sessions := make([]*session.Session, 0)
+	for rows.Next() {
+		var session models.Session
+		if err := rows.Scan(
+			&session.Token,
+			&session.UserID,
+			&session.ExpiresAt,
+			&session.IP,
+			&session.UserAgent,
+			&session.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		domainSession := toDomainSession(&session)
+		sessions = append(sessions, domainSession)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sessions, nil
 }
 
 func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&session2.Session{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM sessions
+	`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session2.Session, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entities []*session2.Session
-	if err := tx.Find(&entities).Error; err != nil {
-		return nil, err
-	}
-	return entities, nil
+func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
+	return g.GetPaginated(ctx, &session.FindParams{
+		Limit: 100000,
+	})
 }
 
-func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*session2.Session, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entity session2.Session
-	if err := tx.First(&entity, "token = ?", token).Error; err != nil {
+func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
+	sessions, err := g.GetPaginated(ctx, &session.FindParams{
+		Token: token,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &entity, nil
+	if len(sessions) == 0 {
+		return nil, ErrSessionNotFound
+	}
+	return sessions[0], nil
 }
 
-func (g *GormSessionRepository) Create(ctx context.Context, data *session2.Session) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Create(data).Error; err != nil {
+	dbSession := toDBSession(data)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO sessions (token, user_id, expires_at, ip, user_agent)
+		VALUES ($1, $2, $3, $4, $5)
+	`, dbSession.Token, dbSession.UserID, dbSession.ExpiresAt, dbSession.IP, dbSession.UserAgent); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (g *GormSessionRepository) Update(ctx context.Context, data *session2.Session) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Save(data).Error; err != nil {
+	dbSession := toDBSession(data)
+	if _, err := tx.Exec(ctx, `
+		UPDATE sessions
+		SET expires_at = $1, ip = $2, user_agent = $3
+		WHERE token = $4
+	`, dbSession.ExpiresAt, dbSession.IP, dbSession.UserAgent, dbSession.Token); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (g *GormSessionRepository) Delete(ctx context.Context, id int64) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormSessionRepository) Delete(ctx context.Context, token string) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Delete(&session2.Session{}, id).Error; err != nil { //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM sessions WHERE token = $1
+	`, token); err != nil {
 		return err
 	}
 	return nil

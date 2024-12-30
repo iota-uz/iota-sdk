@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
@@ -102,16 +103,11 @@ func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCatego
 }
 
 func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.ExpenseCategory, error) {
-	currencyEntity, err := corepersistence.ToDomainCurrency(&dbCategory.AmountCurrency)
-	if err != nil {
-		return nil, err
-	}
 	return &category.ExpenseCategory{
 		ID:          dbCategory.ID,
 		Name:        dbCategory.Name,
-		Description: *dbCategory.Description,
+		Description: mapping.Value(dbCategory.Description),
 		Amount:      dbCategory.Amount,
-		Currency:    *currencyEntity,
 		CreatedAt:   dbCategory.CreatedAt,
 		UpdatedAt:   dbCategory.UpdatedAt,
 	}, nil
@@ -149,14 +145,9 @@ func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
 }
 
 func toDomainExpense(dbExpense *models.Expense) (*expense.Expense, error) {
-	categoryEntity, err := toDomainExpenseCategory(dbExpense.Category)
-	if err != nil {
-		return nil, err
-	}
 	return &expense.Expense{
 		ID:               dbExpense.ID,
 		Amount:           -1 * dbExpense.Transaction.Amount,
-		Category:         *categoryEntity,
 		Account:          moneyAccount.Account{ID: *dbExpense.Transaction.OriginAccountID},
 		Comment:          dbExpense.Transaction.Comment,
 		TransactionID:    dbExpense.TransactionID,
@@ -167,8 +158,8 @@ func toDomainExpense(dbExpense *models.Expense) (*expense.Expense, error) {
 	}, nil
 }
 
-func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction) {
-	dbTransaction := &models.Transaction{
+func toDBExpense(entity *expense.Expense) (*models.Expense, *transaction.Transaction) {
+	transaction := &transaction.Transaction{
 		ID:                   entity.TransactionID,
 		Amount:               -1 * entity.Amount,
 		Comment:              entity.Comment,
@@ -176,7 +167,7 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction)
 		TransactionDate:      entity.Date,
 		OriginAccountID:      &entity.Account.ID,
 		DestinationAccountID: nil,
-		TransactionType:      transaction.Expense.String(),
+		TransactionType:      transaction.Expense,
 		CreatedAt:            entity.CreatedAt,
 	}
 	dbExpense := &models.Expense{
@@ -187,5 +178,5 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *models.Transaction)
 		CreatedAt:     entity.CreatedAt,
 		UpdatedAt:     entity.UpdatedAt,
 	}
-	return dbExpense, dbTransaction
+	return dbExpense, transaction
 }

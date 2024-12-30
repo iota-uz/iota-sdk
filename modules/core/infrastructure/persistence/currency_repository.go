@@ -2,108 +2,163 @@ package persistence
 
 import (
 	"context"
-	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+)
+
+var (
+	ErrCurrencyNotFound = errors.New("currency not found")
 )
 
 type GormCurrencyRepository struct{}
 
-func NewCurrencyRepository() currency2.Repository {
+func NewCurrencyRepository() currency.Repository {
 	return &GormCurrencyRepository{}
 }
 
 func (g *GormCurrencyRepository) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
-) ([]*currency2.Currency, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var rows []*models.Currency
-	q := tx.Limit(limit).Offset(offset)
-	for _, s := range sortBy {
-		q = q.Order(s)
-	}
-	if err := q.Find(&rows).Error; err != nil {
+	ctx context.Context, params *currency.FindParams,
+) ([]*currency.Currency, error) {
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(rows, ToDomainCurrency)
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.Code != "" {
+		where, args = append(where, fmt.Sprintf("code = $%d", len(args)+1)), append(args, params.Code)
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT code, name, symbol, created_at, updated_at FROM currencies
+		WHERE `+strings.Join(where, " AND ")+`
+		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
+	`, args...)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	currencies := make([]*currency.Currency, 0)
+	for rows.Next() {
+		var currency models.Currency
+		if err := rows.Scan(
+			&currency.Code,
+			&currency.Name,
+			&currency.Symbol,
+			&currency.CreatedAt,
+			&currency.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		domainCurrency, err := ToDomainCurrency(&currency)
+		if err != nil {
+			return nil, err
+		}
+		currencies = append(currencies, domainCurrency)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return currencies, nil
 }
 
 func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
-	}
-	var count int64
-	if err := tx.Model(&models.Currency{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
 		return 0, err
 	}
-	return uint(count), nil
+	var count uint
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM currencies
+	`).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
-func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency2.Currency, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var rows []*models.Currency
-	if err := tx.Find(&rows).Error; err != nil {
+func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency.Currency, error) {
+	return g.GetPaginated(ctx, &currency.FindParams{
+		Limit: 100000,
+	})
+}
+
+func (g *GormCurrencyRepository) GetByCode(ctx context.Context, code string) (*currency.Currency, error) {
+	currencies, err := g.GetPaginated(ctx, &currency.FindParams{
+		Code: code,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(rows, ToDomainCurrency)
+	if len(currencies) == 0 {
+		return nil, ErrCurrencyNotFound
+	}
+	return currencies[0], nil
 }
 
-func (g *GormCurrencyRepository) GetByID(ctx context.Context, id uint) (*currency2.Currency, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entity models.Currency
-	if err := tx.First(&entity, id).Error; err != nil {
-		return nil, err
-	}
-	return ToDomainCurrency(&entity)
-}
-
-func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency2.Currency) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	row := ToDBCurrency(entity)
-	return tx.Create(row).Error
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO currencies (code, name, symbol) VALUES ($1, $2, $3)
+	`, row.Code, row.Name, row.Symbol); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency2.Currency) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Currency) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	row := ToDBCurrency(entity)
-	return tx.Save(row).Error
+	if _, err := tx.Exec(ctx, `
+		UPDATE currencies 
+		SET name = $1, symbol = $2
+		WHERE code = $3
+	`, row.Name, row.Symbol, row.Code); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency2.Currency) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency.Currency) error {
+	u, err := g.GetByCode(ctx, string(currency.Code))
+	if err != nil && !errors.Is(err, ErrCurrencyNotFound) {
+		return err
 	}
-	row := ToDBCurrency(currency)
-	return tx.Save(row).Error
+	if u != nil {
+		if err := g.Update(ctx, currency); err != nil {
+			return err
+		}
+	} else {
+		if err := g.Create(ctx, currency); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (g *GormCurrencyRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
+func (g *GormCurrencyRepository) Delete(ctx context.Context, code string) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
 		return composables.ErrNoTx
 	}
-	if err := tx.Delete(&currency2.Currency{}, id).Error; err != nil { //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `DELETE FROM currencies where code = $1`, code); err != nil {
 		return err
 	}
 	return nil

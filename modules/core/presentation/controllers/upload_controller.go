@@ -1,9 +1,6 @@
 package controllers
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"net/http"
 	"os"
 	"path"
@@ -11,11 +8,16 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+
 	"github.com/iota-uz/iota-sdk/components"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type UploadController struct {
@@ -40,6 +42,8 @@ func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
 	// TODO: middleware
 	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(middleware.Authorize())
+	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
 	workDir, err := os.Getwd()

@@ -24,32 +24,56 @@ templ EditForm(props *EditPageProps) {
 		@base.Card("grid grid-cols-3 gap-4 m-6") {
 			@input.Text(&input.Props{
 				Label: props.T("Employees.Single.FirstName"),
-				Attrs: templ.Attributes{"name": "FirstName", "value": props.Employee.FirstName},
+				Attrs: templ.Attributes{
+					"value": props.Employee.FirstName,
+					"name":  "FirstName",
+					"form":  "save-form",
+				},
 				Error: props.Errors["FirstName"],
 			})
 			@input.Text(&input.Props{
 				Label: props.T("Employees.Single.LastName"),
-				Attrs: templ.Attributes{"name": "LastName", "value": props.Employee.LastName},
+				Attrs: templ.Attributes{
+					"value": props.Employee.LastName,
+					"name":  "LastName",
+					"form":  "save-form",
+				},
 				Error: props.Errors["LastName"],
 			})
 			@input.Text(&input.Props{
 				Label: props.T("Employees.Single.MiddleName"),
-				Attrs: templ.Attributes{"name": "MiddleName", "value": props.Employee.MiddleName},
+				Attrs: templ.Attributes{
+					"value": props.Employee.MiddleName,
+					"name":  "MiddleName",
+					"form":  "save-form",
+				},
 				Error: props.Errors["MiddleName"],
 			})
 			@input.Text(&input.Props{
 				Label: props.T("Employees.Single.Phone"),
-				Attrs: templ.Attributes{"name": "Phone", "value": props.Employee.Phone},
+				Attrs: templ.Attributes{
+					"value": props.Employee.Phone,
+					"name":  "Phone",
+					"form":  "save-form",
+				},
 				Error: props.Errors["Phone"],
 			})
 			@input.Number(&input.Props{
 				Label: props.T("Employees.Single.Salary"),
-				Attrs: templ.Attributes{"name": "Salary", "value": props.Employee.Salary},
+				Attrs: templ.Attributes{
+					"value": props.Employee.Salary,
+					"name":  "Salary",
+					"form":  "save-form",
+				},
 				Error: props.Errors["Salary"],
 			})
 			@input.Text(&input.Props{
 				Label: props.T("Employees.Single.Email"),
-				Attrs: templ.Attributes{"name": "Email", "value": props.Employee.Email},
+				Attrs: templ.Attributes{
+					"value": props.Employee.Email,
+					"name":  "Email",
+					"form":  "save-form",
+				},
 				Error: props.Errors["Email"],
 			})
 		}

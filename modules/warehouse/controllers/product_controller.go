@@ -3,25 +3,24 @@ package controllers
 import (
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/products"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"net/http"
-
-	"github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/shared"
-
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/products"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -98,7 +97,7 @@ func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedRe
 
 	viewProducts := mapping.MapViewModels(productEntities, mappers.ProductToViewModel)
 
-	total, err := c.productService.Count(r.Context(), nil)
+	total, err := c.productService.Count(r.Context(), &product.CountParams{})
 	if err != nil {
 		return nil, fmt.Errorf("error counting products: %w", err)
 	}

@@ -3,11 +3,12 @@ package productservice
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
-	"gorm.io/gorm"
 )
 
 type ProductService struct {
@@ -63,13 +64,17 @@ func (s *ProductService) GetPaginated(
 }
 
 func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return err
 	}
 	existing, err := s.repo.GetByRfid(ctx, data.Rfid)
 	if existing != nil {
 		return NewErrDuplicateRfid(data.Rfid)
-	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if err != nil && !errors.Is(err, persistence.ErrProductNotFound) {
 		return err
 	}
 	entity, err := data.ToEntity()
@@ -84,12 +89,16 @@ func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) er
 		return err
 	}
 	s.publisher.Publish(createdEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *ProductService) CreateProductsFromTags(
 	ctx context.Context, data *product.CreateProductsFromTagsDTO,
 ) ([]*product.Product, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return nil, err
 	}
@@ -105,10 +114,11 @@ func (s *ProductService) CreateProductsFromTags(
 	if err != nil {
 		return nil, err
 	}
-	return entities, nil
+	return entities, tx.Commit(ctx)
 }
 
 func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([]*product.Product, []*product.Product, error) {
+	tx, err := composables.UsePoolTx(ctx)
 	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
 		return nil, nil, err
 	}
@@ -129,10 +139,14 @@ func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([
 			return nil, nil, err
 		}
 	}
-	return valid, invalid, nil
+	return valid, invalid, tx.Commit(ctx)
 }
 
 func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateDTO) ([]*product.Product, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return nil, err
 	}
@@ -154,17 +168,21 @@ func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateD
 		}
 		s.publisher.Publish(createdEvent)
 	}
-	return entities, nil
+	return entities, tx.Commit(ctx)
 }
 
 func (s *ProductService) Update(ctx context.Context, id uint, data *product.UpdateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
 		return err
 	}
 	existing, err := s.repo.GetByRfid(ctx, data.Rfid)
 	if existing != nil && existing.ID != id {
 		return NewErrDuplicateRfid(data.Rfid)
-	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if err != nil && !errors.Is(err, persistence.ErrProductNotFound) {
 		return err
 	}
 	entity, err := data.ToEntity(id)
@@ -179,10 +197,14 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product.Upda
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *ProductService) Delete(ctx context.Context, id uint) (*product.Product, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := composables.CanUser(ctx, permissions.ProductDelete); err != nil {
 		return nil, err
 	}
@@ -198,5 +220,5 @@ func (s *ProductService) Delete(ctx context.Context, id uint) (*product.Product,
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }

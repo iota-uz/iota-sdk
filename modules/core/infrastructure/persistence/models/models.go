@@ -81,7 +81,7 @@ type EmployeePosition struct {
 }
 
 type EmployeeMeta struct {
-	EmployeeID        uint
+	EmployeeID        uint `gorm:"primary_key"`
 	PrimaryLanguage   string
 	SecondaryLanguage string
 	TIN               string

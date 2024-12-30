@@ -17,8 +17,9 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 	defer ctx.Tx.Commit()
 
 	unitRepository := persistence.NewUnitRepository()
-	positionRepository := persistence.NewPositionRepository()
-	orderRepository := persistence.NewOrderRepository()
+	positionRepository := persistence.NewPositionRepository(unitRepository)
+	productRepo := persistence.NewProductRepository(positionRepository)
+	orderRepository := persistence.NewOrderRepository(productRepo)
 
 	if err := unitRepository.Create(
 		ctx.Context, &unit.Unit{

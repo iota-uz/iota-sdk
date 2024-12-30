@@ -3,6 +3,7 @@ package finance
 import (
 	"embed"
 	"github.com/iota-uz/iota-sdk/components/icons"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence"
@@ -29,6 +30,9 @@ func (m *Module) Register(app application.Application) error {
 		persistence.NewMoneyAccountRepository(),
 		app.EventPublisher(),
 	)
+	currencyRepo := corepersistence.NewCurrencyRepository()
+	transactionRepo := persistence.NewTransactionRepository()
+	categoryRepo := persistence.NewExpenseCategoryRepository(currencyRepo)
 	app.RegisterServices(
 		services.NewPaymentService(
 			persistence.NewPaymentRepository(),
@@ -36,11 +40,11 @@ func (m *Module) Register(app application.Application) error {
 			moneyAccountService,
 		),
 		services.NewExpenseCategoryService(
-			persistence.NewExpenseCategoryRepository(),
+			categoryRepo,
 			app.EventPublisher(),
 		),
 		services.NewExpenseService(
-			persistence.NewExpenseRepository(),
+			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
 			app.EventPublisher(),
 			moneyAccountService,
 		),

@@ -18,7 +18,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	defer ctx.Tx.Commit()
 
 	unitRepository := persistence.NewUnitRepository()
-	positionRepository := persistence.NewPositionRepository()
+	positionRepository := persistence.NewPositionRepository(unitRepository)
 	uploadRepository := corepersistence.NewUploadRepository()
 
 	if err := unitRepository.Create(
