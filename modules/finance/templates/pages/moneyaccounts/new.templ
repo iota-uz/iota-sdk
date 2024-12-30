@@ -1,8 +1,8 @@
 package moneyaccounts
 
 import (
-	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -25,7 +25,7 @@ templ CreateForm(props *CreatePageProps) {
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
-		@base.Card("grid grid-cols-3 gap-4 m-6") {
+		@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
 			@input.Text(&input.Props{
 				Label: props.T("Accounts.Single.Name"),
 				Attrs: templ.Attributes{"name": "Name", "value": props.Account.Name},

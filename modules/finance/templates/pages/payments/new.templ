@@ -1,8 +1,8 @@
 package payments
 
 import (
-	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -19,7 +19,7 @@ type CreatePageProps struct {
 
 templ CreateForm(props *CreatePageProps) {
 	<div class="flex flex-col justify-between h-full" id="new-content">
-		@base.Card("grid grid-cols-3 gap-4 m-6") {
+		@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
 			@input.Number(&input.Props{
 				Label: props.T("Payments.Single.Amount"),
 				Attrs: templ.Attributes{

@@ -1,12 +1,12 @@
 package users
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -25,7 +25,7 @@ templ CreateForm(props *CreateFormProps) {
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
-		@base.Card("grid grid-cols-3 gap-4 m-6") {
+		@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
 			@input.Text(&input.Props{
 				Label: props.T("Users.Single.FirstName"),
 				Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},

@@ -138,6 +138,14 @@
         "Title": "Добавить сотрудника"
       }
     },
+    "Tabs": {
+      "Public": "Публичные",
+      "Private": "Конфиденциальные"
+    },
+    "Cards": {
+      "PersonalInfo": "Персональные данные",
+      "JobInfo": "Рабочие данные"
+    },
     "List": {
       "New": "Добавить сотрудника",
       "FullName": "Полное имя",
@@ -146,15 +154,68 @@
     },
     "Single": {
       "Edit": "Редактировать сотрудника",
-      "FirstName": "Имя",
-      "LastName": "Фамилия",
-      "MiddleName": "Отчество",
-      "Phone": "Телефон",
-      "Email": "Электронная почта",
-      "Position": "Должность",
-      "Salary": "Зарплата",
       "Delete": "Удалить сотрудника",
       "DeleteConfirmation": "Вы уверены что хотите удалить этого сотрудника?"
+    },
+    "Public": {
+      "FirstName": {
+        "Label": "Имя",
+        "Placeholder": "Введите имя"
+      },
+      "LastName": {
+        "Label": "Фамилия",
+        "Placeholder": "Введите фамилию"
+      },
+      "MiddleName": {
+        "Label": "Отчество",
+        "Placeholder": "Введите отчество"
+      },
+      "Phone": {
+        "Label": "Телефон",
+        "Placeholder": "+998 (__) ___ __ __"
+      },
+      "Email": {
+        "Label": "Электронная почта",
+        "Placeholder": "jodoe@gmail.com"
+      },
+      "BirthDate": {
+        "Label": "Дата рождения"
+      },
+      "Position": {
+        "Label": "Должность",
+        "Placeholder": "Выберите должность"
+      },
+      "StartDate": {
+        "Label": "Дата трудоустройства"
+      },
+      "EndDate": {
+        "Label": "Дата увольнения"
+      },
+      "EmploymentStatus": {
+        "Label": "Тип занятости",
+        "Placeholder": "Выберите тип занятости"
+      },
+      "Level": {
+        "Label": "Уровень",
+        "Placeholder": "Выберите уровень"
+      }
+    },
+    "Private": {
+      "Salary": {
+        "Label": "Зарплата"
+      },
+      "PassportSN": {
+        "Label": "Серия и номер пасспорта",
+        "Placeholder": "AA 123 45 67"
+      },
+      "TIN": {
+        "Label": "ИНН",
+        "Placeholder": "1234567"
+      },
+      "PINFL": {
+        "Label": "ПИНФЛ",
+        "Placeholder": "123456789192121"
+      }
     }
   },
   "Account": {
