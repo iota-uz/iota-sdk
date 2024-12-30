@@ -2,16 +2,18 @@ package services
 
 import (
 	"context"
-	session2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
 type SessionService struct {
-	repo      session2.Repository
+	repo      session.Repository
 	publisher event.Publisher
 }
 
-func NewSessionService(repo session2.Repository, publisher event.Publisher) *SessionService {
+func NewSessionService(repo session.Repository, publisher event.Publisher) *SessionService {
 	return &SessionService{
 		repo:      repo,
 		publisher: publisher,
@@ -22,47 +24,57 @@ func (s *SessionService) GetCount(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *SessionService) GetAll(ctx context.Context) ([]*session2.Session, error) {
+func (s *SessionService) GetAll(ctx context.Context) ([]*session.Session, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *SessionService) GetByToken(ctx context.Context, id string) (*session2.Session, error) {
+func (s *SessionService) GetByToken(ctx context.Context, id string) (*session.Session, error) {
 	return s.repo.GetByToken(ctx, id)
 }
 
 func (s *SessionService) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
-) ([]*session2.Session, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	ctx context.Context, params *session.FindParams,
+) ([]*session.Session, error) {
+	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *SessionService) Create(ctx context.Context, data *session2.CreateDTO) error {
+func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := session2.NewCreatedEvent(*data, *entity)
+	createdEvent, err := session.NewCreatedEvent(*data, *entity)
 	if err != nil {
 		return err
 	}
 	s.publisher.Publish(createdEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
-func (s *SessionService) Update(ctx context.Context, data *session2.Session) error {
+func (s *SessionService) Update(ctx context.Context, data *session.Session) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("session.updated", data)
-	return nil
+	return tx.Commit(ctx)
 }
 
-func (s *SessionService) Delete(ctx context.Context, id int64) error {
-	if err := s.repo.Delete(ctx, id); err != nil {
+func (s *SessionService) Delete(ctx context.Context, token string) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
 		return err
 	}
-	s.publisher.Publish("session.deleted", id)
-	return nil
+	if err := s.repo.Delete(ctx, token); err != nil {
+		return err
+	}
+	s.publisher.Publish("session.deleted", token)
+	return tx.Commit(ctx)
 }

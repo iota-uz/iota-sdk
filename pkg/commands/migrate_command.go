@@ -1,17 +1,21 @@
 package commands
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
+	"github.com/jackc/pgx/v5/pgxpool"
 	gormlogger "gorm.io/gorm/logger"
-	"log"
-	"os"
 )
 
 var (
@@ -47,7 +51,13 @@ func Migrate() error {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(db, event.NewEventPublisher())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, conf.DBOpts)
+	if err != nil {
+		panic(err)
+	}
+	app := application.New(db, pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		return err
 	}

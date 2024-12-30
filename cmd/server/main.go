@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"log"
+	"time"
+
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -13,9 +17,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 	gormlogger "gorm.io/gorm/logger"
-	"log"
 )
 
 func main() {
@@ -42,8 +46,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
-
-	app := application.New(db, event.NewEventPublisher())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, conf.DBOpts)
+	if err != nil {
+		panic(err)
+	}
+	app := application.New(db, pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}
@@ -65,6 +74,7 @@ func main() {
 		Configuration: conf,
 		Db:            db,
 		Application:   app,
+		Pool:          pool,
 	}
 	serverInstance, err := server.Default(options)
 	if err != nil {

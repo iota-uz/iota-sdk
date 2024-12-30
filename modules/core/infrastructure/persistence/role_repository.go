@@ -2,128 +2,204 @@ package persistence
 
 import (
 	"context"
-	role2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"fmt"
+	"github.com/go-faster/errors"
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 )
 
-type GormRoleRepository struct{}
+var (
+	ErrRoleNotFound = errors.New("role not found")
+)
 
-func NewRoleRepository() role2.Repository {
-	return &GormRoleRepository{}
+type GormRoleRepository struct {
+	permissionRepo permission.Repository
+}
+
+func NewRoleRepository() role.Repository {
+	return &GormRoleRepository{
+		permissionRepo: NewPermissionRepository(),
+	}
 }
 
 func (g *GormRoleRepository) GetPaginated(
-	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
-) ([]*role2.Role, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	q := tx.Limit(limit).Offset(offset)
-	q, err := helpers.ApplySort(q, sortBy)
+	ctx context.Context, params *role.FindParams,
+) ([]*role.Role, error) {
+	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var entities []*role2.Role
-	if err := q.Preload("Permissions").Find(&entities).Error; err != nil {
+	where, joins, args := []string{"1 = 1"}, []string{}, []interface{}{}
+
+	if params.ID != 0 {
+		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
+	}
+
+	if params.UserID != 0 {
+		joins, args = append(joins, fmt.Sprintf("INNER JOIN user_roles ur ON ur.role_id = roles.id and ur.user_id = $%d", len(args)+1)), append(args, params.UserID)
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT id, name, description, roles.created_at, roles.updated_at FROM roles
+		`+strings.Join(joins, "\n")+`
+		WHERE `+strings.Join(where, " AND ")+`
+	`, args...)
+
+	if err != nil {
 		return nil, err
 	}
-	return entities, nil
+
+	defer rows.Close()
+
+	roles := make([]*role.Role, 0)
+	for rows.Next() {
+		var role models.Role
+		if err := rows.Scan(
+			&role.ID,
+			&role.Name,
+			&role.Description,
+			&role.CreatedAt,
+			&role.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		domainRole, err := toDomainRole(&role)
+		if err != nil {
+			return nil, err
+		}
+
+		if params.AttachPermissions {
+			if domainRole.Permissions, err = g.permissionRepo.GetPaginated(ctx, &permission.FindParams{
+				RoleID: domainRole.ID,
+			}); err != nil {
+				return nil, err
+			}
+		}
+		roles = append(roles, domainRole)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return roles, nil
 }
 
 func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&models.Role{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM roles
+	`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role2.Role, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var rows []*models.Role
-	if err := tx.Preload("Permissions").Find(&rows).Error; err != nil {
+func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
+	return g.GetPaginated(ctx, &role.FindParams{
+		Limit: 100000,
+	})
+}
+
+func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role.Role, error) {
+	roles, err := g.GetPaginated(ctx, &role.FindParams{
+		ID: id,
+	})
+	if err != nil {
 		return nil, err
 	}
-	var entities []*role2.Role
-	for _, row := range rows {
-		entities = append(entities, toDomainRole(row))
+	if len(roles) == 0 {
+		return nil, ErrRoleNotFound
 	}
-	return entities, nil
+	return roles[0], nil
 }
 
-func (g *GormRoleRepository) GetByID(ctx context.Context, id int64) (*role2.Role, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entity models.Role
-	if err := tx.Preload("Permissions").First(&entity, id).Error; err != nil {
-		return nil, err
-	}
-	return toDomainRole(&entity), nil
-}
-
-func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role2.Role) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	entity, permissions := toDBRole(data)
-	if err := tx.Save(entity).Error; err != nil {
+func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role) error {
+	u, err := g.GetByID(ctx, data.ID)
+	if err != nil && !errors.Is(err, ErrRoleNotFound) {
 		return err
 	}
-	if err := tx.Model(entity).Association("Permissions").Replace(permissions); err != nil {
-		return err
+	if u != nil {
+		if err := g.Update(ctx, data); err != nil {
+			return err
+		}
+	} else {
+		if err := g.Create(ctx, data); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (g *GormRoleRepository) Create(ctx context.Context, data *role2.Role) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	entity, permissions := toDBRole(data)
-	if err := tx.Create(entity).Error; err != nil {
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO roles (name, description)
+		VALUES ($1, $2)
+	`, entity.Name, entity.Description).Scan(&data.ID); err != nil {
 		return err
 	}
-	if err := tx.Model(entity).Association("Permissions").Append(permissions); err != nil {
-		return err
+	for _, permission := range permissions {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO role_permissions (role_id, permission_id)
+			VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
+		`, data.ID, permission.ID); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (g *GormRoleRepository) Update(ctx context.Context, data *role2.Role) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
+func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
 		return composables.ErrNoTx
 	}
 	entity, permissions := toDBRole(data)
-	if err := tx.Updates(entity).Error; err != nil {
+	if _, err := tx.Exec(ctx, `
+		UPDATE roles
+		SET name = $1, description = $2
+		WHERE id = $3
+	`, entity.Name, entity.Description, entity.ID); err != nil {
 		return err
 	}
-	if err := tx.Model(entity).Association("Permissions").Replace(permissions); err != nil {
+
+	if _, err := tx.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1`, entity.ID); err != nil {
 		return err
+	}
+	for _, permission := range permissions {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO role_permissions (role_id, permission_id)
+			VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
+		`, entity.ID, permission.ID); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (g *GormRoleRepository) Delete(ctx context.Context, id int64) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	return tx.Delete(&models.Role{}, id).Error //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM roles WHERE id = $1
+	`, id); err != nil {
+		return err
+	}
+	return nil
 }

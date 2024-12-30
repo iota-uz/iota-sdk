@@ -4,11 +4,18 @@ import (
 	"context"
 )
 
+type FindParams struct {
+	ID     uint
+	Limit  int
+	Offset int
+	SortBy []string
+}
+
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
-	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]*User, error)
+	GetPaginated(ctx context.Context, params *FindParams) ([]*User, error)
 	GetByID(ctx context.Context, id uint) (*User, error)
 	Create(ctx context.Context, user *User) error
 	CreateOrUpdate(ctx context.Context, user *User) error

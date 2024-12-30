@@ -81,6 +81,10 @@ func (s *PositionService) findOrCreateUnit(ctx context.Context, unitName string)
 }
 
 func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, unitId uint) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	data := &position.CreateDTO{
 		Title:   posRow.Title,
 		Barcode: posRow.Barcode,
@@ -100,8 +104,10 @@ func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, un
 			Status:     string(product.InStock),
 		})
 	}
-	_, err = s.productService.BulkCreate(ctx, products)
-	return err
+	if _, err = s.productService.BulkCreate(ctx, products); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *PositionService) LoadFromFilePath(ctx context.Context, path string) error {
@@ -154,6 +160,7 @@ func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error
 }
 
 func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (*position.Position, error) {
+	tx, err := composables.UsePoolTx(ctx)
 	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
 		return nil, err
 	}
@@ -169,10 +176,11 @@ func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) 
 		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 
 func (s *PositionService) Update(ctx context.Context, id uint, data *position.UpdateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
 	if err := composables.CanUser(ctx, permissions.PositionUpdate); err != nil {
 		return err
 	}
@@ -188,10 +196,11 @@ func (s *PositionService) Update(ctx context.Context, id uint, data *position.Up
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *PositionService) Delete(ctx context.Context, id uint) (*position.Position, error) {
+	tx, err := composables.UsePoolTx(ctx)
 	if err := composables.CanUser(ctx, permissions.PositionDelete); err != nil {
 		return nil, err
 	}
@@ -207,7 +216,7 @@ func (s *PositionService) Delete(ctx context.Context, id uint) (*position.Positi
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }
 
 func (s *PositionService) Count(ctx context.Context) (int64, error) {

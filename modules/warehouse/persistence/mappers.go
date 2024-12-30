@@ -86,9 +86,14 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 }
 
 func toDBProduct(entity *product.Product) (*models.WarehouseProduct, error) {
+	position := &models.WarehousePosition{}
+	if entity.Position != nil {
+		position, _ = toDBPosition(entity.Position)
+	}
 	return &models.WarehouseProduct{
 		ID:         entity.ID,
 		PositionID: entity.PositionID,
+		Position:   position,
 		Rfid:       mapping.Pointer(entity.Rfid),
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt,
@@ -150,11 +155,13 @@ func toDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 			},
 		)
 	}
+	dbUnit := toDBUnit(&entity.Unit)
 	return &models.WarehousePosition{
 		ID:        entity.ID,
 		Title:     entity.Title,
 		Barcode:   entity.Barcode,
 		UnitID:    entity.UnitID,
+		Unit:      dbUnit,
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
 	}, junctionRows
@@ -189,10 +196,10 @@ func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 		CreatedByID:  dbInventoryCheck.CreatedByID,
 	}
 	if dbInventoryCheck.CreatedBy != nil {
-		check.CreatedBy = persistence.ToDomainUser(dbInventoryCheck.CreatedBy)
+		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy)
 	}
 	if dbInventoryCheck.FinishedBy != nil {
-		check.FinishedBy = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
+		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
 	}
 	return check, nil
 }
@@ -209,14 +216,14 @@ func toDBInventoryCheckResult(result *inventory.CheckResult) (*models.InventoryC
 }
 
 func toDomainInventoryCheckResult(result *models.InventoryCheckResult) (*inventory.CheckResult, error) {
-	pos, err := toDomainPosition(result.Position)
-	if err != nil {
-		return nil, err
-	}
+	// pos, err := toDomainPosition(result.Position)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	return &inventory.CheckResult{
-		ID:               result.ID,
-		PositionID:       result.PositionID,
-		Position:         pos,
+		ID:         result.ID,
+		PositionID: result.PositionID,
+		// Position:         pos,
 		ExpectedQuantity: result.ExpectedQuantity,
 		ActualQuantity:   result.ActualQuantity,
 		Difference:       result.Difference,

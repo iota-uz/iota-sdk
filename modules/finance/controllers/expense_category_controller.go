@@ -1,27 +1,25 @@
 package controllers
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
-	"net/http"
-
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
-
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-
-	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type ExpenseCategoriesController struct {
@@ -68,9 +66,9 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
-	getRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {

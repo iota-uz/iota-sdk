@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+
 	category2 "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
@@ -37,6 +39,10 @@ func (s *ExpenseCategoryService) GetPaginated(
 }
 
 func (s *ExpenseCategoryService) Create(ctx context.Context, data *category2.CreateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
 	createdEvent, err := category2.NewCreatedEvent(ctx, *data)
 	if err != nil {
 		return err
@@ -50,10 +56,11 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, data *category2.Cre
 	}
 	createdEvent.Result = *entity
 	s.publisher.Publish(createdEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *category2.UpdateDTO) error {
+	tx, err := composables.UsePoolTx(ctx)
 	updatedEvent, err := category2.NewUpdatedEvent(ctx, *data)
 	if err != nil {
 		return err
@@ -67,10 +74,11 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *cate
 	}
 	updatedEvent.Result = *entity
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category2.ExpenseCategory, error) {
+	tx, err := composables.UsePoolTx(ctx)
 	deletedEvent, err := category2.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
@@ -84,5 +92,5 @@ func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category
 	}
 	deletedEvent.Result = *entity
 	s.publisher.Publish(deletedEvent)
-	return entity, nil
+	return entity, tx.Commit(ctx)
 }

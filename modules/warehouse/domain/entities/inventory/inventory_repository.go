@@ -8,14 +8,17 @@ type DateRange struct {
 }
 
 type FindParams struct {
-	Limit     int
-	Offset    int
-	SortBy    []string
-	Query     string
-	Field     string
-	Status    string
-	Type      string
-	CreatedAt DateRange
+	Limit          int
+	Offset         int
+	SortBy         []string
+	Query          string
+	Field          string
+	Status         string
+	Type           string
+	ID             uint
+	CreatedAt      DateRange
+	AttachResults  bool
+	WithDifference bool
 }
 
 type Repository interface {

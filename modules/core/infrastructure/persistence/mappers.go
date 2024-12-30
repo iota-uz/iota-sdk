@@ -1,26 +1,30 @@
 package persistence
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	user2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
-	permission2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 )
 
-func ToDomainUser(dbUser *models.User) *user2.User {
+func ToDomainUser(dbUser *models.User) (*user.User, error) {
 	roles := make([]*role.Role, len(dbUser.Roles))
-	for i, r := range dbUser.Roles {
-		roles[i] = toDomainRole(&r)
-	}
+	// for i, r := range dbUser.Roles {
+	// 	roles[i] = toDomainRole(&r)
+	// }
 	var middleName string
 	if dbUser.MiddleName != nil {
 		middleName = *dbUser.MiddleName
@@ -34,7 +38,7 @@ func ToDomainUser(dbUser *models.User) *user2.User {
 		avatar = *ToDomainUpload(dbUser.Avatar)
 	}
 
-	return &user2.User{
+	return &user.User{
 		ID:         dbUser.ID,
 		FirstName:  dbUser.FirstName,
 		LastName:   dbUser.LastName,
@@ -44,17 +48,17 @@ func ToDomainUser(dbUser *models.User) *user2.User {
 		AvatarID:   dbUser.AvatarID,
 		Avatar:     &avatar,
 		EmployeeID: dbUser.EmployeeID,
-		UILanguage: user2.UILanguage(dbUser.UiLanguage),
+		UILanguage: user.UILanguage(dbUser.UiLanguage),
 		LastIP:     dbUser.LastIP,
 		LastLogin:  dbUser.LastLogin,
 		LastAction: dbUser.LastAction,
 		CreatedAt:  dbUser.CreatedAt,
 		UpdatedAt:  dbUser.UpdatedAt,
 		Roles:      roles,
-	}
+	}, nil
 }
 
-func toDBUser(entity *user2.User) (*models.User, []models.Role) {
+func toDBUser(entity *user.User) (*models.User, []models.Role) {
 	roles := make([]models.Role, len(entity.Roles))
 	for i, r := range entity.Roles {
 		dbRole, _ := toDBRole(r)
@@ -90,25 +94,26 @@ func toDBUser(entity *user2.User) (*models.User, []models.Role) {
 	}, roles
 }
 
-func toDomainRole(dbRole *models.Role) *role.Role {
-	permissions := make([]permission2.Permission, len(dbRole.Permissions))
-	for i, p := range dbRole.Permissions {
-		permissions[i] = *toDomainPermission(&p)
-	}
+func toDomainRole(dbRole *models.Role) (*role.Role, error) {
+	// permissions := make([]permission.Permission, len(dbRole.Permissions))
+	// for i, p := range dbRole.Permissions {
+	// 	permissions[i] = *toDomainPermission(&p)
+	// }
 	return &role.Role{
 		ID:          dbRole.ID,
 		Name:        dbRole.Name,
 		Description: dbRole.Description,
-		Permissions: permissions,
-		CreatedAt:   dbRole.CreatedAt,
-		UpdatedAt:   dbRole.UpdatedAt,
-	}
+		Permissions: make([]permission.Permission, 0),
+		// Permissions: permissions,
+		CreatedAt: dbRole.CreatedAt,
+		UpdatedAt: dbRole.UpdatedAt,
+	}, nil
 }
 
 func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
 	permissions := make([]models.Permission, len(entity.Permissions))
 	for i, p := range entity.Permissions {
-		permissions[i] = *toDBPermission(&p)
+		permissions[i] = toDBPermission(p)
 	}
 	return &models.Role{
 		ID:          entity.ID,
@@ -120,8 +125,8 @@ func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
 	}, permissions
 }
 
-func toDBPermission(entity *permission2.Permission) *models.Permission {
-	return &models.Permission{
+func toDBPermission(entity permission.Permission) models.Permission {
+	return models.Permission{
 		ID:       entity.ID,
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
@@ -130,14 +135,14 @@ func toDBPermission(entity *permission2.Permission) *models.Permission {
 	}
 }
 
-func toDomainPermission(dbPermission *models.Permission) *permission2.Permission {
-	return &permission2.Permission{
+func toDomainPermission(dbPermission models.Permission) (permission.Permission, error) {
+	return permission.Permission{
 		ID:       dbPermission.ID,
 		Name:     dbPermission.Name,
-		Resource: permission2.Resource(dbPermission.Resource),
-		Action:   permission2.Action(dbPermission.Action),
-		Modifier: permission2.Modifier(dbPermission.Modifier),
-	}
+		Resource: permission.Resource(dbPermission.Resource),
+		Action:   permission.Action(dbPermission.Action),
+		Modifier: permission.Modifier(dbPermission.Modifier),
+	}, nil
 }
 
 func toDomainProject(dbProject *models.Project) *project.Project {
@@ -238,7 +243,7 @@ func ToDomainUpload(dbUpload *models.Upload) *upload.Upload {
 	}
 }
 
-func ToDBCurrency(entity *currency2.Currency) *models.Currency {
+func ToDBCurrency(entity *currency.Currency) *models.Currency {
 	return &models.Currency{
 		Code:      string(entity.Code),
 		Name:      entity.Name,
@@ -248,16 +253,16 @@ func ToDBCurrency(entity *currency2.Currency) *models.Currency {
 	}
 }
 
-func ToDomainCurrency(dbCurrency *models.Currency) (*currency2.Currency, error) {
-	code, err := currency2.NewCode(dbCurrency.Code)
+func ToDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
+	code, err := currency.NewCode(dbCurrency.Code)
 	if err != nil {
 		return nil, err
 	}
-	symbol, err := currency2.NewSymbol(dbCurrency.Symbol)
+	symbol, err := currency.NewSymbol(dbCurrency.Symbol)
 	if err != nil {
 		return nil, err
 	}
-	return &currency2.Currency{
+	return &currency.Currency{
 		Code:   code,
 		Name:   dbCurrency.Name,
 		Symbol: symbol,
@@ -280,4 +285,66 @@ func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
 		Position: dbTab.Position,
 		UserID:   dbTab.UserID,
 	}, nil
+}
+
+func toDomainPosition(dbPosition *models.Position) (*position.Position, error) {
+	return &position.Position{
+		ID:          dbPosition.ID,
+		Name:        dbPosition.Name,
+		Description: dbPosition.Description,
+		CreatedAt:   dbPosition.CreatedAt,
+		UpdatedAt:   dbPosition.UpdatedAt,
+	}, nil
+}
+
+func toDBPosition(position *position.Position) *models.Position {
+	return &models.Position{
+		ID:          position.ID,
+		Name:        position.Name,
+		Description: position.Description,
+		CreatedAt:   position.CreatedAt,
+		UpdatedAt:   position.UpdatedAt,
+	}
+}
+
+func toDBSession(session *session.Session) *models.Session {
+	return &models.Session{
+		UserID:    session.UserID,
+		Token:     session.Token,
+		IP:        session.IP,
+		UserAgent: session.UserAgent,
+		CreatedAt: session.CreatedAt,
+		ExpiresAt: session.ExpiresAt,
+	}
+}
+
+func toDomainSession(dbSession *models.Session) *session.Session {
+	return &session.Session{
+		UserID:    dbSession.UserID,
+		Token:     dbSession.Token,
+		IP:        dbSession.IP,
+		UserAgent: dbSession.UserAgent,
+		CreatedAt: dbSession.CreatedAt,
+		ExpiresAt: dbSession.ExpiresAt,
+	}
+}
+
+func toDBAuthenticationLog(log *authlog.AuthenticationLog) *models.AuthenticationLog {
+	return &models.AuthenticationLog{
+		ID:        log.ID,
+		UserID:    log.UserID,
+		IP:        log.IP,
+		UserAgent: log.UserAgent,
+		CreatedAt: log.CreatedAt,
+	}
+}
+
+func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.AuthenticationLog {
+	return &authlog.AuthenticationLog{
+		ID:        dbLog.ID,
+		UserID:    dbLog.UserID,
+		IP:        dbLog.IP,
+		UserAgent: dbLog.UserAgent,
+		CreatedAt: dbLog.CreatedAt,
+	}
 }

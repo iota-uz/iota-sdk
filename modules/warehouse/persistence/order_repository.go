@@ -2,175 +2,197 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"gorm.io/gorm"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
-type GormOrderRepository struct{}
+var (
+	ErrOrderNotFound = errors.New("order not found")
+)
 
-func NewOrderRepository() order.Repository {
-	return &GormOrderRepository{}
+type GormOrderRepository struct {
+	productRepo product.Repository
 }
 
-func (g *GormOrderRepository) tx(ctx context.Context) (*gorm.DB, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
+func NewOrderRepository(productRepo product.Repository) order.Repository {
+	return &GormOrderRepository{
+		productRepo: productRepo,
 	}
-	return tx, nil
 }
 
 func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
-	tx, err := g.tx(ctx)
+	pool, err := composables.UsePool(ctx)
 	if err != nil {
 		return nil, err
 	}
-	tx = tx.Limit(params.Limit).Offset(params.Offset)
-	if params.Query != "" && params.Field != "" {
-		tx = tx.Where(fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.ID != 0 {
+		where, args = append(where, fmt.Sprintf("wo.id = $%d", len(args)+1)), append(args, params.ID)
 	}
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+		where, args = append(where, fmt.Sprintf("wo.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
+	if params.Query != "" && params.Field != "" {
+		where, args = append(where, fmt.Sprintf("wo.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
+	}
+
 	if params.Status != "" {
-		tx = tx.Where("status = ?", params.Status)
+		where, args = append(where, fmt.Sprintf("wo.status = $%d", len(args)+1)), append(args, params.Status)
 	}
 
 	if params.Type != "" {
-		tx = tx.Where("type = ?", params.Type)
+		where, args = append(where, fmt.Sprintf("wo.type = $%d", len(args)+1)), append(args, params.Type)
 	}
-	tx, err = helpers.ApplySort(tx, params.SortBy)
+	rows, err := pool.Query(ctx, `
+		SELECT id, type, status, created_at FROM warehouse_orders wo
+		WHERE `+strings.Join(where, " AND ")+`
+		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
+	`, args...)
 	if err != nil {
 		return nil, err
 	}
-	var rows []*models.WarehouseOrder
-	if err := tx.Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for i, row := range rows {
-		products, err := g.getProducts(ctx, row.ID)
+	defer rows.Close()
+	orders := make([]order.Order, 0)
+	for rows.Next() {
+		var order models.WarehouseOrder
+		if err := rows.Scan(
+			&order.ID,
+			&order.Type,
+			&order.Status,
+			&order.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		products, err := g.productRepo.GetPaginated(ctx, &product.FindParams{
+			OrderID: order.ID,
+		})
 		if err != nil {
 			return nil, err
 		}
-		rows[i].Products = products
-	}
-	return mapping.MapDbModels(rows, ToDomainOrder)
-}
-
-func (g *GormOrderRepository) getProducts(ctx context.Context, id uint) ([]*models.WarehouseProduct, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var entities []*models.WarehouseOrderItem
-	if err := tx.Where("warehouse_order_id = ?", id).Find(&entities).Error; err != nil {
-		return nil, err
-	}
-	var rows []*models.WarehouseProduct
-	for _, entity := range entities {
-		var product models.WarehouseProduct
-		q := tx.Where("id = ?", entity.WarehouseProductID).Preload("Position").Preload("Position.Unit")
-		if err := q.First(&product).Error; err != nil {
+		// FIXME: better fix ToDomainOrder function than converting back to db model
+		if order.Products, err = mapping.MapDbModels(products, toDBProduct); err != nil {
 			return nil, err
 		}
-		rows = append(rows, &product)
+		domainOrder, err := ToDomainOrder(&order)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, domainOrder)
 	}
-	return rows, nil
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return orders, nil
 }
 
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&models.WarehouseOrder{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM warehouse_orders
+	`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormOrderRepository) GetAll(ctx context.Context) ([]order.Order, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	// TODO: proper implementation
-	var rows []*models.WarehouseOrder
-	if err := tx.Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for i, row := range rows {
-		products, err := g.getProducts(ctx, row.ID)
-		if err != nil {
-			return nil, err
-		}
-		rows[i].Products = products
-	}
-	return mapping.MapDbModels(rows, ToDomainOrder)
+	return g.GetPaginated(ctx, &order.FindParams{
+		Limit: 100000,
+	})
 }
 
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var row models.WarehouseOrder
-	if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
-		return nil, err
-	}
-	products, err := g.getProducts(ctx, row.ID)
+	orders, err := g.GetPaginated(ctx, &order.FindParams{
+		ID: id,
+	})
 	if err != nil {
 		return nil, err
 	}
-	row.Products = products
-	return ToDomainOrder(&row)
+	if len(orders) == 0 {
+		return nil, ErrOrderNotFound
+	}
+	return orders[0], nil
 }
 
 func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
 	dbOrder, err := ToDBOrder(data)
 	if err != nil {
 		return err
 	}
-	return tx.Create(dbOrder).Error
-}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO warehouse_orders (type, status) VALUES ($1, $2) RETURNING id
+	`, dbOrder.Type, dbOrder.Status).Scan(&dbOrder.ID); err != nil {
+		return err
+	}
 
-func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	dbOrder, err := ToDBOrder(data)
-	if err != nil {
-		return err
-	}
-	if err := tx.Updates(dbOrder).Error; err != nil {
-		return err
-	}
-	for _, p := range dbOrder.Products {
-		if err := tx.Updates(p).Error; err != nil {
+	for _, item := range dbOrder.Products {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
+		`, dbOrder.ID, item.ID); err != nil {
 			return err
 		}
 	}
-	return tx.Model(dbOrder).Association("Products").Replace(dbOrder.Products)
+	return nil
+}
+
+func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
+	dbOrder, err := ToDBOrder(data)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE warehouse_orders wo 
+		SET 
+		type = COALESCE(NULLIF($1, ''), wo.type),
+		status = COALESCE(NULLIF($2, ''), wo.status)
+		WHERE wo.id = $3
+	`, dbOrder.Type, dbOrder.Status, dbOrder.ID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+			DELETE FROM warehouse_order_items WHERE warehouse_order_id = $1
+		`, dbOrder.ID); err != nil {
+		return err
+	}
+	for _, product := range dbOrder.Products {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
+		`, dbOrder.ID, product.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
 	}
-	if err := tx.Where("id = ?", id).Delete(&models.WarehouseOrder{}).Error; err != nil { //nolint:exhaustruct
+	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_orders WHERE id = $1`, id); err != nil {
 		return err
 	}
 	return nil

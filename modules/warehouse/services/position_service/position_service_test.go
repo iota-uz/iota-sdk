@@ -66,7 +66,8 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	unitRepo := persistence.NewUnitRepository()
 	testCtx.App.RegisterServices(services.NewUnitService(unitRepo, publisher))
 
-	productRepo := persistence.NewProductRepository()
+	positionRepo := persistence.NewPositionRepository(unitRepo)
+	productRepo := persistence.NewProductRepository(positionRepo)
 	testCtx.App.RegisterServices(productservice.NewProductService(productRepo, publisher))
 
 	uploadRepo := persistence2.NewUploadRepository()
@@ -76,7 +77,6 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	}
 	testCtx.App.RegisterServices(coreservices.NewUploadService(uploadRepo, storage, publisher))
 
-	positionRepo := persistence.NewPositionRepository()
 	positionService := positionservice.NewPositionService(positionRepo, publisher, testCtx.App)
 
 	ctx := context.WithValue(testCtx.Context, constants.UserKey, testutils.MockUser(
