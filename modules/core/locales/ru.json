@@ -29,6 +29,7 @@
   },
   "NavigationLinks": {
     "Dashboard": "Панель управления",
+    "Administration": "Администрирование",
     "Users": "Пользователи",
     "BiChat": "BI-Чат",
     "KnowledgeBase": "База знаний",
