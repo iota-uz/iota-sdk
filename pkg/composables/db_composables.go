@@ -3,6 +3,7 @@ package composables
 import (
 	"context"
 	"errors"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/jackc/pgx/v5"
@@ -13,7 +14,7 @@ import (
 var (
 	ErrNoTx   = errors.New("no transaction found in context")
 	ErrNoDB   = errors.New("no database found in context")
-	ErrNoPool = errors.New("no database pool found in contenxt")
+	ErrNoPool = errors.New("no database pool found in context")
 )
 
 // WithTx returns a new context with the database transaction.
@@ -34,12 +35,12 @@ func UseTx(ctx context.Context) (*gorm.DB, bool) {
 	return tx, true
 }
 
-func UsePoolTx(ctx context.Context) (pgx.Tx, error) {
-	tx, ok := ctx.Value(constants.PoolTxKey).(pgx.Tx)
-	if !ok {
-		return nil, ErrNoTx
+func UsePoolTx(ctx context.Context) (repo.Tx, error) {
+	tx := ctx.Value(constants.PoolTxKey)
+	if tx == nil {
+		return UsePool(ctx)
 	}
-	return tx, nil
+	return tx.(repo.Tx), nil
 }
 
 // WithDB returns a new context with the database.

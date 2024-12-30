@@ -32,6 +32,9 @@ func WithTransaction() mux.MiddlewareFunc {
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
+				if err := tx.Commit(r.Context()); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
 			},
 		)
 	}

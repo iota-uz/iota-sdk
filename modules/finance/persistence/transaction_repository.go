@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -53,23 +53,23 @@ func (g *GormTransactionRepository) GetPaginated(
 	defer rows.Close()
 	transactions := make([]*transaction.Transaction, 0)
 	for rows.Next() {
-		var transaction models.Transaction
+		var t models.Transaction
 		var comment sql.NullString
 		if err := rows.Scan(
-			&transaction.ID,
-			&transaction.Amount,
-			&transaction.OriginAccountID,
-			&transaction.DestinationAccountID,
-			&transaction.TransactionDate,
-			&transaction.AccountingPeriod,
-			&transaction.TransactionType,
+			&t.ID,
+			&t.Amount,
+			&t.OriginAccountID,
+			&t.DestinationAccountID,
+			&t.TransactionDate,
+			&t.AccountingPeriod,
+			&t.TransactionType,
 			&comment,
-			&transaction.CreatedAt,
+			&t.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
-		transaction.Comment = comment.String
-		domainTransaction, err := toDomainTransaction(&transaction)
+		t.Comment = comment.String
+		domainTransaction, err := toDomainTransaction(&t)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +140,7 @@ func (g *GormTransactionRepository) Update(ctx context.Context, data *transactio
 		SET
 		amount = $1, origin_account_id = $2,
 		destination_account_id = $3, transaction_date = $4,
-		accounting_period = $5, transaction_type = $6
+		accounting_period = $5, transaction_type = $6,
 		comment = $7
 		WHERE id = $8
 	`, entity.Amount, entity.OriginAccountID, entity.DestinationAccountID, entity.TransactionDate, entity.AccountingPeriod, entity.TransactionType, entity.Comment, entity.ID); err != nil {

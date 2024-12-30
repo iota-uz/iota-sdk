@@ -6,7 +6,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
@@ -41,10 +40,6 @@ func (s *UploadService) GetAll(ctx context.Context) ([]*upload.Upload, error) {
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*upload.Upload, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -67,14 +62,10 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }
 
 func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]*upload.Upload, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entities := make([]*upload.Upload, 0, len(data))
 	for _, d := range data {
 		entity, err := s.Create(ctx, d)
@@ -83,15 +74,10 @@ func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO
 		}
 		entities = append(entities, entity)
 	}
-	return entities, tx.Commit(ctx)
+	return entities, nil
 }
 
 func (s *UploadService) Update(ctx context.Context, id uint, data *upload.UpdateDTO) error {
-
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	entity, err := data.ToEntity(id)
 	if err != nil {
 		return err
@@ -104,14 +90,10 @@ func (s *UploadService) Update(ctx context.Context, id uint, data *upload.Update
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *UploadService) Delete(ctx context.Context, id uint) (*upload.Upload, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -124,5 +106,5 @@ func (s *UploadService) Delete(ctx context.Context, id uint) (*upload.Upload, er
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }

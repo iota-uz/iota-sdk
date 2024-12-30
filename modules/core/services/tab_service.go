@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type TabService struct {
@@ -28,10 +27,6 @@ func (s *TabService) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, 
 }
 
 func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entity, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -39,14 +34,10 @@ func (s *TabService) Create(ctx context.Context, data *tab.CreateDTO) (*tab.Tab,
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return entity, err
 	}
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }
 
 func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data []*tab.CreateDTO) ([]*tab.Tab, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entities := make([]*tab.Tab, 0, len(data))
 	for _, d := range data {
 		entity, err := d.ToEntity()
@@ -61,7 +52,7 @@ func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data [
 	if err := s.repo.DeleteUserTabs(ctx, userID); err != nil {
 		return nil, err
 	}
-	return entities, tx.Commit(ctx)
+	return entities, nil
 }
 
 func (s *TabService) Update(ctx context.Context, id uint, data *tab.UpdateDTO) error {

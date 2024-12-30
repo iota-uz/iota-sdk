@@ -107,6 +107,6 @@ func (s *MoneyAccountService) Delete(ctx context.Context, id uint) (*moneyaccoun
 	return entity, nil
 }
 
-func (s *MoneyAccountService) Count(ctx context.Context) (uint, error) {
+func (s *MoneyAccountService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }

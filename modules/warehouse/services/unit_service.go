@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	unit "github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
@@ -55,10 +55,6 @@ func (s *UnitService) GetPaginated(
 }
 
 func (s *UnitService) Create(ctx context.Context, data *unit.CreateDTO) (*unit.Unit, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if err := composables.CanUser(ctx, permissions.UnitCreate); err != nil {
 		return nil, err
 	}
@@ -74,14 +70,10 @@ func (s *UnitService) Create(ctx context.Context, data *unit.CreateDTO) (*unit.U
 		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }
 
 func (s *UnitService) Update(ctx context.Context, id uint, data *unit.UpdateDTO) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := composables.CanUser(ctx, permissions.UnitUpdate); err != nil {
 		return err
 	}
@@ -97,14 +89,10 @@ func (s *UnitService) Update(ctx context.Context, id uint, data *unit.UpdateDTO)
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *UnitService) Delete(ctx context.Context, id uint) (*unit.Unit, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if err := composables.CanUser(ctx, permissions.UnitDelete); err != nil {
 		return nil, err
 	}
@@ -120,7 +108,7 @@ func (s *UnitService) Delete(ctx context.Context, id uint) (*unit.Unit, error) {
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }
 func (s *UnitService) Count(ctx context.Context) (uint, error) {
 	return s.repo.Count(ctx)

@@ -38,7 +38,7 @@ func Sales() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"bg-white shadow-lg rounded-lg p-6 w-full max-w-3xl\"><div class=\"flex justify-between items-center mb-4\"><h2 class=\"text-lg font-semibold text-gray-700\">Expenses Over Time</h2><div class=\"relative\"><label><select class=\"appearance-none border rounded-lg px-4 py-2 text-gray-600 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500\"><option>2024</option> <option>2023</option> <option>2022</option></select></label></div></div><div id=\"sales\" class=\"w-full h-72\"></div></div><script>\n    document.addEventListener('DOMContentLoaded', () => {\n      const options = {\n        chart: {\n          type: 'bar',\n          height: '100%',\n          toolbar: { show: false },\n        },\n        series: [{\n          name: 'Expenses',\n          data: [10, 50, 40, 98.654, 80, 90, 70, 85, 95, 88, 60, 45] // Replace with your dynamic data\n        }],\n        xaxis: {\n          categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],\n          labels: {\n            style: {\n              colors: '#6B7280', // Tailwind gray-500\n              fontSize: '12px',\n            },\n          },\n        },\n        yaxis: {\n          labels: {\n            formatter: (value) => `${value}k`,\n            style: {\n              colors: '#6B7280',\n              fontSize: '12px',\n            },\n          },\n        },\n        colors: ['#DB2777'], // Tailwind pink-600\n        dataLabels: {\n          enabled: true,\n          formatter: (val) => `${val.toFixed(0)}$`, // Format with no decimal places\n          style: {\n            colors: ['#FFFFFF'], // White font\n            fontSize: '12px',\n            fontWeight: 'bold',\n          },\n          offsetY: -10, // Adjust position above the bar\n          dropShadow: {\n            enabled: true,\n            top: 1,\n            left: 1,\n            blur: 1,\n            color: '#000',\n            opacity: 0.25\n          }\n        },\n        grid: {\n          borderColor: '#E5E7EB', // Tailwind gray-200\n        },\n        plotOptions: {\n          bar: {\n            borderRadius: 6,\n            columnWidth: '50%',\n            dataLabels: {\n              position: 'top', // Place labels at the top of bars\n            },\n          },\n        },\n      };\n\n      const chart = new ApexCharts(document.querySelector(\"#sales\"), options);\n      chart.render();\n    });\n  </script>")
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -67,7 +67,7 @@ func Revenue() templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"bg-white shadow-lg rounded-lg p-6 w-full max-w-3xl\"><div class=\"flex justify-between items-center mb-4\"><h2 class=\"text-lg font-semibold text-gray-700\">Expenses Over Time</h2><div class=\"relative\"><select class=\"appearance-none border rounded-lg px-4 py-2 text-gray-600 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500\"><option>2024</option> <option>2023</option> <option>2022</option></select></div></div><div id=\"revenue\" class=\"w-full h-72\"></div></div><script>\n    document.addEventListener('DOMContentLoaded', () => {\n      const options = {\n        chart: {\n          type: 'bar',\n          height: '100%',\n          toolbar: { show: false },\n        },\n        series: [{\n          name: 'Expenses',\n          data: [10, 50, 40, 98.654, 80, 90, 70, 85, 95, 88, 60, 45] // Replace with your dynamic data\n        }],\n        xaxis: {\n          categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],\n          labels: {\n            style: {\n              colors: '#6B7280', // Tailwind gray-500\n              fontSize: '12px',\n            },\n          },\n        },\n        yaxis: {\n          labels: {\n            formatter: (value) => `${value}k`,\n            style: {\n              colors: '#6B7280',\n              fontSize: '12px',\n            },\n          },\n        },\n        colors: ['#DB2777'], // Tailwind pink-600\n        dataLabels: {\n          enabled: true,\n          formatter: (val) => `${val.toFixed(0)}$`, // Format with no decimal places\n          style: {\n            colors: ['#FFFFFF'], // White font\n            fontSize: '12px',\n            fontWeight: 'bold',\n          },\n          offsetY: -10, // Adjust position above the bar\n          dropShadow: {\n            enabled: true,\n            top: 1,\n            left: 1,\n            blur: 1,\n            color: '#000',\n            opacity: 0.25\n          }\n        },\n        grid: {\n          borderColor: '#E5E7EB', // Tailwind gray-200\n        },\n        plotOptions: {\n          bar: {\n            borderRadius: 6,\n            columnWidth: '50%',\n            dataLabels: {\n              position: 'top', // Place labels at the top of bars\n            },\n          },\n        },\n      };\n\n      const chart = new ApexCharts(document.querySelector(\"#revenue\"), options);\n      chart.render();\n    });\n  </script>")
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 2)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -96,7 +96,7 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div><div class=\"m-6\"><h1 class=\"text-2xl font-semibold text-gray-700\">Dashboard</h1><div class=\"flex items-center gap-4\">")
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 3)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -108,7 +108,7 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></div>")
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 4)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
