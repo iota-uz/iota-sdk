@@ -34,3 +34,14 @@ var BiChatLink = types.NavigationItem{
 }
 
 var NavItems = []types.NavigationItem{DashboardLink, UsersLink, EmployeesLink, BiChatLink}
+var AdministrationLink = types.NavigationItem{
+	Name: "NavigationLinks.Administration",
+	Icon: icons.AirTrafficControl(icons.Props{Size: "20"}),
+	Href: "#",
+	Children: []types.NavigationItem{
+		UsersLink,
+		EmployeesLink,
+	},
+}
+
+var NavItems = []types.NavigationItem{DashboardLink, AdministrationLink}

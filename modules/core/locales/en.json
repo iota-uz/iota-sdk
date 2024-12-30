@@ -35,6 +35,7 @@
   },
   "NavigationLinks": {
     "Dashboard": "Dashboard",
+    "Administration": "Administration",
     "Users": "Users",
     "BiChat": "BI-Chat",
     "KnowledgeBase": "Knowledge Base",
