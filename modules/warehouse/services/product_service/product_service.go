@@ -64,10 +64,6 @@ func (s *ProductService) GetPaginated(
 }
 
 func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return err
 	}
@@ -89,16 +85,12 @@ func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) er
 		return err
 	}
 	s.publisher.Publish(createdEvent)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *ProductService) CreateProductsFromTags(
 	ctx context.Context, data *product.CreateProductsFromTagsDTO,
 ) ([]*product.Product, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return nil, err
 	}
@@ -114,11 +106,10 @@ func (s *ProductService) CreateProductsFromTags(
 	if err != nil {
 		return nil, err
 	}
-	return entities, tx.Commit(ctx)
+	return entities, nil
 }
 
 func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([]*product.Product, []*product.Product, error) {
-	tx, err := composables.UsePoolTx(ctx)
 	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
 		return nil, nil, err
 	}
@@ -139,14 +130,10 @@ func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([
 			return nil, nil, err
 		}
 	}
-	return valid, invalid, tx.Commit(ctx)
+	return valid, invalid, nil
 }
 
 func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateDTO) ([]*product.Product, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return nil, err
 	}
@@ -168,14 +155,10 @@ func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateD
 		}
 		s.publisher.Publish(createdEvent)
 	}
-	return entities, tx.Commit(ctx)
+	return entities, nil
 }
 
 func (s *ProductService) Update(ctx context.Context, id uint, data *product.UpdateDTO) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
 		return err
 	}
@@ -197,14 +180,10 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product.Upda
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *ProductService) Delete(ctx context.Context, id uint) (*product.Product, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if err := composables.CanUser(ctx, permissions.ProductDelete); err != nil {
 		return nil, err
 	}
@@ -220,5 +199,5 @@ func (s *ProductService) Delete(ctx context.Context, id uint) (*product.Product,
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }

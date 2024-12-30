@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence/models"
@@ -43,45 +41,48 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 	if params.Query != "" && params.Field != "" {
 		where, args = append(where, fmt.Sprintf("wo.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
 	}
-
 	if params.Status != "" {
 		where, args = append(where, fmt.Sprintf("wo.status = $%d", len(args)+1)), append(args, params.Status)
 	}
-
 	if params.Type != "" {
 		where, args = append(where, fmt.Sprintf("wo.type = $%d", len(args)+1)), append(args, params.Type)
 	}
-	rows, err := pool.Query(ctx, `
-		SELECT id, type, status, created_at FROM warehouse_orders wo
-		WHERE `+strings.Join(where, " AND ")+`
-		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
-	`, args...)
+	sql := "SELECT id, type, status, created_at FROM warehouse_orders wo"
+	rows, err := pool.Query(
+		ctx,
+		repo.Join(
+			sql,
+			repo.JoinWhere(where...),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		),
+		args...,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	orders := make([]order.Order, 0)
 	for rows.Next() {
-		var order models.WarehouseOrder
+		var o models.WarehouseOrder
 		if err := rows.Scan(
-			&order.ID,
-			&order.Type,
-			&order.Status,
-			&order.CreatedAt,
+			&o.ID,
+			&o.Type,
+			&o.Status,
+			&o.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
 		products, err := g.productRepo.GetPaginated(ctx, &product.FindParams{
-			OrderID: order.ID,
+			OrderID: o.ID,
 		})
 		if err != nil {
 			return nil, err
 		}
 		// FIXME: better fix ToDomainOrder function than converting back to db model
-		if order.Products, err = mapping.MapDbModels(products, toDBProduct); err != nil {
+		if o.Products, err = mapping.MapDbModels(products, toDBProduct); err != nil {
 			return nil, err
 		}
-		domainOrder, err := ToDomainOrder(&order)
+		domainOrder, err := ToDomainOrder(&o)
 		if err != nil {
 			return nil, err
 		}

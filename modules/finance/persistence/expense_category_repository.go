@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
@@ -12,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -63,28 +63,28 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 	categories := make([]*category.ExpenseCategory, 0)
 
 	for rows.Next() {
-		var category models.ExpenseCategory
+		var c models.ExpenseCategory
 		var description sql.NullString
 		if err := rows.Scan(
-			&category.ID,
-			&category.Name,
+			&c.ID,
+			&c.Name,
 			&description,
-			&category.AmountCurrencyID,
-			&category.Amount,
-			&category.CreatedAt,
-			&category.UpdatedAt,
+			&c.AmountCurrencyID,
+			&c.Amount,
+			&c.CreatedAt,
+			&c.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		if description.Valid {
-			category.Description = mapping.Pointer(description.String)
+			c.Description = mapping.Pointer(description.String)
 		}
-		domainCategory, err := toDomainExpenseCategory(&category)
+		domainCategory, err := toDomainExpenseCategory(&c)
 		if err != nil {
 			return nil, err
 		}
 
-		currency, err := g.currencyRepo.GetByCode(ctx, category.AmountCurrencyID)
+		currency, err := g.currencyRepo.GetByCode(ctx, c.AmountCurrencyID)
 		if err != nil {
 			return nil, err
 		}
