@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
-	"gorm.io/gorm"
 )
 
 var (
@@ -29,24 +28,6 @@ func NewExpenseRepository(categoryRepo category.Repository, transactionRepo tran
 		categoryRepo:    categoryRepo,
 		transactionRepo: transactionRepo,
 	}
-}
-
-func (g *GormExpenseRepository) tx(ctx context.Context, params *expense.FindParams) (*gorm.DB, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	categoryArgs := []interface{}{}
-	transactionArgs := []interface{}{}
-	if params.Query != "" && params.Field != "" {
-		if params.Field == "category" {
-			categoryArgs = append(categoryArgs, tx.Where("name ILIKE ?", "%"+params.Query+"%"))
-		}
-		if params.Field == "amount" {
-			transactionArgs = append(transactionArgs, tx.Where("amount::varchar ILIKE ?", "%"+params.Query+"%"))
-		}
-	}
-	return tx.InnerJoins("Transaction", transactionArgs...).InnerJoins("Category", categoryArgs...).InnerJoins("Category.AmountCurrency"), nil
 }
 
 func (g *GormExpenseRepository) GetPaginated(
@@ -75,8 +56,10 @@ func (g *GormExpenseRepository) GetPaginated(
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT ex.id, ex.transaction_id, ex.category_id, ex.created_at, ex.updated_at
-		FROM expenses ex
+		SELECT ex.id, ex.transaction_id, ex.category_id, ex.created_at, ex.updated_at,
+		tr.amount, tr.transaction_date, tr.accounting_period, tr.transaction_type, tr.comment,
+		tr.origin_account_id, tr.destination_account_id
+		FROM expenses ex LEFT JOIN transactions tr on tr.id = ex.transaction_id
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY id DESC
 		`+repo.FormatLimitOffset(params.Limit, params.Offset),
@@ -88,26 +71,34 @@ func (g *GormExpenseRepository) GetPaginated(
 	defer rows.Close()
 	expenses := make([]*expense.Expense, 0)
 	for rows.Next() {
-		var expense models.Expense
+		var dbExpense models.Expense
+		var dbTransaction models.Transaction
 		if err := rows.Scan(
-			&expense.ID,
-			&expense.TransactionID,
-			&expense.CategoryID,
-			&expense.CreatedAt,
-			&expense.UpdatedAt,
+			&dbExpense.ID,
+			&dbExpense.TransactionID,
+			&dbExpense.CategoryID,
+			&dbExpense.CreatedAt,
+			&dbExpense.UpdatedAt,
+			&dbTransaction.Amount,
+			&dbTransaction.TransactionDate,
+			&dbTransaction.AccountingPeriod,
+			&dbTransaction.TransactionType,
+			&dbTransaction.Comment,
+			&dbTransaction.OriginAccountID,
+			&dbTransaction.DestinationAccountID,
 		); err != nil {
 			return nil, err
 		}
 
-		domainExpense, err := toDomainExpense(&expense)
+		domainExpense, err := toDomainExpense(&dbExpense, &dbTransaction)
 		if err != nil {
 			return nil, err
 		}
-		category, err := g.categoryRepo.GetByID(ctx, expense.CategoryID)
+		domainCategory, err := g.categoryRepo.GetByID(ctx, dbExpense.CategoryID)
 		if err != nil {
 			return nil, err
 		}
-		domainExpense.Category = *category
+		domainExpense.Category = *domainCategory
 		expenses = append(expenses, domainExpense)
 	}
 
@@ -155,17 +146,17 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expens
 	if err != nil {
 		return err
 	}
-	expenseRow, transaction := toDBExpense(data)
-	if err := g.transactionRepo.Create(ctx, transaction); err != nil {
+	expenseRow, transactionRow := toDBExpense(data)
+	if err := g.transactionRepo.Create(ctx, transactionRow); err != nil {
 		return err
 	}
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO expenses (transaction_id, category_id)
 		VALUES ($1, $2)
-	`, transaction.ID, expenseRow.CategoryID).Scan(&data.ID); err != nil {
+	`, transactionRow.ID, expenseRow.CategoryID).Scan(&data.ID); err != nil {
 		return err
 	}
-	expenseRow.TransactionID = transaction.ID
+	expenseRow.TransactionID = transactionRow.ID
 	return nil
 }
 
@@ -174,11 +165,11 @@ func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expens
 	if err != nil {
 		return err
 	}
-	expenseRow, transaction := toDBExpense(data)
-	if err := g.transactionRepo.Update(ctx, transaction); err != nil {
+	expenseRow, transactionRow := toDBExpense(data)
+	if err := g.transactionRepo.Update(ctx, transactionRow); err != nil {
 		return err
 	}
-	expenseRow.TransactionID = transaction.ID
+	expenseRow.TransactionID = transactionRow.ID
 	if _, err := tx.Exec(ctx, `
 		UPDATE expenses
 		SET transaction_id = $1, category_id = 2
