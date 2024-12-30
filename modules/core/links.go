@@ -26,14 +26,6 @@ var EmployeesLink = types.NavigationItem{
 	Children: nil,
 }
 
-var BiChatLink = types.NavigationItem{
-	Name:     "NavigationLinks.BiChat",
-	Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
-	Href:     "/bi-chat",
-	Children: nil,
-}
-
-var NavItems = []types.NavigationItem{DashboardLink, UsersLink, EmployeesLink, BiChatLink}
 var AdministrationLink = types.NavigationItem{
 	Name: "NavigationLinks.Administration",
 	Icon: icons.AirTrafficControl(icons.Props{Size: "20"}),
@@ -44,4 +36,11 @@ var AdministrationLink = types.NavigationItem{
 	},
 }
 
-var NavItems = []types.NavigationItem{DashboardLink, AdministrationLink}
+var BiChatLink = types.NavigationItem{
+	Name:     "NavigationLinks.BiChat",
+	Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
+	Href:     "/bi-chat",
+	Children: nil,
+}
+
+var NavItems = []types.NavigationItem{DashboardLink, AdministrationLink, BiChatLink}

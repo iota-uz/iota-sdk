@@ -144,22 +144,22 @@ func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
 	}
 }
 
-func toDomainExpense(dbExpense *models.Expense) (*expense.Expense, error) {
+func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (*expense.Expense, error) {
 	return &expense.Expense{
 		ID:               dbExpense.ID,
-		Amount:           -1 * dbExpense.Transaction.Amount,
-		Account:          moneyAccount.Account{ID: *dbExpense.Transaction.OriginAccountID},
-		Comment:          dbExpense.Transaction.Comment,
+		Amount:           -1 * dbTransaction.Amount,
+		Account:          moneyAccount.Account{ID: *dbTransaction.OriginAccountID},
+		Comment:          dbTransaction.Comment,
 		TransactionID:    dbExpense.TransactionID,
-		AccountingPeriod: dbExpense.Transaction.AccountingPeriod,
-		Date:             dbExpense.Transaction.TransactionDate,
+		AccountingPeriod: dbTransaction.AccountingPeriod,
+		Date:             dbTransaction.TransactionDate,
 		CreatedAt:        dbExpense.CreatedAt,
 		UpdatedAt:        dbExpense.UpdatedAt,
 	}, nil
 }
 
 func toDBExpense(entity *expense.Expense) (*models.Expense, *transaction.Transaction) {
-	transaction := &transaction.Transaction{
+	domainTransaction := &transaction.Transaction{
 		ID:                   entity.TransactionID,
 		Amount:               -1 * entity.Amount,
 		Comment:              entity.Comment,
@@ -174,9 +174,8 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *transaction.Transac
 		ID:            entity.ID,
 		CategoryID:    entity.Category.ID,
 		TransactionID: entity.TransactionID,
-		Transaction:   nil,
 		CreatedAt:     entity.CreatedAt,
 		UpdatedAt:     entity.UpdatedAt,
 	}
-	return dbExpense, transaction
+	return dbExpense, domainTransaction
 }

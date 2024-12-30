@@ -46,7 +46,6 @@ type Expense struct {
 	CategoryID    uint
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
-	Transaction   *Transaction     `gorm:"foreignKey:TransactionID;references:ID"`
 	Category      *ExpenseCategory `gorm:"foreignKey:CategoryID;references:ID"`
 }
 
