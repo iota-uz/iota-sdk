@@ -43,4 +43,4 @@ var BiChatLink = types.NavigationItem{
 	Children: nil,
 }
 
-var NavItems = []types.NavigationItem{DashboardLink, AdministrationLink, BiChatLink}
+var NavItems = []types.NavigationItem{DashboardLink, BiChatLink, AdministrationLink}
