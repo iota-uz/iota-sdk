@@ -336,7 +336,7 @@ func sidebar(pageCtx *types.PageContext) templ.Component {
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = button.Sidebar(button.Props{Size: button.SizeMD, Class: "w-full gap-2", Href: "/logout"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = button.Sidebar(button.Props{Size: button.SizeMD, Class: "w-full justify-center gap-2 text-red-500", Href: "/logout"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
