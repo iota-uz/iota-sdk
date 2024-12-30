@@ -79,6 +79,11 @@ func (m *Module) Register(app application.Application) error {
 	}
 	app.Spotlight().Register(
 		spotlight.NewItem(
+			icons.Gear(icons.Props{Size: "24"}),
+			"NavigationLinks.Navbar.Settings",
+			"/account/settings",
+		),
+		spotlight.NewItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Users.List.New",
 			"/users/new",
