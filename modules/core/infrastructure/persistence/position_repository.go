@@ -46,19 +46,19 @@ func (g *GormPositionRepository) GetPaginated(
 	defer rows.Close()
 	positions := make([]*position.Position, 0)
 	for rows.Next() {
-		var position models.Position
+		var p models.Position
 		var description sql.NullString
 		if err := rows.Scan(
-			&position.ID,
-			&position.Name,
+			&p.ID,
+			&p.Name,
 			&description,
-			&position.CreatedAt,
-			&position.UpdatedAt,
+			&p.CreatedAt,
+			&p.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		position.Description = description.String
-		domainPosition, err := toDomainPosition(&position)
+		p.Description = description.String
+		domainPosition, err := toDomainPosition(&p)
 		if err != nil {
 			return nil, err
 		}
