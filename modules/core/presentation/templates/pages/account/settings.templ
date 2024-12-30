@@ -2,8 +2,8 @@ package account
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -81,7 +81,7 @@ templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, 
 
 templ SettingsForm(props *SettingsPageProps) {
 	<form class="flex flex-col justify-between h-full" method="post">
-		@base.Card("m-6") {
+		@card.Card(card.Props{Class: "m-6"}) {
 			@NavItems(props.AllNavItems, props.Tabs, 0, "")
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

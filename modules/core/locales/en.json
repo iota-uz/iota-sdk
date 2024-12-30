@@ -149,17 +149,78 @@
       "Position": "Position",
       "Email": "Email"
     },
+    "Tabs": {
+      "Public": "Public",
+      "Private": "Sensitive"
+    },
+    "Cards": {
+      "PersonalInfo": "Personal information",
+      "JobInfo": "Job information"
+    },
     "Single": {
       "Edit": "Edit employee",
-      "FirstName": "First name",
-      "LastName": "Last name",
-      "MiddleName": "Middle name",
-      "Phone": "Phone",
-      "Email": "Email",
-      "Position": "Position",
-      "Salary": "Salary",
       "Delete": "Delete employee",
       "DeleteConfirmation": "Are you sure you want to delete this employee?"
+    },
+    "Public": {
+      "FirstName": {
+        "Label": "First name",
+        "Placeholder": "Enter name"
+      },
+      "LastName": {
+        "Label": "Last name",
+        "Placeholder": "Enter last name"
+      },
+      "MiddleName": {
+        "Label": "Middle name",
+        "Placeholder": "Enter middle name"
+      },
+      "Phone": {
+        "Label": "Phone",
+        "Placeholder": "+998 (__) ___ __ __"
+      },
+      "Email": {
+        "Label": "Email",
+        "Placeholder": "jodoe@gmail.com"
+      },
+      "BirthDate": {
+        "Label": "Birth date"
+      },
+      "Position": {
+        "Label": "Position",
+        "Placeholder": "Choose position"
+      },
+      "StartDate": {
+        "Label": "Employment start date"
+      },
+      "EndDate": {
+        "Label": "Employment termination date"
+      },
+      "EmploymentStatus": {
+        "Label": "Employment status",
+        "Placeholder": "Choose employment status"
+      },
+      "Level": {
+        "Label": "Level",
+        "Placeholder": "Choose level"
+      }
+    },
+    "Private": {
+      "Salary": {
+        "Label": "Salary"
+      },
+      "PassportSN": {
+        "Label": "Passport series and number",
+        "Placeholder": "AA 123 45 67"
+      },
+      "TIN": {
+        "Label": "TIN",
+        "Placeholder": "1234567"
+      },
+      "PINFL": {
+        "Label": "PINFL",
+        "Placeholder": "123456789192121"
+      }
     }
   },
   "Account": {
