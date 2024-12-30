@@ -78,18 +78,18 @@ func (g *GormProductRepository) GetPaginated(
 
 	products := make([]*product.Product, 0)
 	for rows.Next() {
-		var product models.WarehouseProduct
+		var p models.WarehouseProduct
 		if err := rows.Scan(
-			&product.ID,
-			&product.Status,
-			&product.PositionID,
-			&product.Rfid,
-			&product.CreatedAt,
-			&product.UpdatedAt,
+			&p.ID,
+			&p.Status,
+			&p.PositionID,
+			&p.Rfid,
+			&p.CreatedAt,
+			&p.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		domainProduct, err := toDomainProduct(&product)
+		domainProduct, err := toDomainProduct(&p)
 		if err != nil {
 			return nil, err
 		}
@@ -205,8 +205,8 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 }
 
 func (g *GormProductRepository) BulkCreate(ctx context.Context, data []*product.Product) error {
-	for _, product := range data {
-		if err := g.Create(ctx, product); err != nil {
+	for _, p := range data {
+		if err := g.Create(ctx, p); err != nil {
 			return err
 		}
 	}
