@@ -22,7 +22,7 @@ func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
 		TransactionDate:      entity.TransactionDate,
 		DestinationAccountID: entity.DestinationAccountID,
 		OriginAccountID:      entity.OriginAccountID,
-		TransactionType:      entity.TransactionType.String(),
+		TransactionType:      string(entity.TransactionType),
 		CreatedAt:            entity.CreatedAt,
 	}
 }
@@ -55,7 +55,7 @@ func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 		TransactionDate:      entity.TransactionDate(),
 		OriginAccountID:      nil,
 		DestinationAccountID: &entity.Account().ID,
-		TransactionType:      transaction.Deposit.String(),
+		TransactionType:      string(transaction.Deposit),
 		CreatedAt:            entity.CreatedAt(),
 	}
 	dbPayment := &models.Payment{
