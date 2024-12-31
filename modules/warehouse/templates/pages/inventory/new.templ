@@ -35,7 +35,10 @@ templ CreateForm(props *CreatePageProps) {
 		hx-indicator="#save-btn"
 	>
 		<div class="contents" x-data="dateFns">
-			@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
+			@card.Card(card.Props{
+				Class:        "grid grid-cols-3 gap-4",
+				WrapperClass: "m-6",
+			}) {
 				@input.Text(&input.Props{
 					Label:       props.T("WarehouseInventory.Single.Name.Label"),
 					Placeholder: props.T("WarehouseInventory.Single.Name.Placeholder"),

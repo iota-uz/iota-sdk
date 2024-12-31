@@ -22,7 +22,10 @@ type EditPageProps struct {
 
 templ EditForm(props *EditPageProps) {
 	<div class="flex flex-col justify-between h-full" id="edit-content">
-		@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
 			@input.Text(&input.Props{
 				Label: props.T("ExpenseCategories.Single.Name"),
 				Attrs: templ.Attributes{

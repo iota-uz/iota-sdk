@@ -27,7 +27,10 @@ templ ProfileForm(props *ProfilePageProps) {
 		<h1 class="text-2xl font-medium pl-6 pt-6">
 			{ props.User.FirstName } { props.User.LastName }
 		</h1>
-		@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
 			if props.User.Avatar != nil {
 				@components.UploadInput(&components.UploadInputProps{
 					Label:   props.T("Account.BrowseFilesystem"),

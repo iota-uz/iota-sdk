@@ -81,7 +81,7 @@ templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, 
 
 templ SettingsForm(props *SettingsPageProps) {
 	<form class="flex flex-col justify-between h-full" method="post">
-		@card.Card(card.Props{Class: "m-6"}) {
+		@card.Card(card.Props{WrapperClass: "m-6"}) {
 			@NavItems(props.AllNavItems, props.Tabs, 0, "")
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

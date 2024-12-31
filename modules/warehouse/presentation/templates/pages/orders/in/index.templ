@@ -130,7 +130,7 @@ templ Form(props *FormProps) {
 templ New(props *PageProps) {
 	@layouts.Authenticated(props.PageContext) {
 		<div class="flex flex-col justify-between h-full">
-			@card.Card(card.Props{Class: "m-6"}) {
+			@card.Card(card.Props{WrapperClass: "m-6"}) {
 				<form
 					id="search-form"
 					hx-post={ props.ItemsURL }
