@@ -1,0 +1,117 @@
+package payments
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type IndexPageProps struct {
+	*types.PageContext
+	Payments        []*viewmodels.Payment
+	PaginationState *pagination.State
+}
+
+templ PaymentsTable(props *IndexPageProps) {
+	<div class="flex flex-col gap-4 table-wrapper">
+		@base.Table(&base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: props.T("Payments.List.Amount"), Key: "amount"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
+			},
+		}) {
+			for _, payment := range props.Payments {
+				@base.TableRow() {
+					@base.TableCell() {
+						<div x-data="relativeformat">
+							<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt) }></span>
+						</div>
+					}
+					@base.TableCell() {
+						@button.Secondary(button.Props{
+							Fixed: true,
+							Size:  button.SizeSM,
+							Class: "btn-fixed",
+							Href:  fmt.Sprintf("/finance/payments/%s", payment.ID),
+						}) {
+							@icons.PencilSimple(icons.Props{Size: "20"})
+						}
+					}
+				}
+			}
+		}
+		if len(props.PaginationState.Pages()) > 1 {
+			@pagination.Pagination(props.PaginationState)
+		}
+	</div>
+}
+
+templ SearchFieldsTrigger(trigger *base.TriggerProps) {
+	<button class="flex items-center gap-2" { trigger.ButtonAttrs... } type="button">
+		<div class="flex items-center gap-2" x-show="value.length">
+			<span class="text-300 whitespace-nowrap">Поиск по: </span>
+			<span x-show="value.length" x-text="value"></span>
+		</div>
+		@icons.ListMagnifyingGlass(icons.Props{Size: "20"})
+	</button>
+}
+
+templ SearchFields(props *IndexPageProps) {
+	@base.Combobox(base.ComboboxProps{
+		Name:      "Field",
+		ListClass: "!w-auto",
+		Trigger: &base.Trigger{Render: func(props *base.TriggerProps) templ.Component {
+			return SearchFieldsTrigger(props)
+		}}}) {
+		<option value="name" selected>{ props.T("ExpenseCategories.List.Name") }</option>
+		<option value="amount">{ props.T("ExpenseCategories.List.Amount") }</option>
+	}
+}
+
+templ PaymentsContent(props *IndexPageProps) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ props.T("NavigationLinks.Payments") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/finance/payments"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@filters.Default(&filters.Props{
+					PageContext: props.PageContext,
+					Fields: []filters.SearchField{
+						{
+							Label: props.T("Payments.List.Amount"),
+							Key:   "amount",
+						},
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal,
+					Href: "/finance/payments/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ props.T("Payments.List.New") }
+				}
+			</form>
+			@PaymentsTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@PaymentsContent(props)
+	}
+}

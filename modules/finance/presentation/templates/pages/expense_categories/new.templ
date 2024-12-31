@@ -1,0 +1,78 @@
+package expense_categories
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type CreatePageProps struct {
+	*types.PageContext
+	Currencies []*coreviewmodels.Currency
+	Category   category.CreateDTO
+	Errors     map[string]string
+	PostPath   string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.PostPath }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			@input.Text(&input.Props{
+				Label: props.T("ExpenseCategories.Single.Name"),
+				Attrs: templ.Attributes{"name": "Name", "value": props.Category.Name},
+				Error: props.Errors["Name"],
+			})
+			@input.Number(&input.Props{
+				Label: props.T("ExpenseCategories.Single.Amount"),
+				Attrs: templ.Attributes{"name": "Amount", "value": fmt.Sprintf("%.2f", props.Category.Amount)},
+				Error: props.Errors["Amount"],
+			})
+			@components.CurrencySelect(&components.CurrencySelectProps{
+				Label:       props.T("ExpenseCategories.Single.Select"),
+				Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
+				Value:       "",
+				Currencies:  props.Currencies,
+				Error:       props.Errors["CurrencyCode"],
+				Attrs:       templ.Attributes{"name": "CurrencyCode"},
+			})
+			@textarea.Basic(&textarea.Props{
+				Label:        props.T("ExpenseCategories.Single.Description"),
+				Attrs:        templ.Attributes{"name": "Description"},
+				WrapperClass: "col-span-3",
+				Value:        props.Category.Description,
+				Error:        props.Errors["Description"],
+			})
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ props.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreatePageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
+	}
+}

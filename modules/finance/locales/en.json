@@ -116,6 +116,10 @@
       "Edit": "Edit account",
       "Name": "Name",
       "Balance": "Balance",
+      "Currency": {
+        "Label": "Currency",
+        "Placeholder": "Choose currency"
+      },
       "Description": "Description",
       "AccountNumber": "Account number",
       "Delete": "Delete account",

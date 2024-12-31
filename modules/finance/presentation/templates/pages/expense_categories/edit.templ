@@ -1,0 +1,137 @@
+package expense_categories
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type EditPageProps struct {
+	*types.PageContext
+	Category   *viewmodels.ExpenseCategory
+	Currencies []*coreviewmodels.Currency
+	Errors     map[string]string
+}
+
+templ EditForm(props *EditPageProps) {
+	<div class="flex flex-col justify-between h-full" id="edit-content">
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			@input.Text(&input.Props{
+				Label: props.T("ExpenseCategories.Single.Name"),
+				Attrs: templ.Attributes{
+					"value": props.Category.Name,
+					"name":  "Name",
+					"form":  "save-form",
+				},
+				Error: props.Errors["Name"],
+			})
+			@input.Number(&input.Props{
+				Label: props.T("ExpenseCategories.Single.Amount"),
+				Attrs: templ.Attributes{
+					"name":  "Amount",
+					"value": props.Category.Amount,
+					"form":  "save-form",
+				},
+				Error: props.Errors["Amount"],
+			})
+			@components.CurrencySelect(&components.CurrencySelectProps{
+				Label:       props.T("ExpenseCategories.Single.Select"),
+				Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
+				Value:       props.Category.CurrencyCode,
+				Currencies:  props.Currencies,
+				Error:       props.Errors["CurrencyCode"],
+				Attrs: templ.Attributes{
+					"name": "CurrencyCode",
+					"form": "save-form",
+				},
+			})
+			@textarea.Basic(&textarea.Props{
+				Label: props.T("ExpenseCategories.Single.Description"),
+				Attrs: templ.Attributes{
+					"name": "Description",
+					"form": "save-form",
+				},
+				Value:        props.Category.Description,
+				WrapperClass: "col-span-3",
+				Error:        props.Errors["Description"],
+			})
+		}
+		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			<form
+				id="delete-form"
+				hx-delete={ fmt.Sprintf("/finance/expense-categories/%s", props.Category.ID) }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-category-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-category-confirmation')",
+						"id":     "delete-category-btn",
+					},
+				}) {
+					{ props.T("Delete") }
+				}
+			</form>
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ fmt.Sprintf("/finance/expense-categories/%s", props.Category.ID) }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ props.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@EditForm(props)
+		@dialog.Confirmation(&dialog.Props{
+			CancelText:  props.T("Cancel"),
+			ConfirmText: props.T("Delete"),
+			Heading:     props.T("ExpenseCategories.Single.Delete"),
+			Text:        props.T("ExpenseCategories.Single.DeleteConfirmation"),
+			Icon:        icons.Trash(icons.Props{Size: "20"}),
+			Action:      "open-delete-category-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+		})
+	}
+}

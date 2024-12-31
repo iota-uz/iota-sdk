@@ -1,0 +1,101 @@
+package moneyaccounts
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type IndexPageProps struct {
+	*types.PageContext
+	Accounts        []*viewmodels.MoneyAccount
+	PaginationState *pagination.State
+}
+
+templ AccountsTable(props *IndexPageProps) {
+	<div class="flex flex-col gap-4 table-wrapper">
+		@base.Table(&base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: props.T("Accounts.List.Name"), Key: "name"},
+				{Label: props.T("Accounts.List.Balance"), Key: "balance"},
+				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: props.T("Actions"), Class: "w-16"},
+			},
+		}) {
+			for _, account := range props.Accounts {
+				@base.TableRow() {
+					@base.TableCell() {
+						{ account.Name }
+					}
+					@base.TableCell() {
+						{ account.BalanceWithCurrency }
+					}
+					@base.TableCell() {
+						<div x-data="relativeformat">
+							<span x-text={ fmt.Sprintf("format('%s')", account.UpdatedAt) }></span>
+						</div>
+					}
+					@base.TableCell() {
+						@button.Secondary(button.Props{
+							Fixed: true,
+							Size:  button.SizeSM,
+							Class: "btn-fixed",
+							Href:  fmt.Sprintf("/finance/accounts/%s", account.ID),
+						}) {
+							@icons.PencilSimple(icons.Props{Size: "20"})
+						}
+					}
+				}
+			}
+		}
+		if len(props.PaginationState.Pages()) > 1 {
+			@pagination.Pagination(props.PaginationState)
+		}
+	</div>
+}
+
+templ AccountsContent(props *IndexPageProps) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ props.T("NavigationLinks.Accounts") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/finance/accounts"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@filters.Default(&filters.Props{
+					PageContext: props.PageContext,
+					Fields: []filters.SearchField{
+						{
+							Label: props.T("Accounts.List.Name"),
+							Key:   "name",
+						},
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/finance/accounts/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ props.T("Accounts.List.New") }
+				}
+			</form>
+			@AccountsTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@AccountsContent(props)
+	}
+}

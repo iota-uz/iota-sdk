@@ -115,6 +115,10 @@
       "Edit": "Редактировать счет",
       "Name": "Название",
       "Balance": "Баланс",
+      "Currency": {
+        "Label": "Валюта",
+        "Placeholder": "Выберите валюту"
+      },
       "Description": "Описание",
       "AccountNumber": "Номер счета",
       "Delete": "Удалить счет",
