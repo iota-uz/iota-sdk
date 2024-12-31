@@ -25,28 +25,38 @@ templ CreateForm(props *CreatePageProps) {
 		}) {
 			@input.Number(&input.Props{
 				Label: props.T("Payments.Single.Amount"),
+				Error: props.Errors["Amount"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.Amount,
 					"name":  "Amount",
 					"form":  "save-form",
 				},
-				Error: props.Errors["Amount"],
 			})
 			@input.Date(&input.Props{
 				Label: props.T("Payments.Single.Date"),
+				Error: props.Errors["TransactionDate"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.TransactionDate,
-					"name":  "Date",
+					"name":  "TransactionDate",
 					"form":  "save-form",
 				},
-				Error: props.Errors["Date"],
+			})
+			@input.Date(&input.Props{
+				Label: props.T("Payments.Single.AccountingPeriod"),
+				Error: props.Errors["AccountingPeriod"],
+				Attrs: templ.Attributes{
+					"value": props.Payment.AccountingPeriod,
+					"name":  "AccountingPeriod",
+					"form":  "save-form",
+				},
 			})
 			@AccountSelect(&AccountSelectProps{
 				PageContext: props.PageContext,
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
+				Error:       props.Errors["AccountID"],
 				Attrs: templ.Attributes{
-					"name": "AccountId",
+					"name": "AccountID",
 					"form": "save-form",
 				},
 			})

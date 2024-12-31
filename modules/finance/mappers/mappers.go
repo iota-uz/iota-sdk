@@ -49,20 +49,19 @@ func MoneyAccountToViewUpdateModel(entity *moneyaccount.Account) *viewmodels.Mon
 	}
 }
 
-func PaymentToViewModel(entity *payment.Payment) *viewmodels.Payment {
-	currency := entity.Account.Currency
+func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
+	currency := entity.Account().Currency
 	return &viewmodels.Payment{
-		ID:                 strconv.FormatUint(uint64(entity.ID), 10),
-		Amount:             fmt.Sprintf("%.2f", entity.Amount),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount, currency.Symbol),
-		AccountID:          strconv.FormatUint(uint64(entity.Account.ID), 10),
-		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID), 10),
-		StageID:            strconv.FormatUint(uint64(entity.StageID), 10),
-		TransactionDate:    entity.TransactionDate.Format(time.RFC3339),
-		AccountingPeriod:   entity.AccountingPeriod.Format(time.RFC3339),
-		Comment:            entity.Comment,
-		CreatedAt:          entity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:          entity.UpdatedAt.Format(time.RFC3339),
+		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
+		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
+		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), currency.Symbol),
+		AccountID:          strconv.FormatUint(uint64(entity.Account().ID), 10),
+		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID()), 10),
+		TransactionDate:    entity.TransactionDate().Format(time.RFC3339),
+		AccountingPeriod:   entity.AccountingPeriod().Format(time.RFC3339),
+		Comment:            entity.Comment(),
+		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
 

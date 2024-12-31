@@ -44,7 +44,6 @@ type MoneyAccountUpdateDTO struct {
 
 type Payment struct {
 	ID                 string
-	StageID            string
 	Amount             string
 	AmountWithCurrency string
 	AccountID          string

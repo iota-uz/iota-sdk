@@ -53,7 +53,6 @@ type Payment struct {
 	ID             uint
 	TransactionID  uint
 	CounterpartyID uint
-	Transaction    *Transaction `gorm:"foreignKey:TransactionID;references:ID"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }

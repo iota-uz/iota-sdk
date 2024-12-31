@@ -10,6 +10,7 @@ type AccountSelectProps struct {
 	*types.PageContext
 	Value    string
 	Accounts []*viewmodels.MoneyAccount
+	Error    string
 	Attrs    templ.Attributes
 }
 
@@ -25,6 +26,7 @@ templ AccountSelect(props *AccountSelectProps) {
 		Label:       props.T("Payments.Single.Account"),
 		Placeholder: props.T("Payments.Single.SelectAccount"),
 		Attrs:       props.Attrs,
+		Error:       props.Error,
 	}) {
 		for _, account := range props.Accounts {
 			if account.ID == props.Value {

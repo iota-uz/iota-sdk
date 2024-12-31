@@ -1,10 +1,10 @@
 package controllers
 
 import (
+	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"net/http"
-
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -268,11 +268,18 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
-	dto := payment.CreateDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&payment.CreateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	u, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dto.UserID = u.ID
 
 	pageCtx, err := composables.UsePageCtx(
 		r, types.NewPageData("Payments.Meta.New.Title", ""),
@@ -294,14 +301,12 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 			Accounts:    accounts,
 			Errors:      errorsMap,
 		}
-		templ.Handler(
-			payments.CreateForm(props),
-			templ.WithStreaming(),
-		).ServeHTTP(w, r)
+		fmt.Println(errorsMap)
+		templ.Handler(payments.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	if err := c.paymentService.Create(r.Context(), &dto); err != nil {
+	if err := c.paymentService.Create(r.Context(), dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

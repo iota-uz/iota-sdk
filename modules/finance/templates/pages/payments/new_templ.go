@@ -64,12 +64,12 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Number(&input.Props{
 				Label: props.T("Payments.Single.Amount"),
+				Error: props.Errors["Amount"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.Amount,
 					"name":  "Amount",
 					"form":  "save-form",
 				},
-				Error: props.Errors["Amount"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -80,12 +80,28 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.Date(&input.Props{
 				Label: props.T("Payments.Single.Date"),
+				Error: props.Errors["TransactionDate"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.TransactionDate,
-					"name":  "Date",
+					"name":  "TransactionDate",
 					"form":  "save-form",
 				},
-				Error: props.Errors["Date"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = input.Date(&input.Props{
+				Label: props.T("Payments.Single.AccountingPeriod"),
+				Error: props.Errors["AccountingPeriod"],
+				Attrs: templ.Attributes{
+					"value": props.Payment.AccountingPeriod,
+					"name":  "AccountingPeriod",
+					"form":  "save-form",
+				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -98,8 +114,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				PageContext: props.PageContext,
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
+				Error:       props.Errors["AccountID"],
 				Attrs: templ.Attributes{
-					"name": "AccountId",
+					"name": "AccountID",
 					"form": "save-form",
 				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -150,7 +167,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/new.templ`, Line: 83, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/new.templ`, Line: 93, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
