@@ -18,6 +18,7 @@ type AccountSelectProps struct {
 	*types.PageContext
 	Value    string
 	Accounts []*viewmodels.MoneyAccount
+	Error    string
 	Attrs    templ.Attributes
 }
 
@@ -70,7 +71,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(account.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 31, Col: 30}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 33, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -83,7 +84,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(account.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 32, Col: 19}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 34, Col: 19}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -96,7 +97,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(account.CurrencySymbol)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 33, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 35, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -114,7 +115,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(account.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 36, Col: 30}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 38, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -127,7 +128,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(account.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 37, Col: 19}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 39, Col: 19}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -140,7 +141,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(account.CurrencySymbol)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 38, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 40, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -158,6 +159,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 			Label:       props.T("Payments.Single.Account"),
 			Placeholder: props.T("Payments.Single.SelectAccount"),
 			Attrs:       props.Attrs,
+			Error:       props.Error,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -208,7 +210,7 @@ func StageSelect(props *StageSelectProps) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(stage.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 53, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 55, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -221,7 +223,7 @@ func StageSelect(props *StageSelectProps) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(stage.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 54, Col: 17}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 56, Col: 17}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -239,7 +241,7 @@ func StageSelect(props *StageSelectProps) templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(stage.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 57, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 59, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -252,7 +254,7 @@ func StageSelect(props *StageSelectProps) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(stage.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 58, Col: 17}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/templates/pages/payments/shared.templ`, Line: 60, Col: 17}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {

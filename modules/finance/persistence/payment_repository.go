@@ -2,12 +2,47 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+)
+
+var (
+	ErrPaymentNotFound = errors.New("payment not found")
+)
+
+const (
+	paymentFindQuery = `
+		SELECT p.id,
+		p.counterparty_id,
+		p.created_at,
+		p.updated_at,
+		t.id,
+		t.amount,
+		t.destination_account_id,
+		t.origin_account_id,
+		t.accounting_period,
+		t.transaction_date,
+		t.transaction_type,
+		t.comment,
+		t.created_at
+		FROM payments p LEFT JOIN transactions t ON t.id = p.transaction_id`
+	paymentCountQuery  = `SELECT COUNT(*) as count FROM payments`
+	paymentInsertQuery = `
+	INSERT INTO payments (
+		counterparty_id,
+		transaction_id,
+		created_at,
+		updated_at
+	)
+	VALUES ($1, $2, $3, $4) RETURNING id`
+	paymentUpdateQuery        = `UPDATE payments SET counterparty_id = $1, updated_at = $2 WHERE id = $5`
+	paymentDeleteRelatedQuery = `DELETE FROM transactions WHERE id = $1`
+	paymentDeleteQuery        = `DELETE FROM payments WHERE id = $1`
 )
 
 type GormPaymentRepository struct{}
@@ -16,103 +51,163 @@ func NewPaymentRepository() payment.Repository {
 	return &GormPaymentRepository{}
 }
 
-func (g *GormPaymentRepository) GetPaginated(
-	ctx context.Context, params *payment.FindParams,
-) ([]*payment.Payment, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var rows []*models.Payment
-	tx = tx.Limit(params.Limit).Offset(params.Offset)
+func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *payment.FindParams) ([]payment.Payment, error) {
+	var args []interface{}
+	where := []string{"1 = 1"}
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		tx = tx.Where("created_at BETWEEN ? and ?", params.CreatedAt.From, params.CreatedAt.To)
+		where = append(where, fmt.Sprintf("p.created_at BETWEEN $%d and $%d", len(where), len(where)+1))
+		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
-	for _, s := range params.SortBy {
-		tx = tx.Order(s)
-	}
-	transactionArgs := []interface{}{}
 	if params.Query != "" && params.Field != "" {
-		transactionArgs = append(transactionArgs, fmt.Sprintf("%s::varchar ILIKE ?", params.Field), "%"+params.Query+"%")
+		where = append(where, fmt.Sprintf("p.%s::VARCHAR ILIKE $%d", params.Field, len(where)))
+		args = append(args, "%"+params.Query+"%")
 	}
-	if err := tx.Preload("Transaction", transactionArgs...).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	return mapping.MapDbModels(rows, toDomainPayment)
+	q := repo.Join(
+		paymentFindQuery,
+		repo.JoinWhere(where...),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+	return g.queryPayments(ctx, q, args...)
 }
 
-func (g *GormPaymentRepository) Count(ctx context.Context) (uint, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
-	}
-	var count int64
-	if err := tx.Model(&models.Payment{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+func (g *GormPaymentRepository) Count(ctx context.Context) (int64, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
 		return 0, err
 	}
-	return uint(count), nil
+	var count int64
+	if err := tx.QueryRow(ctx, paymentCountQuery).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
-func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]*payment.Payment, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var rows []*models.Payment
-	if err := tx.Preload("Transaction").Find(&rows).Error; err != nil {
+func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]payment.Payment, error) {
+	return g.queryPayments(ctx, paymentFindQuery)
+}
+
+func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (payment.Payment, error) {
+	payments, err := g.queryPayments(ctx, repo.Join(paymentFindQuery, "WHERE p.id = $1"), id)
+	if err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(rows, toDomainPayment)
+	if len(payments) == 0 {
+		return nil, ErrPaymentNotFound
+	}
+	return payments[0], nil
 }
 
-func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (*payment.Payment, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var row models.Payment
-	if err := tx.Preload("Transaction").First(&row, id).Error; err != nil {
-		return nil, err
-	}
-	return toDomainPayment(&row)
-}
-
-func (g *GormPaymentRepository) Create(ctx context.Context, data *payment.Payment) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	paymentRow, transactionRow := toDBPayment(data)
-	if err := tx.Create(transactionRow).Error; err != nil {
-		return err
-	}
-	paymentRow.TransactionID = transactionRow.ID
-	return tx.Create(paymentRow).Error
-}
-
-func (g *GormPaymentRepository) Update(ctx context.Context, data *payment.Payment) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	// TODO: a nicer solution
-	var transactionID uint
-	model := &models.Payment{} // nolint:exhaustruct
-	if err := tx.Model(model).Select("transaction_id").First(&transactionID, data.ID).Error; err != nil {
-		return err
-	}
+func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment) (payment.Payment, error) {
 	dbPayment, dbTransaction := toDBPayment(data)
-	dbTransaction.ID = transactionID
-	if err := tx.Updates(dbPayment).Error; err != nil {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.QueryRow(
+		ctx,
+		transactionInsertQuery,
+		dbTransaction.Amount,
+		dbTransaction.OriginAccountID,
+		dbTransaction.DestinationAccountID,
+		dbTransaction.AccountingPeriod,
+		dbTransaction.TransactionDate,
+		dbTransaction.TransactionType,
+		dbTransaction.Comment,
+	).Scan(&dbPayment.TransactionID); err != nil {
+		return nil, err
+	}
+	row := tx.QueryRow(
+		ctx,
+		paymentInsertQuery,
+		dbPayment.CounterpartyID,
+		dbPayment.TransactionID,
+		dbPayment.CreatedAt,
+		dbPayment.UpdatedAt,
+	)
+	var id uint
+	if err := row.Scan(&id); err != nil {
+		return nil, err
+	}
+	return g.GetByID(ctx, id)
+}
+
+func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment) error {
+	dbPayment, dbTransaction := toDBPayment(data)
+	if err := g.execQuery(
+		ctx,
+		paymentUpdateQuery,
+		dbPayment.CounterpartyID,
+		dbPayment.UpdatedAt,
+		dbPayment.ID,
+	); err != nil {
 		return err
 	}
-	return tx.Updates(dbTransaction).Error
+	return g.execQuery(
+		ctx,
+		transactionUpdateQuery,
+		dbTransaction.Amount,
+		dbTransaction.OriginAccountID,
+		dbTransaction.DestinationAccountID,
+		dbTransaction.TransactionDate,
+		dbTransaction.AccountingPeriod,
+		dbTransaction.TransactionType,
+		dbTransaction.Comment,
+		dbTransaction.ID,
+	)
 }
 
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	if err := g.execQuery(ctx, paymentDeleteRelatedQuery, id); err != nil {
+		return err
 	}
-	return tx.Delete(&models.Payment{}, id).Error //nolint:exhaustruct
+	return g.execQuery(ctx, paymentDeleteQuery, id)
+}
+
+func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string, args ...interface{}) ([]payment.Payment, error) {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entities []payment.Payment
+	for rows.Next() {
+		var paymentRow models.Payment
+		var transactionRow models.Transaction
+		if err := rows.Scan(
+			&paymentRow.ID,
+			&paymentRow.CounterpartyID,
+			&paymentRow.CreatedAt,
+			&paymentRow.UpdatedAt,
+			&transactionRow.ID,
+			&transactionRow.Amount,
+			&transactionRow.DestinationAccountID,
+			&transactionRow.OriginAccountID,
+			&transactionRow.AccountingPeriod,
+			&transactionRow.TransactionDate,
+			&transactionRow.TransactionType,
+			&transactionRow.Comment,
+			&transactionRow.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		entity, err := toDomainPayment(&paymentRow, &transactionRow)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, entity)
+	}
+	return entities, nil
+}
+
+func (g *GormPaymentRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, query, args...)
+	return err
 }

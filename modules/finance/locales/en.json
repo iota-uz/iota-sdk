@@ -57,6 +57,8 @@
       "Name": "Name",
       "Amount": "Amount",
       "Date": "Date",
+      "AccountingPeriod": "Accounting period",
+      "CounterpartyID": "Sender",
       "Comment": "Comment",
       "Stage": "Stage",
       "SelectStage": "Select stage"

@@ -55,7 +55,6 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 	//}
 	//if err := paymentsService.Create(
 	//	ctx.Context, &payment.CreateDTO{
-	//		StageID:   1,
 	//		Amount:    100,
 	//		AccountID: 1,
 	//	},

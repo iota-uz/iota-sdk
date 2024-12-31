@@ -1,12 +1,11 @@
 package persistence
 
 import (
-	"errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
@@ -46,48 +45,44 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 	}, nil
 }
 
-func toDBPayment(entity *payment.Payment) (*models.Payment, *models.Transaction) {
+func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) {
 	dbTransaction := &models.Transaction{
-		ID:                   entity.TransactionID,
-		Amount:               entity.Amount,
-		Comment:              entity.Comment,
-		AccountingPeriod:     entity.AccountingPeriod,
-		TransactionDate:      entity.TransactionDate,
+		ID:                   entity.TransactionID(),
+		Amount:               entity.Amount(),
+		Comment:              entity.Comment(),
+		AccountingPeriod:     entity.AccountingPeriod(),
+		TransactionDate:      entity.TransactionDate(),
 		OriginAccountID:      nil,
-		DestinationAccountID: &entity.Account.ID,
+		DestinationAccountID: &entity.Account().ID,
 		TransactionType:      transaction.Deposit.String(),
-		CreatedAt:            entity.CreatedAt,
+		CreatedAt:            entity.CreatedAt(),
 	}
 	dbPayment := &models.Payment{
-		ID:            entity.ID,
-		TransactionID: entity.TransactionID,
-		Transaction:   dbTransaction,
-		CreatedAt:     entity.CreatedAt,
-		UpdatedAt:     entity.UpdatedAt,
+		ID:            entity.ID(),
+		TransactionID: entity.TransactionID(),
+		CreatedAt:     entity.CreatedAt(),
+		UpdatedAt:     entity.UpdatedAt(),
 	}
 	return dbPayment, dbTransaction
 }
 
-func toDomainPayment(dbPayment *models.Payment) (*payment.Payment, error) {
-	if dbPayment.Transaction == nil {
-		return nil, errors.New("transaction is nil")
-	}
-	t, err := toDomainTransaction(dbPayment.Transaction)
+func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transaction) (payment.Payment, error) {
+	t, err := toDomainTransaction(dbTransaction)
 	if err != nil {
 		return nil, err
 	}
-	return &payment.Payment{
-		ID:               dbPayment.ID,
-		Amount:           t.Amount,
-		Comment:          t.Comment,
-		TransactionDate:  t.TransactionDate,
-		AccountingPeriod: t.AccountingPeriod,
-		User:             &user.User{},
-		TransactionID:    dbPayment.TransactionID,
-		Account:          moneyAccount.Account{ID: *t.DestinationAccountID},
-		CreatedAt:        dbPayment.CreatedAt,
-		UpdatedAt:        dbPayment.UpdatedAt,
-	}, nil
+	return payment.NewWithID(
+		dbPayment.ID,
+		t.Amount,
+		t.ID,
+		t.Comment,
+		&moneyaccount.Account{ID: *t.DestinationAccountID},
+		&user.User{},
+		t.TransactionDate,
+		t.AccountingPeriod,
+		dbPayment.CreatedAt,
+		dbPayment.UpdatedAt,
+	), nil
 }
 
 func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCategory {
@@ -113,12 +108,12 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.Expe
 	}, nil
 }
 
-func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyAccount.Account, error) {
+func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyaccount.Account, error) {
 	currencyEntity, err := corepersistence.ToDomainCurrency(dbAccount.Currency)
 	if err != nil {
 		return nil, err
 	}
-	return &moneyAccount.Account{
+	return &moneyaccount.Account{
 		ID:            dbAccount.ID,
 		Name:          dbAccount.Name,
 		AccountNumber: dbAccount.AccountNumber,
@@ -130,7 +125,7 @@ func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyAccount.Account
 	}, nil
 }
 
-func toDBMoneyAccount(entity *moneyAccount.Account) *models.MoneyAccount {
+func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 	return &models.MoneyAccount{
 		ID:                entity.ID,
 		Name:              entity.Name,
@@ -148,7 +143,7 @@ func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 	return &expense.Expense{
 		ID:               dbExpense.ID,
 		Amount:           -1 * dbTransaction.Amount,
-		Account:          moneyAccount.Account{ID: *dbTransaction.OriginAccountID},
+		Account:          moneyaccount.Account{ID: *dbTransaction.OriginAccountID},
 		Comment:          dbTransaction.Comment,
 		TransactionID:    dbExpense.TransactionID,
 		AccountingPeriod: dbTransaction.AccountingPeriod,
