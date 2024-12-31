@@ -2,38 +2,26 @@ package transaction
 
 import "fmt"
 
-type TypeEnum string
+type Type string
 
 const (
-	IncomeType   TypeEnum = "income"
-	ExpenseType  TypeEnum = "expense"
-	TransferType TypeEnum = "transfer"
+	Deposit    Type = "DEPOSIT"
+	Withdrawal Type = "WITHDRAWAL"
+	Transfer   Type = "TRANSFER"
 )
 
-func (s TypeEnum) IsValid() bool {
+func (s Type) IsValid() bool {
 	switch s {
-	case IncomeType, ExpenseType, TransferType:
+	case Deposit, Withdrawal, Transfer:
 		return true
 	}
 	return false
 }
 
 func NewType(value string) (Type, error) {
-	t := TypeEnum(value)
+	t := Type(value)
 	if !t.IsValid() {
-		return Type{}, fmt.Errorf("invalid type: %s", value)
+		return "", fmt.Errorf("invalid type: %s", value)
 	}
-	return Type{value: t}, nil
-}
-
-type Type struct {
-	value TypeEnum
-}
-
-func (p Type) Get() TypeEnum {
-	return p.value
-}
-
-func (p Type) String() string {
-	return string(p.value)
+	return t, nil
 }
