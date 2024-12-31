@@ -2,8 +2,9 @@ package persistence
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/go-faster/errors"
+
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
@@ -36,7 +37,7 @@ const (
 	recalculateBalanceQuery = `
 		UPDATE money_accounts
 		SET balance = (SELECT sum(t.amount) FROM transactions t WHERE origin_account_id = $1 OR destination_account_id = $2)
-		WHERE id = $1`
+		WHERE id = $3`
 	insertQuery = `
 		INSERT INTO money_accounts (
 			name,
@@ -109,7 +110,11 @@ func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*mon
 }
 
 func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id uint) error {
-	return g.execQuery(ctx, recalculateBalanceQuery, id, id, id)
+	err := g.execQuery(ctx, recalculateBalanceQuery, id, id, id)
+	if err != nil {
+		return errors.Wrap(err, "failed to recalculate balance")
+	}
+	return nil
 }
 
 func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyaccount.Account) (*moneyaccount.Account, error) {

@@ -2,8 +2,8 @@ package persistence
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/go-faster/errors"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
@@ -89,7 +89,7 @@ func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]payment.Payment, 
 func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (payment.Payment, error) {
 	payments, err := g.queryPayments(ctx, repo.Join(paymentFindQuery, "WHERE p.id = $1"), id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get payment by id")
 	}
 	if len(payments) == 0 {
 		return nil, ErrPaymentNotFound
@@ -114,7 +114,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 		dbTransaction.TransactionType,
 		dbTransaction.Comment,
 	).Scan(&dbPayment.TransactionID); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create transaction")
 	}
 	row := tx.QueryRow(
 		ctx,
@@ -126,7 +126,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	)
 	var id uint
 	if err := row.Scan(&id); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create payment")
 	}
 	return g.GetByID(ctx, id)
 }
@@ -157,10 +157,14 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 }
 
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
-	if err := g.execQuery(ctx, paymentDeleteRelatedQuery, id); err != nil {
+	entity, err := g.GetByID(ctx, id)
+	if err != nil {
 		return err
 	}
-	return g.execQuery(ctx, paymentDeleteQuery, id)
+	if err := g.execQuery(ctx, paymentDeleteQuery, id); err != nil {
+		return err
+	}
+	return g.execQuery(ctx, paymentDeleteRelatedQuery, entity.TransactionID())
 }
 
 func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string, args ...interface{}) ([]payment.Payment, error) {

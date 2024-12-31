@@ -10,10 +10,9 @@ type CounterpartySelectProps struct {
 	Placeholder    string
 	Value          string
 	Name           string
-	Error          string
 	NotFoundText   string
+	Form           string
 	Counterparties []*viewmodels.Counterparty
-	Attrs          templ.Attributes
 }
 
 templ CounterpartySelect(props *CounterpartySelectProps) {
@@ -24,5 +23,6 @@ templ CounterpartySelect(props *CounterpartySelectProps) {
 		NotFoundText: props.NotFoundText,
 		Name:         props.Name,
 		Endpoint:     "/finance/counterparties/search",
+		Form:         props.Form,
 	})
 }

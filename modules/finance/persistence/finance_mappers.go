@@ -59,10 +59,11 @@ func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 		CreatedAt:            entity.CreatedAt(),
 	}
 	dbPayment := &models.Payment{
-		ID:            entity.ID(),
-		TransactionID: entity.TransactionID(),
-		CreatedAt:     entity.CreatedAt(),
-		UpdatedAt:     entity.UpdatedAt(),
+		ID:             entity.ID(),
+		TransactionID:  entity.TransactionID(),
+		CounterpartyID: entity.CounterpartyID(),
+		CreatedAt:      entity.CreatedAt(),
+		UpdatedAt:      entity.UpdatedAt(),
 	}
 	return dbPayment, dbTransaction
 }
@@ -76,6 +77,7 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		dbPayment.ID,
 		t.Amount,
 		t.ID,
+		dbPayment.CounterpartyID,
 		t.Comment,
 		&moneyaccount.Account{ID: *t.DestinationAccountID},
 		&user.User{},

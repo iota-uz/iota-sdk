@@ -57,10 +57,13 @@
       "Amount": "Сумма",
       "Date": "Дата",
       "AccountingPeriod": "Учетный период",
-      "CounterpartyID": "Отправитель",
+      "CounterpartyID": {
+        "Label": "Отправитель",
+        "Placeholder": "Выберите отправителя"
+      },
       "Comment": "Комментарий",
-      "Stage": "Этап",
-      "SelectStage": "Выбрать этап"
+      "Delete": "Удалить платеж",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот платеж?"
     }
   },
   "Expenses": {

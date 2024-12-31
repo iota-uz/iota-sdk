@@ -99,6 +99,9 @@ func (s *PaymentService) Delete(ctx context.Context, id uint) (payment.Payment, 
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
+	if err := s.accountService.RecalculateBalance(ctx, entity.Account().ID); err != nil {
+		return nil, err
+	}
 	deletedEvent, err := payment.NewDeletedEvent(ctx, entity)
 	if err != nil {
 		return nil, err
