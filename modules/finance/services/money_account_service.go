@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -10,8 +11,9 @@ import (
 )
 
 type MoneyAccountService struct {
-	repo      moneyaccount.Repository
-	publisher event.Publisher
+	repo            moneyaccount.Repository
+	transactionRepo transaction.Repository
+	publisher       event.Publisher
 }
 
 func NewMoneyAccountService(repo moneyaccount.Repository, publisher event.Publisher) *MoneyAccountService {
@@ -44,8 +46,6 @@ func (s *MoneyAccountService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-// TODO: what the hell am i supposed to do with this?
-
 func (s *MoneyAccountService) RecalculateBalance(ctx context.Context, id uint) error {
 	return s.repo.RecalculateBalance(ctx, id)
 }
@@ -58,10 +58,14 @@ func (s *MoneyAccountService) Create(ctx context.Context, data *moneyaccount.Cre
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Create(ctx, entity); err != nil {
+	createdEntity, err := s.repo.Create(ctx, entity)
+	if err != nil {
 		return err
 	}
-	createdEvent, err := moneyaccount.NewCreatedEvent(ctx, *data, *entity)
+	if err := s.transactionRepo.Create(ctx, createdEntity.InitialTransaction()); err != nil {
+		return err
+	}
+	createdEvent, err := moneyaccount.NewCreatedEvent(ctx, *data, *createdEntity)
 	if err != nil {
 		return err
 	}
