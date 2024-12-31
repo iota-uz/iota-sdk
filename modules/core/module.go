@@ -73,11 +73,11 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
-	sl := app.Spotlight()
-	for _, l := range NavItems {
-		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
-	}
 	app.Spotlight().Register(
+		spotlight.NewItem(nil, DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewItem(nil, BiChatLink.Name, BiChatLink.Href),
+		spotlight.NewItem(nil, EmployeesLink.Name, EmployeesLink.Href),
+		spotlight.NewItem(nil, UsersLink.Name, UsersLink.Href),
 		spotlight.NewItem(
 			icons.Gear(icons.Props{Size: "24"}),
 			"NavigationLinks.Navbar.Settings",
