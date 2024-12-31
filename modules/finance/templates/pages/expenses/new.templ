@@ -19,8 +19,16 @@ type CreatePageProps struct {
 }
 
 templ CreateForm(props *CreatePageProps) {
-	<form class="flex flex-col justify-between h-full" hx-post="/finance/expenses" hx-swap="outerHTML" hx-indicator="#save-btn">
-		@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post="/finance/expenses"
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
 			@input.Number(&input.Props{
 				Label: props.T("Expenses.Single.Amount"),
 				Attrs: templ.Attributes{"name": "Amount", "value": props.Expense.Amount},

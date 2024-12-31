@@ -27,7 +27,10 @@ templ CreateForm(props *CreatePageProps) {
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
-		@card.Card(card.Props{Class: "grid grid-cols-3 gap-4 m-6"}) {
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
 			@components.UploadInput(&components.UploadInputProps{
 				Label:    props.T("WarehousePositions.Single.Images"),
 				Name:     "ImageIDs",

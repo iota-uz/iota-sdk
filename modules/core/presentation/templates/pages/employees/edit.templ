@@ -105,7 +105,7 @@ templ EditForm(props *EditPageProps) {
 					@card.Card(card.Props{
 						Header:       card.DefaultHeader(props.T("Employees.Cards.JobInfo")),
 						WrapperClass: "mt-5",
-						Class:        "grid grid-cols-3 gap-4 mt-5",
+						Class:        "grid grid-cols-3 gap-4",
 					}) {
 						@input.Date(&input.Props{
 							Label: props.T("Employees.Public.StartDate.Label"),
