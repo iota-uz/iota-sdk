@@ -90,11 +90,12 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
-	sl := app.Spotlight()
-	for _, l := range NavItems {
-		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
-	}
 	app.Spotlight().Register(
+		spotlight.NewItem(nil, ProductsItem.Name, ProductsItem.Href),
+		spotlight.NewItem(nil, PositionsItem.Name, PositionsItem.Href),
+		spotlight.NewItem(nil, OrdersItem.Name, OrdersItem.Href),
+		spotlight.NewItem(nil, UnitsItem.Name, UnitsItem.Href),
+		spotlight.NewItem(nil, InventoryItem.Name, InventoryItem.Href),
 		spotlight.NewItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehousePositions.List.New",

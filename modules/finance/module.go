@@ -57,11 +57,11 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewExpenseCategoriesController(app),
 		controllers.NewPaymentsController(app),
 	)
-	sl := app.Spotlight()
-	for _, l := range NavItems {
-		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
-	}
 	app.Spotlight().Register(
+		spotlight.NewItem(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
+		spotlight.NewItem(nil, PaymentsItem.Name, PaymentsItem.Href),
+		spotlight.NewItem(nil, ExpensesItem.Name, ExpensesItem.Href),
+		spotlight.NewItem(nil, AccountsItem.Name, AccountsItem.Href),
 		spotlight.NewItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Expenses.List.New",

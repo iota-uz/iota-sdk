@@ -14,14 +14,14 @@ var DashboardLink = types.NavigationItem{
 
 var UsersLink = types.NavigationItem{
 	Name:     "NavigationLinks.Users",
-	Icon:     icons.Users(icons.Props{Size: "20"}),
+	Icon:     nil,
 	Href:     "/users",
 	Children: nil,
 }
 
 var EmployeesLink = types.NavigationItem{
 	Name:     "NavigationLinks.Employees",
-	Icon:     icons.Users(icons.Props{Size: "20"}),
+	Icon:     nil,
 	Href:     "/operations/employees",
 	Children: nil,
 }
