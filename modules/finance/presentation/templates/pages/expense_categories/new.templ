@@ -43,8 +43,8 @@ templ CreateForm(props *CreatePageProps) {
 				Error: props.Errors["Amount"],
 			})
 			@components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       props.T("ExpenseCategories.Single.Select"),
-				Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
+				Label:       props.T("ExpenseCategories.Single.CurrencyCode.Label"),
+				Placeholder: props.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
 				Value:       "",
 				Currencies:  props.Currencies,
 				Error:       props.Errors["CurrencyCode"],

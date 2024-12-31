@@ -73,8 +73,7 @@ templ SearchFields(props *IndexPageProps) {
 		Trigger: &base.Trigger{Render: func(props *base.TriggerProps) templ.Component {
 			return SearchFieldsTrigger(props)
 		}}}) {
-		<option value="name" selected>{ props.T("ExpenseCategories.List.Name") }</option>
-		<option value="amount">{ props.T("ExpenseCategories.List.Amount") }</option>
+		<option value="comment" selected>{ props.T("Payments.Single.Comment") }</option>
 	}
 }
 

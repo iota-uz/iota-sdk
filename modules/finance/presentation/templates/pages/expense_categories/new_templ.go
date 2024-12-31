@@ -104,8 +104,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       props.T("ExpenseCategories.Single.Select"),
-				Placeholder: props.T("ExpenseCategories.Single.SelectCurrency"),
+				Label:       props.T("ExpenseCategories.Single.CurrencyCode.Label"),
+				Placeholder: props.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
 				Value:       "",
 				Currencies:  props.Currencies,
 				Error:       props.Errors["CurrencyCode"],
