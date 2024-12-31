@@ -63,12 +63,22 @@ func NewMoneyAccountRepository() moneyaccount.Repository {
 }
 
 func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, params *moneyaccount.FindParams) ([]*moneyaccount.Account, error) {
+	var args []interface{}
+	where := []string{"1 = 1"}
+	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
+		where = append(where, fmt.Sprintf("wo.created_at BETWEEN $%d and $%d", len(where), len(where)+1))
+		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
+	}
+	if params.Query != "" && params.Field != "" {
+		where = append(where, fmt.Sprintf("wo.%s::VARCHAR ILIKE $%d", params.Field, len(where)))
+		args = append(args, "%"+params.Query+"%")
+	}
 	q := repo.Join(
 		findQuery,
-		repo.JoinWhere(buildWhereClause(params)...),
+		repo.JoinWhere(where...),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
-	return g.queryAccounts(ctx, q, buildArgs(params)...)
+	return g.queryAccounts(ctx, q, args...)
 }
 
 func (g *GormMoneyAccountRepository) Count(ctx context.Context) (int64, error) {
@@ -190,26 +200,4 @@ func (g *GormMoneyAccountRepository) execQuery(ctx context.Context, query string
 	}
 	_, err = tx.Exec(ctx, query, args...)
 	return err
-}
-
-func buildWhereClause(params *moneyaccount.FindParams) []string {
-	where := []string{"1 = 1"}
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where = append(where, fmt.Sprintf("wo.created_at BETWEEN $%d and $%d", len(where)+1, len(where)+2))
-	}
-	if params.Query != "" && params.Field != "" {
-		where = append(where, fmt.Sprintf("wo.%s::VARCHAR ILIKE $%d", params.Field, len(where)+1))
-	}
-	return where
-}
-
-func buildArgs(params *moneyaccount.FindParams) []interface{} {
-	args := []interface{}{}
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
-	}
-	if params.Query != "" && params.Field != "" {
-		args = append(args, "%"+params.Query+"%")
-	}
-	return args
 }

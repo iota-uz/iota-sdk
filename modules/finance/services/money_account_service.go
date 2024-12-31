@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 
@@ -16,10 +17,15 @@ type MoneyAccountService struct {
 	publisher       event.Publisher
 }
 
-func NewMoneyAccountService(repo moneyaccount.Repository, publisher event.Publisher) *MoneyAccountService {
+func NewMoneyAccountService(
+	repo moneyaccount.Repository,
+	transactionRepo transaction.Repository,
+	publisher event.Publisher,
+) *MoneyAccountService {
 	return &MoneyAccountService{
-		repo:      repo,
-		publisher: publisher,
+		repo:            repo,
+		transactionRepo: transactionRepo,
+		publisher:       publisher,
 	}
 }
 
@@ -60,10 +66,10 @@ func (s *MoneyAccountService) Create(ctx context.Context, data *moneyaccount.Cre
 	}
 	createdEntity, err := s.repo.Create(ctx, entity)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "accountRepo.Create")
 	}
 	if err := s.transactionRepo.Create(ctx, createdEntity.InitialTransaction()); err != nil {
-		return err
+		return errors.Wrap(err, "transactionRepo.Create")
 	}
 	createdEvent, err := moneyaccount.NewCreatedEvent(ctx, *data, *createdEntity)
 	if err != nil {

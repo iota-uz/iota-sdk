@@ -1,7 +1,7 @@
 package persistence_test
 
 import (
-	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	currency "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	financepersistence "github.com/iota-uz/iota-sdk/modules/finance/persistence"
@@ -16,21 +16,21 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	currencyRepository := persistence.NewCurrencyRepository()
 	accountRepository := financepersistence.NewMoneyAccountRepository()
 
-	if err := currencyRepository.Create(ctx.Context, &currency2.USD); err != nil {
+	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
-	if err := accountRepository.Create(
+	createdAccount, err := accountRepository.Create(
 		ctx.Context, &moneyAccount.Account{
-			ID:            1,
 			Name:          "test",
 			AccountNumber: "123",
-			Currency:      currency2.USD,
+			Currency:      currency.USD,
 			Balance:       100,
 			Description:   "",
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
 		},
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -85,8 +85,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if accountEntity.Balance != 100 {
 				t.Errorf("expected 100, got %f", accountEntity.Balance)
 			}
-			if accountEntity.Currency.Code != currency2.UsdCode {
-				t.Errorf("expected %s, got %s", currency2.UsdCode, accountEntity.Currency.Code)
+			if accountEntity.Currency.Code != currency.UsdCode {
+				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code)
 			}
 		},
 	)
@@ -95,7 +95,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 		"Update", func(t *testing.T) {
 			if err := accountRepository.Update(
 				ctx.Context, &moneyAccount.Account{
-					ID:      1,
+					ID:      createdAccount.ID,
 					Balance: 200,
 				},
 			); err != nil {
@@ -108,8 +108,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) { //nolint:paralleltest
 			if accountEntity.Balance != 200 {
 				t.Errorf("expected 200, got %f", accountEntity.Balance)
 			}
-			if accountEntity.Currency.Code != currency2.UsdCode {
-				t.Errorf("expected %s, got %s", currency2.UsdCode, accountEntity.Currency.Code)
+			if accountEntity.Currency.Code != currency.UsdCode {
+				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code)
 			}
 		},
 	)

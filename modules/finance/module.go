@@ -28,6 +28,7 @@ type Module struct {
 func (m *Module) Register(app application.Application) error {
 	moneyAccountService := services.NewMoneyAccountService(
 		persistence.NewMoneyAccountRepository(),
+		persistence.NewTransactionRepository(),
 		app.EventPublisher(),
 	)
 	currencyRepo := corepersistence.NewCurrencyRepository()
