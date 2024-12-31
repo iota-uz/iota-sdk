@@ -16,13 +16,15 @@ type CreateDTO struct {
 	AccountID        uint            `validate:"required"`
 	TransactionDate  shared.DateOnly `validate:"required"`
 	AccountingPeriod shared.DateOnly `validate:"required"`
+	CounterpartyID   uint            `validate:"required"`
+	UserID           uint            `validate:"required"`
 	Comment          string
-	UserID           uint `validate:"required"`
 }
 
 type UpdateDTO struct {
 	Amount           float64 `validate:"gt=0"`
 	AccountID        uint
+	CounterpartyID   uint
 	TransactionDate  shared.DateOnly
 	AccountingPeriod shared.DateOnly
 	Comment          string
@@ -45,6 +47,7 @@ func (p *CreateDTO) ToEntity() Payment {
 	return New(
 		p.Amount,
 		0,
+		p.CounterpartyID,
 		p.Comment,
 		&moneyaccount.Account{ID: p.AccountID},
 		&user.User{ID: p.UserID},
@@ -70,6 +73,7 @@ func (p *UpdateDTO) ToEntity(id uint) Payment {
 		id,
 		p.Amount,
 		0,
+		p.CounterpartyID,
 		p.Comment,
 		&moneyaccount.Account{ID: p.AccountID},
 		&user.User{ID: p.UserID},

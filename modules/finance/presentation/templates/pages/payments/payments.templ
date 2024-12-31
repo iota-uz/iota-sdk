@@ -30,6 +30,9 @@ templ PaymentsTable(props *IndexPageProps) {
 			for _, payment := range props.Payments {
 				@base.TableRow() {
 					@base.TableCell() {
+						{ payment.AmountWithCurrency }
+					}
+					@base.TableCell() {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt) }></span>
 						</div>

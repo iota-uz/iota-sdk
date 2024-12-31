@@ -18,10 +18,9 @@ type CounterpartySelectProps struct {
 	Placeholder    string
 	Value          string
 	Name           string
-	Error          string
 	NotFoundText   string
+	Form           string
 	Counterparties []*viewmodels.Counterparty
-	Attrs          templ.Attributes
 }
 
 func CounterpartySelect(props *CounterpartySelectProps) templ.Component {
@@ -52,6 +51,7 @@ func CounterpartySelect(props *CounterpartySelectProps) templ.Component {
 			NotFoundText: props.NotFoundText,
 			Name:         props.Name,
 			Endpoint:     "/finance/counterparties/search",
+			Form:         props.Form,
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

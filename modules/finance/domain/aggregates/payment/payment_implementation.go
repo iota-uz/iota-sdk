@@ -9,7 +9,7 @@ import (
 func NewWithID(
 	id uint,
 	amount float64,
-	transactionID uint,
+	transactionID, counterpartyID uint,
 	comment string,
 	account *moneyaccount.Account,
 	createdBy *user.User,
@@ -20,6 +20,7 @@ func NewWithID(
 		amount:           amount,
 		account:          account,
 		transactionID:    transactionID,
+		counterpartyID:   counterpartyID,
 		transactionDate:  date,
 		accountingPeriod: accountingPeriod,
 		user:             createdBy,
@@ -31,7 +32,7 @@ func NewWithID(
 
 func New(
 	amount float64,
-	transactionID uint,
+	transactionID, counterpartyID uint,
 	comment string,
 	account *moneyaccount.Account,
 	createdBy *user.User,
@@ -41,6 +42,7 @@ func New(
 		0,
 		amount,
 		transactionID,
+		counterpartyID,
 		comment,
 		account,
 		createdBy,
@@ -55,6 +57,7 @@ type payment struct {
 	id               uint
 	amount           float64
 	transactionID    uint
+	counterpartyID   uint
 	transactionDate  time.Time
 	accountingPeriod time.Time
 	comment          string
@@ -83,6 +86,15 @@ func (p *payment) SetAmount(a float64) {
 
 func (p *payment) TransactionID() uint {
 	return p.transactionID
+}
+
+func (p *payment) CounterpartyID() uint {
+	return p.counterpartyID
+}
+
+func (p *payment) SetCounterpartyID(id uint) {
+	p.counterpartyID = id
+	p.updatedAt = time.Now()
 }
 
 func (p *payment) TransactionDate() time.Time {

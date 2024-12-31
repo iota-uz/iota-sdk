@@ -15,6 +15,9 @@ type Payment interface {
 
 	TransactionID() uint
 
+	CounterpartyID() uint
+	SetCounterpartyID(uint)
+
 	TransactionDate() time.Time
 	SetTransactionDate(time.Time)
 

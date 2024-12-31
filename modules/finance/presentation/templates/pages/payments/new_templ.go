@@ -130,10 +130,10 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CounterpartySelect(&components.CounterpartySelectProps{
-				Attrs: templ.Attributes{
-					"name": "CounterpartyId",
-					"form": "save-form",
-				},
+				Label:       props.T("Payments.Single.CounterpartyID.Label"),
+				Placeholder: props.T("Payments.Single.CounterpartyID.Placeholder"),
+				Name:        "CounterpartyID",
+				Form:        "save-form",
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

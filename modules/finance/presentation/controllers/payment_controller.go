@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
-	payments "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
@@ -281,13 +281,13 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&payment.CreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
 		return
 	}
 
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}
 	dto.UserID = u.ID
@@ -296,14 +296,14 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 		r, types.NewPageData("Payments.Meta.New.Title", ""),
 	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 			return
 		}
 		props := &payments.CreatePageProps{
@@ -318,7 +318,7 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := c.paymentService.Create(r.Context(), dto); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}
 

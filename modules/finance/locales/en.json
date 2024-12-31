@@ -58,10 +58,13 @@
       "Amount": "Amount",
       "Date": "Date",
       "AccountingPeriod": "Accounting period",
-      "CounterpartyID": "Sender",
+      "CounterpartyID": {
+        "Label": "Sender",
+        "Placeholder": "Select sender"
+      },
       "Comment": "Comment",
-      "Stage": "Stage",
-      "SelectStage": "Select stage"
+      "Delete": "Delete payment",
+      "DeleteConfirmation": "Are you sure you want to delete this payment?"
     }
   },
   "Expenses": {
