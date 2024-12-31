@@ -4,9 +4,9 @@ import (
 	"embed"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/finance/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -50,6 +50,7 @@ func (m *Module) Register(app application.Application) error {
 			moneyAccountService,
 		),
 		moneyAccountService,
+		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
 	)
 
 	app.RegisterControllers(
@@ -57,6 +58,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewMoneyAccountController(app),
 		controllers.NewExpenseCategoriesController(app),
 		controllers.NewPaymentsController(app),
+		controllers.NewCounterpartiesController(app),
 	)
 	app.Spotlight().Register(
 		spotlight.NewItem(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),

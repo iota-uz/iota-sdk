@@ -1,0 +1,28 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+)
+
+type CounterpartySelectProps struct {
+	Label          string
+	Placeholder    string
+	Value          string
+	Name           string
+	Error          string
+	NotFoundText   string
+	Counterparties []*viewmodels.Counterparty
+	Attrs          templ.Attributes
+}
+
+templ CounterpartySelect(props *CounterpartySelectProps) {
+	@base.Combobox(base.ComboboxProps{
+		Label:        props.Label,
+		Placeholder:  props.Placeholder,
+		Searchable:   true,
+		NotFoundText: props.NotFoundText,
+		Name:         props.Name,
+		Endpoint:     "/finance/counterparties/search",
+	})
+}

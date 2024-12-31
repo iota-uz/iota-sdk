@@ -56,3 +56,14 @@ type Payment struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
+
+type Counterparty struct {
+	ID           uint
+	TIN          string
+	Name         string
+	Type         string
+	LegalType    string
+	LegalAddress string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}

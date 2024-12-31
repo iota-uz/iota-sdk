@@ -2,6 +2,7 @@ package mappers
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"strconv"
 	"time"
 
@@ -81,5 +82,18 @@ func ExpenseToViewModel(entity *expense.Expense) *viewmodels.Expense {
 		Date:               entity.Date.Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:          entity.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func CounterpartyToViewModel(entity counterparty.Counterparty) *viewmodels.Counterparty {
+	return &viewmodels.Counterparty{
+		ID:           strconv.FormatUint(uint64(entity.ID()), 10),
+		TIN:          entity.TIN(),
+		Name:         entity.Name(),
+		Type:         string(entity.Type()),
+		LegalType:    string(entity.LegalType()),
+		LegalAddress: entity.LegalAddress(),
+		CreatedAt:    entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:    entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
