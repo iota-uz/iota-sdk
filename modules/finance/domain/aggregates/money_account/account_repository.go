@@ -19,12 +19,12 @@ type FindParams struct {
 }
 
 type Repository interface {
-	Count(ctx context.Context) (int64, error)
-	GetAll(ctx context.Context) ([]*Account, error)
-	GetPaginated(ctx context.Context, params *FindParams) ([]*Account, error)
-	GetByID(ctx context.Context, id uint) (*Account, error)
-	RecalculateBalance(ctx context.Context, id uint) error
-	Create(ctx context.Context, payment *Account) error
-	Update(ctx context.Context, payment *Account) error
-	Delete(ctx context.Context, id uint) error
+	Count(context.Context) (int64, error)
+	GetAll(context.Context) ([]*Account, error)
+	GetPaginated(context.Context, *FindParams) ([]*Account, error)
+	GetByID(context.Context, uint) (*Account, error)
+	RecalculateBalance(context.Context, uint) error
+	Create(context.Context, *Account) (*Account, error)
+	Update(context.Context, *Account) error
+	Delete(context.Context, uint) error
 }

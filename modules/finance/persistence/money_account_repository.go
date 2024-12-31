@@ -47,12 +47,13 @@ const (
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
 	updateQuery = `
 		UPDATE money_accounts
 		SET name = $1, account_number = $2, description = $3, balance = $4, balance_currency_id = $5, updated_at = $6
 		WHERE id = $7`
-	deleteQuery = `DELETE FROM money_accounts WHERE id = $1`
+	deleteRelatedQuery = `DELETE FROM transactions WHERE origin_account_id = $1 OR destination_account_id = $1;`
+	deleteQuery        = `DELETE FROM money_accounts WHERE id = $1;`
 )
 
 type GormMoneyAccountRepository struct{}
@@ -62,12 +63,24 @@ func NewMoneyAccountRepository() moneyaccount.Repository {
 }
 
 func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, params *moneyaccount.FindParams) ([]*moneyaccount.Account, error) {
-	q := repo.Join(findQuery, repo.JoinWhere(buildWhereClause(params)...), repo.FormatLimitOffset(params.Limit, params.Offset))
+	q := repo.Join(
+		findQuery,
+		repo.JoinWhere(buildWhereClause(params)...),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
 	return g.queryAccounts(ctx, q, buildArgs(params)...)
 }
 
 func (g *GormMoneyAccountRepository) Count(ctx context.Context) (int64, error) {
-	return g.queryCount(ctx, countQuery)
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	if err := tx.QueryRow(ctx, countQuery).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyaccount.Account, error) {
@@ -89,17 +102,47 @@ func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id 
 	return g.execQuery(ctx, recalculateBalanceQuery, id, id, id)
 }
 
-func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyaccount.Account) error {
+func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyaccount.Account) (*moneyaccount.Account, error) {
 	entity := toDBMoneyAccount(data)
-	return g.execQuery(ctx, insertQuery, entity.Name, entity.AccountNumber, entity.Description, entity.Balance, entity.BalanceCurrencyID, entity.CreatedAt, entity.UpdatedAt)
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	args := []interface{}{
+		entity.Name,
+		entity.AccountNumber,
+		entity.Description,
+		entity.Balance,
+		entity.BalanceCurrencyID,
+		entity.CreatedAt,
+		entity.UpdatedAt,
+	}
+	row := tx.QueryRow(ctx, insertQuery, args...)
+	var id uint
+	if err := row.Scan(&id); err != nil {
+		return nil, err
+	}
+	return g.GetByID(ctx, id)
 }
 
 func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyaccount.Account) error {
 	entity := toDBMoneyAccount(data)
-	return g.execQuery(ctx, updateQuery, entity.Name, entity.AccountNumber, entity.Description, entity.Balance, entity.BalanceCurrencyID, entity.UpdatedAt, entity.ID)
+	args := []interface{}{
+		entity.Name,
+		entity.AccountNumber,
+		entity.Description,
+		entity.Balance,
+		entity.BalanceCurrencyID,
+		entity.UpdatedAt,
+		entity.ID,
+	}
+	return g.execQuery(ctx, updateQuery, args...)
 }
 
 func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uint) error {
+	if err := g.execQuery(ctx, deleteRelatedQuery, id); err != nil {
+		return err
+	}
 	return g.execQuery(ctx, deleteQuery, id)
 }
 
@@ -138,18 +181,6 @@ func (g *GormMoneyAccountRepository) queryAccounts(ctx context.Context, query st
 		dbRows = append(dbRows, &r)
 	}
 	return mapping.MapDbModels(dbRows, toDomainMoneyAccount)
-}
-
-func (g *GormMoneyAccountRepository) queryCount(ctx context.Context, query string) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return 0, err
-	}
-	var count int64
-	if err := tx.QueryRow(ctx, query).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
 }
 
 func (g *GormMoneyAccountRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
