@@ -1,9 +1,10 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
-	payments2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
+	payments "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
@@ -26,6 +27,7 @@ type PaymentsController struct {
 	app                 application.Application
 	paymentService      *services.PaymentService
 	moneyAccountService *services.MoneyAccountService
+	counterpartyService *services.CounterpartyService
 	basePath            string
 }
 
@@ -39,6 +41,7 @@ func NewPaymentsController(app application.Application) application.Controller {
 		app:                 app,
 		paymentService:      app.Service(services.PaymentService{}).(*services.PaymentService),
 		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
 		basePath:            "/finance/payments",
 	}
 }
@@ -90,6 +93,14 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
 }
 
+func (c *PaymentsController) viewModelCounterparties(ctx context.Context) ([]*viewmodels.Counterparty, error) {
+	counterparties, err := c.counterpartyService.GetAll(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving counterparties")
+	}
+	return mapping.MapViewModels(counterparties, mappers.CounterpartyToViewModel), nil
+}
+
 func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginatedResponse, error) {
 	paginationParams := composables.UsePaginated(r)
 	params, err := composables.UseQuery(&payment.FindParams{
@@ -128,15 +139,15 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &payments2.IndexPageProps{
+	props := &payments.IndexPageProps{
 		PageContext:     pageCtx,
 		Payments:        paginated.Payments,
 		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
-		templ.Handler(payments2.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(payments2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(payments.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -161,13 +172,13 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &payments2.EditPageProps{
+	props := &payments.EditPageProps{
 		PageContext: pageCtx,
 		Payment:     paymentViewModel,
 		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
-	templ.Handler(payments2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(payments.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Request) {
@@ -226,13 +237,13 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			props := &payments2.EditPageProps{
+			props := &payments.EditPageProps{
 				PageContext: pageCtx,
 				Payment:     paymentViewModel,
 				Accounts:    accounts,
 				Errors:      errorsMap,
 			}
-			templ.Handler(payments2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		err = c.paymentService.Update(r.Context(), id, &dto)
@@ -258,13 +269,13 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := &payments2.CreatePageProps{
+	props := &payments.CreatePageProps{
 		PageContext: pageCtx,
 		Payment:     &viewmodels.Payment{}, //nolint:exhaustruct
 		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
-	templ.Handler(payments2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(payments.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
@@ -295,14 +306,14 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &payments2.CreatePageProps{
+		props := &payments.CreatePageProps{
 			PageContext: pageCtx,
 			Payment:     mappers.PaymentToViewModel(dto.ToEntity()),
 			Accounts:    accounts,
 			Errors:      errorsMap,
 		}
 		fmt.Println(errorsMap)
-		templ.Handler(payments2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(payments.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

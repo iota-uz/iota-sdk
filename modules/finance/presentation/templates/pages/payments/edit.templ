@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -44,12 +45,19 @@ templ EditForm(props *EditPageProps) {
 				},
 				Error: props.Errors["Date"],
 			})
-			@AccountSelect(&AccountSelectProps{
-				PageContext: props.PageContext,
+			@components.AccountSelect(&components.AccountSelectProps{
+				Label:       props.T("Payments.Single.Account"),
+				Placeholder: props.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
 				Attrs: templ.Attributes{
 					"name": "AccountId",
+					"form": "save-form",
+				},
+			})
+			@components.CounterpartySelect(&components.CounterpartySelectProps{
+				Attrs: templ.Attributes{
+					"name": "CounterpartyId",
 					"form": "save-form",
 				},
 			})

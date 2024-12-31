@@ -1,0 +1,38 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+)
+
+type AccountSelectProps struct {
+	Label       string
+	Placeholder string
+	Value       string
+	Accounts    []*viewmodels.MoneyAccount
+	Error       string
+	Attrs       templ.Attributes
+}
+
+templ AccountSelect(props *AccountSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.Label,
+		Placeholder: props.Placeholder,
+		Attrs:       props.Attrs,
+		Error:       props.Error,
+	}) {
+		for _, account := range props.Accounts {
+			if account.ID == props.Value {
+				<option value={ account.ID } selected>
+					{ account.Name }
+					{ account.CurrencySymbol }
+				</option>
+			} else {
+				<option value={ account.ID }>
+					{ account.Name }
+					{ account.CurrencySymbol }
+				</option>
+			}
+		}
+	}
+}

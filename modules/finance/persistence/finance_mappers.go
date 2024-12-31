@@ -7,6 +7,7 @@ import (
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -173,4 +174,38 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *transaction.Transac
 		UpdatedAt:     entity.UpdatedAt,
 	}
 	return dbExpense, domainTransaction
+}
+
+func toDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty, error) {
+	partyType, err := counterparty.NewType(dbRow.Type)
+	if err != nil {
+		return nil, err
+	}
+	legalType, err := counterparty.NewLegalType(dbRow.LegalType)
+	if err != nil {
+		return nil, err
+	}
+	return counterparty.NewWithID(
+		dbRow.ID,
+		dbRow.TIN,
+		dbRow.Name,
+		partyType,
+		legalType,
+		dbRow.LegalAddress,
+		dbRow.CreatedAt,
+		dbRow.UpdatedAt,
+	), nil
+}
+
+func toDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, error) {
+	return &models.Counterparty{
+		ID:           entity.ID(),
+		TIN:          entity.TIN(),
+		Name:         entity.Name(),
+		Type:         string(entity.Type()),
+		LegalType:    string(entity.LegalType()),
+		LegalAddress: entity.LegalAddress(),
+		CreatedAt:    entity.CreatedAt(),
+		UpdatedAt:    entity.UpdatedAt(),
+	}, nil
 }
