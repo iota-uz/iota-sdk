@@ -26,8 +26,10 @@
       "EditUser": "Редактировать категорию",
       "Name": "Название",
       "Amount": "Сумма",
-      "Currency": "Валюта",
-      "SelectCurrency": "Выбрать валюту",
+      "CurrencyCode": {
+        "Label": "Валюта",
+        "Placeholder": "Выберите валюту"
+      },
       "Description": "Описание",
       "Delete": "Удалить категорию",
       "DeleteConfirmation": "Вы уверены что хотите удалить эту категорию расходов?"
