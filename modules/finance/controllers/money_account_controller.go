@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
+	moneyaccounts2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
+	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
 
@@ -12,7 +15,6 @@ import (
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/modules/finance/templates/pages/moneyaccounts"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -20,7 +22,6 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -32,7 +33,7 @@ type MoneyAccountController struct {
 }
 
 type AccountPaginatedResponse struct {
-	Accounts        []*viewmodels.MoneyAccount
+	Accounts        []*viewmodels2.MoneyAccount
 	PaginationState *pagination.State
 }
 
@@ -124,15 +125,15 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &moneyaccounts.IndexPageProps{
+	props := &moneyaccounts2.IndexPageProps{
 		PageContext:     pageCtx,
 		Accounts:        paginated.Accounts,
 		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
-		templ.Handler(moneyaccounts.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(moneyaccounts2.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(moneyaccounts.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(moneyaccounts2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -162,7 +163,7 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &moneyaccounts.EditPageProps{
+	props := &moneyaccounts2.EditPageProps{
 		PageContext: pageCtx,
 		Account:     mappers.MoneyAccountToViewUpdateModel(entity),
 		Currencies:  currencies,
@@ -170,7 +171,7 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 		PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
 		DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
 	}
-	templ.Handler(moneyaccounts.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(moneyaccounts2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -235,7 +236,7 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			props := &moneyaccounts.EditPageProps{
+			props := &moneyaccounts2.EditPageProps{
 				PageContext: pageCtx,
 				Account:     mappers.MoneyAccountToViewUpdateModel(entity),
 				Currencies:  currencies,
@@ -243,7 +244,7 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 				PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
 				DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
 			}
-			templ.Handler(moneyaccounts.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(moneyaccounts2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 	}
@@ -261,14 +262,14 @@ func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &moneyaccounts.CreatePageProps{
+	props := &moneyaccounts2.CreatePageProps{
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
 		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}), //nolint:exhaustruct
 		PostPath:    c.basePath,
 	}
-	templ.Handler(moneyaccounts.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(moneyaccounts2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) {
@@ -300,14 +301,14 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &moneyaccounts.CreatePageProps{
+		props := &moneyaccounts2.CreatePageProps{
 			PageContext: pageCtx,
 			Currencies:  currencies,
 			Errors:      errorsMap,
 			Account:     mappers.MoneyAccountToViewModel(entity),
 			PostPath:    c.basePath,
 		}
-		templ.Handler(moneyaccounts.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(moneyaccounts2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

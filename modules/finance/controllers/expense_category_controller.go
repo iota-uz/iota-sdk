@@ -4,6 +4,9 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
+	expense_categories2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expense_categories"
+	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
@@ -11,9 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	"github.com/iota-uz/iota-sdk/modules/finance/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/modules/finance/templates/pages/expense_categories"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -30,7 +31,7 @@ type ExpenseCategoriesController struct {
 }
 
 type ExpenseCategoryPaginatedResponse struct {
-	Categories      []*viewmodels.ExpenseCategory
+	Categories      []*viewmodels2.ExpenseCategory
 	PaginationState *pagination.State
 }
 
@@ -123,15 +124,15 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &expense_categories.IndexPageProps{
+	props := &expense_categories2.IndexPageProps{
 		PageContext:     pageCtx,
 		Categories:      paginated.Categories,
 		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
-		templ.Handler(expense_categories.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expense_categories2.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(expense_categories.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expense_categories2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -161,13 +162,13 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &expense_categories.EditPageProps{
+	props := &expense_categories2.EditPageProps{
 		PageContext: pageCtx,
 		Category:    mappers.ExpenseCategoryToViewModel(entity),
 		Currencies:  currencies,
 		Errors:      map[string]string{},
 	}
-	templ.Handler(expense_categories.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expense_categories2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -235,13 +236,13 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			props := &expense_categories.EditPageProps{
+			props := &expense_categories2.EditPageProps{
 				PageContext: pageCtx,
 				Category:    mappers.ExpenseCategoryToViewModel(entity),
 				Currencies:  currencies,
 				Errors:      errorsMap,
 			}
-			templ.Handler(expense_categories.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(expense_categories2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 	}
@@ -262,14 +263,14 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &expense_categories.CreatePageProps{
+	props := &expense_categories2.CreatePageProps{
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
 		Category:    category.CreateDTO{}, //nolint:exhaustruct
 		PostPath:    c.basePath,
 	}
-	templ.Handler(expense_categories.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expense_categories2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
@@ -298,14 +299,14 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &expense_categories.CreatePageProps{
+		props := &expense_categories2.CreatePageProps{
 			PageContext: pageCtx,
 			Currencies:  currencies,
 			Errors:      errorsMap,
 			Category:    dto,
 			PostPath:    c.basePath,
 		}
-		templ.Handler(expense_categories.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expense_categories2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

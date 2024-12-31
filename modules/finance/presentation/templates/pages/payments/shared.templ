@@ -1,0 +1,67 @@
+package payments
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type AccountSelectProps struct {
+	*types.PageContext
+	Value    string
+	Accounts []*viewmodels.MoneyAccount
+	Error    string
+	Attrs    templ.Attributes
+}
+
+type CounterpartySelectProps struct {
+	*types.PageContext
+	Value          string
+	Counterparties []*viewmodels.Counterparty
+	Error          string
+	Attrs          templ.Attributes
+}
+
+templ AccountSelect(props *AccountSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("Payments.Single.Account"),
+		Placeholder: props.T("Payments.Single.SelectAccount"),
+		Attrs:       props.Attrs,
+		Error:       props.Error,
+	}) {
+		for _, account := range props.Accounts {
+			if account.ID == props.Value {
+				<option value={ account.ID } selected>
+					{ account.Name }
+					{ account.CurrencySymbol }
+				</option>
+			} else {
+				<option value={ account.ID }>
+					{ account.Name }
+					{ account.CurrencySymbol }
+				</option>
+			}
+		}
+	}
+}
+
+templ CounterpartySelect(props *CounterpartySelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.T("Payments.Single.Counterparty"),
+		Placeholder: props.T("Payments.Single.SelectCounterparty"),
+		Attrs:       props.Attrs,
+		Error:       props.Error,
+	}) {
+		for _, counterparty := range props.Counterparties {
+			if counterparty.ID == props.Value {
+				<option value={ counterparty.ID } selected>
+					{ counterparty.Name }
+				</option>
+			} else {
+				<option value={ counterparty.ID }>
+					{ counterparty.Name }
+				</option>
+			}
+		}
+	}
+}
