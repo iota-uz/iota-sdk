@@ -65,10 +65,6 @@ func main() {
 		controllers.NewGraphQLController(app),
 	)
 
-	if err := dbutils.CheckModels(db, server.RegisteredModels); err != nil {
-		log.Fatal(err)
-	}
-
 	options := &server.DefaultOptions{
 		Logger:        logger,
 		Configuration: conf,

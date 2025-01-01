@@ -1,11 +1,11 @@
 package server
 
 import (
-	"github.com/NYTimes/gziphandler"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"net/http"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
 func NewHttpServer(

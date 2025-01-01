@@ -3,80 +3,13 @@ package helpers
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
-	"sync"
-
 	"github.com/99designs/gqlgen/graphql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+	"strings"
 )
 
 type FieldsFilter func(f *schema.Field) bool
-
-// GetGormFields returns a map of fields of a model that are readable and match the filter
-// The key of the map is the alias of the field in the graphql schema
-// The value is the field itself.
-func GetGormFields(model interface{}, filter FieldsFilter) (map[string]*schema.Field, error) {
-	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{}) //nolint:exhaustruct
-	if err != nil {
-		return nil, err
-	}
-	fields := map[string]*schema.Field{}
-	for _, field := range s.Fields {
-		if filter == nil {
-			fields[field.Name] = field
-		} else if filter(field) {
-			fields[field.Name] = field
-		}
-	}
-	return fields, nil
-}
-
-func CheckModelIsInSync(db *gorm.DB, model interface{}) error {
-	modelType := reflect.TypeOf(model).Elem()
-	columns, err := db.Migrator().ColumnTypes(model)
-	if err != nil {
-		return fmt.Errorf("error retrieving columns: %w", err)
-	}
-
-	columnsMap := make(map[string]bool, len(columns))
-	for _, column := range columns {
-		columnsMap[column.Name()] = true
-	}
-	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{}) //nolint:exhaustruct
-	if err != nil {
-		return err
-	}
-	fields := make(map[string]*schema.Field, len(s.Fields))
-	for _, field := range s.Fields {
-		if field.DataType == "" {
-			continue
-		}
-		fields[field.DBName] = field
-	}
-
-	for _, column := range columns {
-		columnName := column.Name()
-		if _, exists := fields[columnName]; !exists {
-			return fmt.Errorf(
-				"column '%s' is present in the database but missing in the model '%s'",
-				columnName,
-				modelType.Name(),
-			)
-		}
-	}
-	for _, field := range fields {
-		if !db.Migrator().HasColumn(model, field.DBName) {
-			return fmt.Errorf(
-				"column '%s' is missing in the database but present in the model: '%s'",
-				field.Name,
-				modelType.Name(),
-			)
-		}
-	}
-	return nil
-}
 
 func GetPreloads(ctx context.Context) []string {
 	return GetNestedPreloads(
