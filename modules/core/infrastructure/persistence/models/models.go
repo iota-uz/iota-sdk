@@ -17,7 +17,7 @@ type Upload struct {
 }
 
 type Currency struct {
-	Code      string `gorm:"primary_key"`
+	Code      string
 	Name      string
 	Symbol    string
 	CreatedAt time.Time
@@ -109,7 +109,7 @@ type Role struct {
 	ID          uint
 	Name        string
 	Description string
-	Permissions []Permission `gorm:"many2many:role_permissions;"`
+	Permissions []Permission
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -122,7 +122,7 @@ type User struct {
 	Email      string
 	Password   *string
 	AvatarID   *uint
-	Avatar     *Upload `gorm:"foreignKey:AvatarID;references:ID"`
+	Avatar     *Upload
 	LastLogin  *time.Time
 	LastIP     *string
 	UiLanguage string
@@ -130,7 +130,7 @@ type User struct {
 	EmployeeID *uint
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	Roles      []Role `gorm:"many2many:user_roles;"`
+	Roles      []Role
 }
 
 type TelegramSession struct {
@@ -268,16 +268,6 @@ type Comment struct {
 	User      User
 }
 
-type Like struct {
-	ID        uint
-	ArticleID uint
-	UserID    uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Article   Article
-	User      User
-}
-
 type UploadedImage struct {
 	ID        uint
 	UploadID  uint
@@ -342,42 +332,6 @@ type AuthenticationLog struct {
 	CreatedAt time.Time
 }
 
-type Vacancy struct {
-	ID        uint
-	URL       string
-	Title     string
-	Body      string
-	Hidden    bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type SalaryRange struct {
-	MinSalary           float64
-	MaxSalary           float64
-	MinSalaryCurrencyID *uint
-	MaxSalaryCurrencyID *uint
-	VacancyID           uint
-	MinSalaryCurrency   Currency
-	MaxSalaryCurrency   Currency
-	Vacancy             Vacancy
-}
-
-type Applicant struct {
-	ID                 uint
-	FirstName          string
-	LastName           string
-	MiddleName         string
-	PrimaryLanguage    string
-	SecondaryLanguage  string
-	Email              string
-	Phone              string
-	ExperienceInMonths int
-	VacancyID          uint
-	CreatedAt          time.Time
-	Vacancy            Vacancy
-}
-
 type Skill struct {
 	ID          uint
 	Name        string
@@ -389,137 +343,6 @@ type Skill struct {
 type EmployeeSkill struct {
 	EmployeeID uint
 	SkillID    uint
-}
-
-type ApplicantSkill struct {
-	ApplicantID uint
-	SkillID     uint
-}
-
-type ApplicantComment struct {
-	ID          uint
-	ApplicantID uint
-	UserID      uint
-	Content     string
-	CreatedAt   time.Time
-	Applicant   Applicant
-	User        User
-}
-
-type Application struct {
-	ID          uint
-	ApplicantID uint
-	VacancyID   uint
-	CreatedAt   time.Time
-	Applicant   Applicant
-	Vacancy     Vacancy
-}
-
-type InterviewQuestion struct {
-	ID          uint
-	Title       string
-	Description string
-	Type        string
-	Language    string
-	Difficulty  string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type Interview struct {
-	ID            uint
-	ApplicationID uint
-	InterviewerID uint
-	Date          time.Time
-	CreatedAt     time.Time
-	Application   Application
-	Interviewer   User
-}
-
-type InterviewRating struct {
-	ID            uint
-	InterviewID   uint
-	InterviewerID uint
-	QuestionID    uint
-	Rating        int
-	Comment       string
-	CreatedAt     time.Time
-	Interview     Interview
-	Interviewer   User
-	Question      InterviewQuestion
-}
-
-type ContactFormSubmission struct {
-	ID        uint
-	Name      string
-	Email     string
-	Phone     string
-	Company   string
-	Message   string
-	CreatedAt time.Time
-}
-
-type BlogPost struct {
-	ID        uint
-	Title     string
-	Content   string
-	AuthorID  *uint
-	PictureID *uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Author    User
-	Picture   Upload
-}
-
-type BlogPostTag struct {
-	ID        uint
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type BlogPostTagRelation struct {
-	PostID uint
-	TagID  uint
-}
-
-type BlogComment struct {
-	ID        uint
-	PostID    uint
-	Content   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Post      BlogPost
-}
-
-type BlogLike struct {
-	ID        uint
-	PostID    uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Post      BlogPost
-}
-
-type WebsitePage struct {
-	ID        uint
-	Path      string
-	SEOTitle  string
-	SEODesc   string
-	SEOKeys   string
-	SEOH1     string
-	SEOH2     string
-	SEOImg    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type WebsitePageView struct {
-	ID        uint
-	PageID    uint
-	UserAgent string
-	IP        string
-	CreatedAt time.Time
-	Page      WebsitePage
 }
 
 type Tab struct {
