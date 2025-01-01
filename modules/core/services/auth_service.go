@@ -110,11 +110,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Ses
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	return tx.Delete(&session.Session{}, "token = ?", token).Error //nolint:exhaustruct
+	return s.sessionService.Delete(ctx, token)
 }
 
 func (s *AuthService) newSessionToken() (string, error) {
@@ -167,7 +163,7 @@ func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, passw
 	return u, sess, nil
 }
 
-func (s *AuthService) CoockieAuthenticateWithUserId(ctx context.Context, id uint, password string) (*http.Cookie, error) {
+func (s *AuthService) CookieAuthenticateWithUserId(ctx context.Context, id uint, password string) (*http.Cookie, error) {
 	_, sess, err := s.AuthenticateWithUserId(ctx, id, password)
 	if err != nil {
 		return nil, err
