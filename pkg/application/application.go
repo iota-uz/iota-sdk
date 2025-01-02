@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/jackc/pgx/v5/stdlib"
 	"log"
 	"reflect"
 	"strings"
@@ -13,16 +14,14 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
-	"gorm.io/gorm"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.NavigationItem {
@@ -41,11 +40,10 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 	return translated
 }
 
-func New(db *gorm.DB, pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
+func New(pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	return &ApplicationImpl{
-		db:             db,
 		pool:           pool,
 		eventPublisher: eventPublisher,
 		rbac:           permission.NewRbac(),
@@ -58,7 +56,6 @@ func New(db *gorm.DB, pool *pgxpool.Pool, eventPublisher event.Publisher) Applic
 
 // ApplicationImpl with a dynamically extendable service registry
 type ApplicationImpl struct {
-	db             *gorm.DB
 	pool           *pgxpool.Pool
 	eventPublisher event.Publisher
 	rbac           *permission.Rbac
@@ -109,8 +106,8 @@ func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permis
 	app.rbac.Register(permissions...)
 }
 
-func (app *ApplicationImpl) DB() *gorm.DB {
-	return app.db
+func (app *ApplicationImpl) DB() *pgxpool.Pool {
+	return app.pool
 }
 
 func (app *ApplicationImpl) EventPublisher() event.Publisher {
@@ -239,10 +236,7 @@ func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
 }
 
 func (app *ApplicationImpl) RunMigrations() error {
-	db, err := app.db.DB()
-	if err != nil {
-		return err
-	}
+	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
 	migrations, err := CollectMigrations(app)
 	if err != nil {
 		return err
@@ -298,10 +292,7 @@ func (app *ApplicationImpl) RunMigrations() error {
 }
 
 func (app *ApplicationImpl) RollbackMigrations() error {
-	db, err := app.db.DB()
-	if err != nil {
-		return err
-	}
+	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
 	migrations, err := CollectMigrations(app)
 	if err != nil {
 		return err

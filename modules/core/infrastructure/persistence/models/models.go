@@ -75,22 +75,20 @@ type Employee struct {
 	UpdatedAt        time.Time
 }
 
+type EmployeeMeta struct {
+	PrimaryLanguage   string
+	SecondaryLanguage string
+	Tin               string
+	Pin               string
+	Notes             string
+	BirthDate         time.Time
+	HireDate          time.Time
+	ResignationDate   *time.Time
+}
+
 type EmployeePosition struct {
 	EmployeeID uint
 	PositionID uint
-}
-
-type EmployeeMeta struct {
-	EmployeeID        uint `gorm:"primary_key"`
-	PrimaryLanguage   string
-	SecondaryLanguage string
-	TIN               string
-	GeneralInfo       string
-	YTProfileID       string
-	BirthDate         time.Time
-	JoinDate          time.Time
-	LeaveDate         time.Time
-	UpdatedAt         time.Time
 }
 
 type Company struct {

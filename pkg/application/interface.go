@@ -5,6 +5,7 @@ import (
 	"embed"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/benbjohnson/hashfs"
@@ -12,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"gorm.io/gorm"
 )
 
 type GraphSchema struct {
@@ -22,7 +22,7 @@ type GraphSchema struct {
 
 // Application with a dynamically extendable service registry
 type Application interface {
-	DB() *gorm.DB
+	DB() *pgxpool.Pool
 	EventPublisher() event.Publisher
 	Controllers() []Controller
 	Middleware() []mux.MiddlewareFunc

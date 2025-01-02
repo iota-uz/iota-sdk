@@ -1,18 +1,21 @@
 package persistence
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tax"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
 	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -165,34 +168,61 @@ func toDBProject(entity *project.Project) *models.Project {
 	}
 }
 
-func toDomainEmployee(dbEmployee *models.Employee) *employee.Employee {
-	return &employee.Employee{
-		ID:        dbEmployee.ID,
-		FirstName: dbEmployee.FirstName,
-		LastName:  dbEmployee.LastName,
-		Email:     dbEmployee.Email,
-		Phone:     dbEmployee.Phone,
-		CreatedAt: dbEmployee.CreatedAt,
-		UpdatedAt: dbEmployee.UpdatedAt,
-		Meta: &employee.Meta{
-			EmployeeID: dbEmployee.ID,
-		},
+func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) (employee.Employee, error) {
+	tin, err := tax.NewTin(dbMeta.Tin, country.Uzbekistan)
+	if err != nil {
+		return nil, err
 	}
+	pin, err := tax.NewPin(dbMeta.Tin, country.Uzbekistan)
+	if err != nil {
+		return nil, err
+	}
+	mail, err := email.New(dbEmployee.Email)
+	if err != nil {
+		return nil, err
+	}
+	var avatarID uint
+	if dbEmployee.AvatarID != nil {
+		avatarID = *dbEmployee.AvatarID
+	}
+	return employee.NewWithID(
+		dbEmployee.ID,
+		dbEmployee.FirstName,
+		dbEmployee.LastName,
+		dbEmployee.MiddleName,
+		dbEmployee.Phone,
+		mail,
+		dbEmployee.Salary,
+		tin,
+		pin,
+		employee.NewLanguage(dbMeta.PrimaryLanguage, dbMeta.SecondaryLanguage),
+		avatarID,
+		dbMeta.Notes,
+		dbEmployee.CreatedAt,
+		dbEmployee.UpdatedAt,
+	), nil
 }
 
-func toDBEmployee(entity *employee.Employee) (*models.Employee, *models.EmployeeMeta) {
+func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeMeta) {
 	dbEmployee := &models.Employee{
-		ID:        entity.ID,
-		FirstName: entity.FirstName,
-		LastName:  entity.LastName,
-		Email:     entity.Email,
-		Phone:     entity.Phone,
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
+		ID:        entity.ID(),
+		FirstName: entity.FirstName(),
+		LastName:  entity.LastName(),
+		Email:     entity.Email().Value(),
+		Phone:     entity.Phone(),
+		CreatedAt: entity.CreatedAt(),
+		UpdatedAt: entity.UpdatedAt(),
 	}
+	lang := entity.Language()
 	dbEmployeeMeta := &models.EmployeeMeta{
-		EmployeeID: entity.ID,
-		UpdatedAt:  entity.UpdatedAt,
+		PrimaryLanguage:   lang.Primary(),
+		SecondaryLanguage: lang.Secondary(),
+		Tin:               entity.Tin().Value(),
+		Pin:               entity.Pin().Value(),
+		Notes:             entity.Notes(),
+		BirthDate:         entity.BirthDate(),
+		HireDate:          entity.HireDate(),
+		ResignationDate:   entity.ResignationDate(),
 	}
 	return dbEmployee, dbEmployeeMeta
 }

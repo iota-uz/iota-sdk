@@ -3,7 +3,7 @@ package controllers
 import (
 	"fmt"
 	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -70,7 +70,11 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := composables.UsePaginated(r)
-	employeeEntities, err := c.employeeService.GetPaginated(r.Context(), params.Limit, params.Offset, []string{})
+	employeeEntities, err := c.employeeService.GetPaginated(r.Context(), &employee.FindParams{
+		Limit:  params.Limit,
+		Offset: params.Offset,
+		SortBy: []string{"id"},
+	})
 	if err != nil {
 		http.Error(w, errors.Wrap(err, "Error retrieving employees").Error(), http.StatusInternalServerError)
 		return
@@ -196,10 +200,22 @@ func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	entity, err := employee.New(
+		"",
+		"",
+		"",
+		"",
+		nil,
+		0,
+		nil,
+		nil,
+		nil,
+		0, "",
+	)
 	props := &employees.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Employee:    mappers.EmployeeToViewModel(&employee.Employee{}), //nolint:exhaustruct
+		Employee:    mappers.EmployeeToViewModel(entity), //nolint:exhaustruct
 		PostPath:    c.basePath,
 	}
 	templ.Handler(employees.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -224,7 +240,12 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity := dto.ToEntity()
+		entity, err := dto.ToEntity()
+		if err != nil {
+			// TODO: proper error handling
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		props := &employees.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,

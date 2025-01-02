@@ -68,12 +68,11 @@ CREATE TABLE employee_meta
     primary_language   VARCHAR(255),
     secondary_language VARCHAR(255),
     tin                VARCHAR(255),
-    general_info       TEXT,
-    yt_profile_id      VARCHAR(255)    NOT NULL,
+    pin              VARCHAR(255),
+    notes            TEXT,
     birth_date         DATE,
-    join_date          DATE,
-    leave_date         DATE,
-    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    hire_date        DATE,
+    resignation_date DATE
 );
 
 CREATE TABLE companies

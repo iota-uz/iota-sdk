@@ -2,10 +2,10 @@ package mappers
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
 	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -61,20 +61,21 @@ func ProjectToViewModel(entity *project.Project) *viewmodels.Project {
 	}
 }
 
-func EmployeeToViewModel(entity *employee.Employee) *viewmodels.Employee {
+func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
 	return &viewmodels.Employee{
-		ID:        strconv.FormatUint(uint64(entity.ID), 10),
-		FirstName: entity.FirstName,
-		LastName:  entity.LastName,
-		Email:     entity.Email,
-		Phone:     entity.Phone,
-		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
-		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
+		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
+		FirstName: entity.FirstName(),
+		LastName:  entity.LastName(),
+		Email:     entity.Email().Value(),
+		Phone:     entity.Phone(),
+		UpdatedAt: entity.UpdatedAt().Format(time.RFC3339),
+		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 
 func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
 	var url string
+	// TODO: this is gotta be implemented better
 	if slices.Contains([]string{".xls", ".xlsx"}, entity.Mimetype.Extension()) {
 		url = "/assets/" + assets.HashFS.HashName("images/excel-logo.svg")
 	} else {

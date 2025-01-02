@@ -123,9 +123,9 @@ func (g *GormInventoryRepository) GetPaginated(
 }
 
 func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.Position, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
+	tx, err := composables.UsePoolTx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var entities []*models.InventoryPosition
 	sql := `
@@ -133,8 +133,23 @@ func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.P
 	FROM warehouse_positions JOIN warehouse_products ON warehouse_positions.id = warehouse_products.position_id
 	GROUP BY warehouse_positions.id;
 	`
-	if err := tx.Raw(sql).Scan(&entities).Error; err != nil {
+	rows, err := tx.Query(ctx, sql)
+	if err != nil {
 		return nil, err
+	}
+	defer rows.Close()
+	entities = make([]*models.InventoryPosition, 0)
+	for rows.Next() {
+		var entity models.InventoryPosition
+		if err := rows.Scan(
+			&entity.ID,
+			&entity.Title,
+			&entity.Quantity,
+			&entity.RfidTags,
+		); err != nil {
+			return nil, err
+		}
+		entities = append(entities, &entity)
 	}
 	return mapping.MapDbModels(entities, toDomainInventoryPosition)
 }
