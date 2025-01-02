@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"context"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
@@ -68,9 +67,9 @@ func (c *PaymentsController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.CreatePayment).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.DeletePayment).Methods(http.MethodDelete)
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Payment, error) {
@@ -93,14 +92,6 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
 }
 
-func (c *PaymentsController) viewModelCounterparties(ctx context.Context) ([]*viewmodels.Counterparty, error) {
-	counterparties, err := c.counterpartyService.GetAll(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving counterparties")
-	}
-	return mapping.MapViewModels(counterparties, mappers.CounterpartyToViewModel), nil
-}
-
 func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginatedResponse, error) {
 	paginationParams := composables.UsePaginated(r)
 	params, err := composables.UseQuery(&payment.FindParams{
@@ -108,6 +99,9 @@ func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginat
 		Offset: paginationParams.Offset,
 		SortBy: []string{"created_at desc"},
 	}, r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error parsing query")
+	}
 	paymentEntities, err := c.paymentService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving payments")
@@ -181,7 +175,7 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(payments.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Request) {
+func (c *PaymentsController) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
@@ -195,7 +189,7 @@ func (c *PaymentsController) DeletePayment(w http.ResponseWriter, r *http.Reques
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
@@ -212,7 +206,7 @@ func (c *PaymentsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	case shared.FormActionDelete:
 		_, err = c.paymentService.Delete(r.Context(), id)
 	case shared.FormActionSave:
-		dto := payment.UpdateDTO{} //nolint:exhaustruct
+		dto := payment.UpdateDTO{}
 		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -271,14 +265,14 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 
 	props := &payments.CreatePageProps{
 		PageContext: pageCtx,
-		Payment:     &viewmodels.Payment{}, //nolint:exhaustruct
+		Payment:     &viewmodels.Payment{},
 		Accounts:    accounts,
 		Errors:      make(map[string]string),
 	}
 	templ.Handler(payments.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Request) {
+func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&payment.CreateDTO{}, r)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
@@ -312,7 +306,6 @@ func (c *PaymentsController) CreatePayment(w http.ResponseWriter, r *http.Reques
 			Accounts:    accounts,
 			Errors:      errorsMap,
 		}
-		fmt.Println(errorsMap)
 		templ.Handler(payments.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}

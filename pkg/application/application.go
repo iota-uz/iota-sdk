@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/go-gorp/gorp/v3"
 	"github.com/jackc/pgx/v5/stdlib"
 	"log"
 	"reflect"
@@ -60,7 +61,6 @@ type ApplicationImpl struct {
 	eventPublisher event.Publisher
 	rbac           *permission.Rbac
 	services       map[reflect.Type]interface{}
-	modules        []Module
 	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
 	hashFsAssets   []*hashfs.FS
@@ -258,7 +258,11 @@ func (app *ApplicationImpl) RunMigrations() error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func(tx *gorp.Transaction) {
+		if err := tx.Rollback(); err != nil {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}(tx)
 	for _, m := range plannedMigrations {
 		for _, stmt := range m.Queries {
 			stmt = strings.TrimSuffix(stmt, "\n")

@@ -1,9 +1,7 @@
 package services
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/costcomponent"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/settings"
 )
 
 type UhrService struct {
@@ -16,10 +14,6 @@ type UhrProps struct {
 
 func NewUhrService() *UhrService {
 	return &UhrService{}
-}
-
-func (s *UhrService) CalculateStaffExpenses(employees []*employee.Employee, settings *settings.Settings) {
-
 }
 
 func (s *UhrService) Calculate(props *UhrProps) []costcomponent.UnifiedHourlyRateResult {

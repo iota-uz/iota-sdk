@@ -30,7 +30,7 @@ func positionRowsFromFile(path string) ([]*XlsRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	var positionRows []*XlsRow
+	positionRows := make([]*XlsRow, 0, len(rows))
 	for i, row := range rows {
 		if i == 0 {
 			continue

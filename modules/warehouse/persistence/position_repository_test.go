@@ -1,9 +1,11 @@
 package persistence_test
 
 import (
+	"context"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 
@@ -15,7 +17,12 @@ import (
 
 func TestGormPositionRepository_CRUD(t *testing.T) { //nolint:paralleltest
 	ctx := testutils.GetTestContext()
-	defer ctx.Tx.Commit()
+	defer func(Tx pgx.Tx, ctx context.Context) {
+		err := Tx.Commit(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(ctx.Tx, ctx.Context)
 
 	unitRepository := persistence.NewUnitRepository()
 	positionRepository := persistence.NewPositionRepository(unitRepository)

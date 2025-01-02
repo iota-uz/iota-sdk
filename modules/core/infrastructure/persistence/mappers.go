@@ -11,14 +11,12 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
-	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -53,7 +51,7 @@ func ToDomainUser(dbUser *models.User) (*user.User, error) {
 		AvatarID:   dbUser.AvatarID,
 		Avatar:     &avatar,
 		EmployeeID: dbUser.EmployeeID,
-		UILanguage: user.UILanguage(dbUser.UiLanguage),
+		UILanguage: user.UILanguage(dbUser.UILanguage),
 		LastIP:     dbUser.LastIP,
 		LastLogin:  dbUser.LastLogin,
 		LastAction: dbUser.LastAction,
@@ -75,9 +73,9 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 			ID: *v,
 		})
 	}
-	var avatarId *uint
+	var avatarID *uint
 	if entity.AvatarID != nil && *entity.AvatarID != 0 {
-		avatarId = entity.AvatarID
+		avatarID = entity.AvatarID
 	}
 	return &models.User{
 		ID:         entity.ID,
@@ -85,9 +83,9 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 		LastName:   entity.LastName,
 		MiddleName: &entity.MiddleName,
 		Email:      entity.Email,
-		UiLanguage: string(entity.UILanguage),
+		UILanguage: string(entity.UILanguage),
 		Password:   &entity.Password,
-		AvatarID:   avatarId,
+		AvatarID:   avatarID,
 		EmployeeID: entity.EmployeeID,
 		Avatar:     avatar,
 		LastIP:     entity.LastIP,
@@ -150,26 +148,6 @@ func toDomainPermission(dbPermission models.Permission) (permission.Permission, 
 	}, nil
 }
 
-func toDomainProject(dbProject *models.Project) *project.Project {
-	return &project.Project{
-		ID:          dbProject.ID,
-		Name:        dbProject.Name,
-		Description: dbProject.Description,
-		CreatedAt:   dbProject.CreatedAt,
-		UpdatedAt:   dbProject.UpdatedAt,
-	}
-}
-
-func toDBProject(entity *project.Project) *models.Project {
-	return &models.Project{
-		ID:          entity.ID,
-		Name:        entity.Name,
-		Description: entity.Description,
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
-	}
-}
-
 func ToDomainPin(s sql.NullString, c country.Country) (tax.Pin, error) {
 	if !s.Valid {
 		return tax.NilPin, nil
@@ -213,7 +191,7 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 		pin,
 		employee.NewLanguage(dbMeta.PrimaryLanguage.String, dbMeta.SecondaryLanguage.String),
 		dbMeta.HireDate.Time,
-		mapping.SqlNullTimeToPointer(dbMeta.ResignationDate),
+		mapping.SQLNullTimeToPointer(dbMeta.ResignationDate),
 		avatarID,
 		dbMeta.Notes.String,
 		dbEmployee.CreatedAt,
@@ -226,43 +204,24 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 		ID:         entity.ID(),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
-		MiddleName: mapping.ValueToSqlNullString(entity.MiddleName()),
+		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
 		Email:      entity.Email().Value(),
-		Phone:      mapping.ValueToSqlNullString(entity.Phone()),
+		Phone:      mapping.ValueToSQLNullString(entity.Phone()),
 		CreatedAt:  entity.CreatedAt(),
 		UpdatedAt:  entity.UpdatedAt(),
 	}
 	lang := entity.Language()
 	dbEmployeeMeta := &models.EmployeeMeta{
-		PrimaryLanguage:   mapping.ValueToSqlNullString(lang.Primary()),
-		SecondaryLanguage: mapping.ValueToSqlNullString(lang.Secondary()),
-		Tin:               mapping.ValueToSqlNullString(entity.Tin().Value()),
-		Pin:               mapping.ValueToSqlNullString(entity.Pin().Value()),
-		Notes:             mapping.ValueToSqlNullString(entity.Notes()),
-		BirthDate:         mapping.ValueToSqlNullTime(entity.BirthDate()),
-		HireDate:          mapping.ValueToSqlNullTime(entity.HireDate()),
-		ResignationDate:   mapping.PointerToSqlNullTime(entity.ResignationDate()),
+		PrimaryLanguage:   mapping.ValueToSQLNullString(lang.Primary()),
+		SecondaryLanguage: mapping.ValueToSQLNullString(lang.Secondary()),
+		Tin:               mapping.ValueToSQLNullString(entity.Tin().Value()),
+		Pin:               mapping.ValueToSQLNullString(entity.Pin().Value()),
+		Notes:             mapping.ValueToSQLNullString(entity.Notes()),
+		BirthDate:         mapping.ValueToSQLNullTime(entity.BirthDate()),
+		HireDate:          mapping.ValueToSQLNullTime(entity.HireDate()),
+		ResignationDate:   mapping.PointerToSQLNullTime(entity.ResignationDate()),
 	}
 	return dbEmployee, dbEmployeeMeta
-}
-
-func toDomainProjectStage(dbStage *models.ProjectStage) *stage.ProjectStage {
-	return &stage.ProjectStage{
-		ID:        dbStage.ID,
-		Name:      dbStage.Name,
-		CreatedAt: dbStage.CreatedAt,
-		UpdatedAt: dbStage.UpdatedAt,
-	}
-}
-
-func toDBProjectStage(entity *stage.ProjectStage) *models.ProjectStage {
-	return &models.ProjectStage{
-		ID:        entity.ID,
-		Name:      entity.Name,
-		ProjectID: entity.ProjectID,
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
-	}
 }
 
 func ToDBUpload(upload *upload.Upload) *models.Upload {

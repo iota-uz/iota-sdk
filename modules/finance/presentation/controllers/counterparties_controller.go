@@ -1,13 +1,13 @@
 package controllers
 
 import (
-	"fmt"
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"net/http"
+	"strconv"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -15,10 +15,9 @@ import (
 )
 
 type CounterpartiesController struct {
-	app                    application.Application
-	counterpartiesService  *services.CounterpartyService
-	expenseCategoryService *services.ExpenseCategoryService
-	basePath               string
+	app                   application.Application
+	counterpartiesService *services.CounterpartyService
+	basePath              string
 }
 
 func NewCounterpartiesController(app application.Application) application.Controller {
@@ -61,7 +60,7 @@ func (c *CounterpartiesController) Search(w http.ResponseWriter, r *http.Request
 	}
 	props := mapping.MapViewModels(entities, func(e counterparty.Counterparty) *base.ComboboxOption {
 		return &base.ComboboxOption{
-			Value: fmt.Sprintf("%d", e.ID()),
+			Value: strconv.FormatUint(uint64(e.ID()), 10),
 			Label: e.Name(),
 		}
 	})

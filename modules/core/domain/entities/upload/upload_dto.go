@@ -55,7 +55,7 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 	conf := configuration.Use()
 	bytes, err := io.ReadAll(d.File)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, err
 	}
 	mdsum := md5.Sum(bytes)
 	hash := hex.EncodeToString(mdsum[:])

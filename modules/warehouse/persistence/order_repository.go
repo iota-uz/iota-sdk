@@ -79,7 +79,7 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 			return nil, err
 		}
 		// FIXME: better fix ToDomainOrder function than converting back to db model
-		if o.Products, err = mapping.MapDbModels(products, toDBProduct); err != nil {
+		if o.Products, err = mapping.MapDBModels(products, toDBProduct); err != nil {
 			return nil, err
 		}
 		domainOrder, err := ToDomainOrder(&o)

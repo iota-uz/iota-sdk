@@ -13,6 +13,12 @@ type DateOnly time.Time
 func initDecoder() *form.Decoder {
 	decoder := form.NewDecoder()
 	decoder.RegisterCustomTypeFunc(func(strings []string) (interface{}, error) {
+		if len(strings) == 0 {
+			return DateOnly(time.Time{}), nil
+		}
+		if len(strings[0]) == 0 {
+			return DateOnly(time.Time{}), nil
+		}
 		v, err := time.Parse(time.DateOnly, strings[0])
 		if err != nil {
 			return nil, err

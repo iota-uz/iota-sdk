@@ -151,7 +151,7 @@ func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.P
 		}
 		entities = append(entities, &entity)
 	}
-	return mapping.MapDbModels(entities, toDomainInventoryPosition)
+	return mapping.MapDBModels(entities, toDomainInventoryPosition)
 }
 
 func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {

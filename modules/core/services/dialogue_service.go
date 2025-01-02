@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"errors"
-	dialogue2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
@@ -16,7 +16,7 @@ import (
 )
 
 type DialogueService struct {
-	repo           dialogue2.Repository
+	repo           dialogue.Repository
 	eventPublisher event.Publisher
 	chatFuncs      *functions.ChatTools
 	promptService  *PromptService
@@ -27,7 +27,7 @@ var (
 	ErrModelRequired  = errors.New("model is required")
 )
 
-func NewDialogueService(repo dialogue2.Repository, app application.Application) *DialogueService {
+func NewDialogueService(repo dialogue.Repository, app application.Application) *DialogueService {
 	chatFuncs := functions.New()
 
 	// chatFuncs.Add(chatfuncs.NewCurrencyConvert())
@@ -45,15 +45,15 @@ func (s *DialogueService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *DialogueService) GetAll(ctx context.Context) ([]*dialogue2.Dialogue, error) {
+func (s *DialogueService) GetAll(ctx context.Context) ([]*dialogue.Dialogue, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *DialogueService) GetUserDialogues(ctx context.Context, userID int64) ([]*dialogue2.Dialogue, error) {
+func (s *DialogueService) GetUserDialogues(ctx context.Context, userID int64) ([]*dialogue.Dialogue, error) {
 	return s.repo.GetByUserID(ctx, userID)
 }
 
-func (s *DialogueService) GetByID(ctx context.Context, id int64) (*dialogue2.Dialogue, error) {
+func (s *DialogueService) GetByID(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -61,7 +61,7 @@ func (s *DialogueService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*dialogue2.Dialogue, error) {
+) ([]*dialogue.Dialogue, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
@@ -71,7 +71,7 @@ func (s *DialogueService) streamCompletions(
 	model string,
 ) (chan openai.ChatCompletionMessage, error) {
 	client := openai.NewClient(configuration.Use().OpenAIKey)
-	stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{ //nolint:exhaustruct
+	stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
 		Model:    model,
 		Messages: messages,
 		Tools:    s.chatFuncs.OpenAiTools(),
@@ -81,7 +81,7 @@ func (s *DialogueService) streamCompletions(
 		return nil, err
 	}
 	ch := make(chan openai.ChatCompletionMessage)
-	response := openai.ChatCompletionMessage{ //nolint:exhaustruct
+	response := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleAssistant,
 		Content: "",
 	}
@@ -148,19 +148,19 @@ func (s *DialogueService) streamCompletions(
 //	return ch, nil
 //}
 
-func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue2.Dialogue, model string) error {
+func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialogue, model string) error {
 	for range 10 {
 		ch, err := s.streamCompletions(ctx, data.Messages, model)
 		if err != nil {
 			return err
 		}
-		data.AddMessage(openai.ChatCompletionMessage{ //nolint:exhaustruct
+		data.AddMessage(openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: "",
 		})
 		for m := range ch {
 			data.Messages[len(data.Messages)-1] = m
-			s.eventPublisher.Publish(dialogue2.UpdatedEvent{ //nolint:exhaustruct
+			s.eventPublisher.Publish(dialogue.UpdatedEvent{
 				Result: *data,
 			})
 		}
@@ -185,7 +185,7 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue2.Dial
 			if err != nil {
 				return err
 			}
-			data.AddMessage(openai.ChatCompletionMessage{ //nolint:exhaustruct
+			data.AddMessage(openai.ChatCompletionMessage{
 				Role:       openai.ChatMessageRoleTool,
 				ToolCallID: call.ID,
 				Content:    result,
@@ -199,7 +199,7 @@ func (s *DialogueService) ReplyToDialogue(
 	ctx context.Context,
 	dialogueID int64,
 	message, model string,
-) (*dialogue2.Dialogue, error) {
+) (*dialogue.Dialogue, error) {
 	if len(message) > 1000 {
 		return nil, ErrMessageTooLong
 	}
@@ -210,7 +210,7 @@ func (s *DialogueService) ReplyToDialogue(
 	if err != nil {
 		return nil, err
 	}
-	data.AddMessage(openai.ChatCompletionMessage{ //nolint:exhaustruct
+	data.AddMessage(openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: message,
 	})
@@ -223,7 +223,7 @@ func (s *DialogueService) ReplyToDialogue(
 	return data, nil
 }
 
-func (s *DialogueService) StartDialogue(ctx context.Context, message string, model string) (*dialogue2.Dialogue, error) {
+func (s *DialogueService) StartDialogue(ctx context.Context, message string, model string) (*dialogue.Dialogue, error) {
 	if len(message) > 1000 {
 		return nil, ErrMessageTooLong
 	}
@@ -238,18 +238,18 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err != nil {
 		return nil, err
 	}
-	data := &dialogue2.Dialogue{ //nolint:exhaustruct
+	data := &dialogue.Dialogue{
 		UserID: u.ID,
-		Messages: dialogue2.Messages{
-			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt}, //nolint:exhaustruct
-			{Role: openai.ChatMessageRoleUser, Content: message},         //nolint:exhaustruct
+		Messages: dialogue.Messages{
+			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt},
+			{Role: openai.ChatMessageRoleUser, Content: message},
 		},
 		Label: "Новый чат",
 	}
 	if err := s.repo.Create(ctx, data); err != nil {
 		return nil, err
 	}
-	createdEvent, err := dialogue2.NewCreatedEvent(ctx, *data, *data)
+	createdEvent, err := dialogue.NewCreatedEvent(ctx, *data, *data)
 	if err != nil {
 		return nil, err
 	}
@@ -260,12 +260,12 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	return data, nil
 }
 
-func (s *DialogueService) Update(ctx context.Context, data *dialogue2.Dialogue) error {
+func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) error {
 	tmp := *data
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	updatedEvent, err := dialogue2.NewUpdatedEvent(ctx, tmp, *data)
+	updatedEvent, err := dialogue.NewUpdatedEvent(ctx, tmp, *data)
 	if err != nil {
 		return err
 	}
@@ -273,12 +273,12 @@ func (s *DialogueService) Update(ctx context.Context, data *dialogue2.Dialogue) 
 	return nil
 }
 
-func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue2.Dialogue, error) {
+func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	deletedEvent, err := dialogue2.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := dialogue.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}

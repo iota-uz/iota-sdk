@@ -8,27 +8,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 )
-
-func flatNavItems(items []types.NavigationItem) []types.NavigationItem {
-	var flatItems []types.NavigationItem
-	for _, item := range items {
-		flatItems = append(flatItems, item)
-		if item.Children != nil {
-			for _, child := range flatNavItems(item.Children) {
-				flatItems = append(flatItems, types.NavigationItem{
-					Name:     child.Name,
-					Href:     child.Href,
-					Icon:     item.Icon,
-					Children: child.Children,
-				})
-			}
-		}
-	}
-	return flatItems
-}
 
 type SpotlightController struct {
 	app        application.Application

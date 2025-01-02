@@ -122,7 +122,7 @@ func (h MyPOST) Supports(r *http.Request) bool {
 		return false
 	}
 
-	return r.Method == "POST" && mediaType == "application/json"
+	return r.Method == http.MethodPost && mediaType == "application/json"
 }
 
 func getRequestBody(r *http.Request) (string, error) {
@@ -201,19 +201,19 @@ func NewHandler(rootExecutor *executor.Executor) *Handler {
 	server := &Handler{}
 	server.execs = append(server.execs, rootExecutor)
 
-	server.AddTransport(transport.Websocket{ //nolint:exhaustruct
+	server.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10 * time.Second,
-		Upgrader: websocket.Upgrader{ //nolint:exhaustruct
+		Upgrader: websocket.Upgrader{
 			// TODO: Add origin check
 			CheckOrigin: func(_ *http.Request) bool {
 				return true
 			},
 		},
 	})
-	server.AddTransport(transport.Options{})       //nolint:exhaustruct
-	server.AddTransport(transport.GET{})           //nolint:exhaustruct
-	server.AddTransport(MyPOST{})                  //nolint:exhaustruct
-	server.AddTransport(transport.MultipartForm{}) //nolint:exhaustruct
+	server.AddTransport(transport.Options{})
+	server.AddTransport(transport.GET{})
+	server.AddTransport(MyPOST{})
+	server.AddTransport(transport.MultipartForm{})
 
 	// TODO: make LRU work
 	// srv.SetQueryCache(lru.New(1000))
@@ -377,7 +377,7 @@ func (r ResponseFunc) InterceptResponse(ctx context.Context, next graphql.Respon
 	return r(ctx, next)
 }
 
-type FieldFunc func(ctx context.Context, next graphql.Resolver) (res any, err error)
+type FieldFunc func(ctx context.Context, next graphql.Resolver) (any, error)
 
 func (f FieldFunc) ExtensionName() string {
 	return "InlineFieldFunc"
@@ -390,6 +390,6 @@ func (f FieldFunc) Validate(schema graphql.ExecutableSchema) error {
 	return nil
 }
 
-func (f FieldFunc) InterceptField(ctx context.Context, next graphql.Resolver) (res any, err error) {
+func (f FieldFunc) InterceptField(ctx context.Context, next graphql.Resolver) (any, error) {
 	return f(ctx, next)
 }

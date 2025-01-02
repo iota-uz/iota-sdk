@@ -97,7 +97,7 @@ func (c *Configuration) GormLogLevel() logger.LogLevel {
 
 func Use() *Configuration {
 	if singleton == nil {
-		singleton = &Configuration{} //nolint:exhaustruct
+		singleton = &Configuration{}
 		if err := singleton.load([]string{".env", ".env.local"}); err != nil {
 			panic(err)
 		}

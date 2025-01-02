@@ -170,7 +170,7 @@ func (g *GormTransactionRepository) queryTransactions(ctx context.Context, query
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return mapping.MapDbModels(dbRows, toDomainTransaction)
+	return mapping.MapDBModels(dbRows, toDomainTransaction)
 }
 
 func (g *GormTransactionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {

@@ -8,24 +8,24 @@ import (
 
 type Payment interface {
 	ID() uint
-	SetID(uint)
+	SetID(id uint)
 
 	Amount() float64
-	SetAmount(float64)
+	SetAmount(amount float64)
 
 	TransactionID() uint
 
 	CounterpartyID() uint
-	SetCounterpartyID(uint)
+	SetCounterpartyID(partyID uint)
 
 	TransactionDate() time.Time
-	SetTransactionDate(time.Time)
+	SetTransactionDate(t time.Time)
 
 	AccountingPeriod() time.Time
-	SetAccountingPeriod(time.Time)
+	SetAccountingPeriod(t time.Time)
 
 	Comment() string
-	SetComment(string)
+	SetComment(comment string)
 
 	Account() *moneyaccount.Account
 	User() *user.User

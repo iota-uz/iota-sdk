@@ -8,13 +8,13 @@ import (
 )
 
 type ErrDuplicateRfid struct {
-	serrors.Base
+	serrors.BaseError
 	Rfid string
 }
 
 func NewErrDuplicateRfid(rfid string) *ErrDuplicateRfid {
 	return &ErrDuplicateRfid{
-		Base: serrors.Base{
+		BaseError: serrors.BaseError{
 			Code:    "ERR_DUPLICATE_RFID",
 			Message: fmt.Sprintf("Rfid %s already exists", rfid),
 		},

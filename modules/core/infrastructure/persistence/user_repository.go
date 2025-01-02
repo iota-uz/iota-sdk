@@ -172,7 +172,7 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error 
 		dbUser.MiddleName,
 		dbUser.Email,
 		dbUser.Password,
-		dbUser.UiLanguage,
+		dbUser.UILanguage,
 		dbUser.AvatarID,
 		dbUser.EmployeeID,
 		dbUser.CreatedAt,
@@ -230,7 +230,7 @@ func (g *GormUserRepository) Update(ctx context.Context, data *user.User) error 
 		dbUser.MiddleName,
 		dbUser.Email,
 		dbUser.Password,
-		dbUser.UiLanguage,
+		dbUser.UILanguage,
 		dbUser.AvatarID,
 		dbUser.EmployeeID,
 		dbUser.UpdatedAt,
@@ -300,7 +300,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 
 		if err := rows.Scan(
 			&u.ID, &u.FirstName, &u.LastName, &middleName, &u.Email, &password,
-			&u.UiLanguage, &avatarID, &lastLogin, &lastIP, &lastAction, &employeeID,
+			&u.UILanguage, &avatarID, &lastLogin, &lastIP, &lastAction, &employeeID,
 			&u.CreatedAt, &u.UpdatedAt,
 
 			// Upload fields

@@ -108,15 +108,6 @@ func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedRe
 	}, nil
 }
 
-func (c *ProductsController) getViewModelPositions(r *http.Request) ([]*viewmodels.Position, error) {
-	positions, err := c.positionService.GetAll(r.Context())
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving positions: %w", err)
-	}
-
-	return mapping.MapViewModels(positions, mappers.PositionToViewModel), nil
-}
-
 func (c *ProductsController) renderTemplate(w http.ResponseWriter, r *http.Request, template templ.Component) {
 	templ.Handler(template, templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -225,7 +216,7 @@ func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := c.productService.Update(r.Context(), id, dto); err != nil {
-			var vErr serrors.BaseError
+			var vErr serrors.Base
 			if errors.As(err, &vErr) {
 				entity.Rfid = dto.Rfid
 				props := &products.EditPageProps{
@@ -291,7 +282,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := c.productService.Create(r.Context(), dto); err != nil {
-		var vErr serrors.BaseError
+		var vErr serrors.Base
 		if errors.As(err, &vErr) {
 			props := &products.CreatePageProps{
 				PageContext: pageCtx,

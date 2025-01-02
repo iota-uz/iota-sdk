@@ -156,7 +156,7 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 	case shared.FormActionDelete:
 		_, err = c.userService.Delete(r.Context(), id)
 	case shared.FormActionSave:
-		dto := &user.UpdateDTO{} //nolint:exhaustruct
+		dto := &user.UpdateDTO{}
 		if err = shared.Decoder.Decode(dto, r.Form); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -214,7 +214,7 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &users.CreateFormProps{
 		PageContext: pageCtx,
-		User:        user.User{}, //nolint:exhaustruct
+		User:        user.User{},
 		Roles:       roles,
 		Errors:      map[string]string{},
 	}
@@ -227,7 +227,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := &user.CreateDTO{} //nolint:exhaustruct
+	dto := &user.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

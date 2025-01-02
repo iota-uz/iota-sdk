@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"net/http"
+	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -118,7 +119,7 @@ func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := c.positionService.UpdateWithFile(r.Context(), dto.FileID); err != nil {
-		var vErr serrors.BaseError
+		var vErr serrors.Base
 		if errors.As(err, &vErr) {
 			props := &positions2.UploadPageProps{
 				PageContext: pageCtx,
@@ -254,7 +255,7 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	props := mapping.MapViewModels(entities, func(pos *position.Position) *base.ComboboxOption {
 		return &base.ComboboxOption{
-			Value: fmt.Sprintf("%d", pos.ID),
+			Value: strconv.FormatUint(uint64(pos.ID), 10),
 			Label: pos.Title,
 		}
 	})
@@ -281,7 +282,7 @@ func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := position.UpdateDTO{} //nolint:exhaustruct
+		dto := position.UpdateDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
 		if err != nil {
@@ -336,7 +337,7 @@ func (c *PositionsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &positions2.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Position:    mappers.PositionToViewModel(&position.Position{}), //nolint:exhaustruct
+		Position:    mappers.PositionToViewModel(&position.Position{}),
 		SaveURL:     c.basePath,
 		Units:       unitViewModels,
 	}
@@ -349,7 +350,7 @@ func (c *PositionsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := position.CreateDTO{} //nolint:exhaustruct
+	dto := position.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

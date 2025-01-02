@@ -4,7 +4,8 @@
   },
   "ValidationErrors": {
     "required": "Это поле обязательно для заполнения",
-    "emptySelect": "Выберите значение"
+    "emptySelect": "Выберите значение",
+    "email": "Неверный формат электронной почты"
   },
   "Filters": {
     "CreatedAt": {

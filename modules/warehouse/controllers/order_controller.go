@@ -193,7 +193,6 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 		status = product.InDevelopment
 	case order.TypeOut:
 		status = product.InStock
-
 	}
 	countByPositionID := make(map[uint]int)
 	for _, item := range entity.Items() {
@@ -220,7 +219,6 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(orders.View(props), templ.WithStreaming()).ServeHTTP(w, r)
-
 }
 
 func (c *OrdersController) NewInOrder(w http.ResponseWriter, r *http.Request) {

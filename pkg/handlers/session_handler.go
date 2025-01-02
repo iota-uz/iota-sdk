@@ -7,24 +7,24 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
-	"gorm.io/gorm"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 	"time"
 )
 
 type SessionEventsHandler struct {
-	db             *gorm.DB
+	pool           *pgxpool.Pool
 	publisher      event.Publisher
 	authLogService *services.AuthLogService
 }
 
 func RegisterSessionEventHandlers(
-	db *gorm.DB,
+	pool *pgxpool.Pool,
 	publisher event.Publisher,
 	authLogService *services.AuthLogService,
 ) *SessionEventsHandler {
 	handler := &SessionEventsHandler{
-		db:             db,
+		pool:           pool,
 		publisher:      publisher,
 		authLogService: authLogService,
 	}
@@ -41,12 +41,15 @@ func (h *SessionEventsHandler) onSessionCreated(event session.CreatedEvent) {
 		UserAgent: sess.UserAgent,
 		CreatedAt: time.Now(),
 	}
-	tx := h.db.Begin()
+	tx, err := h.pool.Begin(context.Background())
+	if err != nil {
+		log.Fatalf("failed to begin transaction: %v", err)
+	}
 	ctx := composables.WithTx(context.Background(), tx)
 	if err := h.authLogService.Create(ctx, logEntity); err != nil {
 		log.Fatalf("failed to create auth log: %v", err)
 	}
-	if err := tx.Commit().Error; err != nil {
+	if err := tx.Commit(context.Background()); err != nil {
 		log.Fatalf("failed to commit transaction: %v", err)
 	}
 }

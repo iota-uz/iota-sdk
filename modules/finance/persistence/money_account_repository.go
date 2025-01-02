@@ -195,7 +195,7 @@ func (g *GormMoneyAccountRepository) queryAccounts(ctx context.Context, query st
 		}
 		dbRows = append(dbRows, &r)
 	}
-	return mapping.MapDbModels(dbRows, toDomainMoneyAccount)
+	return mapping.MapDBModels(dbRows, toDomainMoneyAccount)
 }
 
 func (g *GormMoneyAccountRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {

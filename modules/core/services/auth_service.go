@@ -81,7 +81,6 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
@@ -148,7 +147,7 @@ func (s *AuthService) authenticate(ctx context.Context, u *user.User) (*session.
 	return sess.ToEntity(), nil
 }
 
-func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, password string) (*user.User, *session.Session, error) {
+func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, password string) (*user.User, *session.Session, error) {
 	u, err := s.usersService.GetByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -163,14 +162,13 @@ func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, passw
 	return u, sess, nil
 }
 
-func (s *AuthService) CookieAuthenticateWithUserId(ctx context.Context, id uint, password string) (*http.Cookie, error) {
-	_, sess, err := s.AuthenticateWithUserId(ctx, id, password)
+func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint, password string) (*http.Cookie, error) {
+	_, sess, err := s.AuthenticateWithUserID(ctx, id, password)
 	if err != nil {
 		return nil, err
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
@@ -204,7 +202,6 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,

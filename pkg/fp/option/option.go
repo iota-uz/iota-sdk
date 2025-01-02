@@ -4,7 +4,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/fp"
 )
 
-// Base struct
+// BaseError struct
 type Option[T any] struct {
 	Value    T
 	hasValue bool
