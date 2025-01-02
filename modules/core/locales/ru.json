@@ -185,10 +185,10 @@
         "Label": "Должность",
         "Placeholder": "Выберите должность"
       },
-      "StartDate": {
+      "HireDate": {
         "Label": "Дата трудоустройства"
       },
-      "EndDate": {
+      "ResignationDate": {
         "Label": "Дата увольнения"
       },
       "EmploymentStatus": {
@@ -212,7 +212,7 @@
         "Label": "ИНН",
         "Placeholder": "1234567"
       },
-      "PINFL": {
+      "Pin": {
         "Label": "ПИНФЛ",
         "Placeholder": "123456789192121"
       }

@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tax"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
 )
@@ -22,6 +23,8 @@ type CreateDTO struct {
 	Salary            float64
 	Tin               string
 	Pin               string
+	HireDate          shared.DateOnly
+	ResignationDate   shared.DateOnly
 	PrimaryLanguage   string
 	SecondaryLanguage string
 	AvatarID          uint
@@ -37,6 +40,8 @@ type UpdateDTO struct {
 	Salary            float64
 	Tin               string
 	Pin               string
+	HireDate          shared.DateOnly
+	ResignationDate   shared.DateOnly
 	PrimaryLanguage   string
 	SecondaryLanguage string
 	AvatarID          uint
@@ -64,6 +69,9 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 			},
 		})
 	}
+	if _, err := email.New(d.Email); err != nil {
+		errorMessages["Email"] = err.Error()
+	}
 	return errorMessages, len(errorMessages) == 0
 }
 
@@ -87,6 +95,9 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 				"Field": translatedFieldName,
 			},
 		})
+	}
+	if _, err := email.New(d.Email); err != nil {
+		errorMessages["Email"] = err.Error()
 	}
 	return errorMessages, len(errorMessages) == 0
 }
@@ -114,6 +125,8 @@ func (d *CreateDTO) ToEntity() (Employee, error) {
 		tin,
 		pin,
 		NewLanguage(d.PrimaryLanguage, d.SecondaryLanguage),
+		time.Time(d.HireDate),
+		(*time.Time)(&d.ResignationDate),
 		0,
 		"",
 	)
@@ -144,6 +157,8 @@ func (d *UpdateDTO) ToEntity(id uint) (Employee, error) {
 		tin,
 		pin,
 		NewLanguage(d.PrimaryLanguage, d.SecondaryLanguage),
+		time.Time(d.HireDate),
+		(*time.Time)(&d.ResignationDate),
 		0,
 		"",
 		time.Now(),

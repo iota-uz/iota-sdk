@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -56,7 +57,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
@@ -92,6 +93,35 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.New.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	entity, err := employee.New(
+		"",
+		"",
+		"",
+		"",
+		nil,
+		0,
+		nil,
+		nil,
+		nil,
+		time.Now(),
+		nil,
+		0, "",
+	)
+	props := &employees.CreatePageProps{
+		PageContext: pageCtx,
+		Errors:      map[string]string{},
+		Employee:    mappers.EmployeeToViewModel(entity),
+		PostPath:    c.basePath,
+	}
+	templ.Handler(employees.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
 func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
@@ -123,113 +153,10 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(employees.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *EmployeeController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
-		return
-	}
-
-	if _, err := c.employeeService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	shared.Redirect(w, r, c.basePath)
-}
-
-func (c *EmployeeController) PostEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
-		return
-	}
-	r.Form.Del("_action")
-
-	switch action {
-	case shared.FormActionDelete:
-		if _, err := c.employeeService.Delete(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	case shared.FormActionSave:
-		dto := employee.UpdateDTO{}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Employees.Meta.Edit.Title", ""))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		errorsMap, ok := dto.Ok(r.Context())
-		if ok {
-			if err := c.employeeService.Update(r.Context(), id, &dto); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			entity, err := c.employeeService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving account", http.StatusInternalServerError)
-				return
-			}
-			props := &employees.EditPageProps{
-				PageContext: pageCtx,
-				Employee:    mappers.EmployeeToViewModel(entity),
-				Errors:      errorsMap,
-				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
-				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
-			}
-			templ.Handler(employees.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-	}
-	shared.Redirect(w, r, c.basePath)
-}
-
-func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	entity, err := employee.New(
-		"",
-		"",
-		"",
-		"",
-		nil,
-		0,
-		nil,
-		nil,
-		nil,
-		0, "",
-	)
-	props := &employees.CreatePageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
-		Employee:    mappers.EmployeeToViewModel(entity), //nolint:exhaustruct
-		PostPath:    c.basePath,
-	}
-	templ.Handler(employees.New(props), templ.WithStreaming()).ServeHTTP(w, r)
-}
-
 func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := employee.CreateDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	dto, err := composables.UseForm(&employee.CreateDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -256,10 +183,60 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.employeeService.Create(r.Context(), &dto); err != nil {
+	if err := c.employeeService.Create(r.Context(), dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dto, err := composables.UseForm(&employee.UpdateDTO{}, r)
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.Edit.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	errorsMap, ok := dto.Ok(r.Context())
+	if ok {
+		if err := c.employeeService.Update(r.Context(), id, dto); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		entity, err := c.employeeService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving account", http.StatusInternalServerError)
+			return
+		}
+		props := &employees.EditPageProps{
+			PageContext: pageCtx,
+			Employee:    mappers.EmployeeToViewModel(entity),
+			Errors:      errorsMap,
+			SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+			DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		}
+		templ.Handler(employees.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *EmployeeController) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+	if _, err := c.employeeService.Delete(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	shared.Redirect(w, r, c.basePath)
 }

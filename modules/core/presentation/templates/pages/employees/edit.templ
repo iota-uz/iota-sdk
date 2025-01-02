@@ -22,6 +22,13 @@ type EditPageProps struct {
 }
 
 templ EditForm(props *EditPageProps) {
+	{{
+	sharedProps := SharedProps{
+		PageContext: props.PageContext,
+		Employee:    props.Employee,
+		Errors:      props.Errors,
+	}
+	}}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		<div class="m-6">
 			@tab.Root(tab.Props{
@@ -107,24 +114,8 @@ templ EditForm(props *EditPageProps) {
 						WrapperClass: "mt-5",
 						Class:        "grid grid-cols-3 gap-4",
 					}) {
-						@input.Date(&input.Props{
-							Label: props.T("Employees.Public.StartDate.Label"),
-							Error: props.Errors["StartDate"],
-							Attrs: templ.Attributes{
-								"name": "StartDate",
-								// "value": props.Employee.StartDate,
-								"form": "save-form",
-							},
-						})
-						@input.Date(&input.Props{
-							Label: props.T("Employees.Public.EndDate.Label"),
-							Error: props.Errors["EndDate"],
-							Attrs: templ.Attributes{
-								"name": "EndDate",
-								// "value": props.Employee.EndDate,
-								"form": "save-form",
-							},
-						})
+						@JoinDateInput(sharedProps)
+						@ResignationDateInput(sharedProps)
 						@base.Select(&base.SelectProps{
 							Label:       props.T("Employees.Public.Position.Label"),
 							Placeholder: props.T("Employees.Public.Position.Placeholder"),
@@ -177,36 +168,9 @@ templ EditForm(props *EditPageProps) {
 						Class:        "grid grid-cols-3 gap-4",
 						WrapperClass: "mt-5",
 					}) {
-						@input.Text(&input.Props{
-							Label:       props.T("Employees.Private.TIN.Label"),
-							Placeholder: props.T("Employees.Private.TIN.Placeholder"),
-							Error:       props.Errors["TIN"],
-							Attrs: templ.Attributes{
-								"name":  "TIN",
-								"value": "",
-								"form":  "save-form",
-							},
-						})
-						@input.Text(&input.Props{
-							Label:       props.T("Employees.Private.PINFL.Label"),
-							Placeholder: props.T("Employees.Private.PINFL.Placeholder"),
-							Error:       props.Errors["PINFL"],
-							Attrs: templ.Attributes{
-								"name":  "PINFL",
-								"value": "",
-								"form":  "save-form",
-							},
-						})
-						@input.Text(&input.Props{
-							Label:       props.T("Employees.Private.PassportSN.Label"),
-							Placeholder: props.T("Employees.Private.PassportSN.Placeholder"),
-							Error:       props.Errors["PassportSN"],
-							Attrs: templ.Attributes{
-								"name":  "PassportSN",
-								"value": "",
-								"form":  "save-form",
-							},
-						})
+						@TinInput(sharedProps)
+						@PinInput(sharedProps)
+						@PassportInput(sharedProps)
 					}
 				</div>
 			}

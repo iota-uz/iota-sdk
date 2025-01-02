@@ -212,6 +212,8 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 		tin,
 		pin,
 		employee.NewLanguage(dbMeta.PrimaryLanguage.String, dbMeta.SecondaryLanguage.String),
+		dbMeta.HireDate.Time,
+		mapping.SqlNullTimeToPointer(dbMeta.ResignationDate),
 		avatarID,
 		dbMeta.Notes.String,
 		dbEmployee.CreatedAt,
