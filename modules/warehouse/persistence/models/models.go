@@ -31,7 +31,7 @@ type InventoryPosition struct {
 	ID       uint
 	Title    string
 	Quantity int
-	RfidTags pq.StringArray `gorm:"type:text[]"`
+	RfidTags pq.StringArray
 }
 
 type InventoryCheckResult struct {

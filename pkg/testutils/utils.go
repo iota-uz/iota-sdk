@@ -3,9 +3,12 @@ package testutils
 import (
 	"context"
 	"database/sql"
-	"log"
-	"os"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -13,21 +16,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/event"
-	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/lib/pq"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
 )
 
 type TestContext struct {
-	SQLDB   *sql.DB
-	GormDB  *gorm.DB
+	SqlDB   *sql.DB
+	Pool    *pgxpool.Pool
 	Context context.Context
-	Tx      *gorm.DB
+	Tx      pgx.Tx
 	App     application.Application
 }
 
@@ -71,26 +69,13 @@ func MockSession() *session.Session {
 
 func GetTestContext() *TestContext {
 	conf := configuration.Use()
-	db, err := dbutils.ConnectDB(
-		conf.DBOpts,
-		gormlogger.New(
-			log.New(os.Stdout, "\r\n", log.LstdFlags),
-			gormlogger.Config{
-				SlowThreshold:             0,
-				LogLevel:                  gormlogger.Error,
-				IgnoreRecordNotFoundError: false,
-				Colorful:                  true,
-				ParameterizedQueries:      true,
-			},
-		),
-	)
-	if err != nil {
-		panic(err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, conf.DBOpts)
-	app := application.New(db, pool, event.NewEventPublisher())
+	if err != nil {
+		panic(err)
+	}
+	app := application.New(pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
@@ -100,12 +85,13 @@ func GetTestContext() *TestContext {
 	if err := app.RunMigrations(); err != nil {
 		panic(err)
 	}
-	sqlDB, err := db.DB()
+
+	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)
+
+	tx, err := pool.Begin(ctx)
 	if err != nil {
 		panic(err)
 	}
-
-	tx := db.Begin()
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithParams(
 		ctx,
@@ -119,8 +105,8 @@ func GetTestContext() *TestContext {
 	)
 
 	return &TestContext{
-		SQLDB:   sqlDB,
-		GormDB:  db,
+		SqlDB:   sqlDB,
+		Pool:    pool,
 		Tx:      tx,
 		Context: ctx,
 		App:     app,

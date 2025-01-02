@@ -13,13 +13,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
-	gormlogger "gorm.io/gorm/logger"
 )
 
 func main() {
@@ -30,29 +28,13 @@ func main() {
 	}
 	defer logFile.Close()
 
-	db, err := dbutils.ConnectDB(
-		conf.DBOpts,
-		gormlogger.New(
-			logger,
-			gormlogger.Config{
-				SlowThreshold:             0,
-				LogLevel:                  conf.GormLogLevel(),
-				IgnoreRecordNotFoundError: false,
-				Colorful:                  true,
-				ParameterizedQueries:      true,
-			},
-		),
-	)
-	if err != nil {
-		log.Fatalf("failed to connect to db: %v", err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, conf.DBOpts)
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(db, pool, event.NewEventPublisher())
+	app := application.New(pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}
@@ -68,7 +50,6 @@ func main() {
 	options := &server.DefaultOptions{
 		Logger:        logger,
 		Configuration: conf,
-		Db:            db,
 		Application:   app,
 		Pool:          pool,
 	}

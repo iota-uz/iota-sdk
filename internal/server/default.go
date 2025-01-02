@@ -10,14 +10,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
 
 type DefaultOptions struct {
 	Logger        *logrus.Logger
 	Configuration *configuration.Configuration
 	Application   application.Application
-	Db            *gorm.DB
 	Pool          *pgxpool.Pool
 }
 
@@ -29,8 +27,6 @@ func Default(options *DefaultOptions) (*server.HttpServer, error) {
 		middleware.Provide(constants.HeadKey, layouts.Head()),
 		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, options.Pool),
-		middleware.Provide(constants.DBKey, options.Db),
-		middleware.Provide(constants.TxKey, options.Db),
 		middleware.Cors("http://localhost:3000", "ws://localhost:3000"),
 		middleware.RequestParams(),
 		middleware.LogRequests(),

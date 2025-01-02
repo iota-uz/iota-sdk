@@ -1,8 +1,8 @@
 package services
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/costcomponent"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/settings"
 )
 

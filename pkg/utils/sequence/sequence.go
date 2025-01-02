@@ -3,6 +3,7 @@ package sequence
 import (
 	"reflect"
 	"strings"
+	"unicode"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -40,9 +41,18 @@ func Pad(b *strings.Builder, str string) {
 func RemoveNonNumeric(str string) string {
 	var b strings.Builder
 	for _, r := range str {
-		if r >= '0' && r <= '9' {
+		if unicode.IsDigit(r) {
 			b.WriteRune(r)
 		}
 	}
 	return b.String()
+}
+
+func IsNumeric(str string) bool {
+	for _, r := range str {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
 }
