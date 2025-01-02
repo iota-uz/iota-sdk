@@ -1,6 +1,10 @@
 package mapping
 
-import "reflect"
+import (
+	"database/sql"
+	"reflect"
+	"time"
+)
 
 // MapViewModels maps entities to view models
 func MapViewModels[T any, V any](entities []T, mapFunc func(T) V) []V {
@@ -59,4 +63,44 @@ func PointerSlice[T any](v []T) []*T {
 		values[i] = &val
 	}
 	return values
+}
+
+func ValueToSqlNullString(s string) sql.NullString {
+	return sql.NullString{
+		String: s,
+		Valid:  s != "",
+	}
+}
+
+func PointerToSqlNullString(s *string) sql.NullString {
+	if s != nil {
+		return sql.NullString{
+			String: *s,
+			Valid:  true,
+		}
+	}
+	return sql.NullString{
+		String: "",
+		Valid:  false,
+	}
+}
+
+func ValueToSqlNullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{
+		Time:  t,
+		Valid: t != time.Time{},
+	}
+}
+
+func PointerToSqlNullTime(t *time.Time) sql.NullTime {
+	if t != nil {
+		return sql.NullTime{
+			Time:  *t,
+			Valid: true,
+		}
+	}
+	return sql.NullTime{
+		Time:  time.Time{},
+		Valid: false,
+	}
 }

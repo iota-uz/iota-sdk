@@ -11,6 +11,13 @@ var (
 	ErrInvalidTin = errors.New("invalid TIN")
 )
 
+var (
+	NilTin Tin = &tin{
+		v:      "",
+		county: country.NilCountry,
+	}
+)
+
 func NewTin(t string, c country.Country) (Tin, error) {
 	if !IsValidTin(t, c) {
 		return nil, ErrInvalidTin

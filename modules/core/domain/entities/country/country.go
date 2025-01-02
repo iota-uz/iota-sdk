@@ -9,6 +9,7 @@ type country string
 
 var (
 	ErrInvalidCountry = errors.New("invalid country")
+	NilCountry        = country("")
 )
 
 func (c country) String() string {

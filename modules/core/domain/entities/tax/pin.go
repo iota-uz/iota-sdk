@@ -11,6 +11,13 @@ var (
 	ErrInvalidPin = errors.New("invalid PIN")
 )
 
+var (
+	NilPin Pin = &pin{
+		v:       "",
+		country: country.NilCountry,
+	}
+)
+
 func NewPin(v string, c country.Country) (Pin, error) {
 	if !IsValidPin(v, c) {
 		return nil, ErrInvalidPin

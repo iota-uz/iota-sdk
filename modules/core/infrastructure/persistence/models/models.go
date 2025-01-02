@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,9 +64,9 @@ type Employee struct {
 	ID               uint
 	FirstName        string
 	LastName         string
-	MiddleName       string
+	MiddleName       sql.NullString
 	Email            string
-	Phone            string
+	Phone            sql.NullString
 	Salary           float64
 	SalaryCurrencyID *uint
 	HourlyRate       float64
@@ -76,14 +77,14 @@ type Employee struct {
 }
 
 type EmployeeMeta struct {
-	PrimaryLanguage   string
-	SecondaryLanguage string
-	Tin               string
-	Pin               string
-	Notes             string
-	BirthDate         time.Time
-	HireDate          time.Time
-	ResignationDate   *time.Time
+	PrimaryLanguage   sql.NullString
+	SecondaryLanguage sql.NullString
+	Tin               sql.NullString
+	Pin               sql.NullString
+	Notes             sql.NullString
+	BirthDate         sql.NullTime
+	HireDate          sql.NullTime
+	ResignationDate   sql.NullTime
 }
 
 type EmployeePosition struct {

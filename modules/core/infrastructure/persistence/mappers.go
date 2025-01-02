@@ -1,9 +1,11 @@
 package persistence
 
 import (
+	"database/sql"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tax"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -168,12 +170,26 @@ func toDBProject(entity *project.Project) *models.Project {
 	}
 }
 
+func ToDomainPin(s sql.NullString, c country.Country) (tax.Pin, error) {
+	if !s.Valid {
+		return tax.NilPin, nil
+	}
+	return tax.NewPin(s.String, c)
+}
+
+func ToDomainTin(s sql.NullString, c country.Country) (tax.Tin, error) {
+	if !s.Valid {
+		return tax.NilTin, nil
+	}
+	return tax.NewTin(s.String, c)
+}
+
 func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) (employee.Employee, error) {
-	tin, err := tax.NewTin(dbMeta.Tin, country.Uzbekistan)
+	tin, err := ToDomainTin(dbMeta.Tin, country.Uzbekistan)
 	if err != nil {
 		return nil, err
 	}
-	pin, err := tax.NewPin(dbMeta.Tin, country.Uzbekistan)
+	pin, err := ToDomainPin(dbMeta.Pin, country.Uzbekistan)
 	if err != nil {
 		return nil, err
 	}
@@ -189,15 +205,15 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 		dbEmployee.ID,
 		dbEmployee.FirstName,
 		dbEmployee.LastName,
-		dbEmployee.MiddleName,
-		dbEmployee.Phone,
+		dbEmployee.MiddleName.String,
+		dbEmployee.Phone.String,
 		mail,
 		dbEmployee.Salary,
 		tin,
 		pin,
-		employee.NewLanguage(dbMeta.PrimaryLanguage, dbMeta.SecondaryLanguage),
+		employee.NewLanguage(dbMeta.PrimaryLanguage.String, dbMeta.SecondaryLanguage.String),
 		avatarID,
-		dbMeta.Notes,
+		dbMeta.Notes.String,
 		dbEmployee.CreatedAt,
 		dbEmployee.UpdatedAt,
 	), nil
@@ -205,24 +221,25 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 
 func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeMeta) {
 	dbEmployee := &models.Employee{
-		ID:        entity.ID(),
-		FirstName: entity.FirstName(),
-		LastName:  entity.LastName(),
-		Email:     entity.Email().Value(),
-		Phone:     entity.Phone(),
-		CreatedAt: entity.CreatedAt(),
-		UpdatedAt: entity.UpdatedAt(),
+		ID:         entity.ID(),
+		FirstName:  entity.FirstName(),
+		LastName:   entity.LastName(),
+		MiddleName: mapping.ValueToSqlNullString(entity.MiddleName()),
+		Email:      entity.Email().Value(),
+		Phone:      mapping.ValueToSqlNullString(entity.Phone()),
+		CreatedAt:  entity.CreatedAt(),
+		UpdatedAt:  entity.UpdatedAt(),
 	}
 	lang := entity.Language()
 	dbEmployeeMeta := &models.EmployeeMeta{
-		PrimaryLanguage:   lang.Primary(),
-		SecondaryLanguage: lang.Secondary(),
-		Tin:               entity.Tin().Value(),
-		Pin:               entity.Pin().Value(),
-		Notes:             entity.Notes(),
-		BirthDate:         entity.BirthDate(),
-		HireDate:          entity.HireDate(),
-		ResignationDate:   entity.ResignationDate(),
+		PrimaryLanguage:   mapping.ValueToSqlNullString(lang.Primary()),
+		SecondaryLanguage: mapping.ValueToSqlNullString(lang.Secondary()),
+		Tin:               mapping.ValueToSqlNullString(entity.Tin().Value()),
+		Pin:               mapping.ValueToSqlNullString(entity.Pin().Value()),
+		Notes:             mapping.ValueToSqlNullString(entity.Notes()),
+		BirthDate:         mapping.ValueToSqlNullTime(entity.BirthDate()),
+		HireDate:          mapping.ValueToSqlNullTime(entity.HireDate()),
+		ResignationDate:   mapping.PointerToSqlNullTime(entity.ResignationDate()),
 	}
 	return dbEmployee, dbEmployeeMeta
 }
