@@ -1,12 +1,9 @@
 package mappers
 
 import (
-	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	stage "github.com/iota-uz/iota-sdk/modules/core/domain/entities/project_stages"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
@@ -17,9 +14,9 @@ import (
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
-	var avatarId string
+	var avatarID string
 	if v := entity.AvatarID; v != nil {
-		avatarId = strconv.Itoa(int(*v))
+		avatarID = strconv.Itoa(int(*v))
 	}
 	var avatar viewmodels.Upload
 	if entity.Avatar != nil {
@@ -35,29 +32,7 @@ func UserToViewModel(entity *user.User) *viewmodels.User {
 		UILanguage: string(entity.UILanguage),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
-		AvatarID:   avatarId,
-	}
-}
-
-func ProjectStageToViewModel(entity *stage.ProjectStage) *viewmodels.ProjectStage {
-	return &viewmodels.ProjectStage{
-		ID:        strconv.FormatUint(uint64(entity.ID), 10),
-		Name:      entity.Name,
-		ProjectID: strconv.FormatUint(uint64(entity.ProjectID), 10),
-		Margin:    fmt.Sprintf("%.2f", entity.Margin),
-		Risks:     fmt.Sprintf("%.2f", entity.Risks),
-		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
-		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
-	}
-}
-
-func ProjectToViewModel(entity *project.Project) *viewmodels.Project {
-	return &viewmodels.Project{
-		ID:          strconv.FormatUint(uint64(entity.ID), 10),
-		Name:        entity.Name,
-		Description: entity.Description,
-		UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
-		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
+		AvatarID:   avatarID,
 	}
 }
 
@@ -71,6 +46,7 @@ func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
 		FirstName:       entity.FirstName(),
 		LastName:        entity.LastName(),
 		Email:           email,
+		Salary:          strconv.FormatFloat(entity.Salary(), 'f', 2, 64),
 		Phone:           entity.Phone(),
 		BirthDate:       entity.BirthDate().Format(time.DateOnly),
 		HireDate:        entity.HireDate().Format(time.DateOnly),

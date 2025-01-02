@@ -150,7 +150,7 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 	return &types.PageContext{
 		Pathname:      r.URL.Path,
 		Localizer:     localizer,
-		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}), //nolint:exhaustruct
+		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}),
 		Locale:        locale.String(),
 		UniTranslator: uniTranslator,
 		NavItems:      navItems,

@@ -22,7 +22,7 @@ import (
 )
 
 type TestContext struct {
-	SqlDB   *sql.DB
+	SQLDB   *sql.DB
 	Pool    *pgxpool.Pool
 	Context context.Context
 	Tx      pgx.Tx
@@ -105,7 +105,7 @@ func GetTestContext() *TestContext {
 	)
 
 	return &TestContext{
-		SqlDB:   sqlDB,
+		SQLDB:   sqlDB,
 		Pool:    pool,
 		Tx:      tx,
 		Context: ctx,

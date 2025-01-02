@@ -2,7 +2,7 @@ package either
 
 import opt "github.com/iota-uz/iota-sdk/pkg/fp/option"
 
-// Base struct
+// BaseError struct
 type Either[L, R any] struct {
 	isLeft bool
 	left   L

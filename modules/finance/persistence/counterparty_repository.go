@@ -171,7 +171,7 @@ func (g *GormCounterpartyRepository) queryCounterparties(ctx context.Context, qu
 		}
 		dbRows = append(dbRows, &r)
 	}
-	return mapping.MapDbModels(dbRows, toDomainCounterparty)
+	return mapping.MapDBModels(dbRows, toDomainCounterparty)
 }
 
 func (g *GormCounterpartyRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {

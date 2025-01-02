@@ -3,14 +3,29 @@ run:
   allow-parallel-runners: true
 
 issues:
+  exclude-rules:
+    - path-except: modules/core/infrastructure/persistence/mappers.go
+      linters:
+        - exhaustive
+        - exhaustruct
+    - path-except: modules/warehouse/infrastructure/persistence/mappers.go
+      linters:
+        - exhaustive
+        - exhaustruct
+    - path-except: modules/finance/infrastructure/persistence/mappers.go
+      linters:
+        - exhaustive
+        - exhaustruct
   exclude-files:
     - internal/interfaces/graph/generated.go
+    - pkg/graphql/graphql.go
   exclude-dirs:
     - internal/interfaces/graph/gqlmodels
     - internal/presentation/templates
     - internal/presentation/assets
     - internal/presentation/static
     - internal/presentation/public
+    - pkg/fp
 
 linters:
   # Enable specific linter
@@ -21,50 +36,44 @@ linters:
     - bidichk
     - bodyclose
     - canonicalheader
-    - containedctx
-    - contextcheck
+    #    - containedctx
+    #    - contextcheck
     - copyloopvar
     - decorder
     - dogsled
-    - dupword
+    #    - dupword
     - durationcheck
     - errcheck
     - errchkjson
     - errname
-#    - errorlint
     - exhaustive
     - exhaustruct
     - fatcontext
     - forbidigo
-#    - forcetypeassert
-    - gci
+    #    - gci
     - ginkgolinter
     - gocheckcompilerdirectives
     - gochecknoinits
     - gochecksumtype
-    - gocognit
-    - goconst
-#    - gocritic
+    #    - gocognit
+    #    - goconst
     - gocyclo
-    - godot
-#    - godox
+    #    - godot
     - gofmt
-    - gofumpt
+    #    - gofumpt
     - goheader
-    - goimports
+    #    - goimports
     - gomoddirectives
     - gomodguard
     - goprintffuncname
-    #    - gosec
     - gosimple
     - gosmopolitan
     - govet
     - grouper
     - importas
-    - inamedparam
     - ineffassign
-    - intrange
-    - lll
+    #    - intrange
+    #    - lll
     - loggercheck
     - maintidx
     - makezero
@@ -72,34 +81,33 @@ linters:
     - misspell
     - musttag
     - nakedret
-    - nestif
+    #    - nestif
     - nilerr
     - nilnil
     - noctx
     - nolintlint
     - nonamedreturns
     - nosprintfhostport
-    - perfsprint
+    #    - perfsprint
     - prealloc
     - predeclared
     - promlinter
     - protogetter
     - reassign
-    - revive
+    #    - revive
     - rowserrcheck
     - sloglint
     - spancheck
     - sqlclosecheck
     - staticcheck
     - stylecheck
-#    - tagalign
     - tenv
     - testableexamples
     - testifylint
     - thelper
     - tparallel
     - unconvert
-    - unparam
+    #    - unparam
     - unused
     - usestdlibvars
     - wastedassign

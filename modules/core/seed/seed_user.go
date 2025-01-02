@@ -3,7 +3,7 @@ package seed
 import (
 	"context"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	user2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -20,11 +20,11 @@ var (
 )
 
 func navItems2Tabs(navItems []types.NavigationItem) []*tab.Tab {
-	tabs := make([]*tab.Tab, len(navItems))
-	for i, navItem := range navItems {
-		tabs[i] = &tab.Tab{
+	tabs := make([]*tab.Tab, 0, len(navItems)*4)
+	for _, navItem := range navItems {
+		tabs = append(tabs, &tab.Tab{
 			Href: navItem.Href,
-		}
+		})
 		tabs = append(tabs, navItems2Tabs(navItem.Children)...)
 	}
 	return tabs
@@ -44,13 +44,12 @@ func CreateUser(ctx context.Context, app application.Application) error {
 		return err
 	}
 
-	usr := &user2.User{
-		//nolint:exhaustruct
+	usr := &user.User{
 		ID:         1,
 		FirstName:  "Admin",
 		LastName:   "User",
 		Email:      "test@gmail.com",
-		UILanguage: user2.UILanguageEN,
+		UILanguage: user.UILanguageEN,
 		Roles: []*role.Role{
 			&CEO,
 		},

@@ -218,7 +218,7 @@ func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := expense.UpdateDTO{} //nolint:exhaustruct
+		dto := expense.UpdateDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Expenses.Meta.Edit.Title", ""))
 		if err != nil {
@@ -284,7 +284,7 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Accounts:    accounts,
 		Categories:  categories,
 		Errors:      map[string]string{},
-		Expense:     mappers.ExpenseToViewModel(&expense.Expense{}), //nolint:exhaustruct
+		Expense:     mappers.ExpenseToViewModel(&expense.Expense{}),
 	}
 	templ.Handler(expenses2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -295,7 +295,7 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := expense.CreateDTO{} //nolint:exhaustruct
+	dto := expense.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

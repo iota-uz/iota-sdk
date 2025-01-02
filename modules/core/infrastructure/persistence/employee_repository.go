@@ -63,6 +63,13 @@ const (
 		       salary = $6, salary_currency_id = $7, hourly_rate = $8, coefficient = $9,
 		       avatar_id = $10, updated_at = $11
 		WHERE id = $12`
+
+	employeeUpdateMetaQuery = `
+		UPDATE employee_meta
+		   SET primary_language = $1, secondary_language = $2, tin = $3, notes = $4,
+		       birth_date = $5, hire_date = $6, resignation_date = $7
+		WHERE employee_id = $8`
+
 	employeeDeleteQuery     = `DELETE FROM employees WHERE id = $1`
 	employeeMetaDeleteQuery = `DELETE FROM employee_meta WHERE employee_id = $1`
 )
@@ -180,7 +187,7 @@ func (g *GormEmployeeRepository) Update(ctx context.Context, data employee.Emplo
 	}
 	return g.execQuery(
 		ctx,
-		employeeUpdateQuery,
+		employeeUpdateMetaQuery,
 		dbMeta.PrimaryLanguage,
 		dbMeta.SecondaryLanguage,
 		dbMeta.Tin,
@@ -188,6 +195,7 @@ func (g *GormEmployeeRepository) Update(ctx context.Context, data employee.Emplo
 		dbMeta.BirthDate,
 		dbMeta.HireDate,
 		dbMeta.ResignationDate,
+		dbEmployee.ID,
 	)
 }
 

@@ -143,6 +143,10 @@ func (e *employee) Pin() tax.Pin {
 	return e.pin
 }
 
+func (e *employee) Passport() passport.Passport {
+	return e.passport
+}
+
 func (e *employee) HireDate() time.Time {
 	return e.hireDate
 }

@@ -2,7 +2,6 @@ package positionservice_test
 
 import (
 	"context"
-	"fmt"
 	persistence2 "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
@@ -14,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/xuri/excelize/v2"
+	"log"
 	"os"
 	"testing"
 )
@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 	}
 	code := m.Run()
 	if err := os.Remove(TestFilePath); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	os.Exit(code)
 }
@@ -46,7 +46,7 @@ func createTestFile(path string) error {
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}()
 	for _, v := range Data {

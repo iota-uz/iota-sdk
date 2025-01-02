@@ -122,7 +122,7 @@ func (g *GormProductRepository) Count(ctx context.Context, opts *product.CountPa
 	if err := pool.QueryRow(ctx, `
 		SELECT COUNT(*) as count FROM warehouse_products
 		WHERE `+strings.Join(where, " AND ")+`
-	`, args...).Scan(&count); err != nil { //nolint:exhaustruct
+	`, args...).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -219,15 +219,9 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 		return err
 	}
 	if p != nil {
-		if err := g.Update(ctx, data); err != nil {
-			return err
-		} else {
-			if err := g.Create(ctx, data); err != nil {
-				return err
-			}
-		}
+		return g.Update(ctx, data)
 	}
-	return nil
+	return g.Create(ctx, data)
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {

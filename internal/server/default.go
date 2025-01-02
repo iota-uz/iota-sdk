@@ -19,7 +19,7 @@ type DefaultOptions struct {
 	Pool          *pgxpool.Pool
 }
 
-func Default(options *DefaultOptions) (*server.HttpServer, error) {
+func Default(options *DefaultOptions) (*server.HTTPServer, error) {
 	app := options.Application
 	app.RegisterMiddleware(
 		middleware.WithLogger(options.Logger),
@@ -31,7 +31,7 @@ func Default(options *DefaultOptions) (*server.HttpServer, error) {
 		middleware.RequestParams(),
 		middleware.LogRequests(),
 	)
-	serverInstance := server.NewHttpServer(
+	serverInstance := server.NewHTTPServer(
 		app,
 		controllers.NotFound(options.Application),
 		controllers.MethodNotAllowed(),

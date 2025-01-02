@@ -2,4 +2,4 @@ package product
 
 import "errors"
 
-var InvalidStatus = errors.New("invalid status")
+var ErrInvalidStatus = errors.New("invalid status")

@@ -70,7 +70,7 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 	}
 	domainOrder := order.NewWithID(dbOrder.ID, orderType, status)
 	for positionID, products := range groupedByPositionID {
-		domainProducts, err := mapping.MapDbModels(products, toDomainProduct)
+		domainProducts, err := mapping.MapDBModels(products, toDomainProduct)
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +181,7 @@ func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 	if err != nil {
 		return nil, err
 	}
-	results, err := mapping.MapDbModels(dbInventoryCheck.Results, toDomainInventoryCheckResult)
+	results, err := mapping.MapDBModels(dbInventoryCheck.Results, toDomainInventoryCheckResult)
 	if err != nil {
 		return nil, err
 	}
@@ -197,9 +197,15 @@ func toDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 	}
 	if dbInventoryCheck.CreatedBy != nil {
 		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if dbInventoryCheck.FinishedBy != nil {
 		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return check, nil
 }
@@ -232,7 +238,7 @@ func toDomainInventoryCheckResult(result *models.InventoryCheckResult) (*invento
 }
 
 func toDBInventoryCheck(check *inventory.Check) (*models.InventoryCheck, error) {
-	results, err := mapping.MapDbModels(check.Results, toDBInventoryCheckResult)
+	results, err := mapping.MapDBModels(check.Results, toDBInventoryCheckResult)
 	if err != nil {
 		return nil, err
 	}

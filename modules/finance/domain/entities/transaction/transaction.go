@@ -26,19 +26,19 @@ func NewDeposit(
 	accountingPeriod time.Time,
 	comment string,
 ) *Transaction {
-	var origAccId *uint
+	var origAccID *uint
 	if originAccount != 0 {
-		origAccId = &originAccount
+		origAccID = &originAccount
 	}
-	var destAccId *uint
+	var destAccID *uint
 	if destinationAccount != 0 {
-		destAccId = &destinationAccount
+		destAccID = &destinationAccount
 	}
 	return &Transaction{
 		Amount:               amount,
 		AmountCurrencyID:     currencyID,
-		OriginAccountID:      origAccId,
-		DestinationAccountID: destAccId,
+		OriginAccountID:      origAccID,
+		DestinationAccountID: destAccID,
 		TransactionType:      Deposit,
 		TransactionDate:      date,
 		AccountingPeriod:     accountingPeriod,
@@ -56,19 +56,19 @@ func NewWithdrawal(
 	accountingPeriod time.Time,
 	comment string,
 ) *Transaction {
-	var origAccId *uint
+	var origAccID *uint
 	if originAccount != 0 {
-		origAccId = &originAccount
+		origAccID = &originAccount
 	}
-	var destAccId *uint
+	var destAccID *uint
 	if destinationAccount != 0 {
-		destAccId = &destinationAccount
+		destAccID = &destinationAccount
 	}
 	return &Transaction{
 		Amount:               amount,
 		AmountCurrencyID:     currencyID,
-		OriginAccountID:      origAccId,
-		DestinationAccountID: destAccId,
+		OriginAccountID:      origAccID,
+		DestinationAccountID: destAccID,
 		TransactionType:      Withdrawal,
 		TransactionDate:      date,
 		AccountingPeriod:     accountingPeriod,

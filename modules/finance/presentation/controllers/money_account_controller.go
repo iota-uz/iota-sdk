@@ -208,7 +208,7 @@ func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request
 			return
 		}
 	case shared.FormActionSave:
-		dto := moneyAccount.UpdateDTO{} //nolint:exhaustruct
+		dto := moneyAccount.UpdateDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.Edit.Title", ""))
 		if err != nil {
@@ -266,7 +266,7 @@ func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) 
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}), //nolint:exhaustruct
+		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}),
 		PostPath:    c.basePath,
 	}
 	templ.Handler(moneyaccounts2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -278,7 +278,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	dto := moneyAccount.CreateDTO{} //nolint:exhaustruct
+	dto := moneyAccount.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

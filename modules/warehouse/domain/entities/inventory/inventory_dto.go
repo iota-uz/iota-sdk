@@ -55,12 +55,12 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 	if err != nil {
 		return nil, err
 	}
-	var results []*CheckResult
-	for _, p := range d.Positions {
-		results = append(results, &CheckResult{
+	results := make([]*CheckResult, len(d.Positions))
+	for i, p := range d.Positions {
+		results[i] = &CheckResult{
 			PositionID:     p.PositionID,
 			ActualQuantity: int(p.Found),
-		})
+		}
 	}
 	return &Check{
 		ID:          0,

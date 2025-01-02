@@ -6,7 +6,7 @@ import (
 )
 
 func Unmarshal(body []byte, errInstance map[string]interface{}) error {
-	var base Base
+	var base BaseError
 	if err := json.Unmarshal(body, &base); err != nil {
 		return err
 	}

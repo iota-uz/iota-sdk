@@ -205,7 +205,7 @@ func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Re
 			return
 		}
 	case shared.FormActionSave:
-		dto := category.UpdateDTO{} //nolint:exhaustruct
+		dto := category.UpdateDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(
 			r,
@@ -267,7 +267,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 		PageContext: pageCtx,
 		Currencies:  currencies,
 		Errors:      map[string]string{},
-		Category:    category.CreateDTO{}, //nolint:exhaustruct
+		Category:    category.CreateDTO{},
 		PostPath:    c.basePath,
 	}
 	templ.Handler(expense_categories2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -279,7 +279,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	dto := category.CreateDTO{} //nolint:exhaustruct
+	dto := category.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

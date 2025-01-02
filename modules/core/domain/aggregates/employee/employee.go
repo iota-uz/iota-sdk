@@ -2,6 +2,7 @@ package employee
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tax"
 	"time"
 )
@@ -24,6 +25,7 @@ type Employee interface {
 	HireDate() time.Time
 	BirthDate() time.Time
 	Language() Language
+	Passport() passport.Passport
 	Tin() tax.Tin
 	Pin() tax.Pin
 	Notes() string

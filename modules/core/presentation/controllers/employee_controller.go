@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -11,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
@@ -113,6 +115,10 @@ func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
 		nil,
 		0, "",
 	)
+	if err != nil {
+		http.Error(w, "Error creating employee", http.StatusInternalServerError)
+		return
+	}
 	props := &employees.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
@@ -167,17 +173,23 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := dto.ToEntity()
-		if err != nil {
-			// TODO: proper error handling
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		props := &employees.CreatePageProps{
 			PageContext: pageCtx,
 			Errors:      errorsMap,
-			Employee:    mappers.EmployeeToViewModel(entity),
-			PostPath:    c.basePath,
+			Employee: &viewmodels.Employee{
+				FirstName:       dto.FirstName,
+				LastName:        dto.LastName,
+				Email:           dto.Email,
+				Phone:           dto.Phone,
+				Salary:          strconv.FormatFloat(dto.Salary, 'f', 2, 64),
+				BirthDate:       time.Time(dto.BirthDate).Format(time.DateOnly),
+				HireDate:        time.Time(dto.HireDate).Format(time.DateOnly),
+				ResignationDate: time.Time(dto.ResignationDate).Format(time.DateOnly),
+				Tin:             dto.Tin,
+				Pin:             dto.Pin,
+				Notes:           dto.Notes,
+			},
+			PostPath: c.basePath,
 		}
 		templ.Handler(employees.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -194,19 +206,23 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
 		return
 	}
 	dto, err := composables.UseForm(&employee.UpdateDTO{}, r)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
+		return
+	}
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.Edit.Title", ""))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}
 	errorsMap, ok := dto.Ok(r.Context())
 	if ok {
 		if err := c.employeeService.Update(r.Context(), id, dto); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 			return
 		}
 	} else {

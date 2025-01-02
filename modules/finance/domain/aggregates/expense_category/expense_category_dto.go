@@ -57,7 +57,7 @@ func (e *CreateDTO) ToEntity() (*ExpenseCategory, error) {
 		ID:          0,
 		Name:        e.Name,
 		Amount:      e.Amount,
-		Currency:    currency2.Currency{Code: code}, //nolint:exhaustruct
+		Currency:    currency2.Currency{Code: code},
 		Description: e.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -73,7 +73,7 @@ func (e *UpdateDTO) ToEntity(id uint) (*ExpenseCategory, error) {
 		ID:          id,
 		Name:        e.Name,
 		Amount:      e.Amount,
-		Currency:    currency2.Currency{Code: code}, //nolint:exhaustruct
+		Currency:    currency2.Currency{Code: code},
 		Description: e.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),

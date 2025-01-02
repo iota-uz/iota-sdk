@@ -57,7 +57,7 @@ func (d *CreateDTO) ToEntity() (*Expense, error) {
 		ID:               0,
 		Account:          moneyAccount.Account{ID: d.AccountID}, //nolint:exhauststruct
 		Amount:           d.Amount,
-		Category:         category.ExpenseCategory{ID: d.CategoryID}, //nolint:exhaustruct
+		Category:         category.ExpenseCategory{ID: d.CategoryID},
 		Comment:          d.Comment,
 		AccountingPeriod: d.AccountingPeriod,
 		Date:             d.Date,
@@ -72,7 +72,7 @@ func (d *UpdateDTO) ToEntity(id uint) (*Expense, error) {
 		ID:               id,
 		Account:          moneyAccount.Account{ID: d.AccountID}, //nolint:exhauststruct
 		Amount:           d.Amount,
-		Category:         category.ExpenseCategory{ID: d.CategoryID}, //nolint:exhaustruct
+		Category:         category.ExpenseCategory{ID: d.CategoryID},
 		Comment:          d.Comment,
 		AccountingPeriod: d.AccountingPeriod,
 		Date:             d.Date,

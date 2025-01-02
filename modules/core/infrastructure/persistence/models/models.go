@@ -124,7 +124,7 @@ type User struct {
 	Avatar     *Upload
 	LastLogin  *time.Time
 	LastIP     *string
-	UiLanguage string
+	UILanguage string
 	LastAction *time.Time
 	EmployeeID *uint
 	CreatedAt  time.Time

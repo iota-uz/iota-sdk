@@ -183,7 +183,7 @@ func (c *UnitsController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := unit.UpdateDTO{} //nolint:exhaustruct
+		dto := unit.UpdateDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.Edit.Meta.Title", ""))
 		if err != nil {
@@ -226,7 +226,7 @@ func (c *UnitsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &units2.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Unit:        mappers.UnitToViewModel(&unit.Unit{}), //nolint:exhaustruct
+		Unit:        mappers.UnitToViewModel(&unit.Unit{}),
 		SaveURL:     c.basePath,
 	}
 	templ.Handler(units2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -238,7 +238,7 @@ func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := unit.CreateDTO{} //nolint:exhaustruct
+	dto := unit.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

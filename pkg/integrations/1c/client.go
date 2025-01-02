@@ -9,7 +9,7 @@ import (
 
 func NewClient(url string) *Client {
 	return &Client{
-		client: &http.Client{}, //nolint:exhaustruct
+		client: &http.Client{},
 		url:    url,
 	}
 }

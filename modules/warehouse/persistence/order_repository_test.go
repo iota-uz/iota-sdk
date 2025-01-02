@@ -1,9 +1,12 @@
 package persistence_test
 
 import (
+	"context"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/jackc/pgx/v5"
+	"log"
 	"testing"
 	"time"
 
@@ -14,7 +17,12 @@ import (
 
 func TestGormOrderRepository_CRUD(t *testing.T) {
 	ctx := testutils.GetTestContext()
-	defer ctx.Tx.Commit()
+	defer func(Tx pgx.Tx, ctx context.Context) {
+		err := Tx.Commit(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(ctx.Tx, ctx.Context)
 
 	unitRepository := persistence.NewUnitRepository()
 	positionRepository := persistence.NewPositionRepository(unitRepository)

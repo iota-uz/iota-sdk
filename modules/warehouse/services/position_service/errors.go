@@ -8,7 +8,7 @@ import (
 
 func NewErrInvalidCell(col string, row uint) *ErrInvalidCell {
 	return &ErrInvalidCell{
-		Base: serrors.Base{
+		BaseError: serrors.BaseError{
 			Code:    "ERR_INVALID_CELL",
 			Message: "Invalid cell found",
 		},
@@ -18,7 +18,7 @@ func NewErrInvalidCell(col string, row uint) *ErrInvalidCell {
 }
 
 type ErrInvalidCell struct {
-	serrors.Base
+	serrors.BaseError
 	Col string
 	Row uint
 }

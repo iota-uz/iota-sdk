@@ -8,13 +8,13 @@ import (
 )
 
 type ErrOrderIsComplete struct {
-	serrors.Base
+	serrors.BaseError
 	Current Status
 }
 
 func NewErrOrderIsComplete(current Status) *ErrOrderIsComplete {
 	return &ErrOrderIsComplete{
-		Base: serrors.Base{
+		BaseError: serrors.BaseError{
 			Code:    "ERR_ORDER_IS_ALREADY_COMPLETED",
 			Message: "order is already complete",
 		},
@@ -34,13 +34,13 @@ func (e *ErrOrderIsComplete) Localize(l *i18n.Localizer) string {
 }
 
 type ErrProductIsShipped struct {
-	serrors.Base
+	serrors.BaseError
 	Current product.Status
 }
 
 func NewErrProductIsShipped(current product.Status) *ErrProductIsShipped {
 	return &ErrProductIsShipped{
-		Base: serrors.Base{
+		BaseError: serrors.BaseError{
 			Code:    "ERR_PRODUCT_IS_SHIPPED",
 			Message: "product is already shipped",
 		},

@@ -96,8 +96,8 @@ func (c *InventoryController) viewModelChecks(r *http.Request) (*InventoryCheckP
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 		Checks:          viewChecks,
 	}, nil
-
 }
+
 func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(
 		r,
@@ -136,7 +136,7 @@ func (c *InventoryController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &inventorytemplate.CreatePageProps{
 		PageContext: pageCtx,
 		Errors:      map[string]string{},
-		Check:       mappers.CheckToViewModel(&inventory.Check{}), //nolint:exhaustruct
+		Check:       mappers.CheckToViewModel(&inventory.Check{}),
 		SaveURL:     c.basePath,
 	}
 	templ.Handler(inventorytemplate.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -259,7 +259,6 @@ func (c *InventoryController) GetEditDifference(w http.ResponseWriter, r *http.R
 	}
 	entity, err := c.inventoryService.GetByIDWithDifference(r.Context(), id)
 	if err != nil {
-		fmt.Println("DIFFERENCE: ", err)
 		http.Error(w, "Error retrieving inventory check", http.StatusInternalServerError)
 		return
 	}
@@ -307,7 +306,7 @@ func (c *InventoryController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case shared.FormActionSave:
-		dto := inventory.UpdateCheckDTO{} //nolint:exhaustruct
+		dto := inventory.UpdateCheckDTO{}
 		var pageCtx *types.PageContext
 		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
 		if err != nil {

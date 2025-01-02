@@ -53,7 +53,6 @@ func (g *GormPositionRepository) GetPaginated(
 	}
 
 	if len(params.Fields) > 0 {
-		args := []interface{}{}
 		queries := []string{}
 		for _, field := range params.Fields {
 			if field == "" {

@@ -47,12 +47,7 @@ func (g *GormExpenseRepository) GetPaginated(
 	}
 
 	if params.Query != "" && params.Field != "" {
-		if params.Field == "category" {
-		} else if params.Field == "amount" {
-
-		} else {
-			where, args = append(where, fmt.Sprintf("ex.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
-		}
+		where, args = append(where, fmt.Sprintf("ex.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
 	}
 
 	rows, err := pool.Query(ctx, `

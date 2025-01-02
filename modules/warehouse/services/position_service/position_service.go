@@ -80,11 +80,11 @@ func (s *PositionService) findOrCreateUnit(ctx context.Context, unitName string)
 	return nil, err
 }
 
-func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, unitId uint) error {
+func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, unitID uint) error {
 	data := &position.CreateDTO{
 		Title:   posRow.Title,
 		Barcode: posRow.Barcode,
-		UnitID:  unitId,
+		UnitID:  unitID,
 	}
 	pos, err := s.Create(ctx, data)
 	if err != nil {

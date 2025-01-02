@@ -11,6 +11,8 @@ import (
 	orderservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/order_service"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
+	"github.com/jackc/pgx/v5"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -26,7 +28,12 @@ func TestMain(m *testing.M) {
 
 func TestPositionService_LoadFromFilePath(t *testing.T) {
 	testCtx := testutils.GetTestContext()
-	defer testCtx.Tx.Commit()
+	defer func(Tx pgx.Tx, ctx context.Context) {
+		err := Tx.Commit(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(testCtx.Tx, testCtx.Context)
 
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository(unitRepo)
