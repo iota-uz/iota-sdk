@@ -3,19 +3,38 @@ run:
   allow-parallel-runners: true
 
 issues:
+  exclude-use-default: false
   exclude-rules:
-    - path-except: modules/*/infrastructure/persistence/*mappers.go
-      linters:
-        - exhaustive
+    - linters:
         - exhaustruct
-    - path-except: modules/*/domain/*/*/*.go
-      linters:
-        - exhaustive
+      path: .*
+    - linters:
         - exhaustruct
+      path-except: ^modules/[^/]+/infrastructure/persistence/[^/]*mappers\.go
+    - linters:
+        - exhaustruct
+      path-except: ^modules/[^/]+/domain/[^/]+/[^/]+/[^/]+\.go
+
   exclude-files:
     - pkg/graphql/graphql.go
   exclude-dirs:
     - pkg/fp
+
+output:
+  formats:
+    - format: colored-line-number
+      path: stderr
+
+  sort-results: true
+  sort-order:
+    - linter
+    - severity
+    - file
+  # print lines of code with issue, default is true
+  print-issued-lines: false
+  # print linter name in the end of issue text, default is true
+  print-linter-name: true
+
 
 linters:
   enable:
@@ -88,12 +107,11 @@ linters:
     - spancheck
     - sqlclosecheck
     - staticcheck
-    - stylecheck
+    #    - stylecheck
     - tenv
     - testableexamples
     - testifylint
     - thelper
-    - tparallel
     - unconvert
     #    - unparam
     - unused

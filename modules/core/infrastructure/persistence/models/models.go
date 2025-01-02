@@ -68,7 +68,7 @@ type Employee struct {
 	Email            string
 	Phone            sql.NullString
 	Salary           float64
-	SalaryCurrencyID *uint
+	SalaryCurrencyID string
 	HourlyRate       float64
 	Coefficient      float64
 	AvatarID         *uint

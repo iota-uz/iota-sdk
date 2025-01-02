@@ -10,8 +10,8 @@ import (
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	persistence2 "github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
-	"github.com/iota-uz/iota-sdk/modules/finance/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/event"
@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
+func TestPaymentsService_CRUD(t *testing.T) {
 	ctx := testutils.GetTestContext()
 	ctx.Context = context.WithValue(ctx.Context, constants.UserKey, &user.User{
 		Roles: []*role.Role{
@@ -46,11 +46,11 @@ func TestPaymentsService_CRUD(t *testing.T) { //nolint:paralleltest
 
 	publisher := event.NewEventPublisher()
 	currencyRepository := corepersistence.NewCurrencyRepository()
-	accountRepository := persistence.NewMoneyAccountRepository()
-	paymentRepository := persistence.NewPaymentRepository()
+	accountRepository := persistence2.NewMoneyAccountRepository()
+	paymentRepository := persistence2.NewPaymentRepository()
 	accountService := services.NewMoneyAccountService(
 		accountRepository,
-		persistence.NewTransactionRepository(),
+		persistence2.NewTransactionRepository(),
 		publisher,
 	)
 	paymentsService := services.NewPaymentService(paymentRepository, publisher, accountService)

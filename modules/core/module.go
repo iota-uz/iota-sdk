@@ -16,10 +16,10 @@ import (
 
 //go:generate go run github.com/99designs/gqlgen generate
 
-//go:embed locales/*.json
+//go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed migrations/*.sql
+//go:embed infrastructure/persistence/schema/core-schema.sql
 var migrationFiles embed.FS
 
 func NewModule() application.Module {

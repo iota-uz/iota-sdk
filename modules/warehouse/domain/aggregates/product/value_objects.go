@@ -21,7 +21,7 @@ func NewStatus(l string) (Status, error) {
 
 func (l Status) IsValid() bool {
 	switch l {
-	case InStock, InDevelopment, Approved:
+	case InStock, InDevelopment, Approved, Shipped:
 		return true
 	}
 	return false

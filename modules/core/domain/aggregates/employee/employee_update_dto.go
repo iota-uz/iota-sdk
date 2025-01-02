@@ -3,6 +3,8 @@ package employee
 import (
 	"context"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -97,7 +99,7 @@ func (d *UpdateDTO) ToEntity(id uint) (Employee, error) {
 		d.MiddleName,
 		d.Phone,
 		mail,
-		d.Salary,
+		money.New(d.Salary, currency.UsdCode),
 		tin,
 		pin,
 		NewLanguage(d.PrimaryLanguage, d.SecondaryLanguage),

@@ -72,6 +72,13 @@ func ValueToSQLNullString(s string) sql.NullString {
 	}
 }
 
+func ValueToSQLNullInt32(i int32) sql.NullInt32 {
+	return sql.NullInt32{
+		Int32: i,
+		Valid: i != 0,
+	}
+}
+
 func PointerToSQLNullString(s *string) sql.NullString {
 	if s != nil {
 		return sql.NullString{

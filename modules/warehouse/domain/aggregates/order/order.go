@@ -15,12 +15,12 @@ type Order interface {
 
 	SetID(id uint)
 
-	AddItem(position position.Position, products ...*product.Product) error
+	AddItem(position *position.Position, products ...*product.Product) error
 	Complete() error
 }
 
 type Item interface {
-	Position() position.Position
+	Position() *position.Position
 	Products() []*product.Product
 	Quantity() int
 }

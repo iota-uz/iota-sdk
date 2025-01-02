@@ -28,7 +28,7 @@ func (d *CreateDTO) ToEntity() (Order, error) {
 	}
 	entity := New(t, s)
 	for _, id := range d.ProductIDs {
-		if err := entity.AddItem(position.Position{}, &product.Product{ID: id}); err != nil {
+		if err := entity.AddItem(&position.Position{}, &product.Product{ID: id}); err != nil {
 			return nil, err
 		}
 	}
@@ -46,7 +46,7 @@ func (d *UpdateDTO) ToEntity(id uint) (Order, error) {
 	}
 	entity := New(t, s)
 	for _, productID := range d.ProductIDs {
-		if err := entity.AddItem(position.Position{}, &product.Product{ID: productID}); err != nil {
+		if err := entity.AddItem(&position.Position{}, &product.Product{ID: productID}); err != nil {
 			return nil, err
 		}
 	}

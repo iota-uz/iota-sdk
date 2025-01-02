@@ -1,3 +1,4 @@
+// Package spotlight is a package that provides a way to show a list of items in a spotlight.
 package spotlight
 
 import (
