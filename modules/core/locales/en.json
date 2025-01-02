@@ -190,10 +190,10 @@
         "Label": "Position",
         "Placeholder": "Choose position"
       },
-      "StartDate": {
+      "HireDate": {
         "Label": "Employment start date"
       },
-      "EndDate": {
+      "ResignationDate": {
         "Label": "Employment termination date"
       },
       "EmploymentStatus": {
@@ -217,8 +217,8 @@
         "Label": "TIN",
         "Placeholder": "1234567"
       },
-      "PINFL": {
-        "Label": "PINFL",
+      "Pin": {
+        "Label": "Pin (Personal Identification Number)",
         "Placeholder": "123456789192121"
       }
     }

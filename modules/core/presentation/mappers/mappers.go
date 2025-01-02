@@ -62,14 +62,22 @@ func ProjectToViewModel(entity *project.Project) *viewmodels.Project {
 }
 
 func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
+	var email string
+	if entity.Email() != nil {
+		email = entity.Email().Value()
+	}
 	return &viewmodels.Employee{
-		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		FirstName: entity.FirstName(),
-		LastName:  entity.LastName(),
-		Email:     entity.Email().Value(),
-		Phone:     entity.Phone(),
-		UpdatedAt: entity.UpdatedAt().Format(time.RFC3339),
-		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
+		ID:              strconv.FormatUint(uint64(entity.ID()), 10),
+		FirstName:       entity.FirstName(),
+		LastName:        entity.LastName(),
+		Email:           email,
+		Phone:           entity.Phone(),
+		BirthDate:       entity.BirthDate().Format(time.DateOnly),
+		HireDate:        entity.HireDate().Format(time.DateOnly),
+		ResignationDate: entity.BirthDate().Format(time.DateOnly),
+		Notes:           entity.Notes(),
+		UpdatedAt:       entity.UpdatedAt().Format(time.RFC3339),
+		CreatedAt:       entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 

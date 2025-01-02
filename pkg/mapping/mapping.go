@@ -92,6 +92,13 @@ func ValueToSqlNullTime(t time.Time) sql.NullTime {
 	}
 }
 
+func SqlNullTimeToPointer(v sql.NullTime) *time.Time {
+	if v.Valid {
+		return &v.Time
+	}
+	return nil
+}
+
 func PointerToSqlNullTime(t *time.Time) sql.NullTime {
 	if t != nil {
 		return sql.NullTime{

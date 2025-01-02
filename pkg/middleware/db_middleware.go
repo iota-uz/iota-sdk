@@ -24,6 +24,7 @@ func WithTransaction() mux.MiddlewareFunc {
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
+				next.ServeHTTP(w, r)
 				if err := tx.Commit(r.Context()); err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
