@@ -2,9 +2,9 @@ package graph
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/services/order_service"
-	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
+	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 

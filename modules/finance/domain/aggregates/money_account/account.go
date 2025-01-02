@@ -24,7 +24,6 @@ type Account struct {
 func (a *Account) InitialTransaction() *transaction.Transaction {
 	return transaction.NewDeposit(
 		a.Balance,
-		string(a.Currency.Code),
 		0,
 		a.ID,
 		a.CreatedAt,
@@ -67,7 +66,7 @@ func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,
-		Currency:      currency.Currency{Code: code},
+		Currency:      currency.Currency{Code: code}, //nolint:exhaustruct
 		Description:   p.Description,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),

@@ -11,7 +11,7 @@ type Position struct {
 	Title     string
 	Barcode   string
 	UnitID    uint
-	Unit      unit.Unit
+	Unit      *unit.Unit
 	InStock   uint
 	Images    []upload.Upload
 	CreatedAt time.Time

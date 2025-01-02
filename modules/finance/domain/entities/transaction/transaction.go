@@ -7,7 +7,6 @@ import (
 type Transaction struct {
 	ID                   uint
 	Amount               float64
-	AmountCurrencyID     string
 	OriginAccountID      *uint
 	DestinationAccountID *uint
 	TransactionDate      time.Time
@@ -19,7 +18,6 @@ type Transaction struct {
 
 func NewDeposit(
 	amount float64,
-	currencyID string,
 	originAccount,
 	destinationAccount uint,
 	date time.Time,
@@ -35,8 +33,8 @@ func NewDeposit(
 		destAccID = &destinationAccount
 	}
 	return &Transaction{
+		ID:                   0,
 		Amount:               amount,
-		AmountCurrencyID:     currencyID,
 		OriginAccountID:      origAccID,
 		DestinationAccountID: destAccID,
 		TransactionType:      Deposit,
@@ -49,7 +47,6 @@ func NewDeposit(
 
 func NewWithdrawal(
 	amount float64,
-	currencyID string,
 	originAccount,
 	destinationAccount uint,
 	date time.Time,
@@ -65,8 +62,8 @@ func NewWithdrawal(
 		destAccID = &destinationAccount
 	}
 	return &Transaction{
+		ID:                   0,
 		Amount:               amount,
-		AmountCurrencyID:     currencyID,
 		OriginAccountID:      origAccID,
 		DestinationAccountID: destAccID,
 		TransactionType:      Withdrawal,

@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
+	persistence2 "github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 
@@ -22,12 +22,11 @@ type InventoryService struct {
 }
 
 func NewInventoryService(publisher event.Publisher) *InventoryService {
-	unitRepo := persistence.NewUnitRepository()
-	positionRepo := persistence.NewPositionRepository(unitRepo)
+	positionRepo := persistence2.NewPositionRepository()
 	userRepo := userpersistence.NewUserRepository()
 	return &InventoryService{
-		repo:         persistence.NewInventoryRepository(userRepo, positionRepo),
-		productRepo:  persistence.NewProductRepository(positionRepo),
+		repo:         persistence2.NewInventoryRepository(userRepo, positionRepo),
+		productRepo:  persistence2.NewProductRepository(positionRepo),
 		positionRepo: positionRepo,
 		publisher:    publisher,
 	}

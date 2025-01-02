@@ -5,6 +5,7 @@ import (
 	"slices"
 )
 
+// TODO: make this private
 type Code string
 
 const (
@@ -33,6 +34,7 @@ func NewCode(value string) (Code, error) {
 	return c, nil
 }
 
+// TODO: make this private
 type Symbol string
 
 const (

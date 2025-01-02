@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
@@ -26,7 +27,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create logger: %v", err)
 	}
-	defer logFile.Close()
+	defer func(logFile *os.File) {
+		if err := logFile.Close(); err != nil {
+			log.Fatalf("failed to close log file: %v", err)
+		}
+	}(logFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()

@@ -4,18 +4,18 @@ import (
 	"embed"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	persistence2 "github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
-	"github.com/iota-uz/iota-sdk/modules/finance/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-//go:embed locales/*.json
+//go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed migrations/*.sql
+//go:embed infrastructure/persistence/schema/finance-schema.sql
 var migrationFiles embed.FS
 
 func NewModule() application.Module {
@@ -27,16 +27,16 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	moneyAccountService := services.NewMoneyAccountService(
-		persistence.NewMoneyAccountRepository(),
-		persistence.NewTransactionRepository(),
+		persistence2.NewMoneyAccountRepository(),
+		persistence2.NewTransactionRepository(),
 		app.EventPublisher(),
 	)
 	currencyRepo := corepersistence.NewCurrencyRepository()
-	transactionRepo := persistence.NewTransactionRepository()
-	categoryRepo := persistence.NewExpenseCategoryRepository(currencyRepo)
+	transactionRepo := persistence2.NewTransactionRepository()
+	categoryRepo := persistence2.NewExpenseCategoryRepository(currencyRepo)
 	app.RegisterServices(
 		services.NewPaymentService(
-			persistence.NewPaymentRepository(),
+			persistence2.NewPaymentRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
 		),
@@ -45,12 +45,12 @@ func (m *Module) Register(app application.Application) error {
 			app.EventPublisher(),
 		),
 		services.NewExpenseService(
-			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
+			persistence2.NewExpenseRepository(categoryRepo, transactionRepo),
 			app.EventPublisher(),
 			moneyAccountService,
 		),
 		moneyAccountService,
-		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
+		services.NewCounterpartyService(persistence2.NewCounterpartyRepository()),
 	)
 
 	app.RegisterControllers(

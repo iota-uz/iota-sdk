@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"github.com/go-gorp/gorp/v3"
 	"github.com/jackc/pgx/v5/stdlib"
+	"io/fs"
 	"log"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -39,6 +41,31 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 		})
 	}
 	return translated
+}
+
+func listFiles(fsys fs.FS, dir string) ([]string, error) {
+	var fileList []string
+
+	entries, err := fs.ReadDir(fsys, dir)
+	if err != nil {
+		return nil, fmt.Errorf("error reading directory %q: %w", dir, err)
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		if entry.IsDir() {
+			// Recursively list files in the subdirectory
+			subDirFiles, err := listFiles(fsys, path)
+			if err != nil {
+				return nil, err
+			}
+			fileList = append(fileList, subDirFiles...)
+		} else {
+			fileList = append(fileList, path)
+		}
+	}
+
+	return fileList, nil
 }
 
 func New(pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
@@ -162,18 +189,16 @@ func (app *ApplicationImpl) RegisterGraphSchema(schema GraphSchema) {
 
 func (app *ApplicationImpl) RegisterLocaleFiles(fs ...*embed.FS) {
 	for _, localeFs := range fs {
-		files, err := localeFs.ReadDir("locales")
+		files, err := listFiles(localeFs, ".")
 		if err != nil {
 			panic(err)
 		}
 		for _, file := range files {
-			if !file.IsDir() {
-				localeFile, err := localeFs.ReadFile("locales/" + file.Name())
-				if err != nil {
-					panic(err)
-				}
-				app.bundle.MustParseMessageFileBytes(localeFile, file.Name())
+			localeFile, err := localeFs.ReadFile(file)
+			if err != nil {
+				panic(err)
 			}
+			app.bundle.MustParseMessageFileBytes(localeFile, filepath.Base(file))
 		}
 	}
 }
@@ -209,23 +234,18 @@ func (app *ApplicationImpl) Bundle() *i18n.Bundle {
 }
 
 func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
-	migrationDirs := app.MigrationDirs()
-
 	var migrations []*migrate.Migration
-	for _, fs := range migrationDirs {
-		files, err := fs.ReadDir("migrations")
+	for _, migrationFs := range app.migrationDirs {
+		files, err := listFiles(migrationFs, ".")
 		if err != nil {
 			return nil, err
 		}
 		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			content, err := fs.ReadFile("migrations/" + file.Name())
+			content, err := migrationFs.ReadFile(file)
 			if err != nil {
 				return nil, err
 			}
-			migration, err := migrate.ParseMigration(file.Name(), bytes.NewReader(content))
+			migration, err := migrate.ParseMigration(filepath.Join(file), bytes.NewReader(content))
 			if err != nil {
 				return nil, err
 			}

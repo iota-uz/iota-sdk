@@ -1,7 +1,6 @@
 package order
 
 import (
-	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -23,9 +22,9 @@ func NewErrOrderIsComplete(current Status) *ErrOrderIsComplete {
 }
 
 func (e *ErrOrderIsComplete) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{
-			ID: fmt.Sprintf("Errors.%s", e.Code),
+	return l.MustLocalize(&i18n.LocalizeConfig{ //nolint:exhaustruct
+		DefaultMessage: &i18n.Message{ //nolint:exhaustruct
+			ID: "Errors." + e.Code,
 		},
 		TemplateData: map[string]interface{}{
 			"Current": e.Current,
@@ -49,9 +48,9 @@ func NewErrProductIsShipped(current product.Status) *ErrProductIsShipped {
 }
 
 func (e *ErrProductIsShipped) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{
-			ID: fmt.Sprintf("Errors.%s", e.Code),
+	return l.MustLocalize(&i18n.LocalizeConfig{ //nolint:exhaustruct
+		DefaultMessage: &i18n.Message{ //nolint:exhaustruct
+			ID: "Errors." + e.Code,
 		},
 		TemplateData: map[string]interface{}{
 			"Current": e.Current,

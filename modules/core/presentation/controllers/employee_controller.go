@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -107,7 +109,7 @@ func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
 		"",
 		"",
 		nil,
-		0,
+		money.New(0, currency.UsdCode),
 		nil,
 		nil,
 		nil,

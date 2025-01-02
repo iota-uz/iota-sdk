@@ -86,7 +86,11 @@ func (s *DialogueService) streamCompletions(
 		Content: "",
 	}
 	go func() {
-		defer stream.Close()
+		defer func(stream *openai.ChatCompletionStream) {
+			if err := stream.Close(); err != nil {
+				log.Println(err)
+			}
+		}(stream)
 		for {
 			chunk, err := stream.Recv()
 			if errors.Is(err, io.EOF) {

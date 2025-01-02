@@ -3,25 +3,25 @@ package warehouse
 import (
 	"embed"
 	"github.com/iota-uz/iota-sdk/components/icons"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/assets"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/controllers"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
-	orderservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/order_service"
-	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
-	productservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
 
-//go:embed locales/*.json
+//go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed migrations/*.sql
+//go:embed infrastructure/persistence/schema/warehouse-schema.sql
 var migrationFiles embed.FS
 
 func NewModule() application.Module {
@@ -35,7 +35,7 @@ func (m *Module) Register(app application.Application) error {
 	unitRepo := persistence.NewUnitRepository()
 	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
 	app.RegisterServices(unitService)
-	positionRepo := persistence.NewPositionRepository(unitRepo)
+	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository(positionRepo)
 	productService := productservice.NewProductService(productRepo, app.EventPublisher())
 	app.RegisterServices(productService)
