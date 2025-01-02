@@ -4,32 +4,20 @@ run:
 
 issues:
   exclude-rules:
-    - path-except: modules/core/infrastructure/persistence/mappers.go
+    - path-except: modules/*/infrastructure/persistence/*mappers.go
       linters:
         - exhaustive
         - exhaustruct
-    - path-except: modules/warehouse/infrastructure/persistence/mappers.go
-      linters:
-        - exhaustive
-        - exhaustruct
-    - path-except: modules/finance/infrastructure/persistence/mappers.go
+    - path-except: modules/*/domain/*/*/*.go
       linters:
         - exhaustive
         - exhaustruct
   exclude-files:
-    - internal/interfaces/graph/generated.go
     - pkg/graphql/graphql.go
   exclude-dirs:
-    - internal/interfaces/graph/gqlmodels
-    - internal/presentation/templates
-    - internal/presentation/assets
-    - internal/presentation/static
-    - internal/presentation/public
     - pkg/fp
 
 linters:
-  # Enable specific linter
-  # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
     - asasalint
     - asciicheck
