@@ -2,6 +2,11 @@ package positionservice_test
 
 import (
 	"context"
+	"github.com/xuri/excelize/v2"
+	"log"
+	"os"
+	"testing"
+
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
@@ -12,10 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/xuri/excelize/v2"
-	"log"
-	"os"
-	"testing"
 )
 
 var (
