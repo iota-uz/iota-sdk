@@ -8,8 +8,6 @@ type DateRange struct {
 }
 
 type FindParams struct {
-	IDs       []uint
-	Barcode   string
 	Limit     int
 	Offset    int
 	SortBy    []string
