@@ -116,7 +116,7 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.Find
 }
 
 func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -159,7 +159,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 }
 
 func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error 
 }
 
 func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, data *user.User) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, data *user.User
 }
 
 func (g *GormUserRepository) Update(ctx context.Context, data *user.User) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -260,7 +260,7 @@ func (g *GormUserRepository) Delete(ctx context.Context, id uint) error {
 }
 
 func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args ...interface{}) ([]*user.User, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +414,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 }
 
 func (g *GormUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

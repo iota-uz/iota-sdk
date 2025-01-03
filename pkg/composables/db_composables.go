@@ -18,7 +18,7 @@ func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
 	return context.WithValue(ctx, constants.TxKey, tx)
 }
 
-func UsePoolTx(ctx context.Context) (repo.Tx, error) {
+func UseTx(ctx context.Context) (repo.Tx, error) {
 	tx := ctx.Value(constants.TxKey)
 	if tx == nil {
 		return UsePool(ctx)

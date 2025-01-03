@@ -26,7 +26,7 @@ func NewUnitRepository() unit.Repository {
 func (g *GormUnitRepository) GetPaginated(
 	ctx context.Context, params *unit.FindParams,
 ) ([]*unit.Unit, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (g *GormUnitRepository) GetPaginated(
 }
 
 func (g *GormUnitRepository) Count(ctx context.Context) (uint, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -129,7 +129,7 @@ func (g *GormUnitRepository) GetByTitleOrShortTitle(ctx context.Context, name st
 }
 
 func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func (g *GormUnitRepository) CreateOrUpdate(ctx context.Context, data *unit.Unit
 }
 
 func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error 
 }
 
 func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

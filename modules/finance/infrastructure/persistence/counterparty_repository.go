@@ -71,7 +71,7 @@ func (g *GormCounterpartyRepository) GetPaginated(ctx context.Context, params *c
 }
 
 func (g *GormCounterpartyRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -102,7 +102,7 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 	if err != nil {
 		return nil, err
 	}
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (g *GormCounterpartyRepository) Delete(ctx context.Context, id uint) error 
 }
 
 func (g *GormCounterpartyRepository) queryCounterparties(ctx context.Context, query string, args ...interface{}) ([]counterparty.Counterparty, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (g *GormCounterpartyRepository) queryCounterparties(ctx context.Context, qu
 }
 
 func (g *GormCounterpartyRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -32,7 +32,7 @@ func NewExpenseCategoryRepository(currencyRepo currency.Repository) category.Rep
 func (g *GormExpenseCategoryRepository) GetPaginated(
 	ctx context.Context, params *category.FindParams,
 ) ([]*category.ExpenseCategory, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 }
 
 func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (uint, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -132,7 +132,7 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (*
 }
 
 func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *category.ExpenseCategory) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data *catego
 }
 
 func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *category.ExpenseCategory) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data *catego
 }
 
 func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

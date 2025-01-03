@@ -98,7 +98,7 @@ func (g *GormEmployeeRepository) GetPaginated(ctx context.Context, params *emplo
 }
 
 func (g *GormEmployeeRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -126,7 +126,7 @@ func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (employee
 
 func (g *GormEmployeeRepository) Create(ctx context.Context, data employee.Employee) (employee.Employee, error) {
 	dbEmployee, dbMeta := toDBEmployee(data)
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (g *GormEmployeeRepository) Delete(ctx context.Context, id uint) error {
 }
 
 func (g *GormEmployeeRepository) queryEmployees(ctx context.Context, query string, args ...interface{}) ([]employee.Employee, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (g *GormEmployeeRepository) queryEmployees(ctx context.Context, query strin
 }
 
 func (g *GormEmployeeRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

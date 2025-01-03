@@ -49,7 +49,7 @@ func NewPositionRepository() position.Repository {
 }
 
 func (g *GormPositionRepository) queryPositions(ctx context.Context, query string, args ...interface{}) ([]*position.Position, error) {
-	tx, err := composables.UsePoolTx(context.Background())
+	tx, err := composables.UseTx(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (g *GormPositionRepository) GetPaginated(
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePoolTx(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -149,7 +149,7 @@ func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Positi
 }
 
 func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint, error) {
-	pool, err := composables.UsePoolTx(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return make([]uint, 0), err
 	}
@@ -218,7 +218,7 @@ func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *posit
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 }
 
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

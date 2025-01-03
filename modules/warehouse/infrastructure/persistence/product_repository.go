@@ -31,7 +31,7 @@ func NewProductRepository(positionRepo position.Repository) product.Repository {
 func (g *GormProductRepository) GetPaginated(
 	ctx context.Context, params *product.FindParams,
 ) ([]*product.Product, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (g *GormProductRepository) GetPaginated(
 }
 
 func (g *GormProductRepository) Count(ctx context.Context, opts *product.CountParams) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -189,7 +189,7 @@ func (g *GormProductRepository) GetByRfidMany(ctx context.Context, tags []string
 }
 
 func (g *GormProductRepository) Create(ctx context.Context, data *product.Product) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 }
 
 func (g *GormProductRepository) UpdateStatus(ctx context.Context, uints []uint, status product.Status) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (g *GormProductRepository) UpdateStatus(ctx context.Context, uints []uint, 
 }
 
 func (g *GormProductRepository) BulkDelete(ctx context.Context, IDs []uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -272,7 +272,7 @@ func (g *GormProductRepository) BulkDelete(ctx context.Context, IDs []uint) erro
 }
 
 func (g *GormProductRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

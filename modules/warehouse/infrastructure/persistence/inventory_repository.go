@@ -36,7 +36,7 @@ func NewInventoryRepository(userRepo user.Repository, positionRepo position.Repo
 func (g *GormInventoryRepository) GetPaginated(
 	ctx context.Context, params *inventory.FindParams,
 ) ([]*inventory.Check, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (g *GormInventoryRepository) GetPaginated(
 }
 
 func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.Position, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.P
 }
 
 func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -210,7 +210,7 @@ func (g *GormInventoryRepository) GetByIDWithDifference(ctx context.Context, id 
 }
 
 func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Check) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -238,7 +238,7 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 }
 
 func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Check) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -256,7 +256,7 @@ func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Ch
 }
 
 func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -276,7 +276,7 @@ type findCheckResultsParams struct {
 func (g *GormInventoryRepository) getCheckResults(
 	ctx context.Context, params *findCheckResultsParams,
 ) ([]*inventory.CheckResult, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
