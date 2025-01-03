@@ -33,7 +33,7 @@ func NewExpenseRepository(categoryRepo category.Repository, transactionRepo tran
 func (g *GormExpenseRepository) GetPaginated(
 	ctx context.Context, params *expense.FindParams,
 ) ([]*expense.Expense, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (g *GormExpenseRepository) GetPaginated(
 }
 
 func (g *GormExpenseRepository) Count(ctx context.Context) (uint, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -137,7 +137,7 @@ func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (*expense.
 }
 
 func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expense) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expens
 }
 
 func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expense) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expens
 }
 
 func (g *GormExpenseRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -26,7 +26,7 @@ func NewPositionRepository() position.Repository {
 func (g *GormPositionRepository) GetPaginated(
 	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (g *GormPositionRepository) GetPaginated(
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -107,7 +107,7 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id int64) (*positi
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 }
 
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id int64) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

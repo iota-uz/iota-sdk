@@ -24,7 +24,7 @@ func NewPermissionRepository() permission.Repository {
 func (g *GormPermissionRepository) GetPaginated(
 	ctx context.Context, params *permission.FindParams,
 ) ([]permission.Permission, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (g *GormPermissionRepository) GetPaginated(
 }
 
 func (g *GormPermissionRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -123,7 +123,7 @@ func (g *GormPermissionRepository) CreateOrUpdate(ctx context.Context, data *per
 }
 
 func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.Permission) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.
 }
 
 func (g *GormPermissionRepository) Update(ctx context.Context, data *permission.Permission) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func (g *GormPermissionRepository) Update(ctx context.Context, data *permission.
 }
 
 func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -83,7 +83,7 @@ func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, params *m
 }
 
 func (g *GormMoneyAccountRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -119,7 +119,7 @@ func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id 
 
 func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyaccount.Account) (*moneyaccount.Account, error) {
 	entity := toDBMoneyAccount(data)
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +162,7 @@ func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uint) error 
 }
 
 func (g *GormMoneyAccountRepository) queryAccounts(ctx context.Context, query string, args ...interface{}) ([]*moneyaccount.Account, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (g *GormMoneyAccountRepository) queryAccounts(ctx context.Context, query st
 }
 
 func (g *GormMoneyAccountRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

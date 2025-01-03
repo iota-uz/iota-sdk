@@ -25,7 +25,7 @@ func NewUploadRepository() upload.Repository {
 func (g *GormUploadRepository) GetPaginated(
 	ctx context.Context, params *upload.FindParams,
 ) ([]*upload.Upload, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (g *GormUploadRepository) GetPaginated(
 }
 
 func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -122,7 +122,7 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 }
 
 func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 }
 
 func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) 
 }
 
 func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

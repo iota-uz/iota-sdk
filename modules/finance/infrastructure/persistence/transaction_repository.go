@@ -75,7 +75,7 @@ func (g *GormTransactionRepository) GetPaginated(ctx context.Context, params *tr
 }
 
 func (g *GormTransactionRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -103,7 +103,7 @@ func (g *GormTransactionRepository) GetByID(ctx context.Context, id uint) (*tran
 
 func (g *GormTransactionRepository) Create(ctx context.Context, data *transaction.Transaction) error {
 	entity := toDBTransaction(data)
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (g *GormTransactionRepository) Delete(ctx context.Context, id uint) error {
 }
 
 func (g *GormTransactionRepository) queryTransactions(ctx context.Context, query string, args ...interface{}) ([]*transaction.Transaction, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (g *GormTransactionRepository) queryTransactions(ctx context.Context, query
 }
 
 func (g *GormTransactionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

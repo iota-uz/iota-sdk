@@ -27,7 +27,7 @@ func NewOrderRepository(productRepo product.Repository) order.Repository {
 }
 
 func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 }
 
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -124,7 +124,7 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order
 }
 
 func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 }
 
 func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

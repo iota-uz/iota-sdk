@@ -68,7 +68,7 @@ func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *sessio
 }
 
 func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -125,7 +125,7 @@ func (g *GormSessionRepository) Delete(ctx context.Context, token string) error 
 }
 
 func (g *GormSessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]*session.Session, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (g *GormSessionRepository) querySessions(ctx context.Context, query string,
 }
 
 func (g *GormSessionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -29,7 +29,7 @@ func NewRoleRepository() role.Repository {
 func (g *GormRoleRepository) GetPaginated(
 	ctx context.Context, params *role.FindParams,
 ) ([]*role.Role, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (g *GormRoleRepository) GetPaginated(
 }
 
 func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -141,7 +141,7 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 }
 
 func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return composables.ErrNoTx
 	}
@@ -192,7 +192,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error 
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

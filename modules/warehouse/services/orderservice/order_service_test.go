@@ -6,9 +6,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
-	persistence2 "github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	orderservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/jackc/pgx/v5"
@@ -35,10 +35,10 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		}
 	}(testCtx.Tx, testCtx.Context)
 
-	unitRepo := persistence2.NewUnitRepository()
-	positionRepo := persistence2.NewPositionRepository(unitRepo)
-	productRepo := persistence2.NewProductRepository(positionRepo)
-	orderRepo := persistence2.NewOrderRepository(productRepo)
+	unitRepo := persistence.NewUnitRepository()
+	positionRepo := persistence.NewPositionRepository()
+	productRepo := persistence.NewProductRepository(positionRepo)
+	orderRepo := persistence.NewOrderRepository(productRepo)
 	orderService := orderservice.NewOrderService(testCtx.App.EventPublisher(), orderRepo, productRepo)
 
 	if err := unitRepo.Create(testCtx.Context, &unit.Unit{
@@ -51,7 +51,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	positionEntity := position.Position{
+	positionEntity := &position.Position{
 		ID:        1,
 		Title:     "Test Position",
 		Barcode:   "1234567890",
@@ -60,14 +60,14 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	if err := positionRepo.Create(testCtx.Context, &positionEntity); err != nil {
+	if err := positionRepo.Create(testCtx.Context, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
 	domainOrder := order.New(order.TypeIn, order.Pending)
 	if err := domainOrder.AddItem(
 		positionEntity,
-		product.New("EPS:1234567890", 1, product.Approved, &positionEntity),
+		product.New("EPS:1234567890", 1, product.Approved, positionEntity),
 	); err != nil {
 		t.Fatal(err)
 	}

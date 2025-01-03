@@ -25,7 +25,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	}(ctx.Tx, ctx.Context)
 
 	unitRepository := persistence2.NewUnitRepository()
-	positionRepository := persistence2.NewPositionRepository(unitRepository)
+	positionRepository := persistence2.NewPositionRepository()
 	uploadRepository := corepersistence.NewUploadRepository()
 
 	if err := unitRepository.Create(

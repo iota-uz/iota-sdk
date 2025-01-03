@@ -2,9 +2,9 @@ package positionservice_test
 
 import (
 	"context"
-	persistence2 "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
-	persistence3 "github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
@@ -63,15 +63,15 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	testCtx := testutils.GetTestContext()
 	publisher := event.NewEventPublisher()
 
-	unitRepo := persistence3.NewUnitRepository()
+	unitRepo := persistence.NewUnitRepository()
 	testCtx.App.RegisterServices(services.NewUnitService(unitRepo, publisher))
 
-	positionRepo := persistence3.NewPositionRepository(unitRepo)
-	productRepo := persistence3.NewProductRepository(positionRepo)
+	positionRepo := persistence.NewPositionRepository()
+	productRepo := persistence.NewProductRepository(positionRepo)
 	testCtx.App.RegisterServices(productservice.NewProductService(productRepo, publisher))
 
-	uploadRepo := persistence2.NewUploadRepository()
-	storage, err := persistence2.NewFSStorage()
+	uploadRepo := corepersistence.NewUploadRepository()
+	storage, err := corepersistence.NewFSStorage()
 	if err != nil {
 		t.Error(err)
 	}

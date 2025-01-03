@@ -71,7 +71,7 @@ func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *paymen
 }
 
 func (g *GormPaymentRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -99,7 +99,7 @@ func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (payment.P
 
 func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment) (payment.Payment, error) {
 	dbPayment, dbTransaction := toDBPayment(data)
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
 }
 
 func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string, args ...interface{}) ([]payment.Payment, error) {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string,
 }
 
 func (g *GormPaymentRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
