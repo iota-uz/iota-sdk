@@ -59,6 +59,7 @@ func (g *GormUploadRepository) GetPaginated(
 			&upload.ID,
 			&upload.Hash,
 			&upload.Path,
+			&upload.Size,
 			&upload.Mimetype,
 			&upload.CreatedAt,
 			&upload.UpdatedAt,
