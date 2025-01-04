@@ -65,7 +65,7 @@ func ToDomainUser(dbUser *models.User) (*user.User, error) {
 func toDBUser(entity *user.User) (*models.User, []models.Role) {
 	roles := make([]models.Role, len(entity.Roles))
 	for i, r := range entity.Roles {
-		dbRole, _ := toDBRole(r)
+		dbRole := toDBRole(r)
 		roles[i] = *dbRole
 	}
 	var avatar *models.Upload
@@ -114,11 +114,7 @@ func toDomainRole(dbRole *models.Role) (*role.Role, error) {
 	}, nil
 }
 
-func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
-	permissions := make([]models.Permission, len(entity.Permissions))
-	for i, p := range entity.Permissions {
-		permissions[i] = toDBPermission(p)
-	}
+func toDBRole(entity *role.Role) *models.Role {
 	return &models.Role{
 		ID:          entity.ID,
 		Name:        entity.Name,
@@ -126,7 +122,7 @@ func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
 		Permissions: nil,
 		CreatedAt:   entity.CreatedAt,
 		UpdatedAt:   entity.UpdatedAt,
-	}, permissions
+	}
 }
 
 func toDBPermission(entity permission.Permission) models.Permission {
