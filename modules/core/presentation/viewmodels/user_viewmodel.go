@@ -11,9 +11,11 @@ type User struct {
 	MiddleName string
 	Email      string
 	UILanguage string
+	LastAction string
 	CreatedAt  string
 	UpdatedAt  string
 	AvatarID   string
+	Roles      []*Role
 	Avatar     *Upload
 }
 
