@@ -2,6 +2,7 @@ package seed
 
 import (
 	"context"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -9,14 +10,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-)
-
-var (
-	CEO = role.Role{
-		ID:          1,
-		Name:        "CEO",
-		Description: "Chief Executive Officer",
-	}
 )
 
 func navItems2Tabs(navItems []types.NavigationItem) []*tab.Tab {
@@ -35,12 +28,12 @@ func CreateUser(ctx context.Context, app application.Application) error {
 	roleRepository := persistence.NewRoleRepository()
 	tabsRepository := persistence.NewTabRepository()
 
-	if err := roleRepository.CreateOrUpdate(ctx, &role.Role{
-		ID:          CEO.ID,
-		Name:        CEO.Name,
-		Description: CEO.Description,
+	CEO := role.Role{
+		Name:        "CEO",
+		Description: "Chief Executive Officer",
 		Permissions: app.Permissions(),
-	}); err != nil {
+	}
+	if err := roleRepository.CreateOrUpdate(ctx, &CEO); err != nil {
 		return err
 	}
 

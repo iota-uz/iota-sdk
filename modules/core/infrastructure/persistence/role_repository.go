@@ -145,19 +145,27 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 	if err != nil {
 		return err
 	}
-	entity, permissions := toDBRole(data)
+	entity := toDBRole(data)
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO roles (name, description)
-		VALUES ($1, $2)
+		VALUES ($1, $2) 
+		ON CONFLICT (name) DO UPDATE SET description = roles.description
+		RETURNING id
 	`, entity.Name, entity.Description).Scan(&data.ID); err != nil {
 		return err
 	}
-	for _, permission := range permissions {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO role_permissions (role_id, permission_id)
-			VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
-		`, data.ID, permission.ID); err != nil {
-			return err
+
+	if permissions := data.Permissions; permissions != nil {
+		for _, permission := range permissions {
+			if err := g.permissionRepo.Create(ctx, &permission); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO role_permissions (role_id, permission_id)
+				VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
+			`, data.ID, permission.ID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -168,7 +176,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error 
 	if err != nil {
 		return composables.ErrNoTx
 	}
-	entity, permissions := toDBRole(data)
+	entity := toDBRole(data)
 	if _, err := tx.Exec(ctx, `
 		UPDATE roles
 		SET name = $1, description = $2
@@ -180,12 +188,18 @@ func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error 
 	if _, err := tx.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1`, entity.ID); err != nil {
 		return err
 	}
-	for _, permission := range permissions {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO role_permissions (role_id, permission_id)
-			VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
-		`, entity.ID, permission.ID); err != nil {
-			return err
+
+	if permissions := data.Permissions; permissions != nil {
+		for _, permission := range permissions {
+			if err := g.permissionRepo.Create(ctx, &permission); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO role_permissions (role_id, permission_id)
+				VALUES ($1, $2) ON CONFLICT (role_id, permission_id) DO NOTHING
+			`, data.ID, permission.ID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
