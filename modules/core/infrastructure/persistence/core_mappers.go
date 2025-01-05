@@ -2,12 +2,13 @@ package persistence
 
 import (
 	"database/sql"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	tax2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"time"
 
 	"github.com/gabriel-vasile/mimetype"
 
