@@ -87,7 +87,7 @@ const (
             updated_at = $9
         WHERE id = $10`
 
-	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $2`
+	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
 
 	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1`
 
