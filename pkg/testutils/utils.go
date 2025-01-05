@@ -46,7 +46,7 @@ func MockUser(permissions ...permission.Permission) *user.User {
 		LastAction: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
-		Roles: []*role.Role{
+		Roles: []role.Role{
 			{
 				ID:          1,
 				Name:        "admin",

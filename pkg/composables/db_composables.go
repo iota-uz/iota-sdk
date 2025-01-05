@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

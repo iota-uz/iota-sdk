@@ -48,12 +48,16 @@ func (u *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (u *CreateDTO) ToEntity() *User {
+func (u *CreateDTO) ToEntity() (*User, error) {
+	r, err := role.NewWithID(u.RoleID, "", "", nil, time.Now(), time.Now())
+	if err != nil {
+		return nil, err
+	}
 	return &User{
 		FirstName:  u.FirstName,
 		LastName:   u.LastName,
 		Email:      u.Email,
-		Roles:      []*role.Role{{ID: u.RoleID}},
+		Roles:      []role.Role{r},
 		Password:   u.Password,
 		LastLogin:  nil,
 		LastAction: nil,
@@ -62,16 +66,20 @@ func (u *CreateDTO) ToEntity() *User {
 		EmployeeID: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
-	}
+	}, nil
 }
 
-func (u *UpdateDTO) ToEntity(id uint) *User {
+func (u *UpdateDTO) ToEntity(id uint) (*User, error) {
+	r, err := role.NewWithID(u.RoleID, "", "", nil, time.Now(), time.Now())
+	if err != nil {
+		return nil, err
+	}
 	return &User{
 		ID:         id,
 		FirstName:  u.FirstName,
 		LastName:   u.LastName,
 		Email:      u.Email,
-		Roles:      []*role.Role{{ID: u.RoleID}},
+		Roles:      []role.Role{r},
 		Password:   u.Password,
 		LastLogin:  nil,
 		LastAction: nil,
@@ -80,5 +88,5 @@ func (u *UpdateDTO) ToEntity(id uint) *User {
 		EmployeeID: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
-	}
+	}, nil
 }
