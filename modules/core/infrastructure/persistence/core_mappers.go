@@ -2,11 +2,6 @@ package persistence
 
 import (
 	"database/sql"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
-	tax2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -15,17 +10,22 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func ToDomainUser(dbUser *models.User) (*user.User, error) {
-	roles := make([]*role.Role, len(dbUser.Roles))
+	roles := make([]role.Role, len(dbUser.Roles))
 	// for i, r := range dbUser.Roles {
 	// 	roles[i] = toDomainRole(&r)
 	// }
@@ -98,23 +98,22 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 	}, roles
 }
 
-func toDomainRole(dbRole *models.Role) (*role.Role, error) {
+func toDomainRole(dbRole *models.Role) (role.Role, error) {
 	// permissions := make([]permission.Permission, len(dbRole.Permissions))
 	// for i, p := range dbRole.Permissions {
 	// 	permissions[i] = *toDomainPermission(&p)
 	// }
-	return &role.Role{
-		ID:          dbRole.ID,
-		Name:        dbRole.Name,
-		Description: dbRole.Description,
-		Permissions: make([]permission.Permission, 0),
-		// Permissions: permissions,
-		CreatedAt: dbRole.CreatedAt,
-		UpdatedAt: dbRole.UpdatedAt,
-	}, nil
+	return role.NewWithID(
+		dbRole.ID,
+		dbRole.Name,
+		dbRole.Description,
+		[]permission.Permission{},
+		dbRole.CreatedAt,
+		dbRole.UpdatedAt,
+	)
 }
 
-func toDBRole(entity *role.Role) (*models.Role, []models.Permission) {
+func toDBRole(entity role.Role) (*models.Role, []models.Permission) {
 	permissions := make([]models.Permission, len(entity.Permissions))
 	for i, p := range entity.Permissions {
 		permissions[i] = toDBPermission(p)
@@ -149,18 +148,18 @@ func toDomainPermission(dbPermission models.Permission) (permission.Permission, 
 	}, nil
 }
 
-func ToDomainPin(s sql.NullString, c country.Country) (tax2.Pin, error) {
+func ToDomainPin(s sql.NullString, c country.Country) (tax.Pin, error) {
 	if !s.Valid {
-		return tax2.NilPin, nil
+		return tax.NilPin, nil
 	}
-	return tax2.NewPin(s.String, c)
+	return tax.NewPin(s.String, c)
 }
 
-func ToDomainTin(s sql.NullString, c country.Country) (tax2.Tin, error) {
+func ToDomainTin(s sql.NullString, c country.Country) (tax.Tin, error) {
 	if !s.Valid {
-		return tax2.NilTin, nil
+		return tax.NilTin, nil
 	}
-	return tax2.NewTin(s.String, c)
+	return tax.NewTin(s.String, c)
 }
 
 func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) (employee.Employee, error) {

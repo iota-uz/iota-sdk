@@ -25,7 +25,7 @@ import (
 func TestPaymentsService_CRUD(t *testing.T) {
 	ctx := testutils.GetTestContext()
 	ctx.Context = context.WithValue(ctx.Context, constants.UserKey, &user.User{
-		Roles: []*role.Role{
+		Roles: []role.Role{
 			{
 				Permissions: []permission.Permission{
 					permissions.PaymentCreate,

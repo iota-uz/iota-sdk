@@ -28,7 +28,7 @@ func NewRoleRepository() role.Repository {
 
 func (g *GormRoleRepository) GetPaginated(
 	ctx context.Context, params *role.FindParams,
-) ([]*role.Role, error) {
+) ([]role.Role, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (g *GormRoleRepository) GetPaginated(
 
 	defer rows.Close()
 
-	roles := make([]*role.Role, 0)
+	roles := make([]role.Role, 0)
 	for rows.Next() {
 		var role models.Role
 		if err := rows.Scan(
@@ -104,13 +104,13 @@ func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormRoleRepository) GetAll(ctx context.Context) ([]*role.Role, error) {
+func (g *GormRoleRepository) GetAll(ctx context.Context) ([]role.Role, error) {
 	return g.GetPaginated(ctx, &role.FindParams{
 		Limit: 100000,
 	})
 }
 
-func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role.Role, error) {
+func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, error) {
 	roles, err := g.GetPaginated(ctx, &role.FindParams{
 		ID: id,
 	})
@@ -123,7 +123,7 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (*role.Role, 
 	return roles[0], nil
 }
 
-func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data role.Role) error {
 	u, err := g.GetByID(ctx, data.ID)
 	if err != nil && !errors.Is(err, ErrRoleNotFound) {
 		return err
@@ -140,7 +140,7 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data *role.Role
 	return nil
 }
 
-func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data *role.Role) error 
 	return nil
 }
 
-func (g *GormRoleRepository) Update(ctx context.Context, data *role.Role) error {
+func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return composables.ErrNoTx

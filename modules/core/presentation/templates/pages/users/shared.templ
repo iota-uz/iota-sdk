@@ -1,22 +1,22 @@
 package users
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"strconv"
 )
 
 type RoleSelectProps struct {
 	*types.PageContext
-	Roles    []*role.Role
-	Selected []*role.Role
+	Roles    []role.Role
+	Selected []role.Role
 	Error    string
 }
 
-func isRoleSelected(id uint, roles []*role.Role) bool {
+func isRoleSelected(id uint, roles []role.Role) bool {
 	for _, role := range roles {
-		if role.ID == id {
+		if role.ID() == id {
 			return true
 		}
 	}
@@ -33,10 +33,10 @@ templ RoleSelect(props *RoleSelectProps) {
 		},
 	}) {
 		for _, role := range props.Roles {
-			if isRoleSelected(role.ID, props.Selected) {
-				<option value={ strconv.Itoa(int(role.ID)) } selected>{ role.Name }</option>
+			if isRoleSelected(role.ID(), props.Selected) {
+				<option value={ strconv.Itoa(int(role.ID())) } selected>{ role.Name() }</option>
 			} else {
-				<option value={ strconv.Itoa(int(role.ID)) }>{ role.Name }</option>
+				<option value={ strconv.Itoa(int(role.ID())) }>{ role.Name() }</option>
 			}
 		}
 	}

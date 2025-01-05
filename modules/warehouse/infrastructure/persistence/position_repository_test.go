@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	persistence2 "github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
+	core "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
@@ -24,9 +24,9 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		}
 	}(ctx.Tx, ctx.Context)
 
-	unitRepository := persistence2.NewUnitRepository()
-	positionRepository := persistence2.NewPositionRepository()
-	uploadRepository := corepersistence.NewUploadRepository()
+	unitRepository := persistence.NewUnitRepository()
+	positionRepository := persistence.NewPositionRepository()
+	uploadRepository := core.NewUploadRepository()
 
 	if err := unitRepository.Create(
 		ctx.Context, &unit.Unit{

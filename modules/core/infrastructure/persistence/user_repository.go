@@ -11,7 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -422,7 +422,7 @@ func (g *GormUserRepository) execQuery(ctx context.Context, query string, args .
 	return err
 }
 
-func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []*role.Role) error {
+func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
 	// Delete existing roles
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
 		return err

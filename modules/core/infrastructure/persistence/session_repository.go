@@ -7,7 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (

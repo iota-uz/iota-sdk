@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"

@@ -31,7 +31,7 @@ type User struct {
 	LastAction *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	Roles      []*role.Role
+	Roles      []role.Role
 }
 
 func (u *User) CheckPassword(password string) bool {

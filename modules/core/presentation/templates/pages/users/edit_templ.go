@@ -25,7 +25,7 @@ import (
 type EditFormProps struct {
 	*types.PageContext
 	User   *user.User
-	Roles  []*role.Role
+	Roles  []role.Role
 	Errors map[string]string
 }
 
