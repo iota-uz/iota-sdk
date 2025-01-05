@@ -10,6 +10,7 @@ require (
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/gabriel-vasile/mimetype v1.4.7
 	github.com/go-faster/errors v0.7.1
+	github.com/go-gorp/gorp/v3 v3.1.0
 	github.com/go-playground/form v3.1.4+incompatible
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
@@ -48,7 +49,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-faster/jx v1.1.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
-	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
