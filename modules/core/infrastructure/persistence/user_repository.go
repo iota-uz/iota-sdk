@@ -95,7 +95,7 @@ const (
 
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
-	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`
+	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT (role_id, user_id) DO NOTHING`
 )
 
 type GormUserRepository struct{}

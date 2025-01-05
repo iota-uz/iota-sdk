@@ -10,19 +10,19 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"strconv"
 )
 
 type RoleSelectProps struct {
 	*types.PageContext
-	Roles    []*role.Role
-	Selected []*role.Role
+	Roles    []*viewmodels.Role
+	Selected []*viewmodels.Role
+	Attrs    templ.Attributes
 	Error    string
 }
 
-func isRoleSelected(id uint, roles []*role.Role) bool {
+func isRoleSelected(id string, roles []*viewmodels.Role) bool {
 	for _, role := range roles {
 		if role.ID == id {
 			return true
@@ -71,9 +71,9 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var3 string
-					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(role.ID)))
+					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(role.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 37, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 35, Col: 27}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -86,7 +86,7 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(role.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 37, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 35, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -102,9 +102,9 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(role.ID)))
+					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(role.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 39, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 37, Col: 27}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -117,7 +117,7 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(role.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 39, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 37, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -135,9 +135,7 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 			Label:       props.T("Users.Single.Role"),
 			Placeholder: props.T("Users.Single.SelectRole"),
 			Error:       props.Error,
-			Attrs: templ.Attributes{
-				"name": "RoleID",
-			},
+			Attrs:       props.Attrs,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

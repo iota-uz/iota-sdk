@@ -1,27 +1,32 @@
 package user
 
 import (
+	"time"
+
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"time"
 )
 
 type CreateDTO struct {
-	FirstName string `validate:"required"`
-	LastName  string `validate:"required"`
-	Email     string `validate:"required,email"`
-	Password  string
-	RoleID    uint `validate:"required"`
+	FirstName  string `validate:"required"`
+	LastName   string `validate:"required"`
+	Email      string `validate:"required,email"`
+	Password   string
+	RoleID     uint `validate:"required"`
+	AvatarID   uint
+	UILanguage string
 }
 
 type UpdateDTO struct {
-	FirstName string `validate:"required"`
-	LastName  string `validate:"required"`
-	Email     string `validate:"required,email"`
-	Password  string
-	RoleID    uint
+	FirstName  string `validate:"required"`
+	LastName   string `validate:"required"`
+	Email      string `validate:"required,email"`
+	Password   string
+	RoleID     uint
+	AvatarID   uint
+	UILanguage string
 }
 
 func (u *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
@@ -58,7 +63,8 @@ func (u *CreateDTO) ToEntity() *User {
 		LastLogin:  nil,
 		LastAction: nil,
 		LastIP:     nil,
-		//AvatarID:   nil,
+		AvatarID:   &u.AvatarID,
+		UILanguage: UILanguage(u.UILanguage),
 		EmployeeID: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
@@ -76,7 +82,8 @@ func (u *UpdateDTO) ToEntity(id uint) *User {
 		LastLogin:  nil,
 		LastAction: nil,
 		LastIP:     nil,
-		//AvatarID:   nil,
+		AvatarID:   &u.AvatarID,
+		UILanguage: UILanguage(u.UILanguage),
 		EmployeeID: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
