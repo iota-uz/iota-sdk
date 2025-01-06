@@ -5,17 +5,67 @@ import (
 	"errors"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 var (
 	ErrProductNotFound = errors.New("product not found")
+)
+
+const (
+	productFindQuery = `
+		SELECT 
+			wp.id, 
+			wp.position_id,
+			wp.rfid,
+			wp.status,
+			wp.created_at, 
+			wp.updated_at,
+			p.id,
+			p.title,
+			p.barcode,
+			p.unit_id,
+			p.created_at,
+			p.updated_at,
+			wu.id,
+			wu.title,
+			wu.short_title,
+			wu.created_at,
+			wu.updated_at
+		FROM warehouse_products wp
+		LEFT JOIN warehouse_positions p ON p.id = wp.position_id
+		LEFT JOIN warehouse_units wu ON wu.id = p.unit_id`
+
+	productCountQuery = `
+		SELECT COUNT(DISTINCT wp.id) FROM warehouse_products wp`
+
+	productInsertQuery = `
+		INSERT INTO warehouse_products (position_id, rfid, status) 
+		VALUES ($1, $2, $3)
+		RETURNING id`
+
+	productUpdateQuery = `
+		UPDATE warehouse_products 
+		SET position_id = $1, rfid = $2, status = $3
+		WHERE id = $4`
+
+	productUpdateStatusQuery = `
+		UPDATE warehouse_products 
+		SET status = $1
+		WHERE id = ANY($2)`
+
+	productDeleteQuery = `
+		DELETE FROM warehouse_products 
+		WHERE id = $1`
+
+	productBulkDeleteQuery = `
+		DELETE FROM warehouse_products 
+		WHERE id = ANY($1)`
 )
 
 type GormProductRepository struct {
@@ -28,134 +78,103 @@ func NewProductRepository(positionRepo position.Repository) product.Repository {
 	}
 }
 
-func (g *GormProductRepository) GetPaginated(
-	ctx context.Context, params *product.FindParams,
-) ([]*product.Product, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (g *GormProductRepository) GetPaginated(ctx context.Context, params *product.FindParams) ([]*product.Product, error) {
 	where, args := []string{"1 = 1"}, []interface{}{}
 
 	if params.OrderID != 0 {
-		where, args = append(where, fmt.Sprintf("EXISTS (SELECT FROM warehouse_order_items WHERE warehouse_product_id = wp.id AND warehouse_order_id = $%d)", len(args)+1)), append(args, params.OrderID)
-	}
-
-	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("wp.id = $%d", len(args)+1)), append(args, params.ID)
+		where = append(where, fmt.Sprintf(
+			"EXISTS (SELECT FROM warehouse_order_items WHERE warehouse_product_id = wp.id AND warehouse_order_id = $%d)",
+			len(args)+1,
+		))
+		args = append(args, params.OrderID)
 	}
 
 	if params.Status != "" {
-		where, args = append(where, fmt.Sprintf("wp.status = $%d", len(args)+1)), append(args, params.Status)
+		where = append(where, fmt.Sprintf("wp.status = $%d", len(args)+1))
+		args = append(args, params.Status)
 	}
 
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where, args = append(where, fmt.Sprintf("wp.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
+		where = append(where, fmt.Sprintf(
+			"wp.created_at BETWEEN $%d and $%d",
+			len(args)+1, len(args)+2,
+		))
+		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
 
 	if len(params.Rfids) > 0 {
-		where, args = append(where, fmt.Sprintf("wp.rfid = ANY($%d)", len(args)+1)), append(args, params.Rfids)
+		where = append(where, fmt.Sprintf("wp.rfid = ANY($%d)", len(args)+1))
+		args = append(args, params.Rfids)
 	}
 
 	if params.Query != "" && params.Field != "" {
 		if params.Field == "position" {
-			where, args = append(where, fmt.Sprintf("EXISTS (SELECT FROM warehouse_positions WHERE id = wp.position_id AND title ILIKE $%d)", len(args)+1)), append(args, params.Query)
+			where = append(where, fmt.Sprintf(
+				"EXISTS (SELECT FROM warehouse_positions WHERE id = wp.position_id AND title ILIKE $%d)",
+				len(args)+1,
+			))
+			args = append(args, params.Query)
 		} else {
-			where, args = append(where, fmt.Sprintf("wp.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
+			where = append(where, fmt.Sprintf("wp.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1))
+			args = append(args, "%"+params.Query+"%")
 		}
 	}
-	rows, err := pool.Query(ctx, `
-		SELECT wp.id, wp.status, wp.position_id, wp.rfid, wp.created_at, wp.updated_at
-		FROM warehouse_products wp
-		WHERE `+strings.Join(where, " AND ")+`
-		ORDER BY wp.id DESC
-		`+repo.FormatLimitOffset(params.Limit, params.Offset),
-		args...,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 
-	products := make([]*product.Product, 0)
-	for rows.Next() {
-		var p models.WarehouseProduct
-		if err := rows.Scan(
-			&p.ID,
-			&p.Status,
-			&p.PositionID,
-			&p.Rfid,
-			&p.CreatedAt,
-			&p.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		// TODO: decouple
-		domainProduct, err := mappers.ToDomainProduct(&p, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		if domainProduct.Position, err = g.positionRepo.GetByID(ctx, domainProduct.PositionID); err != nil {
-			return nil, err
-		}
-		products = append(products, domainProduct)
+	query := productFindQuery + "\n" +
+		"WHERE " + strings.Join(where, " AND ") + "\n" +
+		"ORDER BY wp.id DESC"
+
+	if params.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", params.Limit)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if params.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", params.Offset)
 	}
-	return products, nil
+
+	return g.queryProducts(ctx, query, args...)
 }
 
 func (g *GormProductRepository) Count(ctx context.Context, opts *product.CountParams) (int64, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return 0, err
-	}
 	where, args := []string{"1 = 1"}, []interface{}{}
+
 	if opts.PositionID != 0 {
-		where, args = append(where, fmt.Sprintf("position_id = $%d", len(args)+1)), append(args, opts.PositionID)
+		where = append(where, fmt.Sprintf("position_id = $%d", len(args)+1))
+		args = append(args, opts.PositionID)
 	}
 
 	if opts.Status.IsValid() {
-		where, args = append(where, fmt.Sprintf("status = $%d", len(args)+1)), append(args, opts.Status)
+		where = append(where, fmt.Sprintf("status = $%d", len(args)+1))
+		args = append(args, opts.Status)
+	}
+
+	query := productCountQuery + "\nWHERE " + strings.Join(where, " AND ")
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
 	}
 
 	var count int64
-	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM warehouse_products
-		WHERE `+strings.Join(where, " AND ")+`
-	`, args...).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormProductRepository) FindByPositionID(ctx context.Context, opts *product.FindByPositionParams) ([]*product.Product, error) {
-	products, err := g.GetPaginated(ctx, &product.FindParams{
+	return g.GetPaginated(ctx, &product.FindParams{
 		PositionID: opts.PositionID,
 		Status:     string(opts.Status),
 		SortBy:     opts.SortBy,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return products, nil
 }
 
 func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product, error) {
-	products, err := g.GetPaginated(ctx, &product.FindParams{
-		Limit: 100000,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return products, nil
+	return g.queryProducts(ctx, productFindQuery)
 }
 
 func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.Product, error) {
-	products, err := g.GetPaginated(ctx, &product.FindParams{
-		ID: id,
-	})
+	products, err := g.queryProducts(ctx, productFindQuery+" WHERE wp.id = $1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -166,9 +185,7 @@ func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.
 }
 
 func (g *GormProductRepository) GetByRfid(ctx context.Context, rfid string) (*product.Product, error) {
-	products, err := g.GetPaginated(ctx, &product.FindParams{
-		Rfids: []string{rfid},
-	})
+	products, err := g.queryProducts(ctx, productFindQuery+" WHERE wp.rfid = $1", rfid)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +196,9 @@ func (g *GormProductRepository) GetByRfid(ctx context.Context, rfid string) (*pr
 }
 
 func (g *GormProductRepository) GetByRfidMany(ctx context.Context, tags []string) ([]*product.Product, error) {
-	products, err := g.GetPaginated(ctx, &product.FindParams{
+	return g.GetPaginated(ctx, &product.FindParams{
 		Rfids: tags,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return products, nil
 }
 
 func (g *GormProductRepository) Create(ctx context.Context, data *product.Product) error {
@@ -193,14 +206,12 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 	if err != nil {
 		return err
 	}
-	dbRow, err := mappers.ToDBProduct(data)
-	if err != nil {
-		return err
-	}
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO warehouse_products (position_id, rfid, status) VALUES ($1, $2, $3)
-		RETURNING id
-	`, dbRow.PositionID, dbRow.Rfid, dbRow.Status).Scan(&data.ID); err != nil {
+
+	if err := tx.QueryRow(ctx, productInsertQuery,
+		data.PositionID,
+		data.Rfid,
+		data.Status,
+	).Scan(&data.ID); err != nil {
 		return err
 	}
 	return nil
@@ -227,57 +238,86 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return err
-	}
-	dbRow, err := mappers.ToDBProduct(data)
-	if err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE warehouse_products wp SET position_id = $1, rfid = $2, status = $3
-		WHERE wp.id = $4
-	`, dbRow.PositionID, dbRow.Rfid, dbRow.Status, dbRow.ID); err != nil {
-		return err
-	}
-	return nil
+	return g.execQuery(ctx, productUpdateQuery,
+		data.PositionID,
+		data.Rfid,
+		data.Status,
+		data.ID,
+	)
 }
 
-func (g *GormProductRepository) UpdateStatus(ctx context.Context, uints []uint, status product.Status) error {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE warehouse_products wp SET status = $1
-		WHERE wp.id = ANY($2)
-	`, status, uints); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (g *GormProductRepository) BulkDelete(ctx context.Context, IDs []uint) error {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `
-		DELETE warehouse_products WHERE id = ANY($1) 
-	`, IDs); err != nil {
-		return err
-	}
-	return nil
+func (g *GormProductRepository) UpdateStatus(ctx context.Context, ids []uint, status product.Status) error {
+	return g.execQuery(ctx, productUpdateStatusQuery, status, ids)
 }
 
 func (g *GormProductRepository) Delete(ctx context.Context, id uint) error {
+	return g.execQuery(ctx, productDeleteQuery, id)
+}
+
+func (g *GormProductRepository) BulkDelete(ctx context.Context, ids []uint) error {
+	return g.execQuery(ctx, productBulkDeleteQuery, ids)
+}
+
+func (g *GormProductRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]*product.Product, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []*product.Product
+
+	for rows.Next() {
+		var wp models.WarehouseProduct
+		var pos models.WarehousePosition
+		var wu models.WarehouseUnit
+
+		if err := rows.Scan(
+			&wp.ID,
+			&wp.PositionID,
+			&wp.Rfid,
+			&wp.Status,
+			&wp.CreatedAt,
+			&wp.UpdatedAt,
+			&pos.ID,
+			&pos.Title,
+			&pos.Barcode,
+			&pos.UnitID,
+			&pos.CreatedAt,
+			&pos.UpdatedAt,
+			&wu.ID,
+			&wu.Title,
+			&wu.ShortTitle,
+			&wu.CreatedAt,
+			&wu.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		entity, err := mappers.ToDomainProduct(&wp, &pos, &wu)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, entity)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return products, nil
+}
+
+func (g *GormProductRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_products WHERE id = $1`, id); err != nil {
-		return err
-	}
-	return nil
+	_, err = tx.Exec(ctx, query, args...)
+	return err
 }

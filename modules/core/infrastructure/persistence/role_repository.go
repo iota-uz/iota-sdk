@@ -154,28 +154,26 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) error {
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) error {
-	entity := toDBRole(data)
+	dbRole, dbPermissions := toDBRole(data)
 
 	if err := g.execQuery(ctx, roleUpdateQuery,
-		entity.Name,
-		entity.Description,
-		entity.ID,
+		dbRole.Name,
+		dbRole.Description,
+		dbRole.ID,
 	); err != nil {
 		return err
 	}
 
-	if err := g.execQuery(ctx, roleDeletePermissionsQuery, entity.ID); err != nil {
+	if err := g.execQuery(ctx, roleDeletePermissionsQuery, dbRole.ID); err != nil {
 		return err
 	}
 
-	if permissions != nil {
-		for _, permission := range permissions {
-			if err := g.execQuery(ctx, roleInsertPermissionQuery,
-				entity.ID,
-				permission.ID,
-			); err != nil {
-				return err
-			}
+	for _, permission := range dbPermissions {
+		if err := g.execQuery(ctx, roleInsertPermissionQuery,
+			dbRole.ID,
+			permission.ID,
+		); err != nil {
+			return err
 		}
 	}
 	return nil
