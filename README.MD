@@ -71,4 +71,4 @@ various industries. Here's what's in the pipeline:
 
 We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
 started.
- 
+
