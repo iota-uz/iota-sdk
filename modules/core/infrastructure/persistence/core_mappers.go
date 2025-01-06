@@ -4,6 +4,12 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
+	tax2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+
 	"github.com/gabriel-vasile/mimetype"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
@@ -65,7 +71,7 @@ func ToDomainUser(dbUser *models.User) (*user.User, error) {
 func toDBUser(entity *user.User) (*models.User, []models.Role) {
 	roles := make([]models.Role, len(entity.Roles))
 	for i, r := range entity.Roles {
-		dbRole, _ := toDBRole(r)
+		dbRole := toDBRole(r)
 		roles[i] = *dbRole
 	}
 	var avatar *models.Upload
@@ -128,7 +134,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 		Description: mapping.ValueToSQLNullString(entity.Description()),
 		CreatedAt:   entity.CreatedAt(),
 		UpdatedAt:   entity.UpdatedAt(),
-	}, permissions
+	}
 }
 
 func toDBPermission(entity permission.Permission) *models.Permission {

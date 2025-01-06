@@ -130,7 +130,9 @@ func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.
 	dbPerm := toDBPermission(*data)
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO permissions (name, resource, action, modifier)
-		VALUES ($1, $2, $3, $4) RETURNING id
+		VALUES ($1, $2, $3, $4) 
+		ON CONFLICT (name) DO UPDATE SET resource = permissions.resource
+		RETURNING id
 	`, dbPerm.Name, dbPerm.Resource, dbPerm.Action, dbPerm.Modifier).Scan(&data.ID); err != nil {
 		return err
 	}

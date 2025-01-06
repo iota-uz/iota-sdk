@@ -154,7 +154,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) error {
 }
 
 func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) error {
-	entity, permissions := toDBRole(data)
+	entity := toDBRole(data)
 
 	if err := g.execQuery(ctx, roleUpdateQuery,
 		entity.Name,

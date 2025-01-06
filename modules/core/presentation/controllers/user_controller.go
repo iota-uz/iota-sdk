@@ -1,17 +1,21 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"net/http"
 )
 
 type UsersController struct {
@@ -79,7 +83,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &users.IndexPageProps{
 		PageContext: pageCtx,
-		Users:       us,
+		Users:       mapping.MapViewModels(us, mappers.UserToViewModel),
 	}
 	if isHxRequest {
 		templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -116,8 +120,8 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &users.EditFormProps{
 		PageContext: pageCtx,
-		User:        us,
-		Roles:       roles,
+		User:        mappers.UserToViewModel(us),
+		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 		Errors:      map[string]string{},
 	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -184,8 +188,8 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 
 			props := &users.EditFormProps{
 				PageContext: pageCtx,
-				User:        us,
-				Roles:       roles,
+				User:        mappers.UserToViewModel(us),
+				Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 				Errors:      errors,
 			}
 			templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -214,8 +218,8 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &users.CreateFormProps{
 		PageContext: pageCtx,
-		User:        user.User{},
-		Roles:       roles,
+		User:        viewmodels.User{},
+		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 		Errors:      map[string]string{},
 	}
 	templ.Handler(users.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -252,8 +256,8 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		}
 		props := &users.CreateFormProps{
 			PageContext: pageCtx,
-			User:        *userEntity,
-			Roles:       roles,
+			User:        *mappers.UserToViewModel(dto.ToEntity()),
+			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 			Errors:      errors,
 		}
 		templ.Handler(

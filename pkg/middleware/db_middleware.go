@@ -1,9 +1,6 @@
 package middleware
 
 import (
-	"context"
-	"github.com/jackc/pgx/v5"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -22,11 +19,7 @@ func WithTransaction() mux.MiddlewareFunc {
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
-				defer func(tx pgx.Tx, ctx context.Context) {
-					if err := tx.Rollback(ctx); err != nil {
-						log.Fatal(err)
-					}
-				}(tx, r.Context())
+				defer tx.Rollback(r.Context())
 				r = r.WithContext(composables.WithTx(r.Context(), tx))
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)

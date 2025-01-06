@@ -80,14 +80,14 @@ const (
             last_name = $2,
             middle_name = $3,
             email = $4,
-            password = $5,
+            password = COALESCE(NULLIF($5, ''), users.password),
             ui_language = $6,
             avatar_id = $7,
             employee_id = $8,
             updated_at = $9
         WHERE id = $10`
 
-	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $2`
+	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
 
 	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1`
 
@@ -95,7 +95,7 @@ const (
 
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
-	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`
+	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT (role_id, user_id) DO NOTHING`
 )
 
 type GormUserRepository struct{}

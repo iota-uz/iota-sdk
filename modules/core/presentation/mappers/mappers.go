@@ -1,16 +1,19 @@
 package mappers
 
 import (
+	"slices"
+	"strconv"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"slices"
-	"strconv"
-	"time"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
@@ -22,6 +25,10 @@ func UserToViewModel(entity *user.User) *viewmodels.User {
 	if entity.Avatar != nil {
 		avatar = *UploadToViewModel(entity.Avatar)
 	}
+	var lastAction string
+	if entity.LastAction != nil {
+		lastAction = entity.LastAction.Format(time.RFC3339)
+	}
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		FirstName:  entity.FirstName,
@@ -30,8 +37,10 @@ func UserToViewModel(entity *user.User) *viewmodels.User {
 		Email:      entity.Email,
 		Avatar:     &avatar,
 		UILanguage: string(entity.UILanguage),
+		LastAction: lastAction,
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
+		Roles:      mapping.MapViewModels(entity.Roles, RoleToViewModel),
 		AvatarID:   avatarID,
 	}
 }
@@ -62,7 +71,7 @@ func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
 	// TODO: this is gotta be implemented better
 	if slices.Contains([]string{".xls", ".xlsx"}, entity.Mimetype.Extension()) {
 		url = "/assets/" + assets.HashFS.HashName("images/excel-logo.svg")
-	} else {
+	} else if entity.Path != "" {
 		url = "/" + entity.Path
 	}
 
@@ -89,5 +98,15 @@ func TabToViewModel(entity *tab.Tab) *viewmodels.Tab {
 	return &viewmodels.Tab{
 		ID:   strconv.FormatUint(uint64(entity.ID), 10),
 		Href: entity.Href,
+	}
+}
+
+func RoleToViewModel(entity *role.Role) *viewmodels.Role {
+	return &viewmodels.Role{
+		ID:          strconv.FormatUint(uint64(entity.ID), 10),
+		Name:        entity.Name,
+		Description: entity.Description,
+		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
 	}
 }
