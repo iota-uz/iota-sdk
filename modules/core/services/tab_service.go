@@ -46,10 +46,10 @@ func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data [
 		}
 		entities = append(entities, entity)
 	}
-	if err := s.repo.CreateMany(ctx, entities); err != nil {
+	if err := s.repo.DeleteUserTabs(ctx, userID); err != nil {
 		return nil, err
 	}
-	if err := s.repo.DeleteUserTabs(ctx, userID); err != nil {
+	if err := s.repo.CreateMany(ctx, entities); err != nil {
 		return nil, err
 	}
 	return entities, nil

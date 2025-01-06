@@ -9,20 +9,20 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type CreateFormProps struct {
 	*types.PageContext
-	User   user.User
-	Roles  []role.Role
+	User   viewmodels.User
+	Roles  []*viewmodels.Role
 	Errors map[string]string
 }
 
@@ -63,6 +63,21 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
+				Label:       props.T("Users.Single.ChooseAvatar"),
+				Placeholder: "PNG, JPG",
+				Name:        "AvatarID",
+				Class:       "col-span-3",
+				Accept:      "image/*",
+				Error:       props.Errors["AvatarID"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: props.T("Users.Single.FirstName"),
 				Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},
@@ -79,6 +94,18 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				Label: props.T("Users.Single.LastName"),
 				Attrs: templ.Attributes{"name": "LastName", "value": props.User.LastName},
 				Error: props.Errors["LastName"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = input.Email(&input.Props{
+				Label: props.T("Users.Single.Email"),
+				Attrs: templ.Attributes{"name": "Email", "value": props.User.Email},
+				Error: props.Errors["Email"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -107,6 +134,9 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				PageContext: props.PageContext,
 				Roles:       props.Roles,
 				Error:       props.Errors["RoleID"],
+				Attrs: templ.Attributes{
+					"name": "RoleID",
+				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -119,7 +149,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				Label:       props.T("Users.Single.Language"),
 				Placeholder: props.T("Users.Single.SelectLanguage"),
 				Value:       string(props.User.UILanguage),
-				Attrs:       templ.Attributes{"name": "Language"},
+				Attrs:       templ.Attributes{"name": "UILanguage"},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -152,7 +182,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 70, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 86, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

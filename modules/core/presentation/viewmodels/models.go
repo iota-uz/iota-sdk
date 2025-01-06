@@ -51,6 +51,14 @@ type Upload struct {
 	UpdatedAt string
 }
 
+type Role struct {
+	ID          string
+	Name        string
+	Description string
+	CreatedAt   string
+	UpdatedAt   string
+}
+
 type Tab struct {
 	ID   string
 	Href string

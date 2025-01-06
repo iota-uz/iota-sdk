@@ -1,20 +1,20 @@
 package users
 
 import (
+	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type CreateFormProps struct {
 	*types.PageContext
-	User   user.User
-	Roles  []role.Role
+	User   viewmodels.User
+	Roles  []*viewmodels.Role
 	Errors map[string]string
 }
 
@@ -29,6 +29,14 @@ templ CreateForm(props *CreateFormProps) {
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
+			@components.UploadInput(&components.UploadInputProps{
+				Label:       props.T("Users.Single.ChooseAvatar"),
+				Placeholder: "PNG, JPG",
+				Name:        "AvatarID",
+				Class:       "col-span-3",
+				Accept:      "image/*",
+				Error:       props.Errors["AvatarID"],
+			})
 			@input.Text(&input.Props{
 				Label: props.T("Users.Single.FirstName"),
 				Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},
@@ -38,6 +46,11 @@ templ CreateForm(props *CreateFormProps) {
 				Label: props.T("Users.Single.LastName"),
 				Attrs: templ.Attributes{"name": "LastName", "value": props.User.LastName},
 				Error: props.Errors["LastName"],
+			})
+			@input.Email(&input.Props{
+				Label: props.T("Users.Single.Email"),
+				Attrs: templ.Attributes{"name": "Email", "value": props.User.Email},
+				Error: props.Errors["Email"],
 			})
 			@input.Password(&input.Props{
 				Label:       props.T("Users.Single.Password"),
@@ -52,12 +65,15 @@ templ CreateForm(props *CreateFormProps) {
 				PageContext: props.PageContext,
 				Roles:       props.Roles,
 				Error:       props.Errors["RoleID"],
+				Attrs: templ.Attributes{
+					"name": "RoleID",
+				},
 			})
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       props.T("Users.Single.Language"),
 				Placeholder: props.T("Users.Single.SelectLanguage"),
 				Value:       string(props.User.UILanguage),
-				Attrs:       templ.Attributes{"name": "Language"},
+				Attrs:       templ.Attributes{"name": "UILanguage"},
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
