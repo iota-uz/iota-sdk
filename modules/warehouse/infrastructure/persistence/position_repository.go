@@ -4,14 +4,15 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"github.com/go-faster/errors"
-	repo2 "github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
+
+	"github.com/go-faster/errors"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -35,7 +36,7 @@ type GormPositionRepository struct {
 }
 
 func NewPositionRepository() position.Repository {
-	queries := repo2.MustParseSQLQueries(positionsQueries)
+	queries := repo.MustParseSQLQueries(positionsQueries)
 	return &GormPositionRepository{
 		selectQuery:       queries["select"],
 		selectIdQuery:     queries["select_id_only"],
@@ -49,7 +50,7 @@ func NewPositionRepository() position.Repository {
 }
 
 func (g *GormPositionRepository) queryPositions(ctx context.Context, query string, args ...interface{}) ([]*position.Position, error) {
-	tx, err := composables.UseTx(context.Background())
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -119,22 +120,22 @@ func (g *GormPositionRepository) GetPaginated(
 	}
 	return g.queryPositions(
 		ctx,
-		repo2.Join(
+		repo.Join(
 			g.selectQuery,
-			repo2.JoinWhere(where...),
-			repo2.FormatLimitOffset(params.Limit, params.Offset),
+			repo.JoinWhere(where...),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,
 	)
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UseTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
-	if err := pool.QueryRow(ctx, g.countQuery).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, g.countQuery).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -171,7 +172,7 @@ func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint,
 }
 
 func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {
-	positions, err := g.queryPositions(ctx, repo2.Join(g.selectQuery, "WHERE wp.id = $1"), id)
+	positions, err := g.queryPositions(ctx, repo.Join(g.selectQuery, "WHERE wp.id = $1"), id)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +183,7 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 }
 
 func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*position.Position, error) {
-	positions, err := g.queryPositions(ctx, repo2.Join(g.selectQuery, "WHERE wp.id = ANY($1)"), ids)
+	positions, err := g.queryPositions(ctx, repo.Join(g.selectQuery, "WHERE wp.id = ANY($1)"), ids)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,7 @@ func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*p
 }
 
 func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode string) (*position.Position, error) {
-	positions, err := g.queryPositions(ctx, repo2.Join(g.selectQuery, "WHERE wp.barcode = $1"), barcode)
+	positions, err := g.queryPositions(ctx, repo.Join(g.selectQuery, "WHERE wp.barcode = $1"), barcode)
 	if err != nil {
 		return nil, err
 	}
