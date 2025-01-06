@@ -58,7 +58,7 @@ func (c *UsersController) Register(r *mux.Router) {
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.CreateUser).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
 }
 
@@ -141,7 +141,7 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -151,54 +151,42 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+	dto := &user.UpdateDTO{}
+	if err = shared.Decoder.Decode(dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	switch action {
-	case shared.FormActionDelete:
-		_, err = c.userService.Delete(r.Context(), id)
-	case shared.FormActionSave:
-		dto := &user.UpdateDTO{}
-		if err = shared.Decoder.Decode(dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(
-			r, types.NewPageData("Users.Meta.Edit.Title", ""),
-		)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			roles, err := c.roleService.GetAll(r.Context())
-			if err != nil {
-				http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
-				return
-			}
-
-			us, err := c.userService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving users", http.StatusInternalServerError)
-				return
-			}
-
-			props := &users.EditFormProps{
-				PageContext: pageCtx,
-				User:        mappers.UserToViewModel(us),
-				Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-				Errors:      errors,
-			}
-			templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-		err = c.userService.Update(r.Context(), dto.ToEntity(id))
-	}
-
+	var pageCtx *types.PageContext
+	pageCtx, err = composables.UsePageCtx(
+		r, types.NewPageData("Users.Meta.Edit.Title", ""),
+	)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		roles, err := c.roleService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+			return
+		}
+
+		us, err := c.userService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
+			return
+		}
+
+		props := &users.EditFormProps{
+			PageContext: pageCtx,
+			User:        mappers.UserToViewModel(us),
+			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors:      errors,
+		}
+		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+	if err := c.userService.Update(r.Context(), dto.ToEntity(id)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

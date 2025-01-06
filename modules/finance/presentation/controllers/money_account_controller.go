@@ -69,7 +69,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
@@ -188,65 +188,50 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *MoneyAccountController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+	dto := moneyAccount.UpdateDTO{}
+	var pageCtx *types.PageContext
+	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.Edit.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	r.Form.Del("_action")
-
-	switch action {
-	case shared.FormActionDelete:
-		if _, err := c.moneyAccountService.Delete(r.Context(), id); err != nil {
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
+	if ok {
+		if err := c.moneyAccountService.Update(r.Context(), id, &dto); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	case shared.FormActionSave:
-		dto := moneyAccount.UpdateDTO{}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.Edit.Title", ""))
+	} else {
+		entity, err := c.moneyAccountService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving account", http.StatusInternalServerError)
+			return
+		}
+		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		props := &moneyaccounts2.EditPageProps{
+			PageContext: pageCtx,
+			Account:     mappers.MoneyAccountToViewUpdateModel(entity),
+			Currencies:  currencies,
+			Errors:      errorsMap,
+			PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
+			DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
 		}
-		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
-		if ok {
-			if err := c.moneyAccountService.Update(r.Context(), id, &dto); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			entity, err := c.moneyAccountService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving account", http.StatusInternalServerError)
-				return
-			}
-			currencies, err := c.viewModelCurrencies(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			props := &moneyaccounts2.EditPageProps{
-				PageContext: pageCtx,
-				Account:     mappers.MoneyAccountToViewUpdateModel(entity),
-				Currencies:  currencies,
-				Errors:      errorsMap,
-				PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
-				DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
-			}
-			templ.Handler(moneyaccounts2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
+		templ.Handler(moneyaccounts2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
 	shared.Redirect(w, r, c.basePath)
 }

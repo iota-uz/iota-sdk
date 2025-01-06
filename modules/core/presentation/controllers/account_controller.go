@@ -55,7 +55,7 @@ func (c *AccountController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
+	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/settings", c.PostSettings).Methods(http.MethodPost)
 }
 
@@ -93,7 +93,7 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(account.Index(props)).ServeHTTP(w, r)
 }
 
-func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
+func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
