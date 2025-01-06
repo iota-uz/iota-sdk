@@ -101,12 +101,12 @@ func TabToViewModel(entity *tab.Tab) *viewmodels.Tab {
 	}
 }
 
-func RoleToViewModel(entity *role.Role) *viewmodels.Role {
+func RoleToViewModel(entity role.Role) *viewmodels.Role {
 	return &viewmodels.Role{
-		ID:          strconv.FormatUint(uint64(entity.ID), 10),
-		Name:        entity.Name,
-		Description: entity.Description,
-		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
+		ID:          strconv.FormatUint(uint64(entity.ID()), 10),
+		Name:        entity.Name(),
+		Description: entity.Description(),
+		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 	}
 }

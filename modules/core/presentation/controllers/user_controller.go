@@ -195,7 +195,12 @@ func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		err = c.userService.Update(r.Context(), dto.ToEntity(id))
+		userEntity, err := dto.ToEntity(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		err = c.userService.Update(r.Context(), userEntity)
 	}
 
 	if err != nil {
@@ -256,7 +261,7 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		}
 		props := &users.CreateFormProps{
 			PageContext: pageCtx,
-			User:        *mappers.UserToViewModel(dto.ToEntity()),
+			User:        *mappers.UserToViewModel(userEntity),
 			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 			Errors:      errors,
 		}
@@ -266,7 +271,12 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.userService.Create(r.Context(), dto.ToEntity()); err != nil {
+	userEntity, err := dto.ToEntity()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.userService.Create(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

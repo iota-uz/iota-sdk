@@ -16,7 +16,7 @@ type RoleSelectProps struct {
 
 func isRoleSelected(id string, roles []*viewmodels.Role) bool {
 	for _, role := range roles {
-		if role.ID() == id {
+		if role.ID == id {
 			return true
 		}
 	}
