@@ -36,13 +36,6 @@ tools and integrations.
 
 ---  
 
-## 📄 Licence
-
-Apache 2.0 
-Updated at Jan 6, 2025
-
----  
-
 ## 📅 Roadmap
 
 We have an ambitious roadmap to enhance IOTA SDK's capabilities and provide a robust framework for ERP needs across
@@ -71,6 +64,12 @@ various industries. Here's what's in the pipeline:
   understand the vision and contribute more effectively.
 
 ---  
+
+## 📄 Licence
+
+Apache 2.0 
+
+Updated at Jan 6, 2025
 
 ## 🌟 Join Us
 
