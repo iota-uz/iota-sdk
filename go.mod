@@ -10,6 +10,7 @@ require (
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/gabriel-vasile/mimetype v1.4.7
 	github.com/go-faster/errors v0.7.1
+	github.com/go-gorp/gorp/v3 v3.1.0
 	github.com/go-playground/form v3.1.4+incompatible
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
@@ -18,6 +19,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
+	github.com/iota-uz/utils v0.0.2
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
@@ -32,7 +34,7 @@ require (
 	github.com/xuri/excelize/v2 v2.9.0
 	golang.org/x/crypto v0.29.0
 	golang.org/x/oauth2 v0.24.0
-	golang.org/x/text v0.20.0
+	golang.org/x/text v0.21.0
 	google.golang.org/api v0.209.0
 	gorm.io/driver/postgres v1.5.10
 	gorm.io/gorm v1.25.12
@@ -48,7 +50,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-faster/jx v1.1.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
-	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
@@ -85,7 +86,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/sync v0.9.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241118233622-e639e219e697 // indirect

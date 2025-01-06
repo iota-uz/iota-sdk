@@ -98,38 +98,41 @@ func toDBUser(entity *user.User) (*models.User, []models.Role) {
 	}, roles
 }
 
-func toDomainRole(dbRole *models.Role) (role.Role, error) {
-	// permissions := make([]permission.Permission, len(dbRole.Permissions))
-	// for i, p := range dbRole.Permissions {
-	// 	permissions[i] = *toDomainPermission(&p)
-	// }
+func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.Role, error) {
+	domainPermissions := make([]permission.Permission, len(permissions))
+	for i, p := range permissions {
+		dP, err := toDomainPermission(p)
+		if err != nil {
+			return nil, err
+		}
+		domainPermissions[i] = dP
+	}
 	return role.NewWithID(
 		dbRole.ID,
 		dbRole.Name,
-		dbRole.Description,
-		[]permission.Permission{},
+		dbRole.Description.String,
+		domainPermissions,
 		dbRole.CreatedAt,
 		dbRole.UpdatedAt,
 	)
 }
 
-func toDBRole(entity role.Role) (*models.Role, []models.Permission) {
-	permissions := make([]models.Permission, len(entity.Permissions))
-	for i, p := range entity.Permissions {
+func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
+	permissions := make([]*models.Permission, len(entity.Permissions()))
+	for i, p := range entity.Permissions() {
 		permissions[i] = toDBPermission(p)
 	}
 	return &models.Role{
-		ID:          entity.ID,
-		Name:        entity.Name,
-		Description: entity.Description,
-		Permissions: nil,
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
+		ID:          entity.ID(),
+		Name:        entity.Name(),
+		Description: mapping.ValueToSQLNullString(entity.Description()),
+		CreatedAt:   entity.CreatedAt(),
+		UpdatedAt:   entity.UpdatedAt(),
 	}, permissions
 }
 
-func toDBPermission(entity permission.Permission) models.Permission {
-	return models.Permission{
+func toDBPermission(entity permission.Permission) *models.Permission {
+	return &models.Permission{
 		ID:       entity.ID,
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
@@ -138,7 +141,7 @@ func toDBPermission(entity permission.Permission) models.Permission {
 	}
 }
 
-func toDomainPermission(dbPermission models.Permission) (permission.Permission, error) {
+func toDomainPermission(dbPermission *models.Permission) (permission.Permission, error) {
 	return permission.Permission{
 		ID:       dbPermission.ID,
 		Name:     dbPermission.Name,

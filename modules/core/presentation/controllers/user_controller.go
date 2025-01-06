@@ -245,9 +245,14 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
+		userEntity, err := dto.ToEntity()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		props := &users.CreateFormProps{
 			PageContext: pageCtx,
-			User:        *dto.ToEntity(),
+			User:        *userEntity,
 			Roles:       roles,
 			Errors:      errors,
 		}

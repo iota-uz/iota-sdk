@@ -273,6 +273,8 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 
 	userMap := make(map[uint]*user.User)
 	roleMap := make(map[uint]*models.Role)
+	// roleID: []permissions
+	permMap := make(map[uint][]*models.Permission)
 
 	for rows.Next() {
 		var (
@@ -369,17 +371,12 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 				r = &models.Role{
 					ID:          uint(roleID.Int32),
 					Name:        roleName.String,
-					Description: roleDesc.String,
+					Description: mapping.ValueToSQLNullString(roleDesc.String),
 					CreatedAt:   roleCreatedAt.Time,
 					UpdatedAt:   roleUpdatedAt.Time,
-					Permissions: make([]models.Permission, 0),
 				}
 				roleMap[r.ID] = r
-				domainRole, err := toDomainRole(r)
-				if err != nil {
-					return nil, err
-				}
-				domainUser.Roles = append(domainUser.Roles, domainRole)
+
 			}
 
 			if permID.Valid {
@@ -395,8 +392,15 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 					Action:   permAction.String,
 					Modifier: permModifier.String,
 				}
-				r.Permissions = append(r.Permissions, perm)
+				permMap[r.ID] = append(permMap[r.ID], &perm)
 			}
+		}
+		for _, r := range roleMap {
+			domainRole, err := toDomainRole(r, permMap[r.ID])
+			if err != nil {
+				return nil, err
+			}
+			domainUser.Roles = append(domainUser.Roles, domainRole)
 		}
 	}
 

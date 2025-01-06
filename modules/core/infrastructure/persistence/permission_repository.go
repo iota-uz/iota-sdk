@@ -51,18 +51,18 @@ func (g *GormPermissionRepository) GetPaginated(
 
 	permissions := make([]permission.Permission, 0)
 	for rows.Next() {
-		var permission models.Permission
+		var p models.Permission
 		if err := rows.Scan(
-			&permission.ID,
-			&permission.Name,
-			&permission.Resource,
-			&permission.Action,
-			&permission.Modifier,
+			&p.ID,
+			&p.Name,
+			&p.Resource,
+			&p.Action,
+			&p.Modifier,
 		); err != nil {
 			return nil, err
 		}
 
-		domainPermission, err := toDomainPermission(permission)
+		domainPermission, err := toDomainPermission(&p)
 		if err != nil {
 			return nil, err
 		}
