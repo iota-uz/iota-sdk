@@ -80,7 +80,7 @@ const (
             last_name = $2,
             middle_name = $3,
             email = $4,
-            password = $5,
+            password = COALESCE(NULLIF($5, ''), users.password),
             ui_language = $6,
             avatar_id = $7,
             employee_id = $8,

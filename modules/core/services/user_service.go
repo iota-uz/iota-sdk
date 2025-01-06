@@ -68,6 +68,11 @@ func (s *UserService) Update(ctx context.Context, data *user.User) error {
 	if err != nil {
 		return err
 	}
+	if data.Password != "" {
+		if err := data.SetPassword(data.Password); err != nil {
+			return err
+		}
+	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
