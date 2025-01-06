@@ -182,7 +182,7 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 	if dbEmployee.AvatarID != nil {
 		avatarID = *dbEmployee.AvatarID
 	}
-	currencyCode, err := currency.NewCode(dbEmployee.SalaryCurrencyID)
+	currencyCode, err := currency.NewCode(dbEmployee.SalaryCurrencyID.String)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 		LastName:         entity.LastName(),
 		MiddleName:       mapping.ValueToSQLNullString(entity.MiddleName()),
 		Salary:           salary.Value(),
-		SalaryCurrencyID: string(salary.Currency()),
+		SalaryCurrencyID: mapping.ValueToSQLNullString(string(salary.Currency())),
 		Email:            entity.Email().Value(),
 		Phone:            mapping.ValueToSQLNullString(entity.Phone()),
 		CreatedAt:        entity.CreatedAt(),

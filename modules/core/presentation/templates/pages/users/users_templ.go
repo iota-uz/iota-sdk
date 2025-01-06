@@ -94,13 +94,13 @@ func UsersTable(props *IndexPageProps) templ.Component {
 							var templ_7745c5c3_Var5 string
 							templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.Avatar.URL)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 33, Col: 33}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 34, Col: 29}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"w-8 h-8 rounded-full\"> ")
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"w-8 h-8 object-cover rounded-full\" alt=\"User Avatar\"> ")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -112,7 +112,7 @@ func UsersTable(props *IndexPageProps) templ.Component {
 							var templ_7745c5c3_Var6 string
 							templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(string(user.FirstName[0]))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 36, Col: 35}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 40, Col: 35}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 							if templ_7745c5c3_Err != nil {
@@ -130,7 +130,7 @@ func UsersTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(user.FullName())
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 40, Col: 24}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 44, Col: 24}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -170,7 +170,7 @@ func UsersTable(props *IndexPageProps) templ.Component {
 							var templ_7745c5c3_Var9 string
 							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.LastAction))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 47, Col: 66}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 51, Col: 66}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {
@@ -184,7 +184,7 @@ func UsersTable(props *IndexPageProps) templ.Component {
 							var templ_7745c5c3_Var10 string
 							templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Unknown"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 50, Col: 26}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 54, Col: 26}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 							if templ_7745c5c3_Err != nil {
@@ -220,7 +220,7 @@ func UsersTable(props *IndexPageProps) templ.Component {
 						var templ_7745c5c3_Var12 string
 						templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.UpdatedAt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 55, Col: 64}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 59, Col: 64}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 						if templ_7745c5c3_Err != nil {
@@ -337,7 +337,7 @@ func UsersContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.Users"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 76, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 80, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -423,7 +423,7 @@ func UsersContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Users.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 115, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 119, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
