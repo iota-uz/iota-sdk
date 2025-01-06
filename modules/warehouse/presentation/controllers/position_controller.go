@@ -74,7 +74,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 	setRouter.Use(middleware.WithTransaction())
 
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 	setRouter.HandleFunc("/upload", c.HandleUpload).Methods(http.MethodPost)
 }
@@ -262,63 +262,48 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(base.ComboboxOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *PositionsController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *PositionsController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+	dto := position.UpdateDTO{}
+	var pageCtx *types.PageContext
+	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	r.Form.Del("_action")
-
-	switch action {
-	case shared.FormActionDelete:
-		if _, err := c.positionService.Delete(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		entity, err := c.positionService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving position", http.StatusInternalServerError)
 			return
 		}
-	case shared.FormActionSave:
-		dto := position.UpdateDTO{}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
+		unitViewModels, err := c.viewModelUnits(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		props := &positions2.EditPageProps{
+			PageContext: pageCtx,
+			Position:    mappers.PositionToViewModel(entity),
+			Units:       unitViewModels,
+			Errors:      errorsMap,
+			SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
+			DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 		}
-		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			entity, err := c.positionService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving position", http.StatusInternalServerError)
-				return
-			}
-			unitViewModels, err := c.viewModelUnits(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			props := &positions2.EditPageProps{
-				PageContext: pageCtx,
-				Position:    mappers.PositionToViewModel(entity),
-				Units:       unitViewModels,
-				Errors:      errorsMap,
-				SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
-				DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
-			}
-			templ.Handler(positions2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-		if err := c.positionService.Update(r.Context(), id, &dto); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		templ.Handler(positions2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+	if err := c.positionService.Update(r.Context(), id, &dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	shared.Redirect(w, r, c.basePath)
 }
