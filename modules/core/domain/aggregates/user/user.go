@@ -1,18 +1,18 @@
 package user
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/utils/sequence"
-
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/utils/sequence"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 type User struct {
