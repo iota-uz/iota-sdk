@@ -91,9 +91,6 @@ func (g *GormPermissionRepository) GetPaginated(
 		return nil, err
 	}
 	where, joins, args := []string{"1 = 1"}, []string{}, []interface{}{}
-	if validID, err := uuid.Parse(params.ID); err == nil {
-		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, validID)
-	}
 
 	if params.RoleID != 0 {
 		joins, args = append(joins, fmt.Sprintf("INNER JOIN role_permissions rp ON rp.permission_id = permissions.id and rp.role_id = $%d", len(args)+1)), append(args, params.RoleID)

@@ -5,7 +5,6 @@ import (
 )
 
 type FindParams struct {
-	ID     string
 	Limit  int
 	Offset int
 	RoleID uint
