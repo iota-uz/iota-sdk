@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
@@ -58,10 +57,9 @@ func (g *GormPermissionRepository) queryPermissions(
 
 	for rows.Next() {
 		var p models.Permission
-		var permID sql.NullString // for UUID
 
 		if err := rows.Scan(
-			&permID,
+			&p.ID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,
@@ -158,20 +156,14 @@ func (g *GormPermissionRepository) GetByID(ctx context.Context, id string) (*per
 }
 
 func (g *GormPermissionRepository) CreateOrUpdate(ctx context.Context, data *permission.Permission) error {
-	u, err := g.GetByID(ctx, data.ID.String())
+	_, err := g.GetByID(ctx, data.ID.String())
 	if err != nil && !errors.Is(err, ErrPermissionNotFound) {
 		return err
 	}
-	if u.ID.String() != "" {
-		if err := g.Update(ctx, data); err != nil {
-			return err
-		}
-	} else {
-		if err := g.Create(ctx, data); err != nil {
-			return err
-		}
+	if errors.Is(err, ErrPermissionNotFound) {
+		return g.Create(ctx, data)
 	}
-	return nil
+	return g.Update(ctx, data)
 }
 
 func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.Permission) error {

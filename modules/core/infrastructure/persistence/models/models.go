@@ -3,8 +3,6 @@ package models
 import (
 	"database/sql"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type Upload struct {
@@ -105,7 +103,7 @@ type Company struct {
 }
 
 type Permission struct {
-	ID          uuid.UUID
+	ID          string
 	Name        string
 	Resource    string
 	Action      string

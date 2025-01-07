@@ -2,10 +2,8 @@ package persistence
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"github.com/go-faster/errors"
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -110,14 +108,14 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, e
 }
 
 func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data role.Role) (role.Role, error) {
-	r, err := g.GetByID(ctx, data.ID())
+	_, err := g.GetByID(ctx, data.ID())
 	if err != nil && !errors.Is(err, ErrRoleNotFound) {
 		return nil, err
 	}
-	if r.ID() != 0 {
-		return g.Update(ctx, data)
+	if errors.Is(err, ErrRoleNotFound) {
+		return g.Create(ctx, data)
 	}
-	return g.Create(ctx, data)
+	return g.Update(ctx, data)
 }
 
 func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.Role, error) {
@@ -199,7 +197,6 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 	for rows.Next() {
 		var r models.Role
 		var p models.Permission
-		var permID sql.NullString // for UUID
 
 		if err := rows.Scan(
 			&r.ID,
@@ -207,7 +204,7 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 			&r.Description,
 			&r.CreatedAt,
 			&r.UpdatedAt,
-			&permID,
+			&p.ID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,
@@ -221,14 +218,7 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 			roleMap[r.ID] = &r
 		}
 
-		if permID.Valid {
-			id, err := uuid.Parse(permID.String)
-			if err != nil {
-				return nil, err
-			}
-			p.ID = id
-			permissionMap[r.ID] = append(permissionMap[r.ID], &p)
-		}
+		permissionMap[r.ID] = append(permissionMap[r.ID], &p)
 	}
 
 	if err := rows.Err(); err != nil {
