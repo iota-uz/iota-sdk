@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -166,7 +165,9 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error 
 
 	dbUser, _ := toDBUser(data)
 
-	err = tx.QueryRow(ctx, userInsertQuery,
+	err = tx.QueryRow(
+		ctx,
+		userInsertQuery,
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -200,13 +201,11 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, data *user.User
 	}
 
 	if exists {
-		// Update existing user
 		err = g.Update(ctx, data)
 		if err != nil {
 			return fmt.Errorf("failed to update user: %w", err)
 		}
 	} else {
-		// Create new user
 		err = g.Create(ctx, data)
 		if err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
@@ -379,21 +378,14 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 
 			}
 
-			if permID.Valid {
-				permUUID, err := uuid.Parse(permID.String)
-				if err != nil {
-					return nil, err
-				}
-
-				perm := models.Permission{
-					ID:       permUUID,
-					Name:     permName.String,
-					Resource: permResource.String,
-					Action:   permAction.String,
-					Modifier: permModifier.String,
-				}
-				permMap[r.ID] = append(permMap[r.ID], &perm)
+			perm := models.Permission{
+				ID:       permID.String,
+				Name:     permName.String,
+				Resource: permResource.String,
+				Action:   permAction.String,
+				Modifier: permModifier.String,
 			}
+			permMap[r.ID] = append(permMap[r.ID], &perm)
 		}
 		fmt.Println(roleMap)
 		for _, r := range roleMap {
@@ -435,7 +427,7 @@ func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, r
 
 	// Insert new roles
 	for _, r := range roles {
-		if err := g.execQuery(ctx, userRoleInsertQuery, userID, r.ID); err != nil {
+		if err := g.execQuery(ctx, userRoleInsertQuery, userID, r.ID()); err != nil {
 			return err
 		}
 	}

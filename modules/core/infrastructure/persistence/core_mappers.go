@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"database/sql"
+	"github.com/google/uuid"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -133,7 +134,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 
 func toDBPermission(entity *permission.Permission) *models.Permission {
 	return &models.Permission{
-		ID:       entity.ID,
+		ID:       entity.ID.String(),
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
 		Action:   string(entity.Action),
@@ -142,8 +143,12 @@ func toDBPermission(entity *permission.Permission) *models.Permission {
 }
 
 func toDomainPermission(dbPermission *models.Permission) (*permission.Permission, error) {
+	id, err := uuid.Parse(dbPermission.ID)
+	if err != nil {
+		return nil, err
+	}
 	return &permission.Permission{
-		ID:       dbPermission.ID,
+		ID:       id,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),
 		Action:   permission.Action(dbPermission.Action),
