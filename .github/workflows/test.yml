@@ -7,6 +7,22 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15.1
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --hostname=erp_db
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -30,7 +46,23 @@ jobs:
         run: |
           go mod download
 
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+
       - name: Generate templates and run go vet
+        env:
+          GO_APP_ENV: testing
+          DB_NAME: iota_erp
+          DB_HOST: erp_db
+          DB_PORT: 5432
+          DB_PASSWORD: postgres
+          DOMAIN: iota.uz
+          SESSION_DURATION: 720h
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/iota_erp
         run: |
           templ generate
           git diff --exit-code
