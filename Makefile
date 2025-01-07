@@ -21,10 +21,6 @@ test:
 test-watch:
 	gow test -v ./...
 
-# Run tests in the CI
-test-ci:
-	docker compose -f docker-compose.testing.yml up erp_ci --build --exit-code-from erp_ci
-
 # Generate dependency graph
 graph:
 	goda graph ./modules/... | dot -Tpng -o dependencies.png
