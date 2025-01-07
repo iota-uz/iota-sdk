@@ -29,7 +29,6 @@ CMD go run cmd/migrate/main.go up && /build/seed_db && /build/run_server
 
 FROM install-stage AS testing-ci
 #CMD golangci-lint run && go test -v ./...
-CMD go test -v ./...
 CMD [ "go", "test", "-v", "./..." ]
 
 FROM install-stage AS testing-local
