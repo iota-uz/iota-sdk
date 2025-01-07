@@ -23,7 +23,7 @@ jobs:
 
       - name: Install templ
         run: |
-          go install github.com/a-h/templ/cmd/templ@latest
+          go install github.com/a-h/templ/cmd/templ@v0.2.793
           templ --help
 
       - name: Download Go dependencies
