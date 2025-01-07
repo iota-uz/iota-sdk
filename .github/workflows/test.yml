@@ -53,7 +53,7 @@ jobs:
             sleep 1
           done
 
-      - name: Generate templates and run go vet
+      - name: Generate templates, run go vet, tests && Makefile commands
         env:
           GO_APP_ENV: testing
           DB_NAME: iota_erp
@@ -64,7 +64,12 @@ jobs:
           SESSION_DURATION: 720h
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/iota_erp
         run: |
-          templ generate
+          make generate
           git diff --exit-code
           go vet ./...
-          go test -v ./...
+          make migrate-up
+          make seed
+          make migrate-down
+          make css
+          make test
+          make coverage-score
