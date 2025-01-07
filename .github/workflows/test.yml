@@ -57,7 +57,7 @@ jobs:
         env:
           GO_APP_ENV: testing
           DB_NAME: iota_erp
-          DB_HOST: erp_db
+          DB_HOST: localhost
           DB_PORT: 5432
           DB_PASSWORD: postgres
           DOMAIN: iota.uz
