@@ -108,6 +108,4 @@ jobs:
           make generate
           git diff --exit-code
           go vet ./...
-          mkdir coverage
-          make test
-          make coverage-score
+          go test -v ./...
