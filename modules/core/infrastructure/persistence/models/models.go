@@ -105,7 +105,7 @@ type Company struct {
 }
 
 type Permission struct {
-	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
+	ID          uuid.UUID
 	Name        string
 	Resource    string
 	Action      string

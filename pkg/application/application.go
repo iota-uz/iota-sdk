@@ -6,7 +6,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/go-gorp/gorp/v3"
 	"github.com/jackc/pgx/v5/stdlib"
 	"io/fs"
 	"log"
@@ -121,7 +120,7 @@ func (app *ApplicationImpl) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (app *ApplicationImpl) Permissions() []permission.Permission {
+func (app *ApplicationImpl) Permissions() []*permission.Permission {
 	return app.rbac.Permissions()
 }
 
@@ -129,7 +128,7 @@ func (app *ApplicationImpl) Middleware() []mux.MiddlewareFunc {
 	return app.middleware
 }
 
-func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permission) {
+func (app *ApplicationImpl) RegisterPermissions(permissions ...*permission.Permission) {
 	app.rbac.Register(permissions...)
 }
 
@@ -278,11 +277,6 @@ func (app *ApplicationImpl) RunMigrations() error {
 	if err != nil {
 		return err
 	}
-	defer func(tx *gorp.Transaction) {
-		if err := tx.Rollback(); err != nil {
-			log.Printf("Failed to rollback transaction: %v", err)
-		}
-	}(tx)
 	for _, m := range plannedMigrations {
 		for _, stmt := range m.Queries {
 			stmt = strings.TrimSuffix(stmt, "\n")

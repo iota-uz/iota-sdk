@@ -5,12 +5,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/jackc/pgx/v5"
 	"testing"
 )
 
-func TestGormPositionRepository_CRUD(t *testing.T) {
+func TestGormRoleRepository_CRUD(t *testing.T) {
 	ctx := testutils.GetTestContext()
 	defer func(Tx pgx.Tx, ctx context.Context) {
 		if err := Tx.Commit(ctx); err != nil {
@@ -18,34 +19,45 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		}
 	}(ctx.Tx, ctx.Context)
 
+	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
-	roleEntity, err := role.New(
+	if err := permissionRepository.Create(ctx.Context, permissions.PositionCreate); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := role.New(
 		"test",
 		"test",
-		[]permission.Permission{},
+		[]*permission.Permission{permissions.PositionCreate},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := roleRepository.Create(ctx.Context, roleEntity); err != nil {
+	roleEntity, err := roleRepository.Create(ctx.Context, data)
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run(
 		"Update", func(t *testing.T) {
-			if err := roleRepository.Update(ctx.Context, roleEntity.SetName("updated")); err != nil {
-				t.Fatal(err)
-			}
-			dbRole, err := roleRepository.GetByID(ctx.Context, roleEntity.ID())
+			updatedRole, err := roleRepository.Update(ctx.Context, roleEntity.SetName("updated"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if dbRole.Name() != "updated" {
-				t.Errorf("expected %s, got %s", "updated", dbRole.Name())
+			if updatedRole.Name() != "updated" {
+				t.Errorf(
+					"expected %s, got %s",
+					"updated",
+					updatedRole.Name(),
+				)
 			}
 
-			if !dbRole.UpdatedAt().After(roleEntity.UpdatedAt()) {
-				t.Errorf("expected updated at to be after %v, got %v", roleEntity.UpdatedAt(), dbRole.UpdatedAt())
+			if !updatedRole.UpdatedAt().After(roleEntity.UpdatedAt()) {
+				t.Errorf(
+					"expected updated at to be after %v, got %v",
+					roleEntity.UpdatedAt(),
+					updatedRole.UpdatedAt(),
+				)
 			}
 		},
 	)

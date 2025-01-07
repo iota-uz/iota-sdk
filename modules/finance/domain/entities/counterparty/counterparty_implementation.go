@@ -1,10 +1,13 @@
 package counterparty
 
-import "time"
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
+	"time"
+)
 
 func NewWithID(
 	id uint,
-	tin string,
+	tin tax.Tin,
 	name string,
 	partyType Type,
 	legalType LegalType,
@@ -24,7 +27,7 @@ func NewWithID(
 }
 
 func New(
-	tin string,
+	tin tax.Tin,
 	name string,
 	partyType Type,
 	legalType LegalType,
@@ -44,7 +47,7 @@ func New(
 
 type counterparty struct {
 	id           uint
-	tin          string
+	tin          tax.Tin
 	name         string
 	partyType    Type
 	legalType    LegalType
@@ -61,11 +64,11 @@ func (c *counterparty) SetID(id uint) {
 	c.id = id
 }
 
-func (c *counterparty) TIN() string {
+func (c *counterparty) Tin() tax.Tin {
 	return c.tin
 }
 
-func (c *counterparty) SetTIN(tin string) {
+func (c *counterparty) SetTin(tin tax.Tin) {
 	c.tin = tin
 	c.updatedAt = time.Now()
 }

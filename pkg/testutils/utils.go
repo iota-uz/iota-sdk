@@ -29,7 +29,18 @@ type TestContext struct {
 	App     application.Application
 }
 
-func MockUser(permissions ...permission.Permission) *user.User {
+func MockUser(permissions ...*permission.Permission) *user.User {
+	r, err := role.NewWithID(
+		1,
+		"admin",
+		"",
+		permissions,
+		time.Now(),
+		time.Now(),
+	)
+	if err != nil {
+		panic(err)
+	}
 	return &user.User{
 		ID:         1,
 		FirstName:  "",
@@ -46,13 +57,7 @@ func MockUser(permissions ...permission.Permission) *user.User {
 		LastAction: nil,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
-		Roles: []role.Role{
-			{
-				ID:          1,
-				Name:        "admin",
-				Permissions: permissions,
-			},
-		},
+		Roles:      []role.Role{r},
 	}
 }
 
@@ -67,14 +72,19 @@ func MockSession() *session.Session {
 	}
 }
 
-func GetTestContext() *TestContext {
-	conf := configuration.Use()
+func NewPool(dbOpts string) *pgxpool.Pool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, conf.DBOpts)
+	pool, err := pgxpool.New(ctx, dbOpts)
 	if err != nil {
 		panic(err)
 	}
+	return pool
+}
+
+func GetTestContext() *TestContext {
+	conf := configuration.Use()
+	pool := NewPool(conf.DBOpts)
 	app := application.New(pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
@@ -87,7 +97,7 @@ func GetTestContext() *TestContext {
 	}
 
 	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)
-
+	ctx := context.Background()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		panic(err)

@@ -9,7 +9,7 @@ func NewWithID(
 	id uint,
 	name string,
 	description string,
-	permissions []permission.Permission,
+	permissions []*permission.Permission,
 	createdAt time.Time,
 	updatedAt time.Time,
 ) (Role, error) {
@@ -26,7 +26,7 @@ func NewWithID(
 func New(
 	name string,
 	description string,
-	permissions []permission.Permission,
+	permissions []*permission.Permission,
 ) (Role, error) {
 	return &role{
 		id:          0,
@@ -42,7 +42,7 @@ type role struct {
 	id          uint
 	name        string
 	description string
-	permissions []permission.Permission
+	permissions []*permission.Permission
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -59,7 +59,7 @@ func (r *role) Description() string {
 	return r.description
 }
 
-func (r *role) Permissions() []permission.Permission {
+func (r *role) Permissions() []*permission.Permission {
 	return r.permissions
 }
 
@@ -93,20 +93,20 @@ func (r *role) SetDescription(description string) Role {
 	}
 }
 
-func (r *role) AddPermission(p permission.Permission) Role {
+func (r *role) AddPermission(p *permission.Permission) Role {
 	return &role{
 		id:          r.id,
 		name:        r.name,
 		description: r.description,
 		permissions: append(r.permissions, p),
 		createdAt:   r.createdAt,
-		updatedAt:   r.updatedAt,
+		updatedAt:   time.Now(),
 	}
 }
 
-func (r *role) Can(perm permission.Permission) bool {
+func (r *role) Can(perm *permission.Permission) bool {
 	for _, p := range r.permissions {
-		if p.Equals(perm) {
+		if p.Equals(*perm) {
 			return true
 		}
 	}

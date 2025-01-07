@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrInvalidTin = errors.New("invalid TIN")
+	ErrInvalidTin = errors.New("invalid Tin")
 )
 
 var (
@@ -40,7 +40,7 @@ func (t tin) Value() string {
 
 func IsValidTin(t string, c country.Country) bool {
 	t = strings.Trim(t, " ")
-	// TODO: Implement TIN validation for other countries
+	// TODO: Implement Tin validation for other countries
 	switch c {
 	case country.Uzbekistan:
 		return len(t) == 9 && sequence.IsNumeric(t)

@@ -227,7 +227,7 @@ CREATE TABLE dialogues
 
 CREATE TABLE permissions
 (
-    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     name        VARCHAR(255) NOT NULL UNIQUE,
     resource    VARCHAR(255) NOT NULL, -- roles, users, etc.
     action      VARCHAR(255) NOT NULL, -- create, read, update, delete
