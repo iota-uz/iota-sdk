@@ -85,8 +85,8 @@ func TinInput(props SharedProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = input.Text(&input.Props{
-			Label:       props.T("Employees.Private.Tin.Label"),
-			Placeholder: props.T("Employees.Private.Tin.Placeholder"),
+			Label:       props.T("Employees.Private.TIN.Label"),
+			Placeholder: props.T("Employees.Private.TIN.Placeholder"),
 			Error:       props.Errors["Tin"],
 			Attrs: templ.Attributes{
 				"name":  "Tin",
