@@ -23,6 +23,16 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
+    env:
+      GO_APP_ENV: testing
+      DB_NAME: iota_erp
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_PASSWORD: postgres
+      DOMAIN: iota.uz
+      SESSION_DURATION: 720h
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/iota_erp
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -31,6 +41,22 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: "1.23.2"
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache build artifacts
+        uses: actions/cache@v3
+        with:
+          path: ./bin
+          key: ${{ runner.os }}-build-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
 
       - name: Install golangci-lint
         run: |
@@ -53,23 +79,22 @@ jobs:
             sleep 1
           done
 
-      - name: Generate templates, run go vet, tests && Makefile commands
-        env:
-          GO_APP_ENV: testing
-          DB_NAME: iota_erp
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_PASSWORD: postgres
-          DOMAIN: iota.uz
-          SESSION_DURATION: 720h
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/iota_erp
+      - name: Test generated files are up to date
         run: |
           make generate
           git diff --exit-code
-          go vet ./...
+
+      - name: Test Makefile targets
+        run: |
           make migrate-up
           make seed
           make migrate-down
           make css
+
+      - name: Run go vet && tests
+        run: |
+          make generate
+          git diff --exit-code
+          go vet ./...
           make test
           make coverage-score
