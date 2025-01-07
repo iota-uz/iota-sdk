@@ -19,30 +19,23 @@ var (
 const (
 	roleFindQuery = `
 		SELECT 
-			roles.id, 
-			roles.name, 
-			roles.description, 
-			roles.created_at, 
-			roles.updated_at,
+			r.id, 
+			r.name, 
+			r.description, 
+			r.created_at, 
+			r.updated_at,
 			p.id,
 			p.name,
 			p.resource,
 			p.action,
 			p.modifier,
 			p.description
-		FROM roles 
-		LEFT JOIN role_permissions rp ON rp.role_id = roles.id
+		FROM roles r
+		LEFT JOIN role_permissions rp ON rp.role_id = r.id
 		LEFT JOIN permissions p ON p.id = rp.permission_id`
-	roleCountQuery = `
-		SELECT COUNT(DISTINCT roles.id) FROM roles`
-	roleInsertQuery = `
-		INSERT INTO roles (name, description)
-		VALUES ($1, $2)
-		RETURNING id`
-	roleUpdateQuery = `
-		UPDATE roles
-		SET name = $1, description = $2
-		WHERE id = $3`
+	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles`
+	roleInsertQuery            = `INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id`
+	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2	WHERE id = $3`
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
 		INSERT INTO role_permissions (role_id, permission_id)
@@ -59,16 +52,16 @@ func NewRoleRepository() role.Repository {
 
 func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.FindParams) ([]role.Role, error) {
 	where, args := []string{"1 = 1"}, []interface{}{}
-	joins := []string{}
+	var joins []string
 
 	if params.ID != 0 {
-		where = append(where, fmt.Sprintf("roles.id = $%d", len(args)+1))
+		where = append(where, fmt.Sprintf("r.id = $%d", len(args)+1))
 		args = append(args, params.ID)
 	}
 
 	if params.UserID != 0 {
 		joins = append(joins, fmt.Sprintf(
-			"INNER JOIN user_roles ur ON ur.role_id = roles.id AND ur.user_id = $%d",
+			"INNER JOIN user_roles ur ON ur.role_id = r.id AND ur.user_id = $%d",
 			len(args)+1,
 		))
 		args = append(args, params.UserID)
@@ -105,7 +98,7 @@ func (g *GormRoleRepository) GetAll(ctx context.Context) ([]role.Role, error) {
 }
 
 func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, error) {
-	query := roleFindQuery + " WHERE roles.id = $1"
+	query := roleFindQuery + " WHERE r.id = $1"
 	roles, err := g.queryRoles(ctx, query, id)
 	if err != nil {
 		return nil, err
@@ -116,10 +109,10 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, e
 	return roles[0], nil
 }
 
-func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data role.Role) error {
+func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data role.Role) (role.Role, error) {
 	r, err := g.GetByID(ctx, data.ID())
 	if err != nil && !errors.Is(err, ErrRoleNotFound) {
-		return err
+		return nil, err
 	}
 	if r.ID() != 0 {
 		return g.Update(ctx, data)
@@ -127,33 +120,35 @@ func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data role.Role)
 	return g.Create(ctx, data)
 }
 
-func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) error {
+func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.Role, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	entity, permissions := toDBRole(data)
 	var id uint
-	if err := tx.QueryRow(ctx, roleInsertQuery,
+	if err := tx.QueryRow(
+		ctx,
+		roleInsertQuery,
 		entity.Name,
 		entity.Description,
 	).Scan(&id); err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, permission := range permissions {
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
-			data.ID,
+			id,
 			permission.ID,
 		); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return g.GetByID(ctx, id)
 }
 
-func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) error {
+func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.Role, error) {
 	dbRole, dbPermissions := toDBRole(data)
 
 	if err := g.execQuery(ctx, roleUpdateQuery,
@@ -161,11 +156,11 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) error {
 		dbRole.Description,
 		dbRole.ID,
 	); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := g.execQuery(ctx, roleDeletePermissionsQuery, dbRole.ID); err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, permission := range dbPermissions {
@@ -173,10 +168,10 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) error {
 			dbRole.ID,
 			permission.ID,
 		); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return g.GetByID(ctx, dbRole.ID)
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {

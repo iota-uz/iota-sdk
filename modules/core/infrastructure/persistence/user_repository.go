@@ -395,6 +395,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 				permMap[r.ID] = append(permMap[r.ID], &perm)
 			}
 		}
+		fmt.Println(roleMap)
 		for _, r := range roleMap {
 			domainRole, err := toDomainRole(r, permMap[r.ID])
 			if err != nil {

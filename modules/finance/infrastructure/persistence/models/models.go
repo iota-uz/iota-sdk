@@ -57,7 +57,7 @@ type Payment struct {
 
 type Counterparty struct {
 	ID           uint
-	TIN          string
+	Tin          string
 	Name         string
 	Type         string
 	LegalType    string

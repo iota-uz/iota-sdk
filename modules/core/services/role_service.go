@@ -36,7 +36,7 @@ func (s *RoleService) GetPaginated(ctx context.Context, params *role.FindParams)
 }
 
 func (s *RoleService) Create(ctx context.Context, data role.Role) error {
-	if err := s.repo.Create(ctx, data); err != nil {
+	if _, err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("role.created", data)
@@ -44,7 +44,7 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) error {
 }
 
 func (s *RoleService) Update(ctx context.Context, data role.Role) error {
-	if err := s.repo.Update(ctx, data); err != nil {
+	if _, err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("role.updated", data)

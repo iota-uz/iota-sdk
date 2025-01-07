@@ -9,13 +9,13 @@ type Role interface {
 	ID() uint
 	Name() string
 	Description() string
-	Permissions() []permission.Permission
+	Permissions() []*permission.Permission
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
 	SetName(name string) Role
 	SetDescription(description string) Role
 
-	AddPermission(p permission.Permission) Role
-	Can(perm permission.Permission) bool
+	AddPermission(p *permission.Permission) Role
+	Can(perm *permission.Permission) bool
 }

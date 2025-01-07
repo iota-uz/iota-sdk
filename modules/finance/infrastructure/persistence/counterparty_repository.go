@@ -108,7 +108,7 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 	}
 	args := []interface{}{
 		entity.Name,
-		entity.TIN,
+		entity.Tin,
 		entity.Type,
 		entity.LegalType,
 		entity.LegalAddress,
@@ -130,7 +130,7 @@ func (g *GormCounterpartyRepository) Update(ctx context.Context, data counterpar
 	}
 	args := []interface{}{
 		entity.Name,
-		entity.TIN,
+		entity.Tin,
 		entity.Type,
 		entity.LegalType,
 		entity.LegalAddress,
@@ -160,7 +160,7 @@ func (g *GormCounterpartyRepository) queryCounterparties(ctx context.Context, qu
 		if err := rows.Scan(
 			&r.ID,
 			&r.Name,
-			&r.TIN,
+			&r.Tin,
 			&r.Type,
 			&r.LegalType,
 			&r.LegalAddress,

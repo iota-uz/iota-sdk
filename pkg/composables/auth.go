@@ -3,10 +3,10 @@ package composables
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -33,7 +33,7 @@ func MustUseUser(ctx context.Context) *user.User {
 	return u
 }
 
-func CanUser(ctx context.Context, permission permission.Permission) error {
+func CanUser(ctx context.Context, permission *permission.Permission) error {
 	u, err := UseUser(ctx)
 	if err != nil {
 		return err
