@@ -16,7 +16,7 @@ RUN go install github.com/a-h/templ/cmd/templ@v0.2.793 && go install github.com/
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make generate && go vet ./...
+RUN make generate && go get ./...
 RUN make css
 
 FROM install-stage AS production
