@@ -10,18 +10,18 @@ func New(orderType Type, status Status) Order {
 	return &orderImpl{
 		_type:     orderType,
 		status:    status,
-		items:     make([]*itemImpl, 0),
+		items:     make([]Item, 0),
 		createdAt: time.Now(),
 	}
 }
 
-func NewWithID(id uint, orderType Type, status Status) Order {
+func NewWithID(id uint, orderType Type, status Status, createdAt time.Time) Order {
 	return &orderImpl{
 		id:        id,
 		_type:     orderType,
 		status:    status,
-		items:     make([]*itemImpl, 0),
-		createdAt: time.Now(),
+		items:     make([]Item, 0),
+		createdAt: createdAt,
 	}
 }
 
@@ -29,7 +29,7 @@ type orderImpl struct {
 	id        uint
 	_type     Type
 	status    Status
-	items     []*itemImpl
+	items     []Item
 	createdAt time.Time
 }
 
@@ -50,11 +50,7 @@ func (o *orderImpl) Status() Status {
 }
 
 func (o *orderImpl) Items() []Item {
-	items := make([]Item, 0)
-	for _, i := range o.items {
-		items = append(items, i)
-	}
-	return items
+	return o.items
 }
 
 func (o *orderImpl) CreatedAt() time.Time {
@@ -85,7 +81,7 @@ func (o *orderImpl) Complete() error {
 		status = product.Approved
 	}
 	for _, item := range o.items {
-		for _, p := range item.products {
+		for _, p := range item.Products() {
 			p.Status = status
 		}
 	}
