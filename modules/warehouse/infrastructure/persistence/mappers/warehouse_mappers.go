@@ -83,7 +83,7 @@ func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.Wareh
 	}, nil
 }
 
-func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage, *models.WarehouseUnit) {
+func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage) {
 	junctionRows := make([]*models.WarehousePositionImage, 0, len(entity.Images))
 	for _, image := range entity.Images {
 		junctionRows = append(
@@ -101,7 +101,7 @@ func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
 	}
-	return dbPosition, junctionRows, ToDBUnit(entity.Unit)
+	return dbPosition, junctionRows
 }
 
 func ToDomainInventoryPosition(dbPosition *models.InventoryPosition) (*inventory.Position, error) {
