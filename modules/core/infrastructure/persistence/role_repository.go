@@ -33,7 +33,7 @@ const (
 		LEFT JOIN permissions p ON p.id = rp.permission_id`
 	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles`
 	roleInsertQuery            = `INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id`
-	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2	WHERE id = $3`
+	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4`
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
 		INSERT INTO role_permissions (role_id, permission_id)
@@ -149,9 +149,12 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.Role, error) {
 	dbRole, dbPermissions := toDBRole(data)
 
-	if err := g.execQuery(ctx, roleUpdateQuery,
+	if err := g.execQuery(
+		ctx,
+		roleUpdateQuery,
 		dbRole.Name,
 		dbRole.Description,
+		dbRole.UpdatedAt,
 		dbRole.ID,
 	); err != nil {
 		return nil, err

@@ -29,8 +29,8 @@ const (
 	countCounterpartyQuery  = `SELECT COUNT(*) as count FROM counterparty`
 	insertCounterpartyQuery = `
 		INSERT INTO counterparty (
-		    tin,
 			name,
+		    tin,
 			type,
 			legal_type,
 			legal_address,

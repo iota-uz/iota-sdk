@@ -22,8 +22,9 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		}
 	}(ctx.Tx, ctx.Context)
 
-	userRepository := persistence.NewUserRepository()
+	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
+	userRepository := persistence.NewUserRepository()
 	roleData, err := role.New(
 		"test",
 		"test",
@@ -32,6 +33,10 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		},
 	)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := permissionRepository.Create(ctx.Context, permission.UserRead); err != nil {
 		t.Fatal(err)
 	}
 
