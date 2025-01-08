@@ -151,6 +151,9 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 			if updatedOrder.Status() != order.Complete {
 				t.Errorf("expected %s, got %s", order.Complete, updatedOrder.Status())
 			}
+			if len(updatedOrder.Items()) != 1 {
+				t.Errorf("expected 1, got %d", len(updatedOrder.Items()))
+			}
 			item := updatedOrder.Items()[0]
 			if item.Products()[0].Status != product.InStock {
 				t.Errorf("expected %s, got %s", product.InStock, item.Products()[0].Status)
