@@ -51,10 +51,15 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	product1 := product.New("EPS:242323", 1, product.Approved, positionEntity)
+	if err := productRepo.Create(ctx.Context, product1); err != nil {
+		t.Fatal(err)
+	}
+
 	orderEntity := order.New(order.TypeIn, order.Pending)
 	if err := orderEntity.AddItem(
 		positionEntity,
-		product.New("EPS:242323", 1, product.Approved, positionEntity),
+		product1,
 	); err != nil {
 		t.Fatal(err)
 	}

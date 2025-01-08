@@ -223,7 +223,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
-	positionRow, junctionRows, _ := mappers.ToDBPosition(data)
+	positionRow, junctionRows := mappers.ToDBPosition(data)
 	if err := tx.QueryRow(
 		ctx,
 		g.insertQuery,
@@ -246,7 +246,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
-	positionRow, uploadRows, _ := mappers.ToDBPosition(data)
+	positionRow, uploadRows := mappers.ToDBPosition(data)
 	if _, err := tx.Exec(
 		ctx,
 		g.updateQuery,
