@@ -2,9 +2,9 @@ package persistence_test
 
 import (
 	"context"
-	currency "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	financepersistence "github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/jackc/pgx/v5"
@@ -27,7 +27,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	createdAccount, err := accountRepository.Create(
-		ctx.Context, &moneyAccount.Account{
+		ctx.Context, &moneyaccount.Account{
 			Name:          "test",
 			AccountNumber: "123",
 			Currency:      currency.USD,
@@ -55,7 +55,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetPaginated", func(t *testing.T) {
-			accounts, err := accountRepository.GetPaginated(ctx.Context, &moneyAccount.FindParams{Limit: 1})
+			accounts, err := accountRepository.GetPaginated(ctx.Context, &moneyaccount.FindParams{Limit: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,9 +101,15 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := accountRepository.Update(
-				ctx.Context, &moneyAccount.Account{
-					ID:      createdAccount.ID,
-					Balance: 200,
+				ctx.Context, &moneyaccount.Account{
+					ID:            createdAccount.ID,
+					Name:          "test",
+					AccountNumber: "123",
+					Currency:      currency.USD,
+					Balance:       200,
+					Description:   "",
+					CreatedAt:     createdAccount.CreatedAt,
+					UpdatedAt:     time.Now(),
 				},
 			); err != nil {
 				t.Fatal(err)

@@ -69,21 +69,18 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := accountRepository.Create(
-		ctx.Context, &moneyaccount.Account{
-			ID:            1,
+	if err := accountService.Create(
+		ctx.Context, &moneyaccount.CreateDTO{
 			Name:          "Test",
 			AccountNumber: "123",
-			Currency:      currency.USD,
 			Balance:       100,
+			CurrencyCode:  string(currency.UsdCode),
 			Description:   "",
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
 		},
 	); err != nil {
 		t.Fatal(err)
 	}
-	tin, err := tax.NewTin("1234567890", country.Uzbekistan)
+	tin, err := tax.NewTin("123456789", country.Uzbekistan)
 	if err != nil {
 		t.Fatal(err)
 	}
