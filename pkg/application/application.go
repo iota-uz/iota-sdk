@@ -6,14 +6,15 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/go-gorp/gorp/v3"
-	"github.com/jackc/pgx/v5/stdlib"
 	"io/fs"
 	"log"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/go-gorp/gorp/v3"
+	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
@@ -46,23 +47,17 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 func listFiles(fsys fs.FS, dir string) ([]string, error) {
 	var fileList []string
 
-	entries, err := fs.ReadDir(fsys, dir)
-	if err != nil {
-		return nil, fmt.Errorf("error reading directory %q: %w", dir, err)
-	}
-
-	for _, entry := range entries {
-		path := filepath.Join(dir, entry.Name())
-		if entry.IsDir() {
-			// Recursively list files in the subdirectory
-			subDirFiles, err := listFiles(fsys, path)
-			if err != nil {
-				return nil, err
-			}
-			fileList = append(fileList, subDirFiles...)
-		} else {
+	err := fs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
 			fileList = append(fileList, path)
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error reading directory %q: %w", dir, err)
 	}
 
 	return fileList, nil
