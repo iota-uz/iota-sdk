@@ -45,8 +45,8 @@ const (
 		SELECT COUNT(DISTINCT wp.id) FROM warehouse_products wp`
 
 	productInsertQuery = `
-		INSERT INTO warehouse_products (position_id, rfid, status) 
-		VALUES ($1, $2, $3)
+		INSERT INTO warehouse_products (position_id, rfid, status, created_at) 
+		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 
 	productUpdateQuery = `
@@ -207,10 +207,18 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 		return err
 	}
 
-	if err := tx.QueryRow(ctx, productInsertQuery,
-		data.PositionID,
-		data.Rfid,
-		data.Status,
+	dbProduct, err := mappers.ToDBProduct(data)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.QueryRow(
+		ctx,
+		productInsertQuery,
+		dbProduct.PositionID,
+		dbProduct.Rfid,
+		dbProduct.Status,
+		dbProduct.CreatedAt,
 	).Scan(&data.ID); err != nil {
 		return err
 	}
@@ -238,11 +246,18 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
-	return g.execQuery(ctx, productUpdateQuery,
-		data.PositionID,
-		data.Rfid,
-		data.Status,
-		data.ID,
+	dbProduct, err := mappers.ToDBProduct(data)
+	if err != nil {
+		return err
+	}
+	return g.execQuery(
+		ctx,
+		productUpdateQuery,
+		dbProduct.PositionID,
+		dbProduct.Rfid,
+		dbProduct.Status,
+		dbProduct.UpdatedAt,
+		dbProduct.ID,
 	)
 }
 

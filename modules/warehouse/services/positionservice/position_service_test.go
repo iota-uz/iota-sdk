@@ -91,7 +91,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	ctx = context.WithValue(ctx, constants.SessionKey, testutils.MockSession())
 
 	if err := positionService.LoadFromFilePath(ctx, TestFilePath); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	positions, err := positionRepo.GetAll(ctx)
@@ -99,8 +99,9 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		t.Error(err)
 	}
 	if len(positions) != len(Data)-1 {
-		t.Errorf("expected %d, got %d", len(Data)-1, len(positions))
+		t.Fatalf("expected %d, got %d", len(Data)-1, len(positions))
 	}
+
 	if positions[0].Title != Data[1]["A2"] {
 		t.Errorf("expected %s, got %s", Data[1]["A2"], positions[0].Title)
 	}
