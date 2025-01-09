@@ -3,18 +3,23 @@ package persistence
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"strings"
-
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
 	ErrUnitNotFound = errors.New("unit not found")
+)
+
+const (
+	selectUnitsQuery = `SELECT id, title, short_title, created_at, updated_at FROM warehouse_units`
+	countUnitsQuery  = `SELECT COUNT(*) FROM warehouse_units`
+	insertUnitQuery  = `INSERT INTO warehouse_units (title, short_title, created_at) VALUES ($1, $2, $3) RETURNING id`
+	updateUnitQuery  = `UPDATE warehouse_units SET title = $1, short_title = $2, updated_at = $3 WHERE id = $4`
+	deleteUnitQuery  = `DELETE FROM warehouse_units WHERE id = $1`
 )
 
 type GormUnitRepository struct{}
@@ -23,55 +28,14 @@ func NewUnitRepository() unit.Repository {
 	return &GormUnitRepository{}
 }
 
-func (g *GormUnitRepository) GetPaginated(
-	ctx context.Context, params *unit.FindParams,
-) ([]*unit.Unit, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
-	}
-
-	if params.Title != "" {
-		where, args = append(where, fmt.Sprintf("title = $%d OR short_title = $%d", len(args)+1, len(args)+2)), append(args, params.Title, params.Title)
-	}
-
-	rows, err := pool.Query(ctx, `
-		SELECT id, title, short_title, created_at, updated_at FROM warehouse_units
-		WHERE `+strings.Join(where, " AND ")+`
-		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
-	`, args...)
-
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	units := make([]*unit.Unit, 0)
-	for rows.Next() {
-		var unit models.WarehouseUnit
-		if err := rows.Scan(
-			&unit.ID,
-			&unit.Title,
-			&unit.ShortTitle,
-			&unit.CreatedAt,
-			&unit.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-
-		domainUnit := mappers.ToDomainUnit(&unit)
-		units = append(units, domainUnit)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return units, nil
+func (g *GormUnitRepository) GetPaginated(ctx context.Context, params *unit.FindParams) ([]*unit.Unit, error) {
+	return g.queryUnits(
+		ctx,
+		repo.Join(
+			selectUnitsQuery,
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		),
+	)
 }
 
 func (g *GormUnitRepository) Count(ctx context.Context) (uint, error) {
@@ -80,18 +44,14 @@ func (g *GormUnitRepository) Count(ctx context.Context) (uint, error) {
 		return 0, err
 	}
 	var count uint
-	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM warehouse_units
-	`).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countUnitsQuery).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit.Unit, error) {
-	units, err := g.GetPaginated(ctx, &unit.FindParams{
-		Limit: 100000,
-	})
+	units, err := g.queryUnits(ctx, selectUnitsQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +60,7 @@ func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit.Unit, error) {
 }
 
 func (g *GormUnitRepository) GetByID(ctx context.Context, id uint) (*unit.Unit, error) {
-	units, err := g.GetPaginated(ctx, &unit.FindParams{
-		ID: id,
-	})
+	units, err := g.queryUnits(ctx, selectUnitsQuery+" WHERE id = $1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +73,7 @@ func (g *GormUnitRepository) GetByID(ctx context.Context, id uint) (*unit.Unit, 
 }
 
 func (g *GormUnitRepository) GetByTitleOrShortTitle(ctx context.Context, name string) (*unit.Unit, error) {
-	units, err := g.GetPaginated(ctx, &unit.FindParams{
-		Title: name,
-	})
+	units, err := g.queryUnits(ctx, selectUnitsQuery+" WHERE title = $1 OR short_title = $1", name)
 	if err != nil {
 		return nil, err
 	}
@@ -134,10 +90,13 @@ func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error 
 		return err
 	}
 	dbRow := mappers.ToDBUnit(data)
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO warehouse_units (title, short_title)
-		VALUES ($1, $2) RETURNING id
-	`, dbRow.Title, dbRow.ShortTitle).Scan(&data.ID); err != nil {
+	if err := tx.QueryRow(
+		ctx,
+		insertUnitQuery,
+		dbRow.Title,
+		dbRow.ShortTitle,
+		dbRow.CreatedAt,
+	).Scan(&data.ID); err != nil {
 		return err
 	}
 	return nil
@@ -166,13 +125,14 @@ func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error 
 		return err
 	}
 	dbRow := mappers.ToDBUnit(data)
-	if _, err := tx.Exec(ctx, `
-		UPDATE warehouse_units wu 
-		SET 
-		title = COALESCE(NULLIF($1, ''), wu.title),
-		short_title = COALESCE(NULLIF($2, ''), wu.short_title)
-		WHERE wu.id = $3
-	`, dbRow.Title, dbRow.ShortTitle, dbRow.ID); err != nil {
+	if _, err := tx.Exec(
+		ctx,
+		updateUnitQuery,
+		dbRow.Title,
+		dbRow.ShortTitle,
+		dbRow.UpdatedAt,
+		dbRow.ID,
+	); err != nil {
 		return err
 	}
 	return nil
@@ -183,8 +143,43 @@ func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_units where id = $1`, id); err != nil {
+	if _, err := tx.Exec(ctx, deleteUnitQuery, id); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (g *GormUnitRepository) queryUnits(ctx context.Context, query string, args ...interface{}) ([]*unit.Unit, error) {
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	units := make([]*unit.Unit, 0)
+	for rows.Next() {
+		var u models.WarehouseUnit
+		if err := rows.Scan(
+			&u.ID,
+			&u.Title,
+			&u.ShortTitle,
+			&u.CreatedAt,
+			&u.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		domainUnit := mappers.ToDomainUnit(&u)
+		units = append(units, domainUnit)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return units, nil
 }

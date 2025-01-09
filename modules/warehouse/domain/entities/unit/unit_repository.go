@@ -8,13 +8,9 @@ type DateRange struct {
 }
 
 type FindParams struct {
-	ID        uint
 	Limit     int
 	Offset    int
 	SortBy    []string
-	Query     string
-	Field     string
-	Title     string
 	CreatedAt DateRange
 }
 
