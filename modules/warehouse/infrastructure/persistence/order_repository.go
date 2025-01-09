@@ -26,8 +26,8 @@ const (
 		FROM warehouse_orders`
 
 	orderInsertQuery = `
-		INSERT INTO warehouse_orders (type, status) 
-		VALUES ($1, $2) 
+		INSERT INTO warehouse_orders (type, status, created_at) 
+		VALUES ($1, $2, $3) 
 		RETURNING id`
 
 	orderItemInsertQuery = `
@@ -74,8 +74,8 @@ const (
 		LEFT JOIN warehouse_units wu ON wu.id = p.unit_id`
 
 	insertOrderProductsQuery = `
-		INSERT INTO warehouse_products (position_id, rfid, status)
-		VALUES ($1, $2, $3)
+		INSERT INTO warehouse_products (position_id, rfid, status, created_at)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 
 	updateOrderProductsQuery = `
@@ -150,7 +150,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 	if err != nil {
 		return err
 	}
-	dbOrder, dbOrderItems, dbProducts, err := mappers.ToDBOrder(data)
+	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
 		return err
 	}
@@ -160,33 +160,35 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 		orderInsertQuery,
 		dbOrder.Type,
 		dbOrder.Status,
+		dbOrder.CreatedAt,
 	).Scan(&dbOrder.ID); err != nil {
 		return err
 	}
 
-	for _, item := range dbOrderItems {
-		if _, err := tx.Exec(
-			ctx,
-			orderItemInsertQuery,
-			dbOrder.ID,
-			item.WarehouseProductID,
-		); err != nil {
-			return err
-		}
-	}
-
 	for _, p := range dbProducts {
-		if _, err := tx.Exec(
+		if err := tx.QueryRow(
 			ctx,
 			insertOrderProductsQuery,
 			p.PositionID,
 			p.Rfid,
 			p.Status,
-			p.ID,
+			p.CreatedAt,
+		).Scan(&p.ID); err != nil {
+			return err
+		}
+	}
+
+	for _, item := range dbProducts {
+		if _, err := tx.Exec(
+			ctx,
+			orderItemInsertQuery,
+			dbOrder.ID,
+			item.ID,
 		); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -195,7 +197,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 	if err != nil {
 		return err
 	}
-	dbOrder, dbOrderItems, dbProducts, err := mappers.ToDBOrder(data)
+	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
 		return err
 	}
@@ -214,12 +216,12 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 		return err
 	}
 
-	for _, item := range dbOrderItems {
+	for _, item := range dbProducts {
 		if _, err := tx.Exec(
 			ctx,
 			orderItemInsertQuery,
 			dbOrder.ID,
-			item.WarehouseProductID,
+			item.ID,
 		); err != nil {
 			return err
 		}

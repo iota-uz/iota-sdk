@@ -5,18 +5,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 )
 
-func ToDBOrder(entity order.Order) (*models.WarehouseOrder, []*models.WarehouseOrderItem, []*models.WarehouseProduct, error) {
-	var dbOrderItems []*models.WarehouseOrderItem
+func ToDBOrder(entity order.Order) (*models.WarehouseOrder, []*models.WarehouseProduct, error) {
 	var dbProducts []*models.WarehouseProduct
 	for _, item := range entity.Items() {
 		for _, domainProduct := range item.Products() {
-			dbOrderItems = append(dbOrderItems, &models.WarehouseOrderItem{
-				WarehouseProductID: domainProduct.ID,
-				WarehouseOrderID:   entity.ID(),
-			})
 			dbProduct, err := ToDBProduct(domainProduct)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, err
 			}
 			dbProducts = append(dbProducts, dbProduct)
 		}
@@ -28,7 +23,7 @@ func ToDBOrder(entity order.Order) (*models.WarehouseOrder, []*models.WarehouseO
 		Type:      string(entity.Type()),
 		CreatedAt: entity.CreatedAt(),
 	}
-	return dbOrder, dbOrderItems, dbProducts, nil
+	return dbOrder, dbProducts, nil
 }
 
 func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {

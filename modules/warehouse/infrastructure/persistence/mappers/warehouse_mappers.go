@@ -23,10 +23,11 @@ func ToDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 
 func ToDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	return &unit.Unit{
-		ID:        dbUnit.ID,
-		Title:     dbUnit.Title,
-		CreatedAt: dbUnit.CreatedAt,
-		UpdatedAt: dbUnit.UpdatedAt,
+		ID:         dbUnit.ID,
+		Title:      dbUnit.Title,
+		ShortTitle: dbUnit.ShortTitle,
+		CreatedAt:  dbUnit.CreatedAt,
+		UpdatedAt:  dbUnit.UpdatedAt,
 	}
 }
 

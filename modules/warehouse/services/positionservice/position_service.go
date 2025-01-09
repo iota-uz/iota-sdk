@@ -3,17 +3,18 @@ package positionservice
 import (
 	"context"
 	"errors"
+
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
-	"gorm.io/gorm"
 )
 
 type PositionService struct {
@@ -71,7 +72,7 @@ func (s *PositionService) findOrCreateUnit(ctx context.Context, unitName string)
 	if err == nil {
 		return u, nil
 	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, persistence.ErrUnitNotFound) {
 		return s.unitService.Create(ctx, &unit.CreateDTO{
 			Title:      unitName,
 			ShortTitle: unitName,
@@ -123,10 +124,10 @@ func (s *PositionService) LoadFromFilePath(ctx context.Context, path string) err
 	for _, row := range rows {
 		unitID := unitNameToID[row.Unit]
 		entity, err := s.repo.GetByBarcode(ctx, row.Barcode)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		if err != nil && !errors.Is(err, persistence.ErrPositionNotFound) {
 			return err
 		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, persistence.ErrPositionNotFound) {
 			if err := s.createPosition(ctx, row, unitID); err != nil {
 				return err
 			}

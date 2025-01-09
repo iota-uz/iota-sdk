@@ -2,6 +2,13 @@ package orderservice_test
 
 import (
 	"context"
+	"log"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
@@ -11,11 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/jackc/pgx/v5"
-	"log"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -26,7 +28,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestPositionService_LoadFromFilePath(t *testing.T) {
+func TestOrderService(t *testing.T) {
 	testCtx := testutils.GetTestContext()
 	defer func(Tx pgx.Tx, ctx context.Context) {
 		err := Tx.Commit(ctx)
