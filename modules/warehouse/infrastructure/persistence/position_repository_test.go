@@ -13,6 +13,7 @@ import (
 )
 
 func TestGormPositionRepository_CRUD(t *testing.T) {
+	t.Parallel()
 	f := setupTest(t)
 
 	unitRepository := persistence.NewUnitRepository()
