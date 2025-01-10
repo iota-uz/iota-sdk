@@ -69,7 +69,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 	setRouter.Use(middleware.WithTransaction())
 
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
@@ -198,67 +198,52 @@ func (c *ExpenseController) Delete(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ExpenseController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ExpenseController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+	dto := expense.UpdateDTO{}
+	var pageCtx *types.PageContext
+	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Expenses.Meta.Edit.Title", ""))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	r.Form.Del("_action")
-
-	switch action {
-	case shared.FormActionDelete:
-		if _, err := c.expenseService.Delete(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		entity, err := c.expenseService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
 			return
 		}
-	case shared.FormActionSave:
-		dto := expense.UpdateDTO{}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Expenses.Meta.Edit.Title", ""))
+		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			entity, err := c.expenseService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
-				return
-			}
-			accounts, err := c.viewModelAccounts(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			categories, err := c.viewModelCategories(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			props := &expenses2.EditPageProps{
-				PageContext: pageCtx,
-				Expense:     mappers.ExpenseToViewModel(entity),
-				Accounts:    accounts,
-				Categories:  categories,
-				Errors:      errorsMap,
-			}
-			templ.Handler(expenses2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-		if err := c.expenseService.Update(r.Context(), id, &dto); err != nil {
+		categories, err := c.viewModelCategories(r)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		props := &expenses2.EditPageProps{
+			PageContext: pageCtx,
+			Expense:     mappers.ExpenseToViewModel(entity),
+			Accounts:    accounts,
+			Categories:  categories,
+			Errors:      errorsMap,
+		}
+		templ.Handler(expenses2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+	if err := c.expenseService.Update(r.Context(), id, &dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	shared.Redirect(w, r, c.basePath)
 }
