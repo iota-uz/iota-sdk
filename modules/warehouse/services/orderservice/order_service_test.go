@@ -2,12 +2,14 @@ package orderservice_test
 
 import (
 	"context"
-	"log"
+	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
@@ -16,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
@@ -28,22 +29,62 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestOrderService(t *testing.T) {
-	testCtx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		err := Tx.Commit(ctx)
-		if err != nil {
-			log.Fatal(err)
+// testFixtures contains common test dependencies
+type testFixtures struct {
+	ctx  context.Context
+	pool *pgxpool.Pool
+	app  application.Application
+}
+
+// setupTest creates all necessary dependencies for tests
+func setupTest(t *testing.T) *testFixtures {
+	t.Helper()
+
+	testutils.CreateDB(t.Name())
+	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+
+	ctx := composables.WithUser(context.Background(), testutils.MockUser(
+		permissions.PositionCreate,
+		permissions.PositionRead,
+		permissions.ProductCreate,
+		permissions.ProductRead,
+		permissions.UnitCreate,
+		permissions.UnitRead,
+	))
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
 		}
-	}(testCtx.Tx, testCtx.Context)
+		pool.Close()
+	})
+
+	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithSession(ctx, &session.Session{})
+
+	app := testutils.SetupApplication(t, pool, modules.BuiltInModules...)
+
+	return &testFixtures{
+		ctx:  ctx,
+		pool: pool,
+		app:  app,
+	}
+}
+
+func TestOrderService(t *testing.T) {
+	f := setupTest(t)
 
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository()
-	productRepo := persistence.NewProductRepository(positionRepo)
+	productRepo := persistence.NewProductRepository()
 	orderRepo := persistence.NewOrderRepository(productRepo)
-	orderService := orderservice.NewOrderService(testCtx.App.EventPublisher(), orderRepo, productRepo)
+	orderService := orderservice.NewOrderService(f.app.EventPublisher(), orderRepo, productRepo)
 
-	if err := unitRepo.Create(testCtx.Context, &unit.Unit{
+	if err := unitRepo.Create(f.ctx, &unit.Unit{
 		ID:         1,
 		Title:      "Test Unit",
 		ShortTitle: "TU",
@@ -62,7 +103,7 @@ func TestOrderService(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	if err := positionRepo.Create(testCtx.Context, positionEntity); err != nil {
+	if err := positionRepo.Create(f.ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
@@ -74,26 +115,16 @@ func TestOrderService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := orderRepo.Create(testCtx.Context, domainOrder); err != nil {
+	if err := orderRepo.Create(f.ctx, domainOrder); err != nil {
 		t.Fatal(err)
 	}
 
-	ctx := context.WithValue(testCtx.Context, constants.UserKey, testutils.MockUser(
-		permissions.PositionCreate,
-		permissions.PositionRead,
-		permissions.ProductCreate,
-		permissions.ProductRead,
-		permissions.UnitCreate,
-		permissions.UnitRead,
-	))
-	ctx = context.WithValue(ctx, constants.SessionKey, testutils.MockSession())
-
-	_, err := orderService.Complete(ctx, 1)
+	_, err := orderService.Complete(f.ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	orderEntity, err := orderRepo.GetByID(ctx, 1)
+	orderEntity, err := orderRepo.GetByID(f.ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

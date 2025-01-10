@@ -4,11 +4,13 @@ import (
 	"context"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"testing"
 	"time"
 
@@ -24,33 +26,52 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
-func TestPaymentsService_CRUD(t *testing.T) {
-	testutils.CreateDB(t.Name())
+// testFixtures contains common test dependencies
+type testFixtures struct {
+	ctx             context.Context
+	pool            *pgxpool.Pool
+	publisher       event.Publisher
+	paymentsService *services.PaymentService
+	accountService  *services.MoneyAccountService
+}
 
+// setupTest creates all necessary dependencies for tests
+func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixtures {
+	t.Helper()
+
+	testutils.CreateDB(t.Name())
 	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
-	defer pool.Close()
-	ctx := composables.WithUser(
-		context.Background(),
-		testutils.MockUser(
-			permissions.PaymentCreate,
-			permissions.PaymentRead,
-			permissions.PaymentUpdate,
-			permissions.PaymentDelete,
-		),
-	)
+
+	ctx := composables.WithUser(context.Background(), testutils.MockUser(permissions...))
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+
+	t.Cleanup(func() {
 		if err := tx.Commit(ctx); err != nil {
 			t.Fatal(err)
 		}
-	}()
+		pool.Close()
+	})
+
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
 	publisher := event.NewEventPublisher()
+	app := setupApplication(t, pool, publisher)
+
+	return &testFixtures{
+		ctx:             ctx,
+		pool:            pool,
+		publisher:       publisher,
+		paymentsService: app.Service(services.PaymentService{}).(*services.PaymentService),
+		accountService:  app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+	}
+}
+
+// setupApplication initializes and configures the application
+func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher event.Publisher) application.Application {
 	app := application.New(pool, publisher)
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		t.Fatal(err)
@@ -58,49 +79,60 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	if err := app.RunMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	currencyRepository := corepersistence.NewCurrencyRepository()
-	accountRepository := persistence.NewMoneyAccountRepository()
-	paymentRepository := persistence.NewPaymentRepository()
-	counterpartyRepository := persistence.NewCounterpartyRepository()
-	accountService := services.NewMoneyAccountService(
-		accountRepository,
-		persistence.NewTransactionRepository(),
-		publisher,
-	)
-	paymentsService := services.NewPaymentService(paymentRepository, publisher, accountService)
+	return app
+}
 
-	if err := currencyRepository.Create(ctx, &currency.USD); err != nil {
+// setupTestData creates necessary test data
+func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) {
+	t.Helper()
+
+	// Create currency
+	currencyRepo := corepersistence.NewCurrencyRepository()
+	if err := currencyRepo.Create(ctx, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
-	if err := accountService.Create(
-		ctx, &moneyaccount.CreateDTO{
-			Name:          "Test",
-			AccountNumber: "123",
-			Balance:       100,
-			CurrencyCode:  string(currency.UsdCode),
-			Description:   "",
-		},
-	); err != nil {
+
+	// Create account
+	err := f.accountService.Create(ctx, &moneyaccount.CreateDTO{
+		Name:          "Test",
+		AccountNumber: "123",
+		Balance:       100,
+		CurrencyCode:  string(currency.UsdCode),
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Create counterparty
+	counterpartyRepo := persistence.NewCounterpartyRepository()
 	tin, err := tax.NewTin("123456789", country.Uzbekistan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := counterpartyRepository.Create(
-		ctx,
-		counterparty.New(
-			tin,
-			"Test",
-			counterparty.Customer,
-			counterparty.LLC,
-			"",
-		),
-	); err != nil {
+
+	_, err = counterpartyRepo.Create(ctx, counterparty.New(
+		tin,
+		"Test",
+		counterparty.Customer,
+		counterparty.LLC,
+		"",
+	))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := paymentsService.Create(
-		ctx, &payment.CreateDTO{
+}
+
+func TestPaymentsService_CRUD(t *testing.T) {
+	f := setupTest(t,
+		permissions.PaymentCreate,
+		permissions.PaymentRead,
+		permissions.PaymentUpdate,
+		permissions.PaymentDelete,
+	)
+	setupTestData(f.ctx, t, f)
+	accountRepository := persistence.NewMoneyAccountRepository()
+	if err := f.paymentsService.Create(
+		f.ctx, &payment.CreateDTO{
 			Amount:           100,
 			AccountID:        1,
 			TransactionDate:  shared.DateOnly(time.Now()),
@@ -111,7 +143,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	accountEntity, err := accountRepository.GetByID(ctx, 1)
+	accountEntity, err := accountRepository.GetByID(f.ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

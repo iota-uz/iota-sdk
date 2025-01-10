@@ -1,36 +1,26 @@
 package persistence_test
 
 import (
-	"context"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
-	"github.com/jackc/pgx/v5"
-	"log"
 	"testing"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 )
 
 func TestGormOrderRepository_CRUD(t *testing.T) {
-	ctx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		err := Tx.Commit(ctx)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}(ctx.Tx, ctx.Context)
+	f := setupTest(t)
 
 	unitRepository := persistence.NewUnitRepository()
 	positionRepository := persistence.NewPositionRepository()
-	productRepo := persistence.NewProductRepository(positionRepository)
+	productRepo := persistence.NewProductRepository()
 	orderRepository := persistence.NewOrderRepository(productRepo)
 
 	if err := unitRepository.Create(
-		ctx.Context, &unit.Unit{
+		f.ctx, &unit.Unit{
 			ID:         1,
 			Title:      "Unit 1",
 			ShortTitle: "U1",
@@ -47,7 +37,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	if err := positionRepository.Create(ctx.Context, positionEntity); err != nil {
+	if err := positionRepository.Create(f.ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
@@ -58,13 +48,13 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := orderRepository.Create(ctx.Context, orderEntity); err != nil {
+	if err := orderRepository.Create(f.ctx, orderEntity); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run(
 		"Count", func(t *testing.T) {
-			count, err := orderRepository.Count(ctx.Context)
+			count, err := orderRepository.Count(f.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -76,7 +66,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetPaginated", func(t *testing.T) {
-			orders, err := orderRepository.GetPaginated(ctx.Context, &order.FindParams{
+			orders, err := orderRepository.GetPaginated(f.ctx, &order.FindParams{
 				Limit:  1,
 				Offset: 0,
 				SortBy: []string{"id desc"},
@@ -95,7 +85,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetAll", func(t *testing.T) {
-			orders, err := orderRepository.GetAll(ctx.Context)
+			orders, err := orderRepository.GetAll(f.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -114,7 +104,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			entity, err := orderRepository.GetByID(ctx.Context, 1)
+			entity, err := orderRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -129,17 +119,17 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Update", func(t *testing.T) {
-			entity, err := orderRepository.GetByID(ctx.Context, 1)
+			entity, err := orderRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err := entity.Complete(); err != nil {
 				t.Fatal(err)
 			}
-			if err := orderRepository.Update(ctx.Context, entity); err != nil {
+			if err := orderRepository.Update(f.ctx, entity); err != nil {
 				t.Fatal(err)
 			}
-			updatedOrder, err := orderRepository.GetByID(ctx.Context, 1)
+			updatedOrder, err := orderRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,7 +137,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 				t.Errorf("expected %s, got %s", order.Complete, updatedOrder.Status())
 			}
 			if len(updatedOrder.Items()) != 1 {
-				t.Errorf("expected 1, got %d", len(updatedOrder.Items()))
+				t.Fatalf("expected 1, got %d", len(updatedOrder.Items()))
 			}
 			item := updatedOrder.Items()[0]
 			if item.Products()[0].Status != product.InStock {
@@ -158,10 +148,10 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := orderRepository.Delete(ctx.Context, 1); err != nil {
+			if err := orderRepository.Delete(f.ctx, 1); err != nil {
 				t.Fatal(err)
 			}
-			count, err := orderRepository.Count(ctx.Context)
+			count, err := orderRepository.Count(f.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
