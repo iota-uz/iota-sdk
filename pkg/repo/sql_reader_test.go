@@ -1,7 +1,7 @@
 package repo_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"reflect"
 	"testing"
 )

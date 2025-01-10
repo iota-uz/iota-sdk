@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/utils/random"
+	"github.com/iota-uz/utils/random"
 )
 
 type UploadInputProps struct {

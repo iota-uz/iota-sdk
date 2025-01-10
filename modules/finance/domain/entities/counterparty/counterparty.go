@@ -1,13 +1,16 @@
 package counterparty
 
-import "time"
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
+	"time"
+)
 
 type Counterparty interface {
 	ID() uint
 	SetID(uint)
 
-	TIN() string
-	SetTIN(string)
+	Tin() tax.Tin
+	SetTin(t tax.Tin)
 
 	Name() string
 	SetName(string)

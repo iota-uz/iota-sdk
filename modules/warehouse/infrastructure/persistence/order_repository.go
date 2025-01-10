@@ -9,11 +9,79 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
 	ErrOrderNotFound = errors.New("order not found")
+)
+
+const (
+	orderFindQuery = `
+		SELECT id, type, status, created_at 
+		FROM warehouse_orders wo`
+
+	orderCountQuery = `
+		SELECT COUNT(*) as count 
+		FROM warehouse_orders`
+
+	orderInsertQuery = `
+		INSERT INTO warehouse_orders (type, status, created_at) 
+		VALUES ($1, $2, $3) 
+		RETURNING id`
+
+	orderItemInsertQuery = `
+		INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id) 
+		VALUES ($1, $2) 
+		ON CONFLICT DO NOTHING`
+
+	orderUpdateQuery = `
+		UPDATE warehouse_orders wo 
+		SET 
+		type = COALESCE(NULLIF($1, ''), wo.type),
+		status = COALESCE(NULLIF($2, ''), wo.status)
+		WHERE wo.id = $3`
+
+	orderItemsDeleteQuery = `
+		DELETE FROM warehouse_order_items 
+		WHERE warehouse_order_id = $1`
+
+	orderDeleteQuery = `
+		DELETE FROM warehouse_orders 
+		WHERE id = $1`
+
+	selectOrderProductsQuery = `
+		SELECT 
+			wp.id, 
+			wp.position_id,
+			wp.rfid,
+			wp.status,
+			wp.created_at, 
+			wp.updated_at,
+			p.id,
+			p.title,
+			p.barcode,
+			p.unit_id,
+			p.created_at,
+			p.updated_at,
+			wu.id,
+			wu.title,
+			wu.short_title,
+			wu.created_at,
+			wu.updated_at
+		FROM warehouse_products wp
+		LEFT JOIN warehouse_positions p ON p.id = wp.position_id
+		LEFT JOIN warehouse_units wu ON wu.id = p.unit_id`
+
+	insertOrderProductsQuery = `
+		INSERT INTO warehouse_products (position_id, rfid, status, created_at)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id`
+
+	updateOrderProductsQuery = `
+		UPDATE warehouse_products 
+		SET position_id = $1, rfid = $2, status = $3
+		WHERE id = $4`
 )
 
 type GormOrderRepository struct {
@@ -27,14 +95,7 @@ func NewOrderRepository(productRepo product.Repository) order.Repository {
 }
 
 func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("wo.id = $%d", len(args)+1)), append(args, params.ID)
-	}
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		where, args = append(where, fmt.Sprintf("wo.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
@@ -47,73 +108,34 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 	if params.Type != "" {
 		where, args = append(where, fmt.Sprintf("wo.type = $%d", len(args)+1)), append(args, params.Type)
 	}
-	sql := "SELECT id, type, status, created_at FROM warehouse_orders wo"
-	rows, err := pool.Query(
-		ctx,
-		repo.Join(
-			sql,
-			repo.JoinWhere(where...),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
+
+	q := repo.Join(
+		orderFindQuery,
+		repo.JoinWhere(where...),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	orders := make([]order.Order, 0)
-	for rows.Next() {
-		var o models.WarehouseOrder
-		if err := rows.Scan(
-			&o.ID,
-			&o.Type,
-			&o.Status,
-			&o.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		// FIXME: better fix ToDomainOrder function than converting back to db model
-		//if o.Products, err = mapping.MapDBModels(products, mappers.ToDBProduct); err != nil {
-		//	return nil, err
-		//}
-		domainOrder, err := mappers.ToDomainOrder(&o, []*models.WarehouseProduct{}, []*models.WarehousePosition{}, []*models.WarehouseUnit{})
-		if err != nil {
-			return nil, err
-		}
-		orders = append(orders, domainOrder)
-	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return orders, nil
+	return g.queryOrders(ctx, q, args...)
 }
 
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UseTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
-	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM warehouse_orders
-	`).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, orderCountQuery).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormOrderRepository) GetAll(ctx context.Context) ([]order.Order, error) {
-	return g.GetPaginated(ctx, &order.FindParams{
-		Limit: 100000,
-	})
+	return g.queryOrders(ctx, orderFindQuery)
 }
 
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order, error) {
-	orders, err := g.GetPaginated(ctx, &order.FindParams{
-		ID: id,
-	})
+	orders, err := g.queryOrders(ctx, orderFindQuery+" WHERE wo.id = $1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -128,23 +150,45 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 	if err != nil {
 		return err
 	}
-	dbOrder, dbOrderItems, err := mappers.ToDBOrder(data)
+	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
 		return err
 	}
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO warehouse_orders (type, status) VALUES ($1, $2) RETURNING id
-	`, dbOrder.Type, dbOrder.Status).Scan(&dbOrder.ID); err != nil {
+
+	if err := tx.QueryRow(
+		ctx,
+		orderInsertQuery,
+		dbOrder.Type,
+		dbOrder.Status,
+		dbOrder.CreatedAt,
+	).Scan(&dbOrder.ID); err != nil {
 		return err
 	}
 
-	for _, item := range dbOrderItems {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
-		`, dbOrder.ID, item.WarehouseProductID); err != nil {
+	for _, p := range dbProducts {
+		if err := tx.QueryRow(
+			ctx,
+			insertOrderProductsQuery,
+			p.PositionID,
+			p.Rfid,
+			p.Status,
+			p.CreatedAt,
+		).Scan(&p.ID); err != nil {
 			return err
 		}
 	}
+
+	for _, item := range dbProducts {
+		if _, err := tx.Exec(
+			ctx,
+			orderItemInsertQuery,
+			dbOrder.ID,
+			item.ID,
+		); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -153,32 +197,49 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 	if err != nil {
 		return err
 	}
-	dbOrder, dbOrderItems, err := mappers.ToDBOrder(data)
+	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, `
-		UPDATE warehouse_orders wo 
-		SET 
-		type = COALESCE(NULLIF($1, ''), wo.type),
-		status = COALESCE(NULLIF($2, ''), wo.status)
-		WHERE wo.id = $3
-	`, dbOrder.Type, dbOrder.Status, dbOrder.ID); err != nil {
+	if _, err := tx.Exec(
+		ctx,
+		orderUpdateQuery,
+		dbOrder.Type,
+		dbOrder.Status,
+		dbOrder.ID,
+	); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-			DELETE FROM warehouse_order_items WHERE warehouse_order_id = $1
-		`, dbOrder.ID); err != nil {
+
+	if _, err := tx.Exec(ctx, orderItemsDeleteQuery, dbOrder.ID); err != nil {
 		return err
 	}
-	for _, item := range dbOrderItems {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
-		`, dbOrder.ID, item.WarehouseProductID); err != nil {
+
+	for _, item := range dbProducts {
+		if _, err := tx.Exec(
+			ctx,
+			orderItemInsertQuery,
+			dbOrder.ID,
+			item.ID,
+		); err != nil {
 			return err
 		}
 	}
+
+	for _, product := range dbProducts {
+		if _, err := tx.Exec(
+			ctx,
+			updateOrderProductsQuery,
+			product.PositionID,
+			product.Rfid,
+			product.Status,
+			product.ID,
+		); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -187,8 +248,119 @@ func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM warehouse_orders WHERE id = $1`, id); err != nil {
+	if _, err := tx.Exec(ctx, orderDeleteQuery, id); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]*product.Product, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []*product.Product
+
+	for rows.Next() {
+		var wp models.WarehouseProduct
+		var pos models.WarehousePosition
+		var wu models.WarehouseUnit
+
+		if err := rows.Scan(
+			&wp.ID,
+			&wp.PositionID,
+			&wp.Rfid,
+			&wp.Status,
+			&wp.CreatedAt,
+			&wp.UpdatedAt,
+			&pos.ID,
+			&pos.Title,
+			&pos.Barcode,
+			&pos.UnitID,
+			&pos.CreatedAt,
+			&pos.UpdatedAt,
+			&wu.ID,
+			&wu.Title,
+			&wu.ShortTitle,
+			&wu.CreatedAt,
+			&wu.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		entity, err := mappers.ToDomainProduct(&wp, &pos, &wu)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, entity)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return products, nil
+}
+
+func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, args ...interface{}) ([]order.Order, error) {
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]order.Order, 0)
+	for rows.Next() {
+		var o models.WarehouseOrder
+		if err := rows.Scan(
+			&o.ID,
+			&o.Type,
+			&o.Status,
+			&o.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		domainOrder, err := mappers.ToDomainOrder(&o)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, domainOrder)
+	}
+
+	for _, domainOrder := range orders {
+		domainProducts, err := g.queryProducts(ctx,
+			repo.Join(
+				selectOrderProductsQuery,
+				"WHERE wp.id IN (SELECT warehouse_product_id FROM warehouse_order_items WHERE warehouse_order_id = $1)",
+			),
+			domainOrder.ID(),
+		)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range domainProducts {
+			if err := domainOrder.AddItem(p.Position, p); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return orders, nil
 }

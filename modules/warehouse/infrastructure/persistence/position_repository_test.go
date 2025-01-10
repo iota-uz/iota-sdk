@@ -1,46 +1,39 @@
 package persistence_test
 
 import (
-	"context"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	persistence2 "github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
-	"github.com/jackc/pgx/v5"
+	core "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"testing"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
 func TestGormPositionRepository_CRUD(t *testing.T) {
-	ctx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		err := Tx.Commit(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}(ctx.Tx, ctx.Context)
+	f := setupTest(t)
 
-	unitRepository := persistence2.NewUnitRepository()
-	positionRepository := persistence2.NewPositionRepository()
-	uploadRepository := corepersistence.NewUploadRepository()
+	unitRepository := persistence.NewUnitRepository()
+	positionRepository := persistence.NewPositionRepository()
+	uploadRepository := core.NewUploadRepository()
 
 	if err := unitRepository.Create(
-		ctx.Context, &unit.Unit{
+		f.ctx,
+		&unit.Unit{
 			ID:         1,
 			Title:      "Unit 1",
 			ShortTitle: "U1",
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
-		}); err != nil {
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := uploadRepository.Create(
-		ctx.Context, &upload.Upload{
+		f.ctx, &upload.Upload{
 			ID:        1,
 			Hash:      "hash",
 			Path:      "url",
@@ -53,7 +46,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	}
 
 	if err := positionRepository.Create(
-		ctx.Context, &position.Position{
+		f.ctx, &position.Position{
 			ID:        1,
 			Title:     "Position 1",
 			Barcode:   "3141592653589",
@@ -67,7 +60,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			positionEntity, err := positionRepository.GetByID(ctx.Context, 1)
+			positionEntity, err := positionRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,7 +76,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := positionRepository.Update(
-				ctx.Context, &position.Position{
+				f.ctx, &position.Position{
 					ID:      1,
 					Title:   "Updated Position 1",
 					Barcode: "3141592653589",
@@ -91,7 +84,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			positionEntity, err := positionRepository.GetByID(ctx.Context, 1)
+			positionEntity, err := positionRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -103,10 +96,10 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := positionRepository.Delete(ctx.Context, 1); err != nil {
+			if err := positionRepository.Delete(f.ctx, 1); err != nil {
 				t.Fatal(err)
 			}
-			_, err := positionRepository.GetByID(ctx.Context, 1)
+			_, err := positionRepository.GetByID(f.ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
