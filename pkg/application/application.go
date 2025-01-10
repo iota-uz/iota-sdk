@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/go-gorp/gorp/v3"
 	"github.com/jackc/pgx/v5/stdlib"
 	"io/fs"
 	"log"
@@ -254,6 +255,76 @@ func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 	return migrations, nil
 }
 
+func newTxError(migration *migrate.PlannedMigration, err error) *migrate.TxError {
+	return &migrate.TxError{
+		Migration: migration.Migration,
+		Err:       err,
+	}
+}
+
+func (app *application) applyMigrations(ctx context.Context, dir migrate.MigrationDirection, migrations []*migrate.PlannedMigration, dbMap *gorp.DbMap) (int, error) {
+	applied := 0
+	for _, migration := range migrations {
+		e, err := dbMap.Begin()
+		if err != nil {
+			return applied, newTxError(migration, err)
+		}
+		executor := e.WithContext(ctx)
+
+		for _, stmt := range migration.Queries {
+			// remove the semicolon from stmt, fix ORA-00922 issue in database oracle
+			stmt = strings.TrimSuffix(stmt, "\n")
+			stmt = strings.TrimSuffix(stmt, " ")
+			stmt = strings.TrimSuffix(stmt, ";")
+			if _, err := executor.Exec(stmt); err != nil {
+				if trans, ok := executor.(*gorp.Transaction); ok {
+					_ = trans.Rollback()
+				}
+
+				return applied, newTxError(migration, err)
+			}
+		}
+
+		switch dir {
+		case migrate.Up:
+			err = executor.Insert(&migrate.MigrationRecord{
+				Id:        migration.Id,
+				AppliedAt: time.Now(),
+			})
+			if err != nil {
+				if trans, ok := executor.(*gorp.Transaction); ok {
+					_ = trans.Rollback()
+				}
+
+				return applied, newTxError(migration, err)
+			}
+		case migrate.Down:
+			_, err := executor.Delete(&migrate.MigrationRecord{
+				Id: migration.Id,
+			})
+			if err != nil {
+				if trans, ok := executor.(*gorp.Transaction); ok {
+					_ = trans.Rollback()
+				}
+
+				return applied, newTxError(migration, err)
+			}
+		default:
+			panic("Not possible")
+		}
+
+		if trans, ok := executor.(*gorp.Transaction); ok {
+			if err := trans.Commit(); err != nil {
+				return applied, newTxError(migration, err)
+			}
+		}
+
+		applied++
+	}
+
+	return applied, nil
+}
+
 func (app *application) RunMigrations() error {
 	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
 	migrations, err := CollectMigrations(app)
@@ -272,40 +343,15 @@ func (app *application) RunMigrations() error {
 	if err != nil {
 		return err
 	}
-	applied := 0
-	tx, err := dbMap.Begin()
+
+	applied, err := app.applyMigrations(context.Background(), migrate.Up, plannedMigrations, dbMap)
 	if err != nil {
 		return err
 	}
-	for _, m := range plannedMigrations {
-		for _, stmt := range m.Queries {
-			stmt = strings.TrimSuffix(stmt, "\n")
-			stmt = strings.TrimSuffix(stmt, " ")
-			stmt = strings.TrimSuffix(stmt, ";")
-			if _, err := tx.Exec(stmt); err != nil {
-				return &migrate.TxError{
-					Migration: m.Migration,
-					Err:       err,
-				}
-			}
-		}
-
-		if err := tx.Insert(&migrate.MigrationRecord{
-			Id:        m.Id,
-			AppliedAt: time.Now(),
-		}); err != nil {
-			return &migrate.TxError{
-				Migration: m.Migration,
-				Err:       err,
-			}
-		}
-		applied++
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
 	log.Printf("Applied %d migrations", applied)
+
+	var r string
+	db.QueryRow("SELECT COUNT(*) FROM gorp_migrations").Scan(&r)
 	return nil
 }
 
@@ -322,10 +368,18 @@ func (app *application) RollbackMigrations() error {
 	migrationSource := &migrate.MemoryMigrationSource{
 		Migrations: migrations,
 	}
-	n, err := migrate.Exec(db, "postgres", migrationSource, migrate.Down)
+	ms := migrate.MigrationSet{}
+	var r string
+	db.QueryRow("SELECT COUNT(*) FROM gorp_migrations").Scan(&r)
+	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Down, 0)
 	if err != nil {
 		return err
 	}
-	log.Printf("Rolled back %d migrations", n)
+
+	applied, err := app.applyMigrations(context.Background(), migrate.Down, plannedMigrations, dbMap)
+	if err != nil {
+		return err
+	}
+	log.Printf("Rolled back %d migrations", applied)
 	return nil
 }
