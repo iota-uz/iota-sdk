@@ -1,26 +1,17 @@
 package persistence_test
 
 import (
-	"context"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
 func TestGormUserRepository_CRUD(t *testing.T) {
-	ctx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		if err := Tx.Commit(ctx); err != nil {
-			t.Fatal(err)
-		}
-	}(ctx.Tx, ctx.Context)
+	f := setupTest(t)
 
 	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
@@ -36,11 +27,11 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := permissionRepository.Create(ctx.Context, permission.UserRead); err != nil {
+	if err := permissionRepository.Create(f.ctx, permission.UserRead); err != nil {
 		t.Fatal(err)
 	}
 
-	roleEntity, err := roleRepository.Create(ctx.Context, roleData)
+	roleEntity, err := roleRepository.Create(f.ctx, roleData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,12 +54,12 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		Roles:      []role.Role{roleEntity},
 	}
 
-	if err := userRepository.Create(ctx.Context, userEntity); err != nil {
+	if err := userRepository.Create(f.ctx, userEntity); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("Get", func(t *testing.T) {
-		dbUser, err := userRepository.GetByID(ctx.Context, userEntity.ID)
+		dbUser, err := userRepository.GetByID(f.ctx, userEntity.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,12 +83,12 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := userRepository.Update(
-				ctx.Context,
+				f.ctx,
 				userEntity.SetName("Alice", "Karen", "Smith"),
 			); err != nil {
 				t.Fatal(err)
 			}
-			dbUser, err := userRepository.GetByID(ctx.Context, userEntity.ID)
+			dbUser, err := userRepository.GetByID(f.ctx, userEntity.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -137,10 +128,10 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := userRepository.Delete(ctx.Context, 1); err != nil {
+			if err := userRepository.Delete(f.ctx, 1); err != nil {
 				t.Fatal(err)
 			}
-			_, err := userRepository.GetByID(ctx.Context, 1)
+			_, err := userRepository.GetByID(f.ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
-type TestContext struct {
+type TestFixtures struct {
 	SQLDB   *sql.DB
 	Pool    *pgxpool.Pool
 	Context context.Context
@@ -118,26 +119,6 @@ func CreateDB(name string) {
 	}
 }
 
-func DropDB(name string) {
-	c := configuration.Use()
-	db, err := sql.Open("postgres", fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.DBHost, c.DBPort, c.DBUser, c.DBName, c.DBPassword,
-	))
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			panic(err)
-		}
-	}()
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE %s IF EXISTS", name))
-	if err != nil {
-		panic(err)
-	}
-}
-
 func DbOpts(name string) string {
 	c := configuration.Use()
 	return fmt.Sprintf(
@@ -146,7 +127,19 @@ func DbOpts(name string) string {
 	)
 }
 
-func GetTestContext() *TestContext {
+func SetupApplication(t *testing.T, pool *pgxpool.Pool, mods ...application.Module) application.Application {
+	t.Helper()
+	app := application.New(pool, event.NewEventPublisher())
+	if err := modules.Load(app, mods...); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.RunMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	return app
+}
+
+func GetTestContext() *TestFixtures {
 	conf := configuration.Use()
 	pool := NewPool(conf.DBOpts)
 	app := application.New(pool, event.NewEventPublisher())
@@ -172,7 +165,7 @@ func GetTestContext() *TestContext {
 		DefaultParams(),
 	)
 
-	return &TestContext{
+	return &TestFixtures{
 		SQLDB:   sqlDB,
 		Pool:    pool,
 		Tx:      tx,

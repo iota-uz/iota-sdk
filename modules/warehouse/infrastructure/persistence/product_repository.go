@@ -7,7 +7,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -69,13 +68,10 @@ const (
 )
 
 type GormProductRepository struct {
-	positionRepo position.Repository
 }
 
-func NewProductRepository(positionRepo position.Repository) product.Repository {
-	return &GormProductRepository{
-		positionRepo: positionRepo,
-	}
+func NewProductRepository() product.Repository {
+	return &GormProductRepository{}
 }
 
 func (g *GormProductRepository) GetPaginated(ctx context.Context, params *product.FindParams) ([]*product.Product, error) {

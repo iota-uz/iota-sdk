@@ -2,20 +2,20 @@ package positionservice_test
 
 import (
 	"context"
-	"github.com/xuri/excelize/v2"
 	"log"
 	"os"
 	"testing"
 
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/xuri/excelize/v2"
+
+	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
@@ -44,6 +44,52 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// testFixtures contains common test dependencies
+type testFixtures struct {
+	ctx  context.Context
+	pool *pgxpool.Pool
+	app  application.Application
+}
+
+// setupTest creates all necessary dependencies for tests
+func setupTest(t *testing.T) *testFixtures {
+	t.Helper()
+
+	testutils.CreateDB(t.Name())
+	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+
+	ctx := composables.WithUser(context.Background(), testutils.MockUser(
+		permissions.PositionCreate,
+		permissions.PositionRead,
+		permissions.ProductCreate,
+		permissions.ProductRead,
+		permissions.UnitCreate,
+		permissions.UnitRead,
+	))
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pool.Close()
+	})
+
+	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithSession(ctx, &session.Session{})
+
+	app := testutils.SetupApplication(t, pool, modules.BuiltInModules...)
+
+	return &testFixtures{
+		ctx:  ctx,
+		pool: pool,
+		app:  app,
+	}
+}
+
 func createTestFile(path string) error {
 	f := excelize.NewFile()
 	defer func() {
@@ -62,40 +108,19 @@ func createTestFile(path string) error {
 }
 
 func TestPositionService_LoadFromFilePath(t *testing.T) {
-	testCtx := testutils.GetTestContext()
-	publisher := event.NewEventPublisher()
+	f := setupTest(t)
 
-	unitRepo := persistence.NewUnitRepository()
-	testCtx.App.RegisterServices(services.NewUnitService(unitRepo, publisher))
+	positionService := f.app.Service(positionservice.PositionService{}).(*positionservice.PositionService)
 
-	positionRepo := persistence.NewPositionRepository()
-	productRepo := persistence.NewProductRepository(positionRepo)
-	testCtx.App.RegisterServices(productservice.NewProductService(productRepo, publisher))
-
-	uploadRepo := corepersistence.NewUploadRepository()
-	storage, err := corepersistence.NewFSStorage()
-	if err != nil {
-		t.Error(err)
-	}
-	testCtx.App.RegisterServices(coreservices.NewUploadService(uploadRepo, storage, publisher))
-
-	positionService := positionservice.NewPositionService(positionRepo, publisher, testCtx.App)
-
-	ctx := context.WithValue(testCtx.Context, constants.UserKey, testutils.MockUser(
-		permissions.PositionCreate,
-		permissions.PositionRead,
-		permissions.ProductCreate,
-		permissions.ProductRead,
-		permissions.UnitCreate,
-		permissions.UnitRead,
-	))
-	ctx = context.WithValue(ctx, constants.SessionKey, testutils.MockSession())
-
-	if err := positionService.LoadFromFilePath(ctx, TestFilePath); err != nil {
+	if err := positionService.LoadFromFilePath(f.ctx, TestFilePath); err != nil {
 		t.Fatal(err)
 	}
 
-	positions, err := positionRepo.GetAll(ctx)
+	unitRepo := persistence.NewUnitRepository()
+	positionRepo := persistence.NewPositionRepository()
+	productRepo := persistence.NewProductRepository()
+
+	positions, err := positionRepo.GetAll(f.ctx)
 	if err != nil {
 		t.Error(err)
 	}
@@ -111,7 +136,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		t.Errorf("expected %s, got %s", Data[1]["B2"], positions[0].Barcode)
 	}
 
-	units, err := unitRepo.GetAll(ctx)
+	units, err := unitRepo.GetAll(f.ctx)
 	if err != nil {
 		t.Error(err)
 	}
@@ -119,7 +144,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		t.Errorf("expected %d, got %d", 1, len(units))
 	}
 
-	products, err := productRepo.GetAll(ctx)
+	products, err := productRepo.GetAll(f.ctx)
 	if err != nil {
 		t.Error(err)
 	}

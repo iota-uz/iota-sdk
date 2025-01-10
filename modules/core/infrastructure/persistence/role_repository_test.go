@@ -1,27 +1,19 @@
 package persistence_test
 
 import (
-	"context"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/jackc/pgx/v5"
 	"testing"
 )
 
 func TestGormRoleRepository_CRUD(t *testing.T) {
-	ctx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		if err := Tx.Commit(ctx); err != nil {
-			t.Fatal(err)
-		}
-	}(ctx.Tx, ctx.Context)
+	f := setupTest(t)
 
 	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
-	if err := permissionRepository.Create(ctx.Context, permissions.PositionCreate); err != nil {
+	if err := permissionRepository.Create(f.ctx, permissions.PositionCreate); err != nil {
 		t.Fatal(err)
 	}
 
@@ -33,14 +25,14 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roleEntity, err := roleRepository.Create(ctx.Context, data)
+	roleEntity, err := roleRepository.Create(f.ctx, data)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run(
 		"Update", func(t *testing.T) {
-			updatedRole, err := roleRepository.Update(ctx.Context, roleEntity.SetName("updated"))
+			updatedRole, err := roleRepository.Update(f.ctx, roleEntity.SetName("updated"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -64,10 +56,10 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := roleRepository.Delete(ctx.Context, 1); err != nil {
+			if err := roleRepository.Delete(f.ctx, 1); err != nil {
 				t.Fatal(err)
 			}
-			_, err := roleRepository.GetByID(ctx.Context, 1)
+			_, err := roleRepository.GetByID(f.ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
