@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -166,7 +165,9 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error 
 
 	dbUser, _ := toDBUser(data)
 
-	err = tx.QueryRow(ctx, userInsertQuery,
+	err = tx.QueryRow(
+		ctx,
+		userInsertQuery,
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -200,13 +201,11 @@ func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, data *user.User
 	}
 
 	if exists {
-		// Update existing user
 		err = g.Update(ctx, data)
 		if err != nil {
 			return fmt.Errorf("failed to update user: %w", err)
 		}
 	} else {
-		// Create new user
 		err = g.Create(ctx, data)
 		if err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
@@ -273,6 +272,8 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 
 	userMap := make(map[uint]*user.User)
 	roleMap := make(map[uint]*models.Role)
+	// roleID: []permissions
+	permMap := make(map[uint][]*models.Permission)
 
 	for rows.Next() {
 		var (
@@ -369,34 +370,29 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 				r = &models.Role{
 					ID:          uint(roleID.Int32),
 					Name:        roleName.String,
-					Description: roleDesc.String,
+					Description: mapping.ValueToSQLNullString(roleDesc.String),
 					CreatedAt:   roleCreatedAt.Time,
 					UpdatedAt:   roleUpdatedAt.Time,
-					Permissions: make([]models.Permission, 0),
 				}
 				roleMap[r.ID] = r
-				domainRole, err := toDomainRole(r)
-				if err != nil {
-					return nil, err
-				}
-				domainUser.Roles = append(domainUser.Roles, domainRole)
+
 			}
 
-			if permID.Valid {
-				permUUID, err := uuid.Parse(permID.String)
-				if err != nil {
-					return nil, err
-				}
-
-				perm := models.Permission{
-					ID:       permUUID,
-					Name:     permName.String,
-					Resource: permResource.String,
-					Action:   permAction.String,
-					Modifier: permModifier.String,
-				}
-				r.Permissions = append(r.Permissions, perm)
+			perm := models.Permission{
+				ID:       permID.String,
+				Name:     permName.String,
+				Resource: permResource.String,
+				Action:   permAction.String,
+				Modifier: permModifier.String,
 			}
+			permMap[r.ID] = append(permMap[r.ID], &perm)
+		}
+		for _, r := range roleMap {
+			domainRole, err := toDomainRole(r, permMap[r.ID])
+			if err != nil {
+				return nil, err
+			}
+			domainUser.Roles = append(domainUser.Roles, domainRole)
 		}
 	}
 
@@ -422,7 +418,7 @@ func (g *GormUserRepository) execQuery(ctx context.Context, query string, args .
 	return err
 }
 
-func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []*role.Role) error {
+func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
 	// Delete existing roles
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
 		return err
@@ -430,7 +426,7 @@ func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, r
 
 	// Insert new roles
 	for _, r := range roles {
-		if err := g.execQuery(ctx, userRoleInsertQuery, userID, r.ID); err != nil {
+		if err := g.execQuery(ctx, userRoleInsertQuery, userID, r.ID()); err != nil {
 			return err
 		}
 	}

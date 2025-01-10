@@ -8,7 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -29,8 +29,8 @@ const (
 	countCounterpartyQuery  = `SELECT COUNT(*) as count FROM counterparty`
 	insertCounterpartyQuery = `
 		INSERT INTO counterparty (
-		    tin,
 			name,
+		    tin,
 			type,
 			legal_type,
 			legal_address,
@@ -108,7 +108,7 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 	}
 	args := []interface{}{
 		entity.Name,
-		entity.TIN,
+		entity.Tin,
 		entity.Type,
 		entity.LegalType,
 		entity.LegalAddress,
@@ -130,7 +130,7 @@ func (g *GormCounterpartyRepository) Update(ctx context.Context, data counterpar
 	}
 	args := []interface{}{
 		entity.Name,
-		entity.TIN,
+		entity.Tin,
 		entity.Type,
 		entity.LegalType,
 		entity.LegalAddress,
@@ -160,7 +160,7 @@ func (g *GormCounterpartyRepository) queryCounterparties(ctx context.Context, qu
 		if err := rows.Scan(
 			&r.ID,
 			&r.Name,
-			&r.TIN,
+			&r.Tin,
 			&r.Type,
 			&r.LegalType,
 			&r.LegalAddress,

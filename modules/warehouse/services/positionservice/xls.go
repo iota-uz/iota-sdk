@@ -1,7 +1,7 @@
 package positionservice
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/utils/sequence"
+	"github.com/iota-uz/utils/sequence"
 	"github.com/xuri/excelize/v2"
 	"log"
 	"strconv"

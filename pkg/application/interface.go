@@ -30,12 +30,12 @@ type Application interface {
 	HashFsAssets() []*hashfs.FS
 	MigrationDirs() []*embed.FS
 	Seed(ctx context.Context) error
-	Permissions() []permission.Permission
+	Permissions() []*permission.Permission
 	Spotlight() spotlight.Spotlight
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
-	RegisterPermissions(permissions ...permission.Permission)
+	RegisterPermissions(permissions ...*permission.Permission)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterSeedFuncs(seedFuncs ...SeedFunc)
 	RegisterAssets(fs ...*embed.FS)

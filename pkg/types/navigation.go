@@ -11,7 +11,7 @@ type NavigationItem struct {
 	Href        string
 	Children    []NavigationItem
 	Icon        templ.Component
-	Permissions []permission.Permission
+	Permissions []*permission.Permission
 }
 
 func (n NavigationItem) HasPermission(user *user.User) bool {

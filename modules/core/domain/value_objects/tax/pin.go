@@ -3,7 +3,7 @@ package tax
 import (
 	"errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
-	"github.com/iota-uz/iota-sdk/pkg/utils/sequence"
+	"github.com/iota-uz/utils/sequence"
 	"strings"
 )
 

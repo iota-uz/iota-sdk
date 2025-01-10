@@ -23,10 +23,11 @@ func ToDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 
 func ToDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	return &unit.Unit{
-		ID:        dbUnit.ID,
-		Title:     dbUnit.Title,
-		CreatedAt: dbUnit.CreatedAt,
-		UpdatedAt: dbUnit.UpdatedAt,
+		ID:         dbUnit.ID,
+		Title:      dbUnit.Title,
+		ShortTitle: dbUnit.ShortTitle,
+		CreatedAt:  dbUnit.CreatedAt,
+		UpdatedAt:  dbUnit.UpdatedAt,
 	}
 }
 
@@ -83,7 +84,7 @@ func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.Wareh
 	}, nil
 }
 
-func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage, *models.WarehouseUnit) {
+func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage) {
 	junctionRows := make([]*models.WarehousePositionImage, 0, len(entity.Images))
 	for _, image := range entity.Images {
 		junctionRows = append(
@@ -101,7 +102,7 @@ func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
 	}
-	return dbPosition, junctionRows, ToDBUnit(entity.Unit)
+	return dbPosition, junctionRows
 }
 
 func ToDomainInventoryPosition(dbPosition *models.InventoryPosition) (*inventory.Position, error) {

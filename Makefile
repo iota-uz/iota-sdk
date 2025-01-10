@@ -39,6 +39,9 @@ report:
 localdb:
 	docker compose -f docker-compose.dev.yml up
 
+clear-localdb:
+	rm -rf postgres-data/
+
 # Apply database migrations (up)
 migrate-up:
 	go run cmd/migrate/main.go up

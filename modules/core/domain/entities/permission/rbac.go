@@ -1,7 +1,7 @@
 package permission
 
 type Rbac struct {
-	permissions []Permission
+	permissions []*Permission
 }
 
 func NewRbac() *Rbac {
@@ -10,10 +10,10 @@ func NewRbac() *Rbac {
 	}
 }
 
-func (r *Rbac) Register(permissions ...Permission) {
+func (r *Rbac) Register(permissions ...*Permission) {
 	r.permissions = append(r.permissions, permissions...)
 }
 
-func (r *Rbac) Permissions() []Permission {
+func (r *Rbac) Permissions() []*Permission {
 	return r.permissions
 }
