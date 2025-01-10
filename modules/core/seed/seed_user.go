@@ -28,12 +28,16 @@ func CreateUser(ctx context.Context, app application.Application) error {
 	roleRepository := persistence.NewRoleRepository()
 	tabsRepository := persistence.NewTabRepository()
 
-	CEO := role.Role{
-		Name:        "CEO",
-		Description: "Chief Executive Officer",
-		Permissions: app.Permissions(),
+	CEO, err := role.New(
+		"CEO",
+		"Chief Executive Officer",
+		app.Permissions(),
+	)
+	if err != nil {
+		return err
 	}
-	if err := roleRepository.CreateOrUpdate(ctx, &CEO); err != nil {
+	createdRole, err := roleRepository.CreateOrUpdate(ctx, CEO)
+	if err != nil {
 		return err
 	}
 
@@ -43,9 +47,7 @@ func CreateUser(ctx context.Context, app application.Application) error {
 		LastName:   "User",
 		Email:      "test@gmail.com",
 		UILanguage: user.UILanguageEN,
-		Roles: []*role.Role{
-			&CEO,
-		},
+		Roles:      []role.Role{createdRole},
 	}
 	if err := usr.SetPassword("TestPass123!"); err != nil {
 		return err

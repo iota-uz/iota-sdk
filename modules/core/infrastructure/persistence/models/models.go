@@ -3,8 +3,6 @@ package models
 import (
 	"database/sql"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type Upload struct {
@@ -68,7 +66,7 @@ type Employee struct {
 	Email            string
 	Phone            sql.NullString
 	Salary           float64
-	SalaryCurrencyID string
+	SalaryCurrencyID sql.NullString
 	HourlyRate       float64
 	Coefficient      float64
 	AvatarID         *uint
@@ -104,11 +102,24 @@ type Company struct {
 	Logo      Upload
 }
 
+type Permission struct {
+	ID          string
+	Name        string
+	Resource    string
+	Action      string
+	Modifier    string
+	Description sql.NullString
+}
+
+type RolePermission struct {
+	RoleID       uint
+	PermissionID uint
+}
+
 type Role struct {
 	ID          uint
 	Name        string
-	Description string
-	Permissions []Permission
+	Description sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -299,19 +310,6 @@ type Dialogue struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	User      User
-}
-
-type Permission struct {
-	ID       uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
-	Name     string
-	Resource string
-	Action   string
-	Modifier string
-}
-
-type RolePermission struct {
-	RoleID       uint
-	PermissionID uint
 }
 
 type Session struct {

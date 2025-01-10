@@ -36,7 +36,7 @@ watcher = "cyan"
 
 [proxy]
 enabled = true
-proxy_port = 8080
+proxy_port = 8090
 app_port = 3200
 
 [log]

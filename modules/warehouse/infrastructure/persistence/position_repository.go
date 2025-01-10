@@ -4,14 +4,15 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"github.com/go-faster/errors"
 	"strings"
+
+	"github.com/go-faster/errors"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -49,7 +50,7 @@ func NewPositionRepository() position.Repository {
 }
 
 func (g *GormPositionRepository) queryPositions(ctx context.Context, query string, args ...interface{}) ([]*position.Position, error) {
-	tx, err := composables.UseTx(context.Background())
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +130,12 @@ func (g *GormPositionRepository) GetPaginated(
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UseTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
-	if err := pool.QueryRow(ctx, g.countQuery).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, g.countQuery).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -222,7 +223,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
-	positionRow, junctionRows, _ := mappers.ToDBPosition(data)
+	positionRow, junctionRows := mappers.ToDBPosition(data)
 	if err := tx.QueryRow(
 		ctx,
 		g.insertQuery,
@@ -245,7 +246,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
-	positionRow, uploadRows, _ := mappers.ToDBPosition(data)
+	positionRow, uploadRows := mappers.ToDBPosition(data)
 	if _, err := tx.Exec(
 		ctx,
 		g.updateQuery,
