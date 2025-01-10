@@ -177,23 +177,21 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-			props := &users.EditFormProps{
-				PageContext: pageCtx,
-				User:        mappers.UserToViewModel(us),
-				Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-				Errors:      errors,
-			}
-			templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
+		props := &users.EditFormProps{
+			PageContext: pageCtx,
+			User:        mappers.UserToViewModel(us),
+			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors:      errors,
 		}
-		userEntity, err := dto.ToEntity(id)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		err = c.userService.Update(r.Context(), userEntity)
+		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
-	if err := c.userService.Update(r.Context(), dto.ToEntity(id)); err != nil {
+	userEntity, err := dto.ToEntity(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.userService.Update(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
