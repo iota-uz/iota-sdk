@@ -249,6 +249,8 @@
     "Email": "Email",
     "Password": "Password",
     "Login": "Log in",
+    "WelcomeBack": "Welcome back",
+    "EnterEmailAndPassword": "Enter email and password to sign in",
     "Errors": {
       "PasswordInvalid": "Email or password is invalid"
     }
