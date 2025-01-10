@@ -6,9 +6,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-
-  "github.com/go-gorp/gorp/v3"
-	"github.com/jackc/pgx/v5/stdlib"
 	"io/fs"
 	"log"
 	"path/filepath"
@@ -16,19 +13,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-gorp/gorp/v3"
-	"github.com/jackc/pgx/v5/stdlib"
-
 	"github.com/benbjohnson/hashfs"
+	"github.com/go-gorp/gorp/v3"
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	migrate "github.com/rubenv/sql-migrate"
+	"golang.org/x/text/language"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	migrate "github.com/rubenv/sql-migrate"
-	"golang.org/x/text/language"
 )
 
 func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.NavigationItem {
