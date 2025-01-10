@@ -76,6 +76,7 @@ func setupTest(t *testing.T) *testFixtures {
 }
 
 func TestOrderService(t *testing.T) {
+	t.Parallel()
 	f := setupTest(t)
 
 	unitRepo := persistence.NewUnitRepository()

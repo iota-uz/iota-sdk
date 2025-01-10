@@ -123,6 +123,7 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) {
 }
 
 func TestPaymentsService_CRUD(t *testing.T) {
+	t.Parallel()
 	f := setupTest(t,
 		permissions.PaymentCreate,
 		permissions.PaymentRead,

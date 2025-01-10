@@ -10,6 +10,7 @@ import (
 )
 
 func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
+	t.Parallel()
 	f := setupTest(t)
 	currencyRepository := persistence.NewCurrencyRepository()
 	accountRepository := financepersistence.NewMoneyAccountRepository()

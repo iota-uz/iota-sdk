@@ -6,6 +6,7 @@ import (
 )
 
 func TestUhrService_Calculate(t *testing.T) {
+	t.Parallel()
 	service := NewUhrService()
 	props := &UhrProps{
 		Entities: []costcomponent.BillableHourEntity{

@@ -108,6 +108,7 @@ func createTestFile(path string) error {
 }
 
 func TestPositionService_LoadFromFilePath(t *testing.T) {
+	t.Parallel()
 	f := setupTest(t)
 
 	positionService := f.app.Service(positionservice.PositionService{}).(*positionservice.PositionService)
