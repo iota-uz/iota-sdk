@@ -1,37 +1,58 @@
 package user
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/utils/sequence"
-
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/utils/sequence"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 type User struct {
 	ID         uint
-	FirstName  string `validate:"required"`
-	LastName   string `validate:"required"`
+	FirstName  string
+	LastName   string
 	MiddleName string
 	Password   string
-	Email      string `validate:"required,email"`
+	Email      string
 	AvatarID   *uint
 	Avatar     *upload.Upload
 	EmployeeID *uint
 	LastIP     *string
 	UILanguage UILanguage
+	Roles      []role.Role
 	LastLogin  *time.Time
 	LastAction *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	Roles      []*role.Role
+}
+
+func (u *User) SetName(firstName, middleName, lastName string) *User {
+	return &User{
+		ID:         u.ID,
+		FirstName:  firstName,
+		LastName:   lastName,
+		MiddleName: middleName,
+		Password:   u.Password,
+		Email:      u.Email,
+		AvatarID:   u.AvatarID,
+		Avatar:     u.Avatar,
+		EmployeeID: u.EmployeeID,
+		LastIP:     u.LastIP,
+		UILanguage: u.UILanguage,
+		Roles:      u.Roles,
+		LastLogin:  u.LastLogin,
+		LastAction: u.LastAction,
+		CreatedAt:  u.CreatedAt,
+		UpdatedAt:  time.Now(),
+	}
 }
 
 func (u *User) CheckPassword(password string) bool {
@@ -41,7 +62,7 @@ func (u *User) CheckPassword(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)) == nil
 }
 
-func (u *User) Can(perm permission.Permission) bool {
+func (u *User) Can(perm *permission.Permission) bool {
 	for _, r := range u.Roles {
 		if r.Can(perm) {
 			return true

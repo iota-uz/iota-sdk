@@ -8,7 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (

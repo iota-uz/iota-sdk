@@ -2,7 +2,9 @@ package persistence
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
@@ -191,9 +193,13 @@ func toDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 	if err != nil {
 		return nil, err
 	}
+	t, err := tax.NewTin(dbRow.Tin, country.Uzbekistan)
+	if err != nil {
+		return nil, err
+	}
 	return counterparty.NewWithID(
 		dbRow.ID,
-		dbRow.TIN,
+		t,
 		dbRow.Name,
 		partyType,
 		legalType,
@@ -206,7 +212,7 @@ func toDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 func toDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, error) {
 	return &models.Counterparty{
 		ID:           entity.ID(),
-		TIN:          entity.TIN(),
+		Tin:          entity.Tin().Value(),
 		Name:         entity.Name(),
 		Type:         string(entity.Type()),
 		LegalType:    string(entity.LegalType()),
