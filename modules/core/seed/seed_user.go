@@ -2,7 +2,6 @@ package seed
 
 import (
 	"context"
-
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -36,7 +35,7 @@ func CreateUser(ctx context.Context, app application.Application) error {
 	if err != nil {
 		return err
 	}
-	createdRole, err := roleRepository.CreateOrUpdate(ctx, CEO)
+	createdRole, err := roleRepository.Create(ctx, CEO)
 	if err != nil {
 		return err
 	}
