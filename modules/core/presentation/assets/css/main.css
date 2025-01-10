@@ -374,6 +374,8 @@
     --opacity: 1;
     --events: all;
     --user-select: auto;
+    --height: 2.625rem;
+    --width: auto;
     background-color: oklch(var(--bg-color));
     color: oklch(var(--text-color));
     padding: var(--size-y) var(--size-x);
@@ -388,6 +390,8 @@
     align-items: center;
     outline-color: oklch(var(--bg-active));
     user-select: var(--user-select);
+    height: var(--height);
+    width: var(--width);
   }
 
   .btn:not(.btn-loading):not(.htmx-request):active,
@@ -455,22 +459,26 @@
   }
 
   .btn-md {
+    --height: 3rem;
     --size-x: 1rem;
     --size-y: calc(1rem - 3.5px);
   }
 
   .btn-sm {
+    --height: 2.5rem;
     --size-x: 0.75rem;
     --size-y: calc(0.75rem - 3.5px);
   }
 
   .btn-xs {
+    --height: 1.65rem;
     --size-x: 0.25rem;
     --size-y: 0.1rem;
   }
 
   .btn-fixed {
     --size-y: var(--size-x);
+    --width: var(--height);
   }
 
   .btn-with-icon {
