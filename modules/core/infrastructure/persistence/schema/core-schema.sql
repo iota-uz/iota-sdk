@@ -227,11 +227,11 @@ CREATE TABLE dialogues
 
 CREATE TABLE permissions
 (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    name        VARCHAR(255) NOT NULL UNIQUE,
-    resource    VARCHAR(255) NOT NULL, -- roles, users, etc.
-    action      VARCHAR(255) NOT NULL, -- create, read, update, delete
-    modifier    VARCHAR(255) NOT NULL, -- all / own
+    id       uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    name     VARCHAR(255)                               NOT NULL UNIQUE,
+    resource VARCHAR(255)                               NOT NULL, -- roles, users, etc.
+    action   VARCHAR(255)                               NOT NULL, -- create, read, update, delete
+    modifier VARCHAR(255)                               NOT NULL, -- all / own
     description TEXT
 );
 
@@ -338,57 +338,6 @@ CREATE TABLE applicant_comments
     created_at   TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE applications
-(
-    id           SERIAL PRIMARY KEY,
-    applicant_id INT NOT NULL REFERENCES applicants (id) ON DELETE CASCADE,
-    vacancy_id   INT NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE,
-    created_at   TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE interview_questions
-(
-    id          SERIAL PRIMARY KEY,
-    title       VARCHAR(255) NOT NULL,
-    description TEXT,
-    type        VARCHAR(255) NOT NULL,
-    language    VARCHAR(255) NOT NULL,
-    difficulty  VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE interviews
-(
-    id             SERIAL PRIMARY KEY,
-    application_id INT                      NOT NULL REFERENCES applications (id) ON DELETE CASCADE,
-    interviewer_id INT                      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    date           TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE interview_ratings
-(
-    id             SERIAL PRIMARY KEY,
-    interview_id   INT NOT NULL REFERENCES interviews (id) ON DELETE CASCADE,
-    interviewer_id INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    question_id    INT NOT NULL REFERENCES interview_questions (id) ON DELETE CASCADE,
-    rating         INT NOT NULL,
-    comment        TEXT,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE contact_form_submissions
-(
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    email      VARCHAR(255) NOT NULL,
-    phone      VARCHAR(255),
-    company    VARCHAR(255),
-    message    TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE tabs
 (
     id       SERIAL PRIMARY KEY,
@@ -428,18 +377,6 @@ CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 CREATE INDEX folders_parent_id_idx ON folders (parent_id);
 
-CREATE INDEX vacancies_salary_range_id_idx ON vacancies (id);
-
-CREATE INDEX applicants_vacancy_id_idx ON applicants (vacancy_id);
-
-CREATE INDEX applicant_comments_applicant_id_idx ON applicant_comments (applicant_id);
-
-CREATE INDEX applications_applicant_id_idx ON applications (applicant_id);
-
-CREATE INDEX interview_ratings_interview_id_idx ON interview_ratings (interview_id);
-CREATE INDEX interviews_application_id_idx ON interviews (application_id);
-CREATE INDEX interviews_interviewer_id_idx ON interviews (interviewer_id);
-
 -- +migrate Down
 DROP TABLE IF EXISTS action_log CASCADE;
 DROP TABLE IF EXISTS applicant_comments CASCADE;
@@ -460,10 +397,6 @@ DROP TABLE IF EXISTS employee_skills CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
 DROP TABLE IF EXISTS estimates CASCADE;
 DROP TABLE IF EXISTS folders CASCADE;
-DROP TABLE IF EXISTS interview_questions CASCADE;
-DROP TABLE IF EXISTS interview_ratings CASCADE;
-DROP TABLE IF EXISTS interviews CASCADE;
-DROP TABLE IF EXISTS inventory CASCADE;
 DROP TABLE IF EXISTS likes CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS positions CASCADE;

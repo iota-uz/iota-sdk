@@ -2,20 +2,17 @@ package services_test
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"log"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -23,38 +20,44 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
 func TestPaymentsService_CRUD(t *testing.T) {
-	ctx := testutils.GetTestContext()
-	r, err := role.New(
-		"",
-		"",
-		[]*permission.Permission{
+	testutils.CreateDB(t.Name())
+
+	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+	defer pool.Close()
+	ctx := composables.WithUser(
+		context.Background(),
+		testutils.MockUser(
 			permissions.PaymentCreate,
 			permissions.PaymentRead,
 			permissions.PaymentUpdate,
 			permissions.PaymentDelete,
-		},
+		),
 	)
+	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx.Context = context.WithValue(ctx.Context, constants.UserKey, &user.User{
-		Roles: []role.Role{r},
-	})
-	ctx.Context = context.WithValue(ctx.Context, constants.SessionKey, &session.Session{})
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		err := Tx.Commit(ctx)
-		if err != nil {
-			log.Fatal(err)
+	defer func() {
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
 		}
-	}(ctx.Tx, ctx.Context)
+	}()
+	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithSession(ctx, &session.Session{})
 
 	publisher := event.NewEventPublisher()
+	app := application.New(pool, publisher)
+	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.RunMigrations(); err != nil {
+		t.Fatal(err)
+	}
 	currencyRepository := corepersistence.NewCurrencyRepository()
 	accountRepository := persistence.NewMoneyAccountRepository()
 	paymentRepository := persistence.NewPaymentRepository()
@@ -66,11 +69,11 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	)
 	paymentsService := services.NewPaymentService(paymentRepository, publisher, accountService)
 
-	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
+	if err := currencyRepository.Create(ctx, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
 	if err := accountService.Create(
-		ctx.Context, &moneyaccount.CreateDTO{
+		ctx, &moneyaccount.CreateDTO{
 			Name:          "Test",
 			AccountNumber: "123",
 			Balance:       100,
@@ -85,7 +88,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := counterpartyRepository.Create(
-		ctx.Context,
+		ctx,
 		counterparty.New(
 			tin,
 			"Test",
@@ -97,7 +100,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := paymentsService.Create(
-		ctx.Context, &payment.CreateDTO{
+		ctx, &payment.CreateDTO{
 			Amount:           100,
 			AccountID:        1,
 			TransactionDate:  shared.DateOnly(time.Now()),
@@ -108,7 +111,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	accountEntity, err := accountRepository.GetByID(ctx.Context, 1)
+	accountEntity, err := accountRepository.GetByID(ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

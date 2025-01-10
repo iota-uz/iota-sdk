@@ -3,9 +3,11 @@ package testutils
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"github.com/jackc/pgx/v5"
+	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
@@ -82,6 +84,68 @@ func NewPool(dbOpts string) *pgxpool.Pool {
 	return pool
 }
 
+func DefaultParams() *composables.Params {
+	return &composables.Params{
+		IP:            "",
+		UserAgent:     "",
+		Authenticated: true,
+		Request:       nil,
+		Writer:        nil,
+	}
+}
+
+func CreateDB(name string) {
+	c := configuration.Use()
+	db, err := sql.Open("postgres", fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+		c.DBHost, c.DBPort, c.DBUser, c.DBName, c.DBPassword,
+	))
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", name))
+	if err != nil {
+		panic(err)
+	}
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", name))
+	if err != nil {
+		panic(err)
+	}
+}
+
+func DropDB(name string) {
+	c := configuration.Use()
+	db, err := sql.Open("postgres", fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+		c.DBHost, c.DBPort, c.DBUser, c.DBName, c.DBPassword,
+	))
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	_, err = db.Exec(fmt.Sprintf("DROP DATABASE %s IF EXISTS", name))
+	if err != nil {
+		panic(err)
+	}
+}
+
+func DbOpts(name string) string {
+	c := configuration.Use()
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+		c.DBHost, c.DBPort, c.DBUser, strings.ToLower(name), c.DBPassword,
+	)
+}
+
 func GetTestContext() *TestContext {
 	conf := configuration.Use()
 	pool := NewPool(conf.DBOpts)
@@ -105,13 +169,7 @@ func GetTestContext() *TestContext {
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithParams(
 		ctx,
-		&composables.Params{
-			IP:            "",
-			UserAgent:     "",
-			Authenticated: true,
-			Request:       nil,
-			Writer:        nil,
-		},
+		DefaultParams(),
 	)
 
 	return &TestContext{

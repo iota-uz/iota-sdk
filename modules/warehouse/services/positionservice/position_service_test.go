@@ -25,8 +25,9 @@ var (
 		{"A1": "Наименование", "B1": "Код в справочнике", "C1": "Ед. изм.", "D1": "Количество"},
 		{"A2": "Дрель Молоток N.C.V (900W)", "B2": "3241324132", "C2": "шт", "D2": 10},
 		{"A3": "Дрель Молоток N.C.V (900W)", "B3": "9230891234", "C3": "шт", "D3": 10},
-		{"A4": "Дрель Молоток N.C.V (900W)", "B4": "3242198021", "C4": "шт", "D4": 30_000},
+		{"A4": "Дрель Молоток N.C.V (900W)", "B4": "3242198021", "C4": "шт", "D4": 3},
 	}
+	TotalProducts = 23
 )
 
 func TestMain(m *testing.M) {
@@ -122,7 +123,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if len(products) != 30_020 {
-		t.Errorf("expected %d, got %d", 30_020, len(products))
+	if len(products) != TotalProducts {
+		t.Errorf("expected %d, got %d", TotalProducts, len(products))
 	}
 }
