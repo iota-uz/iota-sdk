@@ -127,7 +127,7 @@ templ sidebar(pageCtx *types.PageContext) {
 templ avatar() {
 	{{ u := mappers.UserToViewModel(composables.MustUseUser(ctx)) }}
 	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
-		if u.Avatar.URL != "/" {
+		if u.Avatar != nil {
 			<img
 				src={ u.Avatar.URL }
 				alt="Avatar"
