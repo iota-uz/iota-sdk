@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -127,16 +126,15 @@ func DbOpts(name string) string {
 	)
 }
 
-func SetupApplication(t *testing.T, pool *pgxpool.Pool, mods ...application.Module) application.Application {
-	t.Helper()
+func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
 	app := application.New(pool, event.NewEventPublisher())
 	if err := modules.Load(app, mods...); err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	if err := app.RunMigrations(); err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	return app
+	return app, nil
 }
 
 func GetTestContext() *TestFixtures {

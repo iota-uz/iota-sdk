@@ -13,7 +13,7 @@ type Position struct {
 	UnitID    uint
 	Unit      *unit.Unit
 	InStock   uint
-	Images    []upload.Upload
+	Images    []*upload.Upload
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

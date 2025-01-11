@@ -68,9 +68,9 @@ func ToDomainProduct(
 
 func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.WarehouseUnit) (*position.Position, error) {
 	// TODO: decouple
-	images := make([]upload.Upload, len(dbPosition.Images))
+	images := make([]*upload.Upload, len(dbPosition.Images))
 	for i, img := range dbPosition.Images {
-		images[i] = *persistence.ToDomainUpload(&img)
+		images[i] = persistence.ToDomainUpload(&img)
 	}
 	return &position.Position{
 		ID:        dbPosition.ID,

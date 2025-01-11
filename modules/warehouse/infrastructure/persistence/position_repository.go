@@ -19,34 +19,35 @@ var (
 	ErrPositionNotFound = errors.New("position not found")
 )
 
-var (
-	//go:embed queries/position_queries.sql
-	positionsQueries string
+const (
+	selectPositionQuery = `
+	SELECT 
+		wp.id,
+		wp.title,
+		wp.barcode,
+		wp.unit_id,
+		wp.created_at,
+		wp.updated_at,
+		wu.id,
+		wu.title,
+		wu.short_title,
+		wu.created_at,
+		wu.updated_at 
+	FROM warehouse_positions wp JOIN warehouse_units wu ON wp.unit_id = wu.id`
+	selectPositionIdQuery     = `SELECT id FROM warehouse_positions`
+	countPositionQuery        = `SELECT COUNT(*) FROM warehouse_positions`
+	insertPositionQuery       = `INSERT INTO warehouse_positions (title, barcode, unit_id, created_at) VALUES ($1, $2, $3, $4) RETURNING id`
+	insertPositionImageQuery  = `INSERT INTO warehouse_position_images (warehouse_position_id, upload_id) VALUES`
+	updatePositionQuery       = `UPDATE warehouse_positions SET title = $1, barcode = $2, unit_id = $3 WHERE id = $4`
+	deletePositionQuery       = `DELETE FROM warehouse_positions WHERE id = $1`
+	deletePositionImagesQuery = `DELETE FROM warehouse_position_images WHERE warehouse_position_id = $1`
 )
 
 type GormPositionRepository struct {
-	selectQuery       string
-	selectIdQuery     string
-	countQuery        string
-	insertQuery       string
-	insertImageQuery  string
-	updateQuery       string
-	deleteQuery       string
-	deleteImagesQuery string
 }
 
 func NewPositionRepository() position.Repository {
-	queries := repo.MustParseSQLQueries(positionsQueries)
-	return &GormPositionRepository{
-		selectQuery:       queries["select"],
-		selectIdQuery:     queries["select_id_only"],
-		countQuery:        queries["count"],
-		insertQuery:       queries["insert"],
-		insertImageQuery:  queries["insert_image"],
-		updateQuery:       queries["update"],
-		deleteQuery:       queries["delete"],
-		deleteImagesQuery: queries["delete_images"],
-	}
+	return &GormPositionRepository{}
 }
 
 func (g *GormPositionRepository) queryPositions(ctx context.Context, query string, args ...interface{}) ([]*position.Position, error) {
@@ -121,7 +122,7 @@ func (g *GormPositionRepository) GetPaginated(
 	return g.queryPositions(
 		ctx,
 		repo.Join(
-			g.selectQuery,
+			selectPositionQuery,
 			repo.JoinWhere(where...),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
@@ -135,14 +136,14 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, g.countQuery).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, countPositionQuery).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Position, error) {
-	positions, err := g.queryPositions(ctx, g.selectQuery)
+	positions, err := g.queryPositions(ctx, selectPositionQuery)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get all positions")
 	}
@@ -154,7 +155,7 @@ func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint,
 	if err != nil {
 		return make([]uint, 0), err
 	}
-	rows, err := pool.Query(ctx, g.selectIdQuery)
+	rows, err := pool.Query(ctx, selectPositionIdQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +173,7 @@ func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint,
 }
 
 func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {
-	positions, err := g.queryPositions(ctx, repo.Join(g.selectQuery, "WHERE wp.id = $1"), id)
+	positions, err := g.queryPositions(ctx, repo.Join(selectPositionQuery, "WHERE wp.id = $1"), id)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +184,7 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 }
 
 func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*position.Position, error) {
-	positions, err := g.queryPositions(ctx, repo.Join(g.selectQuery, "WHERE wp.id = ANY($1)"), ids)
+	positions, err := g.queryPositions(ctx, repo.Join(selectPositionQuery, "WHERE wp.id = ANY($1)"), ids)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +192,7 @@ func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*p
 }
 
 func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode string) (*position.Position, error) {
-	positions, err := g.queryPositions(ctx, repo.Join(g.selectQuery, "WHERE wp.barcode = $1"), barcode)
+	positions, err := g.queryPositions(ctx, repo.Join(selectPositionQuery, "WHERE wp.barcode = $1"), barcode)
 	if err != nil {
 		return nil, err
 	}
@@ -226,17 +227,24 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	positionRow, junctionRows := mappers.ToDBPosition(data)
 	if err := tx.QueryRow(
 		ctx,
-		g.insertQuery,
+		insertPositionQuery,
 		positionRow.Title,
 		positionRow.Barcode,
 		positionRow.UnitID,
+		positionRow.CreatedAt,
 	).Scan(&data.ID); err != nil {
 		return err
 	}
+	if len(junctionRows) == 0 {
+		return nil
+	}
+	values := make([][]interface{}, 0, len(junctionRows)*2)
 	for _, junctionRow := range junctionRows {
-		if _, err := tx.Exec(ctx, g.insertImageQuery, data.ID, junctionRow.UploadID); err != nil {
-			return err
-		}
+		values = append(values, []interface{}{data.ID, junctionRow.UploadID})
+	}
+	q, args := repo.BuildBatchInsertQueryN(insertPositionImageQuery, values)
+	if _, err := tx.Exec(ctx, q, args...); err != nil {
+		return err
 	}
 	return nil
 }
@@ -246,10 +254,10 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
-	positionRow, uploadRows := mappers.ToDBPosition(data)
+	positionRow, junctionRows := mappers.ToDBPosition(data)
 	if _, err := tx.Exec(
 		ctx,
-		g.updateQuery,
+		updatePositionQuery,
 		positionRow.Title,
 		positionRow.Barcode,
 		positionRow.UnitID,
@@ -257,13 +265,19 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, g.deleteImagesQuery, data.ID); err != nil {
+	if _, err := tx.Exec(ctx, deletePositionImagesQuery, data.ID); err != nil {
 		return err
 	}
-	for _, uploadRow := range uploadRows {
-		if _, err := tx.Exec(ctx, g.insertImageQuery, uploadRow.WarehousePositionID, uploadRow.UploadID); err != nil {
-			return err
-		}
+	if len(junctionRows) == 0 {
+		return nil
+	}
+	values := make([][]interface{}, 0, len(junctionRows)*2)
+	for _, junctionRow := range junctionRows {
+		values = append(values, []interface{}{data.ID, junctionRow.UploadID})
+	}
+	q, args := repo.BuildBatchInsertQueryN(insertPositionImageQuery, values)
+	if _, err := tx.Exec(ctx, q, args...); err != nil {
+		return err
 	}
 	return nil
 }
@@ -273,7 +287,7 @@ func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, g.deleteQuery, id); err != nil {
+	if _, err := tx.Exec(ctx, deletePositionQuery, id); err != nil {
 		return err
 	}
 	return nil
