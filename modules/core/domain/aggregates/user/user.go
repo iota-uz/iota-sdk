@@ -22,14 +22,14 @@ type User struct {
 	MiddleName string
 	Password   string
 	Email      string
-	AvatarID   *uint
+	AvatarID   uint
 	Avatar     *upload.Upload
-	EmployeeID *uint
-	LastIP     *string
+	EmployeeID uint
+	LastIP     string
 	UILanguage UILanguage
 	Roles      []role.Role
-	LastLogin  *time.Time
-	LastAction *time.Time
+	LastLogin  time.Time
+	LastAction time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }

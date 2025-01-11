@@ -25,77 +25,52 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func ToDomainUser(dbUser *models.User) (*user.User, error) {
-	roles := make([]role.Role, len(dbUser.Roles))
-	// for i, r := range dbUser.Roles {
-	// 	roles[i] = toDomainRole(&r)
-	// }
-	var middleName string
-	if dbUser.MiddleName != nil {
-		middleName = *dbUser.MiddleName
+func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role) (*user.User, error) {
+	var avatar *upload.Upload
+	if dbUpload != nil {
+		avatar = ToDomainUpload(dbUpload)
 	}
-	var password string
-	if dbUser.Password != nil {
-		password = *dbUser.Password
-	}
-	var avatar upload.Upload
-	if dbUser.Avatar != nil {
-		avatar = *ToDomainUpload(dbUser.Avatar)
-	}
-
 	return &user.User{
 		ID:         dbUser.ID,
 		FirstName:  dbUser.FirstName,
 		LastName:   dbUser.LastName,
-		MiddleName: middleName,
+		MiddleName: dbUser.MiddleName.String,
 		Email:      dbUser.Email,
-		Password:   password,
-		AvatarID:   dbUser.AvatarID,
-		Avatar:     &avatar,
-		EmployeeID: dbUser.EmployeeID,
+		Password:   dbUser.Password.String,
+		AvatarID:   uint(dbUser.AvatarID.Int32),
+		Avatar:     avatar,
+		EmployeeID: uint(dbUser.EmployeeID.Int32),
 		UILanguage: user.UILanguage(dbUser.UILanguage),
-		LastIP:     dbUser.LastIP,
-		LastLogin:  dbUser.LastLogin,
-		LastAction: dbUser.LastAction,
+		LastIP:     dbUser.LastIP.String,
+		LastLogin:  dbUser.LastLogin.Time,
+		LastAction: dbUser.LastAction.Time,
 		CreatedAt:  dbUser.CreatedAt,
 		UpdatedAt:  dbUser.UpdatedAt,
 		Roles:      roles,
 	}, nil
 }
 
-func toDBUser(entity *user.User) (*models.User, []models.Role) {
-	roles := make([]models.Role, len(entity.Roles))
+func toDBUser(entity *user.User) (*models.User, []*models.Role) {
+	roles := make([]*models.Role, len(entity.Roles))
 	for i, r := range entity.Roles {
 		dbRole, _ := toDBRole(r)
-		roles[i] = *dbRole
-	}
-	var avatar *models.Upload
-	if v := entity.AvatarID; v != nil {
-		avatar = ToDBUpload(&upload.Upload{
-			ID: *v,
-		})
-	}
-	var avatarID *uint
-	if entity.AvatarID != nil && *entity.AvatarID != 0 {
-		avatarID = entity.AvatarID
+		roles[i] = dbRole
 	}
 	return &models.User{
 		ID:         entity.ID,
 		FirstName:  entity.FirstName,
 		LastName:   entity.LastName,
-		MiddleName: &entity.MiddleName,
+		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName),
 		Email:      entity.Email,
 		UILanguage: string(entity.UILanguage),
-		Password:   &entity.Password,
-		AvatarID:   avatarID,
-		EmployeeID: entity.EmployeeID,
-		Avatar:     avatar,
-		LastIP:     entity.LastIP,
-		LastLogin:  entity.LastLogin,
-		LastAction: entity.LastAction,
+		Password:   mapping.ValueToSQLNullString(entity.Password),
+		AvatarID:   mapping.ValueToSQLNullInt32(int32(entity.AvatarID)),
+		EmployeeID: mapping.ValueToSQLNullInt32(int32(entity.EmployeeID)),
+		LastIP:     mapping.ValueToSQLNullString(entity.LastIP),
+		LastLogin:  mapping.ValueToSQLNullTime(entity.LastLogin),
+		LastAction: mapping.ValueToSQLNullTime(entity.LastAction),
 		CreatedAt:  entity.CreatedAt,
 		UpdatedAt:  entity.UpdatedAt,
-		Roles:      nil,
 	}, roles
 }
 

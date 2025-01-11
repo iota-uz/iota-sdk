@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -39,23 +38,8 @@ const (
             up.size,
             up.mimetype,
             up.created_at,
-            up.updated_at,
-            r.id,
-            r.name,
-            r.description,
-            r.created_at,
-            r.updated_at,
-            p.id,
-            p.name,
-            p.resource,
-            p.action,
-            p.modifier
-        FROM users u
-        LEFT JOIN uploads up ON u.avatar_id = up.id
-        LEFT JOIN user_roles ur ON u.id = ur.user_id
-        LEFT JOIN roles r ON ur.role_id = r.id
-        LEFT JOIN role_permissions rp ON r.id = rp.role_id
-        LEFT JOIN permissions p ON rp.permission_id = p.id`
+            up.updated_at
+        FROM users u LEFT JOIN uploads up ON u.avatar_id = up.id`
 
 	userInsertQuery = `
         INSERT INTO users (
@@ -195,7 +179,9 @@ func (g *GormUserRepository) Update(ctx context.Context, data *user.User) error 
 
 	dbUser, _ := toDBUser(data)
 
-	_, err = tx.Exec(ctx, userUpdateQuery,
+	_, err = tx.Exec(
+		ctx,
+		userUpdateQuery,
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -242,129 +228,57 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 	}
 	defer rows.Close()
 
-	userMap := make(map[uint]*user.User)
-	roleMap := make(map[uint]*models.Role)
-	// roleID: []permissions
-	permMap := make(map[uint][]*models.Permission)
-
+	var users []*models.User
+	var uploads []*models.Upload
 	for rows.Next() {
+		var u models.User
+
 		var (
-			u models.User
-			a models.Upload
-
-			middleName, lastIP, password sql.NullString
-			avatarID, employeeID         sql.NullInt32
-			lastLogin, lastAction        sql.NullTime
-
-			// Upload fields
-			avatarHash, avatarPath, avatarMimeType sql.NullString
-			avatarSize                             sql.NullInt32
-			avatarCreatedAt, avatarUpdatedAt       sql.NullTime
-
-			// Role fields
-			roleID                       sql.NullInt32
-			roleName, roleDesc           sql.NullString
-			roleCreatedAt, roleUpdatedAt sql.NullTime
-
-			// Permission fields
-			permID                                           sql.NullString
-			permName, permResource, permAction, permModifier sql.NullString
+			avatarId        sql.NullInt32
+			avatarHash      sql.NullString
+			avatarPath      sql.NullString
+			avatarSize      sql.NullInt32
+			avatarMimetype  sql.NullString
+			avatarCreatedAt sql.NullTime
+			avatarUpdatedAt sql.NullTime
 		)
 
 		if err := rows.Scan(
-			&u.ID, &u.FirstName, &u.LastName, &middleName, &u.Email, &password,
-			&u.UILanguage, &avatarID, &lastLogin, &lastIP, &lastAction, &employeeID,
-			&u.CreatedAt, &u.UpdatedAt,
-
-			// Upload fields
-			&avatarID, &avatarHash, &avatarPath, &avatarSize, &avatarMimeType,
-			&avatarCreatedAt, &avatarUpdatedAt,
-
-			// Role fields
-			&roleID, &roleName, &roleDesc, &roleCreatedAt, &roleUpdatedAt,
-
-			// Permission fields
-			&permID, &permName, &permResource, &permAction, &permModifier,
+			&u.ID,
+			&u.FirstName,
+			&u.LastName,
+			&u.MiddleName,
+			&u.Email,
+			&u.Password,
+			&u.UILanguage,
+			&u.AvatarID,
+			&u.LastLogin,
+			&u.LastIP,
+			&u.LastAction,
+			&u.EmployeeID,
+			&u.CreatedAt,
+			&u.UpdatedAt,
+			&avatarId,
+			&avatarHash,
+			&avatarPath,
+			&avatarSize,
+			&avatarMimetype,
+			&avatarCreatedAt,
+			&avatarUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-
-		// Handle User nullables
-		if middleName.Valid {
-			u.MiddleName = mapping.Pointer(middleName.String)
-		}
-		if password.Valid {
-			u.Password = mapping.Pointer(password.String)
-		}
-		if avatarID.Valid {
-			u.AvatarID = mapping.Pointer(uint(avatarID.Int32))
-		}
-		if lastLogin.Valid {
-			u.LastLogin = mapping.Pointer(lastLogin.Time)
-		}
-		if lastIP.Valid {
-			u.LastIP = mapping.Pointer(lastIP.String)
-		}
-		if lastAction.Valid {
-			u.LastAction = mapping.Pointer(lastAction.Time)
-		}
-		if employeeID.Valid {
-			u.EmployeeID = mapping.Pointer(uint(employeeID.Int32))
-		}
-
-		// Get or create user
-		domainUser, exists := userMap[u.ID]
-		if !exists {
-			var err error
-			domainUser, err = ToDomainUser(&u)
-			if err != nil {
-				return nil, err
-			}
-			userMap[u.ID] = domainUser
-
-			// Handle Avatar if exists
-			if avatarID.Valid && avatarHash.Valid {
-				a.ID = uint(avatarID.Int32)
-				a.Hash = avatarHash.String
-				a.Path = avatarPath.String
-				a.Size = int(avatarSize.Int32)
-				a.Mimetype = avatarMimeType.String
-				a.CreatedAt = avatarCreatedAt.Time
-				a.UpdatedAt = avatarUpdatedAt.Time
-				domainUser.Avatar = ToDomainUpload(&a)
-			}
-		}
-
-		// Handle Role and Permissions
-		if roleID.Valid {
-			r, exists := roleMap[uint(roleID.Int32)]
-			if !exists {
-				r = &models.Role{
-					ID:          uint(roleID.Int32),
-					Name:        roleName.String,
-					Description: mapping.ValueToSQLNullString(roleDesc.String),
-					CreatedAt:   roleCreatedAt.Time,
-					UpdatedAt:   roleUpdatedAt.Time,
-				}
-				roleMap[r.ID] = r
-
-			}
-
-			perm := models.Permission{
-				ID:       permID.String,
-				Name:     permName.String,
-				Resource: permResource.String,
-				Action:   permAction.String,
-				Modifier: permModifier.String,
-			}
-			permMap[r.ID] = append(permMap[r.ID], &perm)
-		}
-		for _, r := range roleMap {
-			domainRole, err := toDomainRole(r, permMap[r.ID])
-			if err != nil {
-				return nil, err
-			}
-			domainUser.Roles = append(domainUser.Roles, domainRole)
+		users = append(users, &u)
+		if avatarId.Valid {
+			uploads = append(uploads, &models.Upload{
+				ID:        uint(avatarId.Int32),
+				Hash:      avatarHash.String,
+				Path:      avatarPath.String,
+				Size:      int(avatarSize.Int32),
+				Mimetype:  avatarMimetype.String,
+				CreatedAt: avatarCreatedAt.Time,
+				UpdatedAt: avatarUpdatedAt.Time,
+			})
 		}
 	}
 
@@ -372,13 +286,113 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 		return nil, err
 	}
 
-	// Convert map to slice
-	users := make([]*user.User, 0, len(userMap))
-	for _, u := range userMap {
-		users = append(users, u)
+	uploadMap := make(map[uint]*models.Upload)
+	for _, u := range uploads {
+		uploadMap[u.ID] = u
 	}
 
-	return users, nil
+	var entities []*user.User
+	for _, u := range users {
+		roles, err := g.userRoles(ctx, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		avatar, _ := uploadMap[uint(u.AvatarID.Int32)]
+		entity, err := ToDomainUser(u, avatar, roles)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, entity)
+	}
+
+	return entities, nil
+}
+
+func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role.Role, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, "SELECT role_id FROM user_roles WHERE user_id = $1", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var roleIDs []uint
+	for rows.Next() {
+		var id uint
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		roleIDs = append(roleIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	rows, err = tx.Query(ctx, "SELECT id, name, description, created_at, updated_at FROM roles WHERE id = ANY($1)", roleIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roles []*models.Role
+	for rows.Next() {
+		var r models.Role
+		if err := rows.Scan(
+			&r.ID,
+			&r.Name,
+			&r.Description,
+			&r.CreatedAt,
+			&r.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		roles = append(roles, &r)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var entities []role.Role
+	for _, r := range roles {
+		rows, err = tx.Query(
+			ctx,
+			`SELECT
+					p.id, p.name, p.resource, p.action, p.modifier, p.description
+				FROM role_permissions r LEFT JOIN permissions p ON r.permission_id = p.id WHERE role_id = $1`,
+			r.ID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		var permissions []*models.Permission
+		for rows.Next() {
+			var p models.Permission
+			if err := rows.Scan(
+				&p.ID,
+				&p.Name,
+				&p.Resource,
+				&p.Action,
+				&p.Modifier,
+				&p.Description,
+			); err != nil {
+				return nil, err
+			}
+			permissions = append(permissions, &p)
+		}
+		entity, err := toDomainRole(r, permissions)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, entity)
+	}
+
+	return entities, nil
 }
 
 func (g *GormUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
