@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/modules/finance"
+	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -24,6 +27,9 @@ func main() {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
+	app.RegisterNavItems(core.NavItems...)
+	app.RegisterNavItems(finance.NavItems...)
+	app.RegisterNavItems(warehouse.NavItems...)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		panic(err)

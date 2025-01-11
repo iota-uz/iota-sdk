@@ -69,7 +69,7 @@ func (c *ProductsController) Register(r *mux.Router) {
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 }
 
 func (c *ProductsController) handleError(w http.ResponseWriter, err error) {
@@ -167,71 +167,55 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	c.renderTemplate(w, r, products.Edit(props))
 }
 
-func (c *ProductsController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		c.handleError(w, err)
 		return
 	}
-
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+	pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
+	if err != nil {
+		c.handleError(w, err)
 		return
 	}
-	r.Form.Del("_action")
 
-	switch action {
-	case shared.FormActionDelete:
-		if _, err := c.productService.Delete(r.Context(), id); err != nil {
-			c.handleError(w, err)
-			return
-		}
-	case shared.FormActionSave:
-		pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
-		if err != nil {
-			c.handleError(w, err)
-			return
-		}
+	dto, err := composables.UseForm(&product.UpdateDTO{}, r)
+	if err != nil {
+		c.handleError(w, fmt.Errorf("error parsing form: %w", err))
+		return
+	}
 
-		dto, err := composables.UseForm(&product.UpdateDTO{}, r)
-		if err != nil {
-			c.handleError(w, fmt.Errorf("error parsing form: %w", err))
-			return
+	entity, err := c.productService.GetByID(r.Context(), id)
+	if err != nil {
+		c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
+		return
+	}
+	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		props := &products.EditPageProps{
+			PageContext: pageCtx,
+			Product:     mappers.ProductToViewModel(entity),
+			Errors:      errorsMap,
 		}
+		c.renderTemplate(w, r, products.EditForm(props))
+		return
+	}
 
-		entity, err := c.productService.GetByID(r.Context(), id)
-		if err != nil {
-			c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
-			return
-		}
-		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if err := c.productService.Update(r.Context(), id, dto); err != nil {
+		var vErr serrors.Base
+		if errors.As(err, &vErr) {
+			entity.Rfid = dto.Rfid
 			props := &products.EditPageProps{
 				PageContext: pageCtx,
-				Product:     mappers.ProductToViewModel(entity),
-				Errors:      errorsMap,
+				Errors: map[string]string{
+					"Rfid": vErr.Localize(pageCtx.Localizer),
+				},
+				Product: mappers.ProductToViewModel(entity),
 			}
 			c.renderTemplate(w, r, products.EditForm(props))
 			return
 		}
-
-		if err := c.productService.Update(r.Context(), id, dto); err != nil {
-			var vErr serrors.Base
-			if errors.As(err, &vErr) {
-				entity.Rfid = dto.Rfid
-				props := &products.EditPageProps{
-					PageContext: pageCtx,
-					Errors: map[string]string{
-						"Rfid": vErr.Localize(pageCtx.Localizer),
-					},
-					Product: mappers.ProductToViewModel(entity),
-				}
-				c.renderTemplate(w, r, products.EditForm(props))
-				return
-			}
-			c.handleError(w, err)
-			return
-		}
+		c.handleError(w, err)
+		return
 	}
 	shared.Redirect(w, r, c.basePath)
 }
