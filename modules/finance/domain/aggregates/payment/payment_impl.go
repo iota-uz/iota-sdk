@@ -12,7 +12,7 @@ func NewWithID(
 	transactionID, counterpartyID uint,
 	comment string,
 	account *moneyaccount.Account,
-	createdBy *user.User,
+	createdBy user.User,
 	date, accountingPeriod, createdAt, updatedAt time.Time,
 ) Payment {
 	return &payment{
@@ -35,7 +35,7 @@ func New(
 	transactionID, counterpartyID uint,
 	comment string,
 	account *moneyaccount.Account,
-	createdBy *user.User,
+	createdBy user.User,
 	date, accountingPeriod time.Time,
 ) Payment {
 	return NewWithID(
@@ -62,7 +62,7 @@ type payment struct {
 	accountingPeriod time.Time
 	comment          string
 	account          *moneyaccount.Account
-	user             *user.User
+	user             user.User
 	createdAt        time.Time
 	updatedAt        time.Time
 }
@@ -128,7 +128,7 @@ func (p *payment) Account() *moneyaccount.Account {
 	return p.account
 }
 
-func (p *payment) User() *user.User {
+func (p *payment) User() user.User {
 	return p.user
 }
 

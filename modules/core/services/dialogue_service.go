@@ -243,7 +243,7 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 		return nil, err
 	}
 	data := &dialogue.Dialogue{
-		UserID: u.ID,
+		UserID: u.ID(),
 		Messages: dialogue.Messages{
 			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt},
 			{Role: openai.ChatMessageRoleUser, Content: message},

@@ -1,4 +1,4 @@
-package email
+package internet
 
 import (
 	"errors"
@@ -9,8 +9,8 @@ var (
 	ErrInvalidEmail = errors.New("invalid email")
 )
 
-func New(v string) (Email, error) {
-	if !IsValid(v) {
+func NewEmail(v string) (Email, error) {
+	if !IsValidEmail(v) {
 		return nil, ErrInvalidEmail
 	}
 	return email(v), nil
@@ -22,7 +22,7 @@ func (e email) Value() string {
 	return string(e)
 }
 
-func IsValid(v string) bool {
+func IsValidEmail(v string) bool {
 	re := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	return re.MatchString(v)
 }

@@ -190,7 +190,7 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-		entity, err := dto.ToEntity(u.ID)
+		entity, err := dto.ToEntity(u)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

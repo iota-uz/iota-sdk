@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"time"
 )
 
 type SaveAccountDTO struct {
@@ -42,17 +44,28 @@ func (u *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (u *SaveAccountDTO) ToEntity(id uint) (*user.User, error) {
+func (u *SaveAccountDTO) ToEntity(id uint) (user.User, error) {
 	lang, err := user.NewUILanguage(u.UILanguage)
 	if err != nil {
 		return nil, err
 	}
-	return &user.User{
-		ID:         id,
-		FirstName:  u.FirstName,
-		LastName:   u.LastName,
-		MiddleName: u.MiddleName,
-		UILanguage: lang,
-		AvatarID:   u.AvatarID,
-	}, nil
+	return user.NewWithID(
+		id,
+		u.FirstName,
+		u.LastName,
+		u.MiddleName,
+		"",
+		"",
+		&upload.Upload{
+			ID: u.AvatarID,
+		},
+		0,
+		"",
+		lang,
+		nil,
+		time.Now(),
+		time.Now(),
+		time.Now(),
+		time.Now(),
+	), nil
 }

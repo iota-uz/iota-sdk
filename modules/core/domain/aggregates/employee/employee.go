@@ -1,7 +1,7 @@
 package employee
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
@@ -19,7 +19,7 @@ type Employee interface {
 	FirstName() string
 	LastName() string
 	MiddleName() string
-	Email() email.Email
+	Email() internet.Email
 	Phone() string
 	Salary() money.Amount
 	AvatarID() uint

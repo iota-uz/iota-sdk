@@ -31,7 +31,7 @@ type TestFixtures struct {
 	App     application.Application
 }
 
-func MockUser(permissions ...*permission.Permission) *user.User {
+func MockUser(permissions ...*permission.Permission) user.User {
 	r, err := role.NewWithID(
 		1,
 		"admin",
@@ -43,24 +43,23 @@ func MockUser(permissions ...*permission.Permission) *user.User {
 	if err != nil {
 		panic(err)
 	}
-	return &user.User{
-		ID:         1,
-		FirstName:  "",
-		LastName:   "",
-		MiddleName: "",
-		Password:   "",
-		Email:      "",
-		AvatarID:   0,
-		Avatar:     nil,
-		EmployeeID: 0,
-		LastIP:     "",
-		UILanguage: "",
-		LastLogin:  time.Now(),
-		LastAction: time.Now(),
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-		Roles:      []role.Role{r},
-	}
+	return user.NewWithID(
+		1,
+		"",
+		"",
+		"",
+		"",
+		"",
+		nil,
+		0,
+		"",
+		"",
+		[]role.Role{r},
+		time.Now(),
+		time.Now(),
+		time.Now(),
+		time.Now(),
+	)
 }
 
 func MockSession() *session.Session {

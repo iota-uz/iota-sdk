@@ -16,24 +16,24 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func UserToViewModel(entity *user.User) *viewmodels.User {
+func UserToViewModel(entity user.User) *viewmodels.User {
 	var avatar viewmodels.Upload
-	if entity.Avatar != nil {
-		avatar = *UploadToViewModel(entity.Avatar)
+	if entity.Avatar() != nil {
+		avatar = *UploadToViewModel(entity.Avatar())
 	}
 	return &viewmodels.User{
-		ID:         strconv.FormatUint(uint64(entity.ID), 10),
-		FirstName:  entity.FirstName,
-		LastName:   entity.LastName,
-		MiddleName: entity.MiddleName,
-		Email:      entity.Email,
+		ID:         strconv.FormatUint(uint64(entity.ID()), 10),
+		FirstName:  entity.FirstName(),
+		LastName:   entity.LastName(),
+		MiddleName: entity.MiddleName(),
+		Email:      entity.Email(),
 		Avatar:     &avatar,
-		UILanguage: string(entity.UILanguage),
-		LastAction: entity.LastAction.Format(time.RFC3339),
-		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
-		Roles:      mapping.MapViewModels(entity.Roles, RoleToViewModel),
-		AvatarID:   strconv.Itoa(int(entity.AvatarID)),
+		UILanguage: string(entity.UILanguage()),
+		LastAction: entity.LastAction().Format(time.RFC3339),
+		CreatedAt:  entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:  entity.UpdatedAt().Format(time.RFC3339),
+		Roles:      mapping.MapViewModels(entity.Roles(), RoleToViewModel),
+		AvatarID:   strconv.Itoa(int(entity.AvatarID())),
 	}
 }
 

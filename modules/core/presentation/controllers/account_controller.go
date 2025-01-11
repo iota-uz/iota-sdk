@@ -118,7 +118,7 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	entity, err := dto.ToEntity(u.ID)
+	entity, err := dto.ToEntity(u.ID())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -192,10 +192,10 @@ func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request)
 		dtos = append(dtos, &tab.CreateDTO{
 			Href:     href,
 			Position: uint(i),
-			UserID:   u.ID,
+			UserID:   u.ID(),
 		})
 	}
-	if _, err := c.tabService.CreateManyUserTabs(r.Context(), u.ID, dtos); err != nil {
+	if _, err := c.tabService.CreateManyUserTabs(r.Context(), u.ID(), dtos); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

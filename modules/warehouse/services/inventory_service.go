@@ -73,7 +73,7 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 	if err != nil {
 		return nil, err
 	}
-	entity, err := data.ToEntity(user.ID)
+	entity, err := data.ToEntity(user)
 	if err != nil {
 		return nil, err
 	}

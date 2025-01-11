@@ -16,8 +16,8 @@ var (
 )
 
 // UseUser returns the user from the context.
-func UseUser(ctx context.Context) (*user.User, error) {
-	u, ok := ctx.Value(constants.UserKey).(*user.User)
+func UseUser(ctx context.Context) (user.User, error) {
+	u, ok := ctx.Value(constants.UserKey).(user.User)
 	if !ok {
 		return nil, ErrNoUserFound
 	}
@@ -25,12 +25,12 @@ func UseUser(ctx context.Context) (*user.User, error) {
 }
 
 // WithUser returns a new context with the user.
-func WithUser(ctx context.Context, u *user.User) context.Context {
+func WithUser(ctx context.Context, u user.User) context.Context {
 	return context.WithValue(ctx, constants.UserKey, u)
 }
 
 // MustUseUser returns the user from the context. If no user is found, it panics.
-func MustUseUser(ctx context.Context) *user.User {
+func MustUseUser(ctx context.Context) user.User {
 	u, err := UseUser(ctx)
 	if err != nil {
 		panic(err)

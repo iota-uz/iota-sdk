@@ -23,7 +23,7 @@ func navItems2Tabs(navItems []types.NavigationItem) []*tab.Tab {
 	return tabs
 }
 
-func createOrUpdateUser(ctx context.Context, r role.Role) (*user.User, error) {
+func createOrUpdateUser(ctx context.Context, r role.Role) (user.User, error) {
 	userRepository := persistence.NewUserRepository()
 	email := "test@gmail.com"
 	foundUser, err := userRepository.GetByEmail(ctx, email)
@@ -33,17 +33,21 @@ func createOrUpdateUser(ctx context.Context, r role.Role) (*user.User, error) {
 	if foundUser != nil {
 		return foundUser, nil
 	}
-	usr := &user.User{
-		ID:         1,
-		FirstName:  "Admin",
-		LastName:   "User",
-		Email:      email,
-		UILanguage: user.UILanguageEN,
-		Roles:      []role.Role{r},
-	}
-	if err := usr.SetPassword("TestPass123!"); err != nil {
+	usr, err := user.New(
+		"Admin",
+		"User",
+		"",
+		"",
+		email,
+		nil,
+		0,
+		user.UILanguageEN,
+		[]role.Role{r},
+	).SetPassword("TestPass123!")
+	if err != nil {
 		return nil, err
 	}
+
 	return userRepository.Create(ctx, usr)
 }
 
@@ -86,7 +90,7 @@ func CreateUser(ctx context.Context, app application.Application) error {
 	tabs := navItems2Tabs(app.NavItems(localizer))
 	for i, t := range tabs {
 		t.ID = uint(i + 1)
-		t.UserID = usr.ID
+		t.UserID = usr.ID()
 		t.Position = uint(i + 1)
 		if err := tabsRepository.CreateOrUpdate(ctx, t); err != nil {
 			return err
