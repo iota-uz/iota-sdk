@@ -18,13 +18,31 @@ RUN go mod download
 COPY . .
 RUN make generate && go vet ./...
 RUN make css
+RUN make release
 
-FROM install-stage AS production
-RUN go build -o run_server cmd/server/main.go
-CMD go run cmd/migrate/main.go up && /build/run_server
+# Default final base image to Alpine Linux
+FROM alpine:3.21 AS production
+
+# Ensure we have latest packages applied
+RUN apk update \
+    && apk upgrade
+
+# Create a non-root user
+RUN addgroup -g 10001 -S iota-user \
+    && adduser --disabled-password --gecos '' -u 10000 --home /home/iota-user iota-user -G iota-user \
+    && chown -R iota-user:iota-user /home/iota-user
+
+WORKDIR /home/iota-user
+COPY --from=install-stage /build/run_server ./run_server
+COPY --from=install-stage /build/.env.example ./.env
+
+ENV PATH=/home/iota-user:$PATH
+
+USER iota-user
+ENTRYPOINT run_server
 
 FROM install-stage AS staging
-RUN go build -o run_server cmd/server/main.go && go build -o seed_db cmd/seed/main.go
+RUN make build && go build -o seed_db cmd/seed/main.go
 CMD go run cmd/migrate/main.go up && /build/seed_db && /build/run_server
 
 FROM install-stage AS testing-ci
