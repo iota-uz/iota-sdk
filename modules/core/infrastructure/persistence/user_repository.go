@@ -287,7 +287,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 		uploadMap[u.ID] = u
 	}
 
-	var entities []*user.User
+	entities := make([]*user.User, 0, len(users))
 	for _, u := range users {
 		roles, err := g.userRoles(ctx, u.ID)
 		if err != nil {
