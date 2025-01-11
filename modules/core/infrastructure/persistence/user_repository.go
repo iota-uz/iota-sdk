@@ -181,7 +181,7 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) (*user
 	if err != nil {
 		return nil, err
 	}
-	if err := g.updateUserRoles(ctx, data.ID, data.Roles); err != nil {
+	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles); err != nil {
 		return nil, err
 	}
 	return g.GetByID(ctx, dbUser.ID)
