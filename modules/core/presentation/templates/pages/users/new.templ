@@ -64,10 +64,8 @@ templ CreateForm(props *CreateFormProps) {
 			@RoleSelect(&RoleSelectProps{
 				PageContext: props.PageContext,
 				Roles:       props.Roles,
-				Error:       props.Errors["RoleID"],
-				Attrs: templ.Attributes{
-					"name": "RoleID",
-				},
+				Error:       props.Errors["RoleIDs"],
+				Name:        "RoleIDs",
 			})
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       props.T("Users.Single.Language"),

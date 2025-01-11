@@ -77,11 +77,9 @@ templ EditForm(props *EditFormProps) {
 				PageContext: props.PageContext,
 				Roles:       props.Roles,
 				Selected:    props.User.Roles,
-				Error:       props.Errors["RoleID"],
-				Attrs: templ.Attributes{
-					"name": "RoleID",
-					"form": "save-form",
-				},
+				Error:       props.Errors["RoleIDs"],
+				Form:        "save-form",
+				Name:        "RoleIDs",
 			})
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       props.T("Users.Single.Language"),
