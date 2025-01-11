@@ -6,4 +6,5 @@ type Email interface {
 
 type IP interface {
 	Value() string
+	Version() IpVersion
 }
