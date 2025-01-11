@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -157,10 +156,10 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	return users[0], nil
 }
 
-func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error {
+func (g *GormUserRepository) Create(ctx context.Context, data *user.User) (*user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dbUser, _ := toDBUser(data)
@@ -178,41 +177,14 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error 
 		dbUser.EmployeeID,
 		dbUser.CreatedAt,
 		dbUser.UpdatedAt,
-	).Scan(&data.ID)
-
+	).Scan(&dbUser.ID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return g.updateUserRoles(ctx, data.ID, data.Roles)
-}
-
-func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, data *user.User) error {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return err
+	if err := g.updateUserRoles(ctx, data.ID, data.Roles); err != nil {
+		return nil, err
 	}
-
-	// Check if the user exists
-	var exists bool
-	err = tx.QueryRow(ctx, userExistsQuery, data.ID).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("failed to check user existence: %w", err)
-	}
-
-	if exists {
-		err = g.Update(ctx, data)
-		if err != nil {
-			return fmt.Errorf("failed to update user: %w", err)
-		}
-	} else {
-		err = g.Create(ctx, data)
-		if err != nil {
-			return fmt.Errorf("failed to create user: %w", err)
-		}
-	}
-
-	return nil
+	return g.GetByID(ctx, dbUser.ID)
 }
 
 func (g *GormUserRepository) Update(ctx context.Context, data *user.User) error {

@@ -17,8 +17,7 @@ type Repository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]*User, error)
 	GetByID(ctx context.Context, id uint) (*User, error)
-	Create(ctx context.Context, user *User) error
-	CreateOrUpdate(ctx context.Context, user *User) error
+	Create(ctx context.Context, user *User) (*User, error)
 	Update(ctx context.Context, user *User) error
 	UpdateLastAction(ctx context.Context, id uint) error
 	UpdateLastLogin(ctx context.Context, id uint) error

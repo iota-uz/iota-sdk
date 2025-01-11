@@ -2,6 +2,7 @@ package seed
 
 import (
 	"context"
+	"errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -22,38 +23,65 @@ func navItems2Tabs(navItems []types.NavigationItem) []*tab.Tab {
 	return tabs
 }
 
-func CreateUser(ctx context.Context, app application.Application) error {
+func createOrUpdateUser(ctx context.Context, r role.Role) (*user.User, error) {
 	userRepository := persistence.NewUserRepository()
-	roleRepository := persistence.NewRoleRepository()
-	tabsRepository := persistence.NewTabRepository()
-
-	CEO, err := role.New(
-		"CEO",
-		"Chief Executive Officer",
-		app.Permissions(),
-	)
-	if err != nil {
-		return err
+	email := "test@gmail.com"
+	foundUser, err := userRepository.GetByEmail(ctx, email)
+	if err != nil && !errors.Is(err, persistence.ErrUserNotFound) {
+		return nil, err
 	}
-	createdRole, err := roleRepository.Create(ctx, CEO)
-	if err != nil {
-		return err
+	if foundUser != nil {
+		return foundUser, nil
 	}
-
 	usr := &user.User{
 		ID:         1,
 		FirstName:  "Admin",
 		LastName:   "User",
-		Email:      "test@gmail.com",
+		Email:      email,
 		UILanguage: user.UILanguageEN,
-		Roles:      []role.Role{createdRole},
+		Roles:      []role.Role{r},
 	}
 	if err := usr.SetPassword("TestPass123!"); err != nil {
+		return nil, err
+	}
+	return userRepository.Create(ctx, usr)
+}
+
+func createOrUpdateRole(ctx context.Context, app application.Application) (role.Role, error) {
+	roleRepository := persistence.NewRoleRepository()
+	roleName := "Admin"
+	matches, err := roleRepository.GetPaginated(ctx, &role.FindParams{
+		Name: roleName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(matches) > 0 {
+		return matches[0], nil
+	}
+	newRole, err := role.New(
+		roleName,
+		"Administrator",
+		app.Permissions(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return roleRepository.Create(ctx, newRole)
+}
+
+func CreateUser(ctx context.Context, app application.Application) error {
+	tabsRepository := persistence.NewTabRepository()
+
+	r, err := createOrUpdateRole(ctx, app)
+	if err != nil {
 		return err
 	}
-	if err := userRepository.CreateOrUpdate(ctx, usr); err != nil {
+	usr, err := createOrUpdateUser(ctx, r)
+	if err != nil {
 		return err
 	}
+
 	localizer := i18n.NewLocalizer(app.Bundle(), "ru")
 	tabs := navItems2Tabs(app.NavItems(localizer))
 	for i, t := range tabs {
