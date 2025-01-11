@@ -46,7 +46,6 @@ type Configuration struct {
 	DBPort             string        `env:"DB_PORT" envDefault:"5432"`
 	DBUser             string        `env:"DB_USER" envDefault:"postgres"`
 	DBPassword         string        `env:"DB_PASSWORD" envDefault:"postgres"`
-	DemoMode           bool          `env:"DEMO_MODE" envDefault:"false"`
 	GoogleRedirectURL  string        `env:"GOOGLE_REDIRECT_URL"`
 	GoogleClientID     string        `env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string        `env:"GOOGLE_CLIENT_SECRET"`
