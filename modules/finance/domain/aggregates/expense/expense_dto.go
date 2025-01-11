@@ -54,10 +54,18 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (d *CreateDTO) ToEntity() (*Expense, error) {
 	return &Expense{
-		ID:               0,
-		Account:          moneyAccount.Account{ID: d.AccountID},
-		Amount:           d.Amount,
-		Category:         category.ExpenseCategory{ID: d.CategoryID},
+		ID:      0,
+		Account: moneyAccount.Account{ID: d.AccountID},
+		Amount:  d.Amount,
+		Category: category.NewWithID(
+			d.CategoryID,
+			"",
+			"",
+			0,
+			nil,
+			time.Now(),
+			time.Now(),
+		),
 		Comment:          d.Comment,
 		AccountingPeriod: d.AccountingPeriod,
 		Date:             d.Date,
@@ -69,10 +77,18 @@ func (d *CreateDTO) ToEntity() (*Expense, error) {
 
 func (d *UpdateDTO) ToEntity(id uint) (*Expense, error) {
 	return &Expense{
-		ID:               id,
-		Account:          moneyAccount.Account{ID: d.AccountID},
-		Amount:           d.Amount,
-		Category:         category.ExpenseCategory{ID: d.CategoryID},
+		ID:      id,
+		Account: moneyAccount.Account{ID: d.AccountID},
+		Amount:  d.Amount,
+		Category: category.NewWithID(
+			d.CategoryID,
+			"",
+			"",
+			0,
+			nil,
+			time.Now(),
+			time.Now(),
+		),
 		Comment:          d.Comment,
 		AccountingPeriod: d.AccountingPeriod,
 		Date:             d.Date,

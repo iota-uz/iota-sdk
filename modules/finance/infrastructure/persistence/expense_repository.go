@@ -93,7 +93,7 @@ func (g *GormExpenseRepository) GetPaginated(
 		if err != nil {
 			return nil, err
 		}
-		domainExpense.Category = *domainCategory
+		domainExpense.Category = domainCategory
 		expenses = append(expenses, domainExpense)
 	}
 
