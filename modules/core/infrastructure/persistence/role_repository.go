@@ -60,6 +60,11 @@ func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.Find
 		args = append(args, params.UserID)
 	}
 
+	if params.Name != "" {
+		where = append(where, fmt.Sprintf("r.name = $%d", len(args)+1))
+		args = append(args, params.Name)
+	}
+
 	query := roleFindQuery + "\n" +
 		strings.Join(joins, "\n") + "\n" +
 		"WHERE " + strings.Join(where, " AND ")

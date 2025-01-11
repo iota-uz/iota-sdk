@@ -54,12 +54,13 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		Roles:      []role.Role{roleEntity},
 	}
 
-	if err := userRepository.Create(f.ctx, userEntity); err != nil {
+	createdUser, err := userRepository.Create(f.ctx, userEntity)
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("Get", func(t *testing.T) {
-		dbUser, err := userRepository.GetByID(f.ctx, userEntity.ID)
+		dbUser, err := userRepository.GetByID(f.ctx, createdUser.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,11 +85,11 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		"Update", func(t *testing.T) {
 			if err := userRepository.Update(
 				f.ctx,
-				userEntity.SetName("Alice", "Karen", "Smith"),
+				createdUser.SetName("Alice", "Karen", "Smith"),
 			); err != nil {
 				t.Fatal(err)
 			}
-			dbUser, err := userRepository.GetByID(f.ctx, userEntity.ID)
+			dbUser, err := userRepository.GetByID(f.ctx, createdUser.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,10 +117,10 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 				)
 			}
 
-			if !dbUser.UpdatedAt.After(userEntity.UpdatedAt) {
+			if !dbUser.UpdatedAt.After(createdUser.UpdatedAt) {
 				t.Errorf(
 					"expected updated at to be after %v, got %v",
-					userEntity.UpdatedAt,
+					createdUser.UpdatedAt,
 					dbUser.UpdatedAt,
 				)
 			}
