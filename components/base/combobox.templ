@@ -43,7 +43,13 @@ templ ComboboxOptions(options []*ComboboxOption) {
 }
 
 templ DropdownIndicator() {
-	<button class="inline-flex duration-200 cursor-pointer" tabindex="-1" :class="open || openedWithKeyboard ? 'rotate-180' : ''" type="button" @click="open = !open">
+	<button
+		class="inline-flex duration-200 cursor-pointer"
+		tabindex="-1"
+		:class="open || openedWithKeyboard ? 'rotate-180' : ''"
+		type="button"
+		@click="open = !open"
+	>
 		@icons.ChevronDown(icons.Props{Size: "16"})
 	</button>
 }
@@ -53,7 +59,11 @@ templ SelectedValues() {
 		<template x-for="item in Array.from(selectedValues.values())">
 			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100">
 				<span x-text="item.label"></span>
-				<button class="text-brand-500 cursor-pointer" type="button" @click="() => selectedValues.delete(item.value)">
+				<button
+					class="text-brand-500 cursor-pointer"
+					type="button"
+					@click="() => selectedValues.delete(item.value)"
+				>
 					@icons.XCircle(icons.Props{Size: "20"})
 				</button>
 			</li>
@@ -87,7 +97,10 @@ templ Combobox(props ComboboxProps) {
 		>
 			{ children... }
 		</select>
-		<div class="relative" x-on:click.outside="open = false, openedWithKeyboard = false">
+		<div
+			class="relative h-full"
+			x-on:click.outside="open = false, openedWithKeyboard = false"
+		>
 			if props.Trigger != nil {
 				if props.Trigger.Component != nil {
 					@props.Trigger.Component
@@ -147,14 +160,32 @@ templ Combobox(props ComboboxProps) {
 				})
 			} else {
 				<button
-					class="form-control flex items-center justify-between w-full gap-6"
+					class="form-control flex items-center justify-between gap-6 w-full h-full px-2.5"
 					x-on:click="open = !open"
 					x-on:keydown.down.prevent="openedWithKeyboard = true"
 					x-on:keydown.enter.prevent="openedWithKeyboard = true"
 					x-on:keydown.space.prevent="openedWithKeyboard = true"
+					x-ref="trigger"
 					type="button"
 				>
-					<span class="text-sm font-normal" x-text={ fmt.Sprintf("value !== '' ? value : '%s'", props.Placeholder) }></span>
+					if props.Multiple {
+						<div x-show="selectedValues.size">
+							@SelectedValues()
+						</div>
+						<span
+							class="font-normal"
+							x-show="!selectedValues.size"
+						>
+							{ props.Placeholder }
+						</span>
+					} else {
+						<span
+							class="font-normal"
+							x-show="!selectedValues.size"
+						>
+							{ props.Placeholder }
+						</span>
+					}
 					@icons.ChevronDown(icons.Props{
 						Size:  "16",
 						Class: "text-200 duration-300",

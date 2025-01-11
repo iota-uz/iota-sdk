@@ -10,7 +10,8 @@ type RoleSelectProps struct {
 	*types.PageContext
 	Roles    []*viewmodels.Role
 	Selected []*viewmodels.Role
-	Attrs    templ.Attributes
+	Name     string
+	Form     string
 	Error    string
 }
 
@@ -24,11 +25,12 @@ func isRoleSelected(id string, roles []*viewmodels.Role) bool {
 }
 
 templ RoleSelect(props *RoleSelectProps) {
-	@base.Select(&base.SelectProps{
+	@base.Combobox(base.ComboboxProps{
 		Label:       props.T("Users.Single.Role"),
 		Placeholder: props.T("Users.Single.SelectRole"),
-		Error:       props.Error,
-		Attrs:       props.Attrs,
+		Multiple:    true,
+		Name:        props.Name,
+		Form:        props.Form,
 	}) {
 		for _, role := range props.Roles {
 			if isRoleSelected(role.ID, props.Selected) {
