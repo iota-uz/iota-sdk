@@ -77,7 +77,7 @@ const (
 
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
-	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT (role_id, user_id) DO NOTHING`
+	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES`
 )
 
 type GormUserRepository struct{}
@@ -102,20 +102,16 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	var count int64
 	err = tx.QueryRow(ctx, userCountQuery).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
-
 	return count, nil
 }
 
 func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
-	return g.GetPaginated(ctx, &user.FindParams{
-		Limit: 100000,
-	})
+	return g.queryUsers(ctx, userFindQuery)
 }
 
 func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
@@ -410,12 +406,13 @@ func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, r
 		return err
 	}
 
-	// Insert new roles
+	values := make([][]interface{}, 0, len(roles)*2)
 	for _, r := range roles {
-		if err := g.execQuery(ctx, userRoleInsertQuery, userID, r.ID()); err != nil {
-			return err
-		}
+		values = append(values, []interface{}{userID, r.ID()})
 	}
-
+	q, args := repo.BuildBatchInsertQueryN(userRoleInsertQuery, values)
+	if err := g.execQuery(ctx, q, args...); err != nil {
+		return err
+	}
 	return nil
 }
