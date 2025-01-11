@@ -1,6 +1,7 @@
 package persistence_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 )
 
 func TestGormUserRepository_CRUD(t *testing.T) {
+	t.Parallel()
 	f := setupTest(t)
 
 	permissionRepository := persistence.NewPermissionRepository()
@@ -77,7 +79,25 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		}
 
 		if len(dbUser.Roles) != 1 {
-			t.Errorf("expected %d, got %d", 1, len(dbUser.Roles))
+			t.Fatalf("expected %d, got %d", 1, len(dbUser.Roles))
+		}
+
+		roles := dbUser.Roles
+
+		if roles[0].Name() != "test" {
+			t.Errorf("expected %s, got %s", "test", roles[0].Name())
+		}
+
+		if len(roles[0].Permissions()) != 1 {
+			t.Fatalf("expected %d, got %d", 1, len(roles[0].Permissions()))
+		}
+
+		if roles[0].Permissions()[0].Name != permission.UserRead.Name {
+			t.Errorf(
+				"expected %s, got %s",
+				permission.UserRead.Name,
+				roles[0].Permissions()[0].Name,
+			)
 		}
 	})
 
@@ -135,6 +155,14 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 			_, err := userRepository.GetByID(f.ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
+			}
+
+			if !errors.Is(err, persistence.ErrUserNotFound) {
+				t.Errorf(
+					"expected %v, got %v",
+					persistence.ErrUserNotFound,
+					err,
+				)
 			}
 		},
 	)

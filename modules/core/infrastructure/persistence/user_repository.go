@@ -304,30 +304,64 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 	return entities, nil
 }
 
+func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]*models.Permission, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(
+		ctx,
+		`
+		SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+		FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`,
+		roleID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var permissions []*models.Permission
+	for rows.Next() {
+		var p models.Permission
+		if err := rows.Scan(
+			&p.ID,
+			&p.Name,
+			&p.Resource,
+			&p.Action,
+			&p.Modifier,
+			&p.Description,
+		); err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, &p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return permissions, nil
+}
+
 func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role.Role, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, "SELECT role_id FROM user_roles WHERE user_id = $1", userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var roleIDs []uint
-	for rows.Next() {
-		var id uint
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		roleIDs = append(roleIDs, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	rows, err = tx.Query(ctx, "SELECT id, name, description, created_at, updated_at FROM roles WHERE id = ANY($1)", roleIDs)
+	rows, err := tx.Query(ctx, `
+		SELECT 
+			r.id,
+			r.name,
+			r.description,
+			r.created_at,
+			r.updated_at 
+		FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
+	`,
+		userID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -354,32 +388,9 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 
 	entities := make([]role.Role, 0, len(roles))
 	for _, r := range roles {
-		rows, err = tx.Query(
-			ctx,
-			`SELECT
-					p.id, p.name, p.resource, p.action, p.modifier, p.description
-				FROM role_permissions r LEFT JOIN permissions p ON r.permission_id = p.id WHERE role_id = $1`,
-			r.ID,
-		)
+		permissions, err := g.rolePermissions(ctx, r.ID)
 		if err != nil {
 			return nil, err
-		}
-		defer rows.Close()
-
-		var permissions []*models.Permission
-		for rows.Next() {
-			var p models.Permission
-			if err := rows.Scan(
-				&p.ID,
-				&p.Name,
-				&p.Resource,
-				&p.Action,
-				&p.Modifier,
-				&p.Description,
-			); err != nil {
-				return nil, err
-			}
-			permissions = append(permissions, &p)
 		}
 		entity, err := toDomainRole(r, permissions)
 		if err != nil {
