@@ -34,7 +34,6 @@ RUN addgroup -g 10001 -S iota-user \
 
 WORKDIR /home/iota-user
 COPY --from=install-stage /build/run_server ./run_server
-COPY --from=install-stage /build/.env.example ./.env
 
 ENV PATH=/home/iota-user:$PATH
 
@@ -42,7 +41,7 @@ USER iota-user
 ENTRYPOINT run_server
 
 FROM install-stage AS staging
-RUN make build && go build -o seed_db cmd/seed/main.go
+RUN go build -o run_server cmd/server/main.go && go build -o seed_db cmd/seed/main.go
 CMD go run cmd/migrate/main.go up && /build/seed_db && /build/run_server
 
 FROM install-stage AS testing-ci
