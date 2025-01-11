@@ -21,7 +21,15 @@ type EditFormProps struct {
 	Errors map[string]string
 }
 
+func useUploads(u *viewmodels.User) []*viewmodels.Upload {
+	if u.Avatar == nil {
+		return []*viewmodels.Upload{}
+	}
+	return []*viewmodels.Upload{u.Avatar}
+}
+
 templ EditForm(props *EditFormProps) {
+	{{ uploads := useUploads(props.User) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@card.Card(card.Props{
 			Class:        "grid grid-cols-3 gap-4",
@@ -34,7 +42,7 @@ templ EditForm(props *EditFormProps) {
 				Class:       "col-span-3",
 				Accept:      "image/*",
 				Error:       props.Errors["AvatarID"],
-				Uploads:     []*viewmodels.Upload{props.User.Avatar},
+				Uploads:     uploads,
 				Form:        "save-form",
 			})
 			@input.Text(&input.Props{
