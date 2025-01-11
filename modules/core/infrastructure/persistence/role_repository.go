@@ -52,11 +52,6 @@ func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.Find
 	where, args := []string{"1 = 1"}, []interface{}{}
 	var joins []string
 
-	if params.ID != 0 {
-		where = append(where, fmt.Sprintf("r.id = $%d", len(args)+1))
-		args = append(args, params.ID)
-	}
-
 	if params.UserID != 0 {
 		joins = append(joins, fmt.Sprintf(
 			"INNER JOIN user_roles ur ON ur.role_id = r.id AND ur.user_id = $%d",
@@ -105,17 +100,6 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, e
 		return nil, ErrRoleNotFound
 	}
 	return roles[0], nil
-}
-
-func (g *GormRoleRepository) CreateOrUpdate(ctx context.Context, data role.Role) (role.Role, error) {
-	_, err := g.GetByID(ctx, data.ID())
-	if err != nil && !errors.Is(err, ErrRoleNotFound) {
-		return nil, err
-	}
-	if errors.Is(err, ErrRoleNotFound) {
-		return g.Create(ctx, data)
-	}
-	return g.Update(ctx, data)
 }
 
 func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.Role, error) {
