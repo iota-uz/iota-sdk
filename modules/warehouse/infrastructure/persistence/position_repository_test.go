@@ -2,15 +2,76 @@ package persistence_test
 
 import (
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	core "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
+	"github.com/iota-uz/utils/random"
 	"testing"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 )
+
+func BenchmarkGormPositionRepository_Create(b *testing.B) {
+	f := setupBenchmark(b)
+
+	unitRepository := persistence.NewUnitRepository()
+	positionRepository := persistence.NewPositionRepository()
+	uploadRepository := core.NewUploadRepository()
+
+	if err := unitRepository.Create(
+		f.ctx,
+		&unit.Unit{
+			ID:         1,
+			Title:      "Unit 1",
+			ShortTitle: "U1",
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		},
+	); err != nil {
+		b.Fatal(err)
+	}
+
+	uploads := make([]*upload.Upload, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		entity, err := uploadRepository.Create(
+			f.ctx,
+			&upload.Upload{
+				ID:        0,
+				Hash:      random.String(32, random.LowerCharSet),
+				Size:      1,
+				Mimetype:  *mimetype.Lookup("image/png"),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+		)
+		if err != nil {
+			b.Fatal(err)
+		}
+		uploads = append(uploads, entity)
+	}
+
+	for range b.N {
+		b.StartTimer()
+		if err := positionRepository.Create(
+			f.ctx,
+			&position.Position{
+				ID:        1,
+				Title:     "Position 1",
+				Barcode:   random.String(13, random.LowerCharSet),
+				UnitID:    1,
+				Images:    uploads,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+		); err != nil {
+			b.Fatal(err)
+		}
+		b.StopTimer()
+	}
+}
 
 func TestGormPositionRepository_CRUD(t *testing.T) {
 	t.Parallel()
@@ -32,8 +93,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-
-	if err := uploadRepository.Create(
+	createdUpload, err := uploadRepository.Create(
 		f.ctx, &upload.Upload{
 			ID:        1,
 			Hash:      "hash",
@@ -42,7 +102,8 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			Mimetype:  *mimetype.Lookup("image/png"),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
-		}); err != nil {
+		})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -52,7 +113,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			Title:     "Position 1",
 			Barcode:   "3141592653589",
 			UnitID:    1,
-			Images:    []upload.Upload{{ID: 1}},
+			Images:    []*upload.Upload{createdUpload},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}); err != nil {
@@ -77,10 +138,13 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := positionRepository.Update(
-				f.ctx, &position.Position{
+				f.ctx,
+				&position.Position{
 					ID:      1,
 					Title:   "Updated Position 1",
 					Barcode: "3141592653589",
+					UnitID:  1,
+					Images:  []*upload.Upload{},
 				},
 			); err != nil {
 				t.Fatal(err)
@@ -103,6 +167,9 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			_, err := positionRepository.GetByID(f.ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
+			}
+			if !errors.Is(err, persistence.ErrPositionNotFound) {
+				t.Errorf("expected %v, got %v", persistence.ErrPositionNotFound, err)
 			}
 		},
 	)

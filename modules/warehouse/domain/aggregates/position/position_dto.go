@@ -48,9 +48,9 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (*Position, error) {
-	images := make([]upload.Upload, len(d.ImageIDs))
+	images := make([]*upload.Upload, len(d.ImageIDs))
 	for i, id := range d.ImageIDs {
-		images[i] = upload.Upload{ID: id} //nolint:exhaustruct
+		images[i] = &upload.Upload{ID: id} //nolint:exhaustruct
 	}
 	return &Position{
 		ID:        0,
@@ -73,7 +73,7 @@ func (d *UpdateDTO) ToEntity(id uint) (*Position, error) {
 		InStock:   0,
 		UnitID:    d.UnitID,
 		Unit:      &unit.Unit{ID: d.UnitID}, //nolint:exhaustruct
-		Images:    []upload.Upload{},
+		Images:    []*upload.Upload{},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}, nil

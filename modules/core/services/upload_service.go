@@ -54,15 +54,16 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	if err := s.storage.Save(ctx, entity.Path, bytes); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, entity); err != nil {
+	createdEntity, err := s.repo.Create(ctx, entity)
+	if err != nil {
 		return nil, err
 	}
-	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *createdEntity)
 	if err != nil {
 		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return entity, nil
+	return createdEntity, nil
 }
 
 func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]*upload.Upload, error) {

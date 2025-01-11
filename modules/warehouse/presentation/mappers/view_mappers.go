@@ -34,7 +34,7 @@ func ProductToViewModel(entity *product.Product) *viewmodels.Product {
 func PositionToViewModel(entity *position.Position) *viewmodels.Position {
 	images := make([]*coreviewmodels.Upload, len(entity.Images))
 	for i, img := range entity.Images {
-		images[i] = mappers.UploadToViewModel(&img)
+		images[i] = mappers.UploadToViewModel(img)
 	}
 	return &viewmodels.Position{
 		ID:        strconv.FormatUint(uint64(entity.ID), 10),

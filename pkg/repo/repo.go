@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"strconv"
 	"strings"
 )
 
@@ -34,4 +35,37 @@ func Join(expressions ...string) string {
 
 func JoinWhere(expressions ...string) string {
 	return fmt.Sprintf("WHERE %s", strings.Join(expressions, " AND "))
+}
+
+// BuildBatchInsertQueryN creates a parameterized SQL query for batch inserting multiple values per row
+func BuildBatchInsertQueryN(baseQuery string, rows [][]interface{}) (string, []interface{}) {
+	if len(rows) == 0 {
+		return baseQuery, nil
+	}
+
+	valuesPerRow := len(rows[0])
+	args := make([]interface{}, 0, len(rows)*valuesPerRow)
+	query := baseQuery + " "
+
+	for i, row := range rows {
+		if len(row) != valuesPerRow {
+			panic("all rows must have the same number of values")
+		}
+
+		if i != 0 {
+			query += ","
+		}
+
+		query += "("
+		for j, value := range row {
+			if j != 0 {
+				query += ","
+			}
+			query += "$" + strconv.Itoa(len(args)+1)
+			args = append(args, value)
+		}
+		query += ")"
+	}
+
+	return query, args
 }

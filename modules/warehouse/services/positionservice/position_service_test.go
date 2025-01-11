@@ -81,7 +81,10 @@ func setupTest(t *testing.T) *testFixtures {
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
-	app := testutils.SetupApplication(t, pool, modules.BuiltInModules...)
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	return &testFixtures{
 		ctx:  ctx,

@@ -2,6 +2,7 @@ package persistence_test
 
 import (
 	"context"
+	"github.com/iota-uz/utils/random"
 	"os"
 	"testing"
 
@@ -28,6 +29,41 @@ type testFixtures struct {
 	app  application.Application
 }
 
+func setupBenchmark(b *testing.B) *testFixtures {
+	b.Helper()
+
+	dbName := b.Name() + random.String(5, random.LowerCharSet)
+	testutils.CreateDB(dbName)
+	pool := testutils.NewPool(testutils.DbOpts(dbName))
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.Cleanup(func() {
+		if err := tx.Commit(ctx); err != nil {
+			b.Fatal(err)
+		}
+		pool.Close()
+	})
+
+	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithSession(ctx, &session.Session{})
+
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	return &testFixtures{
+		ctx:  ctx,
+		pool: pool,
+		app:  app,
+	}
+}
+
 // setupTest creates all necessary dependencies for tests
 func setupTest(t *testing.T) *testFixtures {
 	t.Helper()
@@ -51,7 +87,10 @@ func setupTest(t *testing.T) *testFixtures {
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
-	app := testutils.SetupApplication(t, pool, modules.BuiltInModules...)
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	return &testFixtures{
 		ctx:  ctx,
