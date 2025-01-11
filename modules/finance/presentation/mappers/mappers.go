@@ -13,16 +13,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 )
 
-func ExpenseCategoryToViewModel(entity *category.ExpenseCategory) *viewmodels.ExpenseCategory {
+func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.ExpenseCategory {
 	return &viewmodels.ExpenseCategory{
-		ID:                 strconv.FormatUint(uint64(entity.ID), 10),
-		Name:               entity.Name,
-		Amount:             fmt.Sprintf("%.2f", entity.Amount),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount, entity.Currency.Symbol),
-		CurrencyCode:       string(entity.Currency.Code),
-		Description:        entity.Description,
-		UpdatedAt:          entity.UpdatedAt.Format(time.RFC3339),
-		CreatedAt:          entity.CreatedAt.Format(time.RFC3339),
+		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
+		Name:               entity.Name(),
+		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
+		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), entity.Currency().Symbol),
+		CurrencyCode:       string(entity.Currency().Code),
+		Description:        entity.Description(),
+		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
+		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 
@@ -68,14 +68,14 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 }
 
 func ExpenseToViewModel(entity *expense.Expense) *viewmodels.Expense {
-	currencyEntity := entity.Category.Currency
+	currencyEntity := entity.Category.Currency()
 	return &viewmodels.Expense{
 		ID:                 strconv.FormatUint(uint64(entity.ID), 10),
 		Amount:             fmt.Sprintf("%.2f", entity.Amount),
 		AccountID:          strconv.FormatUint(uint64(entity.Account.ID), 10),
 		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount, currencyEntity.Symbol),
-		CategoryID:         strconv.FormatUint(uint64(entity.Category.ID), 10),
-		Category:           ExpenseCategoryToViewModel(&entity.Category),
+		CategoryID:         strconv.FormatUint(uint64(entity.Category.ID()), 10),
+		Category:           ExpenseCategoryToViewModel(entity.Category),
 		Comment:            entity.Comment,
 		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID), 10),
 		AccountingPeriod:   entity.AccountingPeriod.Format(time.RFC3339),

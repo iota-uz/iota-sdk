@@ -2,9 +2,9 @@ package finance
 
 import (
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/components/icons"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	persistence2 "github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
@@ -27,16 +27,15 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	moneyAccountService := services.NewMoneyAccountService(
-		persistence2.NewMoneyAccountRepository(),
-		persistence2.NewTransactionRepository(),
+		persistence.NewMoneyAccountRepository(),
+		persistence.NewTransactionRepository(),
 		app.EventPublisher(),
 	)
-	currencyRepo := corepersistence.NewCurrencyRepository()
-	transactionRepo := persistence2.NewTransactionRepository()
-	categoryRepo := persistence2.NewExpenseCategoryRepository(currencyRepo)
+	transactionRepo := persistence.NewTransactionRepository()
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	app.RegisterServices(
 		services.NewPaymentService(
-			persistence2.NewPaymentRepository(),
+			persistence.NewPaymentRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
 		),
@@ -45,12 +44,12 @@ func (m *Module) Register(app application.Application) error {
 			app.EventPublisher(),
 		),
 		services.NewExpenseService(
-			persistence2.NewExpenseRepository(categoryRepo, transactionRepo),
+			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
 			app.EventPublisher(),
 			moneyAccountService,
 		),
 		moneyAccountService,
-		services.NewCounterpartyService(persistence2.NewCounterpartyRepository()),
+		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
 	)
 
 	app.RegisterControllers(

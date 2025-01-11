@@ -19,7 +19,7 @@ func NewExpenseCategoryService(repo category.Repository, publisher event.Publish
 	}
 }
 
-func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (category.ExpenseCategory, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -27,13 +27,13 @@ func (s *ExpenseCategoryService) Count(ctx context.Context) (uint, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *ExpenseCategoryService) GetAll(ctx context.Context) ([]*category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) GetAll(ctx context.Context) ([]category.ExpenseCategory, error) {
 	return s.repo.GetAll(ctx)
 }
 
 func (s *ExpenseCategoryService) GetPaginated(
 	ctx context.Context, params *category.FindParams,
-) ([]*category.ExpenseCategory, error) {
+) ([]category.ExpenseCategory, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
 
@@ -46,10 +46,10 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, data *category.Crea
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Create(ctx, entity); err != nil {
+	if _, err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent.Result = *entity
+	createdEvent.Result = entity
 	s.publisher.Publish(createdEvent)
 	return nil
 }
@@ -63,15 +63,15 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, id uint, data *cate
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, entity); err != nil {
+	if _, err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent.Result = *entity
+	updatedEvent.Result = entity
 	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
-func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (category.ExpenseCategory, error) {
 	deletedEvent, err := category.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (*category
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = *entity
+	deletedEvent.Result = entity
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }
