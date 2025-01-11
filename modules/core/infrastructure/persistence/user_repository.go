@@ -85,11 +85,11 @@ const (
             updated_at = $9
         WHERE id = $10`
 
+	userCountQuery = `SELECT COUNT(*) FROM users`
+
 	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
 
 	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1`
-
-	userExistsQuery = `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`
 
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
@@ -120,7 +120,7 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 	}
 
 	var count int64
-	err = tx.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
+	err = tx.QueryRow(ctx, userCountQuery).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
@@ -135,7 +135,7 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 }
 
 func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
-	users, err := g.GetPaginated(ctx, &user.FindParams{ID: id})
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 	if err != nil {
 		return nil, err
 	}
