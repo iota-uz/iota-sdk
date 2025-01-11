@@ -87,8 +87,8 @@ func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
 		Results:    mapping.MapViewModels(entity.Results, CheckResultToViewModel),
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
-		CreatedBy:  entity.CreatedBy,
-		FinishedBy: entity.FinishedBy,
+		CreatedBy:  mappers.UserToViewModel(entity.CreatedBy),
+		FinishedBy: mappers.UserToViewModel(entity.FinishedBy),
 	}
 }
 

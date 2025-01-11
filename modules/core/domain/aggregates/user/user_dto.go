@@ -53,47 +53,47 @@ func (u *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (u *CreateDTO) ToEntity() (*User, error) {
+func (u *CreateDTO) ToEntity() (User, error) {
 	r, err := role.NewWithID(u.RoleID, "", "", nil, time.Now(), time.Now())
 	if err != nil {
 		return nil, err
 	}
-	return &User{
-		FirstName:  u.FirstName,
-		LastName:   u.LastName,
-		Email:      u.Email,
-		Roles:      []role.Role{r},
-		Password:   u.Password,
-		LastLogin:  time.Now(),
-		LastAction: time.Now(),
-		LastIP:     "",
-		AvatarID:   u.AvatarID,
-		UILanguage: UILanguage(u.UILanguage),
-		EmployeeID: 0,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+	return &user{
+		firstName:  u.FirstName,
+		lastName:   u.LastName,
+		email:      u.Email,
+		roles:      []role.Role{r},
+		password:   u.Password,
+		lastLogin:  time.Now(),
+		lastAction: time.Now(),
+		lastIP:     "",
+		avatarID:   u.AvatarID,
+		uiLanguage: UILanguage(u.UILanguage),
+		employeeID: 0,
+		createdAt:  time.Now(),
+		updatedAt:  time.Now(),
 	}, nil
 }
 
-func (u *UpdateDTO) ToEntity(id uint) (*User, error) {
+func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 	r, err := role.NewWithID(u.RoleID, "", "", nil, time.Now(), time.Now())
 	if err != nil {
 		return nil, err
 	}
-	return &User{
-		ID:         id,
-		FirstName:  u.FirstName,
-		LastName:   u.LastName,
-		Email:      u.Email,
-		Roles:      []role.Role{r},
-		Password:   u.Password,
-		LastLogin:  time.Now(),
-		LastAction: time.Now(),
-		LastIP:     "",
-		AvatarID:   u.AvatarID,
-		UILanguage: UILanguage(u.UILanguage),
-		EmployeeID: 0,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+	return &user{
+		id:         id,
+		firstName:  u.FirstName,
+		lastName:   u.LastName,
+		email:      u.Email,
+		roles:      []role.Role{r},
+		password:   u.Password,
+		lastLogin:  time.Now(),
+		lastAction: time.Now(),
+		lastIP:     "",
+		avatarID:   u.AvatarID,
+		uiLanguage: UILanguage(u.UILanguage),
+		employeeID: 0,
+		createdAt:  time.Now(),
+		updatedAt:  time.Now(),
 	}, nil
 }

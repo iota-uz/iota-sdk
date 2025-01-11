@@ -8,7 +8,7 @@ import (
 )
 
 func NewCreatedEvent(ctx context.Context, data CreateDTO, result Payment) (*Created, error) {
-	u, err := composables.UseUser(ctx)
+	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -19,14 +19,14 @@ func NewCreatedEvent(ctx context.Context, data CreateDTO, result Payment) (*Crea
 	ev := &Created{
 		Data:    data,
 		Result:  result,
-		Sender:  *u,
+		Sender:  sender,
 		Session: *sess,
 	}
 	return ev, nil
 }
 
 func NewUpdatedEvent(ctx context.Context, data UpdateDTO, result Payment) (*Updated, error) {
-	u, err := composables.UseUser(ctx)
+	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -36,14 +36,14 @@ func NewUpdatedEvent(ctx context.Context, data UpdateDTO, result Payment) (*Upda
 	}
 	return &Updated{
 		Data:    data,
-		Sender:  *u,
+		Sender:  sender,
 		Session: *sess,
 		Result:  result,
 	}, nil
 }
 
 func NewDeletedEvent(ctx context.Context, result Payment) (*Deleted, error) {
-	u, err := composables.UseUser(ctx)
+	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func NewDeletedEvent(ctx context.Context, result Payment) (*Deleted, error) {
 	}
 	return &Deleted{
 		Session: *sess,
-		Sender:  *u,
+		Sender:  sender,
 		Result:  result,
 	}, nil
 }

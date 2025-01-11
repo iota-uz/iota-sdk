@@ -6,7 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -93,7 +93,7 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (Employee, error) {
-	mail, err := email.New(d.Email)
+	mail, err := internet.NewEmail(d.Email)
 	if err != nil {
 		return nil, err
 	}

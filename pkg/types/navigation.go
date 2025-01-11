@@ -14,7 +14,7 @@ type NavigationItem struct {
 	Permissions []*permission.Permission
 }
 
-func (n NavigationItem) HasPermission(user *user.User) bool {
+func (n NavigationItem) HasPermission(user user.User) bool {
 	if n.Permissions == nil {
 		return true
 	}

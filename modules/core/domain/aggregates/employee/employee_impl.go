@@ -1,18 +1,17 @@
 package employee
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"time"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
 )
 
 func NewWithID(
 	id uint,
 	firstName, lastName, middleName, phone string,
-	email email.Email,
+	email internet.Email,
 	salary money.Amount,
 	tin tax.Tin,
 	pin tax.Pin,
@@ -45,7 +44,7 @@ func NewWithID(
 
 func New(
 	firstName, lastName, middleName, phone string,
-	email email.Email,
+	email internet.Email,
 	salary money.Amount,
 	tin tax.Tin,
 	pin tax.Pin,
@@ -80,7 +79,7 @@ type employee struct {
 	firstName       string
 	lastName        string
 	middleName      string
-	email           email.Email
+	email           internet.Email
 	phone           string
 	salary          money.Amount
 	avatarID        uint
@@ -124,7 +123,7 @@ func (e *employee) AvatarID() uint {
 	return e.avatarID
 }
 
-func (e *employee) Email() email.Email {
+func (e *employee) Email() internet.Email {
 	return e.email
 }
 

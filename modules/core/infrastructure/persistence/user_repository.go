@@ -86,7 +86,7 @@ func NewUserRepository() user.Repository {
 	return &GormUserRepository{}
 }
 
-func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]*user.User, error) {
+func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
 	where, args := []string{"1 = 1"}, []interface{}{}
 
 	query := repo.Join(
@@ -110,11 +110,11 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
+func (g *GormUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
 	return g.queryUsers(ctx, userFindQuery)
 }
 
-func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
+func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, 
 	return users[0], nil
 }
 
-func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1", email)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	return users[0], nil
 }
 
-func (g *GormUserRepository) Create(ctx context.Context, data *user.User) (*user.User, error) {
+func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -161,13 +161,13 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) (*user
 	if err != nil {
 		return nil, err
 	}
-	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles); err != nil {
+	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles()); err != nil {
 		return nil, err
 	}
 	return g.GetByID(ctx, dbUser.ID)
 }
 
-func (g *GormUserRepository) Update(ctx context.Context, data *user.User) error {
+func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -194,7 +194,7 @@ func (g *GormUserRepository) Update(ctx context.Context, data *user.User) error 
 		return err
 	}
 
-	return g.updateUserRoles(ctx, data.ID, data.Roles)
+	return g.updateUserRoles(ctx, data.ID(), data.Roles())
 }
 
 func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
@@ -212,7 +212,7 @@ func (g *GormUserRepository) Delete(ctx context.Context, id uint) error {
 	return g.execQuery(ctx, userDeleteQuery, id)
 }
 
-func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args ...interface{}) ([]*user.User, error) {
+func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args ...interface{}) ([]user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -287,7 +287,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 		uploadMap[u.ID] = u
 	}
 
-	entities := make([]*user.User, 0, len(users))
+	entities := make([]user.User, 0, len(users))
 	for _, u := range users {
 		roles, err := g.userRoles(ctx, u.ID)
 		if err != nil {

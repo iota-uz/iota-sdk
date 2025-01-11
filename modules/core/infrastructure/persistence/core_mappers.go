@@ -3,6 +3,7 @@ package persistence
 import (
 	"database/sql"
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -13,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
@@ -25,52 +25,51 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role) (*user.User, error) {
+func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role) (user.User, error) {
 	var avatar *upload.Upload
 	if dbUpload != nil {
 		avatar = ToDomainUpload(dbUpload)
 	}
-	return &user.User{
-		ID:         dbUser.ID,
-		FirstName:  dbUser.FirstName,
-		LastName:   dbUser.LastName,
-		MiddleName: dbUser.MiddleName.String,
-		Email:      dbUser.Email,
-		Password:   dbUser.Password.String,
-		AvatarID:   uint(dbUser.AvatarID.Int32),
-		Avatar:     avatar,
-		EmployeeID: uint(dbUser.EmployeeID.Int32),
-		UILanguage: user.UILanguage(dbUser.UILanguage),
-		LastIP:     dbUser.LastIP.String,
-		LastLogin:  dbUser.LastLogin.Time,
-		LastAction: dbUser.LastAction.Time,
-		CreatedAt:  dbUser.CreatedAt,
-		UpdatedAt:  dbUser.UpdatedAt,
-		Roles:      roles,
-	}, nil
+	return user.NewWithID(
+		dbUser.ID,
+		dbUser.FirstName,
+		dbUser.LastName,
+		dbUser.MiddleName.String,
+		dbUser.Password.String,
+		dbUser.Email,
+		avatar,
+		uint(dbUser.EmployeeID.Int32),
+		dbUser.LastIP.String,
+		user.UILanguage(dbUser.UILanguage),
+		roles,
+		dbUser.LastLogin.Time,
+		dbUser.LastAction.Time,
+		dbUser.CreatedAt,
+		dbUser.UpdatedAt,
+	), nil
 }
 
-func toDBUser(entity *user.User) (*models.User, []*models.Role) {
-	roles := make([]*models.Role, len(entity.Roles))
-	for i, r := range entity.Roles {
+func toDBUser(entity user.User) (*models.User, []*models.Role) {
+	roles := make([]*models.Role, len(entity.Roles()))
+	for i, r := range entity.Roles() {
 		dbRole, _ := toDBRole(r)
 		roles[i] = dbRole
 	}
 	return &models.User{
-		ID:         entity.ID,
-		FirstName:  entity.FirstName,
-		LastName:   entity.LastName,
-		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName),
-		Email:      entity.Email,
-		UILanguage: string(entity.UILanguage),
-		Password:   mapping.ValueToSQLNullString(entity.Password),
-		AvatarID:   mapping.ValueToSQLNullInt32(int32(entity.AvatarID)),
-		EmployeeID: mapping.ValueToSQLNullInt32(int32(entity.EmployeeID)),
-		LastIP:     mapping.ValueToSQLNullString(entity.LastIP),
-		LastLogin:  mapping.ValueToSQLNullTime(entity.LastLogin),
-		LastAction: mapping.ValueToSQLNullTime(entity.LastAction),
-		CreatedAt:  entity.CreatedAt,
-		UpdatedAt:  entity.UpdatedAt,
+		ID:         entity.ID(),
+		FirstName:  entity.FirstName(),
+		LastName:   entity.LastName(),
+		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
+		Email:      entity.Email(),
+		UILanguage: string(entity.UILanguage()),
+		Password:   mapping.ValueToSQLNullString(entity.Password()),
+		AvatarID:   mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
+		EmployeeID: mapping.ValueToSQLNullInt32(int32(entity.EmployeeID())),
+		LastIP:     mapping.ValueToSQLNullString(entity.LastIP()),
+		LastLogin:  mapping.ValueToSQLNullTime(entity.LastLogin()),
+		LastAction: mapping.ValueToSQLNullTime(entity.LastAction()),
+		CreatedAt:  entity.CreatedAt(),
+		UpdatedAt:  entity.UpdatedAt(),
 	}, roles
 }
 
@@ -154,7 +153,7 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 	if err != nil {
 		return nil, err
 	}
-	mail, err := email.New(dbEmployee.Email)
+	mail, err := internet.NewEmail(dbEmployee.Email)
 	if err != nil {
 		return nil, err
 	}

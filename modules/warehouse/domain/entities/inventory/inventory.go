@@ -15,8 +15,8 @@ type Check struct {
 	CreatedAt    time.Time
 	FinishedAt   time.Time
 	CreatedByID  uint
-	CreatedBy    *user.User
-	FinishedBy   *user.User
+	CreatedBy    user.User
+	FinishedBy   user.User
 	FinishedByID uint
 }
 

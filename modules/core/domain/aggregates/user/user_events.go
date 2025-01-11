@@ -9,7 +9,7 @@ import (
 )
 
 func NewCreatedEvent(ctx context.Context, data User) (*CreatedEvent, error) {
-	sender, ok := ctx.Value(constants.UserKey).(*User)
+	sender, ok := ctx.Value(constants.UserKey).(User)
 	if !ok {
 		return nil, errors.New("no user found")
 	}
@@ -18,14 +18,14 @@ func NewCreatedEvent(ctx context.Context, data User) (*CreatedEvent, error) {
 		return nil, errors.New("no session found")
 	}
 	return &CreatedEvent{
-		Sender:  *sender,
+		Sender:  sender,
 		Session: *sess,
 		Data:    data,
 	}, nil
 }
 
 func NewUpdatedEvent(ctx context.Context, data User) (*UpdatedEvent, error) {
-	sender, ok := ctx.Value(constants.UserKey).(*User)
+	sender, ok := ctx.Value(constants.UserKey).(User)
 	if !ok {
 		return nil, errors.New("no user found")
 	}
@@ -34,14 +34,14 @@ func NewUpdatedEvent(ctx context.Context, data User) (*UpdatedEvent, error) {
 		return nil, errors.New("no session found")
 	}
 	return &UpdatedEvent{
-		Sender:  *sender,
+		Sender:  sender,
 		Session: *sess,
 		Data:    data,
 	}, nil
 }
 
 func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
-	sender, ok := ctx.Value(constants.UserKey).(*User)
+	sender, ok := ctx.Value(constants.UserKey).(User)
 	if !ok {
 		return nil, errors.New("no user found")
 	}
@@ -50,7 +50,7 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 		return nil, errors.New("no session found")
 	}
 	return &DeletedEvent{
-		Sender:  *sender,
+		Sender:  sender,
 		Session: *sess,
 	}, nil
 }
