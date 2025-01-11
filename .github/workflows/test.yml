@@ -84,6 +84,7 @@ jobs:
         run: |
           make migrate-up
           make seed
+          make seed
           make migrate-down
           make css
 
