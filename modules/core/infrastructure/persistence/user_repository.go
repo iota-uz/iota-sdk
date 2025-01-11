@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -86,11 +85,11 @@ const (
             updated_at = $9
         WHERE id = $10`
 
+	userCountQuery = `SELECT COUNT(*) FROM users`
+
 	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
 
 	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1`
-
-	userExistsQuery = `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`
 
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
@@ -121,7 +120,7 @@ func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
 	}
 
 	var count int64
-	err = tx.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
+	err = tx.QueryRow(ctx, userCountQuery).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
@@ -136,7 +135,7 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
 }
 
 func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
-	users, err := g.GetPaginated(ctx, &user.FindParams{ID: id})
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -157,10 +156,10 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*use
 	return users[0], nil
 }
 
-func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error {
+func (g *GormUserRepository) Create(ctx context.Context, data *user.User) (*user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dbUser, _ := toDBUser(data)
@@ -178,41 +177,14 @@ func (g *GormUserRepository) Create(ctx context.Context, data *user.User) error 
 		dbUser.EmployeeID,
 		dbUser.CreatedAt,
 		dbUser.UpdatedAt,
-	).Scan(&data.ID)
-
+	).Scan(&dbUser.ID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return g.updateUserRoles(ctx, data.ID, data.Roles)
-}
-
-func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, data *user.User) error {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return err
+	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles); err != nil {
+		return nil, err
 	}
-
-	// Check if the user exists
-	var exists bool
-	err = tx.QueryRow(ctx, userExistsQuery, data.ID).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("failed to check user existence: %w", err)
-	}
-
-	if exists {
-		err = g.Update(ctx, data)
-		if err != nil {
-			return fmt.Errorf("failed to update user: %w", err)
-		}
-	} else {
-		err = g.Create(ctx, data)
-		if err != nil {
-			return fmt.Errorf("failed to create user: %w", err)
-		}
-	}
-
-	return nil
+	return g.GetByID(ctx, dbUser.ID)
 }
 
 func (g *GormUserRepository) Update(ctx context.Context, data *user.User) error {
