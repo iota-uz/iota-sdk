@@ -102,7 +102,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			if props.User.Avatar != nil {
+			if props.User.Avatar == nil {
 				templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
 					Label:   props.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",

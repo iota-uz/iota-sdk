@@ -17,9 +17,9 @@ import (
 )
 
 func UserToViewModel(entity user.User) *viewmodels.User {
-	var avatar viewmodels.Upload
+	var avatar *viewmodels.Upload
 	if entity.Avatar() != nil {
-		avatar = *UploadToViewModel(entity.Avatar())
+		avatar = UploadToViewModel(entity.Avatar())
 	}
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID()), 10),
@@ -27,7 +27,7 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		LastName:   entity.LastName(),
 		MiddleName: entity.MiddleName(),
 		Email:      entity.Email(),
-		Avatar:     &avatar,
+		Avatar:     avatar,
 		UILanguage: string(entity.UILanguage()),
 		LastAction: entity.LastAction().Format(time.RFC3339),
 		CreatedAt:  entity.CreatedAt().Format(time.RFC3339),
