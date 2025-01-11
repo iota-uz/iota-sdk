@@ -128,19 +128,17 @@ type User struct {
 	ID         uint
 	FirstName  string
 	LastName   string
-	MiddleName *string
+	MiddleName sql.NullString
 	Email      string
-	Password   *string
-	AvatarID   *uint
-	Avatar     *Upload
-	LastLogin  *time.Time
-	LastIP     *string
+	Password   sql.NullString
+	AvatarID   sql.NullInt32
+	LastLogin  sql.NullTime
+	LastIP     sql.NullString
 	UILanguage string
-	LastAction *time.Time
-	EmployeeID *uint
+	LastAction sql.NullTime
+	EmployeeID sql.NullInt32
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	Roles      []Role
 }
 
 type TelegramSession struct {

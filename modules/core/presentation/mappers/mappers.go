@@ -17,17 +17,9 @@ import (
 )
 
 func UserToViewModel(entity *user.User) *viewmodels.User {
-	var avatarID string
-	if v := entity.AvatarID; v != nil {
-		avatarID = strconv.Itoa(int(*v))
-	}
 	var avatar viewmodels.Upload
 	if entity.Avatar != nil {
 		avatar = *UploadToViewModel(entity.Avatar)
-	}
-	var lastAction string
-	if entity.LastAction != nil {
-		lastAction = entity.LastAction.Format(time.RFC3339)
 	}
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
@@ -37,11 +29,11 @@ func UserToViewModel(entity *user.User) *viewmodels.User {
 		Email:      entity.Email,
 		Avatar:     &avatar,
 		UILanguage: string(entity.UILanguage),
-		LastAction: lastAction,
+		LastAction: entity.LastAction.Format(time.RFC3339),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
 		Roles:      mapping.MapViewModels(entity.Roles, RoleToViewModel),
-		AvatarID:   avatarID,
+		AvatarID:   strconv.Itoa(int(entity.AvatarID)),
 	}
 }
 
