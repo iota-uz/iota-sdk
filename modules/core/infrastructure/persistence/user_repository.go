@@ -352,7 +352,7 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 		return nil, err
 	}
 
-	var entities []role.Role
+	entities := make([]role.Role, 0, len(roles))
 	for _, r := range roles {
 		rows, err = tx.Query(
 			ctx,
