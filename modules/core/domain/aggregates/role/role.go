@@ -17,5 +17,6 @@ type Role interface {
 	SetDescription(description string) Role
 
 	AddPermission(p *permission.Permission) Role
+	SetPermissions(permissions []*permission.Permission) Role
 	Can(perm *permission.Permission) bool
 }

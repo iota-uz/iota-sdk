@@ -95,8 +95,10 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				ctx = templ.InitializeContext(ctx)
 				for _, child := range group.Children {
 					templ_7745c5c3_Err = Permission(SharedProps{
-						Label:   props.T(fmt.Sprintf("Permissions.%s", child.Label)),
-						Name:    child.Name,
+						Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+						Attrs: templ.Attributes{
+							"name": child.Name,
+						},
 						Error:   props.Errors[child.Name],
 						Checked: child.Checked,
 					}).Render(ctx, templ_7745c5c3_Buffer)
@@ -133,7 +135,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 64, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 66, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
