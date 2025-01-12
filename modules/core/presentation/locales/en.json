@@ -90,7 +90,8 @@
     "List": {
       "New": "New User",
       "FullName": "Full name",
-      "LastAction": "Last action"
+      "Roles": "Roles",
+      "Email": "Email"
     },
     "Cards": {
       "PersonalInfo": "Personal information",
