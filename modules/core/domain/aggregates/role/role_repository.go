@@ -5,7 +5,6 @@ import (
 )
 
 type FindParams struct {
-	UserID            uint
 	Name              string
 	AttachPermissions bool
 	Limit             int

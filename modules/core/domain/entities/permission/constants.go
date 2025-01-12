@@ -9,7 +9,7 @@ const (
 	ResourceStage    Resource = "stage"
 	ResourceProject  Resource = "project"
 	ResourceEmployee Resource = "employee"
-	ResourceSetting  Resource = "setting"
+	ResourceSetting  Resource = "settings"
 	ResourceUpload   Resource = "upload"
 )
 
@@ -203,7 +203,7 @@ var (
 	}
 	SettingsRead = &Permission{
 		ID:       uuid.MustParse("0013399c-4974-4e26-be80-8f90d4357c24"),
-		Name:     "Setting.Read",
+		Name:     "Settings.Read",
 		Resource: ResourceSetting,
 		Action:   ActionRead,
 		Modifier: ModifierAll,

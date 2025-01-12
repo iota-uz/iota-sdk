@@ -19,6 +19,13 @@ var UsersLink = types.NavigationItem{
 	Children: nil,
 }
 
+var RolesLink = types.NavigationItem{
+	Name:     "NavigationLinks.Roles",
+	Icon:     nil,
+	Href:     "/roles",
+	Children: nil,
+}
+
 var EmployeesLink = types.NavigationItem{
 	Name:     "NavigationLinks.Employees",
 	Icon:     nil,
@@ -33,6 +40,7 @@ var AdministrationLink = types.NavigationItem{
 	Children: []types.NavigationItem{
 		UsersLink,
 		EmployeesLink,
+		RolesLink,
 	},
 }
 
@@ -43,4 +51,8 @@ var BiChatLink = types.NavigationItem{
 	Children: nil,
 }
 
-var NavItems = []types.NavigationItem{DashboardLink, BiChatLink, AdministrationLink}
+var NavItems = []types.NavigationItem{
+	DashboardLink,
+	BiChatLink,
+	AdministrationLink,
+}
