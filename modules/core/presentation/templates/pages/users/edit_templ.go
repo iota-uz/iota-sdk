@@ -389,8 +389,8 @@ func Edit(props *EditFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				Heading: props.T("Users.Single.DeleteUser"),
-				Text:    props.T("Users.Single.DeleteUserConfirmation"),
+				Heading: props.T("Users.Single.Delete"),
+				Text:    props.T("Users.Single.DeleteConfirmation"),
 				Icon:    icons.Trash(icons.Props{Size: "20"}),
 				Action:  "open-delete-user-confirmation",
 				Attrs: templ.Attributes{

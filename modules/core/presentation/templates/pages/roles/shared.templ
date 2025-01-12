@@ -1,0 +1,35 @@
+package roles
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type SharedProps struct {
+	*types.PageContext
+	Label   string
+	Name    string
+	Error   string
+	Checked bool
+}
+
+templ Permission(props SharedProps) {
+	<div
+		class="flex justify-between items-center border border-gray-400 bg-gray-200 rounded-md py-2 px-3"
+	>
+		<label
+			class="form-control-label"
+			for={ props.Name }
+		>
+			{ props.Label }
+		</label>
+		@input.Switch(&input.SwitchProps{
+			Checked: props.Checked,
+			Attrs: templ.Attributes{
+				"name": props.Name,
+			},
+			Size:  input.SizeLG,
+			Error: props.Error,
+		})
+	</div>
+}

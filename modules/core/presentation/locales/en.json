@@ -38,6 +38,7 @@
     "Dashboard": "Dashboard",
     "Administration": "Administration",
     "Users": "Users",
+    "Roles": "Roles",
     "BiChat": "BI-Chat",
     "KnowledgeBase": "Knowledge Base",
     "Operations": "Operations",
@@ -110,8 +111,34 @@
       "Role": "Role",
       "SelectRole": "Select role",
       "EnterPassword": "Enter password",
-      "DeleteUser": "DeleteUser",
-      "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
+      "Delete": "Delete user",
+      "DeleteConfirmation": "Are you sure you want to delete this user?"
+    }
+  },
+  "Roles": {
+    "Meta": {
+      "List": {
+        "Title": "Roles"
+      },
+      "Edit": {
+        "Title": "Edit role"
+      },
+      "New": {
+        "Title": "New role"
+      }
+    },
+    "List": {
+      "New": "New role",
+      "Name": "Name"
+    },
+    "Single": {
+      "Edit": "Edit role",
+      "Name": {
+        "Label": "Role name",
+        "Placeholder": "Enter the name of the role"
+      },
+      "Delete": "Delete role",
+      "DeleteConfirmation": "Are you sure you want to delete this role?"
     }
   },
   "Projects": {

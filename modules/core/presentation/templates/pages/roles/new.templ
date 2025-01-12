@@ -1,0 +1,80 @@
+package roles
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type CreateFormProps struct {
+	*types.PageContext
+	Role   *viewmodels.Role
+	Errors map[string]string
+}
+
+templ CreateForm(props *CreateFormProps) {
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post="/roles"
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		<div class="flex gap-5 p-6">
+			<div class="flex-1 space-y-5">
+				@card.Card(card.Props{}) {
+					@input.Text(&input.Props{
+						Label:       props.T("Roles.Single.Name.Label"),
+						Placeholder: props.T("Roles.Single.Name.Placeholder"),
+						Attrs: templ.Attributes{
+							"name":  "Name",
+							"value": props.Role.Name,
+						},
+						Error: props.Errors["Name"],
+					})
+				}
+				@card.Card(card.Props{
+					Class:  "space-y-3",
+					Header: card.DefaultHeader("User management"),
+				}) {
+					@Permission(SharedProps{
+						Label:   "Add users",
+						Name:    "CanManageUsers",
+						Error:   props.Errors["CanManageUsers"],
+						Checked: false,
+					})
+					@Permission(SharedProps{
+						Label:   "Edit users",
+						Name:    "CanManageUsers",
+						Error:   props.Errors["CanManageUsers"],
+						Checked: false,
+					})
+					@Permission(SharedProps{
+						Label:   "Delete users",
+						Name:    "CanManageUsers",
+						Error:   props.Errors["CanManageUsers"],
+						Checked: false,
+					})
+				}
+			</div>
+		</div>
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ props.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreateFormProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
+	}
+}
