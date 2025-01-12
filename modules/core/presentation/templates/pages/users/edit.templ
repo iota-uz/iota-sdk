@@ -165,8 +165,8 @@ templ Edit(props *EditFormProps) {
 	@layouts.Authenticated(props.PageContext) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading: props.T("Users.Single.DeleteUser"),
-			Text:    props.T("Users.Single.DeleteUserConfirmation"),
+			Heading: props.T("Users.Single.Delete"),
+			Text:    props.T("Users.Single.DeleteConfirmation"),
 			Icon:    icons.Trash(icons.Props{Size: "20"}),
 			Action:  "open-delete-user-confirmation",
 			Attrs: templ.Attributes{

@@ -63,6 +63,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
 		controllers.NewUsersController(app),
+		controllers.NewRolesController(app),
 		controllers.NewEmployeeController(app),
 		controllers.NewBiChatController(app),
 	)
