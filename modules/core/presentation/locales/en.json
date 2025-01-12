@@ -34,6 +34,113 @@
       "Home": "Home"
     }
   },
+  "Resources": {
+    "user": "User",
+    "role": "Role",
+    "account": "Account",
+    "project": "Project",
+    "stage": "Stage",
+    "employee": "Employee",
+    "settings": "Settings",
+    "payment": "Payment",
+    "expense": "Expense",
+    "expense_category": "Expense category",
+    "product": "Product",
+    "unit": "Unit",
+    "position": "Position",
+    "order": "Order",
+    "inventory": "Inventory"
+  },
+  "Permissions": {
+    "User": {
+      "Create": "Create user",
+      "Read": "Read user",
+      "Update": "Update user",
+      "Delete": "Delete user"
+    },
+    "Role": {
+      "Create": "Create role",
+      "Read": "Read role",
+      "Update": "Update role",
+      "Delete": "Delete role"
+    },
+    "Account": {
+      "Create": "Create account",
+      "Read": "Read account",
+      "Update": "Update account",
+      "Delete": "Delete account"
+    },
+    "Project": {
+      "Create": "Create project",
+      "Read": "Read project",
+      "Update": "Update project",
+      "Delete": "Delete project"
+    },
+    "Stage": {
+      "Create": "Create stage",
+      "Read": "Read stage",
+      "Update": "Update stage",
+      "Delete": "Delete stage"
+    },
+    "Employee": {
+      "Create": "Create employee",
+      "Read": "Read employee",
+      "Update": "Update employee",
+      "Delete": "Delete employee"
+    },
+    "Settings": {
+      "Update": "Update settings",
+      "Read": "Read settings"
+    },
+    "Payment": {
+      "Create": "Create payment",
+      "Read": "Read payment",
+      "Update": "Update payment",
+      "Delete": "Delete payment"
+    },
+    "Expense": {
+      "Create": "Create expense",
+      "Read": "Read expense",
+      "Update": "Update expense",
+      "Delete": "Delete expense"
+    },
+    "ExpenseCategory": {
+      "Create": "Create expense category",
+      "Read": "Read expense category",
+      "Update": "Update expense category",
+      "Delete": "Delete expense category"
+    },
+    "Product": {
+      "Create": "Create product",
+      "Read": "Read product",
+      "Update": "Update product",
+      "Delete": "Delete product"
+    },
+    "Unit": {
+      "Create": "Create unit",
+      "Read": "Read unit",
+      "Update": "Update unit",
+      "Delete": "Delete unit"
+    },
+    "Position": {
+      "Create": "Create position",
+      "Read": "Read position",
+      "Update": "Update position",
+      "Delete": "Delete position"
+    },
+    "Order": {
+      "Create": "Create order",
+      "Read": "Read order",
+      "Update": "Update order",
+      "Delete": "Delete order"
+    },
+    "Inventory": {
+      "Create": "Create inventory",
+      "Read": "Read inventory",
+      "Update": "Update inventory",
+      "Delete": "Delete inventory"
+    }
+  },
   "NavigationLinks": {
     "Dashboard": "Dashboard",
     "Administration": "Administration",
