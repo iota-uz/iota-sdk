@@ -60,7 +60,7 @@ func (m *Module) Register(app application.Application) error {
 		services.NewInventoryService(app.EventPublisher()),
 	)
 
-	app.RegisterPermissions(
+	app.RBAC().Register(
 		permissions.ProductCreate,
 		permissions.ProductRead,
 		permissions.ProductUpdate,

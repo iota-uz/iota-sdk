@@ -7,7 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"strings"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -21,16 +21,18 @@ const (
 			r.name, 
 			r.description, 
 			r.created_at, 
-			r.updated_at,
+			r.updated_at
+		FROM roles r`
+	rolePermissionsQuery = `
+		SELECT 
 			p.id,
 			p.name,
 			p.resource,
 			p.action,
 			p.modifier,
-			p.description
-		FROM roles r
-		LEFT JOIN role_permissions rp ON rp.role_id = r.id
-		LEFT JOIN permissions p ON p.id = rp.permission_id`
+			p.description,
+			rp.role_id
+		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
 	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles`
 	roleInsertQuery            = `INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id`
 	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4`
@@ -50,32 +52,16 @@ func NewRoleRepository() role.Repository {
 
 func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.FindParams) ([]role.Role, error) {
 	where, args := []string{"1 = 1"}, []interface{}{}
-	var joins []string
-
-	if params.UserID != 0 {
-		joins = append(joins, fmt.Sprintf(
-			"INNER JOIN user_roles ur ON ur.role_id = r.id AND ur.user_id = $%d",
-			len(args)+1,
-		))
-		args = append(args, params.UserID)
-	}
-
 	if params.Name != "" {
 		where = append(where, fmt.Sprintf("r.name = $%d", len(args)+1))
 		args = append(args, params.Name)
 	}
 
-	query := roleFindQuery + "\n" +
-		strings.Join(joins, "\n") + "\n" +
-		"WHERE " + strings.Join(where, " AND ")
-
-	if params.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", params.Limit)
-	}
-	if params.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", params.Offset)
-	}
-
+	query := repo.Join(
+		roleFindQuery,
+		repo.JoinWhere(where...),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
 	return g.queryRoles(ctx, query, args...)
 }
 
@@ -171,6 +157,41 @@ func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
 	return g.execQuery(ctx, roleDeleteQuery, id)
 }
 
+func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uint) (map[uint][]*models.Permission, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, rolePermissionsQuery, roleIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uint][]*models.Permission)
+	for rows.Next() {
+		var roleID uint
+		var p models.Permission
+		if err := rows.Scan(
+			&p.ID,
+			&p.Name,
+			&p.Resource,
+			&p.Action,
+			&p.Modifier,
+			&p.Description,
+			&roleID,
+		); err != nil {
+			return nil, err
+		}
+		result[roleID] = append(result[roleID], &p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args ...interface{}) ([]role.Role, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -183,12 +204,10 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 	}
 	defer rows.Close()
 
-	roleMap := make(map[uint]*models.Role)
-	permissionMap := make(map[uint][]*models.Permission)
+	var dbRoles []*models.Role
 
 	for rows.Next() {
 		var r models.Role
-		var p models.Permission
 
 		if err := rows.Scan(
 			&r.ID,
@@ -196,36 +215,32 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 			&r.Description,
 			&r.CreatedAt,
 			&r.UpdatedAt,
-			&p.ID,
-			&p.Name,
-			&p.Resource,
-			&p.Action,
-			&p.Modifier,
-			&p.Description,
 		); err != nil {
 			return nil, err
 		}
-
-		if _, ok := roleMap[r.ID]; !ok {
-			roleMap[r.ID] = &r
-		}
-
-		permissionMap[r.ID] = append(permissionMap[r.ID], &p)
+		dbRoles = append(dbRoles, &r)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	roles := make([]role.Role, 0, len(roleMap))
-	for id, r := range roleMap {
-		domainRole, err := toDomainRole(r, permissionMap[id])
+	ids := make([]uint, 0, len(dbRoles))
+	for _, dbRole := range dbRoles {
+		ids = append(ids, dbRole.ID)
+	}
+	permissionsMap, err := g.queryPermissions(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	roles := make([]role.Role, 0, len(dbRoles))
+	for _, dbRole := range dbRoles {
+		entity, err := toDomainRole(dbRole, permissionsMap[dbRole.ID])
 		if err != nil {
 			return nil, err
 		}
-		roles = append(roles, domainRole)
+		roles = append(roles, entity)
 	}
-
 	return roles, nil
 }
 
