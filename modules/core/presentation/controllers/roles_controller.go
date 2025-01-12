@@ -184,10 +184,31 @@ func (c *RolesController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	permissionsGroupedByResource := make(map[string][]*permission.Permission)
+	for _, perm := range c.app.Permissions() {
+		resource := string(perm.Resource)
+		permissionsGroupedByResource[resource] = append(permissionsGroupedByResource[resource], perm)
+	}
+	var permissionGroups []*roles.Group
+	for resource, permissions := range permissionsGroupedByResource {
+		var children []*roles.Child
+		for _, perm := range permissions {
+			children = append(children, &roles.Child{
+				Name:    perm.ID.String(),
+				Label:   perm.Name,
+				Checked: false,
+			})
+		}
+		permissionGroups = append(permissionGroups, &roles.Group{
+			Label:    resource,
+			Children: children,
+		})
+	}
 	props := &roles.CreateFormProps{
-		PageContext: pageCtx,
-		Role:        &viewmodels.Role{},
-		Errors:      map[string]string{},
+		PageContext:      pageCtx,
+		Role:             &viewmodels.Role{},
+		PermissionGroups: permissionGroups,
+		Errors:           map[string]string{},
 	}
 	templ.Handler(roles.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

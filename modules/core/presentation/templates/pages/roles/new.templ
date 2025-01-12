@@ -1,6 +1,7 @@
 package roles
 
 import (
+	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
@@ -11,8 +12,9 @@ import (
 
 type CreateFormProps struct {
 	*types.PageContext
-	Role   *viewmodels.Role
-	Errors map[string]string
+	Role             *viewmodels.Role
+	PermissionGroups []*Group
+	Errors           map[string]string
 }
 
 templ CreateForm(props *CreateFormProps) {
@@ -35,28 +37,20 @@ templ CreateForm(props *CreateFormProps) {
 						Error: props.Errors["Name"],
 					})
 				}
-				@card.Card(card.Props{
-					Class:  "space-y-3",
-					Header: card.DefaultHeader("User management"),
-				}) {
-					@Permission(SharedProps{
-						Label:   "Add users",
-						Name:    "CanManageUsers",
-						Error:   props.Errors["CanManageUsers"],
-						Checked: false,
-					})
-					@Permission(SharedProps{
-						Label:   "Edit users",
-						Name:    "CanManageUsers",
-						Error:   props.Errors["CanManageUsers"],
-						Checked: false,
-					})
-					@Permission(SharedProps{
-						Label:   "Delete users",
-						Name:    "CanManageUsers",
-						Error:   props.Errors["CanManageUsers"],
-						Checked: false,
-					})
+				for _, group := range props.PermissionGroups {
+					@card.Card(card.Props{
+						Class:  "space-y-3",
+						Header: card.DefaultHeader(props.T(fmt.Sprintf("Resources.%s", group.Label))),
+					}) {
+						for _, child := range group.Children {
+							@Permission(SharedProps{
+								Label:   props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+								Name:    child.Name,
+								Error:   props.Errors[child.Name],
+								Checked: child.Checked,
+							})
+						}
+					}
 				}
 			</div>
 		</div>
