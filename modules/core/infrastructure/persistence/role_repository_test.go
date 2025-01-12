@@ -13,7 +13,7 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 
 	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
-	if err := permissionRepository.Create(f.ctx, permissions.PositionCreate); err != nil {
+	if err := permissionRepository.Save(f.ctx, permissions.PositionCreate); err != nil {
 		t.Fatal(err)
 	}
 
