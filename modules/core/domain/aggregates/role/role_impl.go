@@ -104,6 +104,17 @@ func (r *role) AddPermission(p *permission.Permission) Role {
 	}
 }
 
+func (r *role) SetPermissions(permissions []*permission.Permission) Role {
+	return &role{
+		id:          r.id,
+		name:        r.name,
+		description: r.description,
+		permissions: permissions,
+		createdAt:   r.createdAt,
+		updatedAt:   time.Now(),
+	}
+}
+
 func (r *role) Can(perm *permission.Permission) bool {
 	for _, p := range r.permissions {
 		if p.Equals(*perm) {

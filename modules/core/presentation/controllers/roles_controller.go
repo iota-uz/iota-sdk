@@ -5,7 +5,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
@@ -112,9 +111,10 @@ func (c *RolesController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &roles.EditFormProps{
-		PageContext: pageCtx,
-		Role:        mappers.RoleToViewModel(roleEntity),
-		Errors:      map[string]string{},
+		PageContext:      pageCtx,
+		Role:             mappers.RoleToViewModel(roleEntity),
+		PermissionGroups: c.permissionGroups(roleEntity.Permissions()...),
+		Errors:           map[string]string{},
 	}
 	templ.Handler(roles.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -139,7 +139,7 @@ func (c *RolesController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto, err := composables.UseForm(&user.UpdateDTO{}, r)
+	dto, err := composables.UseForm(&UpdateRoleDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -151,34 +151,42 @@ func (c *RolesController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	roleEntity, err := c.roleService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		return
+	}
 	if errors, ok := dto.Ok(r.Context()); !ok {
-		roleEntity, err := c.roleService.GetByID(r.Context(), id)
-		if err != nil {
-			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
-			return
-		}
-
 		props := &roles.EditFormProps{
-			PageContext: pageCtx,
-			Role:        mappers.RoleToViewModel(roleEntity),
-			Errors:      errors,
+			PageContext:      pageCtx,
+			Role:             mappers.RoleToViewModel(roleEntity),
+			PermissionGroups: c.permissionGroups(roleEntity.Permissions()...),
+			Errors:           errors,
 		}
 		templ.Handler(roles.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-	//userEntity, err := dto.ToEntity(id)
-	//if err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
-	//if err := c.roleService.Update(r.Context(), userEntity); err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
+	updatedEntity, err := dto.ToEntity(roleEntity, c.app.RBAC())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.roleService.Update(r.Context(), updatedEntity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *RolesController) permissionGroups() []*roles.Group {
+func (c *RolesController) permissionGroups(selected ...*permission.Permission) []*roles.Group {
+	isSelected := func(p2 *permission.Permission) bool {
+		for _, p1 := range selected {
+			if p1.ID == p2.ID {
+				return true
+			}
+		}
+		return false
+	}
 	groupedByResource := make(map[string][]*permission.Permission)
 	for _, perm := range c.app.RBAC().Permissions() {
 		resource := string(perm.Resource)
@@ -191,7 +199,7 @@ func (c *RolesController) permissionGroups() []*roles.Group {
 			children = append(children, &roles.Child{
 				Name:    fmt.Sprintf("Permissions[%s]", perm.ID.String()),
 				Label:   perm.Name,
-				Checked: false,
+				Checked: isSelected(perm),
 			})
 		}
 		groups = append(groups, &roles.Group{

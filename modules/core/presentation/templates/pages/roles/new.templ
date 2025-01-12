@@ -44,8 +44,10 @@ templ CreateForm(props *CreateFormProps) {
 					}) {
 						for _, child := range group.Children {
 							@Permission(SharedProps{
-								Label:   props.T(fmt.Sprintf("Permissions.%s", child.Label)),
-								Name:    child.Name,
+								Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+								Attrs: templ.Attributes{
+									"name": child.Name,
+								},
 								Error:   props.Errors[child.Name],
 								Checked: child.Checked,
 							})
