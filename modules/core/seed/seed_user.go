@@ -66,7 +66,7 @@ func createOrUpdateRole(ctx context.Context, app application.Application) (role.
 	newRole, err := role.New(
 		roleName,
 		"Administrator",
-		app.Permissions(),
+		app.RBAC().Permissions(),
 	)
 	if err != nil {
 		return nil, err

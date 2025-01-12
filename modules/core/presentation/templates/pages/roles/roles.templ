@@ -1,4 +1,4 @@
-package users
+package roles
 
 import (
 	"fmt"
@@ -13,56 +13,25 @@ import (
 
 type IndexPageProps struct {
 	*types.PageContext
-	Users []*viewmodels.User
+	Roles []*viewmodels.Role
 }
 
-templ UsersTable(props *IndexPageProps) {
+templ RolesTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: props.T("Users.List.FullName"), Key: "fullName"},
-			{Label: props.T("Users.List.Roles"), Key: "roles"},
-			{Label: props.T("Users.List.Email"), Key: "email"},
+			{Label: props.T("Roles.List.Name"), Key: "name"},
 			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
 			{Label: props.T("Actions"), Class: "w-16"},
 		},
 	}) {
-		for _, user := range props.Users {
+		for _, role := range props.Roles {
 			@base.TableRow() {
 				@base.TableCell() {
-					<div class="flex items-center gap-3">
-						if user.Avatar != nil && user.Avatar.URL != "" {
-							<img
-								src={ user.Avatar.URL }
-								class="w-8 h-8 object-cover rounded-full"
-								alt="User Avatar"
-							/>
-						} else {
-							<div class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm">
-								{ string(user.FirstName[0]) }
-							</div>
-						}
-						<span>
-							{ user.FullName() }
-						</span>
-					</div>
-				}
-				@base.TableCell() {
-					if user.LastAction != "" {
-						<div>
-							{ user.RolesVerbose() }
-						</div>
-					} else {
-						{ props.T("Unknown") }
-					}
-				}
-				@base.TableCell() {
-					<div>
-						{ user.Email }
-					</div>
+					{ role.Name }
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">
-						<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt) }></span>
+						<span x-text={ fmt.Sprintf("format('%s')", role.UpdatedAt) }></span>
 					</div>
 				}
 				@base.TableCell() {
@@ -70,7 +39,7 @@ templ UsersTable(props *IndexPageProps) {
 						Fixed: true,
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/users/%s", user.ID),
+						Href:  fmt.Sprintf("/roles/%s", role.ID),
 					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
@@ -80,15 +49,15 @@ templ UsersTable(props *IndexPageProps) {
 	}
 }
 
-templ UsersContent(props *IndexPageProps) {
+templ RolesContent(props *IndexPageProps) {
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Users") }
+			{ props.T("NavigationLinks.Roles") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
-				hx-get="/users"
+				hx-get="/roles"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target="table"
 				hx-swap="outerHTML"
@@ -119,19 +88,19 @@ templ UsersContent(props *IndexPageProps) {
 				}
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
-					Href: "/users/new",
+					Href: "/roles/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Users.List.New") }
+					{ props.T("Roles.List.New") }
 				}
 			</form>
-			@UsersTable(props)
+			@RolesTable(props)
 		</div>
 	</div>
 }
 
 templ Index(props *IndexPageProps) {
 	@layouts.Authenticated(props.PageContext) {
-		@UsersContent(props)
+		@RolesContent(props)
 	}
 }

@@ -86,7 +86,7 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	app.RegisterPermissions(permissions.Permissions...)
+	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	return nil
