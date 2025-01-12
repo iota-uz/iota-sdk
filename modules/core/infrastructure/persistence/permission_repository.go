@@ -20,8 +20,8 @@ const (
 	permissionsSelectQuery = `SELECT id, name, resource, action, modifier FROM permissions`
 	permissionsCountQuery  = `SELECT COUNT(*) FROM permissions`
 	permissionsInsertQuery = `
-		INSERT INTO permissions (name, resource, action, modifier)
-		VALUES ($1, $2, $3, $4) 
+		INSERT INTO permissions (id, name, resource, action, modifier)
+		VALUES ($1, $2, $3, $4, $5) 
 		ON CONFLICT (name) DO UPDATE SET resource = permissions.resource
 		RETURNING id`
 	permissionsUpdateQuery = `
@@ -35,50 +35,6 @@ type GormPermissionRepository struct{}
 
 func NewPermissionRepository() permission.Repository {
 	return &GormPermissionRepository{}
-}
-
-func (g *GormPermissionRepository) queryPermissions(
-	ctx context.Context,
-	query string,
-	args ...interface{},
-) ([]*permission.Permission, error) {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := tx.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var permissions []*permission.Permission
-
-	for rows.Next() {
-		var p models.Permission
-
-		if err := rows.Scan(
-			&p.ID,
-			&p.Name,
-			&p.Resource,
-			&p.Action,
-			&p.Modifier,
-			&p.Description,
-		); err != nil {
-			return nil, err
-		}
-
-		domainPermission, err := toDomainPermission(&p)
-		if err != nil {
-			return nil, err
-		}
-		permissions = append(permissions, domainPermission)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return permissions, nil
 }
 
 func (g *GormPermissionRepository) GetPaginated(
@@ -155,18 +111,7 @@ func (g *GormPermissionRepository) GetByID(ctx context.Context, id string) (*per
 	return permissions[0], nil
 }
 
-func (g *GormPermissionRepository) CreateOrUpdate(ctx context.Context, data *permission.Permission) error {
-	_, err := g.GetByID(ctx, data.ID.String())
-	if err != nil && !errors.Is(err, ErrPermissionNotFound) {
-		return err
-	}
-	if errors.Is(err, ErrPermissionNotFound) {
-		return g.Create(ctx, data)
-	}
-	return g.Update(ctx, data)
-}
-
-func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.Permission) error {
+func (g *GormPermissionRepository) Save(ctx context.Context, data *permission.Permission) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -175,6 +120,7 @@ func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.
 	if err := tx.QueryRow(
 		ctx,
 		permissionsInsertQuery,
+		dbPerm.ID,
 		dbPerm.Name,
 		dbPerm.Resource,
 		dbPerm.Action,
@@ -185,36 +131,62 @@ func (g *GormPermissionRepository) Create(ctx context.Context, data *permission.
 	return nil
 }
 
-func (g *GormPermissionRepository) Update(ctx context.Context, data *permission.Permission) error {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
+func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error {
+	if err := uuid.Validate(id); err != nil {
 		return err
 	}
-	dbPerm := toDBPermission(data)
-	if _, err := tx.Exec(
-		ctx,
-		permissionsUpdateQuery,
-		dbPerm.Name,
-		dbPerm.Resource,
-		dbPerm.Action,
-		dbPerm.Modifier,
-		dbPerm.ID,
-	); err != nil {
-		return err
-	}
-	return nil
+	return g.execQuery(ctx, permissionsDeleteQuery, id)
 }
 
-func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error {
+func (g *GormPermissionRepository) queryPermissions(
+	ctx context.Context,
+	query string,
+	args ...interface{},
+) ([]*permission.Permission, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var permissions []*permission.Permission
+
+	for rows.Next() {
+		var p models.Permission
+
+		if err := rows.Scan(
+			&p.ID,
+			&p.Name,
+			&p.Resource,
+			&p.Action,
+			&p.Modifier,
+			&p.Description,
+		); err != nil {
+			return nil, err
+		}
+
+		domainPermission, err := toDomainPermission(&p)
+		if err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, domainPermission)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return permissions, nil
+}
+
+func (g *GormPermissionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := uuid.Parse(id); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, permissionsDeleteQuery, id); err != nil {
-		return err
-	}
-	return nil
+	_, err = tx.Exec(ctx, query, args...)
+	return err
 }

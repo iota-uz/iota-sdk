@@ -81,7 +81,7 @@ func New(pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
 type application struct {
 	pool           *pgxpool.Pool
 	eventPublisher event.Publisher
-	rbac           *permission.Rbac
+	rbac           permission.RBAC
 	services       map[reflect.Type]interface{}
 	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
@@ -116,16 +116,12 @@ func (app *application) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (app *application) Permissions() []*permission.Permission {
-	return app.rbac.Permissions()
+func (app *application) RBAC() permission.RBAC {
+	return app.rbac
 }
 
 func (app *application) Middleware() []mux.MiddlewareFunc {
 	return app.middleware
-}
-
-func (app *application) RegisterPermissions(permissions ...*permission.Permission) {
-	app.rbac.Register(permissions...)
 }
 
 func (app *application) DB() *pgxpool.Pool {
@@ -344,9 +340,6 @@ func (app *application) RunMigrations() error {
 		return err
 	}
 	log.Printf("Applied %d migrations", applied)
-
-	var r string
-	db.QueryRow("SELECT COUNT(*) FROM gorp_migrations").Scan(&r)
 	return nil
 }
 
@@ -364,8 +357,6 @@ func (app *application) RollbackMigrations() error {
 		Migrations: migrations,
 	}
 	ms := migrate.MigrationSet{}
-	var r string
-	db.QueryRow("SELECT COUNT(*) FROM gorp_migrations").Scan(&r)
 	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Down, 0)
 	if err != nil {
 		return err

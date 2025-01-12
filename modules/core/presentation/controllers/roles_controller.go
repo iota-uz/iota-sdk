@@ -1,15 +1,14 @@
 package controllers
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
-	"net/http"
-
+	"fmt"
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -18,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"net/http"
 )
 
 type RolesController struct {
@@ -178,43 +178,47 @@ func (c *RolesController) Update(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
+func (c *RolesController) permissionGroups() []*roles.Group {
+	groupedByResource := make(map[string][]*permission.Permission)
+	for _, perm := range c.app.RBAC().Permissions() {
+		resource := string(perm.Resource)
+		groupedByResource[resource] = append(groupedByResource[resource], perm)
+	}
+	groups := make([]*roles.Group, 0, len(groupedByResource))
+	for resource, permissions := range groupedByResource {
+		var children []*roles.Child
+		for _, perm := range permissions {
+			children = append(children, &roles.Child{
+				Name:    fmt.Sprintf("Permissions[%s]", perm.ID.String()),
+				Label:   perm.Name,
+				Checked: false,
+			})
+		}
+		groups = append(groups, &roles.Group{
+			Label:    resource,
+			Children: children,
+		})
+	}
+	return groups
+}
+
 func (c *RolesController) GetNew(w http.ResponseWriter, r *http.Request) {
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Roles.Meta.New.Title", ""))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	permissionsGroupedByResource := make(map[string][]*permission.Permission)
-	for _, perm := range c.app.Permissions() {
-		resource := string(perm.Resource)
-		permissionsGroupedByResource[resource] = append(permissionsGroupedByResource[resource], perm)
-	}
-	var permissionGroups []*roles.Group
-	for resource, permissions := range permissionsGroupedByResource {
-		var children []*roles.Child
-		for _, perm := range permissions {
-			children = append(children, &roles.Child{
-				Name:    perm.ID.String(),
-				Label:   perm.Name,
-				Checked: false,
-			})
-		}
-		permissionGroups = append(permissionGroups, &roles.Group{
-			Label:    resource,
-			Children: children,
-		})
-	}
 	props := &roles.CreateFormProps{
 		PageContext:      pageCtx,
 		Role:             &viewmodels.Role{},
-		PermissionGroups: permissionGroups,
+		PermissionGroups: c.permissionGroups(),
 		Errors:           map[string]string{},
 	}
 	templ.Handler(roles.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *RolesController) Create(w http.ResponseWriter, r *http.Request) {
-	dto, err := composables.UseForm(&user.CreateDTO{}, r)
+	dto, err := composables.UseForm(&CreateRoleDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -227,36 +231,30 @@ func (c *RolesController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
-		//userEntity, err := dto.ToEntity()
-		//if err != nil {
-		//	http.Error(w, err.Error(), http.StatusInternalServerError)
-		//	return
-		//}
-		roleEntity, err := role.New("", "", []*permission.Permission{})
+		roleEntity, err := dto.ToEntity(c.app.RBAC())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		props := &roles.CreateFormProps{
-			PageContext: pageCtx,
-			Role:        mappers.RoleToViewModel(roleEntity),
-			Errors:      errors,
+			PageContext:      pageCtx,
+			Role:             mappers.RoleToViewModel(roleEntity),
+			PermissionGroups: c.permissionGroups(),
+			Errors:           errors,
 		}
-		templ.Handler(
-			roles.CreateForm(props), templ.WithStreaming(),
-		).ServeHTTP(w, r)
+		templ.Handler(roles.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-	//
-	//userEntity, err := dto.ToEntity()
-	//if err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
-	//if err := c.roleService.Create(r.Context(), userEntity); err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
+
+	roleEntity, err := dto.ToEntity(c.app.RBAC())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.roleService.Create(r.Context(), roleEntity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	shared.Redirect(w, r, c.basePath)
 }
