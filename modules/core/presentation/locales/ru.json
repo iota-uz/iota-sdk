@@ -87,10 +87,15 @@
       "FullName": "Полное имя",
       "LastAction": "Последнее действие"
     },
+    "Cards": {
+      "PersonalInfo": "Персональные данные",
+      "UserInfo": "Данные аккаунта"
+    },
     "Single": {
       "EditUser": "Редактировать пользователя",
       "FirstName": "Имя",
       "LastName": "Фамилия",
+      "MiddleName": "Отчество",
       "Email": "Электронная почта",
       "Password": "Пароль",
       "Language": "Язык",

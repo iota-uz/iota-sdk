@@ -92,10 +92,15 @@
       "FullName": "Full name",
       "LastAction": "Last action"
     },
+    "Cards": {
+      "PersonalInfo": "Personal information",
+      "UserInfo": "User information"
+    },
     "Single": {
       "EditUser": "Edit user",
       "FirstName": "First name",
       "LastName": "Last name",
+      "MiddleName": "Middle name",
       "Email": "Email",
       "Password": "Password",
       "Language": "Language",
