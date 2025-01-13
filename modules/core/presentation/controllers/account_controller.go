@@ -118,7 +118,7 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	entity, err := dto.ToEntity(u.ID())
+	entity, err := dto.Apply(u)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

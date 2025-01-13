@@ -211,7 +211,7 @@ func (u *user) CheckPassword(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(u.password), []byte(password)) == nil
 }
 
-func (u *user) SetName(firstName, middleName, lastName string) User {
+func (u *user) SetName(firstName, lastName, middleName string) User {
 	return &user{
 		id:         u.id,
 		firstName:  firstName,
@@ -244,6 +244,90 @@ func (u *user) SetEmail(email string) User {
 		avatar:     u.avatar,
 		employeeID: u.employeeID,
 		lastIP:     u.lastIP,
+		uiLanguage: u.uiLanguage,
+		roles:      u.roles,
+		lastLogin:  u.lastLogin,
+		lastAction: u.lastAction,
+		createdAt:  u.createdAt,
+		updatedAt:  time.Now(),
+	}
+}
+
+func (u *user) SetUILanguage(lang UILanguage) User {
+	return &user{
+		id:         u.id,
+		firstName:  u.firstName,
+		lastName:   u.lastName,
+		middleName: u.middleName,
+		password:   u.password,
+		email:      u.email,
+		avatarID:   u.avatarID,
+		avatar:     u.avatar,
+		employeeID: u.employeeID,
+		lastIP:     u.lastIP,
+		uiLanguage: lang,
+		roles:      u.roles,
+		lastLogin:  u.lastLogin,
+		lastAction: u.lastAction,
+		createdAt:  u.createdAt,
+		updatedAt:  time.Now(),
+	}
+}
+
+func (u *user) SetAvatarID(id uint) User {
+	return &user{
+		id:         u.id,
+		firstName:  u.firstName,
+		lastName:   u.lastName,
+		middleName: u.middleName,
+		password:   u.password,
+		email:      u.email,
+		avatarID:   id,
+		avatar:     u.avatar,
+		employeeID: u.employeeID,
+		lastIP:     u.lastIP,
+		uiLanguage: u.uiLanguage,
+		roles:      u.roles,
+		lastLogin:  u.lastLogin,
+		lastAction: u.lastAction,
+		createdAt:  u.createdAt,
+		updatedAt:  time.Now(),
+	}
+}
+
+func (u *user) SetEmployeeID(id uint) User {
+	return &user{
+		id:         u.id,
+		firstName:  u.firstName,
+		lastName:   u.lastName,
+		middleName: u.middleName,
+		password:   u.password,
+		email:      u.email,
+		avatarID:   u.avatarID,
+		avatar:     u.avatar,
+		employeeID: id,
+		lastIP:     u.lastIP,
+		uiLanguage: u.uiLanguage,
+		roles:      u.roles,
+		lastLogin:  u.lastLogin,
+		lastAction: u.lastAction,
+		createdAt:  u.createdAt,
+		updatedAt:  time.Now(),
+	}
+}
+
+func (u *user) SetLastIP(ip string) User {
+	return &user{
+		id:         u.id,
+		firstName:  u.firstName,
+		lastName:   u.lastName,
+		middleName: u.middleName,
+		password:   u.password,
+		email:      u.email,
+		avatarID:   u.avatarID,
+		avatar:     u.avatar,
+		employeeID: u.employeeID,
+		lastIP:     ip,
 		uiLanguage: u.uiLanguage,
 		roles:      u.roles,
 		lastLogin:  u.lastLogin,

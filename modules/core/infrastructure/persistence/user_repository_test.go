@@ -27,7 +27,7 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := permissionRepository.Create(f.ctx, permission.UserRead); err != nil {
+	if err := permissionRepository.Save(f.ctx, permission.UserRead); err != nil {
 		t.Fatal(err)
 	}
 
@@ -43,7 +43,7 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		"test@gmail.com",
 		nil,
 		0,
-		"",
+		user.UILanguageEN,
 		[]role.Role{roleEntity},
 	)
 
@@ -112,18 +112,18 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 				)
 			}
 
-			if dbUser.LastName() != "Smith" {
+			if dbUser.LastName() != "Karen" {
 				t.Errorf(
 					"expected %s, got %s",
-					"Smith",
+					"Karen",
 					dbUser.LastName(),
 				)
 			}
 
-			if dbUser.MiddleName() != "Karen" {
+			if dbUser.MiddleName() != "Smith" {
 				t.Errorf(
 					"expected %s, got %s",
-					"Karen",
+					"Smith",
 					dbUser.MiddleName(),
 				)
 			}
