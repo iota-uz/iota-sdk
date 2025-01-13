@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -348,7 +349,7 @@ func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.Authent
 	}
 }
 
-func toDBChatCompletionMessage(messages []dialogue.ChatCompletionMessage) (string, error) {
+func toDBChatCompletionMessage(messages []llm.ChatCompletionMessage) (string, error) {
 	bytes, err := json.Marshal(messages)
 	if err != nil {
 		return "", err
@@ -356,8 +357,8 @@ func toDBChatCompletionMessage(messages []dialogue.ChatCompletionMessage) (strin
 	return string(bytes), nil
 }
 
-func toDomainChatCompletionMessage(dbMessages string) ([]dialogue.ChatCompletionMessage, error) {
-	var messages []dialogue.ChatCompletionMessage
+func toDomainChatCompletionMessage(dbMessages string) ([]llm.ChatCompletionMessage, error) {
+	var messages []llm.ChatCompletionMessage
 	if err := json.Unmarshal([]byte(dbMessages), &messages); err != nil {
 		return nil, err
 	}

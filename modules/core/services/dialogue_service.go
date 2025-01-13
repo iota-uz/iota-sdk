@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/llmproviders"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"io"
 	"log"
+	"time"
 
 	localComposables "github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -16,10 +20,11 @@ import (
 )
 
 type DialogueService struct {
-	repo          dialogue.Repository
-	eventBus      eventbus.EventBus
-	chatFuncs     *functions.ChatTools
-	promptService *PromptService
+	repo           dialogue.Repository
+	eventBus       eventbus.EventBus
+	chatFuncs      *functions.ChatTools
+	openaiProvider *llmproviders.OpenAIProvider
+	//promptService  *PromptService
 }
 
 var (
@@ -34,10 +39,11 @@ func NewDialogueService(repo dialogue.Repository, app application.Application) *
 	// chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.DB))
 	chatFuncs.Add(NewSearchKnowledgeBase(app.Service(EmbeddingService{}).(*EmbeddingService)))
 	return &DialogueService{
-		repo:          repo,
-		eventBus:      app.EventPublisher(),
-		chatFuncs:     chatFuncs,
-		promptService: app.Service(PromptService{}).(*PromptService),
+		repo:      repo,
+		eventBus:  app.EventPublisher(),
+		chatFuncs: chatFuncs,
+		//promptService:  app.Service(PromptService{}).(*PromptService),
+		openaiProvider: llmproviders.NewOpenAIProvider(configuration.Use().OpenAIKey),
 	}
 }
 
@@ -45,33 +51,31 @@ func (s *DialogueService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *DialogueService) GetAll(ctx context.Context) ([]*dialogue.Dialogue, error) {
+func (s *DialogueService) GetAll(ctx context.Context) ([]dialogue.Dialogue, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *DialogueService) GetUserDialogues(ctx context.Context, userID int64) ([]*dialogue.Dialogue, error) {
+func (s *DialogueService) GetUserDialogues(ctx context.Context, userID uint) ([]dialogue.Dialogue, error) {
 	return s.repo.GetByUserID(ctx, userID)
 }
 
-func (s *DialogueService) GetByID(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
+func (s *DialogueService) GetByID(ctx context.Context, id uint) (dialogue.Dialogue, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *DialogueService) GetPaginated(
 	ctx context.Context,
-	limit, offset int,
-	sortBy []string,
-) ([]*dialogue.Dialogue, error) {
-	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+	params *dialogue.FindParams,
+) ([]dialogue.Dialogue, error) {
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *DialogueService) streamCompletions(
 	ctx context.Context,
-	messages []openai.ChatCompletionMessage,
+	messages []llm.ChatCompletionMessage,
 	model string,
 ) (chan openai.ChatCompletionMessage, error) {
-	client := openai.NewClient(configuration.Use().OpenAIKey)
-	stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
+	stream, err := s.openaiProvider.CreateChatCompletionStream(ctx, llm.ChatCompletionRequest{
 		Model:    model,
 		Messages: messages,
 		Tools:    s.chatFuncs.OpenAiTools(),
@@ -137,41 +141,42 @@ func (s *DialogueService) streamCompletions(
 	return ch, nil
 }
 
-// func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error) {
-//	ch := make(chan openai.ChatCompletionMessage)
-//	msg := "Hello, how can I help you?"
-//	go func() {
-//		for i, _ := range msg {
-//			ch <- openai.ChatCompletionMessage{
-//				Role:    openai.ChatMessageRoleAssistant,
-//				Content: msg[:i+1],
-//			}
-//			time.Sleep(40 * time.Millisecond)
-//		}
-//	}()
-//	return ch, nil
-//}
+func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error) {
+	ch := make(chan openai.ChatCompletionMessage)
+	msg := "Hello, how can I help you?"
+	go func() {
+		for i, _ := range msg {
+			ch <- openai.ChatCompletionMessage{
+				Role:    openai.ChatMessageRoleAssistant,
+				Content: msg[:i+1],
+			}
+			time.Sleep(40 * time.Millisecond)
+		}
+	}()
+	return ch, nil
+}
 
-func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialogue, model string) error {
+func (s *DialogueService) ChatComplete(ctx context.Context, data dialogue.Dialogue, model string) error {
 	for range 10 {
-		ch, err := s.streamCompletions(ctx, data.Messages, model)
+		//ch, err := s.streamCompletions(ctx, data.Messages(), model)
+		ch, err := s.fakeStream()
 		if err != nil {
 			return err
 		}
-		data.AddMessage(openai.ChatCompletionMessage{
+		data = data.AddMessages(llm.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: "",
 		})
 		for m := range ch {
-			data.Messages[len(data.Messages)-1] = m
+			data.SetLastMessage(llmproviders.OpenAIChatCompletionMessageToDomain(m))
 			s.eventBus.Publish(dialogue.UpdatedEvent{
-				Result: *data,
+				Result: data,
 			})
 		}
-		msg := data.Messages[len(data.Messages)-1]
 		if err := s.repo.Update(ctx, data); err != nil {
 			return err
 		}
+		msg := data.LastMessage()
 		if len(msg.ToolCalls) == 0 {
 			break
 		}
@@ -189,7 +194,7 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 			if err != nil {
 				return err
 			}
-			data.AddMessage(dialogue.ChatCompletionMessage{
+			data.AddMessages(llm.ChatCompletionMessage{
 				Role:       openai.ChatMessageRoleTool,
 				ToolCallID: call.ID,
 				Content:    result,
@@ -201,9 +206,9 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 
 func (s *DialogueService) ReplyToDialogue(
 	ctx context.Context,
-	dialogueID int64,
+	dialogueID uint,
 	message, model string,
-) (*dialogue.Dialogue, error) {
+) (dialogue.Dialogue, error) {
 	if len(message) > 1000 {
 		return nil, ErrMessageTooLong
 	}
@@ -214,7 +219,7 @@ func (s *DialogueService) ReplyToDialogue(
 	if err != nil {
 		return nil, err
 	}
-	data.AddMessage(openai.ChatCompletionMessage{
+	data = data.AddMessages(llm.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: message,
 	})
@@ -227,33 +232,38 @@ func (s *DialogueService) ReplyToDialogue(
 	return data, nil
 }
 
-func (s *DialogueService) StartDialogue(ctx context.Context, message string, model string) (*dialogue.Dialogue, error) {
+func (s *DialogueService) StartDialogue(ctx context.Context, message string, model string) (dialogue.Dialogue, error) {
 	if len(message) > 1000 {
 		return nil, ErrMessageTooLong
 	}
 	if model == "" {
 		return nil, ErrModelRequired
 	}
-	prompt, err := s.promptService.GetByID(ctx, "bi-chat")
-	if err != nil {
-		return nil, err
+	p := prompt.Prompt{
+		Prompt: "YOU ARE A HELP FULL ASSISTANT FOR AN ERP USER",
 	}
 	u, err := localComposables.UseUser(ctx)
 	if err != nil {
 		return nil, err
 	}
-	data := &dialogue.Dialogue{
-		UserID: u.ID(),
-		Messages: dialogue.Messages{
-			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt},
-			{Role: openai.ChatMessageRoleUser, Content: message},
+	data := dialogue.New(
+		u.ID(),
+		"Новый чат",
+	).AddMessages(
+		llm.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: p.Prompt,
 		},
-		Label: "Новый чат",
-	}
-	if err := s.repo.Create(ctx, data); err != nil {
+		llm.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: message,
+		},
+	)
+	result, err := s.repo.Create(ctx, data)
+	if err != nil {
 		return nil, err
 	}
-	createdEvent, err := dialogue.NewCreatedEvent(ctx, *data, *data)
+	createdEvent, err := dialogue.NewCreatedEvent(ctx, data, result)
 	if err != nil {
 		return nil, err
 	}
@@ -264,12 +274,11 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	return data, nil
 }
 
-func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) error {
-	tmp := *data
+func (s *DialogueService) Update(ctx context.Context, data dialogue.Dialogue) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	updatedEvent, err := dialogue.NewUpdatedEvent(ctx, tmp, *data)
+	updatedEvent, err := dialogue.NewUpdatedEvent(ctx, data, data)
 	if err != nil {
 		return err
 	}
@@ -277,16 +286,16 @@ func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) e
 	return nil
 }
 
-func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialogue, error) {
+func (s *DialogueService) Delete(ctx context.Context, id uint) (dialogue.Dialogue, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	deletedEvent, err := dialogue.NewDeletedEvent(ctx, *entity)
-	if err != nil {
+	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	deletedEvent, err := dialogue.NewDeletedEvent(ctx, entity)
+	if err != nil {
 		return nil, err
 	}
 	s.eventBus.Publish(deletedEvent)

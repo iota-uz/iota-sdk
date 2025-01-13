@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -139,7 +140,7 @@ func (c *RolesController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto, err := composables.UseForm(&UpdateRoleDTO{}, r)
+	dto, err := composables.UseForm(&dtos.UpdateRoleDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -226,7 +227,7 @@ func (c *RolesController) GetNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *RolesController) Create(w http.ResponseWriter, r *http.Request) {
-	dto, err := composables.UseForm(&CreateRoleDTO{}, r)
+	dto, err := composables.UseForm(&dtos.CreateRoleDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
