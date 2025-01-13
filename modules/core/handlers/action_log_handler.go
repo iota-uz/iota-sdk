@@ -28,7 +28,7 @@ func RegisterActionLogEventHandlers(
 }
 
 func (h *ActionLogEventHandler) onSessionCreated(event user.CreatedEvent) {
-	sess := event.Result
+	//sess := event.Result
 	//logEntity := &authlog.AuthenticationLog{
 	//	ID:        0,
 	//	UserID:    sess.UserID,
