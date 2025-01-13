@@ -265,7 +265,7 @@ func BiChatPage(props *ChatPageProps) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(suggestion)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/bichat/bichat.templ`, Line: 88, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/bichat/bichat.templ`, Line: 93, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -278,7 +278,12 @@ func BiChatPage(props *ChatPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			})
 			templ_7745c5c3_Err = button.Secondary(button.Props{
-				Class: "cursor-pointer justify-between",
+				Class: "cursor-pointer justify-between w-full",
+				Attrs: templ.Attributes{
+					"hx-post": "/bi-chat/new",
+					"value":   suggestion,
+					"name":    "message",
+				},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

@@ -3,7 +3,12 @@ package services
 import (
 	"context"
 	"errors"
+<<<<<<< Updated upstream
 	dialogue2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+=======
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
+>>>>>>> Stashed changes
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
@@ -45,6 +50,7 @@ func (s *DialogueService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
+<<<<<<< Updated upstream
 func (s *DialogueService) GetAll(ctx context.Context) ([]*dialogue2.Dialogue, error) {
 	return s.repo.GetAll(ctx)
 }
@@ -54,15 +60,32 @@ func (s *DialogueService) GetUserDialogues(ctx context.Context, userID int64) ([
 }
 
 func (s *DialogueService) GetByID(ctx context.Context, id int64) (*dialogue2.Dialogue, error) {
+=======
+func (s *DialogueService) GetAll(ctx context.Context) ([]dialogue.Dialogue, error) {
+	return s.repo.GetAll(ctx)
+}
+
+func (s *DialogueService) GetUserDialogues(ctx context.Context, userID int64) ([]dialogue.Dialogue, error) {
+	return s.repo.GetByUserID(ctx, userID)
+}
+
+func (s *DialogueService) GetByID(ctx context.Context, id int64) (dialogue.Dialogue, error) {
+>>>>>>> Stashed changes
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *DialogueService) GetPaginated(
 	ctx context.Context,
+<<<<<<< Updated upstream
 	limit, offset int,
 	sortBy []string,
 ) ([]*dialogue2.Dialogue, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
+=======
+	params *dialogue.FindParams,
+) ([]dialogue.Dialogue, error) {
+	return s.repo.GetPaginated(ctx, params)
+>>>>>>> Stashed changes
 }
 
 func (s *DialogueService) streamCompletions(
@@ -148,13 +171,21 @@ func (s *DialogueService) streamCompletions(
 //	return ch, nil
 //}
 
+<<<<<<< Updated upstream
 func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue2.Dialogue, model string) error {
+=======
+func (s *DialogueService) ChatComplete(ctx context.Context, data dialogue.Dialogue, model string) error {
+>>>>>>> Stashed changes
 	for range 10 {
-		ch, err := s.streamCompletions(ctx, data.Messages, model)
+		ch, err := s.streamCompletions(ctx, data.Messages(), model)
 		if err != nil {
 			return err
 		}
+<<<<<<< Updated upstream
 		data.AddMessage(openai.ChatCompletionMessage{ //nolint:exhaustruct
+=======
+		data.AddMessage(dialogue.ChatCompletionMessage{
+>>>>>>> Stashed changes
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: "",
 		})
@@ -199,7 +230,11 @@ func (s *DialogueService) ReplyToDialogue(
 	ctx context.Context,
 	dialogueID int64,
 	message, model string,
+<<<<<<< Updated upstream
 ) (*dialogue2.Dialogue, error) {
+=======
+) (dialogue.Dialogue, error) {
+>>>>>>> Stashed changes
 	if len(message) > 1000 {
 		return nil, ErrMessageTooLong
 	}
@@ -223,26 +258,38 @@ func (s *DialogueService) ReplyToDialogue(
 	return data, nil
 }
 
+<<<<<<< Updated upstream
 func (s *DialogueService) StartDialogue(ctx context.Context, message string, model string) (*dialogue2.Dialogue, error) {
+=======
+func (s *DialogueService) StartDialogue(ctx context.Context, message string, model string) (dialogue.Dialogue, error) {
+>>>>>>> Stashed changes
 	if len(message) > 1000 {
 		return nil, ErrMessageTooLong
 	}
 	if model == "" {
 		return nil, ErrModelRequired
 	}
-	prompt, err := s.promptService.GetByID(ctx, "bi-chat")
-	if err != nil {
-		return nil, err
+	sysPrompt := &prompt.Prompt{
+		Title:  "",
+		Prompt: "YOU ARE A HELP FULL ASSISTANT THAT CAN MAKE SQL QUERIES, CONVERT CURRENCY, AND MORE",
 	}
 	u, err := localComposables.UseUser(ctx)
 	if err != nil {
 		return nil, err
 	}
+<<<<<<< Updated upstream
 	data := &dialogue2.Dialogue{ //nolint:exhaustruct
 		UserID: u.ID,
 		Messages: dialogue2.Messages{
 			{Role: openai.ChatMessageRoleSystem, Content: prompt.Prompt}, //nolint:exhaustruct
 			{Role: openai.ChatMessageRoleUser, Content: message},         //nolint:exhaustruct
+=======
+	data := &dialogue.Dialogue{
+		UserID: u.ID(),
+		Messages: dialogue.Messages{
+			{Role: openai.ChatMessageRoleSystem, Content: sysPrompt.Prompt},
+			{Role: openai.ChatMessageRoleUser, Content: message},
+>>>>>>> Stashed changes
 		},
 		Label: "Новый чат",
 	}
@@ -260,7 +307,11 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	return data, nil
 }
 
+<<<<<<< Updated upstream
 func (s *DialogueService) Update(ctx context.Context, data *dialogue2.Dialogue) error {
+=======
+func (s *DialogueService) Update(ctx context.Context, data dialogue.Dialogue) error {
+>>>>>>> Stashed changes
 	tmp := *data
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
@@ -273,7 +324,11 @@ func (s *DialogueService) Update(ctx context.Context, data *dialogue2.Dialogue) 
 	return nil
 }
 
+<<<<<<< Updated upstream
 func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue2.Dialogue, error) {
+=======
+func (s *DialogueService) Delete(ctx context.Context, id int64) (dialogue.Dialogue, error) {
+>>>>>>> Stashed changes
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
