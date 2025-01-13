@@ -4,15 +4,15 @@ import (
 	"context"
 
 	transaction2 "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type TransactionService struct {
 	repo           transaction2.Repository
-	eventPublisher event.Publisher
+	eventPublisher eventbus.EventBus
 }
 
-func NewTransactionService(repo transaction2.Repository, eventPublisher *event.Publisher) *TransactionService {
+func NewTransactionService(repo transaction2.Repository, eventPublisher *eventbus.EventBus) *TransactionService {
 	return &TransactionService{
 		repo:           repo,
 		eventPublisher: *eventPublisher,

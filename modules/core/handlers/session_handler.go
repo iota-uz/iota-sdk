@@ -6,7 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 	"time"
@@ -14,13 +14,13 @@ import (
 
 type SessionEventsHandler struct {
 	pool           *pgxpool.Pool
-	publisher      event.Publisher
+	publisher      eventbus.EventBus
 	authLogService *services.AuthLogService
 }
 
 func RegisterSessionEventHandlers(
 	pool *pgxpool.Pool,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 	authLogService *services.AuthLogService,
 ) *SessionEventsHandler {
 	handler := &SessionEventsHandler{

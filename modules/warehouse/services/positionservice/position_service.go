@@ -14,12 +14,12 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type PositionService struct {
 	repo           position.Repository
-	publisher      event.Publisher
+	publisher      eventbus.EventBus
 	uploadService  *coreservices.UploadService
 	unitService    *services.UnitService
 	productService *productservice.ProductService
@@ -27,7 +27,7 @@ type PositionService struct {
 
 func NewPositionService(
 	repo position.Repository,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 	app application.Application,
 ) *PositionService {
 	return &PositionService{
