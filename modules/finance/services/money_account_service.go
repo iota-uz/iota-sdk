@@ -8,19 +8,19 @@ import (
 
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type MoneyAccountService struct {
 	repo            moneyaccount.Repository
 	transactionRepo transaction.Repository
-	publisher       event.Publisher
+	publisher       eventbus.EventBus
 }
 
 func NewMoneyAccountService(
 	repo moneyaccount.Repository,
 	transactionRepo transaction.Repository,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 ) *MoneyAccountService {
 	return &MoneyAccountService{
 		repo:            repo,

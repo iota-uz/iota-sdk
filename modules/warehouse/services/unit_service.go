@@ -6,17 +6,17 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type UnitService struct {
 	repo      unit.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
 func NewUnitService(
 	repo unit.Repository,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 ) *UnitService {
 	return &UnitService{
 		repo:      repo,

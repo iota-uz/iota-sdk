@@ -10,7 +10,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -23,7 +23,7 @@ type GraphSchema struct {
 // Application with a dynamically extendable service registry
 type Application interface {
 	DB() *pgxpool.Pool
-	EventPublisher() event.Publisher
+	EventPublisher() eventbus.EventBus
 	Controllers() []Controller
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS

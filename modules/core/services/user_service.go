@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type UserService struct {
 	repo      user.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewUserService(repo user.Repository, publisher event.Publisher) *UserService {
+func NewUserService(repo user.Repository, publisher eventbus.EventBus) *UserService {
 	return &UserService{
 		repo:      repo,
 		publisher: publisher,

@@ -6,19 +6,19 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type UploadService struct {
 	repo      upload.Repository
 	storage   upload.Storage
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
 func NewUploadService(
 	repo upload.Repository,
 	storage upload.Storage,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 ) *UploadService {
 	return &UploadService{
 		repo:      repo,

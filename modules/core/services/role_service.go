@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type RoleService struct {
 	repo      role.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewRoleService(repo role.Repository, publisher event.Publisher) *RoleService {
+func NewRoleService(repo role.Repository, publisher eventbus.EventBus) *RoleService {
 	return &RoleService{
 		repo:      repo,
 		publisher: publisher,
