@@ -1,63 +1,89 @@
 package employees
 
 import (
-	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
-type AccountSelectProps struct {
+type SharedProps struct {
 	*types.PageContext
-	Value    string
-	Accounts []*viewmodels.MoneyAccount
-	Attrs    templ.Attributes
+	Employee *viewmodels.Employee
+	Errors   map[string]string
 }
 
-type CategorySelectProps struct {
-	*types.PageContext
-	Value      string
-	Categories []*viewmodels.ExpenseCategory
-	Attrs      templ.Attributes
+templ SalaryInput(props SharedProps) {
+	@input.Number(&input.Props{
+		Label: props.T("Employees.Private.Salary.Label"),
+		Error: props.Errors["Salary"],
+		Attrs: templ.Attributes{
+			"name":  "Salary",
+			"value": props.Employee.Salary,
+		},
+		AddonRight: &input.Addon{
+			Component: icons.Money(icons.Props{
+				Size:  "18",
+				Class: "text-gray-400",
+			}),
+		},
+	})
 }
 
-templ AccountSelect(props *AccountSelectProps) {
-	@base.Select(&base.SelectProps{
-		Label:       props.T("Employees.Single.Account"),
-		Placeholder: props.T("Employees.Single.SelectAccount"),
-		Attrs:       props.Attrs,
-	}) {
-		for _, account := range props.Accounts {
-			if account.ID == props.Value {
-				<option value={ account.ID } selected>
-					{ account.Name }
-					{ account.CurrencySymbol }
-				</option>
-			} else {
-				<option value={ account.ID }>
-					{ account.Name }
-					{ account.CurrencySymbol }
-				</option>
-			}
-		}
-	}
+templ TinInput(props SharedProps) {
+	@input.Text(&input.Props{
+		Label:       props.T("Employees.Private.TIN.Label"),
+		Placeholder: props.T("Employees.Private.TIN.Placeholder"),
+		Error:       props.Errors["Tin"],
+		Attrs: templ.Attributes{
+			"name":  "Tin",
+			"value": props.Employee.Tin,
+		},
+	})
 }
 
-templ CategorySelect(props *CategorySelectProps) {
-	@base.Select(&base.SelectProps{
-		Label:       props.T("Employees.Single.Category"),
-		Placeholder: props.T("Employees.Single.SelectCategory"),
-		Attrs:       props.Attrs,
-	}) {
-		for _, category := range props.Categories {
-			if category.ID == props.Value {
-				<option value={ category.ID } selected>
-					{ category.Name }
-				</option>
-			} else {
-				<option value={ category.ID }>
-					{ category.Name }
-				</option>
-			}
-		}
-	}
+templ PinInput(props SharedProps) {
+	@input.Text(&input.Props{
+		Label:       props.T("Employees.Private.Pin.Label"),
+		Placeholder: props.T("Employees.Private.Pin.Placeholder"),
+		Error:       props.Errors["Pin"],
+		Attrs: templ.Attributes{
+			"name":  "Pin",
+			"value": "",
+		},
+	})
+}
+
+templ PassportInput(props SharedProps) {
+	@input.Text(&input.Props{
+		Label:       props.T("Employees.Private.PassportSN.Label"),
+		Placeholder: props.T("Employees.Private.PassportSN.Placeholder"),
+		Error:       props.Errors["PassportSN"],
+		Attrs: templ.Attributes{
+			"name":  "PassportSN",
+			"value": "",
+		},
+	})
+}
+
+templ JoinDateInput(props SharedProps) {
+	@input.Date(&input.Props{
+		Label: props.T("Employees.Public.HireDate.Label"),
+		Error: props.Errors["HireDate"],
+		Attrs: templ.Attributes{
+			"name":  "HireDate",
+			"value": props.Employee.HireDate,
+		},
+	})
+}
+
+templ ResignationDateInput(props SharedProps) {
+	@input.Date(&input.Props{
+		Label: props.T("Employees.Public.ResignationDate.Label"),
+		Error: props.Errors["ResignationDate"],
+		Attrs: templ.Attributes{
+			"name":  "ResignationDate",
+			"value": props.Employee.ResignationDate,
+		},
+	})
 }

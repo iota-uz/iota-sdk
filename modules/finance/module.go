@@ -2,20 +2,20 @@ package finance
 
 import (
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/components/icons"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/finance/controllers"
+	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
-	"github.com/iota-uz/iota-sdk/modules/finance/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-//go:embed locales/*.json
+//go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed migrations/*.sql
+//go:embed infrastructure/persistence/schema/finance-schema.sql
 var migrationFiles embed.FS
 
 func NewModule() application.Module {
@@ -28,11 +28,11 @@ type Module struct {
 func (m *Module) Register(app application.Application) error {
 	moneyAccountService := services.NewMoneyAccountService(
 		persistence.NewMoneyAccountRepository(),
+		persistence.NewTransactionRepository(),
 		app.EventPublisher(),
 	)
-	currencyRepo := corepersistence.NewCurrencyRepository()
 	transactionRepo := persistence.NewTransactionRepository()
-	categoryRepo := persistence.NewExpenseCategoryRepository(currencyRepo)
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	app.RegisterServices(
 		services.NewPaymentService(
 			persistence.NewPaymentRepository(),
@@ -49,6 +49,7 @@ func (m *Module) Register(app application.Application) error {
 			moneyAccountService,
 		),
 		moneyAccountService,
+		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
 	)
 
 	app.RegisterControllers(
@@ -56,12 +57,13 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewMoneyAccountController(app),
 		controllers.NewExpenseCategoriesController(app),
 		controllers.NewPaymentsController(app),
+		controllers.NewCounterpartiesController(app),
 	)
-	sl := app.Spotlight()
-	for _, l := range NavItems {
-		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
-	}
 	app.Spotlight().Register(
+		spotlight.NewItem(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
+		spotlight.NewItem(nil, PaymentsItem.Name, PaymentsItem.Href),
+		spotlight.NewItem(nil, ExpensesItem.Name, ExpensesItem.Href),
+		spotlight.NewItem(nil, AccountsItem.Name, AccountsItem.Href),
 		spotlight.NewItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Expenses.List.New",
@@ -84,7 +86,7 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	app.RegisterPermissions(permissions.Permissions...)
+	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	return nil

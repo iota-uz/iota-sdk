@@ -2,113 +2,33 @@ package payment
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"time"
-
-	ut "github.com/go-playground/universal-translator"
-	"github.com/go-playground/validator/v10"
 )
 
-var validate = validator.New(validator.WithRequiredStructEnabled())
+type Payment interface {
+	ID() uint
+	SetID(id uint)
 
-type Payment struct {
-	ID               uint
-	StageID          uint
-	Amount           float64
-	TransactionID    uint
-	Account          moneyAccount.Account
-	TransactionDate  time.Time
-	AccountingPeriod time.Time
-	Comment          string
-	User             *user.User
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-}
+	Amount() float64
+	SetAmount(amount float64)
 
-type CreateDTO struct {
-	Amount           float64   `validate:"required,gt=0"`
-	AccountID        uint      `validate:"required"`
-	TransactionDate  time.Time `validate:"required"`
-	AccountingPeriod time.Time `validate:"required"`
-	Comment          string
-	UserID           uint `validate:"required"`
-	StageID          uint `validate:"required"`
-}
+	TransactionID() uint
 
-type UpdateDTO struct {
-	Amount           float64 `validate:"gt=0"`
-	AccountID        uint
-	TransactionDate  time.Time
-	AccountingPeriod time.Time
-	Comment          string
-	UserID           uint
-	StageID          uint
-}
+	CounterpartyID() uint
+	SetCounterpartyID(partyID uint)
 
-func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
-	err := validate.Struct(p)
-	if err == nil {
-		return errors, true
-	}
-	for _, _err := range err.(validator.ValidationErrors) {
-		errors[_err.Field()] = _err.Translate(l)
-	}
-	return errors, len(errors) == 0
-}
+	TransactionDate() time.Time
+	SetTransactionDate(t time.Time)
 
-func (p *CreateDTO) ToEntity() *Payment {
-	return &Payment{
-		ID:               0,
-		TransactionID:    0,
-		StageID:          p.StageID,
-		Amount:           p.Amount,
-		Account:          moneyAccount.Account{ID: p.AccountID}, //nolint:exhaustruct
-		TransactionDate:  p.TransactionDate,
-		AccountingPeriod: p.AccountingPeriod,
-		User:             &user.User{ID: p.UserID}, //nolint:exhaustruct
-		Comment:          p.Comment,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
-	}
-}
+	AccountingPeriod() time.Time
+	SetAccountingPeriod(t time.Time)
 
-func (p *Payment) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
-	errs := validate.Struct(p)
-	if errs == nil {
-		return errors, true
-	}
-	for _, err := range errs.(validator.ValidationErrors) {
-		errors[err.Field()] = err.Translate(l)
-	}
-	return errors, len(errors) == 0
-}
+	Comment() string
+	SetComment(comment string)
 
-func (p *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
-	errs := validate.Struct(p)
-	if errs == nil {
-		return errors, true
-	}
-	for _, err := range errs.(validator.ValidationErrors) {
-		errors[err.Field()] = err.Translate(l)
-	}
-	return errors, len(errors) == 0
-}
-
-func (p *UpdateDTO) ToEntity(id uint) *Payment {
-	return &Payment{
-		ID:               id,
-		StageID:          p.StageID,
-		Amount:           p.Amount,
-		Account:          moneyAccount.Account{ID: p.AccountID}, //nolint:exhaustruct
-		TransactionDate:  p.TransactionDate,
-		TransactionID:    0,
-		AccountingPeriod: p.AccountingPeriod,
-		Comment:          p.Comment,
-		User:             &user.User{ID: p.UserID}, //nolint:exhaustruct
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
-	}
+	Account() *moneyaccount.Account
+	User() user.User
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	transaction2 "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
@@ -39,37 +38,25 @@ func (s *TransactionService) GetPaginated(
 }
 
 func (s *TransactionService) Create(ctx context.Context, data *transaction2.Transaction) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
 	s.eventPublisher.Publish("transaction.created", data)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *TransactionService) Update(ctx context.Context, data *transaction2.Transaction) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.eventPublisher.Publish("transaction.updated", data)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *TransactionService) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.eventPublisher.Publish("transaction.deleted", id)
-	return tx.Commit(ctx)
+	return nil
 }

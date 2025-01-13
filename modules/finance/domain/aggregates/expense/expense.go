@@ -2,14 +2,14 @@ package expense
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"time"
 )
 
 type Expense struct {
 	ID               uint
 	Amount           float64
-	Account          moneyAccount.Account
+	Account          moneyaccount.Account
 	Category         category.ExpenseCategory
 	Comment          string
 	TransactionID    uint

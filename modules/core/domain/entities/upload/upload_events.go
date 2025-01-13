@@ -1,4 +1,4 @@
-// README: Commented out everything until I find a way to solve import cycles.
+// Package upload README: Commented out everything until I find a way to solve import cycles.
 package upload
 
 import (

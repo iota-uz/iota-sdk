@@ -2,20 +2,20 @@ package serrors
 
 import "github.com/nicksnyder/go-i18n/v2/i18n"
 
-type Base struct {
-	Code    string
-	Message string
+type BaseError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
-func (b *Base) Error() string {
+func (b *BaseError) Error() string {
 	return b.Message
 }
 
-func (b *Base) Localize(*i18n.Localizer) string {
+func (b *BaseError) Localize(*i18n.Localizer) string {
 	panic("implement me")
 }
 
-type BaseError interface {
+type Base interface {
 	Error() string
-	Localize(*i18n.Localizer) string
+	Localize(l *i18n.Localizer) string
 }

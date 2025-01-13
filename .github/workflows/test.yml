@@ -4,12 +4,93 @@ on:
   - push
 
 jobs:
-  build:
-    name: Build
+  test:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
 
-      - name: Test, lint & build
-        run: docker compose -f docker-compose.testing.yml up erp_ci --build --exit-code-from erp_ci
+    services:
+      postgres:
+        image: postgres:15.1
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --hostname=erp_db
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      GO_APP_ENV: testing
+      DB_NAME: iota_erp
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_PASSWORD: postgres
+      DOMAIN: iota.uz
+      SESSION_DURATION: 720h
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/iota_erp
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.2"
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
+          golangci-lint version
+
+      - name: Install templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@v0.2.793
+          templ --help
+
+      - name: Install TailwindCSS
+        run: |
+          echo "Installing TailwindCSS for x64 architecture..."
+          mkdir -p downloaded
+          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+          chmod +x downloaded/tailwindcss
+          echo "$PWD/downloaded" >> $GITHUB_PATH
+
+      - name: Verify TailwindCSS installation
+        run: |
+          tailwindcss -h
+
+      - name: Download Go dependencies
+        run: |
+          go mod download
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+
+      - name: Test generated files are up to date
+        run: |
+          make generate
+          git diff --exit-code
+
+      - name: Test Makefile targets
+        run: |
+          make migrate-up
+          make seed
+          make seed
+          make migrate-down
+          make css
+
+      - name: Run go vet && tests
+        run: |
+          make generate
+          git diff --exit-code
+          go vet ./...
+          go test -v ./...

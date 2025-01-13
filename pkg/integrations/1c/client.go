@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
 func NewClient(url string) *Client {
 	return &Client{
-		client: &http.Client{}, //nolint:exhaustruct
+		client: &http.Client{},
 		url:    url,
 	}
 }
@@ -30,7 +31,11 @@ func (c *Client) GetOdataServices(infoBase string) (*OdataServices, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			log.Println(err)
+		}
+	}()
 
 	var odataServices OdataServices
 	if err := json.NewDecoder(res.Body).Decode(&odataServices); err != nil {

@@ -39,20 +39,24 @@ func (c *AccountController) Key() string {
 }
 
 func (c *AccountController) Register(r *mux.Router) {
-	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(
-		middleware.WithTransaction(),
+	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
-	)
-	router.HandleFunc("", c.Get).Methods(http.MethodGet)
-	router.HandleFunc("/settings", c.GetSettings).Methods(http.MethodGet)
-	router.HandleFunc("/settings", c.PostSettings).Methods(http.MethodPost)
-	router.HandleFunc("", c.Post).Methods(http.MethodPost)
+	}
+	getRouter := r.PathPrefix(c.basePath).Subrouter()
+	getRouter.Use(commonMiddleware...)
+	getRouter.HandleFunc("", c.Get).Methods(http.MethodGet)
+	getRouter.HandleFunc("/settings", c.GetSettings).Methods(http.MethodGet)
+
+	setRouter := r.PathPrefix(c.basePath).Subrouter()
+	setRouter.Use(commonMiddleware...)
+	setRouter.Use(middleware.WithTransaction())
+	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
+	setRouter.HandleFunc("/settings", c.PostSettings).Methods(http.MethodPost)
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {
@@ -89,7 +93,7 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(account.Index(props)).ServeHTTP(w, r)
 }
 
-func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
+func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -114,7 +118,7 @@ func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	entity, err := dto.ToEntity(u.ID)
+	entity, err := dto.ToEntity(u.ID())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -188,10 +192,10 @@ func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request)
 		dtos = append(dtos, &tab.CreateDTO{
 			Href:     href,
 			Position: uint(i),
-			UserID:   u.ID,
+			UserID:   u.ID(),
 		})
 	}
-	if _, err := c.tabService.CreateManyUserTabs(r.Context(), u.ID, dtos); err != nil {
+	if _, err := c.tabService.CreateManyUserTabs(r.Context(), u.ID(), dtos); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

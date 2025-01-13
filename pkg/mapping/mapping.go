@@ -1,6 +1,10 @@
 package mapping
 
-import "reflect"
+import (
+	"database/sql"
+	"reflect"
+	"time"
+)
 
 // MapViewModels maps entities to view models
 func MapViewModels[T any, V any](entities []T, mapFunc func(T) V) []V {
@@ -11,8 +15,8 @@ func MapViewModels[T any, V any](entities []T, mapFunc func(T) V) []V {
 	return viewModels
 }
 
-// MapDbModels maps entities to db models
-func MapDbModels[T any, V any](
+// MapDBModels maps entities to db models
+func MapDBModels[T any, V any](
 	entities []T,
 	mapFunc func(T) (V, error),
 ) ([]V, error) {
@@ -59,4 +63,58 @@ func PointerSlice[T any](v []T) []*T {
 		values[i] = &val
 	}
 	return values
+}
+
+func ValueToSQLNullString(s string) sql.NullString {
+	return sql.NullString{
+		String: s,
+		Valid:  s != "",
+	}
+}
+
+func ValueToSQLNullInt32(i int32) sql.NullInt32 {
+	return sql.NullInt32{
+		Int32: i,
+		Valid: i != 0,
+	}
+}
+
+func PointerToSQLNullString(s *string) sql.NullString {
+	if s != nil {
+		return sql.NullString{
+			String: *s,
+			Valid:  true,
+		}
+	}
+	return sql.NullString{
+		String: "",
+		Valid:  false,
+	}
+}
+
+func ValueToSQLNullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{
+		Time:  t,
+		Valid: t != time.Time{},
+	}
+}
+
+func SQLNullTimeToPointer(v sql.NullTime) *time.Time {
+	if v.Valid {
+		return &v.Time
+	}
+	return nil
+}
+
+func PointerToSQLNullTime(t *time.Time) sql.NullTime {
+	if t != nil {
+		return sql.NullTime{
+			Time:  *t,
+			Valid: true,
+		}
+	}
+	return sql.NullTime{
+		Time:  time.Time{},
+		Valid: false,
+	}
 }

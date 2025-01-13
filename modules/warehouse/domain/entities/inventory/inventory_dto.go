@@ -50,17 +50,17 @@ func (d *UpdateCheckDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
+func (d *CreateCheckDTO) ToEntity(createdBy user.User) (*Check, error) {
 	s, err := NewStatus(string(Incomplete))
 	if err != nil {
 		return nil, err
 	}
-	var results []*CheckResult
-	for _, p := range d.Positions {
-		results = append(results, &CheckResult{
+	results := make([]*CheckResult, len(d.Positions))
+	for i, p := range d.Positions {
+		results[i] = &CheckResult{
 			PositionID:     p.PositionID,
 			ActualQuantity: int(p.Found),
-		})
+		}
 	}
 	return &Check{
 		ID:          0,
@@ -68,8 +68,8 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 		Name:        d.Name,
 		Results:     results,
 		CreatedAt:   time.Now(),
-		CreatedBy:   &user.User{ID: createdBy},
-		CreatedByID: createdBy,
+		CreatedBy:   createdBy,
+		CreatedByID: createdBy.ID(),
 	}, nil
 }
 

@@ -955,7 +955,7 @@ func (ec *executionContext) _Mutation_authenticate(ctx context.Context, field gr
 	}
 	res := resTmp.(*model.Session)
 	fc.Result = res
-	return ec.marshalNSession2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐSession(ctx, field.Selections, res)
+	return ec.marshalNSession2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐSession(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_authenticate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1123,7 +1123,7 @@ func (ec *executionContext) _PaginatedUsers_data(ctx context.Context, field grap
 	}
 	res := resTmp.([]*model.User)
 	fc.Result = res
-	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUserᚄ(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUserᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedUsers_data(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1276,7 +1276,7 @@ func (ec *executionContext) _Query_user(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.(*model.User)
 	fc.Result = res
-	return ec.marshalOUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx, field.Selections, res)
+	return ec.marshalOUser2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1347,7 +1347,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.(*model.PaginatedUsers)
 	fc.Result = res
-	return ec.marshalNPaginatedUsers2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedUsers(ctx, field.Selections, res)
+	return ec.marshalNPaginatedUsers2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedUsers(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_users(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4743,11 +4743,11 @@ func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.Sel
 	return res
 }
 
-func (ec *executionContext) marshalNPaginatedUsers2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedUsers(ctx context.Context, sel ast.SelectionSet, v model.PaginatedUsers) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedUsers2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedUsers(ctx context.Context, sel ast.SelectionSet, v model.PaginatedUsers) graphql.Marshaler {
 	return ec._PaginatedUsers(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPaginatedUsers2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedUsers(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedUsers) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedUsers2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedUsers(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedUsers) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -4757,11 +4757,11 @@ func (ec *executionContext) marshalNPaginatedUsers2ᚖgithubᚗcomᚋiotaᚑagen
 	return ec._PaginatedUsers(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSession2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐSession(ctx context.Context, sel ast.SelectionSet, v model.Session) graphql.Marshaler {
+func (ec *executionContext) marshalNSession2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐSession(ctx context.Context, sel ast.SelectionSet, v model.Session) graphql.Marshaler {
 	return ec._Session(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSession2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐSession(ctx context.Context, sel ast.SelectionSet, v *model.Session) graphql.Marshaler {
+func (ec *executionContext) marshalNSession2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐSession(ctx context.Context, sel ast.SelectionSet, v *model.Session) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -4801,7 +4801,7 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.User) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -4825,7 +4825,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋio
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx, sel, v[i])
+			ret[i] = ec.marshalNUser2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -4845,7 +4845,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋio
 	return ret
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5188,7 +5188,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

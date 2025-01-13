@@ -3,14 +3,13 @@ package configuration
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"gorm.io/gorm/logger"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/iota-uz/iota-sdk/pkg/utils/fs"
+	"github.com/iota-uz/utils/fs"
 	"github.com/joho/godotenv"
 )
 
@@ -80,24 +79,9 @@ func (c *Configuration) LogrusLogLevel() logrus.Level {
 	}
 }
 
-func (c *Configuration) GormLogLevel() logger.LogLevel {
-	switch c.LogLevel {
-	case "silent":
-		return logger.Silent
-	case "error":
-		return logger.Error
-	case "warn":
-		return logger.Warn
-	case "info":
-		return logger.Info
-	default:
-		return logger.Error
-	}
-}
-
 func Use() *Configuration {
 	if singleton == nil {
-		singleton = &Configuration{} //nolint:exhaustruct
+		singleton = &Configuration{}
 		if err := singleton.load([]string{".env", ".env.local"}); err != nil {
 			panic(err)
 		}

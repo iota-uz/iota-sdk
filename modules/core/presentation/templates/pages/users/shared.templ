@@ -1,20 +1,23 @@
 package users
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"strconv"
 )
 
 type RoleSelectProps struct {
 	*types.PageContext
-	Roles    []*role.Role
-	Selected []*role.Role
+	Roles    []*viewmodels.Role
+	Selected []*viewmodels.Role
+	Name     string
+	Form     string
 	Error    string
 }
 
-func isRoleSelected(id uint, roles []*role.Role) bool {
+func isRoleSelected(id string, roles []*viewmodels.Role) bool {
 	for _, role := range roles {
 		if role.ID == id {
 			return true
@@ -24,20 +27,43 @@ func isRoleSelected(id uint, roles []*role.Role) bool {
 }
 
 templ RoleSelect(props *RoleSelectProps) {
-	@base.Select(&base.SelectProps{
+	@base.Combobox(base.ComboboxProps{
 		Label:       props.T("Users.Single.Role"),
 		Placeholder: props.T("Users.Single.SelectRole"),
-		Error:       props.Error,
-		Attrs: templ.Attributes{
-			"name": "RoleID",
-		},
+		Multiple:    true,
+		Name:        props.Name,
+		Form:        props.Form,
 	}) {
 		for _, role := range props.Roles {
 			if isRoleSelected(role.ID, props.Selected) {
-				<option value={ strconv.Itoa(int(role.ID)) } selected>{ role.Name }</option>
+				<option value={ role.ID } selected>{ role.Name }</option>
 			} else {
-				<option value={ strconv.Itoa(int(role.ID)) }>{ role.Name }</option>
+				<option value={ role.ID }>{ role.Name }</option>
 			}
 		}
 	}
+}
+
+type SharedProps struct {
+	*types.PageContext
+	Value string
+	Error string
+}
+
+templ EmailInput(props SharedProps) {
+	@input.Email(&input.Props{
+		Label: props.T("Users.Single.Email"),
+		Attrs: templ.Attributes{
+			"name":  "Email",
+			"value": props.Value,
+			"form":  "save-form",
+		},
+		AddonRight: &input.Addon{
+			Component: icons.EnvelopeSimple(icons.Props{
+				Size:  "18",
+				Class: "text-gray-400",
+			}),
+		},
+		Error: props.Error,
+	})
 }

@@ -4,16 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
 	ErrUploadNotFound = errors.New("upload not found")
+)
+
+const (
+	insertUploadQuery  = `INSERT INTO uploads (hash, path, size, mimetype, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id`
+	updatedUploadQuery = `UPDATE uploads SET hash = $1, path = $2, size = $3, mimetype = $4, updated_at = $5 WHERE id = $6`
 )
 
 type GormUploadRepository struct{}
@@ -25,7 +30,7 @@ func NewUploadRepository() upload.Repository {
 func (g *GormUploadRepository) GetPaginated(
 	ctx context.Context, params *upload.FindParams,
 ) ([]*upload.Upload, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +64,7 @@ func (g *GormUploadRepository) GetPaginated(
 			&upload.ID,
 			&upload.Hash,
 			&upload.Path,
+			&upload.Size,
 			&upload.Mimetype,
 			&upload.CreatedAt,
 			&upload.UpdatedAt,
@@ -76,7 +82,7 @@ func (g *GormUploadRepository) GetPaginated(
 }
 
 func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -121,43 +127,48 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 	return uploads[0], nil
 }
 
-func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) error {
-	tx, err := composables.UsePoolTx(ctx)
+func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) (*upload.Upload, error) {
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	upload := ToDBUpload(data)
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO uploads (hash, path, size, mimetype) VALUES ($1, $2, $3, $4)
-		RETURNING id
-	`, upload.Hash, upload.Path, upload.Size, upload.Mimetype).Scan(&data.ID); err != nil {
-		return err
+	dbUpload := ToDBUpload(data)
+	if err := tx.QueryRow(
+		ctx,
+		insertUploadQuery,
+		dbUpload.Hash,
+		dbUpload.Path,
+		dbUpload.Size,
+		dbUpload.Mimetype,
+		dbUpload.CreatedAt,
+	).Scan(&dbUpload.ID); err != nil {
+		return nil, err
 	}
-	return nil
+	return g.GetByID(ctx, dbUpload.ID)
 }
 
 func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
-	upload := ToDBUpload(data)
-	if _, err := tx.Exec(ctx, `
-		UPDATE uploads 
-		SET
-		hash = $1
-		path = $2
-		size = $3
-		mimetype = $4
-		WHERE id = $5
-	`, upload.Hash, upload.Path, upload.Size, upload.Mimetype, upload.ID); err != nil {
+	dbUpload := ToDBUpload(data)
+	if _, err := tx.Exec(
+		ctx,
+		updatedUploadQuery,
+		dbUpload.Hash,
+		dbUpload.Path,
+		dbUpload.Size,
+		dbUpload.Mimetype,
+		dbUpload.ID,
+	); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

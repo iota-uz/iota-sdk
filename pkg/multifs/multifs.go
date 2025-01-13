@@ -13,9 +13,9 @@ type MultiHashFS struct {
 
 // New creates a new MultiHashFS instance and converts each hashfs.FS to an http.FileSystem.
 func New(instances ...*hashfs.FS) *MultiHashFS {
-	var fileSystems []http.FileSystem
-	for _, fs := range instances {
-		fileSystems = append(fileSystems, http.FS(fs)) // Convert hashfs.FS to http.FileSystem
+	fileSystems := make([]http.FileSystem, len(instances))
+	for i, fs := range instances {
+		fileSystems[i] = http.FS(fs) // Convert hashfs.FS to http.FileSystem
 	}
 	return &MultiHashFS{instances: fileSystems}
 }

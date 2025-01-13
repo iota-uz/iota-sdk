@@ -138,7 +138,7 @@ func (g getSchema) Execute(map[string]interface{}) (string, error) {
 			if !ok {
 				t = column.DataType
 			}
-			col := Column{ //nolint:exhaustruct
+			col := Column{
 				Type:     t,
 				Nullable: column.IsNullable == "YES",
 			}
@@ -167,7 +167,7 @@ func (g getSchema) Execute(map[string]interface{}) (string, error) {
 				Column: relation.ForeignColumnName,
 			}
 		}
-		tables = append(tables, &Table{ //nolint:exhaustruct
+		tables = append(tables, &Table{
 			Name:    name,
 			Columns: result,
 		})

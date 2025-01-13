@@ -81,10 +81,8 @@ func UseLocalizedOrFallback(ctx context.Context, key string, fallback string) st
 	}
 	return l.MustLocalize(
 		&i18n.LocalizeConfig{
-			//nolint:exhaustruct
 			MessageID: key,
 			DefaultMessage: &i18n.Message{
-				//nolint:exhaustruct
 				ID: fallback,
 			},
 		},

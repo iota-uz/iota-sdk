@@ -20,7 +20,7 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]*Upload, error)
 	GetByID(ctx context.Context, id uint) (*Upload, error)
 	GetByHash(ctx context.Context, hash string) (*Upload, error)
-	Create(ctx context.Context, data *Upload) error
+	Create(ctx context.Context, data *Upload) (*Upload, error)
 	Update(ctx context.Context, data *Upload) error
 	Delete(ctx context.Context, id uint) error
 }

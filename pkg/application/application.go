@@ -6,21 +6,24 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/benbjohnson/hashfs"
+	"github.com/go-gorp/gorp/v3"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
-	"gorm.io/gorm"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/event"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -41,11 +44,29 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 	return translated
 }
 
-func New(db *gorm.DB, pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
+func listFiles(fsys fs.FS, dir string) ([]string, error) {
+	var fileList []string
+
+	err := fs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			fileList = append(fileList, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error reading directory %q: %w", dir, err)
+	}
+
+	return fileList, nil
+}
+
+func New(pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
-	return &ApplicationImpl{
-		db:             db,
+	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
 		rbac:           permission.NewRbac(),
@@ -56,14 +77,12 @@ func New(db *gorm.DB, pool *pgxpool.Pool, eventPublisher event.Publisher) Applic
 	}
 }
 
-// ApplicationImpl with a dynamically extendable service registry
-type ApplicationImpl struct {
-	db             *gorm.DB
+// application with a dynamically extendable service registry
+type application struct {
 	pool           *pgxpool.Pool
 	eventPublisher event.Publisher
-	rbac           *permission.Rbac
+	rbac           permission.RBAC
 	services       map[reflect.Type]interface{}
-	modules        []Module
 	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
 	hashFsAssets   []*hashfs.FS
@@ -76,19 +95,19 @@ type ApplicationImpl struct {
 	navItems       []types.NavigationItem
 }
 
-func (app *ApplicationImpl) Spotlight() spotlight.Spotlight {
+func (app *application) Spotlight() spotlight.Spotlight {
 	return app.spotlight
 }
 
-func (app *ApplicationImpl) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
+func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
 	return translate(localizer, app.navItems)
 }
 
-func (app *ApplicationImpl) RegisterNavItems(items ...types.NavigationItem) {
+func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
 }
 
-func (app *ApplicationImpl) Seed(ctx context.Context) error {
+func (app *application) Seed(ctx context.Context) error {
 	for _, seedFunc := range app.seedFuncs {
 		if err := seedFunc(ctx, app); err != nil {
 			return err
@@ -97,27 +116,23 @@ func (app *ApplicationImpl) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (app *ApplicationImpl) Permissions() []permission.Permission {
-	return app.rbac.Permissions()
+func (app *application) RBAC() permission.RBAC {
+	return app.rbac
 }
 
-func (app *ApplicationImpl) Middleware() []mux.MiddlewareFunc {
+func (app *application) Middleware() []mux.MiddlewareFunc {
 	return app.middleware
 }
 
-func (app *ApplicationImpl) RegisterPermissions(permissions ...permission.Permission) {
-	app.rbac.Register(permissions...)
+func (app *application) DB() *pgxpool.Pool {
+	return app.pool
 }
 
-func (app *ApplicationImpl) DB() *gorm.DB {
-	return app.db
-}
-
-func (app *ApplicationImpl) EventPublisher() event.Publisher {
+func (app *application) EventPublisher() event.Publisher {
 	return app.eventPublisher
 }
 
-func (app *ApplicationImpl) Controllers() []Controller {
+func (app *application) Controllers() []Controller {
 	controllers := make([]Controller, 0, len(app.controllers))
 	for _, c := range app.controllers {
 		controllers = append(controllers, c)
@@ -125,72 +140,70 @@ func (app *ApplicationImpl) Controllers() []Controller {
 	return controllers
 }
 
-func (app *ApplicationImpl) Assets() []*embed.FS {
+func (app *application) Assets() []*embed.FS {
 	return app.assets
 }
 
-func (app *ApplicationImpl) HashFsAssets() []*hashfs.FS {
+func (app *application) HashFsAssets() []*hashfs.FS {
 	return app.hashFsAssets
 }
 
-func (app *ApplicationImpl) MigrationDirs() []*embed.FS {
+func (app *application) MigrationDirs() []*embed.FS {
 	return app.migrationDirs
 }
 
-func (app *ApplicationImpl) GraphSchemas() []GraphSchema {
+func (app *application) GraphSchemas() []GraphSchema {
 	return app.graphSchemas
 }
 
-func (app *ApplicationImpl) RegisterControllers(controllers ...Controller) {
+func (app *application) RegisterControllers(controllers ...Controller) {
 	for _, c := range controllers {
 		app.controllers[c.Key()] = c
 	}
 }
 
-func (app *ApplicationImpl) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {
+func (app *application) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {
 	app.middleware = append(app.middleware, middleware...)
 }
 
-func (app *ApplicationImpl) RegisterHashFsAssets(fs ...*hashfs.FS) {
+func (app *application) RegisterHashFsAssets(fs ...*hashfs.FS) {
 	app.hashFsAssets = append(app.hashFsAssets, fs...)
 }
 
-func (app *ApplicationImpl) RegisterAssets(fs ...*embed.FS) {
+func (app *application) RegisterAssets(fs ...*embed.FS) {
 	app.assets = append(app.assets, fs...)
 }
 
-func (app *ApplicationImpl) RegisterGraphSchema(schema GraphSchema) {
+func (app *application) RegisterGraphSchema(schema GraphSchema) {
 	app.graphSchemas = append(app.graphSchemas, schema)
 }
 
-func (app *ApplicationImpl) RegisterLocaleFiles(fs ...*embed.FS) {
+func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
 	for _, localeFs := range fs {
-		files, err := localeFs.ReadDir("locales")
+		files, err := listFiles(localeFs, ".")
 		if err != nil {
 			panic(err)
 		}
 		for _, file := range files {
-			if !file.IsDir() {
-				localeFile, err := localeFs.ReadFile("locales/" + file.Name())
-				if err != nil {
-					panic(err)
-				}
-				app.bundle.MustParseMessageFileBytes(localeFile, file.Name())
+			localeFile, err := localeFs.ReadFile(file)
+			if err != nil {
+				panic(err)
 			}
+			app.bundle.MustParseMessageFileBytes(localeFile, filepath.Base(file))
 		}
 	}
 }
 
-func (app *ApplicationImpl) RegisterMigrationDirs(fs ...*embed.FS) {
+func (app *application) RegisterMigrationDirs(fs ...*embed.FS) {
 	app.migrationDirs = append(app.migrationDirs, fs...)
 }
 
-func (app *ApplicationImpl) RegisterSeedFuncs(seedFuncs ...SeedFunc) {
+func (app *application) RegisterSeedFuncs(seedFuncs ...SeedFunc) {
 	app.seedFuncs = append(app.seedFuncs, seedFuncs...)
 }
 
 // RegisterServices registers a new service in the application by its type
-func (app *ApplicationImpl) RegisterServices(services ...interface{}) {
+func (app *application) RegisterServices(services ...interface{}) {
 	for _, service := range services {
 		serviceType := reflect.TypeOf(service).Elem()
 		app.services[serviceType] = service
@@ -198,7 +211,7 @@ func (app *ApplicationImpl) RegisterServices(services ...interface{}) {
 }
 
 // Service retrieves a service by its type
-func (app *ApplicationImpl) Service(service interface{}) interface{} {
+func (app *application) Service(service interface{}) interface{} {
 	serviceType := reflect.TypeOf(service)
 	svc, exists := app.services[serviceType]
 	if !exists {
@@ -207,28 +220,23 @@ func (app *ApplicationImpl) Service(service interface{}) interface{} {
 	return svc
 }
 
-func (app *ApplicationImpl) Bundle() *i18n.Bundle {
+func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }
 
-func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
-	migrationDirs := app.MigrationDirs()
-
+func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 	var migrations []*migrate.Migration
-	for _, fs := range migrationDirs {
-		files, err := fs.ReadDir("migrations")
+	for _, migrationFs := range app.migrationDirs {
+		files, err := listFiles(migrationFs, ".")
 		if err != nil {
 			return nil, err
 		}
 		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			content, err := fs.ReadFile("migrations/" + file.Name())
+			content, err := migrationFs.ReadFile(file)
 			if err != nil {
 				return nil, err
 			}
-			migration, err := migrate.ParseMigration(file.Name(), bytes.NewReader(content))
+			migration, err := migrate.ParseMigration(filepath.Join(file), bytes.NewReader(content))
 			if err != nil {
 				return nil, err
 			}
@@ -238,11 +246,78 @@ func CollectMigrations(app *ApplicationImpl) ([]*migrate.Migration, error) {
 	return migrations, nil
 }
 
-func (app *ApplicationImpl) RunMigrations() error {
-	db, err := app.db.DB()
-	if err != nil {
-		return err
+func newTxError(migration *migrate.PlannedMigration, err error) *migrate.TxError {
+	return &migrate.TxError{
+		Migration: migration.Migration,
+		Err:       err,
 	}
+}
+
+func (app *application) applyMigrations(ctx context.Context, dir migrate.MigrationDirection, migrations []*migrate.PlannedMigration, dbMap *gorp.DbMap) (int, error) {
+	applied := 0
+	for _, migration := range migrations {
+		e, err := dbMap.Begin()
+		if err != nil {
+			return applied, newTxError(migration, err)
+		}
+		executor := e.WithContext(ctx)
+
+		for _, stmt := range migration.Queries {
+			// remove the semicolon from stmt, fix ORA-00922 issue in database oracle
+			stmt = strings.TrimSuffix(stmt, "\n")
+			stmt = strings.TrimSuffix(stmt, " ")
+			stmt = strings.TrimSuffix(stmt, ";")
+			if _, err := executor.Exec(stmt); err != nil {
+				if trans, ok := executor.(*gorp.Transaction); ok {
+					_ = trans.Rollback()
+				}
+
+				return applied, newTxError(migration, err)
+			}
+		}
+
+		switch dir {
+		case migrate.Up:
+			err = executor.Insert(&migrate.MigrationRecord{
+				Id:        migration.Id,
+				AppliedAt: time.Now(),
+			})
+			if err != nil {
+				if trans, ok := executor.(*gorp.Transaction); ok {
+					_ = trans.Rollback()
+				}
+
+				return applied, newTxError(migration, err)
+			}
+		case migrate.Down:
+			_, err := executor.Delete(&migrate.MigrationRecord{
+				Id: migration.Id,
+			})
+			if err != nil {
+				if trans, ok := executor.(*gorp.Transaction); ok {
+					_ = trans.Rollback()
+				}
+
+				return applied, newTxError(migration, err)
+			}
+		default:
+			panic("Not possible")
+		}
+
+		if trans, ok := executor.(*gorp.Transaction); ok {
+			if err := trans.Commit(); err != nil {
+				return applied, newTxError(migration, err)
+			}
+		}
+
+		applied++
+	}
+
+	return applied, nil
+}
+
+func (app *application) RunMigrations() error {
+	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
 	migrations, err := CollectMigrations(app)
 	if err != nil {
 		return err
@@ -259,49 +334,17 @@ func (app *ApplicationImpl) RunMigrations() error {
 	if err != nil {
 		return err
 	}
-	applied := 0
-	tx, err := dbMap.Begin()
+
+	applied, err := app.applyMigrations(context.Background(), migrate.Up, plannedMigrations, dbMap)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-	for _, m := range plannedMigrations {
-		for _, stmt := range m.Queries {
-			stmt = strings.TrimSuffix(stmt, "\n")
-			stmt = strings.TrimSuffix(stmt, " ")
-			stmt = strings.TrimSuffix(stmt, ";")
-			if _, err := tx.Exec(stmt); err != nil {
-				return &migrate.TxError{
-					Migration: m.Migration,
-					Err:       err,
-				}
-			}
-		}
-
-		if err := tx.Insert(&migrate.MigrationRecord{
-			Id:        m.Id,
-			AppliedAt: time.Now(),
-		}); err != nil {
-			return &migrate.TxError{
-				Migration: m.Migration,
-				Err:       err,
-			}
-		}
-		applied++
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
 	log.Printf("Applied %d migrations", applied)
 	return nil
 }
 
-func (app *ApplicationImpl) RollbackMigrations() error {
-	db, err := app.db.DB()
-	if err != nil {
-		return err
-	}
+func (app *application) RollbackMigrations() error {
+	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
 	migrations, err := CollectMigrations(app)
 	if err != nil {
 		return err
@@ -313,10 +356,16 @@ func (app *ApplicationImpl) RollbackMigrations() error {
 	migrationSource := &migrate.MemoryMigrationSource{
 		Migrations: migrations,
 	}
-	n, err := migrate.Exec(db, "postgres", migrationSource, migrate.Down)
+	ms := migrate.MigrationSet{}
+	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Down, 0)
 	if err != nil {
 		return err
 	}
-	log.Printf("Rolled back %d migrations", n)
+
+	applied, err := app.applyMigrations(context.Background(), migrate.Down, plannedMigrations, dbMap)
+	if err != nil {
+		return err
+	}
+	log.Printf("Rolled back %d migrations", applied)
 	return nil
 }

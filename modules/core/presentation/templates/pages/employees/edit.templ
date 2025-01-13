@@ -3,8 +3,10 @@ package employees
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -20,63 +22,159 @@ type EditPageProps struct {
 }
 
 templ EditForm(props *EditPageProps) {
+	{{
+	sharedProps := SharedProps{
+		PageContext: props.PageContext,
+		Employee:    props.Employee,
+		Errors:      props.Errors,
+	}
+	}}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
-		@base.Card("grid grid-cols-3 gap-4 m-6") {
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.FirstName"),
-				Attrs: templ.Attributes{
-					"value": props.Employee.FirstName,
-					"name":  "FirstName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["FirstName"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.LastName"),
-				Attrs: templ.Attributes{
-					"value": props.Employee.LastName,
-					"name":  "LastName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["LastName"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.MiddleName"),
-				Attrs: templ.Attributes{
-					"value": props.Employee.MiddleName,
-					"name":  "MiddleName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["MiddleName"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.Phone"),
-				Attrs: templ.Attributes{
-					"value": props.Employee.Phone,
-					"name":  "Phone",
-					"form":  "save-form",
-				},
-				Error: props.Errors["Phone"],
-			})
-			@input.Number(&input.Props{
-				Label: props.T("Employees.Single.Salary"),
-				Attrs: templ.Attributes{
-					"value": props.Employee.Salary,
-					"name":  "Salary",
-					"form":  "save-form",
-				},
-				Error: props.Errors["Salary"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.Email"),
-				Attrs: templ.Attributes{
-					"value": props.Employee.Email,
-					"name":  "Email",
-					"form":  "save-form",
-				},
-				Error: props.Errors["Email"],
-			})
-		}
+		<div class="m-6">
+			@tab.Root(tab.Props{
+				DefaultValue: "public",
+			}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Button("public") {
+						{ props.T("Employees.Tabs.Public") }
+					}
+					@tab.Button("private") {
+						{ props.T("Employees.Tabs.Private") }
+					}
+				}
+				<div x-show="selectedTab === 'public'">
+					@card.Card(card.Props{
+						Header:       card.DefaultHeader(props.T("Employees.Cards.PersonalInfo")),
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.FirstName.Label"),
+							Placeholder: props.T("Employees.Public.FirstName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "FirstName",
+								"value": props.Employee.FirstName,
+								"form":  "save-form",
+							},
+							Error: props.Errors["FirstName"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.LastName.Label"),
+							Placeholder: props.T("Employees.Public.LastName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "LastName",
+								"value": props.Employee.LastName,
+								"form":  "save-form",
+							},
+							Error: props.Errors["LastName"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.MiddleName.Label"),
+							Placeholder: props.T("Employees.Public.MiddleName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "MiddleName",
+								"value": props.Employee.MiddleName,
+								"form":  "save-form",
+							},
+							Error: props.Errors["MiddleName"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.Email.Label"),
+							Placeholder: props.T("Employees.Public.Email.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "Email",
+								"value": props.Employee.Email,
+								"form":  "save-form",
+							},
+							Error: props.Errors["Email"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.Phone.Label"),
+							Placeholder: props.T("Employees.Public.Phone.Placeholder"),
+							Error:       props.Errors["Phone"],
+							Attrs: templ.Attributes{
+								"name":  "Phone",
+								"value": props.Employee.Phone,
+						
+								"form": "save-form",
+							},
+						})
+						@input.Date(&input.Props{
+							Label: props.T("Employees.Public.BirthDate.Label"),
+							Error: props.Errors["BirthDate"],
+							Attrs: templ.Attributes{
+								"name": "BirthDate",
+								// "value": props.Employee.BirthDate,
+								"form": "save-form",
+							},
+						})
+					}
+					@card.Card(card.Props{
+						Header:       card.DefaultHeader(props.T("Employees.Cards.JobInfo")),
+						WrapperClass: "mt-5",
+						Class:        "grid grid-cols-3 gap-4",
+					}) {
+						@JoinDateInput(sharedProps)
+						@ResignationDateInput(sharedProps)
+						@base.Select(&base.SelectProps{
+							Label:       props.T("Employees.Public.Position.Label"),
+							Placeholder: props.T("Employees.Public.Position.Placeholder"),
+							Attrs: templ.Attributes{
+								"form": "save-form",
+							},
+						}) {
+							<option>PM</option>
+							<option>Developer</option>
+						}
+						@base.Select(&base.SelectProps{
+							Label:       props.T("Employees.Public.Level.Label"),
+							Placeholder: props.T("Employees.Public.Level.Placeholder"),
+							Attrs: templ.Attributes{
+								"form": "save-form",
+							},
+						}) {
+							<option>Junior</option>
+							<option>Middle</option>
+							<option>Senior</option>
+						}
+						@base.Select(&base.SelectProps{
+							Label:       props.T("Employees.Public.EmploymentStatus.Label"),
+							Placeholder: props.T("Employees.Public.EmploymentStatus.Placeholder"),
+							Attrs: templ.Attributes{
+								"form": "save-form",
+							},
+						}) {
+							<option>Part time</option>
+							<option>Full time</option>
+						}
+					}
+				</div>
+				<div x-show="selectedTab === 'private'">
+					@card.Card(card.Props{
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@input.Number(&input.Props{
+							Label: props.T("Employees.Private.Salary.Label"),
+							Error: props.Errors["Salary"],
+							Attrs: templ.Attributes{
+								"name":  "Salary",
+								"value": props.Employee.Salary,
+								"form":  "save-form",
+							},
+						})
+					}
+					@card.Card(card.Props{
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@TinInput(sharedProps)
+						@PinInput(sharedProps)
+						@PassportInput(sharedProps)
+					}
+				</div>
+			}
+		</div>
 		<div
 			x-data
 			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"

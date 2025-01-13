@@ -4,248 +4,426 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"strings"
-
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
-
-	// "github.com/iota-uz/iota-sdk/pkg/graphql/helpers"
-	"gorm.io/gorm"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
 	ErrUserNotFound = errors.New("user not found")
 )
 
+const (
+	userFindQuery = `
+        SELECT 
+            u.id,
+            u.first_name,
+            u.last_name,
+            u.middle_name,
+            u.email,
+            u.password,
+            u.ui_language,
+            u.avatar_id,
+            u.last_login,
+            u.last_ip,
+            u.last_action,
+            u.employee_id,
+            u.created_at,
+            u.updated_at,
+            up.id,
+            up.hash,
+            up.path,
+            up.size,
+            up.mimetype,
+            up.created_at,
+            up.updated_at
+        FROM users u LEFT JOIN uploads up ON u.avatar_id = up.id`
+
+	userInsertQuery = `
+        INSERT INTO users (
+            first_name,
+            last_name,
+            middle_name,
+            email,
+            password,
+            ui_language,
+            avatar_id,
+            employee_id,
+            created_at,
+            updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id`
+
+	userUpdateQuery = `
+        UPDATE users SET
+            first_name = $1,
+            last_name = $2,
+            middle_name = $3,
+            email = $4,
+            password = COALESCE(NULLIF($5, ''), users.password),
+            ui_language = $6,
+            avatar_id = $7,
+            employee_id = $8,
+            updated_at = $9
+        WHERE id = $10`
+
+	userCountQuery = `SELECT COUNT(*) FROM users`
+
+	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
+
+	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1`
+
+	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
+	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
+	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES`
+)
+
+type GormUserRepository struct{}
+
 func NewUserRepository() user.Repository {
-	return &GormUserRepository{
-		roleRepo: NewRoleRepository(),
-	}
+	return &GormUserRepository{}
 }
 
-type GormUserRepository struct {
-	roleRepo role.Repository
-}
-
-func (g *GormUserRepository) GetPaginated(
-	ctx context.Context, params *user.FindParams,
-) ([]*user.User, error) {
-	pool, err := composables.UsePool(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
 	where, args := []string{"1 = 1"}, []interface{}{}
 
-	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
-	}
-
-	rows, err := pool.Query(ctx, `
-		SELECT id, first_name, last_name, middle_name, email, password, ui_language, avatar_id, last_login, last_ip, last_action, employee_id, created_at, updated_at FROM users
-		WHERE `+strings.Join(where, " AND ")+`
-	`, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	users := make([]*user.User, 0)
-
-	for rows.Next() {
-		var user models.User
-		var middleName, lastIp sql.NullString
-		var avatarID, employeeID sql.NullInt32
-		var lastLogin, lastAction sql.NullTime
-		if err := rows.Scan(
-			&user.ID,
-			&user.FirstName,
-			&user.LastName,
-			&middleName,
-			&user.Email,
-			&user.Password,
-			&user.UiLanguage,
-			&avatarID,
-			&lastLogin,
-			&lastIp,
-			&lastAction,
-			&employeeID,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		if avatarID.Valid {
-			user.AvatarID = mapping.Pointer(uint(avatarID.Int32))
-		}
-
-		if lastLogin.Valid {
-			user.LastLogin = mapping.Pointer(lastLogin.Time)
-		}
-
-		if middleName.Valid {
-			user.MiddleName = mapping.Pointer(middleName.String)
-		}
-
-		if lastIp.Valid {
-			user.LastIP = mapping.Pointer(lastIp.String)
-		}
-
-		if lastAction.Valid {
-			user.LastAction = mapping.Pointer(lastAction.Time)
-		}
-
-		if employeeID.Valid {
-			user.EmployeeID = mapping.Pointer(uint(employeeID.Int32))
-		}
-
-		domainUser, err := ToDomainUser(&user)
-		if err != nil {
-			return nil, err
-		}
-
-		if domainUser.Roles, err = g.roleRepo.GetPaginated(ctx, &role.FindParams{
-			UserID:            user.ID,
-			AttachPermissions: true,
-		}); err != nil {
-			return nil, err
-		}
-
-		users = append(users, domainUser)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return users, nil
+	query := repo.Join(
+		userFindQuery,
+		repo.JoinWhere(where...),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+	return g.queryUsers(ctx, query, args...)
 }
 
 func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return 0, composables.ErrNoTx
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
 	}
 	var count int64
-	if err := tx.Model(&models.User{}).Count(&count).Error; err != nil { //nolint:exhaustruct
+	err = tx.QueryRow(ctx, userCountQuery).Scan(&count)
+	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormUserRepository) GetAll(ctx context.Context) ([]*user.User, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var users []*models.User
-	if err := tx.Find(&users).Error; err != nil {
-		return nil, err
-	}
-	entities := make([]*user.User, len(users))
-	for i, row := range users {
-		entities[i], _ = ToDomainUser(row)
-	}
-	return entities, nil
+func (g *GormUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
+	return g.queryUsers(ctx, userFindQuery)
 }
 
-func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (*user.User, error) {
-	users, err := g.GetPaginated(ctx, &user.FindParams{
-		ID: id,
-	})
+func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 	if err != nil {
 		return nil, err
 	}
 	if len(users) == 0 {
 		return nil, ErrUserNotFound
-	} else {
-		return users[0], nil
 	}
+	return users[0], nil
 }
 
-func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return nil, composables.ErrNoTx
-	}
-	var row models.User
-	if err := tx.Preload("Roles").Preload("Roles.Permissions").First(&row, "email = ?", email).Error; err != nil {
+func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1", email)
+	if err != nil {
 		return nil, err
 	}
-	return ToDomainUser(&row)
+	if len(users) == 0 {
+		return nil, ErrUserNotFound
+	}
+	return users[0], nil
 }
 
-func (g *GormUserRepository) CreateOrUpdate(ctx context.Context, user *user.User) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
 	}
-	dbUser, dbRoles := toDBUser(user)
-	if err := tx.Save(dbUser).Error; err != nil {
-		return err
+
+	dbUser, _ := toDBUser(data)
+
+	err = tx.QueryRow(
+		ctx,
+		userInsertQuery,
+		dbUser.FirstName,
+		dbUser.LastName,
+		dbUser.MiddleName,
+		dbUser.Email,
+		dbUser.Password,
+		dbUser.UILanguage,
+		dbUser.AvatarID,
+		dbUser.EmployeeID,
+		dbUser.CreatedAt,
+		dbUser.UpdatedAt,
+	).Scan(&dbUser.ID)
+	if err != nil {
+		return nil, err
 	}
-	return tx.Model(dbUser).Association("Roles").Replace(dbRoles)
+	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles()); err != nil {
+		return nil, err
+	}
+	return g.GetByID(ctx, dbUser.ID)
 }
 
-func (g *GormUserRepository) Create(ctx context.Context, user *user.User) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	dbUser, dbRoles := toDBUser(user)
-	if err := tx.Create(dbUser).Error; err != nil {
+func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
 		return err
 	}
-	return tx.Model(dbUser).Association("Roles").Append(dbRoles)
-}
 
-func (g *GormUserRepository) Update(ctx context.Context, user *user.User) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	dbUser, dbRoles := toDBUser(user)
-	var q *gorm.DB
-	if dbUser.AvatarID == nil {
-		q = tx.Updates(dbUser)
-	} else {
-		q = tx.Updates(dbUser).Preload("Avatar")
-	}
-	if err := q.Error; err != nil {
+	dbUser, _ := toDBUser(data)
+
+	_, err = tx.Exec(
+		ctx,
+		userUpdateQuery,
+		dbUser.FirstName,
+		dbUser.LastName,
+		dbUser.MiddleName,
+		dbUser.Email,
+		dbUser.Password,
+		dbUser.UILanguage,
+		dbUser.AvatarID,
+		dbUser.EmployeeID,
+		dbUser.UpdatedAt,
+		dbUser.ID,
+	)
+
+	if err != nil {
 		return err
 	}
-	if err := tx.Model(dbUser).Association("Avatar").Find(dbUser.Avatar); err != nil {
-		return err
-	}
-	user.Avatar = ToDomainUpload(dbUser.Avatar)
-	if len(dbRoles) == 0 {
-		return nil
-	}
-	return tx.Model(&models.User{}).Association("Roles").Replace(dbRoles)
+
+	return g.updateUserRoles(ctx, data.ID(), data.Roles())
 }
 
 func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	return tx.Model(&models.User{}).Where("id = ?", id).Update("last_login", "NOW()").Error //nolint:exhaustruct
+	return g.execQuery(ctx, userUpdateLastLoginQuery, id)
 }
 
 func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	return tx.Model(&models.User{}).Where("id = ?", id).Update("last_action", "NOW()").Error //nolint:exhaustruct
+	return g.execQuery(ctx, userUpdateLastActionQuery, id)
 }
 
 func (g *GormUserRepository) Delete(ctx context.Context, id uint) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
+	if err := g.execQuery(ctx, userRoleDeleteQuery, id); err != nil {
+		return err
 	}
-	return tx.Delete(&models.User{}, id).Error //nolint:exhaustruct
+	return g.execQuery(ctx, userDeleteQuery, id)
+}
+
+func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args ...interface{}) ([]user.User, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	var uploads []*models.Upload
+	for rows.Next() {
+		var u models.User
+
+		var (
+			avatarId        sql.NullInt32
+			avatarHash      sql.NullString
+			avatarPath      sql.NullString
+			avatarSize      sql.NullInt32
+			avatarMimetype  sql.NullString
+			avatarCreatedAt sql.NullTime
+			avatarUpdatedAt sql.NullTime
+		)
+
+		if err := rows.Scan(
+			&u.ID,
+			&u.FirstName,
+			&u.LastName,
+			&u.MiddleName,
+			&u.Email,
+			&u.Password,
+			&u.UILanguage,
+			&u.AvatarID,
+			&u.LastLogin,
+			&u.LastIP,
+			&u.LastAction,
+			&u.EmployeeID,
+			&u.CreatedAt,
+			&u.UpdatedAt,
+			&avatarId,
+			&avatarHash,
+			&avatarPath,
+			&avatarSize,
+			&avatarMimetype,
+			&avatarCreatedAt,
+			&avatarUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		users = append(users, &u)
+		if avatarId.Valid {
+			uploads = append(uploads, &models.Upload{
+				ID:        uint(avatarId.Int32),
+				Hash:      avatarHash.String,
+				Path:      avatarPath.String,
+				Size:      int(avatarSize.Int32),
+				Mimetype:  avatarMimetype.String,
+				CreatedAt: avatarCreatedAt.Time,
+				UpdatedAt: avatarUpdatedAt.Time,
+			})
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	uploadMap := make(map[uint]*models.Upload)
+	for _, u := range uploads {
+		uploadMap[u.ID] = u
+	}
+
+	entities := make([]user.User, 0, len(users))
+	for _, u := range users {
+		roles, err := g.userRoles(ctx, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		avatar, _ := uploadMap[uint(u.AvatarID.Int32)]
+		entity, err := ToDomainUser(u, avatar, roles)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, entity)
+	}
+
+	return entities, nil
+}
+
+func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]*models.Permission, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(
+		ctx,
+		`
+		SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+		FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`,
+		roleID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var permissions []*models.Permission
+	for rows.Next() {
+		var p models.Permission
+		if err := rows.Scan(
+			&p.ID,
+			&p.Name,
+			&p.Resource,
+			&p.Action,
+			&p.Modifier,
+			&p.Description,
+		); err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, &p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return permissions, nil
+}
+
+func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role.Role, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT 
+			r.id,
+			r.name,
+			r.description,
+			r.created_at,
+			r.updated_at 
+		FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
+	`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roles []*models.Role
+	for rows.Next() {
+		var r models.Role
+		if err := rows.Scan(
+			&r.ID,
+			&r.Name,
+			&r.Description,
+			&r.CreatedAt,
+			&r.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		roles = append(roles, &r)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	entities := make([]role.Role, 0, len(roles))
+	for _, r := range roles {
+		permissions, err := g.rolePermissions(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		entity, err := toDomainRole(r, permissions)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, entity)
+	}
+
+	return entities, nil
+}
+
+func (g *GormUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, query, args...)
+	return err
+}
+
+func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
+	// Delete existing roles
+	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
+		return err
+	}
+
+	values := make([][]interface{}, 0, len(roles)*2)
+	for _, r := range roles {
+		values = append(values, []interface{}{userID, r.ID()})
+	}
+	q, args := repo.BuildBatchInsertQueryN(userRoleInsertQuery, values)
+	if err := g.execQuery(ctx, q, args...); err != nil {
+		return err
+	}
+	return nil
 }

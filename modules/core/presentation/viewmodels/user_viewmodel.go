@@ -11,14 +11,24 @@ type User struct {
 	MiddleName string
 	Email      string
 	UILanguage string
+	LastAction string
 	CreatedAt  string
 	UpdatedAt  string
 	AvatarID   string
+	Roles      []*Role
 	Avatar     *Upload
 }
 
 func (u *User) FullName() string {
 	return u.FirstName + " " + u.LastName + " " + u.MiddleName
+}
+
+func (u *User) RolesVerbose() string {
+	roles := ""
+	for _, role := range u.Roles {
+		roles += role.Name + ", "
+	}
+	return roles[:len(roles)-2]
 }
 
 func (u *User) Initials() string {

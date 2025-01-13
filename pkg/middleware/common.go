@@ -70,7 +70,6 @@ func LogRequests() mux.MiddlewareFunc {
 func Cors(allowOrigins ...string) mux.MiddlewareFunc {
 	return cors.New(
 		cors.Options{
-			//nolint:exhaustruct
 			AllowedOrigins:   allowOrigins,
 			AllowedMethods:   AllowMethods,
 			AllowCredentials: true,

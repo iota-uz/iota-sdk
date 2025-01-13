@@ -4,18 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/application/dbutils"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/event"
-	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
-	gormlogger "gorm.io/gorm/logger"
 )
 
 var (
@@ -29,35 +25,13 @@ func Migrate() error {
 	migration := os.Args[1]
 
 	conf := configuration.Use()
-
-	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
-	if err != nil {
-		log.Fatalf("failed to create logger: %v", err)
-	}
-	defer logFile.Close()
-	db, err := dbutils.ConnectDB(
-		conf.DBOpts,
-		gormlogger.New(
-			logger,
-			gormlogger.Config{
-				SlowThreshold:             0,
-				LogLevel:                  conf.GormLogLevel(),
-				IgnoreRecordNotFoundError: false,
-				Colorful:                  true,
-				ParameterizedQueries:      true,
-			},
-		),
-	)
-	if err != nil {
-		panic(err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, conf.DBOpts)
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(db, pool, event.NewEventPublisher())
+	app := application.New(pool, event.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		return err
 	}

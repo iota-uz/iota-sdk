@@ -1,9 +1,8 @@
 package models
 
 import (
+	"database/sql"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type Upload struct {
@@ -17,7 +16,7 @@ type Upload struct {
 }
 
 type Currency struct {
-	Code      string `gorm:"primary_key"`
+	Code      string
 	Name      string
 	Symbol    string
 	CreatedAt time.Time
@@ -63,11 +62,11 @@ type Employee struct {
 	ID               uint
 	FirstName        string
 	LastName         string
-	MiddleName       string
+	MiddleName       sql.NullString
 	Email            string
-	Phone            string
+	Phone            sql.NullString
 	Salary           float64
-	SalaryCurrencyID *uint
+	SalaryCurrencyID sql.NullString
 	HourlyRate       float64
 	Coefficient      float64
 	AvatarID         *uint
@@ -75,22 +74,20 @@ type Employee struct {
 	UpdatedAt        time.Time
 }
 
+type EmployeeMeta struct {
+	PrimaryLanguage   sql.NullString
+	SecondaryLanguage sql.NullString
+	Tin               sql.NullString
+	Pin               sql.NullString
+	Notes             sql.NullString
+	BirthDate         sql.NullTime
+	HireDate          sql.NullTime
+	ResignationDate   sql.NullTime
+}
+
 type EmployeePosition struct {
 	EmployeeID uint
 	PositionID uint
-}
-
-type EmployeeMeta struct {
-	EmployeeID        uint `gorm:"primary_key"`
-	PrimaryLanguage   string
-	SecondaryLanguage string
-	TIN               string
-	GeneralInfo       string
-	YTProfileID       string
-	BirthDate         time.Time
-	JoinDate          time.Time
-	LeaveDate         time.Time
-	UpdatedAt         time.Time
 }
 
 type Company struct {
@@ -105,11 +102,24 @@ type Company struct {
 	Logo      Upload
 }
 
+type Permission struct {
+	ID          string
+	Name        string
+	Resource    string
+	Action      string
+	Modifier    string
+	Description sql.NullString
+}
+
+type RolePermission struct {
+	RoleID       uint
+	PermissionID uint
+}
+
 type Role struct {
 	ID          uint
 	Name        string
-	Description string
-	Permissions []Permission `gorm:"many2many:role_permissions;"`
+	Description sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -118,19 +128,17 @@ type User struct {
 	ID         uint
 	FirstName  string
 	LastName   string
-	MiddleName *string
+	MiddleName sql.NullString
 	Email      string
-	Password   *string
-	AvatarID   *uint
-	Avatar     *Upload `gorm:"foreignKey:AvatarID;references:ID"`
-	LastLogin  *time.Time
-	LastIP     *string
-	UiLanguage string
-	LastAction *time.Time
-	EmployeeID *uint
+	Password   sql.NullString
+	AvatarID   sql.NullInt32
+	LastLogin  sql.NullTime
+	LastIP     sql.NullString
+	UILanguage string
+	LastAction sql.NullTime
+	EmployeeID sql.NullInt32
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	Roles      []Role `gorm:"many2many:user_roles;"`
 }
 
 type TelegramSession struct {
@@ -268,16 +276,6 @@ type Comment struct {
 	User      User
 }
 
-type Like struct {
-	ID        uint
-	ArticleID uint
-	UserID    uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Article   Article
-	User      User
-}
-
 type UploadedImage struct {
 	ID        uint
 	UploadID  uint
@@ -311,19 +309,6 @@ type Dialogue struct {
 	UpdatedAt time.Time
 }
 
-type Permission struct {
-	ID       uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
-	Name     string
-	Resource string
-	Action   string
-	Modifier string
-}
-
-type RolePermission struct {
-	RoleID       uint
-	PermissionID uint
-}
-
 type Session struct {
 	Token     string
 	UserID    uint
@@ -341,42 +326,6 @@ type AuthenticationLog struct {
 	CreatedAt time.Time
 }
 
-type Vacancy struct {
-	ID        uint
-	URL       string
-	Title     string
-	Body      string
-	Hidden    bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type SalaryRange struct {
-	MinSalary           float64
-	MaxSalary           float64
-	MinSalaryCurrencyID *uint
-	MaxSalaryCurrencyID *uint
-	VacancyID           uint
-	MinSalaryCurrency   Currency
-	MaxSalaryCurrency   Currency
-	Vacancy             Vacancy
-}
-
-type Applicant struct {
-	ID                 uint
-	FirstName          string
-	LastName           string
-	MiddleName         string
-	PrimaryLanguage    string
-	SecondaryLanguage  string
-	Email              string
-	Phone              string
-	ExperienceInMonths int
-	VacancyID          uint
-	CreatedAt          time.Time
-	Vacancy            Vacancy
-}
-
 type Skill struct {
 	ID          uint
 	Name        string
@@ -388,137 +337,6 @@ type Skill struct {
 type EmployeeSkill struct {
 	EmployeeID uint
 	SkillID    uint
-}
-
-type ApplicantSkill struct {
-	ApplicantID uint
-	SkillID     uint
-}
-
-type ApplicantComment struct {
-	ID          uint
-	ApplicantID uint
-	UserID      uint
-	Content     string
-	CreatedAt   time.Time
-	Applicant   Applicant
-	User        User
-}
-
-type Application struct {
-	ID          uint
-	ApplicantID uint
-	VacancyID   uint
-	CreatedAt   time.Time
-	Applicant   Applicant
-	Vacancy     Vacancy
-}
-
-type InterviewQuestion struct {
-	ID          uint
-	Title       string
-	Description string
-	Type        string
-	Language    string
-	Difficulty  string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type Interview struct {
-	ID            uint
-	ApplicationID uint
-	InterviewerID uint
-	Date          time.Time
-	CreatedAt     time.Time
-	Application   Application
-	Interviewer   User
-}
-
-type InterviewRating struct {
-	ID            uint
-	InterviewID   uint
-	InterviewerID uint
-	QuestionID    uint
-	Rating        int
-	Comment       string
-	CreatedAt     time.Time
-	Interview     Interview
-	Interviewer   User
-	Question      InterviewQuestion
-}
-
-type ContactFormSubmission struct {
-	ID        uint
-	Name      string
-	Email     string
-	Phone     string
-	Company   string
-	Message   string
-	CreatedAt time.Time
-}
-
-type BlogPost struct {
-	ID        uint
-	Title     string
-	Content   string
-	AuthorID  *uint
-	PictureID *uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Author    User
-	Picture   Upload
-}
-
-type BlogPostTag struct {
-	ID        uint
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type BlogPostTagRelation struct {
-	PostID uint
-	TagID  uint
-}
-
-type BlogComment struct {
-	ID        uint
-	PostID    uint
-	Content   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Post      BlogPost
-}
-
-type BlogLike struct {
-	ID        uint
-	PostID    uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Post      BlogPost
-}
-
-type WebsitePage struct {
-	ID        uint
-	Path      string
-	SEOTitle  string
-	SEODesc   string
-	SEOKeys   string
-	SEOH1     string
-	SEOH2     string
-	SEOImg    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type WebsitePageView struct {
-	ID        uint
-	PageID    uint
-	UserAgent string
-	IP        string
-	CreatedAt time.Time
-	Page      WebsitePage
 }
 
 type Tab struct {

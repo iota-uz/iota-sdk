@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -26,7 +26,7 @@ func NewCurrencyRepository() currency.Repository {
 func (g *GormCurrencyRepository) GetPaginated(
 	ctx context.Context, params *currency.FindParams,
 ) ([]*currency.Currency, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (g *GormCurrencyRepository) GetPaginated(
 }
 
 func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -107,7 +107,7 @@ func (g *GormCurrencyRepository) GetByCode(ctx context.Context, code string) (*c
 }
 
 func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Cu
 }
 
 func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Currency) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *c
 }
 
 func (g *GormCurrencyRepository) Delete(ctx context.Context, code string) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return composables.ErrNoTx
 	}

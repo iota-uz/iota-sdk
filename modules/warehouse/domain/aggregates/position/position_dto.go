@@ -4,6 +4,7 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"time"
 )
@@ -47,15 +48,17 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (*Position, error) {
-	images := make([]upload.Upload, len(d.ImageIDs))
+	images := make([]*upload.Upload, len(d.ImageIDs))
 	for i, id := range d.ImageIDs {
-		images[i] = upload.Upload{ID: id}
+		images[i] = &upload.Upload{ID: id} //nolint:exhaustruct
 	}
 	return &Position{
 		ID:        0,
 		Title:     d.Title,
 		Barcode:   d.Barcode,
+		InStock:   0,
 		UnitID:    d.UnitID,
+		Unit:      &unit.Unit{ID: d.UnitID}, //nolint:exhaustruct
 		Images:    images,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -67,7 +70,10 @@ func (d *UpdateDTO) ToEntity(id uint) (*Position, error) {
 		ID:        id,
 		Title:     d.Title,
 		Barcode:   d.Barcode,
+		InStock:   0,
 		UnitID:    d.UnitID,
+		Unit:      &unit.Unit{ID: d.UnitID}, //nolint:exhaustruct
+		Images:    []*upload.Upload{},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}, nil

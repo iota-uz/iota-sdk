@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/embedding"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
+	"log"
 	"net/http"
 )
 
@@ -40,7 +41,11 @@ func (s *EmbeddingService) Search(ctx context.Context, query string) ([]*embeddi
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			log.Println(err)
+		}
+	}()
 	if response.StatusCode != http.StatusOK {
 		return nil, errors.New("failed to search knowledge base")
 	}

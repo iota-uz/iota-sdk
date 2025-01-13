@@ -673,7 +673,7 @@ func (ec *executionContext) field_Mutation_completeInventoryCheck_argsItems(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("items"))
 	if tmp, ok := rawArgs["items"]; ok {
-		return ec.unmarshalNInventoryItem2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItemᚄ(ctx, tmp)
+		return ec.unmarshalNInventoryItem2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItemᚄ(ctx, tmp)
 	}
 
 	var zeroVal []*model.InventoryItem
@@ -769,7 +769,7 @@ func (ec *executionContext) field_Query_createProductsFromTags_argsInput(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalNCreateProductsFromTags2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐCreateProductsFromTags(ctx, tmp)
+		return ec.unmarshalNCreateProductsFromTags2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐCreateProductsFromTags(ctx, tmp)
 	}
 
 	var zeroVal model.CreateProductsFromTags
@@ -865,7 +865,7 @@ func (ec *executionContext) field_Query_orders_argsQuery(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("query"))
 	if tmp, ok := rawArgs["query"]; ok {
-		return ec.unmarshalNOrderQuery2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderQuery(ctx, tmp)
+		return ec.unmarshalNOrderQuery2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderQuery(ctx, tmp)
 	}
 
 	var zeroVal model.OrderQuery
@@ -1559,7 +1559,7 @@ func (ec *executionContext) _Order_items(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.([]*model.OrderItem)
 	fc.Result = res
-	return ec.marshalNOrderItem2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItemᚄ(ctx, field.Selections, res)
+	return ec.marshalNOrderItem2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItemᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Order_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1655,7 +1655,7 @@ func (ec *executionContext) _OrderItem_position(ctx context.Context, field graph
 	}
 	res := resTmp.(*model.WarehousePosition)
 	fc.Result = res
-	return ec.marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, field.Selections, res)
+	return ec.marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_OrderItem_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1711,7 +1711,7 @@ func (ec *executionContext) _OrderItem_products(ctx context.Context, field graph
 	}
 	res := resTmp.([]*model.Product)
 	fc.Result = res
-	return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx, field.Selections, res)
+	return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_OrderItem_products(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1815,7 +1815,7 @@ func (ec *executionContext) _PaginatedOrders_data(ctx context.Context, field gra
 	}
 	res := resTmp.([]*model.Order)
 	fc.Result = res
-	return ec.marshalNOrder2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderᚄ(ctx, field.Selections, res)
+	return ec.marshalNOrder2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedOrders_data(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1915,7 +1915,7 @@ func (ec *executionContext) _PaginatedProducts_data(ctx context.Context, field g
 	}
 	res := resTmp.([]*model.Product)
 	fc.Result = res
-	return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx, field.Selections, res)
+	return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedProducts_data(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2019,7 +2019,7 @@ func (ec *executionContext) _PaginatedWarehousePositions_data(ctx context.Contex
 	}
 	res := resTmp.([]*model.WarehousePosition)
 	fc.Result = res
-	return ec.marshalNWarehousePosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePositionᚄ(ctx, field.Selections, res)
+	return ec.marshalNWarehousePosition2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePositionᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedWarehousePositions_data(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2163,7 +2163,7 @@ func (ec *executionContext) _Product_position(ctx context.Context, field graphql
 	}
 	res := resTmp.(*model.WarehousePosition)
 	fc.Result = res
-	return ec.marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, field.Selections, res)
+	return ec.marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Product_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2491,7 +2491,7 @@ func (ec *executionContext) _Query_inventory(ctx context.Context, field graphql.
 	}
 	res := resTmp.([]*model.InventoryPosition)
 	fc.Result = res
-	return ec.marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPositionᚄ(ctx, field.Selections, res)
+	return ec.marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPositionᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_inventory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2540,7 +2540,7 @@ func (ec *executionContext) _Query_order(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.(*model.Order)
 	fc.Result = res
-	return ec.marshalOOrder2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx, field.Selections, res)
+	return ec.marshalOOrder2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_order(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2607,7 +2607,7 @@ func (ec *executionContext) _Query_orders(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.(*model.PaginatedOrders)
 	fc.Result = res
-	return ec.marshalNPaginatedOrders2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedOrders(ctx, field.Selections, res)
+	return ec.marshalNPaginatedOrders2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedOrders(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_orders(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2665,7 +2665,7 @@ func (ec *executionContext) _Query_completeOrder(ctx context.Context, field grap
 	}
 	res := resTmp.(*model.Order)
 	fc.Result = res
-	return ec.marshalOOrder2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx, field.Selections, res)
+	return ec.marshalOOrder2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_completeOrder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2729,7 +2729,7 @@ func (ec *executionContext) _Query_warehousePosition(ctx context.Context, field 
 	}
 	res := resTmp.(*model.WarehousePosition)
 	fc.Result = res
-	return ec.marshalOWarehousePosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, field.Selections, res)
+	return ec.marshalOWarehousePosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_warehousePosition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2796,7 +2796,7 @@ func (ec *executionContext) _Query_warehousePositions(ctx context.Context, field
 	}
 	res := resTmp.(*model.PaginatedWarehousePositions)
 	fc.Result = res
-	return ec.marshalNPaginatedWarehousePositions2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedWarehousePositions(ctx, field.Selections, res)
+	return ec.marshalNPaginatedWarehousePositions2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedWarehousePositions(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_warehousePositions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2854,7 +2854,7 @@ func (ec *executionContext) _Query_product(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*model.Product)
 	fc.Result = res
-	return ec.marshalOProduct2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx, field.Selections, res)
+	return ec.marshalOProduct2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_product(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2925,7 +2925,7 @@ func (ec *executionContext) _Query_products(ctx context.Context, field graphql.C
 	}
 	res := resTmp.(*model.PaginatedProducts)
 	fc.Result = res
-	return ec.marshalNPaginatedProducts2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedProducts(ctx, field.Selections, res)
+	return ec.marshalNPaginatedProducts2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedProducts(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_products(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2986,7 +2986,7 @@ func (ec *executionContext) _Query_createProductsFromTags(ctx context.Context, f
 	}
 	res := resTmp.([]*model.Product)
 	fc.Result = res
-	return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx, field.Selections, res)
+	return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_createProductsFromTags(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3057,7 +3057,7 @@ func (ec *executionContext) _Query_validateProducts(ctx context.Context, field g
 	}
 	res := resTmp.(*model.ValidateProductsResult)
 	fc.Result = res
-	return ec.marshalNValidateProductsResult2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐValidateProductsResult(ctx, field.Selections, res)
+	return ec.marshalNValidateProductsResult2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐValidateProductsResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_validateProducts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6559,7 +6559,7 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNCreateProductsFromTags2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐCreateProductsFromTags(ctx context.Context, v interface{}) (model.CreateProductsFromTags, error) {
+func (ec *executionContext) unmarshalNCreateProductsFromTags2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐCreateProductsFromTags(ctx context.Context, v interface{}) (model.CreateProductsFromTags, error) {
 	res, err := ec.unmarshalInputCreateProductsFromTags(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
@@ -6609,7 +6609,7 @@ func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.Sel
 	return res
 }
 
-func (ec *executionContext) unmarshalNInventoryItem2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItemᚄ(ctx context.Context, v interface{}) ([]*model.InventoryItem, error) {
+func (ec *executionContext) unmarshalNInventoryItem2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItemᚄ(ctx context.Context, v interface{}) ([]*model.InventoryItem, error) {
 	var vSlice []interface{}
 	if v != nil {
 		vSlice = graphql.CoerceList(v)
@@ -6618,7 +6618,7 @@ func (ec *executionContext) unmarshalNInventoryItem2ᚕᚖgithubᚗcomᚋiotaᚑ
 	res := make([]*model.InventoryItem, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNInventoryItem2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItem(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNInventoryItem2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItem(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -6626,12 +6626,12 @@ func (ec *executionContext) unmarshalNInventoryItem2ᚕᚖgithubᚗcomᚋiotaᚑ
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalNInventoryItem2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItem(ctx context.Context, v interface{}) (*model.InventoryItem, error) {
+func (ec *executionContext) unmarshalNInventoryItem2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryItem(ctx context.Context, v interface{}) (*model.InventoryItem, error) {
 	res, err := ec.unmarshalInputInventoryItem(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPositionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.InventoryPosition) graphql.Marshaler {
+func (ec *executionContext) marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPositionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.InventoryPosition) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -6655,7 +6655,7 @@ func (ec *executionContext) marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiota�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNInventoryPosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPosition(ctx, sel, v[i])
+			ret[i] = ec.marshalNInventoryPosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPosition(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6675,7 +6675,7 @@ func (ec *executionContext) marshalNInventoryPosition2ᚕᚖgithubᚗcomᚋiota�
 	return ret
 }
 
-func (ec *executionContext) marshalNInventoryPosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPosition(ctx context.Context, sel ast.SelectionSet, v *model.InventoryPosition) graphql.Marshaler {
+func (ec *executionContext) marshalNInventoryPosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐInventoryPosition(ctx context.Context, sel ast.SelectionSet, v *model.InventoryPosition) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6685,7 +6685,7 @@ func (ec *executionContext) marshalNInventoryPosition2ᚖgithubᚗcomᚋiotaᚑa
 	return ec._InventoryPosition(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrder2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Order) graphql.Marshaler {
+func (ec *executionContext) marshalNOrder2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Order) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -6709,7 +6709,7 @@ func (ec *executionContext) marshalNOrder2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋi
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNOrder2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx, sel, v[i])
+			ret[i] = ec.marshalNOrder2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6729,7 +6729,7 @@ func (ec *executionContext) marshalNOrder2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋi
 	return ret
 }
 
-func (ec *executionContext) marshalNOrder2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
+func (ec *executionContext) marshalNOrder2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6739,7 +6739,7 @@ func (ec *executionContext) marshalNOrder2ᚖgithubᚗcomᚋiotaᚑagencyᚋiota
 	return ec._Order(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrderItem2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderItem) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderItem2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderItem) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -6763,7 +6763,7 @@ func (ec *executionContext) marshalNOrderItem2ᚕᚖgithubᚗcomᚋiotaᚑagency
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNOrderItem2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItem(ctx, sel, v[i])
+			ret[i] = ec.marshalNOrderItem2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItem(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6783,7 +6783,7 @@ func (ec *executionContext) marshalNOrderItem2ᚕᚖgithubᚗcomᚋiotaᚑagency
 	return ret
 }
 
-func (ec *executionContext) marshalNOrderItem2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItem(ctx context.Context, sel ast.SelectionSet, v *model.OrderItem) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderItem2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderItem(ctx context.Context, sel ast.SelectionSet, v *model.OrderItem) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6793,16 +6793,16 @@ func (ec *executionContext) marshalNOrderItem2ᚖgithubᚗcomᚋiotaᚑagencyᚋ
 	return ec._OrderItem(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNOrderQuery2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderQuery(ctx context.Context, v interface{}) (model.OrderQuery, error) {
+func (ec *executionContext) unmarshalNOrderQuery2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrderQuery(ctx context.Context, v interface{}) (model.OrderQuery, error) {
 	res, err := ec.unmarshalInputOrderQuery(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNPaginatedOrders2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedOrders(ctx context.Context, sel ast.SelectionSet, v model.PaginatedOrders) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedOrders2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedOrders(ctx context.Context, sel ast.SelectionSet, v model.PaginatedOrders) graphql.Marshaler {
 	return ec._PaginatedOrders(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPaginatedOrders2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedOrders(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedOrders) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedOrders2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedOrders(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedOrders) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6812,11 +6812,11 @@ func (ec *executionContext) marshalNPaginatedOrders2ᚖgithubᚗcomᚋiotaᚑage
 	return ec._PaginatedOrders(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPaginatedProducts2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedProducts(ctx context.Context, sel ast.SelectionSet, v model.PaginatedProducts) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedProducts2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedProducts(ctx context.Context, sel ast.SelectionSet, v model.PaginatedProducts) graphql.Marshaler {
 	return ec._PaginatedProducts(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPaginatedProducts2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedProducts(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedProducts) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedProducts2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedProducts(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedProducts) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6826,11 +6826,11 @@ func (ec *executionContext) marshalNPaginatedProducts2ᚖgithubᚗcomᚋiotaᚑa
 	return ec._PaginatedProducts(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPaginatedWarehousePositions2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedWarehousePositions(ctx context.Context, sel ast.SelectionSet, v model.PaginatedWarehousePositions) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedWarehousePositions2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedWarehousePositions(ctx context.Context, sel ast.SelectionSet, v model.PaginatedWarehousePositions) graphql.Marshaler {
 	return ec._PaginatedWarehousePositions(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPaginatedWarehousePositions2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedWarehousePositions(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedWarehousePositions) graphql.Marshaler {
+func (ec *executionContext) marshalNPaginatedWarehousePositions2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐPaginatedWarehousePositions(ctx context.Context, sel ast.SelectionSet, v *model.PaginatedWarehousePositions) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6840,7 +6840,7 @@ func (ec *executionContext) marshalNPaginatedWarehousePositions2ᚖgithubᚗcom�
 	return ec._PaginatedWarehousePositions(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProductᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Product) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -6864,7 +6864,7 @@ func (ec *executionContext) marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑagency�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNProduct2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx, sel, v[i])
+			ret[i] = ec.marshalNProduct2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6884,7 +6884,7 @@ func (ec *executionContext) marshalNProduct2ᚕᚖgithubᚗcomᚋiotaᚑagency�
 	return ret
 }
 
-func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6956,11 +6956,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNValidateProductsResult2githubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐValidateProductsResult(ctx context.Context, sel ast.SelectionSet, v model.ValidateProductsResult) graphql.Marshaler {
+func (ec *executionContext) marshalNValidateProductsResult2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐValidateProductsResult(ctx context.Context, sel ast.SelectionSet, v model.ValidateProductsResult) graphql.Marshaler {
 	return ec._ValidateProductsResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNValidateProductsResult2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐValidateProductsResult(ctx context.Context, sel ast.SelectionSet, v *model.ValidateProductsResult) graphql.Marshaler {
+func (ec *executionContext) marshalNValidateProductsResult2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐValidateProductsResult(ctx context.Context, sel ast.SelectionSet, v *model.ValidateProductsResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6970,7 +6970,7 @@ func (ec *executionContext) marshalNValidateProductsResult2ᚖgithubᚗcomᚋiot
 	return ec._ValidateProductsResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNWarehousePosition2ᚕᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePositionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WarehousePosition) graphql.Marshaler {
+func (ec *executionContext) marshalNWarehousePosition2ᚕᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePositionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WarehousePosition) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -6994,7 +6994,7 @@ func (ec *executionContext) marshalNWarehousePosition2ᚕᚖgithubᚗcomᚋiota�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, sel, v[i])
+			ret[i] = ec.marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -7014,7 +7014,7 @@ func (ec *executionContext) marshalNWarehousePosition2ᚕᚖgithubᚗcomᚋiota�
 	return ret
 }
 
-func (ec *executionContext) marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx context.Context, sel ast.SelectionSet, v *model.WarehousePosition) graphql.Marshaler {
+func (ec *executionContext) marshalNWarehousePosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx context.Context, sel ast.SelectionSet, v *model.WarehousePosition) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -7303,14 +7303,14 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOOrder2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
+func (ec *executionContext) marshalOOrder2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Order(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOProduct2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalOProduct2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -7371,7 +7371,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOWarehousePosition2ᚖgithubᚗcomᚋiotaᚑagencyᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx context.Context, sel ast.SelectionSet, v *model.WarehousePosition) graphql.Marshaler {
+func (ec *executionContext) marshalOWarehousePosition2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋwarehouseᚋinterfacesᚋgraphᚋgqlmodelsᚐWarehousePosition(ctx context.Context, sel ast.SelectionSet, v *model.WarehousePosition) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

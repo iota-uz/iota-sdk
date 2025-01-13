@@ -1,11 +1,13 @@
 package category
 
 import (
+	"time"
+
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	currency2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"time"
 )
 
 type CreateDTO struct {
@@ -47,35 +49,35 @@ func (e *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (e *CreateDTO) ToEntity() (*ExpenseCategory, error) {
-	code, err := currency2.NewCode(e.CurrencyCode)
+func (e *CreateDTO) ToEntity() (ExpenseCategory, error) {
+	code, err := currency.NewCode(e.CurrencyCode)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ExpenseCategory{
-		ID:          0,
-		Name:        e.Name,
-		Amount:      e.Amount,
-		Currency:    currency2.Currency{Code: code}, //nolint:exhaustruct
-		Description: e.Description,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+	return &expenseCategory{
+		id:          0,
+		name:        e.Name,
+		amount:      e.Amount,
+		currency:    &currency.Currency{Code: code},
+		description: e.Description,
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
 	}, nil
 }
 
-func (e *UpdateDTO) ToEntity(id uint) (*ExpenseCategory, error) {
-	code, err := currency2.NewCode(e.CurrencyCode)
+func (e *UpdateDTO) ToEntity(id uint) (ExpenseCategory, error) {
+	code, err := currency.NewCode(e.CurrencyCode)
 	if err != nil {
 		return nil, err
 	}
-	return &ExpenseCategory{
-		ID:          id,
-		Name:        e.Name,
-		Amount:      e.Amount,
-		Currency:    currency2.Currency{Code: code}, //nolint:exhaustruct
-		Description: e.Description,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+	return &expenseCategory{
+		id:          id,
+		name:        e.Name,
+		amount:      e.Amount,
+		currency:    &currency.Currency{Code: code},
+		description: e.Description,
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
 	}, nil
 }

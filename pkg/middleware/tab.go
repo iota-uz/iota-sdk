@@ -27,7 +27,7 @@ func Tabs() mux.MiddlewareFunc {
 					panic(err)
 				}
 				tabService := app.Service(services.TabService{}).(*services.TabService)
-				tabs, err := tabService.GetUserTabs(r.Context(), u.ID)
+				tabs, err := tabService.GetUserTabs(r.Context(), u.ID())
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
