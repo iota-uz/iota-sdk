@@ -58,7 +58,7 @@ func (g *GormInventoryRepository) GetPaginated(
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT ic.id, status, type, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id
+		SELECT ic.id, status, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id
 		FROM inventory_checks ic
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY id DESC

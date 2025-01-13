@@ -6,10 +6,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -29,7 +29,6 @@ templ InventoryTable(props *IndexPageProps) {
 			Columns: []*base.TableColumn{
 				{Label: props.T("WarehouseInventory.List.Name"), Key: "name"},
 				{Label: props.T("WarehouseInventory.List.Status"), Key: "status"},
-				{Label: props.T("WarehouseInventory.List.Type"), Key: "type"},
 				{Label: props.T("WarehouseInventory.List.CreatedBy"), Key: "createdBy"},
 				{Label: props.T("WarehouseInventory.List.FinishedBy"), Key: "finishedBy"},
 				{Label: props.T("Actions"), Class: "w-16"},
@@ -49,9 +48,6 @@ templ InventoryTable(props *IndexPageProps) {
 						>
 							{ check.LocalizedStatus(props.Localizer) }
 						</div>
-					}
-					@base.TableCell() {
-						{ check.LocalizedType(props.Localizer) }
 					}
 					@base.TableCell() {
 						{ check.CreatedBy.FullName() }
