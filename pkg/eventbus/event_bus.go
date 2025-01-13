@@ -1,4 +1,4 @@
-package event
+package eventbus
 
 import "reflect"
 
@@ -6,7 +6,7 @@ type Subscriber struct {
 	Handler interface{}
 }
 
-type Publisher interface {
+type EventBus interface {
 	Publish(args ...interface{})
 	Subscribe(handler interface{})
 	Unsubscribe(handler interface{})
@@ -18,7 +18,7 @@ type publisherImpl struct {
 	Subscribers []Subscriber
 }
 
-func NewEventPublisher() Publisher {
+func NewEventPublisher() EventBus {
 	return &publisherImpl{}
 }
 

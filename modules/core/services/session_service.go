@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type SessionService struct {
 	repo      session.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewSessionService(repo session.Repository, publisher event.Publisher) *SessionService {
+func NewSessionService(repo session.Repository, publisher eventbus.EventBus) *SessionService {
 	return &SessionService{
 		repo:      repo,
 		publisher: publisher,

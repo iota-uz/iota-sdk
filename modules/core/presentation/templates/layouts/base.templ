@@ -25,7 +25,7 @@ templ Base(title string) {
 			<script defer async src={ htmxPreload }></script>
 			<script defer async src={ apexJs }></script>
 		</head>
-		<body class="antialiased">
+		<body class="antialiased overflow-y-hidden">
 			{ children... }
 		</body>
 	</html>
