@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
@@ -15,6 +16,10 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
+)
+
+const (
+	oauthStateCookieKey = "oauthState"
 )
 
 type AuthService struct {
@@ -75,6 +80,20 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		http.Error(w, "code not found", http.StatusBadRequest)
 		return
 	}
+	state := r.URL.Query().Get("state")
+	if state == "" {
+		http.Error(w, "state not found", http.StatusBadRequest)
+		return
+	}
+	oauthCookie, err := r.Cookie(oauthStateCookieKey)
+	if err != nil {
+		http.Error(w, "state cookie not found", http.StatusBadRequest)
+		return
+	}
+	if oauthCookie.Value != state {
+		http.Error(w, "state invalid", http.StatusBadRequest)
+		return
+	}
 	_, sess, err := s.AuthenticateGoogle(r.Context(), code)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -91,10 +110,6 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		Domain:   conf.Domain,
 	}
 	http.SetCookie(w, cookie)
-}
-
-func (s *AuthService) GoogleOAuthCodeURL(state string) string {
-	return s.oAuthConfig.AuthCodeURL(state)
 }
 
 func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Session, error) {
@@ -218,20 +233,32 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 	return cookie, nil
 }
 
-func generateStateOauthCookie() (string, error) {
+func generateStateOauthCookie() (*http.Cookie, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	state := base64.URLEncoding.EncodeToString(b)
+	conf := configuration.Use()
+	cookie := &http.Cookie{
+		Name:     oauthStateCookieKey,
+		Value:    state,
+		Expires:  time.Now().Add(time.Minute * 15),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   conf.GoAppEnvironment == "production",
+		Domain:   conf.Domain,
+	}
+	return cookie, nil
 }
 
-func (s *AuthService) GoogleAuthenticate() (string, error) {
-	oauthState, err := generateStateOauthCookie()
+func (s *AuthService) GoogleAuthenticate(w http.ResponseWriter) (string, error) {
+	cookie, err := generateStateOauthCookie()
 	if err != nil {
 		return "", err
 	}
-	u := s.oAuthConfig.AuthCodeURL(oauthState, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	http.SetCookie(w, cookie)
+	u := s.oAuthConfig.AuthCodeURL(cookie.Value, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	return u, nil
 }

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -85,36 +86,37 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	codeURL, err := c.authService.GoogleAuthenticate(w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := login.Index(&login.LoginProps{
 		PageContext:        pageCtx,
 		ErrorsMap:          errorsMap,
 		Email:              email,
 		ErrorMessage:       string(errorMessage),
-		GoogleOAuthCodeURL: c.authService.GoogleOAuthCodeURL(""),
+		GoogleOAuthCodeURL: codeURL,
 	}).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	dto := LoginDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&LoginDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
 	if err != nil {
 		shared.SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
-		http.Redirect(w, r, "/login", http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/login?next=%s", r.URL.Query().Get("next")), http.StatusFound)
 		return
 	}
 	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
 		shared.SetFlashMap(w, "errorsMap", errorsMap)
-		http.Redirect(w, r, "/login?email="+dto.Email, http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return
 	}
 
@@ -125,7 +127,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		} else {
 			shared.SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
 		}
-		http.Redirect(w, r, "/login?email="+dto.Email, http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return
 	}
 
