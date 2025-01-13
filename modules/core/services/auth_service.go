@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -13,7 +15,6 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
-	"net/http"
 )
 
 type AuthService struct {
@@ -90,6 +91,10 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		Domain:   conf.Domain,
 	}
 	http.SetCookie(w, cookie)
+}
+
+func (s *AuthService) GoogleOAuthCodeURL(state string) string {
+	return s.oAuthConfig.AuthCodeURL(state)
 }
 
 func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Session, error) {

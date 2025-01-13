@@ -2,9 +2,10 @@ package controllers
 
 import (
 	"errors"
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"net/http"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -53,7 +54,7 @@ func (c *LoginController) Key() string {
 }
 
 func (c *LoginController) Register(r *mux.Router) {
-	r.HandleFunc("/oauth/google/callback", c.authService.OauthGoogleCallback)
+	r.HandleFunc("/verify/oauth", c.authService.OauthGoogleCallback)
 
 	getRouter := r.PathPrefix("/login").Subrouter()
 	getRouter.Use(middleware.WithLocalizer(c.app.Bundle()))
@@ -85,10 +86,11 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := login.Index(&login.LoginProps{
-		PageContext:  pageCtx,
-		ErrorsMap:    errorsMap,
-		Email:        email,
-		ErrorMessage: string(errorMessage),
+		PageContext:        pageCtx,
+		ErrorsMap:          errorsMap,
+		Email:              email,
+		ErrorMessage:       string(errorMessage),
+		GoogleOAuthCodeURL: c.authService.GoogleOAuthCodeURL(""),
 	}).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -127,6 +129,10 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	redirectURL := r.URL.Query().Get("next")
+	if redirectURL == "" {
+		redirectURL = "/"
+	}
 	http.SetCookie(w, cookie)
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 }

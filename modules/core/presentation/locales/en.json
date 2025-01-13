@@ -251,6 +251,7 @@
     "Login": "Log in",
     "WelcomeBack": "Welcome back",
     "EnterEmailAndPassword": "Enter email and password to sign in",
+    "OrSignInWith": "Or sign in with...",
     "Errors": {
       "PasswordInvalid": "Email or password is invalid"
     }

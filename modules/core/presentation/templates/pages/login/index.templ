@@ -1,6 +1,7 @@
 package login
 
 import (
+	"github.com/iota-uz/iota-sdk/components/base/alert"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/icons"
@@ -11,9 +12,10 @@ import (
 
 type LoginProps struct {
 	*types.PageContext
-	ErrorsMap    map[string]string
-	ErrorMessage string
-	Email        string
+	ErrorsMap          map[string]string
+	ErrorMessage       string
+	Email              string
+	GoogleOAuthCodeURL string
 }
 
 var (
@@ -72,14 +74,19 @@ templ Index(p *LoginProps) {
 		<div class="flex flex-col h-screen overflow-y-auto">
 			@Header()
 			<div class="flex-1 flex items-center justify-center">
-				<form class="p-11 flex flex-col gap-4 bg-surface-300 rounded-xl" action="/login" method="post">
+				<form class="max-w-md p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08)] shadow-[0_0_0_7px_rgba(255,255,255,0.5)]" method="post">
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
 							{ p.T("Login.WelcomeBack") }
 						</h1>
 						<p class="mt-2 text-200">{ p.T("Login.EnterEmailAndPassword") }</p>
 					</div>
-					<hr/>
+					<hr class="border border-primary"/>
+					if len(p.ErrorMessage) > 0 {
+						@alert.Error() {
+							{ p.ErrorMessage }
+						}
+					}
 					@input.Email(&input.Props{
 						Label: p.T("Login.Email"),
 						Attrs: templ.Attributes{
@@ -104,11 +111,11 @@ templ Index(p *LoginProps) {
 					}) {
 						{ p.T("Login.Login") }
 					}
-					<p class="text-100 text-center">Or sign in with...</p>
+					<p class="text-100 text-center">{ p.T("Login.OrSignInWith") }</p>
 					@button.Secondary(button.Props{
 						Size:  button.SizeNormal,
 						Class: "justify-center",
-						Href:  "https://google.com",
+						Href:  p.GoogleOAuthCodeURL,
 						Attrs: templ.Attributes{
 							"type": "button",
 						},
