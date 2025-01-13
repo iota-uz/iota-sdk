@@ -16,10 +16,10 @@ import (
 
 //go:generate go run github.com/99designs/gqlgen generate
 
-//go:embed locales/*.json
+//go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed migrations/*.sql
+//go:embed infrastructure/persistence/schema/core-schema.sql
 var migrationFiles embed.FS
 
 func NewModule() application.Module {
@@ -64,6 +64,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
 		controllers.NewUsersController(app),
+		controllers.NewRolesController(app),
 		controllers.NewEmployeeController(app),
 		controllers.NewBiChatController(app),
 	)
@@ -74,11 +75,16 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
-	sl := app.Spotlight()
-	for _, l := range NavItems {
-		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
-	}
 	app.Spotlight().Register(
+		spotlight.NewItem(nil, DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewItem(nil, BiChatLink.Name, BiChatLink.Href),
+		spotlight.NewItem(nil, EmployeesLink.Name, EmployeesLink.Href),
+		spotlight.NewItem(nil, UsersLink.Name, UsersLink.Href),
+		spotlight.NewItem(
+			icons.Gear(icons.Props{Size: "24"}),
+			"NavigationLinks.Navbar.Settings",
+			"/account/settings",
+		),
 		spotlight.NewItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Users.List.New",

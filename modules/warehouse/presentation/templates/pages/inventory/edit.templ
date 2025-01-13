@@ -1,0 +1,155 @@
+package inventory
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type EditPageProps struct {
+	*types.PageContext
+	Check           *viewmodels.Check
+	Positions       []*viewmodels.Position
+	PaginationState *pagination.State
+	Errors          map[string]string
+	DeleteURL       string
+	SaveURL         string
+}
+
+templ EditForm(props *EditPageProps) {
+	<div class="flex flex-col justify-between h-full" id="edit-content">
+		@card.Card(card.Props{
+			Class:        "flex flex-col gap-6",
+			WrapperClass: "m-6",
+		}) {
+			<div class="grid grid-cols-3 gap-4">
+				<input type="hidden" name="Status" value={ props.Check.Status }/>
+				@input.Text(&input.Props{
+					Label:       props.T("WarehouseInventory.Single.Name.Label"),
+					Placeholder: props.T("WarehouseInventory.Single.Name.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Check.Name,
+						"name":  "Name",
+						"form":  "save-form",
+					},
+				})
+			</div>
+			@tab.Root(tab.Props{}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Link(fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID), props.PageContext.Pathname == fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID)) {
+						{ props.T("All") }
+					}
+					@tab.Link(fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID), props.PageContext.Pathname == fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID)) {
+						{ props.T("WarehouseInventory.Single.Difference") }
+					}
+				}
+			}
+			<div class="flex flex-col gap-4 table-selected">
+				@base.Table(&base.TableProps{
+					Columns: []*base.TableColumn{
+						{Label: props.T("WarehousePositions.List.Position"), Key: "title"},
+						{Label: props.T("WarehousePositions.List.Barcode"), Key: "barcode"},
+						{Label: props.T("WarehousePositions.List.Unit"), Key: "unit"},
+						{Label: props.T("WarehouseInventory.Single.FactualQuantity"), Key: "quantity"},
+					},
+				}) {
+					for _, result := range props.Check.Results {
+						@base.TableRow() {
+							@base.TableCell() {
+								{ result.Position.Title }
+							}
+							@base.TableCell() {
+								{ result.Position.Barcode }
+							}
+							@base.TableCell() {
+								{ result.Position.Unit.ShortTitle }
+							}
+							@base.TableCell() {
+								<span class={ templ.KV("text-red-500", result.ActualQuantity != result.ExpectedQuantity), templ.KV("text-green-600", result.ActualQuantity == result.ExpectedQuantity) }>
+									{ result.ActualQuantity } / { result.ExpectedQuantity }
+								</span>
+							}
+						}
+					}
+				}
+			</div>
+		}
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="delete-form"
+				hx-delete={ props.DeleteURL }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-inventory-check-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-inventory-check-confirmation')",
+						"id":     "delete-inventory-check-btn",
+					},
+				}) {
+					{ props.T("Delete") }
+				}
+			</form>
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ props.SaveURL }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ props.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditPageProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@EditForm(props)
+		@dialog.Confirmation(&dialog.Props{
+			CancelText:  props.T("Cancel"),
+			ConfirmText: props.T("Delete"),
+			Heading:     props.T("WarehouseInventory.Single.Delete"),
+			Text:        props.T("WarehouseInventory.Single.DeleteConfirmation"),
+			Icon:        icons.Trash(icons.Props{Size: "20"}),
+			Action:      "open-delete-inventory-check-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+		})
+	}
+}

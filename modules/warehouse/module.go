@@ -3,25 +3,25 @@ package warehouse
 import (
 	"embed"
 	"github.com/iota-uz/iota-sdk/components/icons"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/assets"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/controllers"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
-	orderservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/order_service"
-	positionservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/position_service"
-	productservice "github.com/iota-uz/iota-sdk/modules/warehouse/services/product_service"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
 
-//go:embed locales/*.json
+//go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed migrations/*.sql
+//go:embed infrastructure/persistence/schema/warehouse-schema.sql
 var migrationFiles embed.FS
 
 func NewModule() application.Module {
@@ -33,15 +33,17 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	unitRepo := persistence.NewUnitRepository()
+	positionRepo := persistence.NewPositionRepository()
+	productRepo := persistence.NewProductRepository()
+
 	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
 	app.RegisterServices(unitService)
-	positionRepo := persistence.NewPositionRepository(unitRepo)
-	productRepo := persistence.NewProductRepository(positionRepo)
+
 	productService := productservice.NewProductService(productRepo, app.EventPublisher())
 	app.RegisterServices(productService)
 	app.RegisterServices(
-		services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher()),
-		productservice.NewProductService(persistence.NewProductRepository(positionRepo), app.EventPublisher()),
+		services.NewUnitService(unitRepo, app.EventPublisher()),
+		productservice.NewProductService(productRepo, app.EventPublisher()),
 	)
 
 	app.RegisterServices(
@@ -53,12 +55,12 @@ func (m *Module) Register(app application.Application) error {
 		orderservice.NewOrderService(
 			app.EventPublisher(),
 			persistence.NewOrderRepository(productRepo),
-			persistence.NewProductRepository(positionRepo),
+			productRepo,
 		),
 		services.NewInventoryService(app.EventPublisher()),
 	)
 
-	app.RegisterPermissions(
+	app.RBAC().Register(
 		permissions.ProductCreate,
 		permissions.ProductRead,
 		permissions.ProductUpdate,
@@ -90,11 +92,12 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
-	sl := app.Spotlight()
-	for _, l := range NavItems {
-		sl.Register(spotlight.NewItem(l.Icon, l.Name, l.Href))
-	}
 	app.Spotlight().Register(
+		spotlight.NewItem(nil, ProductsItem.Name, ProductsItem.Href),
+		spotlight.NewItem(nil, PositionsItem.Name, PositionsItem.Href),
+		spotlight.NewItem(nil, OrdersItem.Name, OrdersItem.Href),
+		spotlight.NewItem(nil, UnitsItem.Name, UnitsItem.Href),
+		spotlight.NewItem(nil, InventoryItem.Name, InventoryItem.Href),
 		spotlight.NewItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehousePositions.List.New",

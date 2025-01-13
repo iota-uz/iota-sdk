@@ -1,13 +1,10 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"gorm.io/gorm"
 )
 
 func WithTransaction() mux.MiddlewareFunc {
@@ -18,18 +15,17 @@ func WithTransaction() mux.MiddlewareFunc {
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
-				db := r.Context().Value(constants.DBKey).(*gorm.DB)
 				tx, err := pool.Begin(r.Context())
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
 				defer tx.Rollback(r.Context())
-				r = r.WithContext(composables.WithPoolTx(r.Context(), tx))
-				err = db.Transaction(func(tx *gorm.DB) error {
-					next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), constants.TxKey, tx)))
-					return nil
-				})
+				r = r.WithContext(composables.WithTx(r.Context(), tx))
 				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+				next.ServeHTTP(w, r)
+				if err := tx.Commit(r.Context()); err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
 			},

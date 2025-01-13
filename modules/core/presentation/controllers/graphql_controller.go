@@ -26,7 +26,7 @@ func (g *GraphQLController) Key() string {
 
 func (g *GraphQLController) Register(r *mux.Router) {
 	schema := graph.NewExecutableSchema(
-		graph.Config{ //nolint:exhaustruct
+		graph.Config{
 			Resolvers: graph.NewResolver(g.app),
 		},
 	)

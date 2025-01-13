@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
+	"log"
 	"net/http"
 
 	"gorm.io/gorm"
@@ -35,7 +36,11 @@ func GetExchangeRate(from string, to string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			log.Println(err)
+		}
+	}()
 	if response.StatusCode != http.StatusOK {
 		return 0, errors.New("failed to get exchange rates")
 	}

@@ -8,9 +8,8 @@ import (
 )
 
 func OrderItemsToGraphModel(item order.Item) *model.OrderItem {
-	pos := item.Position()
 	return &model.OrderItem{
-		Position: PositionToGraphModel(&pos),
+		Position: PositionToGraphModel(item.Position()),
 		Products: mapping.MapViewModels(item.Products(), func(p *product.Product) *model.Product {
 			return ProductToGraphModel(p)
 		}),

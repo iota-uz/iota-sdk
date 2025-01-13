@@ -42,7 +42,7 @@ func NewAuthService(app application.Application) *AuthService {
 	}
 }
 
-func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (*user.User, *session.Session, error) {
+func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, *session.Session, error) {
 	// Use code to get token and get user info from Google.
 	token, err := s.oAuthConfig.Exchange(ctx, code)
 	if err != nil {
@@ -81,7 +81,6 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
@@ -110,11 +109,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Ses
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
-	tx, ok := composables.UseTx(ctx)
-	if !ok {
-		return composables.ErrNoTx
-	}
-	return tx.Delete(&session.Session{}, "token = ?", token).Error //nolint:exhaustruct
+	return s.sessionService.Delete(ctx, token)
 }
 
 func (s *AuthService) newSessionToken() (string, error) {
@@ -127,7 +122,7 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
-func (s *AuthService) authenticate(ctx context.Context, u *user.User) (*session.Session, error) {
+func (s *AuthService) authenticate(ctx context.Context, u user.User) (*session.Session, error) {
 	ip, _ := composables.UseIP(ctx)
 	userAgent, _ := composables.UseUserAgent(ctx)
 	token, err := s.newSessionToken()
@@ -136,14 +131,14 @@ func (s *AuthService) authenticate(ctx context.Context, u *user.User) (*session.
 	}
 	sess := &session.CreateDTO{
 		Token:     token,
-		UserID:    u.ID,
+		UserID:    u.ID(),
 		IP:        ip,
 		UserAgent: userAgent,
 	}
-	if err := s.usersService.UpdateLastLogin(ctx, u.ID); err != nil {
+	if err := s.usersService.UpdateLastLogin(ctx, u.ID()); err != nil {
 		return nil, err
 	}
-	if err := s.usersService.UpdateLastAction(ctx, u.ID); err != nil {
+	if err := s.usersService.UpdateLastAction(ctx, u.ID()); err != nil {
 		return nil, err
 	}
 	if err := s.sessionService.Create(ctx, sess); err != nil {
@@ -152,7 +147,7 @@ func (s *AuthService) authenticate(ctx context.Context, u *user.User) (*session.
 	return sess.ToEntity(), nil
 }
 
-func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, password string) (*user.User, *session.Session, error) {
+func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, password string) (user.User, *session.Session, error) {
 	u, err := s.usersService.GetByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -167,14 +162,13 @@ func (s *AuthService) AuthenticateWithUserId(ctx context.Context, id uint, passw
 	return u, sess, nil
 }
 
-func (s *AuthService) CoockieAuthenticateWithUserId(ctx context.Context, id uint, password string) (*http.Cookie, error) {
-	_, sess, err := s.AuthenticateWithUserId(ctx, id, password)
+func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint, password string) (*http.Cookie, error) {
+	_, sess, err := s.AuthenticateWithUserID(ctx, id, password)
 	if err != nil {
 		return nil, err
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
@@ -186,7 +180,7 @@ func (s *AuthService) CoockieAuthenticateWithUserId(ctx context.Context, id uint
 	return cookie, nil
 }
 
-func (s *AuthService) Authenticate(ctx context.Context, email, password string) (*user.User, *session.Session, error) {
+func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, *session.Session, error) {
 	u, err := s.usersService.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, nil, err
@@ -208,7 +202,6 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		//nolint:exhaustruct
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,

@@ -6,6 +6,7 @@ import (
 )
 
 func TestUhrService_Calculate(t *testing.T) {
+	t.Parallel()
 	service := NewUhrService()
 	props := &UhrProps{
 		Entities: []costcomponent.BillableHourEntity{
@@ -41,5 +42,4 @@ func TestUhrService_Calculate(t *testing.T) {
 	if entities[0].Components[0].Monthly != 500 {
 		t.Errorf("Expected 500, got %f", entities[0].Components[0].Monthly)
 	}
-
 }

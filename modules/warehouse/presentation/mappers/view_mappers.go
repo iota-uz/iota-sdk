@@ -1,11 +1,11 @@
 package mappers
 
 import (
-	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"strconv"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
@@ -34,14 +34,14 @@ func ProductToViewModel(entity *product.Product) *viewmodels.Product {
 func PositionToViewModel(entity *position.Position) *viewmodels.Position {
 	images := make([]*coreviewmodels.Upload, len(entity.Images))
 	for i, img := range entity.Images {
-		images[i] = mappers.UploadToViewModel(&img)
+		images[i] = mappers.UploadToViewModel(img)
 	}
 	return &viewmodels.Position{
 		ID:        strconv.FormatUint(uint64(entity.ID), 10),
 		Title:     entity.Title,
 		Barcode:   entity.Barcode,
 		UnitID:    strconv.FormatUint(uint64(entity.UnitID), 10),
-		Unit:      *UnitToViewModel(&entity.Unit),
+		Unit:      *UnitToViewModel(entity.Unit),
 		Images:    images,
 		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
@@ -59,10 +59,9 @@ func UnitToViewModel(entity *unit.Unit) *viewmodels.Unit {
 }
 
 func OrderItemToViewModel(entity order.Item, inStock int) viewmodels.OrderItem {
-	pos := entity.Position()
 	return viewmodels.OrderItem{
 		InStock:  strconv.Itoa(inStock),
-		Position: *PositionToViewModel(&pos),
+		Position: *PositionToViewModel(entity.Position()),
 		Products: mapping.MapViewModels(entity.Products(), func(e *product.Product) viewmodels.Product {
 			return *ProductToViewModel(e)
 		}),
@@ -88,8 +87,8 @@ func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
 		Results:    mapping.MapViewModels(entity.Results, CheckResultToViewModel),
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
-		CreatedBy:  entity.CreatedBy,
-		FinishedBy: entity.FinishedBy,
+		CreatedBy:  mappers.UserToViewModel(entity.CreatedBy),
+		FinishedBy: mappers.UserToViewModel(entity.FinishedBy),
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
@@ -39,37 +38,25 @@ func (s *AuthLogService) GetPaginated(
 }
 
 func (s *AuthLogService) Create(ctx context.Context, data *authlog.AuthenticationLog) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("authlog.created", data)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *AuthLogService) Update(ctx context.Context, data *authlog.AuthenticationLog) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.publisher.Publish("authlog.updated", data)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *AuthLogService) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.publisher.Publish("authlog.deleted", id)
-	return tx.Commit(ctx)
+	return nil
 }

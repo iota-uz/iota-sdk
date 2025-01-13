@@ -17,7 +17,7 @@ func NotFound(app application.Application) http.HandlerFunc {
 }
 
 func MethodNotAllowed() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -25,7 +25,7 @@ func NewAuthLogRepository() authlog.Repository {
 func (g *GormAuthLogRepository) GetPaginated(
 	ctx context.Context, params *authlog.FindParams,
 ) ([]*authlog.AuthenticationLog, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (g *GormAuthLogRepository) GetPaginated(
 }
 
 func (g *GormAuthLogRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -104,7 +104,7 @@ func (g *GormAuthLogRepository) GetByID(ctx context.Context, id uint) (*authlog.
 }
 
 func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.AuthenticationLog) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.Authen
 }
 
 func (g *GormAuthLogRepository) Update(ctx context.Context, data *authlog.AuthenticationLog) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (g *GormAuthLogRepository) Update(ctx context.Context, data *authlog.Authen
 }
 
 func (g *GormAuthLogRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

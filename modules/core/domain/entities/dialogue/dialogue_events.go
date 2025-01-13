@@ -17,7 +17,7 @@ func NewCreatedEvent(ctx context.Context, data Dialogue, result Dialogue) (*Crea
 		return nil, err
 	}
 	return &CreatedEvent{
-		Sender:  *sender,
+		Sender:  sender,
 		Session: *sess,
 		Data:    data,
 		Result:  result,
@@ -34,7 +34,7 @@ func NewUpdatedEvent(ctx context.Context, data Dialogue, result Dialogue) (*Upda
 		return nil, err
 	}
 	return &UpdatedEvent{
-		Sender:  *sender,
+		Sender:  sender,
 		Session: *sess,
 		Data:    data,
 		Result:  result,
@@ -51,7 +51,7 @@ func NewDeletedEvent(ctx context.Context, result Dialogue) (*DeletedEvent, error
 		return nil, err
 	}
 	return &DeletedEvent{
-		Sender:  *sender,
+		Sender:  sender,
 		Session: *sess,
 		Result:  result,
 	}, nil

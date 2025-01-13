@@ -2,8 +2,8 @@ package account
 
 import (
 	"github.com/iota-uz/iota-sdk/components"
-	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -27,8 +27,11 @@ templ ProfileForm(props *ProfilePageProps) {
 		<h1 class="text-2xl font-medium pl-6 pt-6">
 			{ props.User.FirstName } { props.User.LastName }
 		</h1>
-		@base.Card("grid grid-cols-3 gap-4 m-6") {
-			if props.User.Avatar != nil {
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			if props.User.Avatar == nil {
 				@components.UploadInput(&components.UploadInputProps{
 					Label:   props.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",

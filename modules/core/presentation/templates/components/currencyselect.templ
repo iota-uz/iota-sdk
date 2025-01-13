@@ -1,0 +1,38 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+)
+
+type CurrencySelectProps struct {
+	Label       string
+	Placeholder string
+	Value       string
+	Error       string
+	Currencies  []*viewmodels.Currency
+	Attrs       templ.Attributes
+}
+
+templ CurrencySelect(props *CurrencySelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.Label,
+		Placeholder: props.Placeholder,
+		Attrs:       props.Attrs,
+		Error:       props.Error,
+	}) {
+		for _, currency := range props.Currencies {
+			if currency.Code == props.Value {
+				<option value={ currency.Code } selected>
+					{ currency.Symbol }
+					{ currency.Name }
+				</option>
+			} else {
+				<option value={ currency.Code }>
+					{ currency.Symbol }
+					{ currency.Name }
+				</option>
+			}
+		}
+	}
+}

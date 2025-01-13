@@ -1,0 +1,134 @@
+{
+  "NavigationLinks": {
+    "Finances": "Finances",
+    "Accounts": "Accounts",
+    "Expenses": "Expenses",
+    "ExpenseCategories": "Expense categories",
+    "Payments": "Payments"
+  },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Expense categories"
+      },
+      "Edit": {
+        "Title": "Edit category"
+      },
+      "New": {
+        "Title": "New category"
+      }
+    },
+    "List": {
+      "New": "New Category",
+      "Name": "Name",
+      "Amount": "Amount"
+    },
+    "Single": {
+      "EditUser": "Edit category",
+      "Name": "Name",
+      "Amount": "Amount",
+      "CurrencyCode": {
+        "Label": "Currency",
+        "Placeholder": "Select currency"
+      },
+      "Description": "Description",
+      "Delete": "Delete category",
+      "DeleteConfirmation": "Are you sure you want to delete this expense category?"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "Payments"
+      },
+      "Edit": {
+        "Title": "Edit payment"
+      },
+      "New": {
+        "Title": "Add payment"
+      }
+    },
+    "List": {
+      "New": "Add payment",
+      "Amount": "Amount"
+    },
+    "Single": {
+      "Account": "Account",
+      "SelectAccount": "Select account",
+      "Edit": "Edit payment",
+      "Name": "Name",
+      "Amount": "Amount",
+      "Date": "Date",
+      "AccountingPeriod": "Accounting period",
+      "CounterpartyID": {
+        "Label": "Sender",
+        "Placeholder": "Select sender"
+      },
+      "Comment": "Comment",
+      "Delete": "Delete payment",
+      "DeleteConfirmation": "Are you sure you want to delete this payment?"
+    }
+  },
+  "Expenses": {
+    "Meta": {
+      "List": {
+        "Title": "Expenses"
+      },
+      "Edit": {
+        "Title": "Edit expense"
+      },
+      "New": {
+        "Title": "Add expense"
+      }
+    },
+    "List": {
+      "New": "Add expense",
+      "Category": "Category",
+      "Amount": "Amount"
+    },
+    "Single": {
+      "Account": "Account",
+      "SelectAccount": "Select account",
+      "Category": "Category",
+      "SelectCategory": "Select category",
+      "Edit": "Edit expense",
+      "Name": "Name",
+      "Amount": "Amount",
+      "Date": "Date",
+      "Comment": "Comment",
+      "Delete": "Delete expense",
+      "DeleteConfirmation": "Are you sure you want to delete this expense?"
+    }
+  },
+  "Accounts": {
+    "Meta": {
+      "List": {
+        "Title": "Accounts"
+      },
+      "Edit": {
+        "Title": "Edit account"
+      },
+      "New": {
+        "Title": "Add account"
+      }
+    },
+    "List": {
+      "New": "Add account",
+      "Name": "Name",
+      "Balance": "Balance"
+    },
+    "Single": {
+      "Edit": "Edit account",
+      "Name": "Name",
+      "Balance": "Balance",
+      "Currency": {
+        "Label": "Currency",
+        "Placeholder": "Choose currency"
+      },
+      "Description": "Description",
+      "AccountNumber": "Account number",
+      "Delete": "Delete account",
+      "DeleteConfirmation": "Are you sure you want to delete this account?"
+    }
+  }
+}

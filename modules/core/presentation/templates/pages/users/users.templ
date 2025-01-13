@@ -5,23 +5,23 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"time"
 )
 
 type IndexPageProps struct {
 	*types.PageContext
-	Users []*user.User
+	Users []*viewmodels.User
 }
 
 templ UsersTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: props.T("Users.List.FullName"), Key: "fullName"},
-			{Label: props.T("Users.List.LastAction"), Key: "lastAction"},
+			{Label: props.T("Users.List.Roles"), Key: "roles"},
+			{Label: props.T("Users.List.Email"), Key: "email"},
 			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
 			{Label: props.T("Actions"), Class: "w-16"},
 		},
@@ -29,20 +29,40 @@ templ UsersTable(props *IndexPageProps) {
 		for _, user := range props.Users {
 			@base.TableRow() {
 				@base.TableCell() {
-					{ user.FullName() }
+					<div class="flex items-center gap-3">
+						if user.Avatar != nil && user.Avatar.URL != "" {
+							<img
+								src={ user.Avatar.URL }
+								class="w-8 h-8 object-cover rounded-full"
+								alt="User Avatar"
+							/>
+						} else {
+							<div class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm">
+								{ string(user.FirstName[0]) }
+							</div>
+						}
+						<span>
+							{ user.FullName() }
+						</span>
+					</div>
 				}
 				@base.TableCell() {
-					if v := user.LastAction; v != nil {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", v.Format(time.RFC3339)) }></span>
+					if user.LastAction != "" {
+						<div>
+							{ user.RolesVerbose() }
 						</div>
 					} else {
 						{ props.T("Unknown") }
 					}
 				}
 				@base.TableCell() {
+					<div>
+						{ user.Email }
+					</div>
+				}
+				@base.TableCell() {
 					<div x-data="relativeformat">
-						<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt.Format(time.RFC3339)) }></span>
+						<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt) }></span>
 					</div>
 				}
 				@base.TableCell() {
@@ -50,7 +70,7 @@ templ UsersTable(props *IndexPageProps) {
 						Fixed: true,
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/users/%d", user.ID),
+						Href:  fmt.Sprintf("/users/%s", user.ID),
 					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}

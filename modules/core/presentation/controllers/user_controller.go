@@ -1,17 +1,21 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"net/http"
 )
 
 type UsersController struct {
@@ -53,8 +57,8 @@ func (c *UsersController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.CreateUser).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
 }
 
@@ -79,7 +83,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &users.IndexPageProps{
 		PageContext: pageCtx,
-		Users:       us,
+		Users:       mapping.MapViewModels(us, mappers.UserToViewModel),
 	}
 	if isHxRequest {
 		templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -116,8 +120,8 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &users.EditFormProps{
 		PageContext: pageCtx,
-		User:        us,
-		Roles:       roles,
+		User:        mappers.UserToViewModel(us),
+		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 		Errors:      map[string]string{},
 	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -137,64 +141,52 @@ func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *UsersController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&user.UpdateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+	pageCtx, err := composables.UsePageCtx(
+		r, types.NewPageData("Users.Meta.Edit.Title", ""),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	switch action {
-	case shared.FormActionDelete:
-		_, err = c.userService.Delete(r.Context(), id)
-	case shared.FormActionSave:
-		dto := &user.UpdateDTO{} //nolint:exhaustruct
-		if err = shared.Decoder.Decode(dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(
-			r, types.NewPageData("Users.Meta.Edit.Title", ""),
-		)
+	if errors, ok := dto.Ok(r.Context()); !ok {
+		roles, err := c.roleService.GetAll(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
-		if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
-			roles, err := c.roleService.GetAll(r.Context())
-			if err != nil {
-				http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
-				return
-			}
 
-			us, err := c.userService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving users", http.StatusInternalServerError)
-				return
-			}
-
-			props := &users.EditFormProps{
-				PageContext: pageCtx,
-				User:        us,
-				Roles:       roles,
-				Errors:      errors,
-			}
-			templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		us, err := c.userService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 			return
 		}
-		err = c.userService.Update(r.Context(), dto.ToEntity(id))
+
+		props := &users.EditFormProps{
+			PageContext: pageCtx,
+			User:        mappers.UserToViewModel(us),
+			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors:      errors,
+		}
+		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
-
+	userEntity, err := dto.ToEntity(id)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.userService.Update(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -214,21 +206,16 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 	}
 	props := &users.CreateFormProps{
 		PageContext: pageCtx,
-		User:        user.User{}, //nolint:exhaustruct
-		Roles:       roles,
+		User:        viewmodels.User{},
+		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 		Errors:      map[string]string{},
 	}
 	templ.Handler(users.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := &user.CreateDTO{} //nolint:exhaustruct
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
+	dto, err := composables.UseForm(&user.CreateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -239,16 +226,21 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errors, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errors, ok := dto.Ok(r.Context()); !ok {
 		roles, err := c.roleService.GetAll(r.Context())
 		if err != nil {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
+		userEntity, err := dto.ToEntity()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		props := &users.CreateFormProps{
 			PageContext: pageCtx,
-			User:        *dto.ToEntity(),
-			Roles:       roles,
+			User:        *mappers.UserToViewModel(userEntity),
+			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
 			Errors:      errors,
 		}
 		templ.Handler(
@@ -257,7 +249,12 @@ func (c *UsersController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.userService.Create(r.Context(), dto.ToEntity()); err != nil {
+	userEntity, err := dto.ToEntity()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.userService.Create(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

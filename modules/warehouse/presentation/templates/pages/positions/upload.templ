@@ -2,8 +2,8 @@ package positions
 
 import (
 	"github.com/iota-uz/iota-sdk/components"
-	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -100,7 +100,7 @@ templ UploadForm(props *UploadPageProps) {
 
 templ Upload(props *UploadPageProps) {
 	@layouts.Authenticated(props.PageContext) {
-		@base.Card("m-6") {
+		@card.Card(card.Props{WrapperClass: "m-6"}) {
 			<h1 class="text-xl font-bold mb-4">{ props.T("WarehousePositions.Upload.Example.Title") }</h1>
 			<p class="text-gray-700 mb-4">{ props.T("WarehousePositions.Upload.Example.Description") }</p>
 			<ul class="list-disc list-inside text-gray-700 mb-6">

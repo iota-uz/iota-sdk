@@ -1,18 +1,18 @@
 package server
 
 import (
-	"github.com/NYTimes/gziphandler"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"net/http"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
-func NewHttpServer(
+func NewHTTPServer(
 	app application.Application,
 	notFoundHandler, methodNotAllowedHandler http.Handler,
-) *HttpServer {
-	return &HttpServer{
+) *HTTPServer {
+	return &HTTPServer{
 		Controllers:             app.Controllers(),
 		Middlewares:             app.Middleware(),
 		NotFoundHandler:         notFoundHandler,
@@ -20,14 +20,14 @@ func NewHttpServer(
 	}
 }
 
-type HttpServer struct {
+type HTTPServer struct {
 	Controllers             []application.Controller
 	Middlewares             []mux.MiddlewareFunc
 	NotFoundHandler         http.Handler
 	MethodNotAllowedHandler http.Handler
 }
 
-func (s *HttpServer) Start(socketAddress string) error {
+func (s *HTTPServer) Start(socketAddress string) error {
 	r := mux.NewRouter()
 	r.Use(s.Middlewares...)
 	for _, controller := range s.Controllers {

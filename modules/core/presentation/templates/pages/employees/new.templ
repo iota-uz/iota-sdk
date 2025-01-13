@@ -3,7 +3,9 @@ package employees
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -17,44 +19,140 @@ type CreatePageProps struct {
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{
+	sharedProps := SharedProps{
+		PageContext: props.PageContext,
+		Employee:    props.Employee,
+		Errors:      props.Errors,
+	}
+	}}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
-		@base.Card("grid grid-cols-3 gap-4 m-6") {
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.FirstName"),
-				Attrs: templ.Attributes{"name": "FirstName", "value": props.Employee.FirstName},
-				Error: props.Errors["FirstName"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.LastName"),
-				Attrs: templ.Attributes{"name": "LastName", "value": props.Employee.LastName},
-				Error: props.Errors["LastName"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.MiddleName"),
-				Attrs: templ.Attributes{"name": "MiddleName", "value": props.Employee.MiddleName},
-				Error: props.Errors["MiddleName"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.Phone"),
-				Attrs: templ.Attributes{"name": "Phone", "value": props.Employee.Phone},
-				Error: props.Errors["Phone"],
-			})
-			@input.Number(&input.Props{
-				Label: props.T("Employees.Single.Salary"),
-				Attrs: templ.Attributes{"name": "Salary", "value": props.Employee.Salary},
-				Error: props.Errors["Salary"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Employees.Single.Email"),
-				Attrs: templ.Attributes{"name": "Email", "value": props.Employee.Email},
-				Error: props.Errors["Email"],
-			})
-		}
+		<div class="m-6">
+			@tab.Root(tab.Props{
+				DefaultValue: "public",
+			}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Button("public") {
+						{ props.T("Employees.Tabs.Public") }
+					}
+					@tab.Button("private") {
+						{ props.T("Employees.Tabs.Private") }
+					}
+				}
+				<div x-show="selectedTab === 'public'">
+					@card.Card(card.Props{
+						Header:       card.DefaultHeader(props.T("Employees.Cards.PersonalInfo")),
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.FirstName.Label"),
+							Placeholder: props.T("Employees.Public.FirstName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "FirstName",
+								"value": props.Employee.FirstName,
+							},
+							Error: props.Errors["FirstName"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.LastName.Label"),
+							Placeholder: props.T("Employees.Public.LastName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "LastName",
+								"value": props.Employee.LastName,
+							},
+							Error: props.Errors["LastName"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.MiddleName.Label"),
+							Placeholder: props.T("Employees.Public.MiddleName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "MiddleName",
+								"value": props.Employee.MiddleName,
+							},
+							Error: props.Errors["MiddleName"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.Email.Label"),
+							Placeholder: props.T("Employees.Public.Email.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "Email",
+								"value": props.Employee.Email,
+							},
+							Error: props.Errors["Email"],
+						})
+						@input.Text(&input.Props{
+							Label:       props.T("Employees.Public.Phone.Label"),
+							Placeholder: props.T("Employees.Public.Phone.Placeholder"),
+							Error:       props.Errors["Phone"],
+							Attrs: templ.Attributes{
+								"name":  "Phone",
+								"value": props.Employee.Phone,
+							},
+						})
+						@input.Date(&input.Props{
+							Label: props.T("Employees.Public.BirthDate.Label"),
+							Error: props.Errors["BirthDate"],
+							Attrs: templ.Attributes{
+								"name": "BirthDate",
+								// "value": props.Employee.BirthDate,
+							},
+						})
+					}
+					@card.Card(card.Props{
+						Header:       card.DefaultHeader(props.T("Employees.Cards.JobInfo")),
+						WrapperClass: "mt-5",
+						Class:        "grid grid-cols-3 gap-4 mt-5",
+					}) {
+						@JoinDateInput(sharedProps)
+						@ResignationDateInput(sharedProps)
+						@base.Select(&base.SelectProps{
+							Label:       props.T("Employees.Public.Position.Label"),
+							Placeholder: props.T("Employees.Public.Position.Placeholder"),
+						}) {
+							<option>PM</option>
+							<option>Developer</option>
+						}
+						@base.Select(&base.SelectProps{
+							Label:       props.T("Employees.Public.Level.Label"),
+							Placeholder: props.T("Employees.Public.Level.Placeholder"),
+						}) {
+							<option>Junior</option>
+							<option>Middle</option>
+							<option>Senior</option>
+						}
+						@base.Select(&base.SelectProps{
+							Label:       props.T("Employees.Public.EmploymentStatus.Label"),
+							Placeholder: props.T("Employees.Public.EmploymentStatus.Placeholder"),
+						}) {
+							<option>Part time</option>
+							<option>Full time</option>
+						}
+					}
+				</div>
+				<div x-show="selectedTab === 'private'">
+					@card.Card(card.Props{
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@SalaryInput(sharedProps)
+					}
+					@card.Card(card.Props{
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@TinInput(sharedProps)
+						@PinInput(sharedProps)
+						@PassportInput(sharedProps)
+					}
+				</div>
+			}
+		</div>
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Size: button.SizeMD,

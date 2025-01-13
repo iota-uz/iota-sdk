@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -83,7 +85,11 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		defer file.Close()
+		defer func(file multipart.File) {
+			if err := file.Close(); err != nil {
+				log.Println(err)
+			}
+		}(file)
 
 		dto := &upload.CreateDTO{
 			File: file,

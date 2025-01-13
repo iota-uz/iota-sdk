@@ -1,0 +1,277 @@
+{
+  "Errors": {
+    "Internal": "Внутренная серверная ошибка"
+  },
+  "ValidationErrors": {
+    "required": "Это поле обязательно для заполнения",
+    "emptySelect": "Выберите значение",
+    "email": "Неверный формат электронной почты"
+  },
+  "Filters": {
+    "CreatedAt": {
+      "AllTime": "Все время",
+      "Today": "Сегодня",
+      "Yesterday": "Вчера",
+      "ThisWeek": "На этой неделе",
+      "LastWeek": "Прошлой неделе",
+      "ThisMonth": "В этом месяце"
+    }
+  },
+  "Spotlight": {
+    "Placeholder": "Поиск...",
+    "NothingFound": "Ничего не найдено"
+  },
+  "ErrorPages": {
+    "NotFound": {
+      "Title": "404",
+      "Message": "Страница не найдена",
+      "Home": "Домой"
+    }
+  },
+  "NavigationLinks": {
+    "Dashboard": "Панель управления",
+    "Administration": "Администрирование",
+    "Users": "Пользователи",
+    "Roles": "Роли",
+    "BiChat": "BI-Чат",
+    "KnowledgeBase": "База знаний",
+    "Operations": "Операции",
+    "Employees": "Сотрудники",
+    "Settings": "Настройки",
+    "Calendar": "Календарь",
+    "Enums": "Перечисления",
+    "TaskTypes": "Типы задач",
+    "Positions": "Должности",
+    "Finances": "Финансы",
+    "Projects": "Проекты",
+    "Reports": "Отчеты",
+    "Navbar": {
+      "Profile": "Профиль",
+      "Settings": "Настройки",
+      "Logout": "Выйти"
+    }
+  },
+  "Dashboard": {
+    "Meta": {
+      "Title": "Панель управления"
+    },
+    "Welcome": "Добро пожаловать на панель управления"
+  },
+  "BiChat": {
+    "Meta": {
+      "Index": {
+        "Title": "BI-Чат"
+      }
+    },
+    "Title": "BI-Чат",
+    "NewDialog": "Новый диалог",
+    "MessagePlaceholder": "Введите сообщение...",
+    "History": {
+      "Empty": "История пуста",
+      "HelpText": "Нажмите на кнопку \"Новый диалог\" чтобы начать новый чат"
+    }
+  },
+  "Users": {
+    "Meta": {
+      "List": {
+        "Title": "Пользователи"
+      },
+      "Edit": {
+        "Title": "Редактировать пользователя"
+      },
+      "New": {
+        "Title": "Новый пользователь"
+      }
+    },
+    "List": {
+      "New": "Новый пользователь",
+      "FullName": "Полное имя",
+      "Roles": "Роли",
+      "Email": "Эл. почта"
+    },
+    "Cards": {
+      "PersonalInfo": "Персональные данные",
+      "UserInfo": "Данные аккаунта"
+    },
+    "Single": {
+      "EditUser": "Редактировать пользователя",
+      "FirstName": "Имя",
+      "LastName": "Фамилия",
+      "MiddleName": "Отчество",
+      "Email": "Электронная почта",
+      "Password": "Пароль",
+      "Language": "Язык",
+      "SelectLanguage": "Выбрать язык",
+      "ChooseAvatar": "Выберите аватар",
+      "Role": "Роль",
+      "SelectRole": "Выбрать роль",
+      "EnterPassword": "Введите пароль",
+      "Delete": "Удалить пользователя",
+      "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?"
+    }
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Проекты"
+      },
+      "Edit": {
+        "Title": "Редактировать проект"
+      },
+      "New": {
+        "Title": "Добавить проект"
+      }
+    },
+    "List": {
+      "New": "Добавить проект",
+      "Description": "Описание",
+      "Name": "Название"
+    },
+    "Single": {
+      "Edit": "Редактировать проект",
+      "Name": "Название",
+      "Description": "Описание",
+      "Delete": "Удалить проект",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот проект?"
+    }
+  },
+  "Employees": {
+    "Meta": {
+      "List": {
+        "Title": "Сотрудники"
+      },
+      "Edit": {
+        "Title": "Редактировать сотрудника"
+      },
+      "New": {
+        "Title": "Добавить сотрудника"
+      }
+    },
+    "Tabs": {
+      "Public": "Публичные",
+      "Private": "Конфиденциальные"
+    },
+    "Cards": {
+      "PersonalInfo": "Персональные данные",
+      "JobInfo": "Рабочие данные"
+    },
+    "List": {
+      "New": "Добавить сотрудника",
+      "FullName": "Полное имя",
+      "Position": "Должность",
+      "Email": "Электронная почта"
+    },
+    "Single": {
+      "Edit": "Редактировать сотрудника",
+      "Delete": "Удалить сотрудника",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этого сотрудника?"
+    },
+    "Public": {
+      "FirstName": {
+        "Label": "Имя",
+        "Placeholder": "Введите имя"
+      },
+      "LastName": {
+        "Label": "Фамилия",
+        "Placeholder": "Введите фамилию"
+      },
+      "MiddleName": {
+        "Label": "Отчество",
+        "Placeholder": "Введите отчество"
+      },
+      "Phone": {
+        "Label": "Телефон",
+        "Placeholder": "+998 (__) ___ __ __"
+      },
+      "Email": {
+        "Label": "Электронная почта",
+        "Placeholder": "jodoe@gmail.com"
+      },
+      "BirthDate": {
+        "Label": "Дата рождения"
+      },
+      "Position": {
+        "Label": "Должность",
+        "Placeholder": "Выберите должность"
+      },
+      "HireDate": {
+        "Label": "Дата трудоустройства"
+      },
+      "ResignationDate": {
+        "Label": "Дата увольнения"
+      },
+      "EmploymentStatus": {
+        "Label": "Тип занятости",
+        "Placeholder": "Выберите тип занятости"
+      },
+      "Level": {
+        "Label": "Уровень",
+        "Placeholder": "Выберите уровень"
+      }
+    },
+    "Private": {
+      "Salary": {
+        "Label": "Зарплата"
+      },
+      "PassportSN": {
+        "Label": "Серия и номер пасспорта",
+        "Placeholder": "AA 123 45 67"
+      },
+      "TIN": {
+        "Label": "ИНН",
+        "Placeholder": "1234567"
+      },
+      "Pin": {
+        "Label": "ПИНФЛ",
+        "Placeholder": "123456789192121"
+      }
+    }
+  },
+  "Account": {
+    "Meta": {
+      "Index": {
+        "Title": "Аккаунт"
+      },
+      "Settings": {
+        "Title": "Настройки аккаунта"
+      }
+    },
+    "BrowseFilesystem": "Выбрать изображение",
+    "FirstName": "Имя",
+    "LastName": "Фамилия",
+    "MiddleName": "Отчество",
+    "Email": "Электронная почта",
+    "Password": "Пароль",
+    "Save": "Сохранить"
+  },
+  "Login": {
+    "Meta": {
+      "Title": "Войти"
+    },
+    "Email": "Электронная почта",
+    "Password": "Пароль",
+    "Login": "Войти",
+    "Errors": {
+      "PasswordInvalid": "Неверный пароль или электронная почта"
+    }
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Главная"
+    }
+  },
+  "UpdatedAt": "Обновлено",
+  "CreatedAt": "Создано",
+  "SignOut": "Выйти",
+  "Unknown": "Неизвестно",
+  "Actions": "Действия",
+  "Delete": "Удалить",
+  "Save": "Сохранить",
+  "Search": "Поиск",
+  "PerPage": "На странице",
+  "Cancel": "Отмена",
+  "Back": "Назад",
+  "Add": "Добавить",
+  "Remove": "Удалить",
+  "All": "Все"
+}

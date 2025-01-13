@@ -30,7 +30,7 @@ func (j Messages) Value() (driver.Value, error) {
 }
 
 type Dialogue struct {
-	Id        int64
+	ID        int64
 	UserID    uint
 	Label     string
 	Messages  Messages `gorm:"type:jsonb"`

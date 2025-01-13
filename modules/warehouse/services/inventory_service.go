@@ -3,15 +3,14 @@ package services
 import (
 	"context"
 
+	userpersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
-
-	userpersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 )
 
 type InventoryService struct {
@@ -22,12 +21,11 @@ type InventoryService struct {
 }
 
 func NewInventoryService(publisher event.Publisher) *InventoryService {
-	unitRepo := persistence.NewUnitRepository()
-	positionRepo := persistence.NewPositionRepository(unitRepo)
+	positionRepo := persistence.NewPositionRepository()
 	userRepo := userpersistence.NewUserRepository()
 	return &InventoryService{
 		repo:         persistence.NewInventoryRepository(userRepo, positionRepo),
-		productRepo:  persistence.NewProductRepository(positionRepo),
+		productRepo:  persistence.NewProductRepository(),
 		positionRepo: positionRepo,
 		publisher:    publisher,
 	}
@@ -68,10 +66,6 @@ func (s *InventoryService) Positions(ctx context.Context) ([]*inventory.Position
 }
 
 func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateCheckDTO) (*inventory.Check, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if err := composables.CanUser(ctx, permissions.InventoryCreate); err != nil {
 		return nil, err
 	}
@@ -79,7 +73,7 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 	if err != nil {
 		return nil, err
 	}
-	entity, err := data.ToEntity(user.ID)
+	entity, err := data.ToEntity(user)
 	if err != nil {
 		return nil, err
 	}
@@ -103,14 +97,10 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }
 
 func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.UpdateCheckDTO) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	if err := composables.CanUser(ctx, permissions.InventoryUpdate); err != nil {
 		return err
 	}
@@ -126,14 +116,10 @@ func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.
 		return err
 	}
 	s.publisher.Publish(updatedEvent)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *InventoryService) Delete(ctx context.Context, id uint) (*inventory.Check, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if err := composables.CanUser(ctx, permissions.InventoryDelete); err != nil {
 		return nil, err
 	}
@@ -149,7 +135,7 @@ func (s *InventoryService) Delete(ctx context.Context, id uint) (*inventory.Chec
 		return nil, err
 	}
 	s.publisher.Publish(deletedEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }
 func (s *InventoryService) Count(ctx context.Context) (uint, error) {
 	return s.repo.Count(ctx)

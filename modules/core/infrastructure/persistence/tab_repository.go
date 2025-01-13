@@ -22,7 +22,7 @@ func NewTabRepository() tab.Repository {
 }
 
 func (g *GormTabRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -36,7 +36,7 @@ func (g *GormTabRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
-	pool, err := composables.UsePool(ctx)
+	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (g *GormTabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, err
 }
 
 func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
 }
 
 func (g *GormTabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) e
 }
 
 func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
 }
 
 func (g *GormTabRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (g *GormTabRepository) Delete(ctx context.Context, id uint) error {
 }
 
 func (g *GormTabRepository) DeleteUserTabs(ctx context.Context, userID uint) error {
-	tx, err := composables.UsePoolTx(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}

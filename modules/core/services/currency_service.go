@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/event"
 )
 
@@ -35,10 +34,6 @@ func (s *CurrencyService) GetPaginated(
 }
 
 func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) error {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return err
-	}
 	createdEvent, err := currency.NewCreatedEvent(ctx, *data)
 	if err != nil {
 		return err
@@ -52,7 +47,7 @@ func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) 
 	}
 	createdEvent.Result = *entity
 	s.Publisher.Publish(createdEvent)
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *CurrencyService) Update(ctx context.Context, data *currency.UpdateDTO) error {
@@ -73,10 +68,6 @@ func (s *CurrencyService) Update(ctx context.Context, data *currency.UpdateDTO) 
 }
 
 func (s *CurrencyService) Delete(ctx context.Context, code string) (*currency.Currency, error) {
-	tx, err := composables.UsePoolTx(ctx)
-	if err != nil {
-		return nil, err
-	}
 	deletedEvent, err := currency.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
@@ -90,5 +81,5 @@ func (s *CurrencyService) Delete(ctx context.Context, code string) (*currency.Cu
 	}
 	deletedEvent.Result = *entity
 	s.Publisher.Publish(deletedEvent)
-	return entity, tx.Commit(ctx)
+	return entity, nil
 }

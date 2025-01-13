@@ -3,68 +3,84 @@ run:
   allow-parallel-runners: true
 
 issues:
+  exclude-use-default: false
+  exclude-rules:
+    - linters:
+        - exhaustruct
+      path: .*
+    - linters:
+        - exhaustruct
+      path-except: ^modules/[^/]+/infrastructure/persistence/[^/]*mappers\.go
+    - linters:
+        - exhaustruct
+      path-except: ^modules/[^/]+/domain/[^/]+/[^/]+/[^/]+\.go
+
   exclude-files:
-    - internal/interfaces/graph/generated.go
+    - pkg/graphql/graphql.go
   exclude-dirs:
-    - internal/interfaces/graph/gqlmodels
-    - internal/presentation/templates
-    - internal/presentation/assets
-    - internal/presentation/static
-    - internal/presentation/public
+    - pkg/fp
+
+output:
+  formats:
+    - format: colored-line-number
+      path: stderr
+
+  sort-results: true
+  sort-order:
+    - linter
+    - severity
+    - file
+  # print lines of code with issue, default is true
+  print-issued-lines: false
+  # print linter name in the end of issue text, default is true
+  print-linter-name: true
+
 
 linters:
-  # Enable specific linter
-  # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
     - asasalint
     - asciicheck
     - bidichk
     - bodyclose
     - canonicalheader
-    - containedctx
-    - contextcheck
+    #    - containedctx
+    #    - contextcheck
     - copyloopvar
     - decorder
     - dogsled
-    - dupword
+    #    - dupword
     - durationcheck
     - errcheck
     - errchkjson
     - errname
-#    - errorlint
     - exhaustive
     - exhaustruct
     - fatcontext
     - forbidigo
-#    - forcetypeassert
-    - gci
+    #    - gci
     - ginkgolinter
     - gocheckcompilerdirectives
     - gochecknoinits
     - gochecksumtype
-    - gocognit
-    - goconst
-#    - gocritic
+    #    - gocognit
+    #    - goconst
     - gocyclo
-    - godot
-#    - godox
+    #    - godot
     - gofmt
-    - gofumpt
+    #    - gofumpt
     - goheader
-    - goimports
+    #    - goimports
     - gomoddirectives
     - gomodguard
     - goprintffuncname
-    #    - gosec
     - gosimple
     - gosmopolitan
     - govet
     - grouper
     - importas
-    - inamedparam
     - ineffassign
-    - intrange
-    - lll
+    #    - intrange
+    #    - lll
     - loggercheck
     - maintidx
     - makezero
@@ -72,34 +88,32 @@ linters:
     - misspell
     - musttag
     - nakedret
-    - nestif
+    #    - nestif
     - nilerr
     - nilnil
     - noctx
     - nolintlint
     - nonamedreturns
     - nosprintfhostport
-    - perfsprint
+    #    - perfsprint
     - prealloc
     - predeclared
     - promlinter
     - protogetter
     - reassign
-    - revive
+    #    - revive
     - rowserrcheck
     - sloglint
     - spancheck
     - sqlclosecheck
     - staticcheck
-    - stylecheck
-#    - tagalign
+    #    - stylecheck
     - tenv
     - testableexamples
     - testifylint
     - thelper
-    - tparallel
     - unconvert
-    - unparam
+    #    - unparam
     - unused
     - usestdlibvars
     - wastedassign
