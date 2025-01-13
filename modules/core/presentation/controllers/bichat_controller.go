@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/bichat"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -69,7 +70,7 @@ func (c *BiChatController) Index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *BiChatController) Create(w http.ResponseWriter, r *http.Request) {
-	dto, err := composables.UseForm(&MessageDTO{}, r)
+	dto, err := composables.UseForm(&dtos.MessageDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

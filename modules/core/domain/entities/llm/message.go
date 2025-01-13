@@ -1,4 +1,4 @@
-package dialogue
+package llm
 
 type ToolType string
 
