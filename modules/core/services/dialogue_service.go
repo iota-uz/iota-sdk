@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"io"
 	"log"
@@ -16,10 +16,10 @@ import (
 )
 
 type DialogueService struct {
-	repo           dialogue.Repository
-	eventPublisher event.Publisher
-	chatFuncs      *functions.ChatTools
-	promptService  *PromptService
+	repo          dialogue.Repository
+	eventBus      eventbus.EventBus
+	chatFuncs     *functions.ChatTools
+	promptService *PromptService
 }
 
 var (
@@ -34,10 +34,10 @@ func NewDialogueService(repo dialogue.Repository, app application.Application) *
 	// chatFuncs.Add(chatfuncs.NewDoSQLQuery(app.DB))
 	chatFuncs.Add(NewSearchKnowledgeBase(app.Service(EmbeddingService{}).(*EmbeddingService)))
 	return &DialogueService{
-		repo:           repo,
-		eventPublisher: app.EventPublisher(),
-		chatFuncs:      chatFuncs,
-		promptService:  app.Service(PromptService{}).(*PromptService),
+		repo:          repo,
+		eventBus:      app.EventPublisher(),
+		chatFuncs:     chatFuncs,
+		promptService: app.Service(PromptService{}).(*PromptService),
 	}
 }
 
@@ -164,7 +164,7 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data *dialogue.Dialo
 		})
 		for m := range ch {
 			data.Messages[len(data.Messages)-1] = m
-			s.eventPublisher.Publish(dialogue.UpdatedEvent{
+			s.eventBus.Publish(dialogue.UpdatedEvent{
 				Result: *data,
 			})
 		}
@@ -257,7 +257,7 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err != nil {
 		return nil, err
 	}
-	s.eventPublisher.Publish(createdEvent)
+	s.eventBus.Publish(createdEvent)
 	if err := s.ChatComplete(ctx, data, model); err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func (s *DialogueService) Update(ctx context.Context, data *dialogue.Dialogue) e
 	if err != nil {
 		return err
 	}
-	s.eventPublisher.Publish(updatedEvent)
+	s.eventBus.Publish(updatedEvent)
 	return nil
 }
 
@@ -289,6 +289,6 @@ func (s *DialogueService) Delete(ctx context.Context, id int64) (*dialogue.Dialo
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	s.eventPublisher.Publish(deletedEvent)
+	s.eventBus.Publish(deletedEvent)
 	return entity, nil
 }

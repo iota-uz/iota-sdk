@@ -6,17 +6,17 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type OrderService struct {
 	repo        order.Repository
 	productRepo product.Repository
-	publisher   event.Publisher
+	publisher   eventbus.EventBus
 }
 
 func NewOrderService(
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 	orderRepo order.Repository,
 	productRepo product.Repository,
 ) *OrderService {
