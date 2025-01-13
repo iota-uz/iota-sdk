@@ -31,6 +31,10 @@ type User interface {
 
 	AddRole(r role.Role) User
 	SetName(firstName, lastName, middleName string) User
+	SetUILanguage(lang UILanguage) User
+	SetAvatarID(id uint) User
+	SetEmployeeID(id uint) User
+	SetLastIP(ip string) User
 	SetPassword(password string) (User, error)
 	SetEmail(email string) User
 }
