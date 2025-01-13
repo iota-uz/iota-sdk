@@ -1,24 +1,20 @@
 package dialogue
 
 import (
-	"database/sql/driver"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"time"
-
-	"github.com/sashabaranov/go-openai"
 )
 
-type Messages []openai.ChatCompletionMessage
+type Messages []ChatCompletionMessage
 
-// Scan scan value into Jsonb, implements sql.Scanner interface.
-func (j *Messages) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
-	}
+type Dialogue interface {
+	ID() uint
+	UserID() uint
+	Label() string
+	Messages() Messages
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
 
+<<<<<<< Updated upstream
 	result := Messages{}
 	err := json.Unmarshal(bytes, &result)
 	*j = result
@@ -44,4 +40,7 @@ type Dialogue struct {
 
 func (d *Dialogue) AddMessage(msg openai.ChatCompletionMessage) {
 	d.Messages = append(d.Messages, msg)
+=======
+	AddMessage(msg ChatCompletionMessage) Dialogue
+>>>>>>> Stashed changes
 }

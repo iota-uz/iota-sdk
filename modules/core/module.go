@@ -44,6 +44,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterServices(
 		services.NewUserService(persistence.NewUserRepository(), app.EventPublisher()),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
+		services.NewDialogueService(persistence.NewDialogueRepository(), app),
 	)
 	app.RegisterServices(
 		services.NewAuthService(app),
