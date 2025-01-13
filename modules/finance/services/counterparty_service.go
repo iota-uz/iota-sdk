@@ -30,7 +30,7 @@ func (s *CounterpartyService) GetPaginated(ctx context.Context, params *counterp
 
 //
 //func (s *CounterpartyService) Create(ctx context.Context, data counterparty.CreateDTO) error {
-//	entity, err := data.ToEntity()
+//	entity, err := data.Apply()
 //	if err != nil {
 //		return err
 //	}
@@ -38,7 +38,7 @@ func (s *CounterpartyService) GetPaginated(ctx context.Context, params *counterp
 //}
 //
 //func (s *CounterpartyService) Update(ctx context.Context, id uint, data counterparty.UpdateDTO) error {
-//	entity, err := data.ToEntity(id)
+//	entity, err := data.Apply(id)
 //	if err != nil {
 //		return err
 //	}
