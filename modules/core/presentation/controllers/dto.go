@@ -8,11 +8,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"time"
 )
 
 type SaveAccountDTO struct {
@@ -23,13 +21,13 @@ type SaveAccountDTO struct {
 	AvatarID   uint
 }
 
-func (u *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
+func (d *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	l, ok := composables.UseLocalizer(ctx)
 	if !ok {
 		panic(composables.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
-	errs := constants.Validate.Struct(u)
+	errs := constants.Validate.Struct(d)
 	if errs == nil {
 		return errorMessages, true
 	}
@@ -47,30 +45,16 @@ func (u *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (u *SaveAccountDTO) ToEntity(id uint) (user.User, error) {
-	lang, err := user.NewUILanguage(u.UILanguage)
+func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
+	lang, err := user.NewUILanguage(d.UILanguage)
 	if err != nil {
 		return nil, err
 	}
-	return user.NewWithID(
-		id,
-		u.FirstName,
-		u.LastName,
-		u.MiddleName,
-		"",
-		"",
-		&upload.Upload{
-			ID: u.AvatarID,
-		},
-		0,
-		"",
-		lang,
-		nil,
-		time.Now(),
-		time.Now(),
-		time.Now(),
-		time.Now(),
-	), nil
+	updated := u.
+		SetName(d.FirstName, d.LastName, d.MiddleName).
+		SetAvatarID(d.AvatarID).
+		SetUILanguage(lang)
+	return updated, nil
 }
 
 type CreateRoleDTO struct {
