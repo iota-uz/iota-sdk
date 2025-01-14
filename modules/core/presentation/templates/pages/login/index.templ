@@ -25,7 +25,9 @@ var (
 
 templ Header() {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
-		<img src={ companyLogo } class="h-10 w-auto"/>
+		<a href="/">
+			<img src={ companyLogo } class="h-10 w-auto"/>
+		</a>
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center w-9 h-9">
 				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked/>
@@ -74,7 +76,7 @@ templ Index(p *LoginProps) {
 		<div class="flex flex-col h-screen overflow-y-auto">
 			@Header()
 			<div class="flex-1 flex items-center justify-center">
-				<form class="mx-4 max-w-md p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]" method="post">
+				<form class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]" method="post">
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
 							{ p.T("Login.WelcomeBack") }
