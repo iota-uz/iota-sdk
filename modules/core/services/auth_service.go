@@ -80,10 +80,11 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
-		HttpOnly: false,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   false,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == "production",
 		Domain:   conf.Domain,
+		Path:     "/",
 	}
 	return cookie, nil
 }

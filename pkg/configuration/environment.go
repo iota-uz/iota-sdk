@@ -63,7 +63,7 @@ type Configuration struct {
 	LogLevel           string        `env:"LOG_LEVEL" envDefault:"error"`
 	// Session ID cookie key
 	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
-	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" endDefault:"oauthState"`
+	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
 }
 
 func (c *Configuration) LogrusLogLevel() logrus.Level {
