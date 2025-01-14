@@ -2,31 +2,30 @@ package services
 
 import (
 	"context"
-	persistence2 "github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 
+	userpersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
-
-	userpersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type InventoryService struct {
 	repo         inventory.Repository
 	positionRepo position.Repository
 	productRepo  product.Repository
-	publisher    event.Publisher
+	publisher    eventbus.EventBus
 }
 
-func NewInventoryService(publisher event.Publisher) *InventoryService {
-	positionRepo := persistence2.NewPositionRepository()
+func NewInventoryService(publisher eventbus.EventBus) *InventoryService {
+	positionRepo := persistence.NewPositionRepository()
 	userRepo := userpersistence.NewUserRepository()
 	return &InventoryService{
-		repo:         persistence2.NewInventoryRepository(userRepo, positionRepo),
-		productRepo:  persistence2.NewProductRepository(positionRepo),
+		repo:         persistence.NewInventoryRepository(userRepo, positionRepo),
+		productRepo:  persistence.NewProductRepository(),
 		positionRepo: positionRepo,
 		publisher:    publisher,
 	}
@@ -74,7 +73,7 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 	if err != nil {
 		return nil, err
 	}
-	entity, err := data.ToEntity(user.ID)
+	entity, err := data.ToEntity(user)
 	if err != nil {
 		return nil, err
 	}

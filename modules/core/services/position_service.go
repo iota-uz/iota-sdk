@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type PositionService struct {
 	repo      position.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewPositionService(repo position.Repository, publisher event.Publisher) *PositionService {
+func NewPositionService(repo position.Repository, publisher eventbus.EventBus) *PositionService {
 	return &PositionService{
 		repo:      repo,
 		publisher: publisher,

@@ -107,7 +107,7 @@ func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	if err != nil {
 		return language.Und, err
 	}
-	tag, err := language.Parse(string(user.UILanguage))
+	tag, err := language.Parse(string(user.UILanguage()))
 	if err != nil {
 		return language.Und, err
 	}

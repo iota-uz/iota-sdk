@@ -8,17 +8,17 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ProductService struct {
 	repo      product.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
 func NewProductService(
 	repo product.Repository,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 ) *ProductService {
 	return &ProductService{
 		repo:      repo,

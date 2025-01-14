@@ -1,33 +1,26 @@
 package persistence_test
 
 import (
-	"context"
-	currency "github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	financepersistence "github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 )
 
 func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
-	ctx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		err := Tx.Commit(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}(ctx.Tx, ctx.Context)
+	t.Parallel()
+	f := setupTest(t)
 	currencyRepository := persistence.NewCurrencyRepository()
 	accountRepository := financepersistence.NewMoneyAccountRepository()
 
-	if err := currencyRepository.Create(ctx.Context, &currency.USD); err != nil {
+	if err := currencyRepository.Create(f.ctx, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
 	createdAccount, err := accountRepository.Create(
-		ctx.Context, &moneyAccount.Account{
+		f.ctx,
+		&moneyaccount.Account{
 			Name:          "test",
 			AccountNumber: "123",
 			Currency:      currency.USD,
@@ -43,7 +36,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Count", func(t *testing.T) {
-			count, err := accountRepository.Count(ctx.Context)
+			count, err := accountRepository.Count(f.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -55,7 +48,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetPaginated", func(t *testing.T) {
-			accounts, err := accountRepository.GetPaginated(ctx.Context, &moneyAccount.FindParams{Limit: 1})
+			accounts, err := accountRepository.GetPaginated(f.ctx, &moneyaccount.FindParams{Limit: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -70,7 +63,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetAll", func(t *testing.T) {
-			accounts, err := accountRepository.GetAll(ctx.Context)
+			accounts, err := accountRepository.GetAll(f.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -85,7 +78,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			accountEntity, err := accountRepository.GetByID(ctx.Context, 1)
+			accountEntity, err := accountRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,14 +94,21 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := accountRepository.Update(
-				ctx.Context, &moneyAccount.Account{
-					ID:      createdAccount.ID,
-					Balance: 200,
+				f.ctx,
+				&moneyaccount.Account{
+					ID:            createdAccount.ID,
+					Name:          "test",
+					AccountNumber: "123",
+					Currency:      currency.USD,
+					Balance:       200,
+					Description:   "",
+					CreatedAt:     createdAccount.CreatedAt,
+					UpdatedAt:     time.Now(),
 				},
 			); err != nil {
 				t.Fatal(err)
 			}
-			accountEntity, err := accountRepository.GetByID(ctx.Context, 1)
+			accountEntity, err := accountRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}

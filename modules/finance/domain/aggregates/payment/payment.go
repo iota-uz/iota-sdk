@@ -28,7 +28,7 @@ type Payment interface {
 	SetComment(comment string)
 
 	Account() *moneyaccount.Account
-	User() *user.User
+	User() user.User
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 }

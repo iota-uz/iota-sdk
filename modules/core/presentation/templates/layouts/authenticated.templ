@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/components/icons"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"strings"
 )
@@ -127,8 +127,12 @@ templ sidebar(pageCtx *types.PageContext) {
 templ avatar() {
 	{{ u := mappers.UserToViewModel(composables.MustUseUser(ctx)) }}
 	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
-		if u.Avatar.URL != "/" {
-			<img src={ u.Avatar.URL } alt="Avatar" class="w-9 h-9 rounded-full"/>
+		if u.Avatar != nil {
+			<img
+				src={ u.Avatar.URL }
+				alt="Avatar"
+				class="w-9 h-9 object-cover rounded-full"
+			/>
 		} else {
 			{ u.Initials() }
 		}

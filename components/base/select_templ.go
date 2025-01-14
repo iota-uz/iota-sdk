@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/iota-uz/iota-sdk/components/icons"
-	"github.com/iota-uz/iota-sdk/pkg/utils/random"
+	"github.com/iota-uz/utils/random"
 )
 
 type SelectProps struct {

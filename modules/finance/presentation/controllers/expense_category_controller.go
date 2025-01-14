@@ -1,13 +1,14 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expense_categories2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expense_categories"
 	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"net/http"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -68,7 +69,7 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.PostEdit).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
@@ -185,66 +186,52 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ExpenseCategoriesController) PostEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+
+	dto := category.UpdateDTO{}
+	var pageCtx *types.PageContext
+	pageCtx, err = composables.UsePageCtx(
+		r,
+		types.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	r.Form.Del("_action")
-
-	switch action {
-	case shared.FormActionDelete:
-		if _, err := c.expenseCategoryService.Delete(r.Context(), id); err != nil {
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
+	if ok {
+		if err := c.expenseCategoryService.Update(r.Context(), id, &dto); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	case shared.FormActionSave:
-		dto := category.UpdateDTO{}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(
-			r,
-			types.NewPageData("ExpenseCategories.Meta.Edit.Title", ""),
-		)
+	} else {
+		entity, err := c.expenseCategoryService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
+			return
+		}
+		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		props := &expense_categories2.EditPageProps{
+			PageContext: pageCtx,
+			Category:    mappers.ExpenseCategoryToViewModel(entity),
+			Currencies:  currencies,
+			Errors:      errorsMap,
 		}
-		errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
-		if ok {
-			if err := c.expenseCategoryService.Update(r.Context(), id, &dto); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			entity, err := c.expenseCategoryService.GetByID(r.Context(), id)
-			if err != nil {
-				http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
-				return
-			}
-			currencies, err := c.viewModelCurrencies(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			props := &expense_categories2.EditPageProps{
-				PageContext: pageCtx,
-				Category:    mappers.ExpenseCategoryToViewModel(entity),
-				Currencies:  currencies,
-				Errors:      errorsMap,
-			}
-			templ.Handler(expense_categories2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
+		templ.Handler(expense_categories2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
 	shared.Redirect(w, r, c.basePath)
 }

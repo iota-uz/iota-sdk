@@ -83,7 +83,12 @@ templ BiChatPage(props *ChatPageProps) {
 					<div class="grid grid-cols-2 gap-2">
 						for _, suggestion := range props.Suggestions {
 							@button.Secondary(button.Props{
-								Class: "cursor-pointer justify-between",
+								Class: "cursor-pointer justify-between w-full",
+								Attrs: templ.Attributes{
+									"hx-post": "/bi-chat/new",
+									"value":   suggestion,
+									"name":    "message",
+								},
 							}) {
 								{ suggestion }
 								@icons.ArrowCircleUp(icons.Props{Size: "18"})

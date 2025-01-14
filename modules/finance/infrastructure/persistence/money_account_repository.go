@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -141,15 +141,15 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyacco
 }
 
 func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyaccount.Account) error {
-	entity := toDBMoneyAccount(data)
+	dbAccount := toDBMoneyAccount(data)
 	args := []interface{}{
-		entity.Name,
-		entity.AccountNumber,
-		entity.Description,
-		entity.Balance,
-		entity.BalanceCurrencyID,
-		entity.UpdatedAt,
-		entity.ID,
+		dbAccount.Name,
+		dbAccount.AccountNumber,
+		dbAccount.Description,
+		dbAccount.Balance,
+		dbAccount.BalanceCurrencyID,
+		dbAccount.UpdatedAt,
+		dbAccount.ID,
 	}
 	return g.execQuery(ctx, updateQuery, args...)
 }

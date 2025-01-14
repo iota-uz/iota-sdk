@@ -6,19 +6,19 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type UploadService struct {
 	repo      upload.Repository
 	storage   upload.Storage
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
 func NewUploadService(
 	repo upload.Repository,
 	storage upload.Storage,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 ) *UploadService {
 	return &UploadService{
 		repo:      repo,
@@ -54,15 +54,16 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (*up
 	if err := s.storage.Save(ctx, entity.Path, bytes); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, entity); err != nil {
+	createdEntity, err := s.repo.Create(ctx, entity)
+	if err != nil {
 		return nil, err
 	}
-	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := upload.NewCreatedEvent(ctx, *data, *createdEntity)
 	if err != nil {
 		return nil, err
 	}
 	s.publisher.Publish(createdEvent)
-	return entity, nil
+	return createdEntity, nil
 }
 
 func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]*upload.Upload, error) {

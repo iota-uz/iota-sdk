@@ -23,10 +23,11 @@ func ToDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 
 func ToDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	return &unit.Unit{
-		ID:        dbUnit.ID,
-		Title:     dbUnit.Title,
-		CreatedAt: dbUnit.CreatedAt,
-		UpdatedAt: dbUnit.UpdatedAt,
+		ID:         dbUnit.ID,
+		Title:      dbUnit.Title,
+		ShortTitle: dbUnit.ShortTitle,
+		CreatedAt:  dbUnit.CreatedAt,
+		UpdatedAt:  dbUnit.UpdatedAt,
 	}
 }
 
@@ -67,9 +68,9 @@ func ToDomainProduct(
 
 func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.WarehouseUnit) (*position.Position, error) {
 	// TODO: decouple
-	images := make([]upload.Upload, len(dbPosition.Images))
+	images := make([]*upload.Upload, len(dbPosition.Images))
 	for i, img := range dbPosition.Images {
-		images[i] = *persistence.ToDomainUpload(&img)
+		images[i] = persistence.ToDomainUpload(&img)
 	}
 	return &position.Position{
 		ID:        dbPosition.ID,
@@ -83,7 +84,7 @@ func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.Wareh
 	}, nil
 }
 
-func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage, *models.WarehouseUnit) {
+func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage) {
 	junctionRows := make([]*models.WarehousePositionImage, 0, len(entity.Images))
 	for _, image := range entity.Images {
 		junctionRows = append(
@@ -101,7 +102,7 @@ func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
 	}
-	return dbPosition, junctionRows, ToDBUnit(entity.Unit)
+	return dbPosition, junctionRows
 }
 
 func ToDomainInventoryPosition(dbPosition *models.InventoryPosition) (*inventory.Position, error) {
@@ -133,13 +134,13 @@ func ToDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 		CreatedByID:  dbInventoryCheck.CreatedByID,
 	}
 	if dbInventoryCheck.CreatedBy != nil {
-		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy)
+		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if dbInventoryCheck.FinishedBy != nil {
-		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy)
+		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy, nil, nil)
 		if err != nil {
 			return nil, err
 		}

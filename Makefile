@@ -39,6 +39,9 @@ report:
 localdb:
 	docker compose -f docker-compose.dev.yml up
 
+clear-localdb:
+	rm -rf postgres-data/
+
 # Apply database migrations (up)
 migrate-up:
 	go run cmd/migrate/main.go up
@@ -59,6 +62,14 @@ css:
 lint:
 	golangci-lint run ./...
 
+# Release - assume Alpine Linux as target
+release:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /build/run_server cmd/server/main.go
+
+# Release - assume local OS as target
+release-local:
+	go build -ldflags="-s -w" -o run_server cmd/server/main.go
+
 # Clean build artifacts
 clean:
 	rm -rf $(TAILWIND_OUTPUT)
@@ -66,4 +77,4 @@ clean:
 # Full setup
 setup: deps localdb migrate-up css lint
 
-.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint clean setup
+.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup

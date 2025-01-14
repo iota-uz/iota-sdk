@@ -3,15 +3,15 @@ package services
 import (
 	"context"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type EmployeeService struct {
 	repo      employee.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewEmployeeService(repo employee.Repository, publisher event.Publisher) *EmployeeService {
+func NewEmployeeService(repo employee.Repository, publisher eventbus.EventBus) *EmployeeService {
 	return &EmployeeService{
 		repo:      repo,
 		publisher: publisher,

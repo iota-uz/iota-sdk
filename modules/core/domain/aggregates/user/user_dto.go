@@ -1,9 +1,11 @@
 package user
 
 import (
+	"context"
+	"fmt"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
 
-	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -14,9 +16,9 @@ type CreateDTO struct {
 	LastName   string `validate:"required"`
 	Email      string `validate:"required,email"`
 	Password   string
-	RoleID     uint `validate:"required"`
+	RoleIDs    []uint `validate:"required"`
 	AvatarID   uint
-	UILanguage string
+	UILanguage string `validate:"required"`
 }
 
 type UpdateDTO struct {
@@ -24,68 +26,112 @@ type UpdateDTO struct {
 	LastName   string `validate:"required"`
 	Email      string `validate:"required,email"`
 	Password   string
-	RoleID     uint
+	RoleIDs    []uint
 	AvatarID   uint
 	UILanguage string
 }
 
-func (u *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
+func (u *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	// TODO: Use composables.UseLocalizer(ctx) instead of ctx.Value(constants.LocalizerKey)
+	l, ok := ctx.Value(constants.LocalizerKey).(*i18n.Localizer)
+	if !ok {
+		panic("localizer not found in context")
+	}
+	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(u)
 	if errs == nil {
-		return errors, true
+		return errorMessages, true
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
-		errors[err.Field()] = err.Translate(l)
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Users.Single.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
 	}
-	return errors, len(errors) == 0
+
+	return errorMessages, len(errorMessages) == 0
 }
 
-func (u *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errors := map[string]string{}
+func (u *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	// TODO: Use composables.UseLocalizer(ctx) instead of ctx.Value(constants.LocalizerKey)
+	l, ok := ctx.Value(constants.LocalizerKey).(*i18n.Localizer)
+	if !ok {
+		panic("localizer not found in context")
+	}
+	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(u)
 	if errs == nil {
-		return errors, true
+		return errorMessages, true
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
-		errors[err.Field()] = err.Translate(l)
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Users.Single.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
 	}
-	return errors, len(errors) == 0
+
+	return errorMessages, len(errorMessages) == 0
 }
 
-func (u *CreateDTO) ToEntity() *User {
-	return &User{
-		FirstName:  u.FirstName,
-		LastName:   u.LastName,
-		Email:      u.Email,
-		Roles:      []*role.Role{{ID: u.RoleID}},
-		Password:   u.Password,
-		LastLogin:  nil,
-		LastAction: nil,
-		LastIP:     nil,
-		AvatarID:   &u.AvatarID,
-		UILanguage: UILanguage(u.UILanguage),
-		EmployeeID: nil,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+func (u *CreateDTO) ToEntity() (User, error) {
+	roles := make([]role.Role, len(u.RoleIDs))
+	for i, id := range u.RoleIDs {
+		r, err := role.NewWithID(id, "", "", nil, time.Now(), time.Now())
+		if err != nil {
+			return nil, err
+		}
+		roles[i] = r
 	}
+	return &user{
+		firstName:  u.FirstName,
+		lastName:   u.LastName,
+		email:      u.Email,
+		roles:      roles,
+		password:   u.Password,
+		lastLogin:  time.Now(),
+		lastAction: time.Now(),
+		lastIP:     "",
+		avatarID:   u.AvatarID,
+		uiLanguage: UILanguage(u.UILanguage),
+		employeeID: 0,
+		createdAt:  time.Now(),
+		updatedAt:  time.Now(),
+	}, nil
 }
 
-func (u *UpdateDTO) ToEntity(id uint) *User {
-	return &User{
-		ID:         id,
-		FirstName:  u.FirstName,
-		LastName:   u.LastName,
-		Email:      u.Email,
-		Roles:      []*role.Role{{ID: u.RoleID}},
-		Password:   u.Password,
-		LastLogin:  nil,
-		LastAction: nil,
-		LastIP:     nil,
-		AvatarID:   &u.AvatarID,
-		UILanguage: UILanguage(u.UILanguage),
-		EmployeeID: nil,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+func (u *UpdateDTO) ToEntity(id uint) (User, error) {
+	roles := make([]role.Role, len(u.RoleIDs))
+	for i, rID := range u.RoleIDs {
+		r, err := role.NewWithID(rID, "", "", nil, time.Now(), time.Now())
+		if err != nil {
+			return nil, err
+		}
+		roles[i] = r
 	}
+	return &user{
+		id:         id,
+		firstName:  u.FirstName,
+		lastName:   u.LastName,
+		email:      u.Email,
+		roles:      roles,
+		password:   u.Password,
+		lastLogin:  time.Now(),
+		lastAction: time.Now(),
+		lastIP:     "",
+		avatarID:   u.AvatarID,
+		uiLanguage: UILanguage(u.UILanguage),
+		employeeID: 0,
+		createdAt:  time.Now(),
+		updatedAt:  time.Now(),
+	}, nil
 }

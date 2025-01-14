@@ -1,0 +1,36 @@
+package roles
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/utils/random"
+)
+
+type SharedProps struct {
+	*types.PageContext
+	Label   string
+	Attrs   templ.Attributes
+	Error   string
+	Checked bool
+}
+
+templ Permission(props SharedProps) {
+	{{ id := random.String(12, random.LowerCharSet) }}
+	<div
+		class="flex justify-between items-center border border-gray-400 bg-gray-200 rounded-md py-2 px-3"
+	>
+		<label
+			class="form-control-label"
+			for={ id }
+		>
+			{ props.Label }
+		</label>
+		@input.Switch(&input.SwitchProps{
+			ID:      id,
+			Checked: props.Checked,
+			Attrs:   props.Attrs,
+			Size:    input.SizeLG,
+			Error:   props.Error,
+		})
+	</div>
+}

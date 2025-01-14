@@ -25,57 +25,76 @@ templ CreateForm(props *CreateFormProps) {
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
-		@card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
-			WrapperClass: "m-6",
-		}) {
-			@components.UploadInput(&components.UploadInputProps{
-				Label:       props.T("Users.Single.ChooseAvatar"),
-				Placeholder: "PNG, JPG",
-				Name:        "AvatarID",
-				Class:       "col-span-3",
-				Accept:      "image/*",
-				Error:       props.Errors["AvatarID"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Users.Single.FirstName"),
-				Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},
-				Error: props.Errors["FirstName"],
-			})
-			@input.Text(&input.Props{
-				Label: props.T("Users.Single.LastName"),
-				Attrs: templ.Attributes{"name": "LastName", "value": props.User.LastName},
-				Error: props.Errors["LastName"],
-			})
-			@input.Email(&input.Props{
-				Label: props.T("Users.Single.Email"),
-				Attrs: templ.Attributes{"name": "Email", "value": props.User.Email},
-				Error: props.Errors["Email"],
-			})
-			@input.Password(&input.Props{
-				Label:       props.T("Users.Single.Password"),
-				Placeholder: props.T("Users.Single.EnterPassword"),
-				Attrs: templ.Attributes{
-					"autocomplete": "new-password",
-					"name":         "Password",
-				},
-				Error: props.Errors["Password"],
-			})
-			@RoleSelect(&RoleSelectProps{
-				PageContext: props.PageContext,
-				Roles:       props.Roles,
-				Error:       props.Errors["RoleID"],
-				Attrs: templ.Attributes{
-					"name": "RoleID",
-				},
-			})
-			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-				Label:       props.T("Users.Single.Language"),
-				Placeholder: props.T("Users.Single.SelectLanguage"),
-				Value:       string(props.User.UILanguage),
-				Attrs:       templ.Attributes{"name": "UILanguage"},
-			})
-		}
+		<div class="flex gap-5 p-6">
+			<div class="flex-1 space-y-5">
+				@card.Card(card.Props{
+					Class: "grid grid-cols-2 gap-4",
+				}) {
+					@input.Text(&input.Props{
+						Label: props.T("Users.Single.FirstName"),
+						Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},
+						Error: props.Errors["FirstName"],
+					})
+					@input.Text(&input.Props{
+						Label: props.T("Users.Single.LastName"),
+						Attrs: templ.Attributes{
+							"name":  "LastName",
+							"value": props.User.LastName,
+						},
+						Error: props.Errors["LastName"],
+					})
+					@input.Text(&input.Props{
+						Label: props.T("Users.Single.MiddleName"),
+						Attrs: templ.Attributes{
+							"name":  "MiddleName",
+							"value": props.User.MiddleName,
+						},
+						Error: props.Errors["MiddleName"],
+					})
+					@EmailInput(SharedProps{
+						PageContext: props.PageContext,
+						Value:       props.User.Email,
+						Error:       props.Errors["Email"],
+					})
+				}
+				@card.Card(card.Props{
+					Header: card.DefaultHeader(props.T("Users.Cards.UserInfo")),
+					Class:  "grid grid-cols-3 gap-4",
+				}) {
+					@RoleSelect(&RoleSelectProps{
+						PageContext: props.PageContext,
+						Roles:       props.Roles,
+						Error:       props.Errors["RoleIDs"],
+						Name:        "RoleIDs",
+					})
+					@input.Password(&input.Props{
+						Label:       props.T("Users.Single.Password"),
+						Placeholder: props.T("Users.Single.EnterPassword"),
+						Attrs: templ.Attributes{
+							"autocomplete": "new-password",
+							"name":         "Password",
+							"form":         "save-form",
+						},
+					})
+					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+						Label:       props.T("Users.Single.Language"),
+						Placeholder: props.T("Users.Single.SelectLanguage"),
+						Value:       string(props.User.UILanguage),
+						Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
+					})
+				}
+			</div>
+			@card.Card(card.Props{}) {
+				@components.UploadInput(&components.UploadInputProps{
+					Label:       props.T("Users.Single.ChooseAvatar"),
+					Placeholder: "PNG, JPG",
+					Name:        "AvatarID",
+					Class:       "col-span-3",
+					Accept:      "image/*",
+					Error:       props.Errors["AvatarID"],
+				})
+			}
+		</div>
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Size: button.SizeMD,

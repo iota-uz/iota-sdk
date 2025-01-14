@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
 )
@@ -8,7 +9,7 @@ import (
 type ExpenseCategory struct {
 	ID               uint
 	Name             string
-	Description      *string
+	Description      sql.NullString
 	Amount           float64
 	AmountCurrencyID string
 	CreatedAt        time.Time
@@ -57,7 +58,7 @@ type Payment struct {
 
 type Counterparty struct {
 	ID           uint
-	TIN          string
+	Tin          string
 	Name         string
 	Type         string
 	LegalType    string

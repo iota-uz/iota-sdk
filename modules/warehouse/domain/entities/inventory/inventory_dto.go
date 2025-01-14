@@ -50,7 +50,7 @@ func (d *UpdateCheckDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
+func (d *CreateCheckDTO) ToEntity(createdBy user.User) (*Check, error) {
 	s, err := NewStatus(string(Incomplete))
 	if err != nil {
 		return nil, err
@@ -68,8 +68,8 @@ func (d *CreateCheckDTO) ToEntity(createdBy uint) (*Check, error) {
 		Name:        d.Name,
 		Results:     results,
 		CreatedAt:   time.Now(),
-		CreatedBy:   &user.User{ID: createdBy},
-		CreatedByID: createdBy,
+		CreatedBy:   createdBy,
+		CreatedByID: createdBy.ID(),
 	}, nil
 }
 

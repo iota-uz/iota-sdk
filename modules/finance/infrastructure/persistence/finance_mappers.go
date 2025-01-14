@@ -2,8 +2,10 @@ package persistence
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -12,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"time"
 )
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
@@ -82,7 +85,23 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		dbPayment.CounterpartyID,
 		t.Comment,
 		&moneyaccount.Account{ID: *t.DestinationAccountID}, //nolint:exhaustruct
-		&user.User{}, //nolint:exhaustruct
+		user.NewWithID(
+			0,
+			"",
+			"",
+			"",
+			"",
+			"",
+			nil,
+			0,
+			"",
+			"",
+			nil,
+			time.Now(),
+			time.Now(),
+			time.Now(),
+			time.Now(),
+		),
 		t.TransactionDate,
 		t.AccountingPeriod,
 		dbPayment.CreatedAt,
@@ -90,28 +109,32 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 	), nil
 }
 
-func toDBExpenseCategory(entity *category.ExpenseCategory) *models.ExpenseCategory {
+func toDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
-		ID:               entity.ID,
-		Name:             entity.Name,
-		Description:      &entity.Description,
-		Amount:           entity.Amount,
-		AmountCurrencyID: string(entity.Currency.Code),
-		CreatedAt:        entity.CreatedAt,
-		UpdatedAt:        entity.UpdatedAt,
+		ID:               entity.ID(),
+		Name:             entity.Name(),
+		Description:      mapping.ValueToSQLNullString(entity.Description()),
+		Amount:           entity.Amount(),
+		AmountCurrencyID: string(entity.Currency().Code),
+		CreatedAt:        entity.CreatedAt(),
+		UpdatedAt:        entity.UpdatedAt(),
 	}
 }
 
-func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (*category.ExpenseCategory, error) {
-	return &category.ExpenseCategory{
-		ID:          dbCategory.ID,
-		Name:        dbCategory.Name,
-		Description: mapping.Value(dbCategory.Description),
-		Amount:      dbCategory.Amount,
-		Currency:    currency.Currency{Code: currency.Code(dbCategory.AmountCurrencyID)}, //nolint:exhaustruct
-		CreatedAt:   dbCategory.CreatedAt,
-		UpdatedAt:   dbCategory.UpdatedAt,
-	}, nil
+func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *coremodels.Currency) (category.ExpenseCategory, error) {
+	domainCurrency, err := corepersistence.ToDomainCurrency(dbCurrency)
+	if err != nil {
+		return nil, err
+	}
+	return category.NewWithID(
+		dbCategory.ID,
+		dbCategory.Name,
+		dbCategory.Description.String,
+		dbCategory.Amount,
+		domainCurrency,
+		dbCategory.CreatedAt,
+		dbCategory.UpdatedAt,
+	), nil
 }
 
 func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyaccount.Account, error) {
@@ -147,10 +170,18 @@ func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 
 func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (*expense.Expense, error) {
 	return &expense.Expense{
-		ID:               dbExpense.ID,
-		Amount:           -1 * dbTransaction.Amount,
-		Account:          moneyaccount.Account{ID: *dbTransaction.OriginAccountID}, //nolint:exhaustruct
-		Category:         category.ExpenseCategory{ID: dbExpense.CategoryID},       //nolint:exhaustruct
+		ID:      dbExpense.ID,
+		Amount:  -1 * dbTransaction.Amount,
+		Account: moneyaccount.Account{ID: *dbTransaction.OriginAccountID}, //nolint:exhaustruct
+		Category: category.NewWithID(
+			dbExpense.CategoryID,
+			"",
+			"",
+			0,
+			nil,
+			dbExpense.CreatedAt,
+			dbExpense.UpdatedAt,
+		),
 		Comment:          dbTransaction.Comment,
 		TransactionID:    dbExpense.TransactionID,
 		AccountingPeriod: dbTransaction.AccountingPeriod,
@@ -174,7 +205,7 @@ func toDBExpense(entity *expense.Expense) (*models.Expense, *transaction.Transac
 	}
 	dbExpense := &models.Expense{
 		ID:            entity.ID,
-		CategoryID:    entity.Category.ID,
+		CategoryID:    entity.Category.ID(),
 		TransactionID: entity.TransactionID,
 		CreatedAt:     entity.CreatedAt,
 		UpdatedAt:     entity.UpdatedAt,
@@ -191,9 +222,13 @@ func toDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 	if err != nil {
 		return nil, err
 	}
+	t, err := tax.NewTin(dbRow.Tin, country.Uzbekistan)
+	if err != nil {
+		return nil, err
+	}
 	return counterparty.NewWithID(
 		dbRow.ID,
-		dbRow.TIN,
+		t,
 		dbRow.Name,
 		partyType,
 		legalType,
@@ -206,7 +241,7 @@ func toDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 func toDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, error) {
 	return &models.Counterparty{
 		ID:           entity.ID(),
-		TIN:          entity.TIN(),
+		Tin:          entity.Tin().Value(),
 		Name:         entity.Name(),
 		Type:         string(entity.Type()),
 		LegalType:    string(entity.LegalType()),

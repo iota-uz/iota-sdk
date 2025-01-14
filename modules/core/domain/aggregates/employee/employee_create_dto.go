@@ -6,9 +6,9 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
-	tax2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -16,18 +16,18 @@ import (
 	"time"
 )
 
-func parseTin(v string) (tax2.Tin, error) {
+func parseTin(v string) (tax.Tin, error) {
 	if v == "" {
-		return tax2.NilTin, nil
+		return tax.NilTin, nil
 	}
-	return tax2.NewTin(v, country.Uzbekistan)
+	return tax.NewTin(v, country.Uzbekistan)
 }
 
-func parsePin(v string) (tax2.Pin, error) {
+func parsePin(v string) (tax.Pin, error) {
 	if v == "" {
-		return tax2.NilPin, nil
+		return tax.NilPin, nil
 	}
-	return tax2.NewPin(v, country.Uzbekistan)
+	return tax.NewPin(v, country.Uzbekistan)
 }
 
 type CreateDTO struct {
@@ -93,7 +93,7 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (Employee, error) {
-	mail, err := email.New(d.Email)
+	mail, err := internet.NewEmail(d.Email)
 	if err != nil {
 		return nil, err
 	}

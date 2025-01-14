@@ -284,7 +284,7 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}
-	dto.UserID = u.ID
+	dto.UserID = u.ID()
 
 	pageCtx, err := composables.UsePageCtx(
 		r, types.NewPageData("Payments.Meta.New.Title", ""),

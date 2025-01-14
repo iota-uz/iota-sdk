@@ -16,32 +16,24 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func UserToViewModel(entity *user.User) *viewmodels.User {
-	var avatarID string
-	if v := entity.AvatarID; v != nil {
-		avatarID = strconv.Itoa(int(*v))
-	}
-	var avatar viewmodels.Upload
-	if entity.Avatar != nil {
-		avatar = *UploadToViewModel(entity.Avatar)
-	}
-	var lastAction string
-	if entity.LastAction != nil {
-		lastAction = entity.LastAction.Format(time.RFC3339)
+func UserToViewModel(entity user.User) *viewmodels.User {
+	var avatar *viewmodels.Upload
+	if entity.Avatar() != nil {
+		avatar = UploadToViewModel(entity.Avatar())
 	}
 	return &viewmodels.User{
-		ID:         strconv.FormatUint(uint64(entity.ID), 10),
-		FirstName:  entity.FirstName,
-		LastName:   entity.LastName,
-		MiddleName: entity.MiddleName,
-		Email:      entity.Email,
-		Avatar:     &avatar,
-		UILanguage: string(entity.UILanguage),
-		LastAction: lastAction,
-		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  entity.UpdatedAt.Format(time.RFC3339),
-		Roles:      mapping.MapViewModels(entity.Roles, RoleToViewModel),
-		AvatarID:   avatarID,
+		ID:         strconv.FormatUint(uint64(entity.ID()), 10),
+		FirstName:  entity.FirstName(),
+		LastName:   entity.LastName(),
+		MiddleName: entity.MiddleName(),
+		Email:      entity.Email(),
+		Avatar:     avatar,
+		UILanguage: string(entity.UILanguage()),
+		LastAction: entity.LastAction().Format(time.RFC3339),
+		CreatedAt:  entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:  entity.UpdatedAt().Format(time.RFC3339),
+		Roles:      mapping.MapViewModels(entity.Roles(), RoleToViewModel),
+		AvatarID:   strconv.Itoa(int(entity.AvatarID())),
 	}
 }
 
@@ -101,12 +93,12 @@ func TabToViewModel(entity *tab.Tab) *viewmodels.Tab {
 	}
 }
 
-func RoleToViewModel(entity *role.Role) *viewmodels.Role {
+func RoleToViewModel(entity role.Role) *viewmodels.Role {
 	return &viewmodels.Role{
-		ID:          strconv.FormatUint(uint64(entity.ID), 10),
-		Name:        entity.Name,
-		Description: entity.Description,
-		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
+		ID:          strconv.FormatUint(uint64(entity.ID()), 10),
+		Name:        entity.Name(),
+		Description: entity.Description(),
+		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 	}
 }

@@ -2,13 +2,12 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/json"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
 	"time"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
-	tax2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 
 	"github.com/gabriel-vasile/mimetype"
 
@@ -16,119 +15,103 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func ToDomainUser(dbUser *models.User) (*user.User, error) {
-	roles := make([]*role.Role, len(dbUser.Roles))
-	// for i, r := range dbUser.Roles {
-	// 	roles[i] = toDomainRole(&r)
-	// }
-	var middleName string
-	if dbUser.MiddleName != nil {
-		middleName = *dbUser.MiddleName
+func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role) (user.User, error) {
+	var avatar *upload.Upload
+	if dbUpload != nil {
+		avatar = ToDomainUpload(dbUpload)
 	}
-	var password string
-	if dbUser.Password != nil {
-		password = *dbUser.Password
-	}
-	var avatar upload.Upload
-	if dbUser.Avatar != nil {
-		avatar = *ToDomainUpload(dbUser.Avatar)
-	}
-
-	return &user.User{
-		ID:         dbUser.ID,
-		FirstName:  dbUser.FirstName,
-		LastName:   dbUser.LastName,
-		MiddleName: middleName,
-		Email:      dbUser.Email,
-		Password:   password,
-		AvatarID:   dbUser.AvatarID,
-		Avatar:     &avatar,
-		EmployeeID: dbUser.EmployeeID,
-		UILanguage: user.UILanguage(dbUser.UILanguage),
-		LastIP:     dbUser.LastIP,
-		LastLogin:  dbUser.LastLogin,
-		LastAction: dbUser.LastAction,
-		CreatedAt:  dbUser.CreatedAt,
-		UpdatedAt:  dbUser.UpdatedAt,
-		Roles:      roles,
-	}, nil
+	return user.NewWithID(
+		dbUser.ID,
+		dbUser.FirstName,
+		dbUser.LastName,
+		dbUser.MiddleName.String,
+		dbUser.Password.String,
+		dbUser.Email,
+		avatar,
+		uint(dbUser.EmployeeID.Int32),
+		dbUser.LastIP.String,
+		user.UILanguage(dbUser.UILanguage),
+		roles,
+		dbUser.LastLogin.Time,
+		dbUser.LastAction.Time,
+		dbUser.CreatedAt,
+		dbUser.UpdatedAt,
+	), nil
 }
 
-func toDBUser(entity *user.User) (*models.User, []models.Role) {
-	roles := make([]models.Role, len(entity.Roles))
-	for i, r := range entity.Roles {
-		dbRole := toDBRole(r)
-		roles[i] = *dbRole
-	}
-	var avatar *models.Upload
-	if v := entity.AvatarID; v != nil {
-		avatar = ToDBUpload(&upload.Upload{
-			ID: *v,
-		})
-	}
-	var avatarID *uint
-	if entity.AvatarID != nil && *entity.AvatarID != 0 {
-		avatarID = entity.AvatarID
+func toDBUser(entity user.User) (*models.User, []*models.Role) {
+	roles := make([]*models.Role, len(entity.Roles()))
+	for i, r := range entity.Roles() {
+		dbRole, _ := toDBRole(r)
+		roles[i] = dbRole
 	}
 	return &models.User{
-		ID:         entity.ID,
-		FirstName:  entity.FirstName,
-		LastName:   entity.LastName,
-		MiddleName: &entity.MiddleName,
-		Email:      entity.Email,
-		UILanguage: string(entity.UILanguage),
-		Password:   &entity.Password,
-		AvatarID:   avatarID,
-		EmployeeID: entity.EmployeeID,
-		Avatar:     avatar,
-		LastIP:     entity.LastIP,
-		LastLogin:  entity.LastLogin,
-		LastAction: entity.LastAction,
-		CreatedAt:  entity.CreatedAt,
-		UpdatedAt:  entity.UpdatedAt,
-		Roles:      nil,
+		ID:         entity.ID(),
+		FirstName:  entity.FirstName(),
+		LastName:   entity.LastName(),
+		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
+		Email:      entity.Email(),
+		UILanguage: string(entity.UILanguage()),
+		Password:   mapping.ValueToSQLNullString(entity.Password()),
+		AvatarID:   mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
+		EmployeeID: mapping.ValueToSQLNullInt32(int32(entity.EmployeeID())),
+		LastIP:     mapping.ValueToSQLNullString(entity.LastIP()),
+		LastLogin:  mapping.ValueToSQLNullTime(entity.LastLogin()),
+		LastAction: mapping.ValueToSQLNullTime(entity.LastAction()),
+		CreatedAt:  entity.CreatedAt(),
+		UpdatedAt:  entity.UpdatedAt(),
 	}, roles
 }
 
-func toDomainRole(dbRole *models.Role) (*role.Role, error) {
-	// permissions := make([]permission.Permission, len(dbRole.Permissions))
-	// for i, p := range dbRole.Permissions {
-	// 	permissions[i] = *toDomainPermission(&p)
-	// }
-	return &role.Role{
-		ID:          dbRole.ID,
-		Name:        dbRole.Name,
-		Description: dbRole.Description,
-		Permissions: make([]permission.Permission, 0),
-		// Permissions: permissions,
-		CreatedAt: dbRole.CreatedAt,
-		UpdatedAt: dbRole.UpdatedAt,
-	}, nil
-}
-
-func toDBRole(entity *role.Role) *models.Role {
-	return &models.Role{
-		ID:          entity.ID,
-		Name:        entity.Name,
-		Description: entity.Description,
-		Permissions: nil,
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
+func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.Role, error) {
+	domainPermissions := make([]*permission.Permission, len(permissions))
+	for i, p := range permissions {
+		dP, err := toDomainPermission(p)
+		if err != nil {
+			return nil, err
+		}
+		domainPermissions[i] = dP
 	}
+	return role.NewWithID(
+		dbRole.ID,
+		dbRole.Name,
+		dbRole.Description.String,
+		domainPermissions,
+		dbRole.CreatedAt,
+		dbRole.UpdatedAt,
+	)
 }
 
-func toDBPermission(entity permission.Permission) models.Permission {
-	return models.Permission{
-		ID:       entity.ID,
+func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
+	permissions := make([]*models.Permission, len(entity.Permissions()))
+	for i, p := range entity.Permissions() {
+		permissions[i] = toDBPermission(p)
+	}
+	return &models.Role{
+		ID:          entity.ID(),
+		Name:        entity.Name(),
+		Description: mapping.ValueToSQLNullString(entity.Description()),
+		CreatedAt:   entity.CreatedAt(),
+		UpdatedAt:   entity.UpdatedAt(),
+	}, permissions
+}
+
+func toDBPermission(entity *permission.Permission) *models.Permission {
+	return &models.Permission{
+		ID:       entity.ID.String(),
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
 		Action:   string(entity.Action),
@@ -136,9 +119,13 @@ func toDBPermission(entity permission.Permission) models.Permission {
 	}
 }
 
-func toDomainPermission(dbPermission models.Permission) (permission.Permission, error) {
-	return permission.Permission{
-		ID:       dbPermission.ID,
+func toDomainPermission(dbPermission *models.Permission) (*permission.Permission, error) {
+	id, err := uuid.Parse(dbPermission.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &permission.Permission{
+		ID:       id,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),
 		Action:   permission.Action(dbPermission.Action),
@@ -146,18 +133,18 @@ func toDomainPermission(dbPermission models.Permission) (permission.Permission, 
 	}, nil
 }
 
-func ToDomainPin(s sql.NullString, c country.Country) (tax2.Pin, error) {
+func ToDomainPin(s sql.NullString, c country.Country) (tax.Pin, error) {
 	if !s.Valid {
-		return tax2.NilPin, nil
+		return tax.NilPin, nil
 	}
-	return tax2.NewPin(s.String, c)
+	return tax.NewPin(s.String, c)
 }
 
-func ToDomainTin(s sql.NullString, c country.Country) (tax2.Tin, error) {
+func ToDomainTin(s sql.NullString, c country.Country) (tax.Tin, error) {
 	if !s.Valid {
-		return tax2.NilTin, nil
+		return tax.NilTin, nil
 	}
-	return tax2.NewTin(s.String, c)
+	return tax.NewTin(s.String, c)
 }
 
 func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) (employee.Employee, error) {
@@ -169,7 +156,7 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 	if err != nil {
 		return nil, err
 	}
-	mail, err := email.New(dbEmployee.Email)
+	mail, err := internet.NewEmail(dbEmployee.Email)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +164,7 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 	if dbEmployee.AvatarID != nil {
 		avatarID = *dbEmployee.AvatarID
 	}
-	currencyCode, err := currency.NewCode(dbEmployee.SalaryCurrencyID)
+	currencyCode, err := currency.NewCode(dbEmployee.SalaryCurrencyID.String)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +196,7 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 		LastName:         entity.LastName(),
 		MiddleName:       mapping.ValueToSQLNullString(entity.MiddleName()),
 		Salary:           salary.Value(),
-		SalaryCurrencyID: string(salary.Currency()),
+		SalaryCurrencyID: mapping.ValueToSQLNullString(string(salary.Currency())),
 		Email:            entity.Email().Value(),
 		Phone:            mapping.ValueToSQLNullString(entity.Phone()),
 		CreatedAt:        entity.CreatedAt(),
@@ -360,4 +347,50 @@ func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.Authent
 		UserAgent: dbLog.UserAgent,
 		CreatedAt: dbLog.CreatedAt,
 	}
+}
+
+func toDBChatCompletionMessage(messages []llm.ChatCompletionMessage) (string, error) {
+	bytes, err := json.Marshal(messages)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+func toDomainChatCompletionMessage(dbMessages string) ([]llm.ChatCompletionMessage, error) {
+	var messages []llm.ChatCompletionMessage
+	if err := json.Unmarshal([]byte(dbMessages), &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+func toDBDialogue(entity dialogue.Dialogue) (*models.Dialogue, error) {
+	dbMessages, err := toDBChatCompletionMessage(entity.Messages())
+	if err != nil {
+		return nil, err
+	}
+	return &models.Dialogue{
+		ID:        entity.ID(),
+		UserID:    entity.UserID(),
+		Label:     entity.Label(),
+		Messages:  dbMessages,
+		CreatedAt: entity.CreatedAt(),
+		UpdatedAt: entity.UpdatedAt(),
+	}, nil
+}
+
+func toDomainDialogue(dbDialogue *models.Dialogue) (dialogue.Dialogue, error) {
+	messages, err := toDomainChatCompletionMessage(dbDialogue.Messages)
+	if err != nil {
+		return nil, err
+	}
+	return dialogue.NewWithID(
+		dbDialogue.ID,
+		dbDialogue.UserID,
+		dbDialogue.Label,
+		messages,
+		dbDialogue.CreatedAt,
+		dbDialogue.UpdatedAt,
+	), nil
 }

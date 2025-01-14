@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type AuthLogService struct {
 	repo      authlog.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewAuthLogService(repo authlog.Repository, publisher event.Publisher) *AuthLogService {
+func NewAuthLogService(repo authlog.Repository, publisher eventbus.EventBus) *AuthLogService {
 	return &AuthLogService{
 		repo:      repo,
 		publisher: publisher,
