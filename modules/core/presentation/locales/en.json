@@ -253,7 +253,11 @@
     "EnterEmailAndPassword": "Enter email and password to sign in",
     "OrSignInWith": "Or sign in with...",
     "Errors": {
-      "PasswordInvalid": "Email or password is invalid"
+      "PasswordInvalid": "Email or password is invalid",
+      "OauthStateNotFound": "oAuth state not found. Please, try again.",
+      "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
+      "OauthCodeNotFound": "oAuth code not found. Please, try again.",
+      "UserNotFound": "User not found"
     }
   },
   "Home": {

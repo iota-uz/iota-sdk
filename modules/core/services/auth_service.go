@@ -18,10 +18,6 @@ import (
 	"google.golang.org/api/people/v1"
 )
 
-const (
-	oauthStateCookieKey = "oauthState"
-)
-
 type AuthService struct {
 	app            application.Application
 	oAuthConfig    *oauth2.Config
@@ -74,30 +70,10 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (*use
 	return u, sess, nil
 }
 
-func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		http.Error(w, "code not found", http.StatusBadRequest)
-		return
-	}
-	state := r.URL.Query().Get("state")
-	if state == "" {
-		http.Error(w, "state not found", http.StatusBadRequest)
-		return
-	}
-	oauthCookie, err := r.Cookie(oauthStateCookieKey)
+func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string) (*http.Cookie, error) {
+	_, sess, err := s.AuthenticateGoogle(ctx, code)
 	if err != nil {
-		http.Error(w, "state cookie not found", http.StatusBadRequest)
-		return
-	}
-	if oauthCookie.Value != state {
-		http.Error(w, "state invalid", http.StatusBadRequest)
-		return
-	}
-	_, sess, err := s.AuthenticateGoogle(r.Context(), code)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
@@ -109,7 +85,7 @@ func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request
 		Secure:   false,
 		Domain:   conf.Domain,
 	}
-	http.SetCookie(w, cookie)
+	return cookie, nil
 }
 
 func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Session, error) {
@@ -242,11 +218,11 @@ func generateStateOauthCookie() (*http.Cookie, error) {
 	state := base64.URLEncoding.EncodeToString(b)
 	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     oauthStateCookieKey,
+		Name:     conf.OauthStateCookieKey,
 		Value:    state,
 		Expires:  time.Now().Add(time.Minute * 5),
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == "production",
 		Domain:   conf.Domain,
 	}
