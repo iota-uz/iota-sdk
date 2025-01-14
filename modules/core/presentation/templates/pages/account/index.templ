@@ -31,7 +31,7 @@ templ ProfileForm(props *ProfilePageProps) {
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
-			if props.User.Avatar != nil {
+			if props.User.Avatar == nil {
 				@components.UploadInput(&components.UploadInputProps{
 					Label:   props.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",

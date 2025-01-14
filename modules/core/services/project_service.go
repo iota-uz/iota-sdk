@@ -2,32 +2,33 @@ package services
 
 import (
 	"context"
-	project2 "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ProjectService struct {
-	repo      project2.Repository
-	publisher event.Publisher
+	repo      project.Repository
+	publisher eventbus.EventBus
 }
 
-func NewProjectService(repo project2.Repository, publisher event.Publisher) *ProjectService {
+func NewProjectService(repo project.Repository, publisher eventbus.EventBus) *ProjectService {
 	return &ProjectService{
 		repo:      repo,
 		publisher: publisher,
 	}
 }
 
-func (s *ProjectService) GetByID(ctx context.Context, id uint) (*project2.Project, error) {
+func (s *ProjectService) GetByID(ctx context.Context, id uint) (*project.Project, error) {
 	if err := composables.CanUser(ctx, permission.ProjectRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ProjectService) GetAll(ctx context.Context) ([]*project2.Project, error) {
+func (s *ProjectService) GetAll(ctx context.Context) ([]*project.Project, error) {
 	if err := composables.CanUser(ctx, permission.ProjectRead); err != nil {
 		return nil, err
 	}
@@ -38,14 +39,14 @@ func (s *ProjectService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*project2.Project, error) {
+) ([]*project.Project, error) {
 	if err := composables.CanUser(ctx, permission.ProjectRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
-func (s *ProjectService) Create(ctx context.Context, data *project2.CreateDTO) error {
+func (s *ProjectService) Create(ctx context.Context, data *project.CreateDTO) error {
 	if err := composables.CanUser(ctx, permission.ProjectCreate); err != nil {
 		return err
 	}
@@ -53,7 +54,7 @@ func (s *ProjectService) Create(ctx context.Context, data *project2.CreateDTO) e
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := project2.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := project.NewCreatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -61,7 +62,7 @@ func (s *ProjectService) Create(ctx context.Context, data *project2.CreateDTO) e
 	return nil
 }
 
-func (s *ProjectService) Update(ctx context.Context, id uint, data *project2.UpdateDTO) error {
+func (s *ProjectService) Update(ctx context.Context, id uint, data *project.UpdateDTO) error {
 	if err := composables.CanUser(ctx, permission.ProjectUpdate); err != nil {
 		return err
 	}
@@ -69,7 +70,7 @@ func (s *ProjectService) Update(ctx context.Context, id uint, data *project2.Upd
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := project2.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := project.NewUpdatedEvent(ctx, *data, *entity)
 	if err != nil {
 		return err
 	}
@@ -77,7 +78,7 @@ func (s *ProjectService) Update(ctx context.Context, id uint, data *project2.Upd
 	return nil
 }
 
-func (s *ProjectService) Delete(ctx context.Context, id uint) (*project2.Project, error) {
+func (s *ProjectService) Delete(ctx context.Context, id uint) (*project.Project, error) {
 	if err := composables.CanUser(ctx, permission.ProjectDelete); err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (s *ProjectService) Delete(ctx context.Context, id uint) (*project2.Project
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := project2.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := project.NewDeletedEvent(ctx, *entity)
 	if err != nil {
 		return nil, err
 	}

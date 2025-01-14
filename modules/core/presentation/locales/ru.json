@@ -32,6 +32,7 @@
     "Dashboard": "Панель управления",
     "Administration": "Администрирование",
     "Users": "Пользователи",
+    "Roles": "Роли",
     "BiChat": "BI-Чат",
     "KnowledgeBase": "База знаний",
     "Operations": "Операции",
@@ -85,12 +86,18 @@
     "List": {
       "New": "Новый пользователь",
       "FullName": "Полное имя",
-      "LastAction": "Последнее действие"
+      "Roles": "Роли",
+      "Email": "Эл. почта"
+    },
+    "Cards": {
+      "PersonalInfo": "Персональные данные",
+      "UserInfo": "Данные аккаунта"
     },
     "Single": {
       "EditUser": "Редактировать пользователя",
       "FirstName": "Имя",
       "LastName": "Фамилия",
+      "MiddleName": "Отчество",
       "Email": "Электронная почта",
       "Password": "Пароль",
       "Language": "Язык",
@@ -99,8 +106,8 @@
       "Role": "Роль",
       "SelectRole": "Выбрать роль",
       "EnterPassword": "Введите пароль",
-      "DeleteUser": "Удалить пользователя",
-      "DeleteUserConfirmation": "Вы уверены что хотите удалить пользователя?"
+      "Delete": "Удалить пользователя",
+      "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?"
     }
   },
   "Projects": {

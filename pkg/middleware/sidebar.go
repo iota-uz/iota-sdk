@@ -12,7 +12,7 @@ import (
 	"net/http"
 )
 
-func filterItems(items []types.NavigationItem, user *user.User) []types.NavigationItem {
+func filterItems(items []types.NavigationItem, user user.User) []types.NavigationItem {
 	filteredItems := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		if item.HasPermission(user) {

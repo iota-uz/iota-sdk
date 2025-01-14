@@ -23,6 +23,14 @@ func (u *User) FullName() string {
 	return u.FirstName + " " + u.LastName + " " + u.MiddleName
 }
 
+func (u *User) RolesVerbose() string {
+	roles := ""
+	for _, role := range u.Roles {
+		roles += role.Name + ", "
+	}
+	return roles[:len(roles)-2]
+}
+
 func (u *User) Initials() string {
 	firstName := []rune(u.FirstName)
 	lastName := []rune(u.LastName)

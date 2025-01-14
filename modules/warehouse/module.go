@@ -34,7 +34,7 @@ type Module struct {
 func (m *Module) Register(app application.Application) error {
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository()
-	productRepo := persistence.NewProductRepository(positionRepo)
+	productRepo := persistence.NewProductRepository()
 
 	unitService := services.NewUnitService(unitRepo, app.EventPublisher())
 	app.RegisterServices(unitService)
@@ -42,8 +42,8 @@ func (m *Module) Register(app application.Application) error {
 	productService := productservice.NewProductService(productRepo, app.EventPublisher())
 	app.RegisterServices(productService)
 	app.RegisterServices(
-		services.NewUnitService(persistence.NewUnitRepository(), app.EventPublisher()),
-		productservice.NewProductService(persistence.NewProductRepository(positionRepo), app.EventPublisher()),
+		services.NewUnitService(unitRepo, app.EventPublisher()),
+		productservice.NewProductService(productRepo, app.EventPublisher()),
 	)
 
 	app.RegisterServices(
@@ -55,12 +55,12 @@ func (m *Module) Register(app application.Application) error {
 		orderservice.NewOrderService(
 			app.EventPublisher(),
 			persistence.NewOrderRepository(productRepo),
-			persistence.NewProductRepository(positionRepo),
+			productRepo,
 		),
 		services.NewInventoryService(app.EventPublisher()),
 	)
 
-	app.RegisterPermissions(
+	app.RBAC().Register(
 		permissions.ProductCreate,
 		permissions.ProductRead,
 		permissions.ProductUpdate,

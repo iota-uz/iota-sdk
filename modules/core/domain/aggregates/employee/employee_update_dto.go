@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/email"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -73,14 +73,14 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 			},
 		})
 	}
-	if _, err := email.New(d.Email); err != nil {
+	if _, err := internet.NewEmail(d.Email); err != nil {
 		errorMessages["Email"] = err.Error()
 	}
 	return errorMessages, len(errorMessages) == 0
 }
 
 func (d *UpdateDTO) ToEntity(id uint) (Employee, error) {
-	mail, err := email.New(d.Email)
+	mail, err := internet.NewEmail(d.Email)
 	if err != nil {
 		return nil, err
 	}

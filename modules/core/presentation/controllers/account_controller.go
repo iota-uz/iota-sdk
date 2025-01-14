@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
@@ -55,7 +56,7 @@ func (c *AccountController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
+	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/settings", c.PostSettings).Methods(http.MethodPost)
 }
 
@@ -93,12 +94,12 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(account.Index(props)).ServeHTTP(w, r)
 }
 
-func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
+func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto := SaveAccountDTO{}
+	dto := dtos.SaveAccountDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -118,7 +119,7 @@ func (c *AccountController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	entity, err := dto.ToEntity(u.ID)
+	entity, err := dto.Apply(u)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -192,10 +193,10 @@ func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request)
 		dtos = append(dtos, &tab.CreateDTO{
 			Href:     href,
 			Position: uint(i),
-			UserID:   u.ID,
+			UserID:   u.ID(),
 		})
 	}
-	if _, err := c.tabService.CreateManyUserTabs(r.Context(), u.ID, dtos); err != nil {
+	if _, err := c.tabService.CreateManyUserTabs(r.Context(), u.ID(), dtos); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

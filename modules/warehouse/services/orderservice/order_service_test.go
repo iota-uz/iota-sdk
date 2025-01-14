@@ -1,47 +1,28 @@
 package orderservice_test
 
 import (
-	"context"
+	"testing"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/jackc/pgx/v5"
-	"log"
-	"os"
-	"testing"
-	"time"
 )
 
-func TestMain(m *testing.M) {
-	if err := os.Chdir("../../../../"); err != nil {
-		panic(err)
-	}
-	code := m.Run()
-	os.Exit(code)
-}
-
-func TestPositionService_LoadFromFilePath(t *testing.T) {
-	testCtx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		err := Tx.Commit(ctx)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}(testCtx.Tx, testCtx.Context)
+func TestOrderService(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
 
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository()
-	productRepo := persistence.NewProductRepository(positionRepo)
+	productRepo := persistence.NewProductRepository()
 	orderRepo := persistence.NewOrderRepository(productRepo)
-	orderService := orderservice.NewOrderService(testCtx.App.EventPublisher(), orderRepo, productRepo)
+	orderService := orderservice.NewOrderService(f.app.EventPublisher(), orderRepo, productRepo)
 
-	if err := unitRepo.Create(testCtx.Context, &unit.Unit{
+	if err := unitRepo.Create(f.ctx, &unit.Unit{
 		ID:         1,
 		Title:      "Test Unit",
 		ShortTitle: "TU",
@@ -60,7 +41,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	if err := positionRepo.Create(testCtx.Context, positionEntity); err != nil {
+	if err := positionRepo.Create(f.ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
@@ -72,26 +53,16 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := orderRepo.Create(testCtx.Context, domainOrder); err != nil {
+	if err := orderRepo.Create(f.ctx, domainOrder); err != nil {
 		t.Fatal(err)
 	}
 
-	ctx := context.WithValue(testCtx.Context, constants.UserKey, testutils.MockUser(
-		permissions.PositionCreate,
-		permissions.PositionRead,
-		permissions.ProductCreate,
-		permissions.ProductRead,
-		permissions.UnitCreate,
-		permissions.UnitRead,
-	))
-	ctx = context.WithValue(ctx, constants.SessionKey, testutils.MockSession())
-
-	_, err := orderService.Complete(ctx, 1)
+	_, err := orderService.Complete(f.ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	orderEntity, err := orderRepo.GetByID(ctx, 1)
+	orderEntity, err := orderRepo.GetByID(f.ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

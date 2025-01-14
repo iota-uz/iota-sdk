@@ -4,22 +4,22 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type UserService struct {
 	repo      user.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewUserService(repo user.Repository, publisher event.Publisher) *UserService {
+func NewUserService(repo user.Repository, publisher eventbus.EventBus) *UserService {
 	return &UserService{
 		repo:      repo,
 		publisher: publisher,
 	}
 }
 
-func (s *UserService) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (s *UserService) GetByEmail(ctx context.Context, email string) (user.User, error) {
 	return s.repo.GetByEmail(ctx, email)
 }
 
@@ -27,30 +27,31 @@ func (s *UserService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *UserService) GetAll(ctx context.Context) ([]*user.User, error) {
+func (s *UserService) GetAll(ctx context.Context) ([]user.User, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *UserService) GetByID(ctx context.Context, id uint) (*user.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id uint) (user.User, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *UserService) GetPaginated(ctx context.Context, params *user.FindParams) ([]*user.User, error) {
+func (s *UserService) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *UserService) Create(ctx context.Context, data *user.User) error {
-	createdEvent, err := user.NewCreatedEvent(ctx, *data)
+func (s *UserService) Create(ctx context.Context, data user.User) error {
+	createdEvent, err := user.NewCreatedEvent(ctx, data)
 	if err != nil {
 		return err
 	}
-	if err := data.SetPassword(data.Password); err != nil {
+	data, err = data.SetPassword(data.Password())
+	if err != nil {
 		return err
 	}
-	if err := s.repo.Create(ctx, data); err != nil {
+	if _, err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	createdEvent.Result = *data
+	createdEvent.Result = data
 	s.publisher.Publish(createdEvent)
 	return nil
 }
@@ -63,25 +64,26 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastLogin(ctx, id)
 }
 
-func (s *UserService) Update(ctx context.Context, data *user.User) error {
-	updatedEvent, err := user.NewUpdatedEvent(ctx, *data)
+func (s *UserService) Update(ctx context.Context, data user.User) error {
+	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
 	if err != nil {
 		return err
 	}
-	if data.Password != "" {
-		if err := data.SetPassword(data.Password); err != nil {
+	if data.Password() != "" {
+		data, err = data.SetPassword(data.Password())
+		if err != nil {
 			return err
 		}
 	}
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	updatedEvent.Result = *data
+	updatedEvent.Result = data
 	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
-func (s *UserService) Delete(ctx context.Context, id uint) (*user.User, error) {
+func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	deletedEvent, err := user.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
@@ -93,7 +95,7 @@ func (s *UserService) Delete(ctx context.Context, id uint) (*user.User, error) {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = *entity
+	deletedEvent.Result = entity
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }

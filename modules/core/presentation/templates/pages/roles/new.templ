@@ -1,0 +1,74 @@
+package roles
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type CreateFormProps struct {
+	*types.PageContext
+	Role             *viewmodels.Role
+	PermissionGroups []*Group
+	Errors           map[string]string
+}
+
+templ CreateForm(props *CreateFormProps) {
+	<form
+		class="flex flex-col justify-between h-[calc(100vh-4rem)]"
+		hx-post="/roles"
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-6">
+			@card.Card(card.Props{}) {
+				@input.Text(&input.Props{
+					Label:       props.T("Roles.Single.Name.Label"),
+					Placeholder: props.T("Roles.Single.Name.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "Name",
+						"value": props.Role.Name,
+					},
+					Error: props.Errors["Name"],
+				})
+			}
+			for _, group := range props.PermissionGroups {
+				@card.Card(card.Props{
+					Class:  "space-y-3",
+					Header: card.DefaultHeader(props.T(fmt.Sprintf("Resources.%s", group.Label))),
+				}) {
+					for _, child := range group.Children {
+						@Permission(SharedProps{
+							Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+							Attrs: templ.Attributes{
+								"name": child.Name,
+							},
+							Error:   props.Errors[child.Name],
+							Checked: child.Checked,
+						})
+					}
+				}
+			}
+		</div>
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ props.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreateFormProps) {
+	@layouts.Authenticated(props.PageContext) {
+		@CreateForm(props)
+	}
+}

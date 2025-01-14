@@ -1,46 +1,100 @@
 package persistence_test
 
 import (
-	"context"
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	persistence2 "github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
-	"github.com/jackc/pgx/v5"
+	core "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
+	"github.com/iota-uz/utils/random"
 	"testing"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
-func TestGormPositionRepository_CRUD(t *testing.T) {
-	ctx := testutils.GetTestContext()
-	defer func(Tx pgx.Tx, ctx context.Context) {
-		err := Tx.Commit(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}(ctx.Tx, ctx.Context)
+func BenchmarkGormPositionRepository_Create(b *testing.B) {
+	f := setupBenchmark(b)
 
-	unitRepository := persistence2.NewUnitRepository()
-	positionRepository := persistence2.NewPositionRepository()
-	uploadRepository := corepersistence.NewUploadRepository()
+	unitRepository := persistence.NewUnitRepository()
+	positionRepository := persistence.NewPositionRepository()
+	uploadRepository := core.NewUploadRepository()
 
 	if err := unitRepository.Create(
-		ctx.Context, &unit.Unit{
+		f.ctx,
+		&unit.Unit{
 			ID:         1,
 			Title:      "Unit 1",
 			ShortTitle: "U1",
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
-		}); err != nil {
-		t.Fatal(err)
+		},
+	); err != nil {
+		b.Fatal(err)
 	}
 
-	if err := uploadRepository.Create(
-		ctx.Context, &upload.Upload{
+	uploads := make([]*upload.Upload, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		entity, err := uploadRepository.Create(
+			f.ctx,
+			&upload.Upload{
+				ID:        0,
+				Hash:      random.String(32, random.LowerCharSet),
+				Size:      1,
+				Mimetype:  *mimetype.Lookup("image/png"),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+		)
+		if err != nil {
+			b.Fatal(err)
+		}
+		uploads = append(uploads, entity)
+	}
+
+	for range b.N {
+		b.StartTimer()
+		if err := positionRepository.Create(
+			f.ctx,
+			&position.Position{
+				ID:        1,
+				Title:     "Position 1",
+				Barcode:   random.String(13, random.LowerCharSet),
+				UnitID:    1,
+				Images:    uploads,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+		); err != nil {
+			b.Fatal(err)
+		}
+		b.StopTimer()
+	}
+}
+
+func TestGormPositionRepository_CRUD(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+
+	unitRepository := persistence.NewUnitRepository()
+	positionRepository := persistence.NewPositionRepository()
+	uploadRepository := core.NewUploadRepository()
+
+	if err := unitRepository.Create(
+		f.ctx,
+		&unit.Unit{
+			ID:         1,
+			Title:      "Unit 1",
+			ShortTitle: "U1",
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	createdUpload, err := uploadRepository.Create(
+		f.ctx, &upload.Upload{
 			ID:        1,
 			Hash:      "hash",
 			Path:      "url",
@@ -48,17 +102,18 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			Mimetype:  *mimetype.Lookup("image/png"),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
-		}); err != nil {
+		})
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	if err := positionRepository.Create(
-		ctx.Context, &position.Position{
+		f.ctx, &position.Position{
 			ID:        1,
 			Title:     "Position 1",
 			Barcode:   "3141592653589",
 			UnitID:    1,
-			Images:    []upload.Upload{{ID: 1}},
+			Images:    []*upload.Upload{createdUpload},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}); err != nil {
@@ -67,7 +122,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			positionEntity, err := positionRepository.GetByID(ctx.Context, 1)
+			positionEntity, err := positionRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,15 +138,18 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := positionRepository.Update(
-				ctx.Context, &position.Position{
+				f.ctx,
+				&position.Position{
 					ID:      1,
 					Title:   "Updated Position 1",
 					Barcode: "3141592653589",
+					UnitID:  1,
+					Images:  []*upload.Upload{},
 				},
 			); err != nil {
 				t.Fatal(err)
 			}
-			positionEntity, err := positionRepository.GetByID(ctx.Context, 1)
+			positionEntity, err := positionRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -103,12 +161,15 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := positionRepository.Delete(ctx.Context, 1); err != nil {
+			if err := positionRepository.Delete(f.ctx, 1); err != nil {
 				t.Fatal(err)
 			}
-			_, err := positionRepository.GetByID(ctx.Context, 1)
+			_, err := positionRepository.GetByID(f.ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
+			}
+			if !errors.Is(err, persistence.ErrPositionNotFound) {
+				t.Errorf("expected %v, got %v", persistence.ErrPositionNotFound, err)
 			}
 		},
 	)

@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type CurrencyService struct {
 	Repo      currency.Repository
-	Publisher event.Publisher
+	Publisher eventbus.EventBus
 }
 
-func NewCurrencyService(repo currency.Repository, publisher event.Publisher) *CurrencyService {
+func NewCurrencyService(repo currency.Repository, publisher eventbus.EventBus) *CurrencyService {
 	return &CurrencyService{
 		Repo:      repo,
 		Publisher: publisher,

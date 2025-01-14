@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -14,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/utils/repo"
 )
 
 var (
@@ -58,7 +58,7 @@ func (g *GormInventoryRepository) GetPaginated(
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT ic.id, status, type, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id
+		SELECT ic.id, status, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id
 		FROM inventory_checks ic
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY id DESC

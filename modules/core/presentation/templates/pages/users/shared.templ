@@ -2,6 +2,8 @@ package users
 
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/icons"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -10,7 +12,8 @@ type RoleSelectProps struct {
 	*types.PageContext
 	Roles    []*viewmodels.Role
 	Selected []*viewmodels.Role
-	Attrs    templ.Attributes
+	Name     string
+	Form     string
 	Error    string
 }
 
@@ -24,11 +27,12 @@ func isRoleSelected(id string, roles []*viewmodels.Role) bool {
 }
 
 templ RoleSelect(props *RoleSelectProps) {
-	@base.Select(&base.SelectProps{
+	@base.Combobox(base.ComboboxProps{
 		Label:       props.T("Users.Single.Role"),
 		Placeholder: props.T("Users.Single.SelectRole"),
-		Error:       props.Error,
-		Attrs:       props.Attrs,
+		Multiple:    true,
+		Name:        props.Name,
+		Form:        props.Form,
 	}) {
 		for _, role := range props.Roles {
 			if isRoleSelected(role.ID, props.Selected) {
@@ -38,4 +42,28 @@ templ RoleSelect(props *RoleSelectProps) {
 			}
 		}
 	}
+}
+
+type SharedProps struct {
+	*types.PageContext
+	Value string
+	Error string
+}
+
+templ EmailInput(props SharedProps) {
+	@input.Email(&input.Props{
+		Label: props.T("Users.Single.Email"),
+		Attrs: templ.Attributes{
+			"name":  "Email",
+			"value": props.Value,
+			"form":  "save-form",
+		},
+		AddonRight: &input.Addon{
+			Component: icons.EnvelopeSimple(icons.Props{
+				Size:  "18",
+				Class: "text-gray-400",
+			}),
+		},
+		Error: props.Error,
+	})
 }

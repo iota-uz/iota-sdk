@@ -20,7 +20,8 @@ templ UsersTable(props *IndexPageProps) {
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: props.T("Users.List.FullName"), Key: "fullName"},
-			{Label: props.T("Users.List.LastAction"), Key: "lastAction"},
+			{Label: props.T("Users.List.Roles"), Key: "roles"},
+			{Label: props.T("Users.List.Email"), Key: "email"},
 			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
 			{Label: props.T("Actions"), Class: "w-16"},
 		},
@@ -30,7 +31,11 @@ templ UsersTable(props *IndexPageProps) {
 				@base.TableCell() {
 					<div class="flex items-center gap-3">
 						if user.Avatar != nil && user.Avatar.URL != "" {
-							<img src={ user.Avatar.URL } class="w-8 h-8 rounded-full"/>
+							<img
+								src={ user.Avatar.URL }
+								class="w-8 h-8 object-cover rounded-full"
+								alt="User Avatar"
+							/>
 						} else {
 							<div class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm">
 								{ string(user.FirstName[0]) }
@@ -43,12 +48,17 @@ templ UsersTable(props *IndexPageProps) {
 				}
 				@base.TableCell() {
 					if user.LastAction != "" {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", user.LastAction) }></span>
+						<div>
+							{ user.RolesVerbose() }
 						</div>
 					} else {
 						{ props.T("Unknown") }
 					}
+				}
+				@base.TableCell() {
+					<div>
+						{ user.Email }
+					</div>
 				}
 				@base.TableCell() {
 					<div x-data="relativeformat">
