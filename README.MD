@@ -6,6 +6,7 @@
 
 - [Discord Community](https://discord.gg/zKeTEZAQqF): Join our community for support and Q&A.
 - [Contribution Guide](docs/CONTRIBUTING.MD): Learn how to contribute to the project.
+- [Setup Demo](https://github.com/iota-uz/sdk-demo): Learn how to setup IOTA-SDK.
 - [Figma Designs (Coming soon...)](https://www.figma.com/): Access and contribute to our open-source designs.
 - [Roadmap (Coming soon...)](docs/): Explore our upcoming features and milestones.
 
