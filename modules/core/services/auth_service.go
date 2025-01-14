@@ -244,7 +244,7 @@ func generateStateOauthCookie() (*http.Cookie, error) {
 	cookie := &http.Cookie{
 		Name:     oauthStateCookieKey,
 		Value:    state,
-		Expires:  time.Now().Add(time.Minute * 15),
+		Expires:  time.Now().Add(time.Minute * 5),
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 		Secure:   conf.GoAppEnvironment == "production",
