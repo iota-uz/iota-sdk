@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	ut "github.com/go-playground/universal-translator"
@@ -55,11 +58,10 @@ func (c *LoginController) Key() string {
 }
 
 func (c *LoginController) Register(r *mux.Router) {
-	r.HandleFunc("/verify/oauth", c.authService.OauthGoogleCallback)
-
-	getRouter := r.PathPrefix("/login").Subrouter()
+	getRouter := r.PathPrefix("/").Subrouter()
 	getRouter.Use(middleware.WithLocalizer(c.app.Bundle()))
-	getRouter.HandleFunc("", c.Get).Methods(http.MethodGet)
+	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
+	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback)
 
 	setRouter := r.PathPrefix("/login").Subrouter()
 	setRouter.Use(
@@ -67,6 +69,54 @@ func (c *LoginController) Register(r *mux.Router) {
 		middleware.WithTransaction(),
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
+}
+
+func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
+	queryParams := url.Values{
+		"next": []string{r.URL.Query().Get("next")},
+	}
+	if err != nil {
+		queryParams.Set("error", pageCtx.T("Errors.Internal"))
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		queryParams.Set("error", pageCtx.T("Login.Errors.OauthCodeNotFound"))
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
+	}
+	state := r.URL.Query().Get("state")
+	if state == "" {
+		queryParams.Set("error", pageCtx.T("Login.Errors.OauthStateNotFound"))
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
+	}
+	conf := configuration.Use()
+	oauthCookie, err := r.Cookie(conf.OauthStateCookieKey)
+	if err != nil {
+		queryParams.Set("error", pageCtx.T("Login.Errors.OauthStateNotFound"))
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
+	}
+	if oauthCookie.Value != state {
+		queryParams.Set("error", pageCtx.T("Login.Errors.OauthStateInvalid"))
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
+	}
+	cookie, err := c.authService.CookieGoogleAuthenticate(r.Context(), code)
+	if err != nil {
+		if errors.Is(err, persistence.ErrUserNotFound) {
+			queryParams.Set("error", pageCtx.T("Login.Errors.UserNotFound"))
+		} else {
+			queryParams.Set("error", pageCtx.T("Errors.Internal"))
+		}
+		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+		return
+	}
+	http.SetCookie(w, cookie)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {

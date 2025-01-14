@@ -160,7 +160,7 @@ func Index(p *LoginProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex-1 flex items-center justify-center\"><form class=\"max-w-md p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08)] shadow-[0_0_0_7px_rgba(255,255,255,0.5)]\" method=\"post\"><div class=\"text-center\"><h1 class=\"text-2xl text-100\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex-1 flex items-center justify-center\"><form class=\"mx-4 max-w-md p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]\" method=\"post\"><div class=\"text-center\"><h1 class=\"text-2xl text-100\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
