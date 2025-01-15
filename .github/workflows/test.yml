@@ -80,6 +80,11 @@ jobs:
           make generate
           git diff --exit-code
 
+      - name: Run customer linter
+        run: |
+          make build-iota-linter
+          make run-iota-linter
+
       - name: Test Makefile targets
         run: |
           make migrate-up
