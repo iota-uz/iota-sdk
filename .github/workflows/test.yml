@@ -80,7 +80,7 @@ jobs:
           make generate
           git diff --exit-code
 
-      - name: Run customer linter
+      - name: Run custom linter
         run: |
           make build-iota-linter
           make run-iota-linter
