@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -88,7 +89,6 @@ func NewUserRepository() user.Repository {
 
 func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
 	where, args := []string{"1 = 1"}, []interface{}{}
-
 	query := repo.Join(
 		userFindQuery,
 		repo.JoinWhere(where...),
