@@ -128,5 +128,4 @@ linters-settings:
       - apex
       - test
       - .vscode
-      - modules
     check-zero-byte-files: true
