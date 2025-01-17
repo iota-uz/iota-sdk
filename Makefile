@@ -56,11 +56,11 @@ migrate-down:
 
 # Compile TailwindCSS (with watch)
 css-watch:
-	npx tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify --watch
+	tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify --watch
 
 # Compile TailwindCSS (without watch)
 css:
-	npx tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify
+	tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify
 
 # Run linter
 lint:
