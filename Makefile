@@ -37,7 +37,7 @@ report:
 
 # Dev containers
 dev-docker:
-	docker compose -f docker-compose.dev.yml up --build
+	docker compose -f docker-compose.dev-docker.yml up --build
 
 # Run PostgreSQL
 localdb:
