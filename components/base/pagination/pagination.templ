@@ -2,14 +2,14 @@ package pagination
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 )
 
 templ Pagination(state *State) {
 	<ul class="inline-flex -space-x-px text-sm p-4">
 		<li>
 			<a class={ "btn btn-secondary border-none rounded-r-none h-11", state.PrevLinkClasses() } href={ templ.SafeURL(state.PrevLink()) }>
-				@icons.ChevronLeft(icons.Props{Size: "16"})
+				@icons.CaretLeft(icons.Props{Size: "16"})
 			</a>
 		</li>
 		for _, page := range state.Pages() {
@@ -32,7 +32,7 @@ templ Pagination(state *State) {
 		}
 		<li>
 			<a class={ "btn btn-secondary border-none rounded-l-none h-11", state.NextLinkClasses() } href={ templ.SafeURL(state.NextLink()) }>
-				@icons.ChevronRight(icons.Props{Size: "16"})
+				@icons.CaretRight(icons.Props{Size: "16"})
 			</a>
 		</li>
 	</ul>
