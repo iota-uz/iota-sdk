@@ -61,7 +61,8 @@ type Configuration struct {
 	MaxPageSize        int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
 	LogLevel           string        `env:"LOG_LEVEL" envDefault:"error"`
 	// Session ID cookie key
-	SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"`
+	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
+	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
 }
 
 func (c *Configuration) LogrusLogLevel() logrus.Level {

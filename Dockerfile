@@ -12,7 +12,7 @@ RUN case "$(uname -m)" in \
     mv tailwindcss-linux-${ARCH} /usr/local/bin/tailwindcss
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
-RUN go install github.com/a-h/templ/cmd/templ@v0.2.793 && go install github.com/mitranim/gow@latest
+RUN go install github.com/a-h/templ/cmd/templ@v0.3.819 && go install github.com/mitranim/gow@latest
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
