@@ -3,15 +3,15 @@ package services
 import (
 	"context"
 	prompt2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type PromptService struct {
 	repo      prompt2.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewPromptService(repo prompt2.Repository, publisher event.Publisher) *PromptService {
+func NewPromptService(repo prompt2.Repository, publisher eventbus.EventBus) *PromptService {
 	return &PromptService{
 		repo:      repo,
 		publisher: publisher,

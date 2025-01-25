@@ -1,47 +1,23 @@
 package dialogue
 
 import (
-	"database/sql/driver"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"time"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
 )
 
-type Messages []openai.ChatCompletionMessage
+type Messages []llm.ChatCompletionMessage
 
-// Scan scan value into Jsonb, implements sql.Scanner interface.
-func (j *Messages) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
-	}
+type Dialogue interface {
+	ID() uint
+	UserID() uint
+	Label() string
+	Messages() Messages
+	LastMessage() llm.ChatCompletionMessage
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
 
-	result := Messages{}
-	err := json.Unmarshal(bytes, &result)
-	*j = result
-	return err
-}
-
-// Value return json value, implement driver.Valuer interface.
-func (j Messages) Value() (driver.Value, error) {
-	if len(j) == 0 {
-		return nil, nil //nolint:nilnil
-	}
-	return json.Marshal(j)
-}
-
-type Dialogue struct {
-	ID        int64
-	UserID    uint
-	Label     string
-	Messages  Messages `gorm:"type:jsonb"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-func (d *Dialogue) AddMessage(msg openai.ChatCompletionMessage) {
-	d.Messages = append(d.Messages, msg)
+	AddMessages(messages ...llm.ChatCompletionMessage) Dialogue
+	SetMessages(messages Messages) Dialogue
+	SetLastMessage(msg llm.ChatCompletionMessage) Dialogue
 }

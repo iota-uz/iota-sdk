@@ -6,18 +6,18 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type PaymentService struct {
 	repo           payment.Repository
-	publisher      event.Publisher
+	publisher      eventbus.EventBus
 	accountService *MoneyAccountService
 }
 
 func NewPaymentService(
 	repo payment.Repository,
-	publisher event.Publisher,
+	publisher eventbus.EventBus,
 	accountService *MoneyAccountService,
 ) *PaymentService {
 	return &PaymentService{

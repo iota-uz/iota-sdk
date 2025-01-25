@@ -2,8 +2,8 @@ package functions
 
 import (
 	"encoding/json"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
 
-	"github.com/sashabaranov/go-openai"
 	"gorm.io/gorm"
 )
 
@@ -29,12 +29,12 @@ func (c *ChatTools) Add(def ChatFunctionDefinition) {
 	c.Definitions = append(c.Definitions, def)
 }
 
-func (c *ChatTools) OpenAiTools() []openai.Tool {
-	tools := make([]openai.Tool, 0, len(c.Definitions))
+func (c *ChatTools) OpenAiTools() []llm.Tool {
+	tools := make([]llm.Tool, 0, len(c.Definitions))
 	for _, def := range c.Definitions {
-		tools = append(tools, openai.Tool{
+		tools = append(tools, llm.Tool{
 			Type: "function",
-			Function: &openai.FunctionDefinition{
+			Function: &llm.FunctionDefinition{
 				Name:        def.Name(),
 				Description: def.Description(),
 				Parameters:  def.Arguments(),

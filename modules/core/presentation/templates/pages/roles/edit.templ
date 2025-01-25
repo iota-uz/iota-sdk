@@ -20,40 +20,38 @@ type EditFormProps struct {
 }
 
 templ EditForm(props *EditFormProps) {
-	<div class="flex flex-col justify-between h-full" id="edit-content">
-		<div class="flex gap-5 p-6">
-			<div class="flex-1 space-y-5">
-				@card.Card(card.Props{}) {
-					@input.Text(&input.Props{
-						Label:       props.T("Roles.Single.Name.Label"),
-						Placeholder: props.T("Roles.Single.Name.Placeholder"),
-						Attrs: templ.Attributes{
-							"name":  "Name",
-							"value": props.Role.Name,
-							"form":  "save-form",
-						},
-						Error: props.Errors["Name"],
-					})
-				}
-				for _, group := range props.PermissionGroups {
-					@card.Card(card.Props{
-						Class:  "space-y-3",
-						Header: card.DefaultHeader(props.T(fmt.Sprintf("Resources.%s", group.Label))),
-					}) {
-						for _, child := range group.Children {
-							@Permission(SharedProps{
-								Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
-								Attrs: templ.Attributes{
-									"name": child.Name,
-									"form": "save-form",
-								},
-								Error:   props.Errors[child.Name],
-								Checked: child.Checked,
-							})
-						}
+	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
+		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-6">
+			@card.Card(card.Props{}) {
+				@input.Text(&input.Props{
+					Label:       props.T("Roles.Single.Name.Label"),
+					Placeholder: props.T("Roles.Single.Name.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "Name",
+						"value": props.Role.Name,
+						"form":  "save-form",
+					},
+					Error: props.Errors["Name"],
+				})
+			}
+			for _, group := range props.PermissionGroups {
+				@card.Card(card.Props{
+					Class:  "space-y-3",
+					Header: card.DefaultHeader(props.T(fmt.Sprintf("Resources.%s", group.Label))),
+				}) {
+					for _, child := range group.Children {
+						@Permission(SharedProps{
+							Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+							Attrs: templ.Attributes{
+								"name": child.Name,
+								"form": "save-form",
+							},
+							Error:   props.Errors[child.Name],
+							Checked: child.Checked,
+						})
 					}
 				}
-			</div>
+			}
 		</div>
 		<div
 			x-data
