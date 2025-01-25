@@ -307,7 +307,6 @@ type Dialogue struct {
 	Messages  string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	User      User
 }
 
 type Session struct {

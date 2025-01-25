@@ -4,15 +4,15 @@ import (
 	"context"
 
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ExpenseCategoryService struct {
 	repo      category.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewExpenseCategoryService(repo category.Repository, publisher event.Publisher) *ExpenseCategoryService {
+func NewExpenseCategoryService(repo category.Repository, publisher eventbus.EventBus) *ExpenseCategoryService {
 	return &ExpenseCategoryService{
 		repo:      repo,
 		publisher: publisher,

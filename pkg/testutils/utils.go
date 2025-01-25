@@ -20,7 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type TestFixtures struct {
@@ -126,7 +126,7 @@ func DbOpts(name string) string {
 }
 
 func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
-	app := application.New(pool, event.NewEventPublisher())
+	app := application.New(pool, eventbus.NewEventPublisher())
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 func GetTestContext() *TestFixtures {
 	conf := configuration.Use()
 	pool := NewPool(conf.DBOpts)
-	app := application.New(pool, event.NewEventPublisher())
+	app := application.New(pool, eventbus.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}

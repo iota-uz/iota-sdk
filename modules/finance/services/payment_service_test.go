@@ -22,7 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 )
 
@@ -30,7 +30,7 @@ import (
 type testFixtures struct {
 	ctx             context.Context
 	pool            *pgxpool.Pool
-	publisher       event.Publisher
+	publisher       eventbus.EventBus
 	paymentsService *services.PaymentService
 	accountService  *services.MoneyAccountService
 }
@@ -58,7 +58,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
-	publisher := event.NewEventPublisher()
+	publisher := eventbus.NewEventPublisher()
 	app := setupApplication(t, pool, publisher)
 
 	return &testFixtures{
@@ -71,7 +71,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 }
 
 // setupApplication initializes and configures the application
-func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher event.Publisher) application.Application {
+func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher eventbus.EventBus) application.Application {
 	app := application.New(pool, publisher)
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		t.Fatal(err)

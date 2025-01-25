@@ -10,7 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -31,7 +31,7 @@ func Migrate() error {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(pool, event.NewEventPublisher())
+	app := application.New(pool, eventbus.NewEventPublisher())
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		return err
 	}

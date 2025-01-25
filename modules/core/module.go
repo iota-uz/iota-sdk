@@ -44,6 +44,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterServices(
 		services.NewUserService(persistence.NewUserRepository(), app.EventPublisher()),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
+		services.NewEmbeddingService(app),
 	)
 	app.RegisterServices(
 		services.NewAuthService(app),
@@ -53,6 +54,7 @@ func (m *Module) Register(app application.Application) error {
 		services.NewEmployeeService(persistence.NewEmployeeRepository(), app.EventPublisher()),
 		services.NewUploadService(persistence.NewUploadRepository(), fsStorage, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
+		services.NewDialogueService(persistence.NewDialogueRepository(), app),
 	)
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),

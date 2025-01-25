@@ -6,15 +6,15 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ProjectService struct {
 	repo      project.Repository
-	publisher event.Publisher
+	publisher eventbus.EventBus
 }
 
-func NewProjectService(repo project.Repository, publisher event.Publisher) *ProjectService {
+func NewProjectService(repo project.Repository, publisher eventbus.EventBus) *ProjectService {
 	return &ProjectService{
 		repo:      repo,
 		publisher: publisher,

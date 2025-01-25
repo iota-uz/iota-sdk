@@ -23,7 +23,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/event"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -63,7 +63,7 @@ func listFiles(fsys fs.FS, dir string) ([]string, error) {
 	return fileList, nil
 }
 
-func New(pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
+func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	return &application{
@@ -80,7 +80,7 @@ func New(pool *pgxpool.Pool, eventPublisher event.Publisher) Application {
 // application with a dynamically extendable service registry
 type application struct {
 	pool           *pgxpool.Pool
-	eventPublisher event.Publisher
+	eventPublisher eventbus.EventBus
 	rbac           permission.RBAC
 	services       map[reflect.Type]interface{}
 	controllers    map[string]Controller
@@ -128,7 +128,7 @@ func (app *application) DB() *pgxpool.Pool {
 	return app.pool
 }
 
-func (app *application) EventPublisher() event.Publisher {
+func (app *application) EventPublisher() eventbus.EventBus {
 	return app.eventPublisher
 }
 
