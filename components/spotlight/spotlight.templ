@@ -2,7 +2,7 @@ package spotlight
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -14,7 +14,7 @@ templ Spotlight() {
 	>
 		<button
 			@click="open()"
-			class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer"
+			class="flex items-center justify-center w-9 h-9 rounded-full bg-surface-400 text-black cursor-pointer"
 		>
 			@icons.MagnifyingGlass(icons.Props{
 				Size: "20",

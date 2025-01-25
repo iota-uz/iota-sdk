@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"net/http"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -13,7 +16,6 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
-	"net/http"
 )
 
 type AuthService struct {
@@ -68,28 +70,23 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user
 	return u, sess, nil
 }
 
-func (s *AuthService) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		http.Error(w, "code not found", http.StatusBadRequest)
-		return
-	}
-	_, sess, err := s.AuthenticateGoogle(r.Context(), code)
+func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string) (*http.Cookie, error) {
+	_, sess, err := s.AuthenticateGoogle(ctx, code)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	conf := configuration.Use()
 	cookie := &http.Cookie{
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
-		HttpOnly: false,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   false,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == "production",
 		Domain:   conf.Domain,
+		Path:     "/",
 	}
-	http.SetCookie(w, cookie)
+	return cookie, nil
 }
 
 func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Session, error) {
@@ -213,20 +210,32 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 	return cookie, nil
 }
 
-func generateStateOauthCookie() (string, error) {
+func generateStateOauthCookie() (*http.Cookie, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	state := base64.URLEncoding.EncodeToString(b)
+	conf := configuration.Use()
+	cookie := &http.Cookie{
+		Name:     conf.OauthStateCookieKey,
+		Value:    state,
+		Expires:  time.Now().Add(time.Minute * 5),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == "production",
+		Domain:   conf.Domain,
+	}
+	return cookie, nil
 }
 
-func (s *AuthService) GoogleAuthenticate() (string, error) {
-	oauthState, err := generateStateOauthCookie()
+func (s *AuthService) GoogleAuthenticate(w http.ResponseWriter) (string, error) {
+	cookie, err := generateStateOauthCookie()
 	if err != nil {
 		return "", err
 	}
-	u := s.oAuthConfig.AuthCodeURL(oauthState, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	http.SetCookie(w, cookie)
+	u := s.oAuthConfig.AuthCodeURL(cookie.Value, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	return u, nil
 }

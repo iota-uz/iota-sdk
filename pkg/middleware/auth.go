@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -103,7 +104,7 @@ func RedirectNotAuthenticated() mux.MiddlewareFunc {
 					panic("params not found. Add RequestParams middleware up the chain")
 				}
 				if !params.Authenticated {
-					http.Redirect(w, r, "/login", http.StatusFound)
+					http.Redirect(w, r, fmt.Sprintf("/login?next=%s", r.URL), http.StatusFound)
 					return
 				}
 				next.ServeHTTP(w, r)

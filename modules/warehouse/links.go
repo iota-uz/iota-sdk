@@ -1,7 +1,7 @@
 package warehouse
 
 import (
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/types"

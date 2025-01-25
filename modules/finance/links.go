@@ -1,7 +1,7 @@
 package finance
 
 import (
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 

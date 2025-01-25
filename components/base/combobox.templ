@@ -3,7 +3,7 @@ package base
 import (
 	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 )
 
 type TriggerProps struct {
@@ -50,7 +50,7 @@ templ DropdownIndicator() {
 		type="button"
 		@click="open = !open"
 	>
-		@icons.ChevronDown(icons.Props{Size: "16"})
+		@icons.CaretDown(icons.Props{Size: "16"})
 	</button>
 }
 
@@ -186,7 +186,7 @@ templ Combobox(props ComboboxProps) {
 							{ props.Placeholder }
 						</span>
 					}
-					@icons.ChevronDown(icons.Props{
+					@icons.CaretDown(icons.Props{
 						Size:  "16",
 						Class: "text-200 duration-300",
 						Attributes: templ.Attributes{

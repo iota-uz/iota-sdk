@@ -157,17 +157,21 @@ func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, 
 	}, nil
 }
 
-func UseFlash(w http.ResponseWriter, r *http.Request, name string) ([]byte, error) {
+func UseFlash(w http.ResponseWriter, r *http.Request, name string) (val []byte, err error) {
 	c, err := r.Cookie(name)
 	if err != nil {
 		switch err {
 		case http.ErrNoCookie:
+			queryValue := r.URL.Query().Get(name)
+			if queryValue != "" {
+				return []byte(queryValue), nil
+			}
 			return nil, nil
 		default:
 			return nil, err
 		}
 	}
-	val, err := base64.URLEncoding.DecodeString(c.Value)
+	val, err = base64.URLEncoding.DecodeString(c.Value)
 	if err != nil {
 		return nil, err
 	}
