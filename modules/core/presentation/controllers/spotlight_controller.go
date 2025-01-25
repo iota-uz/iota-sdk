@@ -4,7 +4,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	spotlightui "github.com/iota-uz/iota-sdk/components/spotlight"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -12,16 +11,14 @@ import (
 )
 
 type SpotlightController struct {
-	app        application.Application
-	tabService *services.TabService
-	basePath   string
+	app      application.Application
+	basePath string
 }
 
 func NewSpotlightController(app application.Application) application.Controller {
 	return &SpotlightController{
-		app:        app,
-		tabService: app.Service(services.TabService{}).(*services.TabService),
-		basePath:   "/spotlight",
+		app:      app,
+		basePath: "/spotlight",
 	}
 }
 
