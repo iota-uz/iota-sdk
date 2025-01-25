@@ -5,7 +5,7 @@ Before starting, ensure the following tools are installed on your system:
 - [Go v1.23.2](https://golang.org/doc/install)
 - [Air v1.61.5](https://github.com/cosmtrek/air#Installation) for hot-reloading
 - [Docker v27.2.0](https://docs.docker.com/get-docker/) for containerized services
-- [Templ v0.2.793](https://templ.guide/) for templating
+- [Templ v0.3.819](https://templ.guide/) for templating
 - [TailwindCSS v3.4.13](https://tailwindcss.com/docs/installation) for styling
 - [golangci-lint v1.61.0](https://golangci-lint.run/welcome/install/) for linting
 

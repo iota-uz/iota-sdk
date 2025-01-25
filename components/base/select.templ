@@ -1,7 +1,7 @@
 package base
 
 import (
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/utils/random"
 )
 
@@ -41,7 +41,7 @@ templ (p *SelectProps) render() {
 				}
 				{ children... }
 			</select>
-			@icons.ChevronDown(icons.Props{Class: "absolute top-1/2 right-3 -translate-y-1/2 pointer-events-none", Size: "16"})
+			@icons.CaretDown(icons.Props{Class: "absolute top-1/2 right-3 -translate-y-1/2 pointer-events-none", Size: "16"})
 		</div>
 		if p.Error != "" {
 			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
