@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -81,7 +81,7 @@ templ renderNavItem(i types.NavigationItem, pathname string) {
 						@i.Icon
 					}
 					{ i.Name }
-					@icons.ChevronDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
+					@icons.CaretDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
 				</summary>
 				<ul class="ml-4 mt-2 flex flex-col gap-2">
 					for _, item := range i.Children {
@@ -150,11 +150,11 @@ templ Navbar(pageCtx *types.PageContext) {
 				</label>
 				<input class="peer/light appearance-none absolute" type="radio" name="theme" value="light" id="theme-light" onchange="onThemeChange(this)"/>
 				<label for="theme-dark" class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/light:visible">
-					@icons.SunFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100"})
+					@icons.Sun(icons.Props{Size: "20", Variant: icons.Filled, Class: "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100"})
 				</label>
 				<input class="peer/dark appearance-none absolute" type="radio" name="theme" value="dark" id="theme-dark" onchange="onThemeChange(this)"/>
 				<label for="theme-system" class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white invisible peer-checked/dark:visible">
-					@icons.MoonFill(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100"})
+					@icons.Moon(icons.Props{Size: "20", Variant: icons.Filled, Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100", Attributes: templ.Attributes{"fill": "currentColor"}})
 				</label>
 			</div>
 			@base.DetailsDropdown(avatar()) {

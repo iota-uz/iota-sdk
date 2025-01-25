@@ -5,7 +5,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/icons"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -55,7 +55,7 @@ templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, 
 								}
 								{ item.Name }
 							}
-							@icons.ChevronDown(icons.Props{Size: "16", Class: "duration-200 group-open:rotate-180"})
+							@icons.CaretDown(icons.Props{Size: "16", Class: "duration-200 group-open:rotate-180"})
 						</summary>
 						@NavItems(item.Children, tabs, depth+1, "mt-2")
 					</details>
