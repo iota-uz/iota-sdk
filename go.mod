@@ -19,6 +19,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
+	github.com/iota-uz/icons v0.0.0-20250117133300-54f69b1f6dfe
 	github.com/iota-uz/utils v0.0.2
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jmoiron/sqlx v1.4.0
@@ -61,7 +62,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
-	github.com/iota-uz/icons v0.0.0-20250117133300-54f69b1f6dfe // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
