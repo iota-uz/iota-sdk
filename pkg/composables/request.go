@@ -139,22 +139,24 @@ func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
 func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, error) {
 	localizer, found := UseLocalizer(r.Context())
 	if !found {
-		return nil, ErrNoLocalizer
-	}
-	uniTranslator, err := UseUniLocalizer(r.Context())
-	if err != nil {
-		return nil, err
+		bundle := i18n.NewBundle(language.Russian)
+		localizer = i18n.NewLocalizer(bundle, "ru")
 	}
 	locale := UseLocale(r.Context(), language.English)
 	navItems, _ := UseNavItems(r)
-	return &types.PageContext{
-		Pathname:      r.URL.Path,
-		Localizer:     localizer,
-		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}),
-		Locale:        locale.String(),
-		UniTranslator: uniTranslator,
-		NavItems:      navItems,
-	}, nil
+	pageCtx := &types.PageContext{
+		Pathname:  r.URL.Path,
+		Localizer: localizer,
+		Title:     localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}),
+		Locale:    locale.String(),
+		NavItems:  navItems,
+	}
+	uniTranslator, err := UseUniLocalizer(r.Context())
+	if err != nil {
+		return pageCtx, err
+	}
+	pageCtx.UniTranslator = uniTranslator
+	return pageCtx, nil
 }
 
 func UseFlash(w http.ResponseWriter, r *http.Request, name string) (val []byte, err error) {
