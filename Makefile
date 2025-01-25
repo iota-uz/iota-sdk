@@ -77,4 +77,19 @@ clean:
 # Full setup
 setup: deps localdb migrate-up css lint
 
-.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup
+## Linter targets
+#.PHONY: build-iota-linter run-iota-linter clean-iota-linter
+
+# Build the JSON linter
+build-iota-linter:
+	go build -o bin/iotalinter tools/iotalinter.go
+
+# Run the JSON linter
+run-iota-linter:
+	./bin/iotalinter ./...
+
+# Clean built binaries
+clean-iota-linter:
+	rm -f bin/iotalinter
+
+.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter
