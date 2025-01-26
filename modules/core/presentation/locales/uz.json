@@ -1,0 +1,424 @@
+{
+    "Errors": {
+      "Internal": "Ichki server xatosi"
+    },
+    "ValidationErrors": {
+      "required": "Bu maydon to'ldirilishi shart",
+      "emptySelect": "Qiymatni tanlang",
+      "email": "Email formati noto'g'ri"
+    },
+    "Filters": {
+      "CreatedAt": {
+        "AllTime": "Barcha vaqt",
+        "Today": "Bugun",
+        "Yesterday": "Kecha",
+        "ThisWeek": "Shu hafta",
+        "LastWeek": "O'tgan hafta",
+        "ThisMonth": "Shu oy"
+      }
+    },
+    "Spotlight": {
+      "Placeholder": "Qidirish...",
+      "NothingFound": "Hech narsa topilmadi",
+      "Actions": {
+        "AddUser": "Foydalanuvchi qo'shish",
+        "AddExpense": "Xarajat qo'shish",
+        "AddPayment": "To'lov qo'shish",
+        "AddAccount": "Hisob qo'shish"
+      }
+    },
+    "ErrorPages": {
+      "NotFound": {
+        "Title": "404",
+        "Message": "Sahifa topilmadi",
+        "Home": "Bosh sahifa"
+      }
+    },
+    "Resources": {
+      "user": "Foydalanuvchi",
+      "role": "Rol",
+      "account": "Hisob",
+      "project": "Loyiha",
+      "stage": "Bosqich",
+      "employee": "Xodim",
+      "settings": "Sozlamalar",
+      "payment": "To'lov",
+      "expense": "Xarajat",
+      "expense_category": "Xarajat toifasi",
+      "product": "Mahsulot",
+      "unit": "O'lchov birligi",
+      "position": "Lavozim",
+      "order": "Buyurtma",
+      "inventory": "Inventar"
+    },
+    "Permissions": {
+      "User": {
+        "Create": "Foydalanuvchi yaratish",
+        "Read": "Foydalanuvchini ko'rish",
+        "Update": "Foydalanuvchini tahrirlash",
+        "Delete": "Foydalanuvchini o'chirish"
+      },
+      "Role": {
+        "Create": "Rol yaratish",
+        "Read": "Rolni ko'rish",
+        "Update": "Rolni tahrirlash",
+        "Delete": "Rolni o'chirish"
+      },
+      "Account": {
+        "Create": "Hisob yaratish",
+        "Read": "Hisobni ko'rish",
+        "Update": "Hisobni tahrirlash",
+        "Delete": "Hisobni o'chirish"
+      },
+      "Project": {
+        "Create": "Loyiha yaratish",
+        "Read": "Loyihani ko'rish",
+        "Update": "Loyihani tahrirlash",
+        "Delete": "Loyihani o'chirish"
+      },
+      "Stage": {
+        "Create": "Bosqich yaratish",
+        "Read": "Bosqichni ko'rish",
+        "Update": "Bosqichni tahrirlash",
+        "Delete": "Bosqichni o'chirish"
+      },
+      "Employee": {
+        "Create": "Xodim yaratish",
+        "Read": "Xodimni ko'rish",
+        "Update": "Xodimni tahrirlash",
+        "Delete": "Xodimni o'chirish"
+      },
+      "Settings": {
+        "Update": "Sozlamalarni tahrirlash",
+        "Read": "Sozlamalarni ko'rish"
+      },
+      "Payment": {
+        "Create": "To'lov yaratish",
+        "Read": "To'lovni ko'rish",
+        "Update": "To'lovni tahrirlash",
+        "Delete": "To'lovni o'chirish"
+      },
+      "Expense": {
+        "Create": "Xarajat yaratish",
+        "Read": "Xarajatni ko'rish",
+        "Update": "Xarajatni tahrirlash",
+        "Delete": "Xarajatni o'chirish"
+      },
+      "ExpenseCategory": {
+        "Create": "Xarajat toifasini yaratish",
+        "Read": "Xarajat toifasini ko'rish",
+        "Update": "Xarajat toifasini tahrirlash",
+        "Delete": "Xarajat toifasini o'chirish"
+      },
+      "Product": {
+        "Create": "Mahsulot yaratish",
+        "Read": "Mahsulotni ko'rish",
+        "Update": "Mahsulotni tahrirlash",
+        "Delete": "Mahsulotni o'chirish"
+      },
+      "Unit": {
+        "Create": "O'lchov birligi yaratish",
+        "Read": "O'lchov birligini ko'rish",
+        "Update": "O'lchov birligini tahrirlash",
+        "Delete": "O'lchov birligini o'chirish"
+      },
+      "Position": {
+        "Create": "Lavozim yaratish",
+        "Read": "Lavozimni ko'rish",
+        "Update": "Lavozimni tahrirlash",
+        "Delete": "Lavozimni o'chirish"
+      },
+      "Order": {
+        "Create": "Buyurtma yaratish",
+        "Read": "Buyurtmani ko'rish",
+        "Update": "Buyurtmani tahrirlash",
+        "Delete": "Buyurtmani o'chirish"
+      },
+      "Inventory": {
+        "Create": "Inventar yaratish",
+        "Read": "Inventarni ko'rish",
+        "Update": "Inventarni tahrirlash",
+        "Delete": "Inventarni o'chirish"
+      }
+    },
+    "NavigationLinks": {
+      "Dashboard": "Boshqaruv paneli",
+      "Administration": "Ma'muriyat",
+      "Users": "Foydalanuvchilar",
+      "Roles": "Rollar",
+      "BiChat": "BI-Chat",
+      "KnowledgeBase": "Bilimlar bazasi",
+      "Operations": "Operatsiyalar",
+      "Employees": "Xodimlar",
+      "Settings": "Sozlamalar",
+      "Calendar": "Taqvim",
+      "Enums": "Ro'yxatlar",
+      "TaskTypes": "Vazifa turlari",
+      "Positions": "Lavozimlar",
+      "Finances": "Moliya",
+      "Projects": "Loyihalar",
+      "Reports": "Hisobotlar",
+      "Navbar": {
+        "Profile": "Profil",
+        "Settings": "Sozlamalar",
+        "Logout": "Chiqish"
+      }
+    },
+    "Dashboard": {
+      "Meta": {
+        "Title": "Boshqaruv paneli"
+      },
+      "Welcome": "Boshqaruv paneliga xush kelibsiz"
+    },
+    "BiChat": {
+      "Meta": {
+        "Index": {
+          "Title": "BI-Chat"
+        }
+      },
+      "Title": "BI-Chat",
+      "NewDialog": "Yangi suhbat",
+      "MessagePlaceholder": "Xabar yozing...",
+      "History": {
+        "Empty": "Tarix bo'sh",
+        "HelpText": "Yangi suhbat boshlash uchun \"Yangi suhbat\" tugmasini bosing"
+      }
+    },
+    "Users": {
+      "Meta": {
+        "List": {
+          "Title": "Foydalanuvchilar"
+        },
+        "Edit": {
+          "Title": "Foydalanuvchini tahrirlash"
+        },
+        "New": {
+          "Title": "Yangi foydalanuvchi"
+        }
+      },
+      "List": {
+        "New": "Yangi foydalanuvchi",
+        "FullName": "To'liq ism",
+        "Roles": "Rollar",
+        "Email": "Email"
+      },
+      "Cards": {
+        "PersonalInfo": "Shaxsiy ma'lumotlar",
+        "UserInfo": "Foydalanuvchi ma'lumotlari"
+      },
+      "Single": {
+        "EditUser": "Foydalanuvchini tahrirlash",
+        "FirstName": "Ism",
+        "LastName": "Familiya",
+        "MiddleName": "Otasining ismi",
+        "Email": "Email",
+        "Password": "Parol",
+        "Language": "Til",
+        "SelectLanguage": "Tilni tanlang",
+        "ChooseAvatar": "Avatar tanlang",
+        "Role": "Rol",
+        "SelectRole": "Rolni tanlang",
+        "EnterPassword": "Parolni kiriting",
+        "Delete": "Foydalanuvchini o'chirish",
+        "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?"
+      }
+    },
+    "Roles": {
+      "Meta": {
+        "List": {
+          "Title": "Rollar"
+        },
+        "Edit": {
+          "Title": "Rolni tahrirlash"
+        },
+        "New": {
+          "Title": "Yangi rol"
+        }
+      },
+      "List": {
+        "New": "Yangi rol",
+        "Name": "Nomi"
+      },
+      "Single": {
+        "Edit": "Rolni tahrirlash",
+        "Name": {
+          "Label": "Rol nomi",
+          "Placeholder": "Rol nomini kiriting"
+        },
+        "Delete": "Rolni o'chirish",
+        "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+      }
+    },
+    "Projects": {
+      "Meta": {
+        "List": {
+          "Title": "Loyihalar"
+        },
+        "Edit": {
+          "Title": "Loyihani tahrirlash"
+        },
+        "New": {
+          "Title": "Yangi loyiha"
+        }
+      },
+      "List": {
+        "New": "Yangi loyiha",
+        "Description": "Tavsif",
+        "Name": "Nomi"
+      },
+      "Single": {
+        "Edit": "Loyihani tahrirlash",
+        "Name": "Nomi",
+        "Description": "Tavsif",
+        "Delete": "Loyihani o'chirish",
+        "DeleteConfirmation": "Haqiqatan ham bu loyihani o'chirmoqchimisiz?"
+      }
+    },
+    "Employees": {
+      "Meta": {
+        "List": {
+          "Title": "Xodimlar"
+        },
+        "Edit": {
+          "Title": "Xodimni tahrirlash"
+        },
+        "New": {
+          "Title": "Yangi xodim"
+        }
+      },
+      "List": {
+        "New": "Yangi xodim",
+        "FullName": "To'liq ism",
+        "Position": "Lavozim",
+        "Email": "Email"
+      },
+      "Tabs": {
+        "Public": "Umumiy",
+        "Private": "Maxfiy"
+      },
+      "Cards": {
+        "PersonalInfo": "Shaxsiy ma'lumotlar",
+        "JobInfo": "Ish ma'lumotlari"
+      },
+      "Single": {
+        "Edit": "Xodimni tahrirlash",
+        "Delete": "Xodimni o'chirish",
+        "DeleteConfirmation": "Haqiqatan ham bu xodimni o'chirmoqchimisiz?"
+      },
+      "Public": {
+        "FirstName": {
+          "Label": "Ism",
+          "Placeholder": "Ismni kiriting"
+        },
+        "LastName": {
+          "Label": "Familiya",
+          "Placeholder": "Familiyani kiriting"
+        },
+        "MiddleName": {
+          "Label": "Otasining ismi",
+          "Placeholder": "Otasining ismini kiriting"
+        },
+        "Phone": {
+          "Label": "Telefon",
+          "Placeholder": "+998 (__) ___ __ __"
+        },
+        "Email": {
+          "Label": "Email",
+          "Placeholder": "jodoe@gmail.com"
+        },
+        "BirthDate": {
+          "Label": "Tug'ilgan sana"
+        },
+        "Position": {
+          "Label": "Lavozim",
+          "Placeholder": "Lavozimni tanlang"
+        },
+        "HireDate": {
+          "Label": "Ishga kirgan sana"
+        },
+        "ResignationDate": {
+          "Label": "Ishdan ketgan sana"
+        },
+        "EmploymentStatus": {
+          "Label": "Bandlik holati",
+          "Placeholder": "Bandlik holatini tanlang"
+        },
+        "Level": {
+          "Label": "Daraja",
+          "Placeholder": "Darajani tanlang"
+        }
+      },
+      "Private": {
+        "Salary": {
+          "Label": "Maosh"
+        },
+        "PassportSN": {
+          "Label": "Pasport seriyasi va raqami",
+          "Placeholder": "AA 123 45 67"
+        },
+        "TIN": {
+          "Label": "STIR",
+          "Placeholder": "1234567"
+        },
+        "Pin": {
+          "Label": "JSHSHIR",
+          "Placeholder": "123456789192121"
+        }
+      }
+    },
+    "Account": {
+      "Meta": {
+        "Index": {
+          "Title": "Profil"
+        },
+        "Settings": {
+          "Title": "Profil sozlamalari"
+        }
+      },
+      "BrowseFilesystem": "Fayllarni ko'rish",
+      "FirstName": "Ism",
+      "LastName": "Familiya",
+      "MiddleName": "Otasining ismi",
+      "Email": "Email",
+      "Password": "Parol",
+      "Save": "Saqlash"
+    },
+    "Login": {
+      "Meta": {
+        "Title": "Tizimga kirish"
+      },
+      "Email": "Email",
+      "Password": "Parol",
+      "Login": "Kirish",
+      "WelcomeBack": "Xush kelibsiz",
+      "EnterEmailAndPassword": "Tizimga kirish uchun email va parolni kiriting",
+      "OrSignInWith": "Yoki quyidagi orqali kiring",
+      "Errors": {
+        "PasswordInvalid": "Email yoki parol noto'g'ri",
+        "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
+        "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
+        "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
+        "UserNotFound": "Foydalanuvchi topilmadi"
+      }
+    },
+    "Home": {
+      "Meta": {
+        "Title": "Bosh sahifa"
+      }
+    },
+    "UpdatedAt": "Yangilangan sana",
+    "CreatedAt": "Yaratilgan sana",
+    "SignOut": "Chiqish",
+    "Unknown": "Noma'lum",
+    "Actions": "Harakatlar",
+    "Delete": "O'chirish",
+    "Save": "Saqlash",
+    "Search": "Qidirish",
+    "PerPage": "Sahifada",
+    "Cancel": "Bekor qilish",
+    "Back": "Orqaga",
+    "Add": "Qo'shish",
+    "Remove": "O'chirish",
+    "All": "Hammasi"
+}
+  
