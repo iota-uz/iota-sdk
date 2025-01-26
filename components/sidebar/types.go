@@ -3,6 +3,7 @@ package sidebar
 import (
 	"context"
 	"github.com/a-h/templ"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/utils/random"
@@ -134,7 +135,8 @@ func (l *link) Icon() templ.Component {
 }
 
 func (l *link) IsActive(ctx context.Context) bool {
-	return composables.UsePageCtx(ctx).URL.Path == l.href
+	u := composables.UsePageCtx(ctx).URL
+	return u.Path == l.href || strings.HasPrefix(u.Path, l.href+"/")
 }
 
 func (l *link) IsLink() bool {
