@@ -57,7 +57,10 @@ func (c *LoginController) Key() string {
 
 func (c *LoginController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix("/").Subrouter()
-	getRouter.Use(middleware.WithLocalizer(c.app.Bundle()))
+	getRouter.Use(
+		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.WithPageContext(),
+	)
 	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
 	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback)
 
