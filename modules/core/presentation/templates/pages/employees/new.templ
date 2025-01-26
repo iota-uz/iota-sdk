@@ -43,7 +43,7 @@ templ CreateForm(props *CreatePageProps) {
 						{ pageCtx.T("Employees.Tabs.Private") }
 					}
 				}
-				<div x-show="selectedTab === 'public'">
+				@tab.Content("public") {
 					@card.Card(card.Props{
 						Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.PersonalInfo")),
 						Class:        "grid grid-cols-3 gap-4",
@@ -133,8 +133,8 @@ templ CreateForm(props *CreatePageProps) {
 							<option>Full time</option>
 						}
 					}
-				</div>
-				<div x-show="selectedTab === 'private'">
+				}
+				@tab.Content("private") {
 					@card.Card(card.Props{
 						Class:        "grid grid-cols-3 gap-4",
 						WrapperClass: "mt-5",
@@ -149,7 +149,7 @@ templ CreateForm(props *CreatePageProps) {
 						@PinInput(sharedProps)
 						@PassportInput(sharedProps)
 					}
-				</div>
+				}
 			}
 		</div>
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">

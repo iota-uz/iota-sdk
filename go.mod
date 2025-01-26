@@ -19,7 +19,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
-	github.com/iota-uz/icons v0.0.0-20250117133300-54f69b1f6dfe
+	github.com/iota-uz/icons v0.0.2
 	github.com/iota-uz/utils v0.0.2
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jmoiron/sqlx v1.4.0
