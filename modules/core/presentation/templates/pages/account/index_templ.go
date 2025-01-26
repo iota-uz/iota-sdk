@@ -16,11 +16,10 @@ import (
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type ProfilePageProps struct {
-	*types.PageContext
 	User     *viewmodels.User
 	Errors   map[string]string
 	PostPath string
@@ -47,6 +46,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"flex flex-col justify-between h-full\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -104,7 +104,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			ctx = templ.InitializeContext(ctx)
 			if props.User.Avatar == nil {
 				templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
-					Label:   props.T("Account.BrowseFilesystem"),
+					Label:   pageCtx.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",
 					Class:   "col-span-3",
 					Uploads: []*viewmodels.Upload{},
@@ -114,7 +114,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				}
 			} else {
 				templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
-					Label:   props.T("Account.BrowseFilesystem"),
+					Label:   pageCtx.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",
 					Class:   "col-span-3",
 					Uploads: []*viewmodels.Upload{props.User.Avatar},
@@ -128,7 +128,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Placeholder: props.T("Account.FirstName"),
+				Placeholder: pageCtx.T("Account.FirstName"),
 				Attrs: templ.Attributes{
 					"name":  "FirstName",
 					"value": props.User.FirstName,
@@ -143,7 +143,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Placeholder: props.T("Account.LastName"),
+				Placeholder: pageCtx.T("Account.LastName"),
 				Attrs: templ.Attributes{
 					"name":  "LastName",
 					"value": props.User.LastName,
@@ -158,7 +158,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Placeholder: props.T("Account.MiddleName"),
+				Placeholder: pageCtx.T("Account.MiddleName"),
 				Attrs: templ.Attributes{
 					"name":  "MiddleName",
 					"value": props.User.MiddleName,
@@ -173,8 +173,8 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-				Label:       props.T("Users.Single.Language"),
-				Placeholder: props.T("Users.Single.SelectLanguage"),
+				Label:       pageCtx.T("Users.Single.Language"),
+				Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
 				Value:       string(props.User.UILanguage),
 				Attrs:       templ.Attributes{"name": "UILanguage"},
 				Error:       props.Errors["UILanguage"],
@@ -208,9 +208,9 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Account.Save"))
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Account.Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 87, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 87, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -255,6 +255,7 @@ func Index(props *ProfilePageProps) templ.Component {
 			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var9 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -273,7 +274,9 @@ func Index(props *ProfilePageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("Account.Meta.Index.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

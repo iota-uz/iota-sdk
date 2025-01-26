@@ -8,11 +8,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Employee *viewmodels.Employee
 	PostPath string
 	Errors   map[string]string
@@ -21,11 +20,11 @@ type CreatePageProps struct {
 templ CreateForm(props *CreatePageProps) {
 	{{
 	sharedProps := SharedProps{
-		PageContext: props.PageContext,
-		Employee:    props.Employee,
-		Errors:      props.Errors,
+		Employee: props.Employee,
+		Errors:   props.Errors,
 	}
 	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
@@ -38,21 +37,21 @@ templ CreateForm(props *CreatePageProps) {
 			}) {
 				@tab.List(tab.ListProps{}) {
 					@tab.Button("public") {
-						{ props.T("Employees.Tabs.Public") }
+						{ pageCtx.T("Employees.Tabs.Public") }
 					}
 					@tab.Button("private") {
-						{ props.T("Employees.Tabs.Private") }
+						{ pageCtx.T("Employees.Tabs.Private") }
 					}
 				}
 				<div x-show="selectedTab === 'public'">
 					@card.Card(card.Props{
-						Header:       card.DefaultHeader(props.T("Employees.Cards.PersonalInfo")),
+						Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.PersonalInfo")),
 						Class:        "grid grid-cols-3 gap-4",
 						WrapperClass: "mt-5",
 					}) {
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.FirstName.Label"),
-							Placeholder: props.T("Employees.Public.FirstName.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.FirstName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.FirstName.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "FirstName",
 								"value": props.Employee.FirstName,
@@ -60,8 +59,8 @@ templ CreateForm(props *CreatePageProps) {
 							Error: props.Errors["FirstName"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.LastName.Label"),
-							Placeholder: props.T("Employees.Public.LastName.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.LastName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.LastName.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "LastName",
 								"value": props.Employee.LastName,
@@ -69,8 +68,8 @@ templ CreateForm(props *CreatePageProps) {
 							Error: props.Errors["LastName"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.MiddleName.Label"),
-							Placeholder: props.T("Employees.Public.MiddleName.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.MiddleName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.MiddleName.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "MiddleName",
 								"value": props.Employee.MiddleName,
@@ -78,8 +77,8 @@ templ CreateForm(props *CreatePageProps) {
 							Error: props.Errors["MiddleName"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.Email.Label"),
-							Placeholder: props.T("Employees.Public.Email.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Email.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Email.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "Email",
 								"value": props.Employee.Email,
@@ -87,8 +86,8 @@ templ CreateForm(props *CreatePageProps) {
 							Error: props.Errors["Email"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.Phone.Label"),
-							Placeholder: props.T("Employees.Public.Phone.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Phone.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Phone.Placeholder"),
 							Error:       props.Errors["Phone"],
 							Attrs: templ.Attributes{
 								"name":  "Phone",
@@ -96,7 +95,7 @@ templ CreateForm(props *CreatePageProps) {
 							},
 						})
 						@input.Date(&input.Props{
-							Label: props.T("Employees.Public.BirthDate.Label"),
+							Label: pageCtx.T("Employees.Public.BirthDate.Label"),
 							Error: props.Errors["BirthDate"],
 							Attrs: templ.Attributes{
 								"name": "BirthDate",
@@ -105,30 +104,30 @@ templ CreateForm(props *CreatePageProps) {
 						})
 					}
 					@card.Card(card.Props{
-						Header:       card.DefaultHeader(props.T("Employees.Cards.JobInfo")),
+						Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.JobInfo")),
 						WrapperClass: "mt-5",
 						Class:        "grid grid-cols-3 gap-4 mt-5",
 					}) {
 						@JoinDateInput(sharedProps)
 						@ResignationDateInput(sharedProps)
 						@base.Select(&base.SelectProps{
-							Label:       props.T("Employees.Public.Position.Label"),
-							Placeholder: props.T("Employees.Public.Position.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Position.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Position.Placeholder"),
 						}) {
 							<option>PM</option>
 							<option>Developer</option>
 						}
 						@base.Select(&base.SelectProps{
-							Label:       props.T("Employees.Public.Level.Label"),
-							Placeholder: props.T("Employees.Public.Level.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Level.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Level.Placeholder"),
 						}) {
 							<option>Junior</option>
 							<option>Middle</option>
 							<option>Senior</option>
 						}
 						@base.Select(&base.SelectProps{
-							Label:       props.T("Employees.Public.EmploymentStatus.Label"),
-							Placeholder: props.T("Employees.Public.EmploymentStatus.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.EmploymentStatus.Label"),
+							Placeholder: pageCtx.T("Employees.Public.EmploymentStatus.Placeholder"),
 						}) {
 							<option>Part time</option>
 							<option>Full time</option>
@@ -160,14 +159,17 @@ templ CreateForm(props *CreatePageProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("Save") }
+				{ pageCtx.T("Save") }
 			}
 		</div>
 	</form>
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Employees.Meta.New.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

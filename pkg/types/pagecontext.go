@@ -1,8 +1,9 @@
 package types
 
 import (
-	ut "github.com/go-playground/universal-translator"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"golang.org/x/text/language"
+	"net/url"
 )
 
 type PageData struct {
@@ -18,12 +19,9 @@ func NewPageData(title string, description string) *PageData {
 }
 
 type PageContext struct {
-	Title         string
-	Locale        string
-	Localizer     *i18n.Localizer
-	UniTranslator ut.Translator
-	NavItems      []NavigationItem
-	Pathname      string
+	Locale    language.Tag
+	URL       *url.URL
+	Localizer *i18n.Localizer
 }
 
 func (p *PageContext) T(k string, args ...map[string]interface{}) string {

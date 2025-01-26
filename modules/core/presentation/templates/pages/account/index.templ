@@ -8,17 +8,17 @@ import (
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type ProfilePageProps struct {
-	*types.PageContext
 	User     *viewmodels.User
 	Errors   map[string]string
 	PostPath string
 }
 
 templ ProfileForm(props *ProfilePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
@@ -33,21 +33,21 @@ templ ProfileForm(props *ProfilePageProps) {
 		}) {
 			if props.User.Avatar == nil {
 				@components.UploadInput(&components.UploadInputProps{
-					Label:   props.T("Account.BrowseFilesystem"),
+					Label:   pageCtx.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",
 					Class:   "col-span-3",
 					Uploads: []*viewmodels.Upload{},
 				})
 			} else {
 				@components.UploadInput(&components.UploadInputProps{
-					Label:   props.T("Account.BrowseFilesystem"),
+					Label:   pageCtx.T("Account.BrowseFilesystem"),
 					Name:    "AvatarID",
 					Class:   "col-span-3",
 					Uploads: []*viewmodels.Upload{props.User.Avatar},
 				})
 			}
 			@input.Text(&input.Props{
-				Placeholder: props.T("Account.FirstName"),
+				Placeholder: pageCtx.T("Account.FirstName"),
 				Attrs: templ.Attributes{
 					"name":  "FirstName",
 					"value": props.User.FirstName,
@@ -55,7 +55,7 @@ templ ProfileForm(props *ProfilePageProps) {
 				Error: props.Errors["FirstName"],
 			})
 			@input.Text(&input.Props{
-				Placeholder: props.T("Account.LastName"),
+				Placeholder: pageCtx.T("Account.LastName"),
 				Attrs: templ.Attributes{
 					"name":  "LastName",
 					"value": props.User.LastName,
@@ -63,7 +63,7 @@ templ ProfileForm(props *ProfilePageProps) {
 				Error: props.Errors["LastName"],
 			})
 			@input.Text(&input.Props{
-				Placeholder: props.T("Account.MiddleName"),
+				Placeholder: pageCtx.T("Account.MiddleName"),
 				Attrs: templ.Attributes{
 					"name":  "MiddleName",
 					"value": props.User.MiddleName,
@@ -71,8 +71,8 @@ templ ProfileForm(props *ProfilePageProps) {
 				Error: props.Errors["MiddleName"],
 			})
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-				Label:       props.T("Users.Single.Language"),
-				Placeholder: props.T("Users.Single.SelectLanguage"),
+				Label:       pageCtx.T("Users.Single.Language"),
+				Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
 				Value:       string(props.User.UILanguage),
 				Attrs:       templ.Attributes{"name": "UILanguage"},
 				Error:       props.Errors["UILanguage"],
@@ -84,14 +84,17 @@ templ ProfileForm(props *ProfilePageProps) {
 					"type": "submit",
 				}},
 			) {
-				{ props.T("Account.Save") }
+				{ pageCtx.T("Account.Save") }
 			}
 		</div>
 	</form>
 }
 
 templ Index(props *ProfilePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Account.Meta.Index.Title"),
+	}) {
 		@ProfileForm(props)
 	}
 }

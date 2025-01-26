@@ -20,11 +20,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Category   *viewmodels.ExpenseCategory
 	Currencies []*coreviewmodels.Currency
 	Errors     map[string]string
@@ -51,6 +50,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col justify-between h-full\" id=\"edit-content\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -68,7 +68,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Name"),
+				Label: pageCtx.T("ExpenseCategories.Single.Name"),
 				Attrs: templ.Attributes{
 					"value": props.Category.Name,
 					"name":  "Name",
@@ -84,7 +84,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Amount"),
+				Label: pageCtx.T("ExpenseCategories.Single.Amount"),
 				Attrs: templ.Attributes{
 					"name":  "Amount",
 					"value": props.Category.Amount,
@@ -100,8 +100,8 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       props.T("ExpenseCategories.Single.CurrencyCode.Label"),
-				Placeholder: props.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
+				Label:       pageCtx.T("ExpenseCategories.Single.CurrencyCode.Label"),
+				Placeholder: pageCtx.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
 				Value:       props.Category.CurrencyCode,
 				Currencies:  props.Currencies,
 				Error:       props.Errors["CurrencyCode"],
@@ -118,7 +118,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label: props.T("ExpenseCategories.Single.Description"),
+				Label: pageCtx.T("ExpenseCategories.Single.Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
@@ -169,9 +169,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/edit.templ`, Line: 91, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/edit.templ`, Line: 91, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -222,9 +222,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/edit.templ`, Line: 110, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/edit.templ`, Line: 110, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -272,6 +272,7 @@ func Edit(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var10 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -293,10 +294,10 @@ func Edit(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				CancelText:  props.T("Cancel"),
-				ConfirmText: props.T("Delete"),
-				Heading:     props.T("ExpenseCategories.Single.Delete"),
-				Text:        props.T("ExpenseCategories.Single.DeleteConfirmation"),
+				CancelText:  pageCtx.T("Cancel"),
+				ConfirmText: pageCtx.T("Delete"),
+				Heading:     pageCtx.T("ExpenseCategories.Single.Delete"),
+				Text:        pageCtx.T("ExpenseCategories.Single.DeleteConfirmation"),
 				Icon:        icons.Trash(icons.Props{Size: "20"}),
 				Action:      "open-delete-category-confirmation",
 				Attrs: templ.Attributes{
@@ -313,7 +314,9 @@ func Edit(props *EditPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("ExpenseCategories.Meta.Edit.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

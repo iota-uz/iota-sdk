@@ -15,11 +15,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreateFormProps struct {
-	*types.PageContext
 	Role             *viewmodels.Role
 	PermissionGroups []*Group
 	Errors           map[string]string
@@ -46,6 +45,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"flex flex-col justify-between h-[calc(100vh-4rem)]\" hx-post=\"/roles\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\"><div class=\"flex-1 overflow-y-auto flex flex-col gap-5 p-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -63,8 +63,8 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       props.T("Roles.Single.Name.Label"),
-				Placeholder: props.T("Roles.Single.Name.Placeholder"),
+				Label:       pageCtx.T("Roles.Single.Name.Label"),
+				Placeholder: pageCtx.T("Roles.Single.Name.Placeholder"),
 				Attrs: templ.Attributes{
 					"name":  "Name",
 					"value": props.Role.Name,
@@ -95,7 +95,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				ctx = templ.InitializeContext(ctx)
 				for _, child := range group.Children {
 					templ_7745c5c3_Err = Permission(SharedProps{
-						Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+						Label: pageCtx.T(fmt.Sprintf("Permissions.%s", child.Label)),
 						Attrs: templ.Attributes{
 							"name": child.Name,
 						},
@@ -110,7 +110,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			})
 			templ_7745c5c3_Err = card.Card(card.Props{
 				Class:  "space-y-3",
-				Header: card.DefaultHeader(props.T(fmt.Sprintf("Resources.%s", group.Label))),
+				Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Label))),
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -133,9 +133,9 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 64, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 64, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -181,6 +181,7 @@ func New(props *CreateFormProps) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -199,7 +200,9 @@ func New(props *CreateFormProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("Roles.Meta.New.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

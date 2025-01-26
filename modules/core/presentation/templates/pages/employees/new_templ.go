@@ -16,11 +16,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Employee *viewmodels.Employee
 	PostPath string
 	Errors   map[string]string
@@ -49,10 +48,10 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 
 		sharedProps := SharedProps{
-			PageContext: props.PageContext,
-			Employee:    props.Employee,
-			Errors:      props.Errors,
+			Employee: props.Employee,
+			Errors:   props.Errors,
 		}
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"flex flex-col justify-between h-full\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -60,7 +59,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.PostPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 31, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 30, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -107,9 +106,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					}
 					ctx = templ.InitializeContext(ctx)
 					var templ_7745c5c3_Var6 string
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Employees.Tabs.Public"))
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Employees.Tabs.Public"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 41, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 40, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -138,9 +137,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					}
 					ctx = templ.InitializeContext(ctx)
 					var templ_7745c5c3_Var8 string
-					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Employees.Tabs.Private"))
+					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Employees.Tabs.Private"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 44, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 43, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -175,8 +174,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				}
 				ctx = templ.InitializeContext(ctx)
 				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       props.T("Employees.Public.FirstName.Label"),
-					Placeholder: props.T("Employees.Public.FirstName.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.FirstName.Label"),
+					Placeholder: pageCtx.T("Employees.Public.FirstName.Placeholder"),
 					Attrs: templ.Attributes{
 						"name":  "FirstName",
 						"value": props.Employee.FirstName,
@@ -191,8 +190,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       props.T("Employees.Public.LastName.Label"),
-					Placeholder: props.T("Employees.Public.LastName.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.LastName.Label"),
+					Placeholder: pageCtx.T("Employees.Public.LastName.Placeholder"),
 					Attrs: templ.Attributes{
 						"name":  "LastName",
 						"value": props.Employee.LastName,
@@ -207,8 +206,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       props.T("Employees.Public.MiddleName.Label"),
-					Placeholder: props.T("Employees.Public.MiddleName.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.MiddleName.Label"),
+					Placeholder: pageCtx.T("Employees.Public.MiddleName.Placeholder"),
 					Attrs: templ.Attributes{
 						"name":  "MiddleName",
 						"value": props.Employee.MiddleName,
@@ -223,8 +222,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       props.T("Employees.Public.Email.Label"),
-					Placeholder: props.T("Employees.Public.Email.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.Email.Label"),
+					Placeholder: pageCtx.T("Employees.Public.Email.Placeholder"),
 					Attrs: templ.Attributes{
 						"name":  "Email",
 						"value": props.Employee.Email,
@@ -239,8 +238,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       props.T("Employees.Public.Phone.Label"),
-					Placeholder: props.T("Employees.Public.Phone.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.Phone.Label"),
+					Placeholder: pageCtx.T("Employees.Public.Phone.Placeholder"),
 					Error:       props.Errors["Phone"],
 					Attrs: templ.Attributes{
 						"name":  "Phone",
@@ -255,7 +254,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = input.Date(&input.Props{
-					Label: props.T("Employees.Public.BirthDate.Label"),
+					Label: pageCtx.T("Employees.Public.BirthDate.Label"),
 					Error: props.Errors["BirthDate"],
 					Attrs: templ.Attributes{
 						"name": "BirthDate",
@@ -268,7 +267,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = card.Card(card.Props{
-				Header:       card.DefaultHeader(props.T("Employees.Cards.PersonalInfo")),
+				Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.PersonalInfo")),
 				Class:        "grid grid-cols-3 gap-4",
 				WrapperClass: "mt-5",
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
@@ -322,8 +321,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = base.Select(&base.SelectProps{
-					Label:       props.T("Employees.Public.Position.Label"),
-					Placeholder: props.T("Employees.Public.Position.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.Position.Label"),
+					Placeholder: pageCtx.T("Employees.Public.Position.Placeholder"),
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -351,8 +350,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = base.Select(&base.SelectProps{
-					Label:       props.T("Employees.Public.Level.Label"),
-					Placeholder: props.T("Employees.Public.Level.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.Level.Label"),
+					Placeholder: pageCtx.T("Employees.Public.Level.Placeholder"),
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -380,8 +379,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = base.Select(&base.SelectProps{
-					Label:       props.T("Employees.Public.EmploymentStatus.Label"),
-					Placeholder: props.T("Employees.Public.EmploymentStatus.Placeholder"),
+					Label:       pageCtx.T("Employees.Public.EmploymentStatus.Label"),
+					Placeholder: pageCtx.T("Employees.Public.EmploymentStatus.Placeholder"),
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -389,7 +388,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = card.Card(card.Props{
-				Header:       card.DefaultHeader(props.T("Employees.Cards.JobInfo")),
+				Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.JobInfo")),
 				WrapperClass: "mt-5",
 				Class:        "grid grid-cols-3 gap-4 mt-5",
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
@@ -495,9 +494,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var17 string
-			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 163, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 162, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -543,6 +542,7 @@ func New(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Var18 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var19 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -561,7 +561,9 @@ func New(props *CreatePageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("Employees.Meta.New.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

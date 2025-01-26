@@ -2,30 +2,30 @@ package expenses
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Expenses        []*viewmodels.Expense
 	PaginationState *pagination.State
 }
 
 templ ExpensesTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("Expenses.List.Category"), Key: "name"},
-				{Label: props.T("Expenses.List.Amount"), Key: "amount"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("Expenses.List.Category"), Key: "name"},
+				{Label: pageCtx.T("Expenses.List.Amount"), Key: "amount"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, expense := range props.Expenses {
@@ -56,9 +56,10 @@ templ ExpensesTable(props *IndexPageProps) {
 }
 
 templ ExpensesContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Expenses") }
+			{ pageCtx.T("NavigationLinks.Expenses") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -69,14 +70,13 @@ templ ExpensesContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				@filters.Default(&filters.Props{
-					PageContext: props.PageContext,
 					Fields: []filters.SearchField{
 						{
-							Label: props.T("Expenses.List.Category"),
+							Label: pageCtx.T("Expenses.List.Category"),
 							Key:   "category",
 						},
 						{
-							Label: props.T("Expenses.List.Amount"),
+							Label: pageCtx.T("Expenses.List.Amount"),
 							Key:   "amount",
 						},
 					},
@@ -85,7 +85,7 @@ templ ExpensesContent(props *IndexPageProps) {
 					Size: button.SizeNormal, Href: "/finance/expenses/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Expenses.List.New") }
+					{ pageCtx.T("Expenses.List.New") }
 				}
 			</form>
 			@ExpensesTable(props)
@@ -94,7 +94,10 @@ templ ExpensesContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Expenses.Meta.List.Title"),
+	}) {
 		@ExpensesContent(props)
 	}
 }

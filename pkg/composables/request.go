@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )
 
@@ -136,25 +136,23 @@ func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
 	return tags[0]
 }
 
-func UsePageCtx(r *http.Request, pageData *types.PageData) (*types.PageContext, error) {
-	localizer, found := UseLocalizer(r.Context())
-	if !found {
-		return nil, ErrNoLocalizer
+// UsePageCtx returns the page context from the context.
+// If the page context is not found, function will panic.
+func UsePageCtx(ctx context.Context) *types.PageContext {
+	pageCtx := ctx.Value(constants.PageContext)
+	if pageCtx == nil {
+		panic("page context not found")
 	}
-	uniTranslator, err := UseUniLocalizer(r.Context())
-	if err != nil {
-		return nil, err
+	v, ok := pageCtx.(*types.PageContext)
+	if !ok {
+		panic(fmt.Sprintf("page context is not of type *types.PageContext: %T", pageCtx))
 	}
-	locale := UseLocale(r.Context(), language.English)
-	navItems, _ := UseNavItems(r)
-	return &types.PageContext{
-		Pathname:      r.URL.Path,
-		Localizer:     localizer,
-		Title:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: pageData.Title}),
-		Locale:        locale.String(),
-		UniTranslator: uniTranslator,
-		NavItems:      navItems,
-	}, nil
+	return v
+}
+
+// WithPageCtx returns a new context with the page context.
+func WithPageCtx(ctx context.Context, pageCtx *types.PageContext) context.Context {
+	return context.WithValue(ctx, constants.PageContext, pageCtx)
 }
 
 func UseFlash(w http.ResponseWriter, r *http.Request, name string) (val []byte, err error) {

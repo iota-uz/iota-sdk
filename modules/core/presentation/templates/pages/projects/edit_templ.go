@@ -66,7 +66,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Projects.Single.Name"),
+				Label: pageCtx.T("Projects.Single.Name"),
 				Attrs: templ.Attributes{
 					"name":  "Name",
 					"value": props.Project.Name,
@@ -82,7 +82,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label: props.T("Projects.Single.Description"),
+				Label: pageCtx.T("Projects.Single.Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
@@ -133,9 +133,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/edit.templ`, Line: 72, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/edit.templ`, Line: 72, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -186,9 +186,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/edit.templ`, Line: 91, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/edit.templ`, Line: 91, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -257,10 +257,10 @@ func Edit(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				CancelText:  props.T("Cancel"),
-				ConfirmText: props.T("Delete"),
-				Heading:     props.T("Projects.Single.Delete"),
-				Text:        props.T("Projects.Single.DeleteConfirmation"),
+				CancelText:  pageCtx.T("Cancel"),
+				ConfirmText: pageCtx.T("Delete"),
+				Heading:     pageCtx.T("Projects.Single.Delete"),
+				Text:        pageCtx.T("Projects.Single.DeleteConfirmation"),
 				Icon:        icons.Trash(icons.Props{Size: "20"}),
 				Action:      "open-delete-expense-confirmation",
 				Attrs: templ.Attributes{
@@ -277,7 +277,7 @@ func Edit(props *EditPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated().Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

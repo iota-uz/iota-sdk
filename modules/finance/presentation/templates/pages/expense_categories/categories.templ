@@ -2,30 +2,30 @@ package expense_categories
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Categories      []*viewmodels.ExpenseCategory
 	PaginationState *pagination.State
 }
 
 templ CategoriesTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("ExpenseCategories.List.Name"), Key: "name"},
-				{Label: props.T("ExpenseCategories.List.Amount"), Key: "amount"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("ExpenseCategories.List.Name"), Key: "name"},
+				{Label: pageCtx.T("ExpenseCategories.List.Amount"), Key: "amount"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, category := range props.Categories {
@@ -71,20 +71,22 @@ templ SearchFieldsTrigger(trigger *base.TriggerProps) {
 }
 
 templ SearchFields(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Combobox(base.ComboboxProps{
 		Name:      "field",
 		ListClass: "!w-auto",
 		Trigger: &base.Trigger{Render: func(props *base.TriggerProps) templ.Component {
 			return SearchFieldsTrigger(props)
 		}}}) {
-		<option value="name" selected>{ props.T("ExpenseCategories.List.Name") }</option>
+		<option value="name" selected>{ pageCtx.T("ExpenseCategories.List.Name") }</option>
 	}
 }
 
 templ CategoriesContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.ExpenseCategories") }
+			{ pageCtx.T("NavigationLinks.ExpenseCategories") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg" x-data="dateFns">
 			<form
@@ -95,14 +97,13 @@ templ CategoriesContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				@filters.Default(&filters.Props{
-					PageContext: props.PageContext,
 					Fields: []filters.SearchField{
 						{
-							Label: props.T("ExpenseCategories.List.Name"),
+							Label: pageCtx.T("ExpenseCategories.List.Name"),
 							Key:   "name",
 						},
 						{
-							Label: props.T("ExpenseCategories.List.Amount"),
+							Label: pageCtx.T("ExpenseCategories.List.Amount"),
 							Key:   "amount",
 						},
 					},
@@ -112,7 +113,7 @@ templ CategoriesContent(props *IndexPageProps) {
 					Href: "/finance/expense-categories/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("ExpenseCategories.List.New") }
+					{ pageCtx.T("ExpenseCategories.List.New") }
 				}
 			</form>
 			@CategoriesTable(props)
@@ -121,7 +122,10 @@ templ CategoriesContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("ExpenseCategories.Meta.List.Title"),
+	}) {
 		@CategoriesContent(props)
 	}
 }

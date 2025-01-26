@@ -17,11 +17,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Position  *viewmodels.Position
 	Units     []*viewmodels.Unit
 	Errors    map[string]string
@@ -50,6 +49,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col justify-between h-full\" id=\"edit-content\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -67,7 +67,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
-				Label:    props.T("WarehousePositions.Single.Images"),
+				Label:    pageCtx.T("WarehousePositions.Single.Images"),
 				Name:     "ImageIDs",
 				Class:    "col-span-3",
 				Form:     "save-form",
@@ -82,8 +82,8 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Title.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Title.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Title.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Title.Placeholder"),
 				Error:       props.Errors["Title"],
 				Attrs: templ.Attributes{
 					"autofocus": true,
@@ -100,8 +100,8 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Barcode.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Barcode.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Barcode.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Barcode.Placeholder"),
 				Error:       props.Errors["Barcode"],
 				Attrs: templ.Attributes{
 					"name":  "Barcode",
@@ -117,9 +117,8 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = UnitSelect(&UnitSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Position.UnitID,
-				Units:       props.Units,
+				Value: props.Position.UnitID,
+				Units: props.Units,
 				Attrs: templ.Attributes{
 					"name": "UnitID",
 					"form": "save-form",
@@ -144,7 +143,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.DeleteURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 75, Col: 31}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 74, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -167,9 +166,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 92, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 91, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -197,7 +196,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 98, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 97, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -220,9 +219,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 111, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 110, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -270,6 +269,7 @@ func Edit(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var10 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -291,10 +291,10 @@ func Edit(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				CancelText:  props.T("Cancel"),
-				ConfirmText: props.T("Delete"),
-				Heading:     props.T("WarehousePositions.Single.Delete"),
-				Text:        props.T("WarehousePositions.Single.DeleteConfirmation"),
+				CancelText:  pageCtx.T("Cancel"),
+				ConfirmText: pageCtx.T("Delete"),
+				Heading:     pageCtx.T("WarehousePositions.Single.Delete"),
+				Text:        pageCtx.T("WarehousePositions.Single.DeleteConfirmation"),
 				Icon:        icons.Trash(icons.Props{Size: "20"}),
 				Action:      "open-delete-position-confirmation",
 				Attrs: templ.Attributes{
@@ -311,7 +311,9 @@ func Edit(props *EditPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("WarehousePositions.Edit.Meta.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

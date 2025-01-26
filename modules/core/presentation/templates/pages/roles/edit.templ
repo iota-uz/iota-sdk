@@ -2,30 +2,30 @@ package roles
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditFormProps struct {
-	*types.PageContext
 	Role             *viewmodels.Role
 	PermissionGroups []*Group
 	Errors           map[string]string
 }
 
 templ EditForm(props *EditFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
 		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-6">
 			@card.Card(card.Props{}) {
 				@input.Text(&input.Props{
-					Label:       props.T("Roles.Single.Name.Label"),
-					Placeholder: props.T("Roles.Single.Name.Placeholder"),
+					Label:       pageCtx.T("Roles.Single.Name.Label"),
+					Placeholder: pageCtx.T("Roles.Single.Name.Placeholder"),
 					Attrs: templ.Attributes{
 						"name":  "Name",
 						"value": props.Role.Name,
@@ -37,11 +37,11 @@ templ EditForm(props *EditFormProps) {
 			for _, group := range props.PermissionGroups {
 				@card.Card(card.Props{
 					Class:  "space-y-3",
-					Header: card.DefaultHeader(props.T(fmt.Sprintf("Resources.%s", group.Label))),
+					Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Label))),
 				}) {
 					for _, child := range group.Children {
 						@Permission(SharedProps{
-							Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+							Label: pageCtx.T(fmt.Sprintf("Permissions.%s", child.Label)),
 							Attrs: templ.Attributes{
 								"name": child.Name,
 								"form": "save-form",
@@ -76,7 +76,7 @@ templ EditForm(props *EditFormProps) {
 						"id":     "delete-role-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -95,7 +95,7 @@ templ EditForm(props *EditFormProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -103,11 +103,14 @@ templ EditForm(props *EditFormProps) {
 }
 
 templ Edit(props *EditFormProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Roles.Meta.Edit.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading: props.T("Roles.Single.Delete"),
-			Text:    props.T("Roles.Single.DeleteConfirmation"),
+			Heading: pageCtx.T("Roles.Single.Delete"),
+			Text:    pageCtx.T("Roles.Single.DeleteConfirmation"),
 			Icon:    icons.Trash(icons.Props{Size: "20"}),
 			Action:  "open-delete-role-confirmation",
 			Attrs: templ.Attributes{

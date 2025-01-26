@@ -1,14 +1,13 @@
 package controllers
 
 import (
+	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 func NewDashboardController(app application.Application) application.Controller {
@@ -34,20 +33,12 @@ func (c *DashboardController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	)
 	router.HandleFunc("/", c.Get)
 }
 
 func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Dashboard.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	props := &dashboard.IndexPageProps{
-		PageContext: pageCtx,
-	}
-	if err := dashboard.Index(props).Render(r.Context(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	props := &dashboard.IndexPageProps{}
+	templ.Handler(dashboard.Index(props)).ServeHTTP(w, r)
 }

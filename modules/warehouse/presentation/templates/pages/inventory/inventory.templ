@@ -2,19 +2,18 @@ package inventory
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Checks          []*viewmodels.Check
 	PaginationState *pagination.State
 }
@@ -24,14 +23,15 @@ func inventoryCheckHref(check *viewmodels.Check) string {
 }
 
 templ InventoryTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("WarehouseInventory.List.Name"), Key: "name"},
-				{Label: props.T("WarehouseInventory.List.Status"), Key: "status"},
-				{Label: props.T("WarehouseInventory.List.CreatedBy"), Key: "createdBy"},
-				{Label: props.T("WarehouseInventory.List.FinishedBy"), Key: "finishedBy"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("WarehouseInventory.List.Name"), Key: "name"},
+				{Label: pageCtx.T("WarehouseInventory.List.Status"), Key: "status"},
+				{Label: pageCtx.T("WarehouseInventory.List.CreatedBy"), Key: "createdBy"},
+				{Label: pageCtx.T("WarehouseInventory.List.FinishedBy"), Key: "finishedBy"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, check := range props.Checks {
@@ -46,7 +46,7 @@ templ InventoryTable(props *IndexPageProps) {
 							templ.KV("bg-yellow-100 text-yellow-700", check.Status == string(inventory.Incomplete)),
 							templ.KV("bg-red-100 text-red-500", check.Status == string(inventory.Failed)) }
 						>
-							{ check.LocalizedStatus(props.Localizer) }
+							{ check.LocalizedStatus(pageCtx.Localizer) }
 						</div>
 					}
 					@base.TableCell() {
@@ -72,9 +72,10 @@ templ InventoryTable(props *IndexPageProps) {
 }
 
 templ InventoryContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.WarehouseInventory") }
+			{ pageCtx.T("NavigationLinks.WarehouseInventory") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -84,9 +85,9 @@ templ InventoryContent(props *IndexPageProps) {
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
-				@filters.Search(props.PageContext, []filters.SearchField{
+				@filters.Search([]filters.SearchField{
 					{
-						Label: props.T("WarehouseInventory.List.Name"),
+						Label: pageCtx.T("WarehouseInventory.List.Name"),
 						Key:   "name",
 					},
 				})
@@ -95,19 +96,25 @@ templ InventoryContent(props *IndexPageProps) {
 						"name": "Status",
 					},
 				}) {
-					<option selected disabled>{ props.T("WarehouseInventory.List.SelectStatus") }</option>
-					<option value="">{ props.T("All") }</option>
-					<option value={ string(inventory.Success) }>{ props.T("WarehouseInventory.Single.Statuses.success") }</option>
-					<option value={ string(inventory.Incomplete) }>{ props.T("WarehouseInventory.Single.Statuses.incomplete") }</option>
-					<option value={ string(inventory.Failed) }>{ props.T("WarehouseInventory.Single.Statuses.failed") }</option>
+					<option selected disabled>{ pageCtx.T("WarehouseInventory.List.SelectStatus") }</option>
+					<option value="">{ pageCtx.T("All") }</option>
+					<option value={ string(inventory.Success) }>
+						{ pageCtx.T("WarehouseInventory.Single.Statuses.success") }
+					</option>
+					<option value={ string(inventory.Incomplete) }>
+						{ pageCtx.T("WarehouseInventory.Single.Statuses.incomplete") }
+					</option>
+					<option value={ string(inventory.Failed) }>
+						{ pageCtx.T("WarehouseInventory.Single.Statuses.failed") }
+					</option>
 				}
-				@filters.PageSize(props.PageContext)
-				@filters.CreatedAt(props.PageContext)
+				@filters.PageSize()
+				@filters.CreatedAt()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal, Href: "/warehouse/inventory/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("WarehouseInventory.List.New") }
+					{ pageCtx.T("WarehouseInventory.List.New") }
 				}
 			</form>
 			@InventoryTable(props)
@@ -116,7 +123,10 @@ templ InventoryContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseInventory.List.Meta.Title"),
+	}) {
 		@InventoryContent(props)
 	}
 }

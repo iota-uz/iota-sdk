@@ -7,11 +7,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Positions []*viewmodels.Position
 	Position  *viewmodels.Position
 	Units     []*viewmodels.Unit
@@ -20,6 +19,7 @@ type CreatePageProps struct {
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		id="save-form"
 		class="flex flex-col justify-between h-full"
@@ -32,15 +32,15 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@components.UploadInput(&components.UploadInputProps{
-				Label:    props.T("WarehousePositions.Single.Images"),
+				Label:    pageCtx.T("WarehousePositions.Single.Images"),
 				Name:     "ImageIDs",
 				Class:    "col-span-3",
 				Form:     "save-form",
 				Multiple: true,
 			})
 			@input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Title.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Title.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Title.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Title.Placeholder"),
 				Attrs: templ.Attributes{
 					"autofocus": true,
 					"name":      "Title",
@@ -49,8 +49,8 @@ templ CreateForm(props *CreatePageProps) {
 				Error: props.Errors["Title"],
 			})
 			@input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Barcode.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Barcode.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Barcode.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Barcode.Placeholder"),
 				Attrs: templ.Attributes{
 					"name": "Barcode",
 					"form": "save-form",
@@ -58,9 +58,8 @@ templ CreateForm(props *CreatePageProps) {
 				Error: props.Errors["Barcode"],
 			})
 			@UnitSelect(&UnitSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Position.UnitID,
-				Units:       props.Units,
+				Value: props.Position.UnitID,
+				Units: props.Units,
 				Attrs: templ.Attributes{
 					"name": "UnitID",
 					"form": "save-form",
@@ -74,14 +73,17 @@ templ CreateForm(props *CreatePageProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("Save") }
+				{ pageCtx.T("Save") }
 			}
 		</div>
 	</form>
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehousePositions.New.Meta.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

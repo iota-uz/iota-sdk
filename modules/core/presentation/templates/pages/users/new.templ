@@ -8,17 +8,17 @@ import (
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreateFormProps struct {
-	*types.PageContext
 	User   viewmodels.User
 	Roles  []*viewmodels.Role
 	Errors map[string]string
 }
 
 templ CreateForm(props *CreateFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post="/users"
@@ -31,12 +31,12 @@ templ CreateForm(props *CreateFormProps) {
 					Class: "grid grid-cols-2 gap-4",
 				}) {
 					@input.Text(&input.Props{
-						Label: props.T("Users.Single.FirstName"),
+						Label: pageCtx.T("Users.Single.FirstName"),
 						Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},
 						Error: props.Errors["FirstName"],
 					})
 					@input.Text(&input.Props{
-						Label: props.T("Users.Single.LastName"),
+						Label: pageCtx.T("Users.Single.LastName"),
 						Attrs: templ.Attributes{
 							"name":  "LastName",
 							"value": props.User.LastName,
@@ -44,7 +44,7 @@ templ CreateForm(props *CreateFormProps) {
 						Error: props.Errors["LastName"],
 					})
 					@input.Text(&input.Props{
-						Label: props.T("Users.Single.MiddleName"),
+						Label: pageCtx.T("Users.Single.MiddleName"),
 						Attrs: templ.Attributes{
 							"name":  "MiddleName",
 							"value": props.User.MiddleName,
@@ -52,24 +52,22 @@ templ CreateForm(props *CreateFormProps) {
 						Error: props.Errors["MiddleName"],
 					})
 					@EmailInput(SharedProps{
-						PageContext: props.PageContext,
-						Value:       props.User.Email,
-						Error:       props.Errors["Email"],
+						Value: props.User.Email,
+						Error: props.Errors["Email"],
 					})
 				}
 				@card.Card(card.Props{
-					Header: card.DefaultHeader(props.T("Users.Cards.UserInfo")),
+					Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
 					Class:  "grid grid-cols-3 gap-4",
 				}) {
 					@RoleSelect(&RoleSelectProps{
-						PageContext: props.PageContext,
-						Roles:       props.Roles,
-						Error:       props.Errors["RoleIDs"],
-						Name:        "RoleIDs",
+						Roles: props.Roles,
+						Error: props.Errors["RoleIDs"],
+						Name:  "RoleIDs",
 					})
 					@input.Password(&input.Props{
-						Label:       props.T("Users.Single.Password"),
-						Placeholder: props.T("Users.Single.EnterPassword"),
+						Label:       pageCtx.T("Users.Single.Password"),
+						Placeholder: pageCtx.T("Users.Single.EnterPassword"),
 						Attrs: templ.Attributes{
 							"autocomplete": "new-password",
 							"name":         "Password",
@@ -77,8 +75,8 @@ templ CreateForm(props *CreateFormProps) {
 						},
 					})
 					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-						Label:       props.T("Users.Single.Language"),
-						Placeholder: props.T("Users.Single.SelectLanguage"),
+						Label:       pageCtx.T("Users.Single.Language"),
+						Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
 						Value:       string(props.User.UILanguage),
 						Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
 					})
@@ -86,7 +84,7 @@ templ CreateForm(props *CreateFormProps) {
 			</div>
 			@card.Card(card.Props{}) {
 				@components.UploadInput(&components.UploadInputProps{
-					Label:       props.T("Users.Single.ChooseAvatar"),
+					Label:       pageCtx.T("Users.Single.ChooseAvatar"),
 					Placeholder: "PNG, JPG",
 					Name:        "AvatarID",
 					Class:       "col-span-3",
@@ -102,14 +100,17 @@ templ CreateForm(props *CreateFormProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("Save") }
+				{ pageCtx.T("Save") }
 			}
 		</div>
 	</form>
 }
 
 templ New(props *CreateFormProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Users.Meta.New.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

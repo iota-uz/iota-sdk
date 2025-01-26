@@ -11,11 +11,10 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type UnitSelectProps struct {
-	*types.PageContext
 	Value string
 	Units []*viewmodels.Unit
 	Attrs templ.Attributes
@@ -43,6 +42,7 @@ func UnitSelect(props *UnitSelectProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -123,8 +123,8 @@ func UnitSelect(props *UnitSelectProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Label:       props.T("WarehousePositions.Single.Unit"),
-			Placeholder: props.T("WarehousePositions.Single.SelectUnit"),
+			Label:       pageCtx.T("WarehousePositions.Single.Unit"),
+			Placeholder: pageCtx.T("WarehousePositions.Single.SelectUnit"),
 			Attrs:       props.Attrs,
 			Error:       props.Error,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)

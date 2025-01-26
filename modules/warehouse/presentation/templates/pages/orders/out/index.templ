@@ -128,7 +128,10 @@ templ Form(props *FormProps) {
 }
 
 templ New(props *PageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseOrders.Out.Meta.Title"),
+	}) {
 		<div class="flex flex-col justify-between h-full">
 			@card.Card(card.Props{WrapperClass: "m-6"}) {
 				<form
@@ -155,7 +158,7 @@ templ New(props *PageProps) {
 						"hx-include":   "#search-form",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</div>
 		</div>

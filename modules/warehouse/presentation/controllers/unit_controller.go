@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type UnitsController struct {
@@ -52,6 +51,7 @@ func (c *UnitsController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -93,15 +93,6 @@ func (c *UnitsController) viewModelUnits(r *http.Request) (*UnitPaginatedRespons
 }
 
 func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehouseUnits.List.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	paginated, err := c.viewModelUnits(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -109,7 +100,6 @@ func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &units2.IndexPageProps{
-		PageContext:     pageCtx,
 		Units:           paginated.Units,
 		PaginationState: paginated.PaginationState,
 	}
@@ -127,24 +117,14 @@ func (c *UnitsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehouseUnits.Edit.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	entity, err := c.unitService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
 		return
 	}
 	props := &units2.EditPageProps{
-		PageContext: pageCtx,
-		Unit:        mappers.UnitToViewModel(entity),
-		Errors:      map[string]string{},
+		Unit:   mappers.UnitToViewModel(entity),
+		Errors: map[string]string{},
 	}
 	templ.Handler(units2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -170,27 +150,25 @@ func (c *UnitsController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dto := unit.UpdateDTO{}
-	var pageCtx *types.PageContext
-	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.Edit.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	uniTranslator, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorsMap, ok := dto.Ok(uniTranslator); !ok {
 		entity, err := c.unitService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
 			return
 		}
 		props := &units2.EditPageProps{
-			PageContext: pageCtx,
-			Unit:        mappers.UnitToViewModel(entity),
-			Errors:      errorsMap,
-			DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+			Unit:      mappers.UnitToViewModel(entity),
+			Errors:    errorsMap,
+			DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 		}
 		templ.Handler(units2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -203,16 +181,10 @@ func (c *UnitsController) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UnitsController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &units2.CreatePageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
-		Unit:        mappers.UnitToViewModel(&unit.Unit{}),
-		SaveURL:     c.basePath,
+		Errors:  map[string]string{},
+		Unit:    mappers.UnitToViewModel(&unit.Unit{}),
+		SaveURL: c.basePath,
 	}
 	templ.Handler(units2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -229,22 +201,20 @@ func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
+	uniTranslator, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(uniTranslator); !ok {
 		entity, err := dto.ToEntity()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		props := &units2.CreatePageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
-			Unit:        mappers.UnitToViewModel(entity),
+			Errors: errorsMap,
+			Unit:   mappers.UnitToViewModel(entity),
 		}
 		templ.Handler(units2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
