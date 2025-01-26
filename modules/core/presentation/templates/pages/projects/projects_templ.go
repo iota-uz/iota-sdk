@@ -228,10 +228,10 @@ func ProjectsTable(props *IndexPageProps) templ.Component {
 		})
 		templ_7745c5c3_Err = base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("Projects.List.Name"), Key: "name"},
-				{Label: props.T("Projects.List.Description"), Key: "description"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("Projects.List.Name"), Key: "name"},
+				{Label: pageCtx.T("Projects.List.Description"), Key: "description"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -267,9 +267,9 @@ func ProjectsContent(props *IndexPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("NavigationLinks.Projects"))
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Projects"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/projects.templ`, Line: 60, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/projects.templ`, Line: 60, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -283,7 +283,7 @@ func ProjectsContent(props *IndexPageProps) templ.Component {
 			AddonLeft: &input.Addon{
 				Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 			},
-			Placeholder: props.T("Search"),
+			Placeholder: pageCtx.T("Search"),
 			Attrs: templ.Attributes{
 				"name": "name",
 			},
@@ -310,7 +310,7 @@ func ProjectsContent(props *IndexPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Prefix: props.T("PerPage"),
+			Prefix: pageCtx.T("PerPage"),
 			Attrs: templ.Attributes{
 				"name": "limit",
 			},
@@ -336,7 +336,7 @@ func ProjectsContent(props *IndexPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -353,9 +353,9 @@ func ProjectsContent(props *IndexPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var17 string
-			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Projects.List.New"))
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/projects.templ`, Line: 99, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/projects/projects.templ`, Line: 99, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -426,7 +426,7 @@ func Index(props *IndexPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated().Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -2,33 +2,33 @@ package payments
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/textarea"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Payment  *viewmodels.Payment
 	Accounts []*viewmodels.MoneyAccount
 	Errors   map[string]string
 }
 
 templ EditForm(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@card.Card(card.Props{
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@input.Number(&input.Props{
-				Label: props.T("Payments.Single.Amount"),
+				Label: pageCtx.T("Payments.Single.Amount"),
 				Attrs: templ.Attributes{
 					"value": props.Payment.Amount,
 					"name":  "Amount",
@@ -37,7 +37,7 @@ templ EditForm(props *EditPageProps) {
 				Error: props.Errors["Amount"],
 			})
 			@input.Date(&input.Props{
-				Label: props.T("Payments.Single.Date"),
+				Label: pageCtx.T("Payments.Single.Date"),
 				Attrs: templ.Attributes{
 					"value": props.Payment.TransactionDate,
 					"name":  "Date",
@@ -46,7 +46,7 @@ templ EditForm(props *EditPageProps) {
 				Error: props.Errors["Date"],
 			})
 			@input.Date(&input.Props{
-				Label: props.T("Payments.Single.AccountingPeriod"),
+				Label: pageCtx.T("Payments.Single.AccountingPeriod"),
 				Error: props.Errors["AccountingPeriod"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.AccountingPeriod,
@@ -55,8 +55,8 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@components.AccountSelect(&components.AccountSelectProps{
-				Label:       props.T("Payments.Single.Account"),
-				Placeholder: props.T("Payments.Single.SelectAccount"),
+				Label:       pageCtx.T("Payments.Single.Account"),
+				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
 				Attrs: templ.Attributes{
@@ -65,13 +65,13 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@components.CounterpartySelect(&components.CounterpartySelectProps{
-				Label:       props.T("Payments.Single.CounterpartyID.Label"),
-				Placeholder: props.T("Payments.Single.CounterpartyID.Placeholder"),
+				Label:       pageCtx.T("Payments.Single.CounterpartyID.Label"),
+				Placeholder: pageCtx.T("Payments.Single.CounterpartyID.Placeholder"),
 				Form:        "save-form",
 				Name:        "CounterpartyID",
 			})
 			@textarea.Basic(&textarea.Props{
-				Label: props.T("Payments.Single.Comment"),
+				Label: pageCtx.T("Payments.Single.Comment"),
 				Attrs: templ.Attributes{
 					"value": props.Payment.Comment,
 					"name":  "Comment",
@@ -100,7 +100,7 @@ templ EditForm(props *EditPageProps) {
 						"id":     "delete-payment-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -119,7 +119,7 @@ templ EditForm(props *EditPageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -127,13 +127,16 @@ templ EditForm(props *EditPageProps) {
 }
 
 templ Edit(props *EditPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Payments.Edit.Meta.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			CancelText:  props.T("Cancel"),
-			ConfirmText: props.T("Delete"),
-			Heading:     props.T("Payments.Single.Delete"),
-			Text:        props.T("Payments.Single.DeleteConfirmation"),
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Payments.Single.Delete"),
+			Text:        pageCtx.T("Payments.Single.DeleteConfirmation"),
 			Icon:        icons.Trash(icons.Props{Size: "20"}),
 			Action:      "open-delete-payment-confirmation",
 			Attrs: templ.Attributes{

@@ -13,14 +13,12 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/login"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-
-	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type LoginDTO struct {
@@ -72,45 +70,39 @@ func (c *LoginController) Register(r *mux.Router) {
 }
 
 func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
 	queryParams := url.Values{
 		"next": []string{r.URL.Query().Get("next")},
 	}
-	if err != nil {
-		queryParams.Set("error", pageCtx.T("Errors.Internal"))
-		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
-		return
-	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		queryParams.Set("error", pageCtx.T("Login.Errors.OauthCodeNotFound"))
+		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthCodeNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	state := r.URL.Query().Get("state")
 	if state == "" {
-		queryParams.Set("error", pageCtx.T("Login.Errors.OauthStateNotFound"))
+		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	conf := configuration.Use()
 	oauthCookie, err := r.Cookie(conf.OauthStateCookieKey)
 	if err != nil {
-		queryParams.Set("error", pageCtx.T("Login.Errors.OauthStateNotFound"))
+		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	if oauthCookie.Value != state {
-		queryParams.Set("error", pageCtx.T("Login.Errors.OauthStateInvalid"))
+		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthStateInvalid"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	cookie, err := c.authService.CookieGoogleAuthenticate(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, persistence.ErrUserNotFound) {
-			queryParams.Set("error", pageCtx.T("Login.Errors.UserNotFound"))
+			queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.UserNotFound"))
 		} else {
-			queryParams.Set("error", pageCtx.T("Errors.Internal"))
+			queryParams.Set("error", composables.MustT(r.Context(), "Errors.Internal"))
 		}
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
@@ -131,18 +123,12 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	codeURL, err := c.authService.GoogleAuthenticate(w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := login.Index(&login.LoginProps{
-		PageContext:        pageCtx,
 		ErrorsMap:          errorsMap,
 		Email:              email,
 		ErrorMessage:       string(errorMessage),
@@ -158,13 +144,12 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Login.Meta.Title", ""))
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
-		shared.SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
-		http.Redirect(w, r, fmt.Sprintf("/login?next=%s", r.URL.Query().Get("next")), http.StatusFound)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		shared.SetFlashMap(w, "errorsMap", errorsMap)
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return
@@ -173,9 +158,9 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
 	if err != nil {
 		if errors.Is(err, composables.ErrInvalidPassword) {
-			shared.SetFlash(w, "error", []byte(pageCtx.T("Login.Errors.PasswordInvalid")))
+			shared.SetFlash(w, "error", []byte(composables.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else {
-			shared.SetFlash(w, "error", []byte(pageCtx.T("Errors.Internal")))
+			shared.SetFlash(w, "error", []byte(composables.MustT(r.Context(), "Errors.Internal")))
 		}
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return

@@ -15,11 +15,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type PaymentsController struct {
@@ -57,6 +55,7 @@ func (c *PaymentsController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
@@ -119,14 +118,6 @@ func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginat
 }
 
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Payments.Meta.List.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	paginated, err := c.viewModelPayments(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -134,7 +125,6 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &payments.IndexPageProps{
-		PageContext:     pageCtx,
 		Payments:        paginated.Payments,
 		PaginationState: paginated.PaginationState,
 	}
@@ -146,15 +136,6 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Payments.Meta.Edit.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	paymentViewModel, err := c.viewModelPayment(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -167,10 +148,9 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := &payments.EditPageProps{
-		PageContext: pageCtx,
-		Payment:     paymentViewModel,
-		Accounts:    accounts,
-		Errors:      make(map[string]string),
+		Payment:  paymentViewModel,
+		Accounts: accounts,
+		Errors:   make(map[string]string),
 	}
 	templ.Handler(payments.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -211,16 +191,12 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		var pageCtx *types.PageContext
-		pageCtx, err = composables.UsePageCtx(
-			r,
-			types.NewPageData("Payments.Meta.Edit.Title", ""),
-		)
+		uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+		if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 			paymentViewModel, err := c.viewModelPayment(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -232,10 +208,9 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			props := &payments.EditPageProps{
-				PageContext: pageCtx,
-				Payment:     paymentViewModel,
-				Accounts:    accounts,
-				Errors:      errorsMap,
+				Payment:  paymentViewModel,
+				Accounts: accounts,
+				Errors:   errorsMap,
 			}
 			templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
@@ -250,13 +225,6 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Payments.Meta.New.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -264,10 +232,9 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := &payments.CreatePageProps{
-		PageContext: pageCtx,
-		Payment:     &viewmodels.Payment{},
-		Accounts:    accounts,
-		Errors:      make(map[string]string),
+		Payment:  &viewmodels.Payment{},
+		Accounts: accounts,
+		Errors:   make(map[string]string),
 	}
 	templ.Handler(payments.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -286,25 +253,21 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	dto.UserID = u.ID()
 
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Payments.Meta.New.Title", ""),
-	)
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}
-
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 			return
 		}
 		props := &payments.CreatePageProps{
-			PageContext: pageCtx,
-			Payment:     mappers.PaymentToViewModel(dto.ToEntity()),
-			Accounts:    accounts,
-			Errors:      errorsMap,
+			Payment:  mappers.PaymentToViewModel(dto.ToEntity()),
+			Accounts: accounts,
+			Errors:   errorsMap,
 		}
 		templ.Handler(payments.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

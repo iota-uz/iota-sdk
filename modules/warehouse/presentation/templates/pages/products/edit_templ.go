@@ -18,11 +18,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Product *viewmodels.Product
 	Errors  map[string]string
 }
@@ -48,6 +47,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col justify-between h-full\" id=\"edit-content\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -65,7 +65,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Products.Single.Rfid"),
+				Label: pageCtx.T("Products.Single.Rfid"),
 				Attrs: templ.Attributes{
 					"value": props.Product.Rfid,
 					"name":  "Rfid",
@@ -125,10 +125,10 @@ func EditForm(props *EditPageProps) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = base.Combobox(base.ComboboxProps{
-				Label:        props.T("Products.Single.Position"),
-				Placeholder:  props.T("Products.Single.SearchPosition"),
+				Label:        pageCtx.T("Products.Single.Position"),
+				Placeholder:  pageCtx.T("Products.Single.SearchPosition"),
 				Searchable:   true,
-				NotFoundText: props.T("Products.Single.NoPositionsFound"),
+				NotFoundText: pageCtx.T("Products.Single.NoPositionsFound"),
 				Name:         "PositionID",
 				Form:         "save-form",
 				Endpoint:     "/warehouse/positions/search",
@@ -141,8 +141,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = StatusSelect(&StatusSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Product.Status,
+				Value: props.Product.Status,
 				Attrs: templ.Attributes{
 					"name": "Status",
 					"form": "save-form",
@@ -167,7 +166,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/warehouse/products/%s", props.Product.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 63, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 62, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -190,9 +189,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 80, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 79, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -220,7 +219,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/warehouse/products/%s", props.Product.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 86, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 85, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -243,9 +242,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var11 string
-			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 99, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/edit.templ`, Line: 98, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -293,6 +292,7 @@ func Edit(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var13 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -314,10 +314,10 @@ func Edit(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				CancelText:  props.T("Cancel"),
-				ConfirmText: props.T("Delete"),
-				Heading:     props.T("Products.Single.Delete"),
-				Text:        props.T("Products.Single.DeleteConfirmation"),
+				CancelText:  pageCtx.T("Cancel"),
+				ConfirmText: pageCtx.T("Delete"),
+				Heading:     pageCtx.T("Products.Single.Delete"),
+				Text:        pageCtx.T("Products.Single.DeleteConfirmation"),
 				Icon:        icons.Trash(icons.Props{Size: "20"}),
 				Action:      "open-delete-product-confirmation",
 				Attrs: templ.Attributes{
@@ -334,7 +334,9 @@ func Edit(props *EditPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("Products.Edit.Meta.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

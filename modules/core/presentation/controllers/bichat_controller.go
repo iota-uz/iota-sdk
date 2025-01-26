@@ -7,7 +7,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -41,6 +40,7 @@ func (c *BiChatController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
@@ -54,16 +54,7 @@ func (c *BiChatController) Register(r *mux.Router) {
 }
 
 func (c *BiChatController) Index(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("BiChat.Meta.Index.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &bichat.ChatPageProps{
-		PageContext: pageCtx,
 		Suggestions: []string{"Hello", "World", "IOTA", "UZ"},
 	}
 	templ.Handler(bichat.Index(props), templ.WithStreaming()).ServeHTTP(w, r)

@@ -16,11 +16,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Payment  *viewmodels.Payment
 	Accounts []*viewmodels.MoneyAccount
 	Errors   map[string]string
@@ -47,6 +46,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col justify-between h-full\" id=\"new-content\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -64,7 +64,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: props.T("Payments.Single.Amount"),
+				Label: pageCtx.T("Payments.Single.Amount"),
 				Error: props.Errors["Amount"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.Amount,
@@ -80,7 +80,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Date(&input.Props{
-				Label: props.T("Payments.Single.Date"),
+				Label: pageCtx.T("Payments.Single.Date"),
 				Error: props.Errors["TransactionDate"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.TransactionDate,
@@ -96,7 +96,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Date(&input.Props{
-				Label: props.T("Payments.Single.AccountingPeriod"),
+				Label: pageCtx.T("Payments.Single.AccountingPeriod"),
 				Error: props.Errors["AccountingPeriod"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.AccountingPeriod,
@@ -112,8 +112,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.AccountSelect(&components.AccountSelectProps{
-				Label:       props.T("Payments.Single.Account"),
-				Placeholder: props.T("Payments.Single.SelectAccount"),
+				Label:       pageCtx.T("Payments.Single.Account"),
+				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
 				Error:       props.Errors["AccountID"],
@@ -130,8 +130,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CounterpartySelect(&components.CounterpartySelectProps{
-				Label:       props.T("Payments.Single.CounterpartyID.Label"),
-				Placeholder: props.T("Payments.Single.CounterpartyID.Placeholder"),
+				Label:       pageCtx.T("Payments.Single.CounterpartyID.Label"),
+				Placeholder: pageCtx.T("Payments.Single.CounterpartyID.Placeholder"),
 				Name:        "CounterpartyID",
 				Form:        "save-form",
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -143,7 +143,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label: props.T("Payments.Single.Comment"),
+				Label: pageCtx.T("Payments.Single.Comment"),
 				Attrs: templ.Attributes{
 					"value": props.Payment.Comment,
 					"name":  "Comment",
@@ -180,9 +180,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/payments/new.templ`, Line: 101, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/payments/new.templ`, Line: 101, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -230,6 +230,7 @@ func New(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -248,7 +249,9 @@ func New(props *CreatePageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("Payments.Meta.New.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

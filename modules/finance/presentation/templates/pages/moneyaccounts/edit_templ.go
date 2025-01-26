@@ -19,11 +19,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Account    *viewmodels.MoneyAccountUpdateDTO
 	Currencies []*coreviewmodels.Currency
 	Errors     map[string]string
@@ -52,6 +51,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col justify-between h-full\" id=\"edit-content\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -69,7 +69,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Accounts.Single.Name"),
+				Label: pageCtx.T("Accounts.Single.Name"),
 				Attrs: templ.Attributes{
 					"value": props.Account.Name,
 					"name":  "Name",
@@ -85,7 +85,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: props.T("Accounts.Single.Balance"),
+				Label: pageCtx.T("Accounts.Single.Balance"),
 				Attrs: templ.Attributes{
 					"name":  "Balance",
 					"value": props.Account.Balance,
@@ -101,8 +101,8 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       props.T("Accounts.Single.Currency.Label"),
-				Placeholder: props.T("Accounts.Single.Currency.Placeholder"),
+				Label:       pageCtx.T("Accounts.Single.Currency.Label"),
+				Placeholder: pageCtx.T("Accounts.Single.Currency.Placeholder"),
 				Value:       props.Account.CurrencyCode,
 				Currencies:  props.Currencies,
 				Error:       props.Errors["CurrencyCode"],
@@ -119,7 +119,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Accounts.Single.AccountNumber"),
+				Label: pageCtx.T("Accounts.Single.AccountNumber"),
 				Attrs: templ.Attributes{
 					"value": props.Account.AccountNumber,
 					"name":  "AccountNumber",
@@ -135,7 +135,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label: props.T("Accounts.Single.Description"),
+				Label: pageCtx.T("Accounts.Single.Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
@@ -186,9 +186,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/edit.templ`, Line: 104, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/edit.templ`, Line: 104, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -239,9 +239,9 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/edit.templ`, Line: 123, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/edit.templ`, Line: 123, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -289,6 +289,7 @@ func Edit(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var10 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -310,10 +311,10 @@ func Edit(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				CancelText:  props.T("Cancel"),
-				ConfirmText: props.T("Delete"),
-				Heading:     props.T("Accounts.Single.Delete"),
-				Text:        props.T("Accounts.Single.DeleteConfirmation"),
+				CancelText:  pageCtx.T("Cancel"),
+				ConfirmText: pageCtx.T("Delete"),
+				Heading:     pageCtx.T("Accounts.Single.Delete"),
+				Text:        pageCtx.T("Accounts.Single.DeleteConfirmation"),
 				Icon:        icons.Trash(icons.Props{Size: "20"}),
 				Action:      "open-delete-account-confirmation",
 				Attrs: templ.Attributes{
@@ -330,7 +331,9 @@ func Edit(props *EditPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: "Accounts.Meta.Edit.Title",
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -1,20 +1,19 @@
 package employees
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Employee  *viewmodels.Employee
 	Errors    map[string]string
 	SaveURL   string
@@ -24,11 +23,11 @@ type EditPageProps struct {
 templ EditForm(props *EditPageProps) {
 	{{
 	sharedProps := SharedProps{
-		PageContext: props.PageContext,
-		Employee:    props.Employee,
-		Errors:      props.Errors,
+		Employee: props.Employee,
+		Errors:   props.Errors,
 	}
 	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		<div class="m-6">
 			@tab.Root(tab.Props{
@@ -36,21 +35,21 @@ templ EditForm(props *EditPageProps) {
 			}) {
 				@tab.List(tab.ListProps{}) {
 					@tab.Button("public") {
-						{ props.T("Employees.Tabs.Public") }
+						{ pageCtx.T("Employees.Tabs.Public") }
 					}
 					@tab.Button("private") {
-						{ props.T("Employees.Tabs.Private") }
+						{ pageCtx.T("Employees.Tabs.Private") }
 					}
 				}
 				<div x-show="selectedTab === 'public'">
 					@card.Card(card.Props{
-						Header:       card.DefaultHeader(props.T("Employees.Cards.PersonalInfo")),
+						Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.PersonalInfo")),
 						Class:        "grid grid-cols-3 gap-4",
 						WrapperClass: "mt-5",
 					}) {
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.FirstName.Label"),
-							Placeholder: props.T("Employees.Public.FirstName.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.FirstName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.FirstName.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "FirstName",
 								"value": props.Employee.FirstName,
@@ -59,8 +58,8 @@ templ EditForm(props *EditPageProps) {
 							Error: props.Errors["FirstName"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.LastName.Label"),
-							Placeholder: props.T("Employees.Public.LastName.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.LastName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.LastName.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "LastName",
 								"value": props.Employee.LastName,
@@ -69,8 +68,8 @@ templ EditForm(props *EditPageProps) {
 							Error: props.Errors["LastName"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.MiddleName.Label"),
-							Placeholder: props.T("Employees.Public.MiddleName.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.MiddleName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.MiddleName.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "MiddleName",
 								"value": props.Employee.MiddleName,
@@ -79,8 +78,8 @@ templ EditForm(props *EditPageProps) {
 							Error: props.Errors["MiddleName"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.Email.Label"),
-							Placeholder: props.T("Employees.Public.Email.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Email.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Email.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "Email",
 								"value": props.Employee.Email,
@@ -89,8 +88,8 @@ templ EditForm(props *EditPageProps) {
 							Error: props.Errors["Email"],
 						})
 						@input.Text(&input.Props{
-							Label:       props.T("Employees.Public.Phone.Label"),
-							Placeholder: props.T("Employees.Public.Phone.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Phone.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Phone.Placeholder"),
 							Error:       props.Errors["Phone"],
 							Attrs: templ.Attributes{
 								"name":  "Phone",
@@ -100,7 +99,7 @@ templ EditForm(props *EditPageProps) {
 							},
 						})
 						@input.Date(&input.Props{
-							Label: props.T("Employees.Public.BirthDate.Label"),
+							Label: pageCtx.T("Employees.Public.BirthDate.Label"),
 							Error: props.Errors["BirthDate"],
 							Attrs: templ.Attributes{
 								"name": "BirthDate",
@@ -110,15 +109,15 @@ templ EditForm(props *EditPageProps) {
 						})
 					}
 					@card.Card(card.Props{
-						Header:       card.DefaultHeader(props.T("Employees.Cards.JobInfo")),
+						Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.JobInfo")),
 						WrapperClass: "mt-5",
 						Class:        "grid grid-cols-3 gap-4",
 					}) {
 						@JoinDateInput(sharedProps)
 						@ResignationDateInput(sharedProps)
 						@base.Select(&base.SelectProps{
-							Label:       props.T("Employees.Public.Position.Label"),
-							Placeholder: props.T("Employees.Public.Position.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Position.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Position.Placeholder"),
 							Attrs: templ.Attributes{
 								"form": "save-form",
 							},
@@ -127,8 +126,8 @@ templ EditForm(props *EditPageProps) {
 							<option>Developer</option>
 						}
 						@base.Select(&base.SelectProps{
-							Label:       props.T("Employees.Public.Level.Label"),
-							Placeholder: props.T("Employees.Public.Level.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.Level.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Level.Placeholder"),
 							Attrs: templ.Attributes{
 								"form": "save-form",
 							},
@@ -138,8 +137,8 @@ templ EditForm(props *EditPageProps) {
 							<option>Senior</option>
 						}
 						@base.Select(&base.SelectProps{
-							Label:       props.T("Employees.Public.EmploymentStatus.Label"),
-							Placeholder: props.T("Employees.Public.EmploymentStatus.Placeholder"),
+							Label:       pageCtx.T("Employees.Public.EmploymentStatus.Label"),
+							Placeholder: pageCtx.T("Employees.Public.EmploymentStatus.Placeholder"),
 							Attrs: templ.Attributes{
 								"form": "save-form",
 							},
@@ -155,7 +154,7 @@ templ EditForm(props *EditPageProps) {
 						WrapperClass: "mt-5",
 					}) {
 						@input.Number(&input.Props{
-							Label: props.T("Employees.Private.Salary.Label"),
+							Label: pageCtx.T("Employees.Private.Salary.Label"),
 							Error: props.Errors["Salary"],
 							Attrs: templ.Attributes{
 								"name":  "Salary",
@@ -198,7 +197,7 @@ templ EditForm(props *EditPageProps) {
 						"id":     "delete-employee-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -217,7 +216,7 @@ templ EditForm(props *EditPageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -225,13 +224,16 @@ templ EditForm(props *EditPageProps) {
 }
 
 templ Edit(props *EditPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Employees.Meta.Edit.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			CancelText:  props.T("Cancel"),
-			ConfirmText: props.T("Delete"),
-			Heading:     props.T("Employees.Single.Delete"),
-			Text:        props.T("Employees.Single.DeleteConfirmation"),
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Employees.Single.Delete"),
+			Text:        pageCtx.T("Employees.Single.DeleteConfirmation"),
 			Icon:        icons.Trash(icons.Props{Size: "20"}),
 			Action:      "open-delete-employee-confirmation",
 			Attrs: templ.Attributes{

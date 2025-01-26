@@ -1,12 +1,12 @@
 package projects
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/textarea"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -27,7 +27,7 @@ templ EditForm(props *EditPageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label: props.T("Projects.Single.Name"),
+				Label: pageCtx.T("Projects.Single.Name"),
 				Attrs: templ.Attributes{
 					"name":  "Name",
 					"value": props.Project.Name,
@@ -36,7 +36,7 @@ templ EditForm(props *EditPageProps) {
 				Error: props.Errors["Amount"],
 			})
 			@textarea.Basic(&textarea.Props{
-				Label: props.T("Projects.Single.Description"),
+				Label: pageCtx.T("Projects.Single.Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
@@ -69,7 +69,7 @@ templ EditForm(props *EditPageProps) {
 						"id":     "delete-expense-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -88,7 +88,7 @@ templ EditForm(props *EditPageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -96,13 +96,13 @@ templ EditForm(props *EditPageProps) {
 }
 
 templ Edit(props *EditPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	@layouts.Authenticated() {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			CancelText:  props.T("Cancel"),
-			ConfirmText: props.T("Delete"),
-			Heading:     props.T("Projects.Single.Delete"),
-			Text:        props.T("Projects.Single.DeleteConfirmation"),
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Projects.Single.Delete"),
+			Text:        pageCtx.T("Projects.Single.DeleteConfirmation"),
 			Icon:        icons.Trash(icons.Props{Size: "20"}),
 			Action:      "open-delete-expense-confirmation",
 			Attrs: templ.Attributes{

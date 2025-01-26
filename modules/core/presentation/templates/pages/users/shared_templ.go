@@ -13,11 +13,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type RoleSelectProps struct {
-	*types.PageContext
 	Roles    []*viewmodels.Role
 	Selected []*viewmodels.Role
 	Name     string
@@ -55,6 +54,7 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -135,8 +135,8 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base.Combobox(base.ComboboxProps{
-			Label:       props.T("Users.Single.Role"),
-			Placeholder: props.T("Users.Single.SelectRole"),
+			Label:       pageCtx.T("Users.Single.Role"),
+			Placeholder: pageCtx.T("Users.Single.SelectRole"),
 			Multiple:    true,
 			Name:        props.Name,
 			Form:        props.Form,
@@ -149,7 +149,6 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 }
 
 type SharedProps struct {
-	*types.PageContext
 	Value string
 	Error string
 }
@@ -175,8 +174,9 @@ func EmailInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Email(&input.Props{
-			Label: props.T("Users.Single.Email"),
+			Label: pageCtx.T("Users.Single.Email"),
 			Attrs: templ.Attributes{
 				"name":  "Email",
 				"value": props.Value,

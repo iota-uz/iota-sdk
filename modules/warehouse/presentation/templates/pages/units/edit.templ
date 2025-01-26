@@ -2,32 +2,32 @@ package units
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Unit      *viewmodels.Unit
 	Errors    map[string]string
 	DeleteURL string
 }
 
 templ EditForm(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@card.Card(card.Props{
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label:       props.T("WarehouseUnits.Single.Title.Label"),
-				Placeholder: props.T("WarehouseUnits.Single.Title.Placeholder"),
+				Label:       pageCtx.T("WarehouseUnits.Single.Title.Label"),
+				Placeholder: pageCtx.T("WarehouseUnits.Single.Title.Placeholder"),
 				Attrs: templ.Attributes{
 					"autofocus": true,
 					"value":     props.Unit.Title,
@@ -36,8 +36,8 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@input.Text(&input.Props{
-				Label:       props.T("WarehouseUnits.Single.ShortTitle.Label"),
-				Placeholder: props.T("WarehouseUnits.Single.ShortTitle.Placeholder"),
+				Label:       pageCtx.T("WarehouseUnits.Single.ShortTitle.Label"),
+				Placeholder: pageCtx.T("WarehouseUnits.Single.ShortTitle.Placeholder"),
 				Attrs: templ.Attributes{
 					"value": props.Unit.ShortTitle,
 					"name":  "ShortTitle",
@@ -68,7 +68,7 @@ templ EditForm(props *EditPageProps) {
 						"id":     "delete-unit-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -87,7 +87,7 @@ templ EditForm(props *EditPageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -95,13 +95,16 @@ templ EditForm(props *EditPageProps) {
 }
 
 templ Edit(props *EditPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseUnits.Edit.Meta.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			CancelText:  props.T("Cancel"),
-			ConfirmText: props.T("Delete"),
-			Heading:     props.T("WarehouseUnits.Single.Delete"),
-			Text:        props.T("WarehouseUnits.Single.DeleteConfirmation"),
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("WarehouseUnits.Single.Delete"),
+			Text:        pageCtx.T("WarehouseUnits.Single.DeleteConfirmation"),
 			Icon:        icons.Trash(icons.Props{Size: "20"}),
 			Action:      "open-delete-unit-confirmation",
 			Attrs: templ.Attributes{

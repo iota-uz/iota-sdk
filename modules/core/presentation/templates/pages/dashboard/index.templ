@@ -2,11 +2,10 @@ package dashboard
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 }
 
 templ Sales() {
@@ -192,7 +191,10 @@ templ DashboardContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Dashboard.Meta.Title"),
+	}) {
 		@DashboardContent(props)
 	}
 }

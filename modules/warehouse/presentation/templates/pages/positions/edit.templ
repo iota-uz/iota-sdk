@@ -1,19 +1,18 @@
 package positions
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Position  *viewmodels.Position
 	Units     []*viewmodels.Unit
 	Errors    map[string]string
@@ -22,13 +21,14 @@ type EditPageProps struct {
 }
 
 templ EditForm(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@card.Card(card.Props{
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@components.UploadInput(&components.UploadInputProps{
-				Label:    props.T("WarehousePositions.Single.Images"),
+				Label:    pageCtx.T("WarehousePositions.Single.Images"),
 				Name:     "ImageIDs",
 				Class:    "col-span-3",
 				Form:     "save-form",
@@ -36,8 +36,8 @@ templ EditForm(props *EditPageProps) {
 				Uploads:  props.Position.Images,
 			})
 			@input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Title.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Title.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Title.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Title.Placeholder"),
 				Error:       props.Errors["Title"],
 				Attrs: templ.Attributes{
 					"autofocus": true,
@@ -47,8 +47,8 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Barcode.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Barcode.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Barcode.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Barcode.Placeholder"),
 				Error:       props.Errors["Barcode"],
 				Attrs: templ.Attributes{
 					"name":  "Barcode",
@@ -57,9 +57,8 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@UnitSelect(&UnitSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Position.UnitID,
-				Units:       props.Units,
+				Value: props.Position.UnitID,
+				Units: props.Units,
 				Attrs: templ.Attributes{
 					"name": "UnitID",
 					"form": "save-form",
@@ -89,7 +88,7 @@ templ EditForm(props *EditPageProps) {
 						"id":     "delete-position-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -108,7 +107,7 @@ templ EditForm(props *EditPageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -116,13 +115,16 @@ templ EditForm(props *EditPageProps) {
 }
 
 templ Edit(props *EditPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehousePositions.Edit.Meta.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			CancelText:  props.T("Cancel"),
-			ConfirmText: props.T("Delete"),
-			Heading:     props.T("WarehousePositions.Single.Delete"),
-			Text:        props.T("WarehousePositions.Single.DeleteConfirmation"),
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("WarehousePositions.Single.Delete"),
+			Text:        pageCtx.T("WarehousePositions.Single.DeleteConfirmation"),
 			Icon:        icons.Trash(icons.Props{Size: "20"}),
 			Action:      "open-delete-position-confirmation",
 			Attrs: templ.Attributes{

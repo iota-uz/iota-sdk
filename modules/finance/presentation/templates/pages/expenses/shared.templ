@@ -3,27 +3,26 @@ package expenses
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type AccountSelectProps struct {
-	*types.PageContext
 	Value    string
 	Accounts []*viewmodels.MoneyAccount
 	Attrs    templ.Attributes
 }
 
 type CategorySelectProps struct {
-	*types.PageContext
 	Value      string
 	Categories []*viewmodels.ExpenseCategory
 	Attrs      templ.Attributes
 }
 
 templ AccountSelect(props *AccountSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Select(&base.SelectProps{
-		Label:       props.T("Expenses.Single.Account"),
-		Placeholder: props.T("Expenses.Single.SelectAccount"),
+		Label:       pageCtx.T("Expenses.Single.Account"),
+		Placeholder: pageCtx.T("Expenses.Single.SelectAccount"),
 		Attrs:       props.Attrs,
 	}) {
 		for _, account := range props.Accounts {
@@ -43,9 +42,10 @@ templ AccountSelect(props *AccountSelectProps) {
 }
 
 templ CategorySelect(props *CategorySelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Select(&base.SelectProps{
-		Label:       props.T("Expenses.Single.Category"),
-		Placeholder: props.T("Expenses.Single.SelectCategory"),
+		Label:       pageCtx.T("Expenses.Single.Category"),
+		Placeholder: pageCtx.T("Expenses.Single.SelectCategory"),
 		Attrs:       props.Attrs,
 	}) {
 		for _, category := range props.Categories {

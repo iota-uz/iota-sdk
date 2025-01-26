@@ -1,15 +1,14 @@
 package users
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type RoleSelectProps struct {
-	*types.PageContext
 	Roles    []*viewmodels.Role
 	Selected []*viewmodels.Role
 	Name     string
@@ -27,9 +26,10 @@ func isRoleSelected(id string, roles []*viewmodels.Role) bool {
 }
 
 templ RoleSelect(props *RoleSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Combobox(base.ComboboxProps{
-		Label:       props.T("Users.Single.Role"),
-		Placeholder: props.T("Users.Single.SelectRole"),
+		Label:       pageCtx.T("Users.Single.Role"),
+		Placeholder: pageCtx.T("Users.Single.SelectRole"),
 		Multiple:    true,
 		Name:        props.Name,
 		Form:        props.Form,
@@ -45,14 +45,14 @@ templ RoleSelect(props *RoleSelectProps) {
 }
 
 type SharedProps struct {
-	*types.PageContext
 	Value string
 	Error string
 }
 
 templ EmailInput(props SharedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@input.Email(&input.Props{
-		Label: props.T("Users.Single.Email"),
+		Label: pageCtx.T("Users.Single.Email"),
 		Attrs: templ.Attributes{
 			"name":  "Email",
 			"value": props.Value,

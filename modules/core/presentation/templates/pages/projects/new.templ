@@ -29,12 +29,12 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label: props.T("Projects.Single.Name"),
+				Label: pageCtx.T("Projects.Single.Name"),
 				Attrs: templ.Attributes{"name": "Name", "value": props.Project.Name},
 				Error: props.Errors["Name"],
 			})
 			@textarea.Basic(&textarea.Props{
-				Label:        props.T("Projects.Single.Description"),
+				Label:        pageCtx.T("Projects.Single.Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Project.Description,
@@ -48,14 +48,14 @@ templ CreateForm(props *CreatePageProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("Save") }
+				{ pageCtx.T("Save") }
 			}
 		</div>
 	</form>
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	@layouts.Authenticated() {
 		@CreateForm(props)
 	}
 }

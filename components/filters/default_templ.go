@@ -12,7 +12,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 func SearchFieldsTrigger(trigger *base.TriggerProps) templ.Component {
@@ -66,7 +66,6 @@ type SearchField struct {
 }
 
 type Props struct {
-	*types.PageContext
 	Fields []SearchField
 }
 
@@ -111,7 +110,7 @@ func SearchFields(fields []SearchField) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(field.Key)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 38, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 37, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -124,7 +123,7 @@ func SearchFields(fields []SearchField) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 38, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 37, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -150,7 +149,7 @@ func SearchFields(fields []SearchField) templ.Component {
 	})
 }
 
-func Search(pageCtx *types.PageContext, fields []SearchField) templ.Component {
+func Search(fields []SearchField) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -171,6 +170,7 @@ func Search(pageCtx *types.PageContext, fields []SearchField) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Text(&input.Props{
 			AddonLeft: &input.Addon{
 				Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
@@ -190,7 +190,7 @@ func Search(pageCtx *types.PageContext, fields []SearchField) templ.Component {
 	})
 }
 
-func PageSize(pageCtx *types.PageContext) templ.Component {
+func PageSize() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -211,6 +211,7 @@ func PageSize(pageCtx *types.PageContext) templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -242,7 +243,7 @@ func PageSize(pageCtx *types.PageContext) templ.Component {
 	})
 }
 
-func CreatedAt(pageCtx *types.PageContext) templ.Component {
+func CreatedAt() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -263,6 +264,7 @@ func CreatedAt(pageCtx *types.PageContext) templ.Component {
 			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div x-data=\"dateFns\" class=\"contents\"><div x-data=\"{createdAt: &#39;&#39;}\" class=\"contents\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -286,7 +288,7 @@ func CreatedAt(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Filters.CreatedAt.AllTime"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 82, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 84, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -299,7 +301,7 @@ func CreatedAt(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Filters.CreatedAt.Today"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 83, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 85, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -312,7 +314,7 @@ func CreatedAt(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Filters.CreatedAt.Yesterday"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 84, Col: 97}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 86, Col: 97}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -325,7 +327,7 @@ func CreatedAt(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Filters.CreatedAt.ThisWeek"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 85, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 87, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -338,7 +340,7 @@ func CreatedAt(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Filters.CreatedAt.LastWeek"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 86, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 88, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -351,7 +353,7 @@ func CreatedAt(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Filters.CreatedAt.ThisMonth"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 87, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/filters/default.templ`, Line: 89, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -406,15 +408,15 @@ func Default(props *Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Search(props.PageContext, props.Fields).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Search(props.Fields).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = PageSize(props.PageContext).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = PageSize().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = CreatedAt(props.PageContext).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = CreatedAt().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

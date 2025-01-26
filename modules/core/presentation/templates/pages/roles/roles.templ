@@ -2,26 +2,26 @@ package roles
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Roles []*viewmodels.Role
 }
 
 templ RolesTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: props.T("Roles.List.Name"), Key: "name"},
-			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-			{Label: props.T("Actions"), Class: "w-16"},
+			{Label: pageCtx.T("Roles.List.Name"), Key: "name"},
+			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
 		for _, role := range props.Roles {
@@ -50,9 +50,10 @@ templ RolesTable(props *IndexPageProps) {
 }
 
 templ RolesContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Roles") }
+			{ pageCtx.T("NavigationLinks.Roles") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -66,13 +67,13 @@ templ RolesContent(props *IndexPageProps) {
 					AddonLeft: &input.Addon{
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
-					Placeholder: props.T("Search"),
+					Placeholder: pageCtx.T("Search"),
 					Attrs: templ.Attributes{
 						"name": "name",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: props.T("PerPage"),
+					Prefix: pageCtx.T("PerPage"),
 					Attrs: templ.Attributes{
 						"name": "limit",
 					},
@@ -82,7 +83,7 @@ templ RolesContent(props *IndexPageProps) {
 					<option>50</option>
 					<option>100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
+				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
 					<option>Вчера</option>
 					<option>Позавчера</option>
 				}
@@ -91,7 +92,7 @@ templ RolesContent(props *IndexPageProps) {
 					Href: "/roles/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Roles.List.New") }
+					{ pageCtx.T("Roles.List.New") }
 				}
 			</form>
 			@RolesTable(props)
@@ -100,7 +101,10 @@ templ RolesContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Roles.Meta.List.Title"),
+	}) {
 		@RolesContent(props)
 	}
 }

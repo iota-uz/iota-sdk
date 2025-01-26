@@ -12,7 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/selects"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type StatusViewModel struct {
@@ -43,7 +43,6 @@ var (
 )
 
 type StatusSelectProps struct {
-	*types.PageContext
 	Value string
 	Attrs templ.Attributes
 }
@@ -69,6 +68,7 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -101,9 +101,9 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var4 string
-					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
+					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T(status.MessageId))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/shared.templ`, Line: 52, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/shared.templ`, Line: 52, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -132,9 +132,9 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var6 string
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.T(status.MessageId))
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T(status.MessageId))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/shared.templ`, Line: 56, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/products/shared.templ`, Line: 56, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -149,8 +149,8 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Label:       props.T("Products.Single.Status"),
-			Placeholder: props.T("Products.Single.SelectStatus"),
+			Label:       pageCtx.T("Products.Single.Status"),
+			Placeholder: pageCtx.T("Products.Single.SelectStatus"),
 			Attrs:       props.Attrs,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -161,7 +161,6 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 }
 
 type PositionSelectProps struct {
-	*types.PageContext
 	Value string
 	Attrs templ.Attributes
 }
@@ -187,10 +186,10 @@ func PositionSelect(props *PositionSelectProps) templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = selects.SearchSelect(&selects.SearchSelectProps{
-			PageContext: props.PageContext,
-			Label:       props.T("Products.Single.Position"),
-			Placeholder: props.T("Products.Single.SearchPosition"),
+			Label:       pageCtx.T("Products.Single.Position"),
+			Placeholder: pageCtx.T("Products.Single.SearchPosition"),
 			Endpoint:    "/warehouse/positions/search",
 			Value:       props.Value,
 			Attrs:       props.Attrs,

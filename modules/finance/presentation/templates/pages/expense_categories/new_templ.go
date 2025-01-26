@@ -18,11 +18,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Currencies []*coreviewmodels.Currency
 	Category   category.CreateDTO
 	Errors     map[string]string
@@ -50,6 +49,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"flex flex-col justify-between h-full\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -80,7 +80,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Name"),
+				Label: pageCtx.T("ExpenseCategories.Single.Name"),
 				Attrs: templ.Attributes{"name": "Name", "value": props.Category.Name},
 				Error: props.Errors["Name"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -92,7 +92,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Amount"),
+				Label: pageCtx.T("ExpenseCategories.Single.Amount"),
 				Attrs: templ.Attributes{"name": "Amount", "value": fmt.Sprintf("%.2f", props.Category.Amount)},
 				Error: props.Errors["Amount"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -104,8 +104,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       props.T("ExpenseCategories.Single.CurrencyCode.Label"),
-				Placeholder: props.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
+				Label:       pageCtx.T("ExpenseCategories.Single.CurrencyCode.Label"),
+				Placeholder: pageCtx.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
 				Value:       "",
 				Currencies:  props.Currencies,
 				Error:       props.Errors["CurrencyCode"],
@@ -119,7 +119,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label:        props.T("ExpenseCategories.Single.Description"),
+				Label:        pageCtx.T("ExpenseCategories.Single.Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Category.Description,
@@ -154,9 +154,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/new.templ`, Line: 68, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/new.templ`, Line: 68, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -202,6 +202,7 @@ func New(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -220,7 +221,9 @@ func New(props *CreatePageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("ExpenseCategories.Meta.New.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -1,10 +1,10 @@
 package filters
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 templ SearchFieldsTrigger(trigger *base.TriggerProps) {
@@ -23,7 +23,6 @@ type SearchField struct {
 }
 
 type Props struct {
-	*types.PageContext
 	Fields []SearchField
 }
 
@@ -40,7 +39,8 @@ templ SearchFields(fields []SearchField) {
 	}
 }
 
-templ Search(pageCtx *types.PageContext, fields []SearchField) {
+templ Search(fields []SearchField) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@input.Text(&input.Props{
 		AddonLeft: &input.Addon{
 			Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
@@ -55,7 +55,8 @@ templ Search(pageCtx *types.PageContext, fields []SearchField) {
 	})
 }
 
-templ PageSize(pageCtx *types.PageContext) {
+templ PageSize() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Select(&base.SelectProps{
 		Prefix: pageCtx.T("PerPage"),
 		Attrs: templ.Attributes{
@@ -69,7 +70,8 @@ templ PageSize(pageCtx *types.PageContext) {
 	}
 }
 
-templ CreatedAt(pageCtx *types.PageContext) {
+templ CreatedAt() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div x-data="dateFns" class="contents">
 		<div x-data="{createdAt: ''}" class="contents">
 			@base.Select(&base.SelectProps{
@@ -94,8 +96,8 @@ templ CreatedAt(pageCtx *types.PageContext) {
 
 templ Default(props *Props) {
 	<div class="contents" x-data="dateFns">
-		@Search(props.PageContext, props.Fields)
-		@PageSize(props.PageContext)
-		@CreatedAt(props.PageContext)
+		@Search(props.Fields)
+		@PageSize()
+		@CreatedAt()
 	</div>
 }

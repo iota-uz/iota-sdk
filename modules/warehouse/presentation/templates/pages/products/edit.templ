@@ -2,31 +2,31 @@ package products
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Product *viewmodels.Product
 	Errors  map[string]string
 }
 
 templ EditForm(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@card.Card(card.Props{
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label: props.T("Products.Single.Rfid"),
+				Label: pageCtx.T("Products.Single.Rfid"),
 				Attrs: templ.Attributes{
 					"value": props.Product.Rfid,
 					"name":  "Rfid",
@@ -35,10 +35,10 @@ templ EditForm(props *EditPageProps) {
 				Error: props.Errors["Rfid"],
 			})
 			@base.Combobox(base.ComboboxProps{
-				Label:        props.T("Products.Single.Position"),
-				Placeholder:  props.T("Products.Single.SearchPosition"),
+				Label:        pageCtx.T("Products.Single.Position"),
+				Placeholder:  pageCtx.T("Products.Single.SearchPosition"),
 				Searchable:   true,
-				NotFoundText: props.T("Products.Single.NoPositionsFound"),
+				NotFoundText: pageCtx.T("Products.Single.NoPositionsFound"),
 				Name:         "PositionID",
 				Form:         "save-form",
 				Endpoint:     "/warehouse/positions/search",
@@ -46,8 +46,7 @@ templ EditForm(props *EditPageProps) {
 				<option value={ props.Product.PositionID } selected>{ props.Product.Position.Title }</option>
 			}
 			@StatusSelect(&StatusSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Product.Status,
+				Value: props.Product.Status,
 				Attrs: templ.Attributes{
 					"name": "Status",
 					"form": "save-form",
@@ -77,7 +76,7 @@ templ EditForm(props *EditPageProps) {
 						"id":     "delete-product-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -96,7 +95,7 @@ templ EditForm(props *EditPageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -104,13 +103,16 @@ templ EditForm(props *EditPageProps) {
 }
 
 templ Edit(props *EditPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Products.Edit.Meta.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			CancelText:  props.T("Cancel"),
-			ConfirmText: props.T("Delete"),
-			Heading:     props.T("Products.Single.Delete"),
-			Text:        props.T("Products.Single.DeleteConfirmation"),
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Products.Single.Delete"),
+			Text:        pageCtx.T("Products.Single.DeleteConfirmation"),
 			Icon:        icons.Trash(icons.Props{Size: "20"}),
 			Action:      "open-delete-product-confirmation",
 			Attrs: templ.Attributes{

@@ -10,11 +10,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Currencies []*coreviewmodels.Currency
 	Category   category.CreateDTO
 	Errors     map[string]string
@@ -22,6 +21,7 @@ type CreatePageProps struct {
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
@@ -33,25 +33,25 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Name"),
+				Label: pageCtx.T("ExpenseCategories.Single.Name"),
 				Attrs: templ.Attributes{"name": "Name", "value": props.Category.Name},
 				Error: props.Errors["Name"],
 			})
 			@input.Number(&input.Props{
-				Label: props.T("ExpenseCategories.Single.Amount"),
+				Label: pageCtx.T("ExpenseCategories.Single.Amount"),
 				Attrs: templ.Attributes{"name": "Amount", "value": fmt.Sprintf("%.2f", props.Category.Amount)},
 				Error: props.Errors["Amount"],
 			})
 			@components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       props.T("ExpenseCategories.Single.CurrencyCode.Label"),
-				Placeholder: props.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
+				Label:       pageCtx.T("ExpenseCategories.Single.CurrencyCode.Label"),
+				Placeholder: pageCtx.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
 				Value:       "",
 				Currencies:  props.Currencies,
 				Error:       props.Errors["CurrencyCode"],
 				Attrs:       templ.Attributes{"name": "CurrencyCode"},
 			})
 			@textarea.Basic(&textarea.Props{
-				Label:        props.T("ExpenseCategories.Single.Description"),
+				Label:        pageCtx.T("ExpenseCategories.Single.Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Category.Description,
@@ -65,14 +65,17 @@ templ CreateForm(props *CreatePageProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("Save") }
+				{ pageCtx.T("Save") }
 			}
 		</div>
 	</form>
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("ExpenseCategories.Meta.New.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

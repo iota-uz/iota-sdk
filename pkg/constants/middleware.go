@@ -19,6 +19,7 @@ const (
 	TabsKey        ContextKey = "tabs"
 	RequestStart   ContextKey = "requestStart"
 	LocalizerKey   ContextKey = "localizer"
+	PageContext    ContextKey = "pageContext"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())

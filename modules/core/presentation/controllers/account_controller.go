@@ -8,15 +8,13 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/account"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-
-	"github.com/gorilla/mux"
 )
 
 type AccountController struct {
@@ -47,6 +45,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
@@ -61,13 +60,6 @@ func (c *AccountController) Register(r *mux.Router) {
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Account.Meta.Index.Title", ""),
-	)
-	if err != nil {
-		return nil, err
-	}
 	nonNilErrors := make(map[string]string)
 	if errors != nil {
 		nonNilErrors = errors
@@ -77,10 +69,9 @@ func (c *AccountController) defaultProps(r *http.Request, errors map[string]stri
 		return nil, err
 	}
 	props := &account.ProfilePageProps{
-		PageContext: pageCtx,
-		PostPath:    c.basePath,
-		User:        mappers.UserToViewModel(u),
-		Errors:      nonNilErrors,
+		PostPath: c.basePath,
+		User:     mappers.UserToViewModel(u),
+		Errors:   nonNilErrors,
 	}
 	return props, nil
 }
@@ -129,41 +120,25 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props, err := c.defaultProps(r, nil)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	templ.Handler(account.ProfileForm(&account.ProfilePageProps{
-		PageContext: props.PageContext,
-		User:        mappers.UserToViewModel(entity),
-		Errors:      map[string]string{},
+		User:   mappers.UserToViewModel(entity),
+		Errors: map[string]string{},
 	})).ServeHTTP(w, r)
 }
 
 func (c *AccountController) GetSettings(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Account.Meta.Settings.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	tabs, err := composables.UseTabs(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	allNavItems, err := composables.UseAllNavItems(r)
+	allNavItems, err := composables.UseAllNavItems(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	tabViewModels := mapping.MapViewModels(tabs, mappers.TabToViewModel)
 	props := &account.SettingsPageProps{
-		PageContext: pageCtx,
 		AllNavItems: allNavItems,
 		Tabs:        tabViewModels,
 	}
