@@ -1,0 +1,134 @@
+{
+  "NavigationLinks": {
+    "Accounts": "Hisoblar",
+    "Expenses": "Xarajatlar",
+    "ExpenseCategories": "Xarajat kategoriyalari",
+    "Payments": "To'lovlar",
+    "Finances": "Moliya"
+  },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Xarajat kategoriyalari"
+      },
+      "Edit": {
+        "Title": "Kategoriyani tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi kategoriya"
+      }
+    },
+    "List": {
+      "New": "Yangi kategoriya",
+      "Name": "Nomi",
+      "Amount": "Miqdori"
+    },
+    "Single": {
+      "EditUser": "Kategoriyani tahrirlash",
+      "Name": "Nomi",
+      "Amount": "Miqdori",
+      "CurrencyCode": {
+        "Label": "Valyuta",
+        "Placeholder": "Valyutani tanlang"
+      },
+      "Description": "Tavsif",
+      "Delete": "Kategoriyani o'chirish",
+      "DeleteConfirmation": "Ushbu xarajat kategoriyasini o'chirishni xohlaysizmi?"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "To'lovlar"
+      },
+      "Edit": {
+        "Title": "To'lovni tahrirlash"
+      },
+      "New": {
+        "Title": "To'lov qo'shish"
+      }
+    },
+    "List": {
+      "New": "To'lov qo'shish",
+      "Amount": "Miqdori"
+    },
+    "Single": {
+      "Account": "Hisob",
+      "SelectAccount": "Hisobni tanlang",
+      "Edit": "To'lovni tahrirlash",
+      "Name": "Nomi",
+      "Amount": "Miqdori",
+      "Date": "Sana",
+      "AccountingPeriod": "Hisob davri",
+      "CounterpartyID": {
+        "Label": "Jo'natuvchi",
+        "Placeholder": "Jo'natuvchini tanlang"
+      },
+      "Comment": "Izoh",
+      "Delete": "To'lovni o'chirish",
+      "DeleteConfirmation": "Ushbu to'lovni o'chirishni xohlaysizmi?"
+    }
+  },
+  "Expenses": {
+    "Meta": {
+      "List": {
+        "Title": "Xarajatlar"
+      },
+      "Edit": {
+        "Title": "Xarajatni tahrirlash"
+      },
+      "New": {
+        "Title": "Xarajat qo'shish"
+      }
+    },
+    "List": {
+      "New": "Xarajat qo'shish",
+      "Category": "Kategoriya",
+      "Amount": "Miqdori"
+    },
+    "Single": {
+      "Account": "Hisob",
+      "SelectAccount": "Hisobni tanlang",
+      "Category": "Kategoriya",
+      "SelectCategory": "Kategoriyani tanlang",
+      "Edit": "Xarajatni tahrirlash",
+      "Name": "Nomi",
+      "Amount": "Miqdori",
+      "Date": "Sana",
+      "Comment": "Izoh",
+      "Delete": "Xarajatni o'chirish",
+      "DeleteConfirmation": "Ushbu xarajatni o'chirishni xohlaysizmi?"
+    }
+  },
+  "Accounts": {
+    "Meta": {
+      "List": {
+        "Title": "Hisoblar"
+      },
+      "Edit": {
+        "Title": "Hisobni tahrirlash"
+      },
+      "New": {
+        "Title": "Hisob qo'shish"
+      }
+    },
+    "List": {
+      "New": "Hisob qo'shish",
+      "Name": "Nomi",
+      "Balance": "Balans"
+    },
+    "Single": {
+      "Edit": "Hisobni tahrirlash",
+      "Name": "Nomi",
+      "Balance": "Balans",
+      "Currency": {
+        "Label": "Valyuta",
+        "Placeholder": "Valyutani tanlang"
+      },
+      "Description": "Tavsif",
+      "AccountNumber": "Hisob raqami",
+      "Delete": "Hisobni o'chirish",
+      "DeleteConfirmation": "Ushbu hisobni o'chirishni xohlaysizmi?"
+    }
+  }
+}
