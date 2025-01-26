@@ -21,7 +21,11 @@ templ Root(props Props) {
 }
 
 templ List(props ListProps) {
-	<div @keydown.right.prevent="$focus.wrap().next()" @keydown.left.prevent="$focus.wrap().previous()" class={ "flex gap-2 border-b", props.Class }>
+	<div
+		@keydown.right.prevent="$focus.wrap().next()"
+		@keydown.left.prevent="$focus.wrap().previous()"
+		class={ "flex gap-2 border-b", props.Class }
+	>
 		{ children... }
 	</div>
 }
@@ -41,8 +45,11 @@ templ Button(value string) {
 
 templ Link(href string, active bool) {
 	@button.Ghost(button.Props{
-		Href:  href,
-		Class: templ.CSSClasses{"rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full", templ.KV("after:bg-brand-500", active)},
+		Href: href,
+		Class: templ.CSSClasses{
+			"rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full",
+			templ.KV("after:bg-brand-500", active),
+		},
 	}) {
 		{ children... }
 	}
