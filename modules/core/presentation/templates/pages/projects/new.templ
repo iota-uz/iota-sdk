@@ -7,17 +7,17 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Project *viewmodels.Project
 	Errors  map[string]string
 	SaveURL string
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.SaveURL }
@@ -55,7 +55,10 @@ templ CreateForm(props *CreatePageProps) {
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Projects.Meta.New.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }
