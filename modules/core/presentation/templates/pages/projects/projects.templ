@@ -8,16 +8,16 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Projects []*viewmodels.Project
 	NewURL   string
 }
 
 templ ProjectsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: pageCtx.T("Projects.List.Name"), Key: "name"},
@@ -55,6 +55,7 @@ templ ProjectsTable(props *IndexPageProps) {
 }
 
 templ ProjectsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
 			{ pageCtx.T("NavigationLinks.Projects") }
@@ -105,7 +106,10 @@ templ ProjectsContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Projects.Meta.List.Title"),
+	}) {
 		@ProjectsContent(props)
 	}
 }
