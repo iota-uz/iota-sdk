@@ -38,7 +38,7 @@ templ avatar() {
 }
 
 templ ThemeSwitcher() {
-	<div class="flex items-center justify-center">
+	<div class="flex items-center justify-center relative">
 		<input
 			class="peer/system appearance-none absolute"
 			type="radio"
@@ -85,10 +85,24 @@ templ ThemeSwitcher() {
 	</div>
 }
 
+templ SidebarTrigger(class string) {
+	<button
+		class={
+			"flex items-center justify-center w-9 h-9 rounded-md bg-surface-400 text-black cursor-pointer",
+			class,
+		}
+		@click="open = !open"
+	>
+		@icons.List(icons.Props{Size: "20"})
+	</button>
+}
+
 templ Navbar(pageCtx *types.PageContext) {
-	<section class="h-16 shadow-b-lg border-b w-full flex items-center justify-center px-8 bg-surface-300 border-b-primary">
+	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-8 bg-surface-300 border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
-			@spotlight.Spotlight()
+			<div class="hidden lg:block">
+				@spotlight.Spotlight()
+			</div>
 			@ThemeSwitcher()
 			@base.DetailsDropdown(avatar()) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
@@ -101,6 +115,7 @@ templ Navbar(pageCtx *types.PageContext) {
 					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
 				}
 			}
+			@SidebarTrigger("lg:hidden")
 		</div>
 	</section>
 	@navbarOnce.Once() {
@@ -150,14 +165,46 @@ templ Authenticated(props AuthenticatedProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ navItems := composables.UseNavItems(ctx) }}
 	@Base(props.Title) {
-		<div class="grid min-h-screen w-full grid-cols-[280px_1fr]">
-			@sidebar.Sidebar(sidebar.Props{
-				Items:  MapNavItemsToSidebar(navItems),
-				Footer: SidebarFooter(pageCtx),
-			})
-			<div>
+		<div
+			class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto"
+			x-data="{ open: false }"
+		>
+			<div class="hidden lg:block">
+				@sidebar.Sidebar(sidebar.Props{
+					Items:  MapNavItemsToSidebar(navItems),
+					Footer: SidebarFooter(pageCtx),
+				})
+			</div>
+			<div
+				x-show="open"
+				class="fixed lg:hidden z-20 w-full bg-black/60 backdrop-blur-md shadow-lg"
+				x-transition:enter="transition ease-out duration-300"
+				x-transition:enter-start="opacity-0"
+				x-transition:enter-end="opacity-100"
+				x-transition:leave="transition ease-in duration-300"
+				x-transition:leave-start="opacity-100"
+				x-transition:leave-end="opacity-0"
+			>
+				<div
+					x-show="open"
+					class="w-2/3"
+					@click.outside="open = false"
+					x-transition:enter="transform transition ease-out duration-300"
+					x-transition:enter-start="-translate-x-full"
+					x-transition:enter-end="translate-x-0"
+					x-transition:leave="transform transition ease-in duration-300"
+					x-transition:leave-start="translate-x-0"
+					x-transition:leave-end="-translate-x-full"
+				>
+					@sidebar.Sidebar(sidebar.Props{
+						Items:  MapNavItemsToSidebar(navItems),
+						Footer: SidebarFooter(pageCtx),
+					})
+				</div>
+			</div>
+			<div class="flex flex-col h-screen">
 				@Navbar(pageCtx)
-				<div class="h-[calc(100%-4rem)] overflow-y-auto content">
+				<div class="flex-1 overflow-y-auto content">
 					{ children... }
 				</div>
 			</div>
