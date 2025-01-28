@@ -3,21 +3,21 @@ package sidebar
 import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type Props struct {
+	Header templ.Component
 	Items  []Item
 	Footer templ.Component
 }
 
 templ Sidebar(props Props) {
 	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0">
-		<div class="flex h-16 items-center justify-center px-6">
-			<a href="/" class="flex items-center gap-2">
-				@composables.MustUseLogo(ctx)
-			</a>
-		</div>
+		if props.Header != nil {
+			<div class="px-6">
+				@props.Header
+			</div>
+		}
 		<nav class="py-4 flex-1">
 			<ul
 				class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar"
@@ -31,9 +31,11 @@ templ Sidebar(props Props) {
 				}
 			</ul>
 		</nav>
-		<div class="px-6">
-			@props.Footer
-		</div>
+		if props.Footer != nil {
+			<div class="px-6">
+				@props.Footer
+			</div>
+		}
 	</div>
 }
 

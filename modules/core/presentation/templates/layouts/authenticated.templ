@@ -19,12 +19,19 @@ var (
 )
 
 templ DefaultLogo() {
-	<img src={ companyLogo } alt="Logo" width="150" height="50"/>
+	<img
+		src={ companyLogo }
+		alt="Logo"
+		width="150"
+		height="50"
+	/>
 }
 
-templ avatar() {
+templ Avatar() {
 	{{ u := mappers.UserToViewModel(composables.MustUseUser(ctx)) }}
-	<summary class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar">
+	<summary
+		class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar"
+	>
 		if u.Avatar != nil {
 			<img
 				src={ u.Avatar.URL }
@@ -52,7 +59,10 @@ templ ThemeSwitcher() {
 			for="theme-light"
 			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/system:visible"
 		>
-			@icons.Desktop(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/system:group-[]/system:scale-100"})
+			@icons.Desktop(icons.Props{
+				Size:  "20",
+				Class: "scale-0 duration-200 peer-checked/system:group-[]/system:scale-100",
+			})
 		</label>
 		<input
 			class="peer/light appearance-none absolute"
@@ -66,7 +76,11 @@ templ ThemeSwitcher() {
 			for="theme-dark"
 			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/light:visible"
 		>
-			@icons.Sun(icons.Props{Size: "20", Variant: icons.Filled, Class: "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100"})
+			@icons.Sun(icons.Props{
+				Size:    "20",
+				Variant: icons.Filled,
+				Class:   "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100",
+			})
 		</label>
 		<input
 			class="peer/dark appearance-none absolute"
@@ -80,44 +94,14 @@ templ ThemeSwitcher() {
 			for="theme-system"
 			class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white invisible peer-checked/dark:visible"
 		>
-			@icons.Moon(icons.Props{Size: "20", Variant: icons.Filled, Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100", Attributes: templ.Attributes{"fill": "currentColor"}})
+			@icons.Moon(icons.Props{
+				Size:       "20",
+				Variant:    icons.Filled,
+				Class:      "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100",
+				Attributes: templ.Attributes{"fill": "currentColor"},
+			})
 		</label>
 	</div>
-}
-
-templ SidebarTrigger(class string) {
-	<button
-		class={
-			"flex items-center justify-center w-9 h-9 rounded-md bg-surface-400 text-black cursor-pointer",
-			class,
-		}
-		@click="open = !open"
-	>
-		@icons.List(icons.Props{Size: "20"})
-	</button>
-}
-
-templ Navbar(pageCtx *types.PageContext) {
-	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-8 bg-surface-300 border-b-primary">
-		<div class="ml-auto flex items-center gap-8">
-			<div class="hidden lg:block">
-				@spotlight.Spotlight()
-			</div>
-			@ThemeSwitcher()
-			@base.DetailsDropdown(avatar()) {
-				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
-				}
-				@base.DropdownItem(base.DropdownItemProps{Href: "/account/settings"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
-				}
-				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
-				}
-			}
-			@SidebarTrigger("lg:hidden")
-		</div>
-	</section>
 	@navbarOnce.Once() {
 		<script>
 			let THEME_STORAGE_KEY = "iota-theme";
@@ -144,6 +128,41 @@ templ Navbar(pageCtx *types.PageContext) {
 	}
 }
 
+templ SidebarTrigger(class string) {
+	<button
+		class={
+			"flex items-center justify-center w-9 h-9 rounded-md bg-surface-400 text-black cursor-pointer",
+			class,
+		}
+		@click="open = !open"
+	>
+		@icons.List(icons.Props{Size: "20"})
+	</button>
+}
+
+templ Navbar(pageCtx *types.PageContext) {
+	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-8 bg-surface-300 border-b-primary">
+		<div class="ml-auto flex items-center gap-8">
+			<div class="hidden lg:block">
+				@spotlight.Spotlight()
+			</div>
+			@ThemeSwitcher()
+			@base.DetailsDropdown(Avatar()) {
+				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
+				}
+				@base.DropdownItem(base.DropdownItemProps{Href: "/account/settings"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
+				}
+				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
+				}
+			}
+			@SidebarTrigger("lg:hidden")
+		</div>
+	</section>
+}
+
 templ SidebarFooter(pageCtx *types.PageContext) {
 	@button.Sidebar(button.Props{
 		Size:  button.SizeMD,
@@ -157,51 +176,64 @@ templ SidebarFooter(pageCtx *types.PageContext) {
 	}
 }
 
+templ MobileSidebar(props sidebar.Props) {
+	<div
+		x-show="open"
+		class="fixed lg:hidden z-20 w-full bg-black/60 backdrop-blur-md shadow-lg"
+		x-transition:enter="transition ease-out duration-300"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-300"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+	>
+		<div
+			x-show="open"
+			class="w-2/3"
+			@click.outside="open = false"
+			x-transition:enter="transform transition ease-out duration-300"
+			x-transition:enter-start="-translate-x-full"
+			x-transition:enter-end="translate-x-0"
+			x-transition:leave="transform transition ease-in duration-300"
+			x-transition:leave-start="translate-x-0"
+			x-transition:leave-end="-translate-x-full"
+		>
+			@sidebar.Sidebar(props)
+		</div>
+	</div>
+}
+
+templ SidebarHeader() {
+	<div class="flex h-16 items-center justify-center px-6">
+		<a href="/" class="flex items-center gap-2">
+			@composables.MustUseLogo(ctx)
+		</a>
+	</div>
+}
+
 type AuthenticatedProps struct {
 	Title string
 }
 
 templ Authenticated(props AuthenticatedProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	{{ navItems := composables.UseNavItems(ctx) }}
+	{{
+	pageCtx := composables.UsePageCtx(ctx)
+	navItems := composables.UseNavItems(ctx)
+	sidebarProps := sidebar.Props{
+		Header: SidebarHeader(),
+		Items:  MapNavItemsToSidebar(navItems),
+		Footer: SidebarFooter(pageCtx),
+	}
+	}}
 	@Base(props.Title) {
 		<div
 			class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto"
 			x-data="{ open: false }"
 		>
 			<div class="hidden lg:block">
-				@sidebar.Sidebar(sidebar.Props{
-					Items:  MapNavItemsToSidebar(navItems),
-					Footer: SidebarFooter(pageCtx),
-				})
+				@sidebar.Sidebar(sidebarProps)
 			</div>
-			<div
-				x-show="open"
-				class="fixed lg:hidden z-20 w-full bg-black/60 backdrop-blur-md shadow-lg"
-				x-transition:enter="transition ease-out duration-300"
-				x-transition:enter-start="opacity-0"
-				x-transition:enter-end="opacity-100"
-				x-transition:leave="transition ease-in duration-300"
-				x-transition:leave-start="opacity-100"
-				x-transition:leave-end="opacity-0"
-			>
-				<div
-					x-show="open"
-					class="w-2/3"
-					@click.outside="open = false"
-					x-transition:enter="transform transition ease-out duration-300"
-					x-transition:enter-start="-translate-x-full"
-					x-transition:enter-end="translate-x-0"
-					x-transition:leave="transform transition ease-in duration-300"
-					x-transition:leave-start="translate-x-0"
-					x-transition:leave-end="-translate-x-full"
-				>
-					@sidebar.Sidebar(sidebar.Props{
-						Items:  MapNavItemsToSidebar(navItems),
-						Footer: SidebarFooter(pageCtx),
-					})
-				</div>
-			</div>
+			@MobileSidebar(sidebarProps)
 			<div class="flex flex-col h-screen">
 				@Navbar(pageCtx)
 				<div class="flex-1 overflow-y-auto content">
