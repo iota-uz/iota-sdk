@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	ErrNoLogoFound = errors.New("no logo found")
 	ErrNoHeadFound = errors.New("no head found")
 )
 
@@ -15,7 +16,7 @@ var (
 func UseLogo(ctx context.Context) (templ.Component, error) {
 	logo, ok := ctx.Value(constants.LogoKey).(templ.Component)
 	if !ok {
-		return nil, ErrNoHeadFound
+		return nil, ErrNoLogoFound
 	}
 	return logo, nil
 }
