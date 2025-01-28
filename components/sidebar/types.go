@@ -33,6 +33,7 @@ type Group interface {
 type Item interface {
 	IsLink() bool
 	Position() int
+	Icon() templ.Component
 	IsActive(ctx context.Context) bool
 }
 

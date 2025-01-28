@@ -95,7 +95,7 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div><div class=\"m-6\"><h1 class=\"text-2xl font-semibold text-gray-700\">Dashboard</h1><div class=\"flex items-center gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div><div class=\"m-6\"><h1 class=\"text-2xl font-semibold text-gray-700\">Dashboard</h1><div class=\"flex flex-col lg:flex-row items-center gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
