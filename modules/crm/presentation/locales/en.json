@@ -13,6 +13,16 @@
 			"FullName": "Full Name",
 			"Phone": "Phone"
 		},
+		"New": {
+			"Meta": {
+				"Title": "New client"
+			}
+		},
+		"Edit": {
+			"Meta": {
+				"Title": "Edit client"
+			}
+		},
 		"Single": {
 			"FirstName": {
 				"Label": "First Name",
@@ -29,7 +39,9 @@
 			"Phone": {
 				"Label": "Phone",
 				"Placeholder": "Enter the phone number"
-			}
+			},	
+			"Delete": "Delete client",
+			"DeleteConfirmation": "Are you sure you want to delete this client?"
 		}
 	}
 }
