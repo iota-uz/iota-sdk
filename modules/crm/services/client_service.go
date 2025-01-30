@@ -62,11 +62,11 @@ func (s *ClientService) Update(ctx context.Context, id uint, data *client.Update
 }
 
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return nil, err
-	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
 	return entity, nil

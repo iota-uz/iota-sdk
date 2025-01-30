@@ -65,6 +65,7 @@ func (c *ClientController) Register(r *mux.Router) {
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
@@ -171,20 +172,6 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(clients.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
-		return
-	}
-
-	if _, err := c.clientService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	shared.Redirect(w, r, c.basePath)
-}
-
 func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
@@ -212,6 +199,20 @@ func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := c.clientService.Update(r.Context(), id, dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *ClientController) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := c.clientService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
