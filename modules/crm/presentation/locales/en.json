@@ -1,0 +1,31 @@
+{
+	"NavigationLinks": {
+		"CRM": "CRM",
+		"Clients": "Clients",
+		"Chats": "Chats"
+	},
+	"Clients": {
+		"List": {
+			"Meta": {
+				"Title": "Clients"
+			},
+			"New": "New client",
+			"FullName": "Full Name",
+			"Phone": "Phone"
+		},
+		"Single": {
+			"FirstName": {
+				"Label": "First Name",
+				"Placeholder": "Enter the first name"
+			},
+			"LastName": {
+				"Label": "Last Name",
+				"Placeholder": "Enter the last name"
+			},
+			"Phone": {
+				"Label": "Phone",
+				"Placeholder": "Enter the phone number"
+			}
+		}
+	}
+}

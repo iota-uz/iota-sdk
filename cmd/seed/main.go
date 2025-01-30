@@ -2,17 +2,19 @@ package main
 
 import (
 	"context"
-	"github.com/iota-uz/iota-sdk/modules/core"
-	"github.com/iota-uz/iota-sdk/modules/finance"
-	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/modules/crm"
+	"github.com/iota-uz/iota-sdk/modules/finance"
+	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -30,6 +32,7 @@ func main() {
 	app.RegisterNavItems(core.NavItems...)
 	app.RegisterNavItems(finance.NavItems...)
 	app.RegisterNavItems(warehouse.NavItems...)
+	app.RegisterNavItems(crm.NavItems...)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		panic(err)
