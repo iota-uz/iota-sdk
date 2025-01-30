@@ -5,6 +5,7 @@ go 1.23.2
 require (
 	github.com/99designs/gqlgen v0.17.57
 	github.com/NYTimes/gziphandler v1.1.1
+	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/a-h/templ v0.3.819
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/caarlos0/env/v11 v11.2.2
@@ -39,7 +40,6 @@ require (
 	golang.org/x/tools v0.26.0
 	google.golang.org/api v0.209.0
 	gopkg.in/yaml.v3 v3.0.1
-	gorm.io/driver/postgres v1.5.10
 	gorm.io/gorm v1.25.12
 )
 

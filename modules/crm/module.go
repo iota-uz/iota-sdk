@@ -33,6 +33,7 @@ func (m *Module) Register(app application.Application) error {
 
 	app.RegisterControllers(
 		controllers.NewClientController(app),
+		controllers.NewChatController(app),
 	)
 
 	app.RBAC().Register(permissions.Permissions...)

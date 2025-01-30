@@ -1,0 +1,28 @@
+package avatar
+
+import twmerge "github.com/Oudwins/tailwind-merge-go"
+
+type Props struct {
+	Class    string
+	ImageURL string
+	Initials string
+}
+
+templ Avatar(props Props) {
+	<div
+		class={ twmerge.Merge(
+"w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar",
+props.Class,
+		) }
+	>
+		if props.ImageURL != "" {
+			<img
+				src={ props.ImageURL }
+				alt="Avatar"
+				class="w-9 h-9 object-cover rounded-full"
+			/>
+		} else {
+			{ props.Initials }
+		}
+	</div>
+}
