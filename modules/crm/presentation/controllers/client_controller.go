@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type ClientController struct {
@@ -84,10 +85,12 @@ func (c *ClientController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
+	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 }
 
 func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
@@ -107,4 +110,43 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 	} else {
 		templ.Handler(clients.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
+}
+
+func (c *ClientController) GetNew(w http.ResponseWriter, r *http.Request) {
+	props := &clients.CreatePageProps{
+		Client:  &viewmodels.Client{},
+		SaveURL: fmt.Sprintf("%s", c.basePath),
+	}
+	templ.Handler(clients.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ClientController) Create(w http.ResponseWriter, r *http.Request) {
+	dto, err := composables.UseForm(&client.CreateDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		props := &clients.CreatePageProps{
+			Errors: errorsMap,
+			Client: &viewmodels.Client{
+				FirstName:  dto.FirstName,
+				LastName:   dto.LastName,
+				MiddleName: dto.MiddleName,
+				Phone:      dto.Phone,
+			},
+			SaveURL: fmt.Sprintf("%s", c.basePath),
+		}
+		templ.Handler(clients.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	if _, err := c.clientService.Create(r.Context(), dto); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	shared.Redirect(w, r, c.basePath)
+
 }

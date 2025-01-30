@@ -22,6 +22,10 @@
 				"Label": "Last Name",
 				"Placeholder": "Enter the last name"
 			},
+			"MiddleName": {
+				"Label": "Middle Name",
+				"Placeholder": "Enter the middle name"
+			},
 			"Phone": {
 				"Label": "Phone",
 				"Placeholder": "Enter the phone number"
