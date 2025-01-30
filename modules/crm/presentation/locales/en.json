@@ -43,5 +43,10 @@
 			"Delete": "Delete client",
 			"DeleteConfirmation": "Are you sure you want to delete this client?"
 		}
+	},
+	"Chats": {
+		"Meta": {
+			"Title": "Chats"
+		}
 	}
 }
