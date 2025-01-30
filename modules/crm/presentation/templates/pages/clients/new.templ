@@ -1,0 +1,87 @@
+package clients
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type CreatePageProps struct {
+	Client  *viewmodels.Client
+	Errors  map[string]string
+	SaveURL string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.SaveURL }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.FirstName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.FirstName,
+					"name":  "FirstName",
+				},
+				Error: props.Errors["FirstName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.LastName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.LastName,
+					"name":  "LastName",
+				},
+				Error: props.Errors["LastName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.MiddleName,
+					"name":  "MiddleName",
+				},
+				Error: props.Errors["MiddleName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.Phone.Label"),
+				Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.Phone,
+					"name":  "Phone",
+				},
+				Error: props.Errors["Phone"],
+			})
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ pageCtx.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Products.New.Meta.Title"),
+	}) {
+		@CreateForm(props)
+	}
+}
