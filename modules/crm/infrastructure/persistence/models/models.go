@@ -16,17 +16,17 @@ type Client struct {
 }
 
 type Chat struct {
-	ID        string
+	ID        uint
+	ClientID  uint
 	CreatedAt time.Time
-	ClientID  int64
 }
 
 type Message struct {
-	ID             string
+	ID             uint
 	CreatedAt      time.Time
-	ChatID         string
+	ChatID         uint
 	Message        string
-	SenderUserID   sql.NullString
+	SenderUserID   sql.NullInt64
 	SenderClientID sql.NullInt64
 	IsActive       bool
 }

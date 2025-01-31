@@ -2,7 +2,8 @@ package seed
 
 import (
 	"context"
-	"errors"
+	"github.com/go-faster/errors"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -100,7 +101,7 @@ func (s *userSeeder) createUserTabs(ctx context.Context, usr user.User, app appl
 
 	for _, t := range tabs {
 		if err := tabsRepository.CreateOrUpdate(ctx, t); err != nil {
-			return err
+			return errors.Wrapf(err, "failed to create tab %s", t.Href)
 		}
 	}
 	return nil

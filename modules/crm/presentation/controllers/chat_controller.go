@@ -1,25 +1,43 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
+	_ "github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
+type CreateChatDTO struct {
+	Phone string
+}
+
 type ChatController struct {
-	app      application.Application
-	basePath string
+	app           application.Application
+	clientService *services.ClientService
+	chatService   *services.ChatService
+	basePath      string
 }
 
 func NewChatController(app application.Application) application.Controller {
 	return &ChatController{
-		app:      app,
-		basePath: "/crm/chats",
+		app:           app,
+		clientService: app.Service(services.ClientService{}).(*services.ClientService),
+		chatService:   app.Service(services.ChatService{}).(*services.ChatService),
+		basePath:      "/crm/chats",
 	}
 }
 
@@ -40,13 +58,98 @@ func (c *ChatController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
+	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
+	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 }
 
 func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
-	props := &chats.IndexPageProps{}
-	templ.Handler(chats.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	chatEntities, err := c.chatService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	chatViewModels := mapping.MapViewModels(chatEntities, mappers.ChatToViewModel)
+
+	props := &chatsui.IndexPageProps{
+		Chats: chatViewModels,
+	}
+	templHandler := templ.Handler(
+		chatsui.Index(props),
+		templ.WithStreaming())
+	ctx := r.Context()
+	chatID := r.URL.Query().Get("chat_id")
+	if chatID != "" {
+		for _, chat := range chatViewModels {
+			if chat.ID == chatID {
+				templHandler.ServeHTTP(
+					w, r.WithContext(templ.WithChildren(ctx, chatsui.SelectedChat(chat))),
+				)
+				return
+			}
+		}
+		templHandler.ServeHTTP(
+			w, r.WithContext(templ.WithChildren(ctx, chatsui.ChatNotFound())),
+		)
+	} else {
+		templHandler.ServeHTTP(
+			w, r.WithContext(templ.WithChildren(ctx, chatsui.NoSelectedChat())),
+		)
+	}
+}
+
+func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
+	chatEntities, err := c.chatService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	chatViewModels := mapping.MapViewModels(chatEntities, mappers.ChatToViewModel)
+	ctx := r.Context()
+	props := &chatsui.IndexPageProps{
+		Chats: chatViewModels,
+	}
+	templHandler := templ.Handler(chatsui.Index(props), templ.WithStreaming())
+	templHandler.ServeHTTP(
+		w, r.WithContext(templ.WithChildren(ctx, chatsui.NewChat(chatsui.NewChatProps{
+			Phone: "+1 ",
+		}))),
+	)
+}
+
+func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
+	dto, err := composables.UseForm(&CreateChatDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	createdClient, err := c.clientService.Create(r.Context(), &client.CreateDTO{
+		FirstName: "Unknown",
+		LastName:  "Unknown",
+		Phone:     dto.Phone,
+	})
+	if errors.Is(err, phone.ErrInvalidPhoneNumber) {
+		templ.Handler(chatsui.NewChatForm(chatsui.NewChatProps{
+			Phone: dto.Phone,
+			Errors: map[string]string{
+				"Phone": err.Error(),
+			},
+		})).ServeHTTP(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, err = c.chatService.Create(r.Context(), &chat.CreateDTO{
+		ClientID: createdClient.ID(),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	shared.HxRedirect(w, r, c.basePath)
 }

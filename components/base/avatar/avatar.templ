@@ -3,17 +3,19 @@ package avatar
 import twmerge "github.com/Oudwins/tailwind-merge-go"
 
 type Props struct {
-	Class    string
+	Class    templ.CSSClasses
 	ImageURL string
 	Initials string
 }
 
 templ Avatar(props Props) {
 	<div
-		class={ twmerge.Merge(
-"w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar",
-props.Class,
-		) }
+		class={
+			twmerge.Merge(
+				"w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar",
+				props.Class.String(),
+			),
+		}
 	>
 		if props.ImageURL != "" {
 			<img

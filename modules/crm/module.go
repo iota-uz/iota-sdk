@@ -24,9 +24,15 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	clientRepo := persistence.NewClientRepository()
 	app.RegisterServices(
+		services.NewChatService(
+			persistence.NewChatRepository(),
+			clientRepo,
+			app.EventPublisher(),
+		),
 		services.NewClientService(
-			persistence.NewClientRepository(),
+			clientRepo,
 			app.EventPublisher(),
 		),
 	)

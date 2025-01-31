@@ -39,7 +39,9 @@ const (
 		UPDATE clients 
 		SET first_name = $1, last_name = $2, middle_name = $3, phone_number = $4
 		WHERE id = $5`
-	deleteClientQuery = `DELETE FROM clients WHERE id = $1`
+	deleteChatMessagesQuery = `DELETE FROM messages WHERE chat_id IN (SELECT id FROM chats WHERE client_id = $1)`
+	deleteClientChatsQuery  = `DELETE FROM chats WHERE client_id = $1`
+	deleteClientQuery       = `DELETE FROM clients WHERE id = $1`
 )
 
 type ClientRepository struct {
@@ -189,6 +191,12 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, deleteChatMessagesQuery, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, deleteClientChatsQuery, id); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, deleteClientQuery, id); err != nil {

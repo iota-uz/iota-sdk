@@ -1,8 +1,9 @@
 package phone
 
 import (
-	"errors"
 	"unicode"
+
+	"github.com/go-faster/errors"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 )
@@ -27,11 +28,11 @@ func Strip(v string) string {
 
 func New(v string, c country.Country) (Phone, error) {
 	if v == "" {
-		return phone(""), ErrInvalidPhoneNumber
+		return phone(""), errors.Wrap(ErrInvalidPhoneNumber, "phone number is empty")
 	}
 	stripped := Strip(v)
 	if !IsValidPhoneNumber(stripped, c) {
-		return phone(""), ErrInvalidPhoneNumber
+		return phone(""), errors.Wrapf(ErrInvalidPhoneNumber, "phone number %s is invalid", v)
 	}
 	return phone(v), nil
 }
