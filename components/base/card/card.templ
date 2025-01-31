@@ -1,5 +1,7 @@
 package card
 
+import twmerge "github.com/Oudwins/tailwind-merge-go"
+
 type Props struct {
 	Class        string
 	WrapperClass string
@@ -15,13 +17,13 @@ templ DefaultHeader(text string) {
 
 templ Card(props Props) {
 	<div
-		class={ "bg-surface-300 rounded-lg border border-primary", props.WrapperClass }
+		class={ twmerge.Merge("bg-surface-300 rounded-lg border border-primary", props.WrapperClass) }
 		{ props.Attrs... }
 	>
 		if props.Header != nil {
 			@props.Header
 		}
-		<div class={ "p-4", props.Class }>
+		<div class={ twmerge.Merge("p-4", props.Class) }>
 			{ children... }
 		</div>
 	</div>

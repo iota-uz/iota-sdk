@@ -23,7 +23,7 @@ var ChatsLink = types.NavigationItem{
 var CRMLink = types.NavigationItem{
 	Name: "NavigationLinks.CRM",
 	Icon: icons.Handshake(icons.Props{Size: "20"}),
-	Href: "#",
+	Href: "/crm",
 	Children: []types.NavigationItem{
 		ClientsLink,
 		ChatsLink,

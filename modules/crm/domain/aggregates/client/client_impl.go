@@ -6,6 +6,38 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 )
 
+func New(
+	firstName, lastName, middleName string,
+	phoneNumber phone.Phone,
+) (Client, error) {
+	return &client{
+		id:         0,
+		firstName:  firstName,
+		lastName:   lastName,
+		middleName: middleName,
+		phone:      phoneNumber,
+		createdAt:  time.Now(),
+		updatedAt:  time.Now(),
+	}, nil
+}
+
+func NewWithID(
+	id uint,
+	firstName, lastName, middleName string,
+	phoneNumber phone.Phone,
+	createdAt, updatedAt time.Time,
+) (Client, error) {
+	return &client{
+		id:         id,
+		firstName:  firstName,
+		lastName:   lastName,
+		middleName: middleName,
+		phone:      phoneNumber,
+		createdAt:  createdAt,
+		updatedAt:  updatedAt,
+	}, nil
+}
+
 type client struct {
 	id         uint
 	firstName  string
@@ -66,36 +98,4 @@ func (c *client) SetName(firstName, lastName, middleName string) Client {
 		createdAt:  c.createdAt,
 		updatedAt:  time.Now(),
 	}
-}
-
-func New(
-	firstName, lastName, middleName string,
-	phoneNumber phone.Phone,
-) (Client, error) {
-	return &client{
-		id:         0,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: middleName,
-		phone:      phoneNumber,
-		createdAt:  time.Now(),
-		updatedAt:  time.Now(),
-	}, nil
-}
-
-func NewWithID(
-	id uint,
-	firstName, lastName, middleName string,
-	phoneNumber phone.Phone,
-	createdAt, updatedAt time.Time,
-) (Client, error) {
-	return &client{
-		id:         id,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: middleName,
-		phone:      phoneNumber,
-		createdAt:  createdAt,
-		updatedAt:  updatedAt,
-	}, nil
 }
