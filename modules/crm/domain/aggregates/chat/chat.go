@@ -12,5 +12,6 @@ type Chat interface {
 	Client() client.Client
 	Messages() []message.Message
 	AddMessages(messages ...message.Message) Chat
+	SendMessage(msg string, userID uint) Chat
 	CreatedAt() time.Time
 }

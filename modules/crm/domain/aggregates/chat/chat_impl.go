@@ -58,6 +58,11 @@ func (c *chat) AddMessages(messages ...message.Message) Chat {
 	}
 }
 
+func (c *chat) SendMessage(msg string, userID uint) Chat {
+	sender := message.NewUserSender(userID)
+	return c.AddMessages(message.NewMessage(c.id, msg, sender))
+}
+
 func (c *chat) CreatedAt() time.Time {
 	return c.createdAt
 }

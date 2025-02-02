@@ -1,14 +1,16 @@
 package persistence
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"database/sql"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func toDomainClient(dbRow *models.Client) (client.Client, error) {
@@ -40,15 +42,24 @@ func toDBClient(domainEntity client.Client) *models.Client {
 }
 
 func toDBMessage(domainEntity message.Message) *models.Message {
-	return &models.Message{
-		ID:        domainEntity.ID(),
-		ChatID:    domainEntity.ChatID(),
-		Message:   domainEntity.Message(),
-		CreatedAt: domainEntity.CreatedAt(),
+	dbMessage := &models.Message{
+		ID:             domainEntity.ID(),
+		ChatID:         domainEntity.ChatID(),
+		Message:        domainEntity.Message(),
+		SenderUserID:   sql.NullInt64{},
+		SenderClientID: sql.NullInt64{},
+		IsActive:       domainEntity.IsActive(),
+		CreatedAt:      domainEntity.CreatedAt(),
 	}
+	if domainEntity.Sender().IsUser() {
+		dbMessage.SenderUserID = mapping.ValueToSQLNullInt64(int64(domainEntity.Sender().ID()))
+	} else {
+		dbMessage.SenderClientID = mapping.ValueToSQLNullInt64(int64(domainEntity.Sender().ID()))
+	}
+	return dbMessage
 }
 
-func toDomainMessage(dbRow *models.Message) message.Message {
+func toDomainMessage(dbRow *models.Message) (message.Message, error) {
 	var sender message.Sender
 	if dbRow.SenderUserID.Valid {
 		sender = message.NewUserSender(uint(dbRow.SenderUserID.Int64))
@@ -62,7 +73,7 @@ func toDomainMessage(dbRow *models.Message) message.Message {
 		sender,
 		dbRow.IsActive,
 		dbRow.CreatedAt,
-	)
+	), nil
 }
 
 func toDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
@@ -78,9 +89,9 @@ func toDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 }
 
 func toDomainChat(dbRow *models.Chat, dbClient *models.Client, dbMessages []*models.Message) (chat.Chat, error) {
-	messages := make([]message.Message, 0, len(dbMessages))
-	for _, m := range dbMessages {
-		messages = append(messages, toDomainMessage(m))
+	messages, err := mapping.MapDBModels(dbMessages, toDomainMessage)
+	if err != nil {
+		return nil, err
 	}
 	c, err := toDomainClient(dbClient)
 	if err != nil {
@@ -93,4 +104,20 @@ func toDomainChat(dbRow *models.Chat, dbClient *models.Client, dbMessages []*mod
 		dbRow.CreatedAt,
 	)
 	return domainChat, nil
+}
+
+func toDomainMessageTemplate(dbTemplate *models.MessageTemplate) (messagetemplate.MessageTemplate, error) {
+	return messagetemplate.NewWithID(
+		dbTemplate.ID,
+		dbTemplate.Template,
+		dbTemplate.CreatedAt,
+	), nil
+}
+
+func toDBMessageTemplate(domainTemplate messagetemplate.MessageTemplate) *models.MessageTemplate {
+	return &models.MessageTemplate{
+		ID:        domainTemplate.ID(),
+		Template:  domainTemplate.Template(),
+		CreatedAt: domainTemplate.CreatedAt(),
+	}
 }

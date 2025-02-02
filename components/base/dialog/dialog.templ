@@ -41,10 +41,16 @@ templ Confirmation(p *Props) {
 				</article>
 				<footer class="px-4 py-3">
 					<menu class="flex gap-3">
-						@button.Secondary(button.Props{Class: "flex-1 justify-center", Attrs: templ.Attributes{"value": "cancel"}}) {
+						@button.Secondary(button.Props{
+							Class: "flex-1 justify-center",
+							Attrs: templ.Attributes{"value": "cancel"},
+						}) {
 							{ p.CancelText }
 						}
-						@button.Primary(button.Props{Class: "flex-1 justify-center", Attrs: templ.Attributes{"value": "confirm"}}) {
+						@button.Primary(button.Props{
+							Class: "flex-1 justify-center",
+							Attrs: templ.Attributes{"value": "confirm"},
+						}) {
 							{ p.ConfirmText }
 						}
 					</menu>

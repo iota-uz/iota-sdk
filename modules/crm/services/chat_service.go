@@ -62,6 +62,22 @@ func (s *ChatService) Create(ctx context.Context, data *chat.CreateDTO) (chat.Ch
 	return createdEntity, nil
 }
 
+func (s *ChatService) SendMessage(ctx context.Context, id uint, msg string) (chat.Chat, error) {
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	entity = entity.SendMessage(msg, user.ID())
+	if _, err := s.repo.Update(ctx, entity); err != nil {
+		return nil, err
+	}
+	return entity, nil
+}
+
 func (s *ChatService) Delete(ctx context.Context, id uint) (chat.Chat, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {

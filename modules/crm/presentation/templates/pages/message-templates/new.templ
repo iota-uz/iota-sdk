@@ -1,0 +1,61 @@
+package messagetemplatesui
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type CreatePageProps struct {
+	Template *viewmodels.MessageTemplate
+	Errors   map[string]string
+	SaveURL  string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.SaveURL }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@card.Card(card.Props{
+			WrapperClass: "m-6",
+		}) {
+			@textarea.Basic(&textarea.Props{
+				Label:       pageCtx.T("MessageTemplates.Single.Template.Label"),
+				Placeholder: pageCtx.T("MessageTemplates.Single.Template.Placeholder"),
+				Value:       props.Template.Template,
+				Attrs: templ.Attributes{
+					"name": "Template",
+				},
+				Error: props.Errors["Template"],
+			})
+		}
+		<div
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ pageCtx.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("MessageTemplates.New.Meta.Title"),
+	}) {
+		@CreateForm(props)
+	}
+}

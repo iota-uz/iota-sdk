@@ -30,3 +30,9 @@ type Message struct {
 	SenderClientID sql.NullInt64
 	IsActive       bool
 }
+
+type MessageTemplate struct {
+	ID        uint
+	Template  string
+	CreatedAt time.Time
+}

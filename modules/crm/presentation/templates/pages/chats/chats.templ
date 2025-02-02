@@ -19,67 +19,65 @@ type IndexPageProps struct {
 }
 
 templ ChatsContent(props *IndexPageProps) {
-	@card.Card(card.Props{
-		WrapperClass: "flex-1",
-		Class:        "p-0 h-full",
-	}) {
-		<div class="h-full grow overflow-hidden grid grid-cols-12">
-			<div class="col-span-4 h-full flex flex-col overflow-hidden">
-				<div class="shrink-0 pt-5 px-4 flex items-center justify-between border-r">
-					@button.Secondary(button.Props{
-						Href: "/crm/instant-messages",
-					}) {
-						Instant messages
-					}
-					@button.Primary(button.Props{
-						Href: "/crm/chats/new",
-					}) {
-						New chat
-					}
-				</div>
-				<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">
-					<div class="pb-5">
-						<div class="w-full relative">
-							<form
-								class="flex items-center gap-3"
-								hx-get="/crm/clients"
-								hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-								hx-target=".table-wrapper"
-								hx-swap="outerHTML"
-							>
-								@filters.Search([]filters.SearchField{
-									{
-										Label: "",
-										Key:   "search",
-									},
-								})
-							</form>
-						</div>
-					</div>
-					<div class="grow flex flex-col gap-2 overflow-auto">
-						<ul role="list">
-							for _, chat := range props.Chats {
-								<li
-									role="listitem"
-									class="rounded-[8px] cursor-pointer transition-all bg-transparent"
-								>
-									@ChatCard(chat)
-								</li>
-							}
-						</ul>
-						<div class="flex justify-center mt-3">
-							@button.Secondary(button.Props{}) {
-								Load More
-							}
-						</div>
-					</div>
-				</div>
+	<div class="grid grid-cols-12 rounded-lg border border-primary bg-surface-300 flex-1 min-h-0">
+		<div class="col-span-4 flex flex-col overflow-hidden">
+			<div class="shrink-0 pt-5 px-4 flex items-center justify-between border-r">
+				@button.Secondary(button.Props{
+					Href: "/crm/instant-messages",
+				}) {
+					Instant messages
+				}
+				@button.Primary(button.Props{
+					Href: "/crm/chats/new",
+				}) {
+					New chat
+				}
 			</div>
-			<div class="col-span-8 flex flex-col">
-				{ children... }
+			<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">
+				<div class="pb-5">
+					<div class="w-full relative">
+						<form
+							class="flex items-center gap-3"
+							hx-get="/crm/clients"
+							hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+							hx-target=".table-wrapper"
+							hx-swap="outerHTML"
+						>
+							@filters.Search([]filters.SearchField{
+								{
+									Label: "",
+									Key:   "search",
+								},
+							})
+						</form>
+					</div>
+				</div>
+				<div class="grow flex flex-col gap-2 overflow-auto">
+					<ul role="list">
+						for _, chat := range props.Chats {
+							<li
+								role="listitem"
+								class="rounded-[8px] cursor-pointer transition-all bg-transparent"
+							>
+								@ChatCard(chat)
+							</li>
+						}
+					</ul>
+					<div class="flex justify-center mt-3">
+						@button.Secondary(button.Props{}) {
+							Load More
+						}
+					</div>
+				</div>
 			</div>
 		</div>
-	}
+		<div
+			class="col-span-8 flex flex-col min-h-0"
+			id="chat-contents"
+		>
+			{ children... }
+		</div>
+	</div>
 }
 
 type NewChatProps struct {
@@ -129,15 +127,28 @@ templ NewChatForm(props NewChatProps) {
 }
 
 templ NoSelectedChat() {
-	<div class="flex items-center justify-center h-full">
+	<div class="flex items-center justify-center flex-1">
 		<p class="text-base-600">
 			Select a chat...
 		</p>
 	</div>
 }
 
-templ SelectedChat(chat *viewmodels.Chat) {
-	<div class="shrink-0 border-b">
+templ SelectedChat(chat *viewmodels.Chat, templates []*viewmodels.MessageTemplate) {
+	<script>
+		function onUseTemplate(template) {
+			const textarea = document.getElementById("message");
+			textarea.value = template;
+			textarea.focus();
+			textarea.style.height = 'auto'; 
+			textarea.style.height = textarea.scrollHeight + 'px';
+		}
+	</script>
+	@InstantMessagesDialog(InstantMessagesDialogProps{
+		OnClick:   "onUseTemplate",
+		Templates: templates,
+	})
+	<div class="border-b">
 		<div class="w-full bg-white p-5">
 			<a
 				class="flex items-center justify-start gap-4 rounded-lg"
@@ -160,49 +171,61 @@ templ SelectedChat(chat *viewmodels.Chat) {
 			</a>
 		</div>
 	</div>
-	<div class="px-4 pt-4 h-full flex flex-col">
-		<div class="grow flex w-full mx-auto flex-col rounded-xl max-w-full">
-			<div class="relative flex flex-col grow bg-primary-soft rounded-[12px]">
-				<ul class="grid items-end grid-rows-1 h-full gap-y-4 px-3 py-4 overflow-y-auto no-scrollbar">
-					for _, msg := range chat.Messages {
-						@Message(chat.Client, msg)
-					}
-				</ul>
+	<div class="flex flex-col flex-1 px-4 min-h-0">
+		<ul class="flex flex-col-reverse gap-4 px-3 py-4 overflow-y-auto no-scrollbar flex-1">
+			for _, msg := range chat.Messages {
+				@Message(chat.Client, msg)
+			}
+		</ul>
+		<div class="bg-white border border-input rounded-md p-4 mb-4">
+			<div x-data="{text: ''}">
+				<textarea
+					id="message"
+					x-model="text"
+					@input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
+					class="text-sm placeholder:text-muted-foreground resize-none w-full focus:outline-none"
+					placeholder="Type a message..."
+					name="Message"
+					form="send-message-form"
+				></textarea>
 			</div>
-			<div class="bg-white border border-input rounded-md p-4 mb-4">
-				<div x-data="{text: ''}">
-					<textarea
-						x-model="text"
-						@input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
-						class="text-sm placeholder:text-muted-foreground bg-surface-light-lower resize-none w-full focus:outline-none"
-						placeholder="Type a message..."
-					></textarea>
-				</div>
-				<div class="flex justify-between">
-					<div class="flex gap-2">
-						<button class="cursor-pointer">
-							@icons.Paperclip(icons.Props{
-								Size: "20",
-							})
-							<label class="cursor-pointer">
-								<input class="sr-only" name="upload-file" type="file"/>
-							</label>
-						</button>
-						<button class="cursor-pointer">
-							@icons.Lightning(icons.Props{Size: "20"})
-						</button>
-					</div>
+			<div class="flex justify-between">
+				<div class="flex gap-2">
 					<button class="cursor-pointer">
-						@icons.TelegramLogo(icons.Props{Size: "20"})
+						@icons.Paperclip(icons.Props{
+							Size: "20",
+						})
+						<label class="cursor-pointer">
+							<input class="sr-only" name="upload-file" type="file"/>
+						</label>
+					</button>
+					<button
+						class="cursor-pointer"
+						@click="$dispatch('instant-messages-dialog')"
+					>
+						@icons.Lightning(icons.Props{Size: "20"})
 					</button>
 				</div>
+				<form
+					id="send-message-form"
+					hx-post={ fmt.Sprintf("/crm/chats/%s/messages", chat.ID) }
+					hx-trigger="submit"
+					hx-swap="innerHTML"
+					hx-target="#chat-contents"
+				>
+					<button
+						class="cursor-pointer"
+					>
+						@icons.TelegramLogo(icons.Props{Size: "20"})
+					</button>
+				</form>
 			</div>
 		</div>
 	</div>
 }
 
 templ ChatNotFound() {
-	<div class="flex items-center justify-center h-full">
+	<div class="flex items-center justify-center flex-1">
 		<p class="text-base-600">
 			Chat not found...
 		</p>
@@ -297,7 +320,7 @@ templ Index(props *IndexPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		Title: pageCtx.T("Chats.Meta.Title"),
 	}) {
-		<div class="flex flex-col p-6 h-full">
+		<div class="flex flex-col p-6 h-[calc(100vh-4rem)]">
 			<h1 class="text-2xl font-medium mb-5">
 				{ pageCtx.T("Chats.Meta.Title") }
 			</h1>

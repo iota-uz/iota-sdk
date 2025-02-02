@@ -14,5 +14,6 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]Chat, error)
 	GetByID(ctx context.Context, id uint) (Chat, error)
 	Create(ctx context.Context, data Chat) (Chat, error)
+	Update(ctx context.Context, data Chat) (Chat, error)
 	Delete(ctx context.Context, id uint) error
 }
