@@ -38,13 +38,13 @@ type ChatController struct {
 	basePath        string
 }
 
-func NewChatController(app application.Application) application.Controller {
+func NewChatController(app application.Application, basePath string) application.Controller {
 	return &ChatController{
 		app:             app,
 		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
 		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
 		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
-		basePath:        "/crm/chats",
+		basePath:        basePath,
 	}
 }
 
@@ -96,7 +96,9 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := &chatsui.IndexPageProps{
-		Chats: chatViewModels,
+		ClientsURL: "/crm/clients",
+		NewChatURL: "/crm/chats/new",
+		Chats:      chatViewModels,
 	}
 	templHandler := templ.Handler(
 		chatsui.Index(props),
@@ -108,8 +110,14 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 	if chatID != "" {
 		for _, chat := range chatViewModels {
 			if chat.ID == chatID {
+				props := chatsui.SelectedChatProps{
+					BaseURL:    c.basePath,
+					ClientsURL: "/crm/clients",
+					Chat:       chat,
+					Templates:  messageTemplates,
+				}
 				templHandler.ServeHTTP(
-					w, r.WithContext(templ.WithChildren(ctx, chatsui.SelectedChat(chat, messageTemplates))),
+					w, r.WithContext(templ.WithChildren(ctx, chatsui.SelectedChat(props))),
 				)
 				return
 			}
@@ -138,7 +146,10 @@ func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
 	templHandler := templ.Handler(chatsui.Index(props), templ.WithStreaming())
 	templHandler.ServeHTTP(
 		w, r.WithContext(templ.WithChildren(ctx, chatsui.NewChat(chatsui.NewChatProps{
-			Phone: "+1",
+			BaseURL:       c.basePath,
+			CreateChatURL: c.basePath,
+			Phone:         "+1",
+			Errors:        map[string]string{},
 		}))),
 	)
 }
@@ -156,7 +167,9 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, phone.ErrInvalidPhoneNumber) {
 		templ.Handler(chatsui.NewChatForm(chatsui.NewChatProps{
-			Phone: dto.Phone,
+			BaseURL:       c.basePath,
+			CreateChatURL: c.basePath,
+			Phone:         dto.Phone,
 			Errors: map[string]string{
 				"Phone": err.Error(),
 			},
@@ -204,6 +217,12 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	component := chatsui.SelectedChat(mappers.ChatToViewModel(updatedChat), messageTemplates)
+	props := chatsui.SelectedChatProps{
+		BaseURL:    c.basePath,
+		ClientsURL: "/crm/clients",
+		Chat:       mappers.ChatToViewModel(updatedChat),
+		Templates:  messageTemplates,
+	}
+	component := chatsui.SelectedChat(props)
 	templ.Handler(component).ServeHTTP(w, r)
 }

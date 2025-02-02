@@ -32,11 +32,11 @@ type ClientsPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewClientController(app application.Application) application.Controller {
+func NewClientController(app application.Application, basePath string) application.Controller {
 	return &ClientController{
 		app:           app,
 		clientService: app.Service(services.ClientService{}).(*services.ClientService),
-		basePath:      "/crm/clients",
+		basePath:      basePath,
 	}
 }
 

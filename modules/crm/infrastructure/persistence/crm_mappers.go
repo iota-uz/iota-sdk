@@ -3,7 +3,6 @@ package persistence
 import (
 	"database/sql"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
@@ -14,7 +13,7 @@ import (
 )
 
 func toDomainClient(dbRow *models.Client) (client.Client, error) {
-	p, err := phone.New(dbRow.PhoneNumber, country.UnitedStates)
+	p, err := phone.NewFromE164(dbRow.PhoneNumber)
 	if err != nil {
 		return nil, err
 	}

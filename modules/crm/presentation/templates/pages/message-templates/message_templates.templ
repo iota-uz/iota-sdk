@@ -12,8 +12,9 @@ import (
 )
 
 type IndexPageProps struct {
-	Templates []*viewmodels.MessageTemplate
 	NewURL    string
+	BaseURL   string
+	Templates []*viewmodels.MessageTemplate
 }
 
 templ TemplatesTable(props *IndexPageProps) {
@@ -22,7 +23,6 @@ templ TemplatesTable(props *IndexPageProps) {
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("MessageTemplates.List.Content"), Key: "content"},
-				{Label: pageCtx.T("CreatedAt"), Key: "updatedAt"},
 				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
@@ -32,16 +32,11 @@ templ TemplatesTable(props *IndexPageProps) {
 						{ template.Template }
 					}
 					@base.TableCell() {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", template.CreatedAt) }></span>
-						</div>
-					}
-					@base.TableCell() {
 						@button.Secondary(button.Props{
 							Fixed: true,
 							Size:  button.SizeSM,
 							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/crm/instant-messages/%s", template.ID),
+							Href:  fmt.Sprintf("%s/%s", props.BaseURL, template.ID),
 						}) {
 							@icons.PencilSimple(icons.Props{Size: "20"})
 						}
@@ -61,7 +56,7 @@ templ TemplatesContent(props *IndexPageProps) {
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
-				hx-get="/crm/instant-messages"
+				hx-get={ props.BaseURL }
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
