@@ -2,12 +2,14 @@ package persistence
 
 import (
 	"context"
-	"errors"
+
+	"github.com/go-faster/errors"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -40,8 +42,7 @@ const (
 			m.sender_client_id,
 			m.is_active
 		FROM messages m
-		WHERE m.chat_id = ANY($1) AND m.is_active = true
-		ORDER BY m.created_at ASC
+		WHERE m.chat_id = ANY($1) ORDER BY m.created_at DESC
 	`
 
 	countChatQuery = `SELECT COUNT(*) as count FROM chats`
@@ -62,10 +63,7 @@ const (
 			created_at
 		) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
-	updateMessageQuery = `
-		UPDATE messages 
-		SET is_active = $1
-		WHERE id = $2`
+	updateMessageQuery = `UPDATE messages SET is_active = $1 WHERE id = $2`
 
 	deleteChatQuery = `DELETE FROM chats WHERE id = $1`
 )
@@ -157,15 +155,34 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 		return nil, err
 	}
 
-	for _, c := range chats {
-		messages := messagesByChatID[c.ID()]
-		domainMessages := make([]message.Message, 0, len(messages))
-		for _, m := range messages {
-			domainMessages = append(domainMessages, toDomainMessage(m))
+	for i, c := range chats {
+		domainMessages, err := mapping.MapDBModels(messagesByChatID[c.ID()], toDomainMessage)
+		if err != nil {
+			return nil, err
 		}
-		c.AddMessages(domainMessages...)
+		chats[i] = c.AddMessages(domainMessages...)
 	}
 	return chats, nil
+}
+
+func (g *ChatRepository) createMessage(ctx context.Context, msg *models.Message) (message.Message, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.QueryRow(
+		ctx,
+		insertMessageQuery,
+		msg.ChatID,
+		msg.Message,
+		msg.SenderUserID,
+		msg.SenderClientID,
+		msg.IsActive,
+		&msg.CreatedAt,
+	).Scan(&msg.ID); err != nil {
+		return nil, err
+	}
+	return toDomainMessage(msg)
 }
 
 func (g *ChatRepository) GetPaginated(
@@ -235,19 +252,38 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 	}
 
 	for i := range dbMessages {
-		if err := tx.QueryRow(
-			ctx,
-			insertMessageQuery,
-			dbChat.ID,
-			dbMessages[i].Message,
-			dbMessages[i].SenderUserID,
-			dbMessages[i].SenderClientID,
-			dbMessages[i].IsActive,
-			&dbMessages[i].CreatedAt,
-		).Scan(dbMessages[i].ID); err != nil {
+		dbMessages[i].ChatID = dbChat.ID
+		if _, err := g.createMessage(ctx, dbMessages[i]); err != nil {
+			return nil, err
 		}
 	}
 
+	return g.GetByID(ctx, dbChat.ID)
+}
+
+func (g *ChatRepository) Update(ctx context.Context, data chat.Chat) (chat.Chat, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dbChat, dbMessages := toDBChat(data)
+	for i := range dbMessages {
+		if dbMessages[i].ID == 0 {
+			if _, err := g.createMessage(ctx, dbMessages[i]); err != nil {
+				return nil, errors.Wrap(err, "failed to create message")
+			}
+		} else {
+			if _, err := tx.Exec(
+				ctx,
+				updateMessageQuery,
+				dbMessages[i].IsActive,
+				dbMessages[i].ID,
+			); err != nil {
+				return nil, errors.Wrap(err, "failed to update message")
+			}
+		}
+
+	}
 	return g.GetByID(ctx, dbChat.ID)
 }
 

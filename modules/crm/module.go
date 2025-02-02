@@ -35,11 +35,16 @@ func (m *Module) Register(app application.Application) error {
 			clientRepo,
 			app.EventPublisher(),
 		),
+		services.NewMessageTemplateService(
+			persistence.NewMessageTemplateRepository(),
+			app.EventPublisher(),
+		),
 	)
 
 	app.RegisterControllers(
 		controllers.NewClientController(app),
 		controllers.NewChatController(app),
+		controllers.NewMessageTemplateController(app),
 	)
 
 	app.RBAC().Register(permissions.Permissions...)

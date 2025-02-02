@@ -25,6 +25,12 @@ CREATE TABLE messages (
     is_active        BOOLEAN DEFAULT true NOT NULL
 );
 
+CREATE TABLE message_templates (
+    id          SERIAL PRIMARY KEY,
+    template    TEXT NOT NULL,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE INDEX idx_chats_client_id ON chats (client_id);
 
 CREATE INDEX idx_messages_chat_id ON messages (chat_id);
