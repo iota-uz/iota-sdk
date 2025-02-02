@@ -7,7 +7,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -46,7 +45,7 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (Client, error) {
-	p, err := phone.New(d.Phone, country.UnitedStates)
+	p, err := phone.NewFromE164(d.Phone)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +90,7 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *UpdateDTO) Apply(entity Client) (Client, error) {
-	p, err := phone.New(d.Phone, country.UnitedStates)
+	p, err := phone.NewFromE164(d.Phone)
 	if err != nil {
 		return nil, err
 	}

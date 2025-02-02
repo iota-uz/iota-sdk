@@ -31,10 +31,10 @@ type MessageTemplateController struct {
 	templateService *services.MessageTemplateService
 }
 
-func NewMessageTemplateController(app application.Application) application.Controller {
+func NewMessageTemplateController(app application.Application, basePath string) application.Controller {
 	return &MessageTemplateController{
 		app:             app,
-		basePath:        "/crm/instant-messages",
+		basePath:        basePath,
 		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
 	}
 }
@@ -74,6 +74,7 @@ func (c *MessageTemplateController) List(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	props := &msgtui.IndexPageProps{
+		BaseURL:   c.basePath,
 		NewURL:    fmt.Sprintf("%s/new", c.basePath),
 		Templates: mapping.MapViewModels(templateEntities, mappers.MessageTemplateToViewModel),
 	}
@@ -113,8 +114,8 @@ func (c *MessageTemplateController) GetEdit(w http.ResponseWriter, r *http.Reque
 	props := &msgtui.EditPageProps{
 		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
-		Template:  mappers.MessageTemplateToViewModel(templateEntity),
 		Errors:    map[string]string{},
+		Template:  mappers.MessageTemplateToViewModel(templateEntity),
 	}
 	templ.Handler(msgtui.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

@@ -42,9 +42,9 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	app.RegisterControllers(
-		controllers.NewClientController(app),
-		controllers.NewChatController(app),
-		controllers.NewMessageTemplateController(app),
+		controllers.NewClientController(app, "/crm/clients"),
+		controllers.NewChatController(app, "/crm/chats"),
+		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
 	)
 
 	app.RBAC().Register(permissions.Permissions...)
