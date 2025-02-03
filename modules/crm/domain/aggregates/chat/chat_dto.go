@@ -15,7 +15,6 @@ import (
 
 type CreateDTO struct {
 	ClientID uint
-	Message  string
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -43,15 +42,6 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *CreateDTO) ToEntity(userID uint, c client.Client) (Chat, error) {
-	return New(
-		c,
-		[]message.Message{
-			message.NewMessage(
-				0,
-				d.Message,
-				message.NewUserSender(userID),
-			),
-		},
-	), nil
+func (d *CreateDTO) ToEntity(c client.Client) (Chat, error) {
+	return New(c, []message.Message{}), nil
 }

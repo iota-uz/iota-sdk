@@ -42,13 +42,19 @@ func toDBClient(domainEntity client.Client) *models.Client {
 
 func toDBMessage(domainEntity message.Message) *models.Message {
 	dbMessage := &models.Message{
-		ID:             domainEntity.ID(),
-		ChatID:         domainEntity.ChatID(),
-		Message:        domainEntity.Message(),
-		SenderUserID:   sql.NullInt64{},
-		SenderClientID: sql.NullInt64{},
-		IsActive:       domainEntity.IsActive(),
-		CreatedAt:      domainEntity.CreatedAt(),
+		ID:      domainEntity.ID(),
+		ChatID:  domainEntity.ChatID(),
+		Message: domainEntity.Message(),
+		SenderUserID: sql.NullInt64{
+			Int64: 0,
+			Valid: false,
+		},
+		SenderClientID: sql.NullInt64{
+			Int64: 0,
+			Valid: false,
+		},
+		IsActive:  domainEntity.IsActive(),
+		CreatedAt: domainEntity.CreatedAt(),
 	}
 	if domainEntity.Sender().IsUser() {
 		dbMessage.SenderUserID = mapping.ValueToSQLNullInt64(int64(domainEntity.Sender().ID()))

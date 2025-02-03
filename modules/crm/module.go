@@ -3,11 +3,15 @@ package crm
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
+	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/twilio/twilio-go"
 )
 
 //go:embed presentation/locales/*.json
@@ -24,13 +28,22 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	twilioProvider := cpassproviders.NewTwilioProvider(
+		twilio.ClientParams{
+			Username: configuration.Use().TwilioAccountSID,
+			Password: configuration.Use().TwilioAuthToken,
+		},
+		"https://15fe-213-206-62-33.ngrok-free.app/twilio",
+	)
 	clientRepo := persistence.NewClientRepository()
+	chatsService := services.NewChatService(
+		persistence.NewChatRepository(),
+		clientRepo,
+		twilioProvider,
+		app.EventPublisher(),
+	)
 	app.RegisterServices(
-		services.NewChatService(
-			persistence.NewChatRepository(),
-			clientRepo,
-			app.EventPublisher(),
-		),
+		chatsService,
 		services.NewClientService(
 			clientRepo,
 			app.EventPublisher(),
@@ -45,6 +58,13 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewClientController(app, "/crm/clients"),
 		controllers.NewChatController(app, "/crm/chats"),
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
+		controllers.NewTwilioController(app, twilioProvider),
+	)
+
+	handlers.RegisterSMSHandlers(
+		app.DB(),
+		app.EventPublisher(),
+		chatsService,
 	)
 
 	app.RBAC().Register(permissions.Permissions...)

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"sort"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
@@ -50,16 +51,25 @@ func (c *chat) Messages() []message.Message {
 }
 
 func (c *chat) AddMessages(messages ...message.Message) Chat {
+	joinedMessages := append(c.messages, messages...)
+	sort.Slice(joinedMessages, func(i, j int) bool {
+		return joinedMessages[i].CreatedAt().After(joinedMessages[j].CreatedAt())
+	})
 	return &chat{
 		id:        c.id,
 		client:    c.client,
-		messages:  append(c.messages, messages...),
+		messages:  joinedMessages,
 		createdAt: c.createdAt,
 	}
 }
 
 func (c *chat) SendMessage(msg string, userID uint) Chat {
 	sender := message.NewUserSender(userID)
+	return c.AddMessages(message.NewMessage(c.id, msg, sender))
+}
+
+func (c *chat) RegisterClientMessage(msg string, clientID uint) Chat {
+	sender := message.NewClientSender(clientID)
 	return c.AddMessages(message.NewMessage(c.id, msg, sender))
 }
 
