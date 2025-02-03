@@ -88,12 +88,12 @@ func NewFromE164(v string) (Phone, error) {
 	}
 
 	stripped := Strip(v)
-	detectedCountry, err := ParseCountry(stripped)
-	if err != nil {
-		return phone(""), err
-	}
+	//	detectedCountry, err := ParseCountry(stripped)
+	//	if err != nil {
+	//		return phone(""), err
+	//	}
 
-	return New(v, detectedCountry)
+	return phone(stripped), nil
 }
 
 type phone string

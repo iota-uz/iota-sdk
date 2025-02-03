@@ -1,18 +1,22 @@
 package controllers
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
 
-	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
+
+func handler404(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
+	error_pages.NotFoundContent().Render(r.Context(), w)
+}
 
 func NotFound(app application.Application) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		handler := templ.Handler(error_pages.NotFoundContent(), templ.WithStreaming())
-		middleware.WithLocalizer(app.Bundle())(handler).ServeHTTP(w, r)
+		handler := middleware.WithLocalizer(app.Bundle())(http.HandlerFunc(handler404))
+		handler.ServeHTTP(w, r)
 	}
 }
 
