@@ -6,15 +6,19 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
@@ -38,6 +42,7 @@ type SendMessageDTO struct {
 type ChatController struct {
 	app             application.Application
 	wsHandler       *WebSocketHandler
+	userService     *coreservices.UserService
 	templateService *services.MessageTemplateService
 	clientService   *services.ClientService
 	chatService     *services.ChatService
@@ -48,6 +53,7 @@ func NewChatController(app application.Application, basePath string) application
 	return &ChatController{
 		app:             app,
 		wsHandler:       NewWebSocketHandler(),
+		userService:     app.Service(coreservices.UserService{}).(*coreservices.UserService),
 		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
 		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
 		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
@@ -73,13 +79,63 @@ func (c *ChatController) Register(r *mux.Router) {
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/ws", c.wsHandler.ServeHTTP)
+	getRouter.Handle("/ws", c.wsHandler)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}/messages", c.SendMessage).Methods(http.MethodPost)
+
+	c.app.EventPublisher().Subscribe(c.onChatUpdate)
+}
+
+func (c *ChatController) onChatUpdate(event *chat.UpdatedEvent) {
+	var locale string
+	if event.User != nil {
+		locale = string(event.User.UILanguage())
+	} else {
+		locale = "en"
+	}
+	ctx := composables.WithLocalizer(
+		context.Background(),
+		i18n.NewLocalizer(c.app.Bundle(), locale),
+	)
+	ctx = composables.WithPool(ctx, c.app.DB())
+	chat := event.Result
+	messageViewModels, err := c.mapMessages(ctx, chat.Client(), chat.Messages())
+	if err != nil {
+		log.Printf("Error mapping chat messages: %v", err)
+		return
+	}
+
+	clientID := strconv.Itoa(int(chat.Client().ID()))
+	c.broadcastUpdate(ctx, clientID, messageViewModels)
+}
+
+func (c *ChatController) broadcastUpdate(ctx context.Context, clientID string, messages []*viewmodels.Message) {
+	var buf bytes.Buffer
+	if err := chatsui.ChatMessages(messages, clientID).Render(ctx, &buf); err != nil {
+		log.Printf("Error rendering chat messages: %v", err)
+		return
+	}
+	c.wsHandler.Broadcast(websocket.TextMessage, buf.Bytes())
+}
+
+func (c *ChatController) mapMessages(ctx context.Context, client client.Client, messages []message.Message) ([]*viewmodels.Message, error) {
+	viewModels := make([]*viewmodels.Message, 0, len(messages))
+	for _, message := range messages {
+		if message.Sender().IsClient() {
+			viewModels = append(viewModels, mappers.ClientMessageToViewModel(message, client))
+		} else {
+			userEntity, err := c.userService.GetByID(ctx, message.Sender().ID())
+			if err != nil {
+				return nil, err
+			}
+			viewModels = append(viewModels, mappers.UserMessageToViewModel(message, userEntity))
+		}
+	}
+	return viewModels, nil
 }
 
 func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.MessageTemplate, error) {
@@ -90,13 +146,28 @@ func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.Me
 	return mapping.MapViewModels(templates, mappers.MessageTemplateToViewModel), nil
 }
 
+func (c *ChatController) chatViewModels(ctx context.Context) ([]*viewmodels.Chat, error) {
+	chatEntities, err := c.chatService.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	viewModels := make([]*viewmodels.Chat, 0, len(chatEntities))
+	for _, chatEntity := range chatEntities {
+		messages, err := c.mapMessages(ctx, chatEntity.Client(), chatEntity.Messages())
+		if err != nil {
+			return nil, err
+		}
+		viewModels = append(viewModels, mappers.ChatToViewModel(chatEntity, messages))
+	}
+	return viewModels, nil
+}
+
 func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
-	chatEntities, err := c.chatService.GetAll(r.Context())
+	chatViewModels, err := c.chatViewModels(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	chatViewModels := mapping.MapViewModels(chatEntities, mappers.ChatToViewModel)
 	messageTemplates, err := c.messageTemplates(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -141,15 +212,16 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
-	chatEntities, err := c.chatService.GetAll(r.Context())
+	ctx := r.Context()
+	chatViewModels, err := c.chatViewModels(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	chatViewModels := mapping.MapViewModels(chatEntities, mappers.ChatToViewModel)
-	ctx := r.Context()
 	props := &chatsui.IndexPageProps{
-		Chats: chatViewModels,
+		Chats:      chatViewModels,
+		NewChatURL: "/crm/chats",
+		ClientsURL: "/crm/clients",
 	}
 	templHandler := templ.Handler(chatsui.Index(props), templ.WithStreaming())
 	templHandler.ServeHTTP(
@@ -223,17 +295,17 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var buf bytes.Buffer
-	messageViewModels := mapping.MapViewModels(updatedChat.Messages(), mappers.MessageToViewModel)
-	chatsui.ChatMessages(
-		messageViewModels,
-		mappers.ClientToViewModel(updatedChat.Client()),
-	).Render(r.Context(), &buf)
-	c.wsHandler.Broadcast(websocket.TextMessage, buf.Bytes())
+	clientID := strconv.Itoa(int(updatedChat.Client().ID()))
+	messages, err := c.mapMessages(r.Context(), updatedChat.Client(), updatedChat.Messages())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c.broadcastUpdate(r.Context(), clientID, messages)
 	props := chatsui.SelectedChatProps{
 		BaseURL:    c.basePath,
 		ClientsURL: "/crm/clients",
-		Chat:       mappers.ChatToViewModel(updatedChat),
+		Chat:       mappers.ChatToViewModel(updatedChat, messages),
 		Templates:  messageTemplates,
 	}
 	component := chatsui.SelectedChat(props)

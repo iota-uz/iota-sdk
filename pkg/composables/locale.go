@@ -23,6 +23,10 @@ var (
 	translationLock = sync.Mutex{}
 )
 
+func WithLocalizer(ctx context.Context, l *i18n.Localizer) context.Context {
+	return context.WithValue(ctx, constants.LocalizerKey, l)
+}
+
 // UseLocalizer returns the localizer from the context.
 // If the localizer is not found, the second return value will be false.
 func UseLocalizer(ctx context.Context) (*i18n.Localizer, bool) {
