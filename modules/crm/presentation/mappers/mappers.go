@@ -1,15 +1,17 @@
 package mappers
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func ClientToViewModel(entity client.Client) *viewmodels.Client {
@@ -24,20 +26,33 @@ func ClientToViewModel(entity client.Client) *viewmodels.Client {
 	}
 }
 
-func MessageToViewModel(entity message.Message) *viewmodels.Message {
+func UserMessageToViewModel(entity message.Message, user user.User) *viewmodels.Message {
+	senderID := strconv.FormatUint(uint64(user.ID()), 10)
+	initials := strings.ToTitle(fmt.Sprintf("%s%s", user.FirstName()[0:1], user.LastName()[0:1]))
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		IsUserMsg: entity.Sender().IsUser(),
+		Sender:    viewmodels.NewUserMessageSender(senderID, initials),
 		Message:   entity.Message(),
 		CreatedAt: entity.CreatedAt(),
 	}
 }
 
-func ChatToViewModel(entity chat.Chat) *viewmodels.Chat {
+func ClientMessageToViewModel(entity message.Message, client client.Client) *viewmodels.Message {
+	senderID := strconv.FormatUint(uint64(client.ID()), 10)
+	initials := strings.ToTitle(fmt.Sprintf("%s%s", client.FirstName()[0:1], client.LastName()[0:1]))
+	return &viewmodels.Message{
+		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
+		Sender:    viewmodels.NewClientMessageSender(senderID, initials),
+		Message:   entity.Message(),
+		CreatedAt: entity.CreatedAt(),
+	}
+}
+
+func ChatToViewModel(entity chat.Chat, messages []*viewmodels.Message) *viewmodels.Chat {
 	return &viewmodels.Chat{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Client:    ClientToViewModel(entity.Client()),
-		Messages:  mapping.MapViewModels(entity.Messages(), MessageToViewModel),
+		Messages:  messages,
 		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
 	}
 }

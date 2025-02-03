@@ -88,6 +88,11 @@ func (s *ChatService) Create(ctx context.Context, data *chat.CreateDTO) (chat.Ch
 	if err != nil {
 		return nil, err
 	}
+	ev, err := chat.NewCreatedEvent(ctx, *data, createdEntity)
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(ev)
 	return createdEntity, nil
 }
 
@@ -109,12 +114,19 @@ func (s *ChatService) RegisterClientMessage(
 		return err
 	}
 
-	if _, err := s.repo.Update(
+	updatedEntity, err := s.repo.Update(
 		ctx,
 		chatEntity.RegisterClientMessage(params.Body, clientEntity.ID()),
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
+
+	ev, err := chat.NewUpdatedEvent(ctx, updatedEntity)
+	if err != nil {
+		return err
+	}
+	s.publisher.Publish(ev)
 
 	return nil
 }
@@ -139,6 +151,11 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID uint, msg string) 
 	}); err != nil {
 		return nil, err
 	}
+	ev, err := chat.NewUpdatedEvent(ctx, updatedEntity)
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(ctx, ev)
 	return updatedEntity, nil
 }
 

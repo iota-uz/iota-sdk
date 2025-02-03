@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -125,7 +124,7 @@ templ SelectedChat(props SelectedChatProps) {
 		</div>
 	</div>
 	<div class="flex flex-col flex-1 px-4 min-h-0">
-		@ChatMessages(props.Chat.Messages, client)
+		@ChatMessages(props.Chat.Messages, client.ID)
 		<div class="border border-input rounded-md p-4 mb-4">
 			<div x-data="{text: ''}">
 				<textarea
@@ -178,13 +177,13 @@ templ SelectedChat(props SelectedChatProps) {
 	</div>
 }
 
-templ ChatMessages(messages []*viewmodels.Message, client *viewmodels.Client) {
+templ ChatMessages(messages []*viewmodels.Message, clientID string) {
 	<ul
-		id={ fmt.Sprintf("chat-messages-%s", client.ID) }
+		id={ fmt.Sprintf("chat-messages-%s", clientID) }
 		class="flex flex-col-reverse gap-4 px-3 py-4 overflow-y-auto no-scrollbar flex-1"
 	>
 		for _, msg := range messages {
-			@Message(client, msg)
+			@Message(msg)
 		}
 	</ul>
 }
@@ -229,9 +228,8 @@ templ ChatCard(chat *viewmodels.Chat) {
 	</a>
 }
 
-templ Message(client *viewmodels.Client, msg *viewmodels.Message) {
-	{{ user := coremappers.UserToViewModel(composables.MustUseUser(ctx)) }}
-	if msg.IsUserMsg {
+templ Message(msg *viewmodels.Message) {
+	if msg.Sender.IsUser() {
 		<li>
 			<div class="flex justify-end">
 				<div class="flex items-end justify-end gap-[6px] max-w-[526px]">
@@ -245,12 +243,12 @@ templ Message(client *viewmodels.Client, msg *viewmodels.Message) {
 							class="flex ml-auto items-end gap-2 text-white text-opacity-80 text-[13px] text-right"
 							datetime="2025-01-27T15:28:31.441Z"
 						>
-							{ msg.FormattedDate() } | { msg.FormattedTime() }
+							{ msg.Date() } | { msg.Time() }
 							@icons.Check(icons.Props{Size: "16"})
 						</time>
 					</div>
 					@avatar.Avatar(avatar.Props{
-						Initials: user.Initials(),
+						Initials: msg.Sender.Initials(),
 						Class:    templ.Classes("min-w-10 w-10 h-10"),
 					})
 				</div>
@@ -260,7 +258,7 @@ templ Message(client *viewmodels.Client, msg *viewmodels.Message) {
 		<li>
 			<div class="flex items-end gap-2.5 max-w-[526px]">
 				@avatar.Avatar(avatar.Props{
-					Initials: client.Initials(),
+					Initials: msg.Sender.Initials(),
 					Class:    templ.Classes("w-10 h-10"),
 				})
 				<div class="bg-gray-200/90 rounded-[12px] rounded-bl-[0] py-2 px-3">
@@ -271,7 +269,7 @@ templ Message(client *viewmodels.Client, msg *viewmodels.Message) {
 						class="flex gap-2 items-center text-text-muted text-[13px] text-left"
 						datetime="2025-01-29T18:10:45.930Z"
 					>
-						{ msg.FormattedDate() } | { msg.FormattedTime() }
+						{ msg.Date() } | { msg.Time() }
 						@icons.Check(icons.Props{Size: "16"})
 					</time>
 				</div>
