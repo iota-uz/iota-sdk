@@ -283,7 +283,7 @@ func SelectedChat(props SelectedChatProps) templ.Component {
 		}
 		templ_7745c5c3_Err = avatar.Avatar(avatar.Props{
 			Initials: props.Chat.Client.Initials(),
-			Class:    templ.Classes("w-10 h-10"),
+			Class:    templ.Classes("w-10 h-10 min-w-10"),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -511,7 +511,7 @@ func ChatCard(chat *viewmodels.Chat) templ.Component {
 		templ_7745c5c3_Err = avatar.Avatar(avatar.Props{
 			Initials: chat.Client.Initials(),
 			Class: templ.Classes(
-				"w-10 h-10",
+				"w-10 h-10 min-w-10",
 				templ.KV("bg-white text-black", active),
 			),
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -639,7 +639,7 @@ func Message(msg *viewmodels.Message) templ.Component {
 			}
 			templ_7745c5c3_Err = avatar.Avatar(avatar.Props{
 				Initials: msg.Sender.Initials(),
-				Class:    templ.Classes("w-10 h-10"),
+				Class:    templ.Classes("w-10 h-10 min-w-10"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

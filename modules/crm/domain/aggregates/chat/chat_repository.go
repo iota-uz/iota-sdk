@@ -2,10 +2,21 @@ package chat
 
 import "context"
 
+type Field string
+
+const (
+	CreatedAt Field = "created_at"
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
+
 type FindParams struct {
 	Limit  int
 	Offset int
-	SortBy []string
+	SortBy SortBy
 }
 
 type Repository interface {

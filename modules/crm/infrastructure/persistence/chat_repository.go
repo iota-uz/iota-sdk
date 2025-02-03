@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-faster/errors"
 
@@ -108,7 +109,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 			&dbClient.CreatedAt,
 			&dbClient.UpdatedAt,
 		); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to scan chat")
 		}
 		entity, err := toDomainChat(&c, &dbClient, []*models.Message{})
 		if err != nil {
@@ -190,11 +191,21 @@ func (g *ChatRepository) createMessage(ctx context.Context, msg *models.Message)
 func (g *ChatRepository) GetPaginated(
 	ctx context.Context, params *chat.FindParams,
 ) ([]chat.Chat, error) {
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case chat.CreatedAt:
+			sortFields = append(sortFields, "c.created_at")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %s", f)
+		}
+	}
 	return g.queryChats(
 		ctx,
 		repo.Join(
 			selectChatQuery,
 			repo.FormatLimitOffset(params.Limit, params.Offset),
+			repo.OrderBy(sortFields, params.SortBy.Ascending),
 		),
 	)
 }
