@@ -1,7 +1,7 @@
 -- +migrate Up
 CREATE TABLE clients (
     id            SERIAL PRIMARY KEY,
-    first_name    VARCHAR(255),
+    first_name    VARCHAR(255) NOT NULL,
     last_name     VARCHAR(255),
     middle_name   VARCHAR(255),
     phone_number  VARCHAR(255) NOT NULL,

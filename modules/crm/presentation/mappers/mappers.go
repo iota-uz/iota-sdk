@@ -1,12 +1,11 @@
 package mappers
 
 import (
-	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
@@ -28,7 +27,7 @@ func ClientToViewModel(entity client.Client) *viewmodels.Client {
 
 func UserMessageToViewModel(entity message.Message, user user.User) *viewmodels.Message {
 	senderID := strconv.FormatUint(uint64(user.ID()), 10)
-	initials := strings.ToTitle(fmt.Sprintf("%s%s", user.FirstName()[0:1], user.LastName()[0:1]))
+	initials := coremappers.UserToViewModel(user).Initials()
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Sender:    viewmodels.NewUserMessageSender(senderID, initials),
@@ -39,7 +38,7 @@ func UserMessageToViewModel(entity message.Message, user user.User) *viewmodels.
 
 func ClientMessageToViewModel(entity message.Message, client client.Client) *viewmodels.Message {
 	senderID := strconv.FormatUint(uint64(client.ID()), 10)
-	initials := strings.ToTitle(fmt.Sprintf("%s%s", client.FirstName()[0:1], client.LastName()[0:1]))
+	initials := ClientToViewModel(client).Initials()
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Sender:    viewmodels.NewClientMessageSender(senderID, initials),

@@ -147,7 +147,12 @@ func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.Me
 }
 
 func (c *ChatController) chatViewModels(ctx context.Context) ([]*viewmodels.Chat, error) {
-	chatEntities, err := c.chatService.GetAll(ctx)
+	chatEntities, err := c.chatService.GetPaginated(ctx, &chat.FindParams{
+		SortBy: chat.SortBy{
+			Fields:    []chat.Field{chat.CreatedAt},
+			Ascending: false,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}

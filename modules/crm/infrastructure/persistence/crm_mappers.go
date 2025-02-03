@@ -20,7 +20,7 @@ func toDomainClient(dbRow *models.Client) (client.Client, error) {
 	return client.NewWithID(
 		dbRow.ID,
 		dbRow.FirstName,
-		dbRow.LastName,
+		dbRow.LastName.String,
 		dbRow.MiddleName.String,
 		p,
 		dbRow.CreatedAt,
@@ -32,7 +32,7 @@ func toDBClient(domainEntity client.Client) *models.Client {
 	return &models.Client{
 		ID:          domainEntity.ID(),
 		FirstName:   domainEntity.FirstName(),
-		LastName:    domainEntity.LastName(),
+		LastName:    mapping.ValueToSQLNullString(domainEntity.LastName()),
 		MiddleName:  mapping.ValueToSQLNullString(domainEntity.MiddleName()),
 		PhoneNumber: domainEntity.Phone().Value(),
 		CreatedAt:   domainEntity.CreatedAt(),

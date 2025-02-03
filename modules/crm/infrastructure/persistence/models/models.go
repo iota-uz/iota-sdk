@@ -8,7 +8,7 @@ import (
 type Client struct {
 	ID          uint
 	FirstName   string
-	LastName    string
+	LastName    sql.NullString
 	MiddleName  sql.NullString
 	PhoneNumber string
 	CreatedAt   time.Time

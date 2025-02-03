@@ -109,7 +109,7 @@ templ SelectedChat(props SelectedChatProps) {
 				<div class="p-2">
 					@avatar.Avatar(avatar.Props{
 						Initials: props.Chat.Client.Initials(),
-						Class:    templ.Classes("w-10 h-10"),
+						Class:    templ.Classes("w-10 h-10 min-w-10"),
 					})
 				</div>
 				<div>
@@ -212,7 +212,7 @@ templ ChatCard(chat *viewmodels.Chat) {
 			@avatar.Avatar(avatar.Props{
 				Initials: chat.Client.Initials(),
 				Class: templ.Classes(
-					"w-10 h-10",
+					"w-10 h-10 min-w-10",
 					templ.KV("bg-white text-black", active),
 				),
 			})
@@ -259,7 +259,7 @@ templ Message(msg *viewmodels.Message) {
 			<div class="flex items-end gap-2.5 max-w-[526px]">
 				@avatar.Avatar(avatar.Props{
 					Initials: msg.Sender.Initials(),
-					Class:    templ.Classes("w-10 h-10"),
+					Class:    templ.Classes("w-10 h-10 min-w-10"),
 				})
 				<div class="bg-gray-200/90 rounded-[12px] rounded-bl-[0] py-2 px-3">
 					<p class="whitespace-pre-line">
