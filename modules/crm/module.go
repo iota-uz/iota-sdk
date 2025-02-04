@@ -35,9 +35,10 @@ func (m *Module) Register(app application.Application) error {
 		},
 		"https://15fe-213-206-62-33.ngrok-free.app/twilio",
 	)
+	chatRepo := persistence.NewChatRepository()
 	clientRepo := persistence.NewClientRepository()
 	chatsService := services.NewChatService(
-		persistence.NewChatRepository(),
+		chatRepo,
 		clientRepo,
 		twilioProvider,
 		app.EventPublisher(),
@@ -46,6 +47,7 @@ func (m *Module) Register(app application.Application) error {
 		chatsService,
 		services.NewClientService(
 			clientRepo,
+			chatRepo,
 			app.EventPublisher(),
 		),
 		services.NewMessageTemplateService(

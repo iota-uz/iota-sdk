@@ -42,7 +42,7 @@ const (
 			m.message,
 			m.sender_user_id,
 			m.sender_client_id,
-			m.is_active
+			m.is_read
 		FROM messages m
 		WHERE m.chat_id = ANY($1) ORDER BY m.created_at DESC
 	`
@@ -61,11 +61,11 @@ const (
 			message,
 			sender_user_id,
 			sender_client_id,
-			is_active,
+			is_read,
 			created_at
 		) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
-	updateMessageQuery = `UPDATE messages SET is_active = $1 WHERE id = $2`
+	updateMessageQuery = `UPDATE messages SET is_read = $1 WHERE id = $2`
 
 	deleteChatQuery = `DELETE FROM chats WHERE id = $1`
 )
@@ -147,7 +147,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 			&m.Message,
 			&m.SenderUserID,
 			&m.SenderClientID,
-			&m.IsActive,
+			&m.IsRead,
 		); err != nil {
 			return nil, err
 		}
@@ -180,7 +180,7 @@ func (g *ChatRepository) createMessage(ctx context.Context, msg *models.Message)
 		msg.Message,
 		msg.SenderUserID,
 		msg.SenderClientID,
-		msg.IsActive,
+		msg.IsRead,
 		&msg.CreatedAt,
 	).Scan(&msg.ID); err != nil {
 		return nil, err
@@ -200,13 +200,24 @@ func (g *ChatRepository) GetPaginated(
 			return nil, fmt.Errorf("unknown sort field: %s", f)
 		}
 	}
+
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.Search != "" {
+		where = append(
+			where,
+			"cl.first_name ILIKE $1 OR cl.last_name ILIKE $1 OR cl.middle_name ILIKE $1 OR cl.phone_number ILIKE $1",
+		)
+		args = append(args, "%"+params.Search+"%")
+	}
 	return g.queryChats(
 		ctx,
 		repo.Join(
 			selectChatQuery,
-			repo.FormatLimitOffset(params.Limit, params.Offset),
+			repo.JoinWhere(where...),
 			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
+		args...,
 	)
 }
 
@@ -289,7 +300,7 @@ func (g *ChatRepository) Update(ctx context.Context, data chat.Chat) (chat.Chat,
 			if _, err := tx.Exec(
 				ctx,
 				updateMessageQuery,
-				dbMessages[i].IsActive,
+				dbMessages[i].IsRead,
 				dbMessages[i].ID,
 			); err != nil {
 				return nil, errors.Wrap(err, "failed to update message")

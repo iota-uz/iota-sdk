@@ -53,7 +53,7 @@ func toDBMessage(domainEntity message.Message) *models.Message {
 			Int64: 0,
 			Valid: false,
 		},
-		IsActive:  domainEntity.IsActive(),
+		IsRead:    domainEntity.IsRead(),
 		CreatedAt: domainEntity.CreatedAt(),
 	}
 	if domainEntity.Sender().IsUser() {
@@ -76,7 +76,7 @@ func toDomainMessage(dbRow *models.Message) (message.Message, error) {
 		dbRow.ChatID,
 		dbRow.Message,
 		sender,
-		dbRow.IsActive,
+		dbRow.IsRead,
 		dbRow.CreatedAt,
 	), nil
 }

@@ -114,13 +114,6 @@ CREATE TABLE users
     updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE telegram_sessions
-(
-    user_id    INT PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
-    session    TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE user_roles
 (
     user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -146,48 +139,6 @@ CREATE TABLE employee_contacts
     value       VARCHAR(255) NOT NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE folders
-(
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    icon_id    INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    parent_id  INT REFERENCES folders (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE articles
-(
-    id          SERIAL PRIMARY KEY,
-    title       VARCHAR(255) NOT NULL,
-    content     TEXT         NOT NULL,
-    title_emoji VARCHAR(255),
-    author_id   INT          REFERENCES users (id) ON DELETE SET NULL,
-    picture_id  INT          REFERENCES uploads (id) ON DELETE SET NULL,
-    folder_id   INT          REFERENCES folders (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE comments
-(
-    id         SERIAL PRIMARY KEY,
-    article_id INT  NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
-    user_id    INT  NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    content    TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE likes
-(
-    id         SERIAL PRIMARY KEY,
-    article_id INT NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
-    user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE uploaded_images
@@ -271,73 +222,6 @@ CREATE TABLE authentication_logs
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE vacancies
-(
-    id         SERIAL PRIMARY KEY,
-    url        VARCHAR(255) NOT NULL,
-    title      VARCHAR(255) NOT NULL,
-    body       TEXT,
-    hidden     BOOLEAN      NOT NULL    DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE salary_range
-(
-    min_salary             NUMERIC(9, 2)   NOT NULL,
-    max_salary             NUMERIC(9, 2)   NOT NULL,
-    min_salary_currency_id VARCHAR(3)      REFERENCES currencies (code) ON DELETE SET NULL,
-    max_salary_currency_id VARCHAR(3)      REFERENCES currencies (code) ON DELETE SET NULL,
-    vacancy_id             INT PRIMARY KEY NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE
-);
-
-CREATE TABLE applicants
-(
-    id                  SERIAL PRIMARY KEY,
-    first_name          VARCHAR(255) NOT NULL,
-    last_name           VARCHAR(255) NOT NULL,
-    middle_name         VARCHAR(255),
-    primary_language    VARCHAR(255),
-    secondary_language  VARCHAR(255),
-    email               VARCHAR(255) NOT NULL,
-    phone               VARCHAR(255) NOT NULL,
-    experience_in_month INT          NOT NULL,
-    vacancy_id          INT          NOT NULL REFERENCES vacancies (id) ON DELETE CASCADE,
-    created_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE skills
-(
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE employee_skills
-(
-    employee_id INT NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
-    skill_id    INT NOT NULL REFERENCES skills (id) ON DELETE CASCADE,
-    PRIMARY KEY (employee_id, skill_id)
-);
-
-CREATE TABLE applicant_skills
-(
-    applicant_id INT NOT NULL REFERENCES applicants (id) ON DELETE CASCADE,
-    skill_id     INT NOT NULL REFERENCES skills (id) ON DELETE CASCADE,
-    PRIMARY KEY (applicant_id, skill_id)
-);
-
-CREATE TABLE applicant_comments
-(
-    id           SERIAL PRIMARY KEY,
-    applicant_id INT  NOT NULL REFERENCES applicants (id) ON DELETE CASCADE,
-    user_id      INT  NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    content      TEXT NOT NULL,
-    created_at   TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE tabs
 (
     id       SERIAL PRIMARY KEY,
@@ -359,14 +243,6 @@ CREATE INDEX authentication_logs_created_at_idx ON authentication_logs (created_
 CREATE INDEX role_permissions_role_id_idx ON role_permissions (role_id);
 CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_id);
 
-CREATE INDEX articles_folder_id_idx ON articles (folder_id);
-
-CREATE INDEX comments_article_id_idx ON comments (article_id);
-CREATE INDEX comments_user_id_idx ON comments (user_id);
-
-CREATE INDEX likes_article_id_idx ON likes (article_id);
-CREATE INDEX likes_user_id_idx ON likes (user_id);
-
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
 CREATE INDEX action_log_user_id_idx ON action_logs (user_id);
@@ -375,47 +251,27 @@ CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
 
 CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
-CREATE INDEX folders_parent_id_idx ON folders (parent_id);
-
 -- +migrate Down
 DROP TABLE IF EXISTS action_log CASCADE;
-DROP TABLE IF EXISTS applicant_comments CASCADE;
-DROP TABLE IF EXISTS applicant_skills CASCADE;
-DROP TABLE IF EXISTS applicants CASCADE;
-DROP TABLE IF EXISTS applications CASCADE;
-DROP TABLE IF EXISTS articles CASCADE;
 DROP TABLE IF EXISTS authentication_logs CASCADE;
 DROP TABLE IF EXISTS companies CASCADE;
-DROP TABLE IF EXISTS comments CASCADE;
-DROP TABLE IF EXISTS contact_form_submissions CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
 DROP TABLE IF EXISTS dialogues CASCADE;
-DROP TABLE IF EXISTS difficulty_levels CASCADE;
 DROP TABLE IF EXISTS employee_contacts CASCADE;
 DROP TABLE IF EXISTS employee_meta CASCADE;
-DROP TABLE IF EXISTS employee_skills CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
-DROP TABLE IF EXISTS estimates CASCADE;
-DROP TABLE IF EXISTS folders CASCADE;
-DROP TABLE IF EXISTS likes CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS positions CASCADE;
-DROP TABLE IF EXISTS salary_range CASCADE;
-DROP TABLE IF EXISTS money_accounts CASCADE;
 DROP TABLE IF EXISTS prompts CASCADE;
 DROP TABLE IF EXISTS role_permissions CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
-DROP TABLE IF EXISTS salary_range CASCADE;
 DROP TABLE IF EXISTS sessions CASCADE;
 DROP TABLE IF EXISTS settings CASCADE;
-DROP TABLE IF EXISTS skills CASCADE;
-DROP TABLE IF EXISTS task_types CASCADE;
 DROP TABLE IF EXISTS telegram_sessions CASCADE;
 DROP TABLE IF EXISTS uploaded_images CASCADE;
 DROP TABLE IF EXISTS uploads CASCADE;
 DROP TABLE IF EXISTS employee_positions CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS vacancies CASCADE;
 DROP TABLE IF EXISTS action_logs CASCADE;
 DROP TABLE IF EXISTS tabs CASCADE;

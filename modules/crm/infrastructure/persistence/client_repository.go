@@ -100,13 +100,32 @@ func (g *ClientRepository) GetPaginated(
 	if params.Query != "" && params.Field != "" {
 		where, args = append(where, fmt.Sprintf("c.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
 	}
+	sortFields := make([]string, 0, len(params.SortBy.Fields))
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case client.FirstName:
+			sortFields = append(sortFields, "c.first_name")
+		case client.LastName:
+			sortFields = append(sortFields, "c.last_name")
+		case client.MiddleName:
+			sortFields = append(sortFields, "c.middle_name")
+		case client.PhoneNumber:
+			sortFields = append(sortFields, "c.phone_number")
+		case client.UpdatedAt:
+			sortFields = append(sortFields, "c.updated_at")
+		case client.CreatedAt:
+			sortFields = append(sortFields, "c.created_at")
+		}
+	}
+	sql := repo.Join(
+		selectClientQuery,
+		repo.JoinWhere(where...),
+		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
 	return g.queryClients(
 		ctx,
-		repo.Join(
-			selectClientQuery,
-			repo.JoinWhere(where...),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
+		sql,
 		args...,
 	)
 }

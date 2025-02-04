@@ -12,7 +12,7 @@ func NewMessage(
 		chatID:    chatID,
 		message:   msg,
 		sender:    sender,
-		isActive:  true,
+		isRead:    false,
 		createdAt: time.Now(),
 	}
 }
@@ -22,7 +22,7 @@ func NewMessageWithID(
 	chatID uint,
 	msg string,
 	sender Sender,
-	isActive bool,
+	isRead bool,
 	createdAt time.Time,
 ) Message {
 	return &message{
@@ -30,7 +30,7 @@ func NewMessageWithID(
 		chatID:    chatID,
 		message:   msg,
 		sender:    sender,
-		isActive:  isActive,
+		isRead:    isRead,
 		createdAt: createdAt,
 	}
 }
@@ -40,7 +40,7 @@ type message struct {
 	chatID    uint
 	message   string
 	sender    Sender
-	isActive  bool
+	isRead    bool
 	createdAt time.Time
 }
 
@@ -60,8 +60,8 @@ func (m *message) Sender() Sender {
 	return m.sender
 }
 
-func (m *message) IsActive() bool {
-	return m.isActive
+func (m *message) IsRead() bool {
+	return m.isRead
 }
 
 func (m *message) CreatedAt() time.Time {

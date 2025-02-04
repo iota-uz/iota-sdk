@@ -5,6 +5,11 @@ CREATE TABLE clients (
     last_name     VARCHAR(255),
     middle_name   VARCHAR(255),
     phone_number  VARCHAR(255) NOT NULL,
+    address       TEXT,
+    email         VARCHAR(255),
+    hourly_rate   FLOAT,
+    date_of_birth DATE,
+    gender        VARCHAR(15),
     created_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -22,7 +27,13 @@ CREATE TABLE messages (
     message          TEXT NOT NULL,
     sender_user_id   INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
     sender_client_id INT REFERENCES clients(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    is_active        BOOLEAN DEFAULT true NOT NULL
+    is_read          BOOLEAN DEFAULT false NOT NULL
+);
+
+CREATE TABLE message_media (
+    id          SERIAL PRIMARY KEY,
+    message_id  INT NOT NULL REFERENCES messages(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    upload_id   INT NOT NULL REFERENCES uploads(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE message_templates (
@@ -42,6 +53,8 @@ CREATE INDEX idx_customers_last_name ON clients (last_name);
 CREATE INDEX idx_customers_phone_number ON clients (phone_number);
 
 -- +migrate Down
+DROP TABLE IF EXISTS message_templates;
+DROP TABLE IF EXISTS message_media;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS chats;
 DROP TABLE IF EXISTS customers;

@@ -28,7 +28,7 @@ type Message struct {
 	Message        string
 	SenderUserID   sql.NullInt64
 	SenderClientID sql.NullInt64
-	IsActive       bool
+	IsRead         bool
 }
 
 type MessageTemplate struct {

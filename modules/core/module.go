@@ -8,6 +8,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/seed"
@@ -31,6 +32,9 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	app.RBAC().Register(
+		permissions.Permissions...,
+	)
 	app.RegisterMigrationDirs(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterSeedFuncs(

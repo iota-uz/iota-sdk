@@ -2,18 +2,27 @@ package services
 
 import (
 	"context"
+
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ClientService struct {
 	repo      client.Repository
+	chatRepo  chat.Repository
 	publisher eventbus.EventBus
 }
 
-func NewClientService(repo client.Repository, publisher eventbus.EventBus) *ClientService {
+func NewClientService(
+	repo client.Repository,
+	chatRepo chat.Repository,
+	publisher eventbus.EventBus,
+) *ClientService {
 	return &ClientService{
 		repo:      repo,
+		chatRepo:  chatRepo,
 		publisher: publisher,
 	}
 }
@@ -40,6 +49,13 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 		return nil, err
 	}
 	createdEntity, err := s.repo.Create(ctx, entity)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.chatRepo.Create(ctx, chat.New(
+		createdEntity,
+		[]message.Message{},
+	))
 	if err != nil {
 		return nil, err
 	}

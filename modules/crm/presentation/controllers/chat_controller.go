@@ -78,6 +78,7 @@ func (c *ChatController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
+	getRouter.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	getRouter.Handle("/ws", c.wsHandler)
 
@@ -122,7 +123,11 @@ func (c *ChatController) broadcastUpdate(ctx context.Context, clientID string, m
 	c.wsHandler.Broadcast(websocket.TextMessage, buf.Bytes())
 }
 
-func (c *ChatController) mapMessages(ctx context.Context, client client.Client, messages []message.Message) ([]*viewmodels.Message, error) {
+func (c *ChatController) mapMessages(
+	ctx context.Context,
+	client client.Client,
+	messages []message.Message,
+) ([]*viewmodels.Message, error) {
 	viewModels := make([]*viewmodels.Message, 0, len(messages))
 	for _, message := range messages {
 		if message.Sender().IsClient() {
@@ -146,13 +151,8 @@ func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.Me
 	return mapping.MapViewModels(templates, mappers.MessageTemplateToViewModel), nil
 }
 
-func (c *ChatController) chatViewModels(ctx context.Context) ([]*viewmodels.Chat, error) {
-	chatEntities, err := c.chatService.GetPaginated(ctx, &chat.FindParams{
-		SortBy: chat.SortBy{
-			Fields:    []chat.Field{chat.CreatedAt},
-			Ascending: false,
-		},
-	})
+func (c *ChatController) chatViewModels(ctx context.Context, params *chat.FindParams) ([]*viewmodels.Chat, error) {
+	chatEntities, err := c.chatService.GetPaginated(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -167,13 +167,41 @@ func (c *ChatController) chatViewModels(ctx context.Context) ([]*viewmodels.Chat
 	return viewModels, nil
 }
 
-func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
-	chatViewModels, err := c.chatViewModels(r.Context())
+func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
+	searchQ := r.URL.Query().Get("Query")
+	chatViewModels, err := c.chatViewModels(
+		r.Context(),
+		&chat.FindParams{
+			Search: searchQ,
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.CreatedAt},
+				Ascending: false,
+			},
+		},
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	templ.Handler(chatsui.ChatList(chatViewModels)).ServeHTTP(w, r)
+}
+
+func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 	messageTemplates, err := c.messageTemplates(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	chatViewModels, err := c.chatViewModels(
+		r.Context(),
+		&chat.FindParams{
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.CreatedAt},
+				Ascending: false,
+			},
+		},
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -181,7 +209,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 
 	props := &chatsui.IndexPageProps{
 		WebsocketURL: c.basePath + "/ws",
-		ClientsURL:   "/crm/clients",
+		SearchURL:    c.basePath + "/search",
 		NewChatURL:   "/crm/chats/new",
 		Chats:        chatViewModels,
 	}
@@ -191,6 +219,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 	)
 	ctx := r.Context()
 	chatID := r.URL.Query().Get("chat_id")
+
 	if chatID == "" {
 		templHandler.ServeHTTP(
 			w, r.WithContext(templ.WithChildren(ctx, chatsui.NoSelectedChat())),
@@ -218,7 +247,15 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 
 func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatViewModels, err := c.chatViewModels(ctx)
+	chatViewModels, err := c.chatViewModels(
+		r.Context(),
+		&chat.FindParams{
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.CreatedAt},
+				Ascending: false,
+			},
+		},
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -226,7 +263,7 @@ func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &chatsui.IndexPageProps{
 		Chats:      chatViewModels,
 		NewChatURL: "/crm/chats",
-		ClientsURL: "/crm/clients",
+		SearchURL:  c.basePath,
 	}
 	templHandler := templ.Handler(chatsui.Index(props), templ.WithStreaming())
 	templHandler.ServeHTTP(
