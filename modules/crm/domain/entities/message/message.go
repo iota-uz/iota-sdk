@@ -13,6 +13,6 @@ type Message interface {
 	ChatID() uint
 	Message() string
 	Sender() Sender
-	IsActive() bool
+	IsRead() bool
 	CreatedAt() time.Time
 }

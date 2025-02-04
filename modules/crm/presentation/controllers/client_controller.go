@@ -73,7 +73,10 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 	params, err := composables.UseQuery(&client.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
-		SortBy: []string{"created_at desc"},
+		SortBy: client.SortBy{
+			Fields:    []client.Field{client.CreatedAt},
+			Ascending: false,
+		},
 	}, r)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error using query")

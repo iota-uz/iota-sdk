@@ -24,6 +24,9 @@ func (u *User) FullName() string {
 }
 
 func (u *User) RolesVerbose() string {
+	if len(u.Roles) == 0 {
+		return ""
+	}
 	roles := ""
 	for _, role := range u.Roles {
 		roles += role.Name + ", "

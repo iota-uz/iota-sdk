@@ -16,6 +16,7 @@ type SortBy struct {
 type FindParams struct {
 	Limit  int
 	Offset int
+	Search string
 	SortBy SortBy
 }
 

@@ -7,12 +7,28 @@ type DateRange struct {
 	To   string
 }
 
+type Field int
+
+const (
+	FirstName Field = iota
+	LastName
+	MiddleName
+	PhoneNumber
+	CreatedAt
+	UpdatedAt
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
+
 type FindParams struct {
 	Limit     int
 	Offset    int
-	SortBy    []string
 	Query     string
 	Field     string
+	SortBy    SortBy
 	CreatedAt DateRange
 }
 

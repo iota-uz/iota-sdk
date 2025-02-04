@@ -14,8 +14,8 @@ import (
 )
 
 type IndexPageProps struct {
+	SearchURL    string
 	WebsocketURL string
-	ClientsURL   string
 	NewChatURL   string
 	Chats        []*viewmodels.Chat
 }
@@ -310,9 +310,9 @@ templ Index(props *IndexPageProps) {
 							<div class="w-full relative">
 								<form
 									class="flex items-center gap-3"
-									hx-get={ props.ClientsURL }
+									hx-get={ props.SearchURL }
 									hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-									hx-target=".table-wrapper"
+									hx-target="#chats-list"
 									hx-swap="outerHTML"
 								>
 									@filters.Search([]filters.SearchField{
@@ -325,21 +325,7 @@ templ Index(props *IndexPageProps) {
 							</div>
 						</div>
 						<div class="grow flex flex-col gap-2 overflow-auto">
-							<ul role="list">
-								for _, chat := range props.Chats {
-									<li
-										role="listitem"
-										class="rounded-[8px] cursor-pointer transition-all bg-transparent"
-									>
-										@ChatCard(chat)
-									</li>
-								}
-							</ul>
-							<div class="flex justify-center mt-3">
-								@button.Secondary(button.Props{}) {
-									Load More
-								}
-							</div>
+							@ChatList(props.Chats)
 						</div>
 					</div>
 				</div>
@@ -352,4 +338,20 @@ templ Index(props *IndexPageProps) {
 			</div>
 		</div>
 	}
+}
+
+templ ChatList(chats []*viewmodels.Chat) {
+	<ul
+		role="list"
+		id="chats-list"
+	>
+		for _, chat := range chats {
+			<li
+				role="listitem"
+				class="rounded-[8px] cursor-pointer transition-all bg-transparent"
+			>
+				@ChatCard(chat)
+			</li>
+		}
+	</ul>
 }

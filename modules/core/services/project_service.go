@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/project"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -22,16 +20,10 @@ func NewProjectService(repo project.Repository, publisher eventbus.EventBus) *Pr
 }
 
 func (s *ProjectService) GetByID(ctx context.Context, id uint) (*project.Project, error) {
-	if err := composables.CanUser(ctx, permission.ProjectRead); err != nil {
-		return nil, err
-	}
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *ProjectService) GetAll(ctx context.Context) ([]*project.Project, error) {
-	if err := composables.CanUser(ctx, permission.ProjectRead); err != nil {
-		return nil, err
-	}
 	return s.repo.GetAll(ctx)
 }
 
@@ -40,16 +32,10 @@ func (s *ProjectService) GetPaginated(
 	limit, offset int,
 	sortBy []string,
 ) ([]*project.Project, error) {
-	if err := composables.CanUser(ctx, permission.ProjectRead); err != nil {
-		return nil, err
-	}
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
 func (s *ProjectService) Create(ctx context.Context, data *project.CreateDTO) error {
-	if err := composables.CanUser(ctx, permission.ProjectCreate); err != nil {
-		return err
-	}
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
@@ -63,9 +49,6 @@ func (s *ProjectService) Create(ctx context.Context, data *project.CreateDTO) er
 }
 
 func (s *ProjectService) Update(ctx context.Context, id uint, data *project.UpdateDTO) error {
-	if err := composables.CanUser(ctx, permission.ProjectUpdate); err != nil {
-		return err
-	}
 	entity := data.ToEntity(id)
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
@@ -79,9 +62,6 @@ func (s *ProjectService) Update(ctx context.Context, id uint, data *project.Upda
 }
 
 func (s *ProjectService) Delete(ctx context.Context, id uint) (*project.Project, error) {
-	if err := composables.CanUser(ctx, permission.ProjectDelete); err != nil {
-		return nil, err
-	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
