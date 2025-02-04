@@ -27,13 +27,14 @@ CREATE TABLE messages (
     message          TEXT NOT NULL,
     sender_user_id   INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
     sender_client_id INT REFERENCES clients(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    is_read          BOOLEAN DEFAULT false NOT NULL
+    is_read          BOOLEAN DEFAULT false NOT NULL,
+    read_at          TIMESTAMP(3)
 );
 
 CREATE TABLE message_media (
-    id          SERIAL PRIMARY KEY,
     message_id  INT NOT NULL REFERENCES messages(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    upload_id   INT NOT NULL REFERENCES uploads(id) ON DELETE CASCADE ON UPDATE CASCADE
+    upload_id   INT NOT NULL REFERENCES uploads(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    PRIMARY KEY (message_id, upload_id)
 );
 
 CREATE TABLE message_templates (

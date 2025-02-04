@@ -27,6 +27,5 @@ type Repository interface {
 	GetByID(ctx context.Context, id uint) (Chat, error)
 	GetByClientID(ctx context.Context, clientID uint) (Chat, error)
 	Create(ctx context.Context, data Chat) (Chat, error)
-	Update(ctx context.Context, data Chat) (Chat, error)
 	Delete(ctx context.Context, id uint) error
 }

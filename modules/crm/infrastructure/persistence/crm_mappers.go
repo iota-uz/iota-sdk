@@ -4,6 +4,9 @@ import (
 	"database/sql"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
@@ -64,40 +67,35 @@ func toDBMessage(domainEntity message.Message) *models.Message {
 	return dbMessage
 }
 
-func toDomainMessage(dbRow *models.Message) (message.Message, error) {
-	var sender message.Sender
-	if dbRow.SenderUserID.Valid {
-		sender = message.NewUserSender(uint(dbRow.SenderUserID.Int64))
-	} else {
-		sender = message.NewClientSender(uint(dbRow.SenderClientID.Int64))
+func toDomainMessage(
+	dbRow *models.Message,
+	dbUploads []*coremodels.Upload,
+	sender message.Sender,
+) (message.Message, error) {
+	uploads := make([]*upload.Upload, 0, len(dbUploads))
+	for _, u := range dbUploads {
+		uploads = append(uploads, corepersistence.ToDomainUpload(u))
 	}
-	return message.NewMessageWithID(
+	return message.NewWithID(
 		dbRow.ID,
 		dbRow.ChatID,
 		dbRow.Message,
 		sender,
 		dbRow.IsRead,
+		uploads,
 		dbRow.CreatedAt,
 	), nil
 }
 
-func toDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
-	dbMessages := make([]*models.Message, 0, len(domainEntity.Messages()))
-	for _, m := range domainEntity.Messages() {
-		dbMessages = append(dbMessages, toDBMessage(m))
-	}
+func toDBChat(domainEntity chat.Chat) *models.Chat {
 	return &models.Chat{
 		ID:        domainEntity.ID(),
 		ClientID:  domainEntity.Client().ID(),
 		CreatedAt: domainEntity.CreatedAt(),
-	}, dbMessages
+	}
 }
 
-func toDomainChat(dbRow *models.Chat, dbClient *models.Client, dbMessages []*models.Message) (chat.Chat, error) {
-	messages, err := mapping.MapDBModels(dbMessages, toDomainMessage)
-	if err != nil {
-		return nil, err
-	}
+func toDomainChat(dbRow *models.Chat, dbClient *models.Client) (chat.Chat, error) {
 	c, err := toDomainClient(dbClient)
 	if err != nil {
 		return nil, err
@@ -105,7 +103,6 @@ func toDomainChat(dbRow *models.Chat, dbClient *models.Client, dbMessages []*mod
 	domainChat := chat.NewWithID(
 		dbRow.ID,
 		c,
-		messages,
 		dbRow.CreatedAt,
 	)
 	return domainChat, nil

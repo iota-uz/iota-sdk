@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -94,69 +92,6 @@ func (s *ChatService) Create(ctx context.Context, data *chat.CreateDTO) (chat.Ch
 	}
 	s.publisher.Publish(ev)
 	return createdEntity, nil
-}
-
-func (s *ChatService) RegisterClientMessage(
-	ctx context.Context,
-	params *cpassproviders.ReceivedMessageEvent,
-) error {
-	p, err := phone.NewFromE164(params.From)
-	if err != nil {
-		return err
-	}
-	clientEntity, err := s.clientRepo.GetByPhone(ctx, p.Value())
-	if err != nil {
-		return err
-	}
-
-	chatEntity, err := s.GetByClientIDOrCreate(ctx, clientEntity.ID())
-	if err != nil {
-		return err
-	}
-
-	updatedEntity, err := s.repo.Update(
-		ctx,
-		chatEntity.RegisterClientMessage(params.Body, clientEntity.ID()),
-	)
-	if err != nil {
-		return err
-	}
-
-	ev, err := chat.NewUpdatedEvent(ctx, updatedEntity)
-	if err != nil {
-		return err
-	}
-	s.publisher.Publish(ev)
-
-	return nil
-}
-
-func (s *ChatService) SendMessage(ctx context.Context, chatID uint, msg string) (chat.Chat, error) {
-	user, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	entity, err := s.repo.GetByID(ctx, chatID)
-	if err != nil {
-		return nil, err
-	}
-	updatedEntity, err := s.repo.Update(ctx, entity.SendMessage(msg, user.ID()))
-	if err != nil {
-		return nil, err
-	}
-	if err := s.cpassProvider.SendMessage(ctx, cpassproviders.SendMessageDTO{
-		From:    "+18449090114",
-		To:      updatedEntity.Client().Phone().Value(),
-		Message: msg,
-	}); err != nil {
-		return nil, err
-	}
-	ev, err := chat.NewUpdatedEvent(ctx, updatedEntity)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(ctx, ev)
-	return updatedEntity, nil
 }
 
 func (s *ChatService) Delete(ctx context.Context, id uint) (chat.Chat, error) {

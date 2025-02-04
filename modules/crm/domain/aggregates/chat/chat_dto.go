@@ -8,7 +8,6 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
@@ -43,5 +42,5 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity(c client.Client) (Chat, error) {
-	return New(c, []message.Message{}), nil
+	return New(c), nil
 }

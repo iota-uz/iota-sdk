@@ -43,8 +43,16 @@ func (m *Module) Register(app application.Application) error {
 		twilioProvider,
 		app.EventPublisher(),
 	)
+	messagesService := services.NewMessagesService(
+		persistence.NewMessageRepository(),
+		clientRepo,
+		twilioProvider,
+		chatsService,
+		app.EventPublisher(),
+	)
 	app.RegisterServices(
 		chatsService,
+		messagesService,
 		services.NewClientService(
 			clientRepo,
 			chatRepo,
@@ -66,7 +74,7 @@ func (m *Module) Register(app application.Application) error {
 	handlers.RegisterSMSHandlers(
 		app.DB(),
 		app.EventPublisher(),
-		chatsService,
+		messagesService,
 	)
 
 	app.RBAC().Register(permissions.Permissions...)

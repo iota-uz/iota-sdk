@@ -24,6 +24,7 @@ type SelectedChatProps struct {
 	BaseURL    string
 	ClientsURL string
 	Chat       *viewmodels.Chat
+	Messages   []*viewmodels.Message
 	Templates  []*viewmodels.MessageTemplate
 }
 
@@ -124,7 +125,7 @@ templ SelectedChat(props SelectedChatProps) {
 		</div>
 	</div>
 	<div class="flex flex-col flex-1 px-4 min-h-0">
-		@ChatMessages(props.Chat.Messages, client.ID)
+		@ChatMessages(props.Messages, client.ID)
 		<div class="border border-input rounded-md p-4 mb-4">
 			<div x-data="{text: ''}">
 				<textarea
@@ -145,9 +146,10 @@ templ SelectedChat(props SelectedChatProps) {
 								Size: "20",
 							})
 							<input
+								form="send-message-form"
 								accept="image/*"
 								class="sr-only"
-								name="upload-file"
+								name="Attachment"
 								type="file"
 							/>
 						</label>

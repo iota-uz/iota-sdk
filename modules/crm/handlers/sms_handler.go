@@ -13,20 +13,20 @@ import (
 )
 
 type SMSHandler struct {
-	pool         *pgxpool.Pool
-	publisher    eventbus.EventBus
-	chatsService *services.ChatService
+	pool            *pgxpool.Pool
+	publisher       eventbus.EventBus
+	messagesService *services.MessagesService
 }
 
 func RegisterSMSHandlers(
 	pool *pgxpool.Pool,
 	publisher eventbus.EventBus,
-	chatsService *services.ChatService,
+	messagesService *services.MessagesService,
 ) *SMSHandler {
 	handler := &SMSHandler{
-		pool:         pool,
-		publisher:    publisher,
-		chatsService: chatsService,
+		pool:            pool,
+		publisher:       publisher,
+		messagesService: messagesService,
 	}
 	publisher.Subscribe(handler.onSMSReceived)
 	return handler
@@ -41,7 +41,7 @@ func (h *SMSHandler) onSMSReceived(event *cpassproviders.ReceivedMessageEvent) {
 	}
 	ctx = composables.WithPool(ctx, h.pool)
 	ctx = composables.WithTx(ctx, tx)
-	if err := h.chatsService.RegisterClientMessage(ctx, event); err != nil {
+	if err := h.messagesService.RegisterClientMessage(ctx, event); err != nil {
 		log.Println(err)
 		tx.Rollback(ctx)
 		return

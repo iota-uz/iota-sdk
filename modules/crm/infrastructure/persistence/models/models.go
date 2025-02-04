@@ -28,6 +28,7 @@ type Message struct {
 	Message        string
 	SenderUserID   sql.NullInt64
 	SenderClientID sql.NullInt64
+	ReadAt         sql.NullTime
 	IsRead         bool
 }
 
