@@ -4,8 +4,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
@@ -25,33 +23,39 @@ func ClientToViewModel(entity client.Client) *viewmodels.Client {
 	}
 }
 
-func UserMessageToViewModel(entity message.Message, user user.User) *viewmodels.Message {
-	senderID := strconv.FormatUint(uint64(user.ID()), 10)
-	initials := coremappers.UserToViewModel(user).Initials()
+func initialsFromFullName(firstName, lastName string) string {
+	res := ""
+	if len(firstName) > 0 {
+		res += string(firstName[0])
+	}
+	if len(lastName) > 0 {
+		res += string(lastName[0])
+	}
+	return res
+}
+
+func SenderToViewModel(entity message.Sender) viewmodels.MessageSender {
+	senderID := strconv.FormatUint(uint64(entity.ID()), 10)
+	initials := initialsFromFullName(entity.FirstName(), entity.LastName())
+	if entity.IsClient() {
+		return viewmodels.NewClientMessageSender(senderID, initials)
+	}
+	return viewmodels.NewUserMessageSender(senderID, initials)
+}
+
+func MessageToViewModel(entity message.Message) *viewmodels.Message {
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Sender:    viewmodels.NewUserMessageSender(senderID, initials),
+		Sender:    SenderToViewModel(entity.Sender()),
 		Message:   entity.Message(),
 		CreatedAt: entity.CreatedAt(),
 	}
 }
 
-func ClientMessageToViewModel(entity message.Message, client client.Client) *viewmodels.Message {
-	senderID := strconv.FormatUint(uint64(client.ID()), 10)
-	initials := ClientToViewModel(client).Initials()
-	return &viewmodels.Message{
-		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Sender:    viewmodels.NewClientMessageSender(senderID, initials),
-		Message:   entity.Message(),
-		CreatedAt: entity.CreatedAt(),
-	}
-}
-
-func ChatToViewModel(entity chat.Chat, messages []*viewmodels.Message) *viewmodels.Chat {
+func ChatToViewModel(entity chat.Chat) *viewmodels.Chat {
 	return &viewmodels.Chat{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Client:    ClientToViewModel(entity.Client()),
-		Messages:  messages,
 		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
 	}
 }

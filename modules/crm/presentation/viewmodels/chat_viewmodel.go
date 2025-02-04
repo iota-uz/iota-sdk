@@ -5,7 +5,6 @@ import "time"
 type Chat struct {
 	ID        string
 	Client    *Client
-	Messages  []*Message
 	CreatedAt string
 }
 
