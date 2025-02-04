@@ -18,8 +18,8 @@ templ DropdownItem(props DropdownItemProps) {
 	</li>
 }
 
-templ DetailsDropdown(summary templ.Component) {
-	<div>
+templ DetailsDropdown(summary templ.Component, rootClass string) {
+	<div class={rootClass}>
 		<details class="relative z-10 peer" name="details-dropdown">
 			@summary
 			<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
