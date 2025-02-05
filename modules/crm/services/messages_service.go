@@ -59,10 +59,6 @@ func (s *MessagesService) GetPaginated(ctx context.Context, params *message.Find
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *MessagesService) GetByChatID(ctx context.Context, chatID uint) ([]message.Message, error) {
-	return s.repo.GetByChatID(ctx, chatID)
-}
-
 func (s *MessagesService) RegisterClientMessage(
 	ctx context.Context,
 	params *cpassproviders.ReceivedMessageEvent,

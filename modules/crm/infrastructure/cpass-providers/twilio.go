@@ -121,6 +121,7 @@ func (s *TwilioProvider) WebhookHandler(eventBus eventbus.EventBus) http.Handler
 		params := make(map[string]string)
 		for key, values := range r.PostForm {
 			if len(values) > 0 {
+				log.Printf("Key: %s, Value: %s", key, values[0])
 				params[key] = values[0]
 			}
 		}

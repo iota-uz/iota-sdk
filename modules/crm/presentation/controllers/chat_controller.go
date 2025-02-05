@@ -129,7 +129,13 @@ func (c *ChatController) broadcastUpdate(ctx context.Context, clientID string, m
 }
 
 func (c *ChatController) chatMessages(ctx context.Context, chatID uint) ([]*viewmodels.Message, error) {
-	messages, err := c.messagesService.GetByChatID(ctx, chatID)
+	messages, err := c.messagesService.GetPaginated(ctx, &message.FindParams{
+		ChatID: chatID,
+		SortBy: message.SortBy{
+			Fields:    []message.Field{message.CreatedAt},
+			Ascending: false,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
