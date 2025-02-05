@@ -18,10 +18,24 @@ templ DropdownItem(props DropdownItemProps) {
 	</li>
 }
 
-templ DetailsDropdown(summary templ.Component) {
-	<div>
+type DetailsDropdownProps struct {
+	Summary templ.Component
+	Classes templ.CSSClasses
+}
+
+func newDetailsDropdown(props *DetailsDropdownProps) *DetailsDropdownProps {
+	if props.Classes == nil {
+		props.Classes = templ.CSSClasses{}
+	}
+	return props
+}
+
+templ (p *DetailsDropdownProps) render() {
+	<div class={p.Classes.String()}>
 		<details class="relative z-10 peer" name="details-dropdown">
-			@summary
+			if p.Summary != nil {
+				@p.Summary
+			}
 			<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
 				{ children... }
 			</ul>
@@ -31,4 +45,10 @@ templ DetailsDropdown(summary templ.Component) {
 			<summary class="fixed w-full h-full left-0 top-0"></summary>
 		</details>
 	</div>
+}
+
+templ DetailsDropdown(props *DetailsDropdownProps) {
+	@newDetailsDropdown(props).render() {
+		{ children... }
+	}
 }
