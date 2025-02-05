@@ -326,7 +326,7 @@ templ summary() {
 }
 
 templ DropdownDemo(summary()) {
-  @base.DetailsDropdown(summary()) {
+  @base.DetailsDropdown(&base.DetailsDropdownProps{Summary: summary()}) {
     @base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
       Account
     }
@@ -338,9 +338,16 @@ templ DropdownDemo(summary()) {
     }
   }
 }
-
 ```
+
 ### API
+
+### Detalis Dropdown
+
+| Name    | Type               | Description                  |
+| ------- | ------------------ | ---------------------------- |
+| Summary | `templ.Component`  | Summary component            |
+| Classes | `templ.CSSClasses` | CSS classes to apply to root |
 
 summary - `templ.Component`
 
