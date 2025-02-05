@@ -28,12 +28,13 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	conf := configuration.Use()
 	twilioProvider := cpassproviders.NewTwilioProvider(
 		twilio.ClientParams{
-			Username: configuration.Use().TwilioAccountSID,
-			Password: configuration.Use().TwilioAuthToken,
+			Username: conf.TwilioAccountSID,
+			Password: conf.TwilioAuthToken,
 		},
-		"https://15fe-213-206-62-33.ngrok-free.app/twilio",
+		conf.TwilioWebhookURL,
 	)
 	chatRepo := persistence.NewChatRepository()
 	clientRepo := persistence.NewClientRepository()
