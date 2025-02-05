@@ -54,19 +54,17 @@ func NewChatRepository() chat.Repository {
 func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...interface{}) ([]chat.Chat, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	// First, query all chats
 	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to execute chat query")
 	}
 	defer rows.Close()
 
 	chats := make([]chat.Chat, 0)
 
-	// Collect all chats and their IDs
 	for rows.Next() {
 		var c models.Chat
 		var dbClient models.Client
@@ -86,13 +84,13 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 		}
 		entity, err := toDomainChat(&c, &dbClient)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to convert to domain chat")
 		}
 		chats = append(chats, entity)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error occurred while iterating chat rows")
 	}
 
 	return chats, nil
@@ -107,7 +105,7 @@ func (g *ChatRepository) GetPaginated(
 		case chat.CreatedAt:
 			sortFields = append(sortFields, "c.created_at")
 		default:
-			return nil, fmt.Errorf("unknown sort field: %s", f)
+			return nil, errors.Wrapf(fmt.Errorf("unknown sort field"), "invalid sort field: %s", f)
 		}
 	}
 
@@ -134,23 +132,27 @@ func (g *ChatRepository) GetPaginated(
 func (g *ChatRepository) Count(ctx context.Context) (int64, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 	var count int64
 	if err := pool.QueryRow(ctx, countChatQuery).Scan(&count); err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to count chats")
 	}
 	return count, nil
 }
 
 func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
-	return g.queryChats(ctx, selectChatQuery)
+	chats, err := g.queryChats(ctx, selectChatQuery)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get all chats")
+	}
+	return chats, nil
 }
 
 func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
 	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.id = $1", id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get chat with id %d", id)
 	}
 	if len(chats) == 0 {
 		return nil, ErrChatNotFound
@@ -161,7 +163,7 @@ func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error
 func (g *ChatRepository) GetByClientID(ctx context.Context, clientID uint) (chat.Chat, error) {
 	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.client_id = $1", clientID)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get chat for client %d", clientID)
 	}
 	if len(chats) == 0 {
 		return nil, ErrChatNotFound
@@ -172,7 +174,7 @@ func (g *ChatRepository) GetByClientID(ctx context.Context, clientID uint) (chat
 func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
 	dbChat := toDBChat(data)
@@ -182,7 +184,7 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 		dbChat.ClientID,
 		&dbChat.CreatedAt,
 	).Scan(&dbChat.ID); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to insert chat")
 	}
 	return g.GetByID(ctx, dbChat.ID)
 }
@@ -190,10 +192,10 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 func (g *ChatRepository) Delete(ctx context.Context, id uint) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get transaction")
 	}
 	if _, err := tx.Exec(ctx, deleteChatQuery, id); err != nil {
-		return err
+		return errors.Wrapf(err, "failed to delete chat with id %d", id)
 	}
 	return nil
 }
