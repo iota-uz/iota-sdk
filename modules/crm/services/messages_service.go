@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -118,7 +119,7 @@ func (s *MessagesService) SendMessage(ctx context.Context, dto SendMessageDTO) (
 	}
 
 	if err := s.cpassProvider.SendMessage(ctx, cpassproviders.SendMessageDTO{
-		From:    "+18449090114",
+		From:    configuration.Use().TwilioPhoneNumber,
 		To:      chatEntity.Client().Phone().Value(),
 		Message: dto.Message,
 	}); err != nil {
