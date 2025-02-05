@@ -188,7 +188,7 @@ func (g *MessageRepository) GetPaginated(
 		case message.CreatedAt:
 			sortFields = append(sortFields, "m.created_at")
 		default:
-			return nil, errors.Wrapf(fmt.Errorf("unknown sort field"), "invalid sort field: %s", f)
+			return nil, errors.Wrapf(fmt.Errorf("unknown sort field"), "invalid sort field: %v", f)
 		}
 	}
 
