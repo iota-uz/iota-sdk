@@ -84,18 +84,16 @@ func NewMessageRepository() message.Repository {
 func (g *MessageRepository) queryMessages(ctx context.Context, query string, args ...interface{}) ([]message.Message, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	// First, query all chats
 	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to execute message query")
 	}
 	defer rows.Close()
 
 	var dbMessages []*models.Message
-	// Collect all chats and their IDs
 	for rows.Next() {
 		var msg models.Message
 		if err := rows.Scan(
@@ -108,13 +106,13 @@ func (g *MessageRepository) queryMessages(ctx context.Context, query string, arg
 			&msg.ReadAt,
 			&msg.CreatedAt,
 		); err != nil {
-			return nil, errors.Wrap(err, "failed to scan chat")
+			return nil, errors.Wrap(err, "failed to scan message")
 		}
 		dbMessages = append(dbMessages, &msg)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error occurred while iterating message rows")
 	}
 
 	messages := make([]message.Message, 0, len(dbMessages))
@@ -127,7 +125,7 @@ func (g *MessageRepository) queryMessages(ctx context.Context, query string, arg
 				&user.FirstName,
 				&user.LastName,
 			); err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "failed to scan user sender")
 			}
 			sender = message.NewUserSender(user.ID, user.FirstName, user.LastName)
 		}
@@ -139,14 +137,14 @@ func (g *MessageRepository) queryMessages(ctx context.Context, query string, arg
 				&client.FirstName,
 				&client.LastName,
 			); err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "failed to scan client sender")
 			}
 			sender = message.NewClientSender(client.ID, client.FirstName, client.LastName.String)
 		}
 
 		uploads, err := pool.Query(ctx, selectMessageAttachmentsQuery, dbMessage.ID)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to query attachments for message %d", dbMessage.ID)
 		}
 		defer uploads.Close()
 
@@ -162,18 +160,18 @@ func (g *MessageRepository) queryMessages(ctx context.Context, query string, arg
 				&upload.CreatedAt,
 				&upload.UpdatedAt,
 			); err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "failed to scan upload")
 			}
 			dbUploads = append(dbUploads, &upload)
 		}
 
 		if err := uploads.Err(); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "error occurred while iterating uploads")
 		}
 
 		domainMessage, err := toDomainMessage(dbMessage, dbUploads, sender)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to convert to domain message")
 		}
 		messages = append(messages, domainMessage)
 	}
@@ -190,7 +188,7 @@ func (g *MessageRepository) GetPaginated(
 		case message.CreatedAt:
 			sortFields = append(sortFields, "m.created_at")
 		default:
-			return nil, fmt.Errorf("unknown sort field: %s", f)
+			return nil, errors.Wrapf(fmt.Errorf("unknown sort field"), "invalid sort field: %s", f)
 		}
 	}
 
@@ -205,7 +203,7 @@ func (g *MessageRepository) GetPaginated(
 	return g.queryMessages(
 		ctx,
 		repo.Join(
-			selectChatQuery,
+			selectMessagesQuery,
 			repo.JoinWhere(where...),
 			repo.OrderBy(sortFields, params.SortBy.Ascending),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
@@ -217,23 +215,27 @@ func (g *MessageRepository) GetPaginated(
 func (g *MessageRepository) Count(ctx context.Context) (int64, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 	var count int64
 	if err := pool.QueryRow(ctx, countMessagesQuery).Scan(&count); err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to count messages")
 	}
 	return count, nil
 }
 
 func (g *MessageRepository) GetAll(ctx context.Context) ([]message.Message, error) {
-	return g.queryMessages(ctx, selectMessagesQuery)
+	messages, err := g.queryMessages(ctx, selectMessagesQuery)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get all messages")
+	}
+	return messages, nil
 }
 
 func (g *MessageRepository) GetByID(ctx context.Context, id uint) (message.Message, error) {
-	messages, err := g.queryMessages(ctx, selectChatQuery+" WHERE m.id = $1", id)
+	messages, err := g.queryMessages(ctx, selectMessagesQuery+" WHERE m.id = $1", id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get message with id %d", id)
 	}
 	if len(messages) == 0 {
 		return nil, ErrMessageNotFound
@@ -244,7 +246,7 @@ func (g *MessageRepository) GetByID(ctx context.Context, id uint) (message.Messa
 func (g *MessageRepository) GetByChatID(ctx context.Context, chatID uint) ([]message.Message, error) {
 	messages, err := g.queryMessages(ctx, selectMessagesQuery+" WHERE m.chat_id = $1", chatID)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get messages for chat %d", chatID)
 	}
 	return messages, nil
 }
@@ -252,7 +254,7 @@ func (g *MessageRepository) GetByChatID(ctx context.Context, chatID uint) ([]mes
 func (g *MessageRepository) Create(ctx context.Context, data message.Message) (message.Message, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
 	dbMessage := toDBMessage(data)
@@ -266,7 +268,7 @@ func (g *MessageRepository) Create(ctx context.Context, data message.Message) (m
 		dbMessage.IsRead,
 		dbMessage.CreatedAt,
 	).Scan(&dbMessage.ID); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to insert message")
 	}
 	return g.GetByID(ctx, dbMessage.ID)
 }
@@ -274,7 +276,7 @@ func (g *MessageRepository) Create(ctx context.Context, data message.Message) (m
 func (g *MessageRepository) Update(ctx context.Context, data message.Message) (message.Message, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 	dbMessage := toDBMessage(data)
 
@@ -289,7 +291,7 @@ func (g *MessageRepository) Update(ctx context.Context, data message.Message) (m
 		dbMessage.CreatedAt,
 		dbMessage.ID,
 	); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to update message %d", dbMessage.ID)
 	}
 	return g.GetByID(ctx, data.ID())
 }
@@ -297,10 +299,10 @@ func (g *MessageRepository) Update(ctx context.Context, data message.Message) (m
 func (g *MessageRepository) Delete(ctx context.Context, id uint) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get transaction")
 	}
 	if _, err := tx.Exec(ctx, deleteMessageQuery, id); err != nil {
-		return err
+		return errors.Wrapf(err, "failed to delete message with id %d", id)
 	}
 	return nil
 }
