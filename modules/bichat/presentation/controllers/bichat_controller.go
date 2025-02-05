@@ -1,17 +1,18 @@
 package controllers
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/bichat"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"net/http"
+
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers/dtos"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/templates/pages/bichat"
+	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type BiChatController struct {
