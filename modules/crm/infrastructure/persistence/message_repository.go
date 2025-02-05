@@ -200,6 +200,13 @@ func (g *MessageRepository) GetPaginated(
 		)
 		args = append(args, "%"+params.Search+"%")
 	}
+	if params.ChatID != 0 {
+		where = append(
+			where,
+			fmt.Sprintf("m.chat_id = $%d", len(args)+1),
+		)
+		args = append(args, params.ChatID)
+	}
 	return g.queryMessages(
 		ctx,
 		repo.Join(
@@ -241,14 +248,6 @@ func (g *MessageRepository) GetByID(ctx context.Context, id uint) (message.Messa
 		return nil, ErrMessageNotFound
 	}
 	return messages[0], nil
-}
-
-func (g *MessageRepository) GetByChatID(ctx context.Context, chatID uint) ([]message.Message, error) {
-	messages, err := g.queryMessages(ctx, selectMessagesQuery+" WHERE m.chat_id = $1", chatID)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get messages for chat %d", chatID)
-	}
-	return messages, nil
 }
 
 func (g *MessageRepository) Create(ctx context.Context, data message.Message) (message.Message, error) {
