@@ -8,10 +8,7 @@ import (
 )
 
 func NewCreatedEvent(ctx context.Context, result Message) (*CreatedEvent, error) {
-	u, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, err
-	}
+	u, _ := composables.UseUser(ctx)
 	return &CreatedEvent{
 		User:   u,
 		Result: result,
