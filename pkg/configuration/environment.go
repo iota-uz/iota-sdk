@@ -64,8 +64,9 @@ type Configuration struct {
 	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
 
-	TwilioAccountSID string `env:"TWILIO_ACCOUNT_SID"`
-	TwilioAuthToken  string `env:"TWILIO_AUTH_TOKEN"`
+	TwilioAccountSID  string `env:"TWILIO_ACCOUNT_SID"`
+	TwilioAuthToken   string `env:"TWILIO_AUTH_TOKEN"`
+	TwilioPhoneNumber string `env:"TWILIO_PHONE_NUMBER"`
 }
 
 func (c *Configuration) LogrusLogLevel() logrus.Level {
