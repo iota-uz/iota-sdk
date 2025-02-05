@@ -66,19 +66,19 @@ func (s *MessagesService) GetByChatID(ctx context.Context, chatID uint) ([]messa
 func (s *MessagesService) RegisterClientMessage(
 	ctx context.Context,
 	params *cpassproviders.ReceivedMessageEvent,
-) error {
+) (message.Message, error) {
 	p, err := phone.NewFromE164(params.From)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	clientEntity, err := s.clientRepo.GetByPhone(ctx, p.Value())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	chatEntity, err := s.chatService.GetByClientIDOrCreate(ctx, clientEntity.ID())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	createdMessage, err := s.repo.Create(ctx, message.New(
@@ -88,16 +88,10 @@ func (s *MessagesService) RegisterClientMessage(
 	))
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	ev, err := message.NewCreatedEvent(ctx, createdMessage)
-	if err != nil {
-		return err
-	}
-
-	s.publisher.Publish(ev)
-	return nil
+	return createdMessage, nil
 }
 
 func (s *MessagesService) SendMessage(ctx context.Context, dto SendMessageDTO) (message.Message, error) {
