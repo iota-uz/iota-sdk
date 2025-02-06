@@ -35,9 +35,13 @@ coverage-score:
 report:
 	go tool cover -html=coverage.out -o ./coverage/cover.html
 
+# Dev containers
+dev-docker:
+	docker compose -f docker-compose.dev-docker.yml up --build
+
 # Run PostgreSQL
 localdb:
-	docker compose -f docker-compose.dev.yml up
+	docker compose -f docker-compose.dev.yml up -d
 
 clear-localdb:
 	rm -rf postgres-data/
@@ -92,4 +96,4 @@ run-iota-linter:
 clean-iota-linter:
 	rm -f bin/iotalinter
 
-.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter
+.PHONY: default deps test test-watch dev-docker localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter
