@@ -44,15 +44,7 @@ var AdministrationLink = types.NavigationItem{
 	},
 }
 
-var BiChatLink = types.NavigationItem{
-	Name:     "NavigationLinks.BiChat",
-	Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
-	Href:     "/bi-chat",
-	Children: nil,
-}
-
 var NavItems = []types.NavigationItem{
 	DashboardLink,
-	BiChatLink,
 	AdministrationLink,
 }
