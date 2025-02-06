@@ -153,19 +153,6 @@ CREATE TABLE uploaded_images
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE action_logs
-(
-    id         SERIAL PRIMARY KEY,
-    method     VARCHAR(255) NOT NULL,
-    path       VARCHAR(255) NOT NULL,
-    user_id    INT          REFERENCES users (id) ON DELETE SET NULL,
-    after      JSON,
-    before     JSON,
-    user_agent VARCHAR(255) NOT NULL,
-    ip         VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE dialogues
 (
     id         SERIAL PRIMARY KEY,
@@ -212,16 +199,6 @@ CREATE TABLE sessions
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE authentication_logs
-(
-    id         SERIAL PRIMARY KEY,
-    user_id    INTEGER                  NOT NULL
-        CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
-    ip         VARCHAR(255)             NOT NULL,
-    user_agent VARCHAR(255)             NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE tabs
 (
     id       SERIAL PRIMARY KEY,
@@ -237,9 +214,6 @@ CREATE INDEX users_last_name_idx ON users (last_name);
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 
-CREATE INDEX authentication_logs_user_id_idx ON authentication_logs (user_id);
-CREATE INDEX authentication_logs_created_at_idx ON authentication_logs (created_at);
-
 CREATE INDEX role_permissions_role_id_idx ON role_permissions (role_id);
 CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_id);
 
@@ -252,8 +226,6 @@ CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
 CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 -- +migrate Down
-DROP TABLE IF EXISTS action_log CASCADE;
-DROP TABLE IF EXISTS authentication_logs CASCADE;
 DROP TABLE IF EXISTS companies CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
 DROP TABLE IF EXISTS dialogues CASCADE;
@@ -273,5 +245,4 @@ DROP TABLE IF EXISTS uploads CASCADE;
 DROP TABLE IF EXISTS employee_positions CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS action_logs CASCADE;
 DROP TABLE IF EXISTS tabs CASCADE;
