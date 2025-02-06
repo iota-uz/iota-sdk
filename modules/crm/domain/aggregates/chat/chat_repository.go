@@ -2,10 +2,11 @@ package chat
 
 import "context"
 
-type Field string
+type Field int
 
 const (
-	CreatedAt Field = "created_at"
+	CreatedAt Field = iota
+	LastMessageAt
 )
 
 type SortBy struct {

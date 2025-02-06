@@ -166,7 +166,7 @@ func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
 		&chat.FindParams{
 			Search: searchQ,
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
+				Fields:    []chat.Field{chat.LastMessageAt},
 				Ascending: false,
 			},
 		},
@@ -189,7 +189,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
+				Fields:    []chat.Field{chat.LastMessageAt},
 				Ascending: false,
 			},
 		},
@@ -255,7 +255,7 @@ func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
+				Fields:    []chat.Field{chat.LastMessageAt},
 				Ascending: false,
 			},
 		},
