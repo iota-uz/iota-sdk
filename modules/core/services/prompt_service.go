@@ -2,8 +2,7 @@ package services
 
 import (
 	"context"
-
-	prompt2 "github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/prompt"
+	prompt2 "github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 

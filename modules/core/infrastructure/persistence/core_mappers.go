@@ -2,7 +2,14 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/json"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -10,7 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
@@ -19,11 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
-
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-
-	"github.com/gabriel-vasile/mimetype"
-	"github.com/google/uuid"
 )
 
 func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role) (user.User, error) {
@@ -345,4 +347,50 @@ func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.Authent
 		UserAgent: dbLog.UserAgent,
 		CreatedAt: dbLog.CreatedAt,
 	}
+}
+
+func toDBChatCompletionMessage(messages []llm.ChatCompletionMessage) (string, error) {
+	bytes, err := json.Marshal(messages)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+func toDomainChatCompletionMessage(dbMessages string) ([]llm.ChatCompletionMessage, error) {
+	var messages []llm.ChatCompletionMessage
+	if err := json.Unmarshal([]byte(dbMessages), &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+func toDBDialogue(entity dialogue.Dialogue) (*models.Dialogue, error) {
+	dbMessages, err := toDBChatCompletionMessage(entity.Messages())
+	if err != nil {
+		return nil, err
+	}
+	return &models.Dialogue{
+		ID:        entity.ID(),
+		UserID:    entity.UserID(),
+		Label:     entity.Label(),
+		Messages:  dbMessages,
+		CreatedAt: entity.CreatedAt(),
+		UpdatedAt: entity.UpdatedAt(),
+	}, nil
+}
+
+func toDomainDialogue(dbDialogue *models.Dialogue) (dialogue.Dialogue, error) {
+	messages, err := toDomainChatCompletionMessage(dbDialogue.Messages)
+	if err != nil {
+		return nil, err
+	}
+	return dialogue.NewWithID(
+		dbDialogue.ID,
+		dbDialogue.UserID,
+		dbDialogue.Label,
+		messages,
+		dbDialogue.CreatedAt,
+		dbDialogue.UpdatedAt,
+	), nil
 }

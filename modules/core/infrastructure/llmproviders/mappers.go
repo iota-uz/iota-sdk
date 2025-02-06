@@ -1,9 +1,8 @@
 package llmproviders
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-
 	"github.com/sashabaranov/go-openai"
 )
 

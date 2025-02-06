@@ -1,6 +1,8 @@
 package prompt
 
-import "time"
+import (
+	"time"
+)
 
 type Prompt struct {
 	ID          string

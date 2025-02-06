@@ -1,7 +1,6 @@
 package modules
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
@@ -12,7 +11,6 @@ import (
 var (
 	BuiltInModules = []application.Module{
 		core.NewModule(),
-		bichat.NewModule(),
 		finance.NewModule(),
 		warehouse.NewModule(),
 		crm.NewModule(),

@@ -146,6 +146,7 @@
       "Administration": "Ma'muriyat",
       "Users": "Foydalanuvchilar",
       "Roles": "Rollar",
+      "BiChat": "BI-Chat",
       "KnowledgeBase": "Bilimlar bazasi",
       "Operations": "Operatsiyalar",
       "Employees": "Xodimlar",
@@ -168,6 +169,20 @@
         "Title": "Boshqaruv paneli"
       },
       "Welcome": "Boshqaruv paneliga xush kelibsiz"
+    },
+    "BiChat": {
+      "Meta": {
+        "Index": {
+          "Title": "BI-Chat"
+        }
+      },
+      "Title": "BI-Chat",
+      "NewDialog": "Yangi suhbat",
+      "MessagePlaceholder": "Xabar yozing...",
+      "History": {
+        "Empty": "Tarix bo'sh",
+        "HelpText": "Yangi suhbat boshlash uchun \"Yangi suhbat\" tugmasini bosing"
+      }
     },
     "Users": {
       "Meta": {
@@ -406,3 +421,4 @@
     "Remove": "O'chirish",
     "All": "Hammasi"
 }
+  

@@ -1,9 +1,8 @@
 package dialogue
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
 	"time"
-
-	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
 )
 
 func New(userID uint, label string) Dialogue {

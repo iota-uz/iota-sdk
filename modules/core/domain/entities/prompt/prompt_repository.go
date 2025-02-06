@@ -1,6 +1,8 @@
 package prompt
 
-import "context"
+import (
+	"context"
+)
 
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
