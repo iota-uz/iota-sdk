@@ -10,7 +10,7 @@ import (
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/crm-schema.sql
+//go:embed infrastructure/persistence/schema/logging-schema.sql
 var migrationFiles embed.FS
 
 func NewModule() application.Module {
