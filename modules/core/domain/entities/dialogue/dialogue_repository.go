@@ -1,6 +1,8 @@
 package dialogue
 
-import "context"
+import (
+	"context"
+)
 
 type FindParams struct {
 	Query  string

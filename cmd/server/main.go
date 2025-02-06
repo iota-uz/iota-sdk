@@ -9,7 +9,6 @@ import (
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/crm"
@@ -19,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 )
@@ -47,7 +45,6 @@ func main() {
 		log.Fatalf("failed to load modules: %v", err)
 	}
 	app.RegisterNavItems(core.NavItems...)
-	app.RegisterNavItems(bichat.NavItems...)
 	app.RegisterNavItems(warehouse.NavItems...)
 	app.RegisterNavItems(finance.NavItems...)
 	app.RegisterNavItems(crm.NavItems...)
