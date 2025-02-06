@@ -1,0 +1,19 @@
+{
+	"NavigationLinks": {
+		"BiChat": "BI-Chat"
+	},
+	"BiChat": {
+		"Meta": {
+			"Index": {
+				"Title": "BI-Chat"
+			}
+		},
+		"Title": "BI-Chat",
+		"NewDialog": "Yangi suhbat",
+		"MessagePlaceholder": "Xabar yozing...",
+		"History": {
+			"Empty": "Tarix bo'sh",
+			"HelpText": "Yangi suhbat boshlash uchun \"Yangi suhbat\" tugmasini bosing"
+		}
+	}
+}
