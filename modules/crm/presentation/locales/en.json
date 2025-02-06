@@ -82,12 +82,18 @@
 			"DeleteConfirmation": "Are you sure you want to delete this instant message?"
 		},
 		"Dialog": {
-			"Heading": "Choose a template"
+			"Heading": "Choose a template",
+			"Empty": "No templates found...",
+			"NewTemplate": "New template"
 		}
 	},
 	"Chats": {
 		"Meta": {
 			"Title": "Chats"
-		}
+		},
+		"New": "New chat",
+		"InstantMessages": "Instant messages",
+		"NoSelectedChat": "Select a chat...",
+		"ChatNotFound": "Chat not found..."
 	}
 }
