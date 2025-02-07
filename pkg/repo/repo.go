@@ -3,10 +3,11 @@ package repo
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"strconv"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type Tx interface {
@@ -31,6 +32,19 @@ func FormatLimitOffset(limit, offset int) string {
 
 func Join(expressions ...string) string {
 	return strings.Join(expressions, " ")
+}
+
+func OrderBy(fields []string, ascending bool) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	q := "ORDER BY " + strings.Join(fields, ", ")
+	if ascending {
+		q += " ASC"
+	} else {
+		q += " DESC"
+	}
+	return q
 }
 
 func JoinWhere(expressions ...string) string {

@@ -2,17 +2,17 @@ package account
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type SettingsPageProps struct {
-	*types.PageContext
 	Tabs        []*viewmodels.Tab
 	AllNavItems []types.NavigationItem
 }
@@ -80,6 +80,7 @@ templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, 
 }
 
 templ SettingsForm(props *SettingsPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form class="flex flex-col justify-between h-full" method="post">
 		@card.Card(card.Props{WrapperClass: "m-6"}) {
 			@NavItems(props.AllNavItems, props.Tabs, 0, "")
@@ -90,14 +91,17 @@ templ SettingsForm(props *SettingsPageProps) {
 					"type": "submit",
 				}},
 			) {
-				{ props.T("Account.Save") }
+				{ pageCtx.T("Account.Save") }
 			}
 		</div>
 	</form>
 }
 
 templ Settings(props *SettingsPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Account.Meta.Settings.Title"),
+	}) {
 		@SettingsForm(props)
 	}
 }

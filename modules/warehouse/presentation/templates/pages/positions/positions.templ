@@ -2,33 +2,33 @@ package positions
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Positions       []*viewmodels.Position
 	Units           []*viewmodels.Unit
 	PaginationState *pagination.State
 }
 
 templ PositionsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: "", Key: "title"},
-				{Label: props.T("WarehousePositions.List.Position"), Key: "title"},
-				{Label: props.T("WarehousePositions.List.Barcode"), Key: "barcode"},
-				{Label: props.T("WarehousePositions.List.Unit"), Key: "unit"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("WarehousePositions.List.Position"), Key: "title"},
+				{Label: pageCtx.T("WarehousePositions.List.Barcode"), Key: "barcode"},
+				{Label: pageCtx.T("WarehousePositions.List.Unit"), Key: "unit"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, position := range props.Positions {
@@ -67,16 +67,17 @@ templ PositionsTable(props *IndexPageProps) {
 }
 
 templ PositionsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<div class="flex justify-between items-center gap-3">
 			<h1 class="text-2xl font-medium">
-				{ props.T("NavigationLinks.WarehousePositions") }
+				{ pageCtx.T("NavigationLinks.WarehousePositions") }
 			</h1>
 			@button.Primary(button.Props{
 				Size: button.SizeNormal, Href: "/warehouse/positions/upload",
 				Icon: icons.FileXls(icons.Props{Size: "18"}),
 			}) {
-				{ props.T("WarehousePositions.List.Upload") }
+				{ pageCtx.T("WarehousePositions.List.Upload") }
 			}
 		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
@@ -87,13 +88,13 @@ templ PositionsContent(props *IndexPageProps) {
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
-				@filters.Search(props.PageContext, []filters.SearchField{
+				@filters.Search([]filters.SearchField{
 					{
-						Label: props.T("WarehousePositions.List.Position"),
+						Label: pageCtx.T("WarehousePositions.List.Position"),
 						Key:   "title",
 					},
 					{
-						Label: props.T("WarehousePositions.List.Barcode"),
+						Label: pageCtx.T("WarehousePositions.List.Barcode"),
 						Key:   "barcode",
 					},
 				})
@@ -102,19 +103,19 @@ templ PositionsContent(props *IndexPageProps) {
 						"name": "UnitID",
 					},
 				}) {
-					<option selected disabled>{ props.T("WarehousePositions.Single.SelectUnit") }</option>
-					<option value="">{ props.T("All") }</option>
+					<option selected disabled>{ pageCtx.T("WarehousePositions.Single.SelectUnit") }</option>
+					<option value="">{ pageCtx.T("All") }</option>
 					for _, unit := range props.Units {
 						<option value={ unit.ID }>{ unit.Title }</option>
 					}
 				}
-				@filters.PageSize(props.PageContext)
-				@filters.CreatedAt(props.PageContext)
+				@filters.PageSize()
+				@filters.CreatedAt()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal, Href: "/warehouse/positions/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("WarehousePositions.List.New") }
+					{ pageCtx.T("WarehousePositions.List.New") }
 				}
 			</form>
 			@PositionsTable(props)
@@ -123,7 +124,10 @@ templ PositionsContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehousePositions.List.Meta.Title"),
+	}) {
 		@PositionsContent(props)
 	}
 }

@@ -16,11 +16,10 @@ import (
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreateFormProps struct {
-	*types.PageContext
 	User   viewmodels.User
 	Roles  []*viewmodels.Role
 	Errors map[string]string
@@ -47,6 +46,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"flex flex-col justify-between h-full\" hx-post=\"/users\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\"><div class=\"flex gap-5 p-6\"><div class=\"flex-1 space-y-5\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -64,7 +64,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Users.Single.FirstName"),
+				Label: pageCtx.T("Users.Single.FirstName"),
 				Attrs: templ.Attributes{"name": "FirstName", "value": props.User.FirstName},
 				Error: props.Errors["FirstName"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -76,7 +76,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Users.Single.LastName"),
+				Label: pageCtx.T("Users.Single.LastName"),
 				Attrs: templ.Attributes{
 					"name":  "LastName",
 					"value": props.User.LastName,
@@ -91,7 +91,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: props.T("Users.Single.MiddleName"),
+				Label: pageCtx.T("Users.Single.MiddleName"),
 				Attrs: templ.Attributes{
 					"name":  "MiddleName",
 					"value": props.User.MiddleName,
@@ -106,9 +106,8 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = EmailInput(SharedProps{
-				PageContext: props.PageContext,
-				Value:       props.User.Email,
-				Error:       props.Errors["Email"],
+				Value: props.User.Email,
+				Error: props.Errors["Email"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -134,10 +133,9 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = RoleSelect(&RoleSelectProps{
-				PageContext: props.PageContext,
-				Roles:       props.Roles,
-				Error:       props.Errors["RoleIDs"],
-				Name:        "RoleIDs",
+				Roles: props.Roles,
+				Error: props.Errors["RoleIDs"],
+				Name:  "RoleIDs",
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -147,8 +145,8 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Password(&input.Props{
-				Label:       props.T("Users.Single.Password"),
-				Placeholder: props.T("Users.Single.EnterPassword"),
+				Label:       pageCtx.T("Users.Single.Password"),
+				Placeholder: pageCtx.T("Users.Single.EnterPassword"),
 				Attrs: templ.Attributes{
 					"autocomplete": "new-password",
 					"name":         "Password",
@@ -163,8 +161,8 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-				Label:       props.T("Users.Single.Language"),
-				Placeholder: props.T("Users.Single.SelectLanguage"),
+				Label:       pageCtx.T("Users.Single.Language"),
+				Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
 				Value:       string(props.User.UILanguage),
 				Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -174,7 +172,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = card.Card(card.Props{
-			Header: card.DefaultHeader(props.T("Users.Cards.UserInfo")),
+			Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
 			Class:  "grid grid-cols-3 gap-4",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -197,7 +195,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
-				Label:       props.T("Users.Single.ChooseAvatar"),
+				Label:       pageCtx.T("Users.Single.ChooseAvatar"),
 				Placeholder: "PNG, JPG",
 				Name:        "AvatarID",
 				Class:       "col-span-3",
@@ -230,9 +228,9 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 105, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 103, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -278,6 +276,7 @@ func New(props *CreateFormProps) templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -296,7 +295,9 @@ func New(props *CreateFormProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("Users.Meta.New.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

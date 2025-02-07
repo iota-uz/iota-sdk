@@ -3,7 +3,8 @@
     "Accounts": "Счета",
     "Expenses": "Расходы",
     "ExpenseCategories": "Категории расходов",
-    "Payments": "Платежи"
+    "Payments": "Платежи",
+    "Finances": "Финансы"
   },
   "ExpenseCategories": {
     "Meta": {

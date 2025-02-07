@@ -17,11 +17,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditFormProps struct {
-	*types.PageContext
 	Role             *viewmodels.Role
 	PermissionGroups []*Group
 	Errors           map[string]string
@@ -48,6 +47,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col justify-between h-[calc(100vh-4rem)]\" id=\"edit-content\"><div class=\"flex-1 overflow-y-auto flex flex-col gap-5 p-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -65,8 +65,8 @@ func EditForm(props *EditFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       props.T("Roles.Single.Name.Label"),
-				Placeholder: props.T("Roles.Single.Name.Placeholder"),
+				Label:       pageCtx.T("Roles.Single.Name.Label"),
+				Placeholder: pageCtx.T("Roles.Single.Name.Placeholder"),
 				Attrs: templ.Attributes{
 					"name":  "Name",
 					"value": props.Role.Name,
@@ -98,7 +98,7 @@ func EditForm(props *EditFormProps) templ.Component {
 				ctx = templ.InitializeContext(ctx)
 				for _, child := range group.Children {
 					templ_7745c5c3_Err = Permission(SharedProps{
-						Label: props.T(fmt.Sprintf("Permissions.%s", child.Label)),
+						Label: pageCtx.T(fmt.Sprintf("Permissions.%s", child.Label)),
 						Attrs: templ.Attributes{
 							"name": child.Name,
 							"form": "save-form",
@@ -114,7 +114,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			})
 			templ_7745c5c3_Err = card.Card(card.Props{
 				Class:  "space-y-3",
-				Header: card.DefaultHeader(props.T(fmt.Sprintf("Resources.%s", group.Label))),
+				Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Label))),
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -150,9 +150,9 @@ func EditForm(props *EditFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Delete"))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 79, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 79, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -203,9 +203,9 @@ func EditForm(props *EditFormProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 98, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 98, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -253,6 +253,7 @@ func Edit(props *EditFormProps) templ.Component {
 			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var11 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -274,8 +275,8 @@ func Edit(props *EditFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				Heading: props.T("Roles.Single.Delete"),
-				Text:    props.T("Roles.Single.DeleteConfirmation"),
+				Heading: pageCtx.T("Roles.Single.Delete"),
+				Text:    pageCtx.T("Roles.Single.DeleteConfirmation"),
 				Icon:    icons.Trash(icons.Props{Size: "20"}),
 				Action:  "open-delete-role-confirmation",
 				Attrs: templ.Attributes{
@@ -292,7 +293,9 @@ func Edit(props *EditFormProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("Roles.Meta.Edit.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

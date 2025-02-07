@@ -8,6 +8,8 @@ package card
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import twmerge "github.com/Oudwins/tailwind-merge-go"
+
 type Props struct {
 	Class        string
 	WrapperClass string
@@ -43,7 +45,7 @@ func DefaultHeader(text string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/card/card.templ`, Line: 12, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/card/card.templ`, Line: 14, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -78,7 +80,7 @@ func Card(props Props) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var4 = []any{"bg-surface-300 rounded-lg border border-primary", props.WrapperClass}
+		var templ_7745c5c3_Var4 = []any{twmerge.Merge("bg-surface-300 rounded-lg border border-primary", props.WrapperClass)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -114,7 +116,7 @@ func Card(props Props) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		var templ_7745c5c3_Var6 = []any{"p-4", props.Class}
+		var templ_7745c5c3_Var6 = []any{twmerge.Merge("p-4", props.Class)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

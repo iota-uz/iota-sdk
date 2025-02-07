@@ -2,19 +2,18 @@ package expenses
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/textarea"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditPageProps struct {
-	*types.PageContext
 	Expense    *viewmodels.Expense
 	Accounts   []*viewmodels.MoneyAccount
 	Categories []*viewmodels.ExpenseCategory
@@ -22,13 +21,14 @@ type EditPageProps struct {
 }
 
 templ EditForm(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@card.Card(card.Props{
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@input.Number(&input.Props{
-				Label: props.T("Expenses.Single.Amount"),
+				Label: pageCtx.T("Expenses.Single.Amount"),
 				Attrs: templ.Attributes{
 					"name":  "Amount",
 					"value": props.Expense.Amount,
@@ -37,25 +37,23 @@ templ EditForm(props *EditPageProps) {
 				Error: props.Errors["Amount"],
 			})
 			@AccountSelect(&AccountSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Expense.AccountID,
-				Accounts:    props.Accounts,
+				Value:    props.Expense.AccountID,
+				Accounts: props.Accounts,
 				Attrs: templ.Attributes{
 					"name": "AccountID",
 					"form": "save-form",
 				},
 			})
 			@CategorySelect(&CategorySelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Expense.CategoryID,
-				Categories:  props.Categories,
+				Value:      props.Expense.CategoryID,
+				Categories: props.Categories,
 				Attrs: templ.Attributes{
 					"name": "CategoryID",
 					"form": "save-form",
 				},
 			})
 			@textarea.Basic(&textarea.Props{
-				Label: props.T("Expenses.Single.Comment"),
+				Label: pageCtx.T("Expenses.Single.Comment"),
 				Attrs: templ.Attributes{
 					"name": "Comment",
 					"form": "save-form",
@@ -88,7 +86,7 @@ templ EditForm(props *EditPageProps) {
 						"id":     "delete-expense-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -107,7 +105,7 @@ templ EditForm(props *EditPageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -115,13 +113,16 @@ templ EditForm(props *EditPageProps) {
 }
 
 templ Edit(props *EditPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Expenses.Meta.Edit.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			CancelText:  props.T("Cancel"),
-			ConfirmText: props.T("Delete"),
-			Heading:     props.T("Expenses.Single.Delete"),
-			Text:        props.T("Expenses.Single.DeleteConfirmation"),
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Expenses.Single.Delete"),
+			Text:        pageCtx.T("Expenses.Single.DeleteConfirmation"),
 			Icon:        icons.Trash(icons.Props{Size: "20"}),
 			Action:      "open-delete-expense-confirmation",
 			Attrs: templ.Attributes{

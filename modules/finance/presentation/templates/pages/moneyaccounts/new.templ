@@ -9,11 +9,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Currencies []*coreviewmodels.Currency
 	Account    *viewmodels.MoneyAccount
 	Errors     map[string]string
@@ -21,6 +20,7 @@ type CreatePageProps struct {
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
@@ -32,18 +32,18 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label: props.T("Accounts.Single.Name"),
+				Label: pageCtx.T("Accounts.Single.Name"),
 				Attrs: templ.Attributes{"name": "Name", "value": props.Account.Name},
 				Error: props.Errors["Name"],
 			})
 			@input.Number(&input.Props{
-				Label: props.T("Accounts.Single.Balance"),
+				Label: pageCtx.T("Accounts.Single.Balance"),
 				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance},
 				Error: props.Errors["Balance"],
 			})
 			@components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       props.T("Accounts.Single.Currency.Label"),
-				Placeholder: props.T("Accounts.Single.Currency.Placeholder"),
+				Label:       pageCtx.T("Accounts.Single.Currency.Label"),
+				Placeholder: pageCtx.T("Accounts.Single.Currency.Placeholder"),
 				Value:       "",
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
@@ -51,12 +51,12 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@input.Text(&input.Props{
-				Label: props.T("Accounts.Single.AccountNumber"),
+				Label: pageCtx.T("Accounts.Single.AccountNumber"),
 				Attrs: templ.Attributes{"name": "AccountNumber", "value": props.Account.AccountNumber},
 				Error: props.Errors["AccountNumber"],
 			})
 			@textarea.Basic(&textarea.Props{
-				Label:        props.T("Accounts.Single.Description"),
+				Label:        pageCtx.T("Accounts.Single.Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Account.Description,
@@ -70,14 +70,17 @@ templ CreateForm(props *CreatePageProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("Save") }
+				{ pageCtx.T("Save") }
 			}
 		</div>
 	</form>
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Accounts.Meta.New.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

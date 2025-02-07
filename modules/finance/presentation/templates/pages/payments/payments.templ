@@ -2,13 +2,14 @@ package payments
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -19,12 +20,13 @@ type IndexPageProps struct {
 }
 
 templ PaymentsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("Payments.List.Amount"), Key: "amount"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("Payments.List.Amount"), Key: "amount"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, payment := range props.Payments {
@@ -67,20 +69,22 @@ templ SearchFieldsTrigger(trigger *base.TriggerProps) {
 }
 
 templ SearchFields(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Combobox(base.ComboboxProps{
 		Name:      "Field",
 		ListClass: "!w-auto",
 		Trigger: &base.Trigger{Render: func(props *base.TriggerProps) templ.Component {
 			return SearchFieldsTrigger(props)
 		}}}) {
-		<option value="comment" selected>{ props.T("Payments.Single.Comment") }</option>
+		<option value="comment" selected>{ pageCtx.T("Payments.Single.Comment") }</option>
 	}
 }
 
 templ PaymentsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Payments") }
+			{ pageCtx.T("NavigationLinks.Payments") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -91,10 +95,9 @@ templ PaymentsContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				@filters.Default(&filters.Props{
-					PageContext: props.PageContext,
 					Fields: []filters.SearchField{
 						{
-							Label: props.T("Payments.List.Amount"),
+							Label: pageCtx.T("Payments.List.Amount"),
 							Key:   "amount",
 						},
 					},
@@ -104,7 +107,7 @@ templ PaymentsContent(props *IndexPageProps) {
 					Href: "/finance/payments/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Payments.List.New") }
+					{ pageCtx.T("Payments.List.New") }
 				}
 			</form>
 			@PaymentsTable(props)
@@ -113,7 +116,10 @@ templ PaymentsContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Payments.Meta.List.Title"),
+	}) {
 		@PaymentsContent(props)
 	}
 }

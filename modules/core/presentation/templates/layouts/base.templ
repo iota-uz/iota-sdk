@@ -1,8 +1,8 @@
 package layouts
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 var (
@@ -11,7 +11,19 @@ var (
 	htmxPreload = "/assets/" + assets.HashFS.HashName("js/lib/htmx.preload.js")
 	apexJs      = "/assets/" + assets.HashFS.HashName("js/lib/apexcharts.min.js")
 	apexCss     = "/assets/" + assets.HashFS.HashName("css/apexcharts.css")
+	favicon     = "/assets/" + assets.HashFS.HashName("images/favicon.ico")
+	mainCss     = "/assets/" + assets.HashFS.HashName("css/main.min.css")
+	htmxWS      = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
 )
+
+templ DefaultHead() {
+	<link rel="icon" type="image/x-icon" href={ favicon }/>
+	<link rel="stylesheet" href={ mainCss }/>
+	// <link rel="manifest" href="/assets/app.webmanifest"/>
+	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Regular.woff2" as="font" type="font/woff2" crossorigin/>
+	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Medium.woff2" as="font" type="font/woff2" crossorigin/>
+	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Semibold.woff2" as="font" type="font/woff2" crossorigin/>
+}
 
 templ Base(title string) {
 	<!DOCTYPE html>
@@ -19,11 +31,14 @@ templ Base(title string) {
 		<head>
 			<title>{ title }</title>
 			<link rel="stylesheet" href={ apexCss }/>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			@composables.MustUseHead(ctx)
 			<script defer type="module" src={ alpine }></script>
 			<script defer async src={ htmx }></script>
 			<script defer async src={ htmxPreload }></script>
 			<script defer async src={ apexJs }></script>
+			<script defer async src={ htmxWS }></script>
 		</head>
 		<body class="antialiased overflow-y-hidden">
 			{ children... }

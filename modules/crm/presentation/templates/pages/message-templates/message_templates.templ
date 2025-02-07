@@ -1,0 +1,90 @@
+package messagetemplatesui
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type IndexPageProps struct {
+	NewURL    string
+	BaseURL   string
+	Templates []*viewmodels.MessageTemplate
+}
+
+templ TemplatesTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col gap-4 table-wrapper">
+		@base.Table(&base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: pageCtx.T("MessageTemplates.List.Content"), Key: "content"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
+			},
+		}) {
+			for _, template := range props.Templates {
+				@base.TableRow() {
+					@base.TableCell() {
+						{ template.Template }
+					}
+					@base.TableCell() {
+						@button.Secondary(button.Props{
+							Fixed: true,
+							Size:  button.SizeSM,
+							Class: "btn-fixed",
+							Href:  fmt.Sprintf("%s/%s", props.BaseURL, template.ID),
+						}) {
+							@icons.PencilSimple(icons.Props{Size: "20"})
+						}
+					}
+				}
+			}
+		}
+	</div>
+}
+
+templ TemplatesContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ pageCtx.T("MessageTemplates.List.Meta.Title") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get={ props.BaseURL }
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@filters.Search([]filters.SearchField{
+					{
+						Label: "",
+						Key:   "Template",
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal,
+					Href: props.NewURL,
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ pageCtx.T("MessageTemplates.List.New") }
+				}
+			</form>
+			@TemplatesTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("MessageTemplates.List.Meta.Title"),
+	}) {
+		@TemplatesContent(props)
+	}
+}

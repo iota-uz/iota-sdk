@@ -4,6 +4,18 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	ActionCreate Action = "create"
+	ActionRead   Action = "read"
+	ActionUpdate Action = "update"
+	ActionDelete Action = "delete"
+)
+
+const (
+	ModifierAll Modifier = "all"
+	ModifierOwn Modifier = "own"
+)
+
 type Permission struct {
 	ID       uuid.UUID
 	Name     string

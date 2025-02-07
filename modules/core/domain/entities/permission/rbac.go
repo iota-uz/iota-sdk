@@ -21,7 +21,7 @@ type rbac struct {
 
 func NewRbac() RBAC {
 	return &rbac{
-		permissions: Permissions,
+		permissions: []*Permission{},
 	}
 }
 

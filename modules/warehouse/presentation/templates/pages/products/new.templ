@@ -7,17 +7,17 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Product *viewmodels.Product
 	SaveURL string
 	Errors  map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.SaveURL }
@@ -29,7 +29,7 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label: props.T("Products.Single.Rfid"),
+				Label: pageCtx.T("Products.Single.Rfid"),
 				Attrs: templ.Attributes{
 					"value": props.Product.Rfid,
 					"name":  "Rfid",
@@ -37,16 +37,15 @@ templ CreateForm(props *CreatePageProps) {
 				Error: props.Errors["Rfid"],
 			})
 			@base.Combobox(base.ComboboxProps{
-				Label:        props.T("Products.Single.Position"),
-				Placeholder:  props.T("Products.Single.SearchPosition"),
+				Label:        pageCtx.T("Products.Single.Position"),
+				Placeholder:  pageCtx.T("Products.Single.SearchPosition"),
 				Searchable:   true,
-				NotFoundText: props.T("Products.Single.NoPositionsFound"),
+				NotFoundText: pageCtx.T("Products.Single.NoPositionsFound"),
 				Name:         "PositionID",
 				Endpoint:     "/warehouse/positions/search",
 			})
 			@StatusSelect(&StatusSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Product.Status,
+				Value: props.Product.Status,
 				Attrs: templ.Attributes{
 					"name": "Status",
 				},
@@ -59,14 +58,17 @@ templ CreateForm(props *CreatePageProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("Save") }
+				{ pageCtx.T("Save") }
 			}
 		</div>
 	</form>
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Products.New.Meta.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

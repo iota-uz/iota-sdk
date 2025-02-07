@@ -2,30 +2,30 @@ package units
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Units           []*viewmodels.Unit
 	PaginationState *pagination.State
 }
 
 templ UnitsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("WarehouseUnits.List.Title"), Key: "title"},
-				{Label: props.T("WarehouseUnits.List.ShortTitle"), Key: "shortTitle"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("WarehouseUnits.List.Title"), Key: "title"},
+				{Label: pageCtx.T("WarehouseUnits.List.ShortTitle"), Key: "shortTitle"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, unit := range props.Units {
@@ -56,9 +56,10 @@ templ UnitsTable(props *IndexPageProps) {
 }
 
 templ UnitsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.WarehouseUnits") }
+			{ pageCtx.T("NavigationLinks.WarehouseUnits") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -69,14 +70,13 @@ templ UnitsContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				@filters.Default(&filters.Props{
-					PageContext: props.PageContext,
 					Fields: []filters.SearchField{
 						{
-							Label: props.T("WarehouseUnits.List.Title"),
+							Label: pageCtx.T("WarehouseUnits.List.Title"),
 							Key:   "title",
 						},
 						{
-							Label: props.T("WarehouseUnits.List.ShortTitle"),
+							Label: pageCtx.T("WarehouseUnits.List.ShortTitle"),
 							Key:   "short_title",
 						},
 					},
@@ -85,7 +85,7 @@ templ UnitsContent(props *IndexPageProps) {
 					Size: button.SizeNormal, Href: "/warehouse/units/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("WarehouseUnits.List.New") }
+					{ pageCtx.T("WarehouseUnits.List.New") }
 				}
 			</form>
 			@UnitsTable(props)
@@ -94,7 +94,10 @@ templ UnitsContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseUnits.List.Meta.Title"),
+	}) {
 		@UnitsContent(props)
 	}
 }

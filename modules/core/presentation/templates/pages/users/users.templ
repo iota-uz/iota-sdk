@@ -2,28 +2,28 @@ package users
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Users []*viewmodels.User
 }
 
 templ UsersTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: props.T("Users.List.FullName"), Key: "fullName"},
-			{Label: props.T("Users.List.Roles"), Key: "roles"},
-			{Label: props.T("Users.List.Email"), Key: "email"},
-			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-			{Label: props.T("Actions"), Class: "w-16"},
+			{Label: pageCtx.T("Users.List.FullName"), Key: "fullName"},
+			{Label: pageCtx.T("Users.List.Roles"), Key: "roles"},
+			{Label: pageCtx.T("Users.List.Email"), Key: "email"},
+			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
 		for _, user := range props.Users {
@@ -52,7 +52,7 @@ templ UsersTable(props *IndexPageProps) {
 							{ user.RolesVerbose() }
 						</div>
 					} else {
-						{ props.T("Unknown") }
+						{ pageCtx.T("Unknown") }
 					}
 				}
 				@base.TableCell() {
@@ -81,9 +81,10 @@ templ UsersTable(props *IndexPageProps) {
 }
 
 templ UsersContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Users") }
+			{ pageCtx.T("NavigationLinks.Users") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -97,13 +98,13 @@ templ UsersContent(props *IndexPageProps) {
 					AddonLeft: &input.Addon{
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
-					Placeholder: props.T("Search"),
+					Placeholder: pageCtx.T("Search"),
 					Attrs: templ.Attributes{
 						"name": "name",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: props.T("PerPage"),
+					Prefix: pageCtx.T("PerPage"),
 					Attrs: templ.Attributes{
 						"name": "limit",
 					},
@@ -113,7 +114,7 @@ templ UsersContent(props *IndexPageProps) {
 					<option>50</option>
 					<option>100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
+				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
 					<option>Вчера</option>
 					<option>Позавчера</option>
 				}
@@ -122,7 +123,7 @@ templ UsersContent(props *IndexPageProps) {
 					Href: "/users/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Users.List.New") }
+					{ pageCtx.T("Users.List.New") }
 				}
 			</form>
 			@UsersTable(props)
@@ -131,7 +132,10 @@ templ UsersContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Users.Meta.List.Title"),
+	}) {
 		@UsersContent(props)
 	}
 }

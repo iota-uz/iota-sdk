@@ -2,30 +2,30 @@ package products
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Products        []*viewmodels.Product
 	PaginationState *pagination.State
 }
 
 templ ProductsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("Products.List.Position"), Key: "position"},
-				{Label: props.T("Products.List.Status"), Key: "status"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("Products.List.Position"), Key: "position"},
+				{Label: pageCtx.T("Products.List.Status"), Key: "status"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, product := range props.Products {
@@ -34,7 +34,7 @@ templ ProductsTable(props *IndexPageProps) {
 						{ product.Position.Title }
 					}
 					@base.TableCell() {
-						{ product.LocalizedStatus(props.Localizer) }
+						{ product.LocalizedStatus(pageCtx.Localizer) }
 					}
 					@base.TableCell() {
 						<div x-data="relativeformat">
@@ -56,9 +56,10 @@ templ ProductsTable(props *IndexPageProps) {
 }
 
 templ ProductsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Products") }
+			{ pageCtx.T("NavigationLinks.Products") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -68,9 +69,9 @@ templ ProductsContent(props *IndexPageProps) {
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
-				@filters.Search(props.PageContext, []filters.SearchField{
+				@filters.Search([]filters.SearchField{
 					{
-						Label: props.T("Products.List.Position"),
+						Label: pageCtx.T("Products.List.Position"),
 						Key:   "position",
 					},
 				})
@@ -79,19 +80,19 @@ templ ProductsContent(props *IndexPageProps) {
 						"name": "Status",
 					},
 				}) {
-					<option disabled selected>{ props.T("Products.Single.SelectStatus") }</option>
-					<option value="">{ props.T("All") }</option>
+					<option disabled selected>{ pageCtx.T("Products.Single.SelectStatus") }</option>
+					<option value="">{ pageCtx.T("All") }</option>
 					for _, option := range Statuses {
-						<option value={ option.Value }>{ props.T(option.MessageId) }</option>
+						<option value={ option.Value }>{ pageCtx.T(option.MessageId) }</option>
 					}
 				}
-				@filters.PageSize(props.PageContext)
-				@filters.CreatedAt(props.PageContext)
+				@filters.PageSize()
+				@filters.CreatedAt()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal, Href: "/warehouse/products/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Products.List.New") }
+					{ pageCtx.T("Products.List.New") }
 				}
 			</form>
 			@ProductsTable(props)
@@ -100,7 +101,10 @@ templ ProductsContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Products.List.Meta.Title"),
+	}) {
 		@ProductsContent(props)
 	}
 }

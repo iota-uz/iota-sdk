@@ -15,11 +15,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Positions []*viewmodels.Position
 	Position  *viewmodels.Position
 	Units     []*viewmodels.Unit
@@ -48,6 +47,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form id=\"save-form\" class=\"flex flex-col justify-between h-full\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -78,7 +78,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = components.UploadInput(&components.UploadInputProps{
-				Label:    props.T("WarehousePositions.Single.Images"),
+				Label:    pageCtx.T("WarehousePositions.Single.Images"),
 				Name:     "ImageIDs",
 				Class:    "col-span-3",
 				Form:     "save-form",
@@ -92,8 +92,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Title.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Title.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Title.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Title.Placeholder"),
 				Attrs: templ.Attributes{
 					"autofocus": true,
 					"name":      "Title",
@@ -109,8 +109,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       props.T("WarehousePositions.Single.Barcode.Label"),
-				Placeholder: props.T("WarehousePositions.Single.Barcode.Placeholder"),
+				Label:       pageCtx.T("WarehousePositions.Single.Barcode.Label"),
+				Placeholder: pageCtx.T("WarehousePositions.Single.Barcode.Placeholder"),
 				Attrs: templ.Attributes{
 					"name": "Barcode",
 					"form": "save-form",
@@ -125,9 +125,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = UnitSelect(&UnitSelectProps{
-				PageContext: props.PageContext,
-				Value:       props.Position.UnitID,
-				Units:       props.Units,
+				Value: props.Position.UnitID,
+				Units: props.Units,
 				Attrs: templ.Attributes{
 					"name": "UnitID",
 					"form": "save-form",
@@ -162,9 +161,9 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.T("Save"))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/new.templ`, Line: 77, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/new.templ`, Line: 76, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -210,6 +209,7 @@ func New(props *CreatePageProps) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -228,7 +228,9 @@ func New(props *CreatePageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Authenticated(props.PageContext).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
+			Title: pageCtx.T("WarehousePositions.New.Meta.Title"),
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

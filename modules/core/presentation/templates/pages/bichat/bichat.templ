@@ -1,12 +1,12 @@
 package bichat
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type HistoryItem struct {
@@ -15,7 +15,6 @@ type HistoryItem struct {
 }
 
 type ChatPageProps struct {
-	*types.PageContext
 	History     []*HistoryItem
 	Suggestions []string
 }
@@ -29,6 +28,7 @@ templ ModelSelect() {
 }
 
 templ ChatSideBar(props *ChatPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<!-- Chat Actions -->
 	<div class="flex gap-2 border-b border-gray-200 p-4">
 		@button.Secondary(button.Props{
@@ -36,7 +36,7 @@ templ ChatSideBar(props *ChatPageProps) {
 			Class: "flex-grow",
 			Icon:  icons.PlusCircle(icons.Props{Size: "18"}),
 		}) {
-			{ props.T("BiChat.NewDialog") }
+			{ pageCtx.T("BiChat.NewDialog") }
 		}
 		@ModelSelect()
 	</div>
@@ -58,20 +58,21 @@ templ ChatSideBar(props *ChatPageProps) {
 				alt="No history image"
 			/>
 			<p>
-				{ props.T("BiChat.History.Empty") }
+				{ pageCtx.T("BiChat.History.Empty") }
 			</p>
 			<p class="text-gray-400">
-				{ props.T("BiChat.History.HelpText") }
+				{ pageCtx.T("BiChat.History.HelpText") }
 			</p>
 		</div>
 	}
 }
 
 templ BiChatPage(props *ChatPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="p-6 h-full flex flex-col">
 		<!-- Header -->
 		<h1 class="text-2xl font-medium">
-			{ props.T("BiChat.Title") }
+			{ pageCtx.T("BiChat.Title") }
 		</h1>
 		<div class="flex bg-white flex-1">
 			<div class="flex flex-col border-r border-gray-200 w-80">
@@ -97,7 +98,7 @@ templ BiChatPage(props *ChatPageProps) {
 					</div>
 					<div class="my-6">
 						@input.Text(&input.Props{
-							Placeholder: props.T("BiChat.MessagePlaceholder"),
+							Placeholder: pageCtx.T("BiChat.MessagePlaceholder"),
 						})
 					</div>
 				</div>
@@ -107,7 +108,10 @@ templ BiChatPage(props *ChatPageProps) {
 }
 
 templ Index(props *ChatPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("BiChat.Meta.Index.Title"),
+	}) {
 		@BiChatPage(props)
 	}
 }

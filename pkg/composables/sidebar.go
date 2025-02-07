@@ -1,26 +1,26 @@
 package composables
 
 import (
+	"context"
 	"errors"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"net/http"
 )
 
 var (
 	ErrNavItemsNotFound = errors.New("navigation items not found")
 )
 
-func UseNavItems(r *http.Request) ([]types.NavigationItem, error) {
-	navItems := r.Context().Value(constants.NavItemsKey)
+func UseNavItems(ctx context.Context) []types.NavigationItem {
+	navItems := ctx.Value(constants.NavItemsKey)
 	if navItems == nil {
-		return nil, ErrNavItemsNotFound
+		panic("navigation items not found")
 	}
-	return navItems.([]types.NavigationItem), nil
+	return navItems.([]types.NavigationItem)
 }
 
-func UseAllNavItems(r *http.Request) ([]types.NavigationItem, error) {
-	navItems := r.Context().Value(constants.AllNavItemsKey)
+func UseAllNavItems(ctx context.Context) ([]types.NavigationItem, error) {
+	navItems := ctx.Value(constants.AllNavItemsKey)
 	if navItems == nil {
 		return nil, ErrNavItemsNotFound
 	}

@@ -160,7 +160,7 @@ func Confirmation(p *Props) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(p.CancelText)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/dialog/dialog.templ`, Line: 45, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/dialog/dialog.templ`, Line: 48, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -168,7 +168,10 @@ func Confirmation(p *Props) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = button.Secondary(button.Props{Class: "flex-1 justify-center", Attrs: templ.Attributes{"value": "cancel"}}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = button.Secondary(button.Props{
+			Class: "flex-1 justify-center",
+			Attrs: templ.Attributes{"value": "cancel"},
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -187,7 +190,7 @@ func Confirmation(p *Props) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(p.ConfirmText)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/dialog/dialog.templ`, Line: 48, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/dialog/dialog.templ`, Line: 54, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -195,7 +198,10 @@ func Confirmation(p *Props) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = button.Primary(button.Props{Class: "flex-1 justify-center", Attrs: templ.Attributes{"value": "confirm"}}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = button.Primary(button.Props{
+			Class: "flex-1 justify-center",
+			Attrs: templ.Attributes{"value": "confirm"},
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

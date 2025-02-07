@@ -12,6 +12,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -42,8 +43,9 @@ func SalaryInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Number(&input.Props{
-			Label: props.T("Employees.Private.Salary.Label"),
+			Label: pageCtx.T("Employees.Private.Salary.Label"),
 			Error: props.Errors["Salary"],
 			Attrs: templ.Attributes{
 				"name":  "Salary",
@@ -84,9 +86,10 @@ func TinInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Text(&input.Props{
-			Label:       props.T("Employees.Private.TIN.Label"),
-			Placeholder: props.T("Employees.Private.TIN.Placeholder"),
+			Label:       pageCtx.T("Employees.Private.TIN.Label"),
+			Placeholder: pageCtx.T("Employees.Private.TIN.Placeholder"),
 			Error:       props.Errors["Tin"],
 			Attrs: templ.Attributes{
 				"name":  "Tin",
@@ -121,9 +124,10 @@ func PinInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Text(&input.Props{
-			Label:       props.T("Employees.Private.Pin.Label"),
-			Placeholder: props.T("Employees.Private.Pin.Placeholder"),
+			Label:       pageCtx.T("Employees.Private.Pin.Label"),
+			Placeholder: pageCtx.T("Employees.Private.Pin.Placeholder"),
 			Error:       props.Errors["Pin"],
 			Attrs: templ.Attributes{
 				"name":  "Pin",
@@ -158,9 +162,10 @@ func PassportInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Text(&input.Props{
-			Label:       props.T("Employees.Private.PassportSN.Label"),
-			Placeholder: props.T("Employees.Private.PassportSN.Placeholder"),
+			Label:       pageCtx.T("Employees.Private.PassportSN.Label"),
+			Placeholder: pageCtx.T("Employees.Private.PassportSN.Placeholder"),
 			Error:       props.Errors["PassportSN"],
 			Attrs: templ.Attributes{
 				"name":  "PassportSN",
@@ -195,8 +200,9 @@ func JoinDateInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Date(&input.Props{
-			Label: props.T("Employees.Public.HireDate.Label"),
+			Label: pageCtx.T("Employees.Public.HireDate.Label"),
 			Error: props.Errors["HireDate"],
 			Attrs: templ.Attributes{
 				"name":  "HireDate",
@@ -231,8 +237,9 @@ func ResignationDateInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = input.Date(&input.Props{
-			Label: props.T("Employees.Public.ResignationDate.Label"),
+			Label: pageCtx.T("Employees.Public.ResignationDate.Label"),
 			Error: props.Errors["ResignationDate"],
 			Attrs: templ.Attributes{
 				"name":  "ResignationDate",

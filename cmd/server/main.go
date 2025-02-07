@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -46,12 +47,12 @@ func main() {
 	app.RegisterNavItems(core.NavItems...)
 	app.RegisterNavItems(warehouse.NavItems...)
 	app.RegisterNavItems(finance.NavItems...)
+	app.RegisterNavItems(crm.NavItems...)
 	app.RegisterHashFsAssets(internalassets.HashFS)
 	app.RegisterControllers(
 		controllers.NewStaticFilesController(app.HashFsAssets()),
 		controllers.NewGraphQLController(app),
 	)
-
 	options := &server.DefaultOptions{
 		Logger:        logger,
 		Configuration: conf,

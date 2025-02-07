@@ -6,17 +6,17 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Unit    *viewmodels.Unit
 	Errors  map[string]string
 	SaveURL string
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.SaveURL }
@@ -28,8 +28,8 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label:       props.T("WarehouseUnits.Single.Title.Label"),
-				Placeholder: props.T("WarehouseUnits.Single.Title.Placeholder"),
+				Label:       pageCtx.T("WarehouseUnits.Single.Title.Label"),
+				Placeholder: pageCtx.T("WarehouseUnits.Single.Title.Placeholder"),
 				Attrs: templ.Attributes{
 					"autofocus": true,
 					"name":      "Title",
@@ -38,8 +38,8 @@ templ CreateForm(props *CreatePageProps) {
 				Error: props.Errors["Title"],
 			})
 			@input.Text(&input.Props{
-				Label:       props.T("WarehouseUnits.Single.ShortTitle.Label"),
-				Placeholder: props.T("WarehouseUnits.Single.ShortTitle.Placeholder"),
+				Label:       pageCtx.T("WarehouseUnits.Single.ShortTitle.Label"),
+				Placeholder: pageCtx.T("WarehouseUnits.Single.ShortTitle.Placeholder"),
 				Attrs: templ.Attributes{
 					"name":  "ShortTitle",
 					"value": props.Unit.ShortTitle,
@@ -64,7 +64,7 @@ templ CreateForm(props *CreatePageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -72,7 +72,10 @@ templ CreateForm(props *CreatePageProps) {
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseUnits.New.Meta.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

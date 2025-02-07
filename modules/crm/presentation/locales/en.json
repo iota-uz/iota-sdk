@@ -1,0 +1,93 @@
+{
+	"NavigationLinks": {
+		"CRM": "CRM",
+		"Clients": "Clients",
+		"Chats": "Chats"
+	},
+	"Resources": {
+		"client": "Clients"
+	},
+	"Permissions": {
+		"Client": {
+			"Create": "Create clients",
+			"Read": "View clients",
+			"Update": "Edit clients",
+			"Delete": "Delete clients"
+		}
+	},
+	"Clients": {
+		"List": {
+			"Meta": {
+				"Title": "Clients"
+			},
+			"New": "New client",
+			"FullName": "Full Name",
+			"Phone": "Phone"
+		},
+		"New": {
+			"Meta": {
+				"Title": "New client"
+			}
+		},
+		"Edit": {
+			"Meta": {
+				"Title": "Edit client"
+			}
+		},
+		"Single": {
+			"FirstName": {
+				"Label": "First Name",
+				"Placeholder": "Enter the first name"
+			},
+			"LastName": {
+				"Label": "Last Name",
+				"Placeholder": "Enter the last name"
+			},
+			"MiddleName": {
+				"Label": "Middle Name",
+				"Placeholder": "Enter the middle name"
+			},
+			"Phone": {
+				"Label": "Phone",
+				"Placeholder": "Enter the phone number"
+			},	
+			"Delete": "Delete client",
+			"DeleteConfirmation": "Are you sure you want to delete this client?"
+		}
+	},
+	"MessageTemplates": {
+		"List": {
+			"Meta": {
+				"Title": "Instant messages"
+			},
+			"New": "New instant message",
+			"Content": "Content"
+		},
+		"New": {
+			"Meta": {
+				"Title": "New instant message"
+			}
+		},
+		"Edit": {
+			"Meta": {
+				"Title": "Edit instant message"
+			}
+		},
+		"Single": {
+			"Template": {
+				"Label": "Template",
+				"Placeholder": "Enter the template"
+			},
+			"Delete": "Delete instant message",
+			"DeleteConfirmation": "Are you sure you want to delete this instant message?"
+		},
+		"Dialog": {
+			"Heading": "Choose a template"
+		}
+	},
+	"Chats": {
+		"Meta": {
+			"Title": "Chats"
+		}
+	}
+}

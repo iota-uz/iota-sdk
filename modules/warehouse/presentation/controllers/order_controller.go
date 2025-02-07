@@ -24,7 +24,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 	"strconv"
 )
@@ -104,6 +103,7 @@ func (c *OrdersController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -147,15 +147,6 @@ func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResp
 }
 
 func (c *OrdersController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehouseOrders.List.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	paginated, err := c.viewModelOrders(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -163,7 +154,6 @@ func (c *OrdersController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &orders.IndexPageProps{
-		PageContext:     pageCtx,
 		Orders:          paginated.Orders,
 		PaginationState: paginated.PaginationState,
 	}
@@ -207,47 +197,29 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 		countByPositionID[item.Position().ID] = int(count)
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.View.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	viewModel := mappers.OrderToViewModel(entity, countByPositionID)
 	props := &orders.ViewPageProps{
-		PageContext: pageCtx,
-		Order:       viewModel,
-		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		Order:     viewModel,
+		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(orders.View(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *OrdersController) NewInOrder(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &orderin.PageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
-		Items:       []orderin.OrderItem{},
-		SaveURL:     fmt.Sprintf("%s/in", c.basePath),
-		ItemsURL:    fmt.Sprintf("%s/items?status=%s", c.basePath, product.InDevelopment),
+		Errors:   map[string]string{},
+		Items:    []orderin.OrderItem{},
+		SaveURL:  fmt.Sprintf("%s/in", c.basePath),
+		ItemsURL: fmt.Sprintf("%s/items?status=%s", c.basePath, product.InDevelopment),
 	}
 	templ.Handler(orderin.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *OrdersController) NewOutOrder(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &orderout.PageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
-		SaveURL:     fmt.Sprintf("%s/out", c.basePath),
-		ItemsURL:    fmt.Sprintf("%s/items?status=%s", c.basePath, product.InStock),
+		Errors:   map[string]string{},
+		SaveURL:  fmt.Sprintf("%s/out", c.basePath),
+		ItemsURL: fmt.Sprintf("%s/items?status=%s", c.basePath, product.InStock),
 	}
 	templ.Handler(orderout.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -259,11 +231,6 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	items, err := c.orderItems(r.Context(), formDTO, product.InDevelopment)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -298,7 +265,7 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		}
 		if len(products) < quantity {
 			hasErrors = true
-			items[i].Error = pageCtx.T("Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT")
+			items[i].Error = composables.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT")
 		}
 		for _, p := range products {
 			dto.ProductIDs = append(dto.ProductIDs, p.ID)
@@ -329,11 +296,6 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseOrders.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	items, err := c.orderItems(r.Context(), formDTO, product.InStock)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -368,7 +330,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		}
 		if len(products) < quantity {
 			hasErrors = true
-			items[i].Error = pageCtx.T("Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK")
+			items[i].Error = composables.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK")
 		}
 		for _, p := range products {
 			dto.ProductIDs = append(dto.ProductIDs, p.ID)

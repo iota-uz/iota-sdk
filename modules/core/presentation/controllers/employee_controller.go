@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 	"strconv"
 	"time"
@@ -50,6 +49,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
@@ -66,14 +66,6 @@ func (c *EmployeeController) Register(r *mux.Router) {
 }
 
 func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Employees.Meta.List.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	params := composables.UsePaginated(r)
 	employeeEntities, err := c.employeeService.GetPaginated(r.Context(), &employee.FindParams{
 		Limit:  params.Limit,
@@ -86,9 +78,8 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &employees.IndexPageProps{
-		PageContext: pageCtx,
-		Employees:   mapping.MapViewModels(employeeEntities, mappers.EmployeeToViewModel),
-		NewURL:      fmt.Sprintf("%s/new", c.basePath),
+		Employees: mapping.MapViewModels(employeeEntities, mappers.EmployeeToViewModel),
+		NewURL:    fmt.Sprintf("%s/new", c.basePath),
 	}
 	if isHxRequest {
 		templ.Handler(employees.EmployeesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -98,11 +89,6 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	entity, err := employee.New(
 		"",
 		"",
@@ -122,10 +108,9 @@ func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &employees.CreatePageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
-		Employee:    mappers.EmployeeToViewModel(entity),
-		PostPath:    c.basePath,
+		Errors:   map[string]string{},
+		Employee: mappers.EmployeeToViewModel(entity),
+		PostPath: c.basePath,
 	}
 	templ.Handler(employees.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -137,26 +122,16 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Employees.Meta.Edit.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	entity, err := c.employeeService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
 		return
 	}
 	props := &employees.EditPageProps{
-		PageContext: pageCtx,
-		Employee:    mappers.EmployeeToViewModel(entity),
-		Errors:      map[string]string{},
-		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
-		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		Employee:  mappers.EmployeeToViewModel(entity),
+		Errors:    map[string]string{},
+		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(employees.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -168,16 +143,9 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		props := &employees.CreatePageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
+			Errors: errorsMap,
 			Employee: &viewmodels.Employee{
 				FirstName:       dto.FirstName,
 				LastName:        dto.LastName,
@@ -216,11 +184,6 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Employees.Meta.Edit.Title", ""))
-	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
-		return
-	}
 	errorsMap, ok := dto.Ok(r.Context())
 	if ok {
 		if err := c.employeeService.Update(r.Context(), id, dto); err != nil {
@@ -234,11 +197,10 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		props := &employees.EditPageProps{
-			PageContext: pageCtx,
-			Employee:    mappers.EmployeeToViewModel(entity),
-			Errors:      errorsMap,
-			SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
-			DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+			Employee:  mappers.EmployeeToViewModel(entity),
+			Errors:    errorsMap,
+			SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+			DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 		}
 		templ.Handler(employees.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

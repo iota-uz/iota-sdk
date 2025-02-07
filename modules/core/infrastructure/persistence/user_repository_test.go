@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"testing"
 )
 
@@ -20,14 +21,14 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		"test",
 		"test",
 		[]*permission.Permission{
-			permission.UserRead,
+			permissions.UserRead,
 		},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := permissionRepository.Save(f.ctx, permission.UserRead); err != nil {
+	if err := permissionRepository.Save(f.ctx, permissions.UserRead); err != nil {
 		t.Fatal(err)
 	}
 
@@ -83,10 +84,10 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 			t.Fatalf("expected %d, got %d", 1, len(roles[0].Permissions()))
 		}
 
-		if roles[0].Permissions()[0].Name != permission.UserRead.Name {
+		if roles[0].Permissions()[0].Name != permissions.UserRead.Name {
 			t.Errorf(
 				"expected %s, got %s",
-				permission.UserRead.Name,
+				permissions.UserRead.Name,
 				roles[0].Permissions()[0].Name,
 			)
 		}

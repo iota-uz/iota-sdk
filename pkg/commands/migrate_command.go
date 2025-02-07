@@ -18,7 +18,7 @@ var (
 	ErrNoCommand = errors.New("expected 'up', 'down' or 'redo' subcommands")
 )
 
-func Migrate() error {
+func Migrate(mods ...application.Module) error {
 	if len(os.Args) < 2 {
 		return ErrNoCommand
 	}
@@ -32,7 +32,7 @@ func Migrate() error {
 		panic(err)
 	}
 	app := application.New(pool, eventbus.NewEventPublisher())
-	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
+	if err := modules.Load(app, mods...); err != nil {
 		return err
 	}
 	switch migration {

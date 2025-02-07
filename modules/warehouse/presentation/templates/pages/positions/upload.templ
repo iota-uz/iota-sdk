@@ -5,32 +5,32 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type UploadPageProps struct {
-	*types.PageContext
 	Errors  map[string]string
 	SaveURL string
 }
 
 templ exampleTable(props *UploadPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="overflow-x-auto">
 		<table class="table-auto border-collapse border border-gray-300 w-full text-sm">
 			<thead>
 				<tr class="bg-gray-200 text-left">
 					<th class="border border-gray-300 px-4 py-2">#</th>
 					<th class="border border-gray-300 px-4 py-2">
-						{ props.T("WarehousePositions.Upload.Example.ItemName") }
+						{ pageCtx.T("WarehousePositions.Upload.Example.ItemName") }
 					</th>
 					<th class="border border-gray-300 px-4 py-2">
-						{ props.T("WarehousePositions.Upload.Example.ItemCode") }
+						{ pageCtx.T("WarehousePositions.Upload.Example.ItemCode") }
 					</th>
 					<th class="border border-gray-300 px-4 py-2">
-						{ props.T("WarehousePositions.Upload.Example.Unit") }
+						{ pageCtx.T("WarehousePositions.Upload.Example.Unit") }
 					</th>
 					<th class="border border-gray-300 px-4 py-2">
-						{ props.T("WarehousePositions.Upload.Example.Quantity") }
+						{ pageCtx.T("WarehousePositions.Upload.Example.Quantity") }
 					</th>
 				</tr>
 			</thead>
@@ -69,6 +69,7 @@ templ exampleTable(props *UploadPageProps) {
 }
 
 templ UploadForm(props *UploadPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		id="save-form"
 		class="flex flex-col justify-between mt-6"
@@ -77,8 +78,8 @@ templ UploadForm(props *UploadPageProps) {
 		hx-indicator="#save-btn"
 	>
 		@components.UploadInput(&components.UploadInputProps{
-			Label:       props.T("WarehousePositions.Upload.UploadLabel"),
-			Placeholder: props.T("WarehousePositions.Upload.UploadPlaceholder"),
+			Label:       pageCtx.T("WarehousePositions.Upload.UploadLabel"),
+			Placeholder: pageCtx.T("WarehousePositions.Upload.UploadPlaceholder"),
 			Error:       props.Errors["FileID"],
 			Accept:      "text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel",
 			Name:        "FileID",
@@ -92,25 +93,32 @@ templ UploadForm(props *UploadPageProps) {
 					"id": "save-btn",
 				},
 			}) {
-				{ props.T("WarehousePositions.Upload.Submit") }
+				{ pageCtx.T("WarehousePositions.Upload.Submit") }
 			}
 		</div>
 	</form>
 }
 
 templ Upload(props *UploadPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehousePositions.Upload.Title"),
+	}) {
 		@card.Card(card.Props{WrapperClass: "m-6"}) {
-			<h1 class="text-xl font-bold mb-4">{ props.T("WarehousePositions.Upload.Example.Title") }</h1>
-			<p class="text-gray-700 mb-4">{ props.T("WarehousePositions.Upload.Example.Description") }</p>
+			<h1 class="text-xl font-bold mb-4">
+				{ pageCtx.T("WarehousePositions.Upload.Example.Title") }
+			</h1>
+			<p class="text-gray-700 mb-4">
+				{ pageCtx.T("WarehousePositions.Upload.Example.Description") }
+			</p>
 			<ul class="list-disc list-inside text-gray-700 mb-6">
-				<li>{ props.T("WarehousePositions.Upload.Example.ItemName") }</li>
-				<li>{ props.T("WarehousePositions.Upload.Example.ItemCode") }</li>
-				<li>{ props.T("WarehousePositions.Upload.Example.Unit") }</li>
-				<li>{ props.T("WarehousePositions.Upload.Example.Quantity") }</li>
+				<li>{ pageCtx.T("WarehousePositions.Upload.Example.ItemName") }</li>
+				<li>{ pageCtx.T("WarehousePositions.Upload.Example.ItemCode") }</li>
+				<li>{ pageCtx.T("WarehousePositions.Upload.Example.Unit") }</li>
+				<li>{ pageCtx.T("WarehousePositions.Upload.Example.Quantity") }</li>
 			</ul>
 			<p class="text-lg mb-1">
-				{ props.T("WarehousePositions.Upload.Example.Below") }
+				{ pageCtx.T("WarehousePositions.Upload.Example.Below") }
 			</p>
 			@exampleTable(props)
 			@UploadForm(props)

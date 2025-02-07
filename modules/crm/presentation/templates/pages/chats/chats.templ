@@ -1,0 +1,359 @@
+package chatsui
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type IndexPageProps struct {
+	SearchURL    string
+	WebsocketURL string
+	NewChatURL   string
+	Chats        []*viewmodels.Chat
+}
+
+type SelectedChatProps struct {
+	BaseURL    string
+	ClientsURL string
+	Chat       *viewmodels.Chat
+	Messages   []*viewmodels.Message
+	Templates  []*viewmodels.MessageTemplate
+}
+
+type NewChatProps struct {
+	BaseURL       string
+	CreateChatURL string
+	Phone         string
+	Errors        map[string]string
+}
+
+templ NewChat(props NewChatProps) {
+	<div class="space-y-5 p-5">
+		<div>
+			<h1 class="text-2xl font-medium">
+				New chat
+			</h1>
+		</div>
+		@card.Card(card.Props{}) {
+			@NewChatForm(props)
+		}
+	</div>
+}
+
+templ NewChatForm(props NewChatProps) {
+	<form
+		hx-post={ props.CreateChatURL }
+		hx-trigger="submit"
+		hx-swap="outerHTML"
+	>
+		@input.Text(&input.Props{
+			Label:       "Phone",
+			Placeholder: "Enter phone",
+			Attrs: templ.Attributes{
+				"name":  "Phone",
+				"value": props.Phone,
+			},
+			Error: props.Errors["Phone"],
+		})
+		<div class="flex gap-4 justify-end mt-4">
+			@button.Secondary(button.Props{
+				Href: props.BaseURL,
+			}) {
+				Cancel
+			}
+			@button.Primary(button.Props{}) {
+				Add
+			}
+		</div>
+	</form>
+}
+
+templ NoSelectedChat() {
+	<div class="flex items-center justify-center flex-1">
+		<p class="text-base-600">
+			Select a chat...
+		</p>
+	</div>
+}
+
+templ SelectedChat(props SelectedChatProps) {
+	{{
+		client := props.Chat.Client
+	}}
+	<script>
+		function onUseTemplate(template) {
+			const textarea = document.getElementById("message");
+			textarea.value = template;
+			textarea.focus();
+			textarea.style.height = 'auto'; 
+			textarea.style.height = textarea.scrollHeight + 'px';
+		}
+	</script>
+	@InstantMessagesDialog(InstantMessagesDialogProps{
+		OnClick:   "onUseTemplate",
+		Templates: props.Templates,
+	})
+	<div class="border-b">
+		<div class="w-full p-5">
+			<a
+				class="flex items-center justify-start gap-4 rounded-lg"
+				href={ templ.SafeURL(fmt.Sprintf("%s/%s", props.ClientsURL, client.ID)) }
+			>
+				<div class="p-2">
+					@avatar.Avatar(avatar.Props{
+						Initials: props.Chat.Client.Initials(),
+						Class:    templ.Classes("w-10 h-10 min-w-10"),
+					})
+				</div>
+				<div>
+					<p class="font-bold transition-all leading-[1.25] text-base-800">
+						{ client.FullName() }
+					</p>
+					<p class="transition-all font-medium text-base-600">
+						{ client.Phone }
+					</p>
+				</div>
+			</a>
+		</div>
+	</div>
+	<div class="flex flex-col flex-1 px-4 min-h-0">
+		@ChatMessages(props.Messages, client.ID)
+		<div class="border border-input rounded-md p-4 mb-4">
+			<div x-data="{text: ''}">
+				<textarea
+					id="message"
+					x-model="text"
+					@input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
+					class="text-sm placeholder:text-muted-foreground resize-none w-full focus:outline-none"
+					placeholder="Type a message..."
+					name="Message"
+					form="send-message-form"
+				></textarea>
+			</div>
+			<div class="flex justify-between">
+				<div class="flex gap-2">
+					<button class="cursor-pointer">
+						<label class="cursor-pointer">
+							@icons.Paperclip(icons.Props{
+								Size: "20",
+							})
+							<input
+								form="send-message-form"
+								accept="image/*"
+								class="sr-only"
+								name="Attachment"
+								type="file"
+							/>
+						</label>
+					</button>
+					<button
+						class="cursor-pointer"
+						@click="$dispatch('instant-messages-dialog')"
+					>
+						@icons.Lightning(icons.Props{Size: "20"})
+					</button>
+				</div>
+				<form
+					id="send-message-form"
+					hx-post={ fmt.Sprintf("%s/%s/messages", props.BaseURL, props.Chat.ID) }
+					hx-trigger="submit"
+					hx-swap="innerHTML"
+					hx-target="#chat-contents"
+				>
+					<button
+						class="cursor-pointer"
+					>
+						@icons.TelegramLogo(icons.Props{Size: "20"})
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+}
+
+templ ChatMessages(messages []*viewmodels.Message, clientID string) {
+	<ul
+		id={ fmt.Sprintf("chat-messages-%s", clientID) }
+		class="flex flex-col-reverse gap-4 px-3 py-4 overflow-y-auto no-scrollbar flex-1"
+	>
+		for _, msg := range messages {
+			@Message(msg)
+		}
+	</ul>
+}
+
+templ ChatNotFound() {
+	<div class="flex items-center justify-center flex-1">
+		<p class="text-base-600">
+			Chat not found...
+		</p>
+	</div>
+}
+
+templ ChatCard(chat *viewmodels.Chat) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		active := pageCtx.URL.Query().Get("chat_id") == chat.ID
+	}}
+	<a
+		class={
+			"flex items-center justify-start gap-4 rounded-lg py-2 px-3",
+			templ.KV("text-white bg-brand-500", active),
+		}
+		href={ templ.SafeURL(fmt.Sprintf("/crm/chats?chat_id=%s", chat.ID)) }
+	>
+		<div class="p-2">
+			@avatar.Avatar(avatar.Props{
+				Initials: chat.Client.Initials(),
+				Class: templ.Classes(
+					"w-10 h-10 min-w-10",
+					templ.KV("bg-white text-black", active),
+				),
+			})
+		</div>
+		<div>
+			<p class="font-bold transition-all leading-[1.25] text-base-800">
+				{ chat.Client.FullName() }
+			</p>
+			<p class="transition-all font-medium text-base-600">
+				{ chat.Client.Phone }
+			</p>
+		</div>
+	</a>
+}
+
+templ Message(msg *viewmodels.Message) {
+	if msg.Sender.IsUser() {
+		<li>
+			<div class="flex justify-end">
+				<div class="flex items-end justify-end gap-[6px] max-w-[526px]">
+					<div
+						class="bg-brand-500 rounded-[12px] rounded-br-[0px] py-2 px-3 flex-grow-0 flex-shrink-1"
+					>
+						<p class="whitespace-pre-line text-white">
+							{ msg.Message }
+						</p>
+						<time
+							class="flex ml-auto items-end gap-2 text-white text-opacity-80 text-[13px] text-right"
+							datetime="2025-01-27T15:28:31.441Z"
+						>
+							{ msg.Date() } | { msg.Time() }
+							@icons.Check(icons.Props{Size: "16"})
+						</time>
+					</div>
+					@avatar.Avatar(avatar.Props{
+						Initials: msg.Sender.Initials(),
+						Class:    templ.Classes("min-w-10 w-10 h-10"),
+					})
+				</div>
+			</div>
+		</li>
+	} else {
+		<li>
+			<div class="flex items-end gap-2.5 max-w-[526px]">
+				@avatar.Avatar(avatar.Props{
+					Initials: msg.Sender.Initials(),
+					Class:    templ.Classes("w-10 h-10 min-w-10"),
+				})
+				<div class="bg-gray-200/90 rounded-[12px] rounded-bl-[0] py-2 px-3">
+					<p class="whitespace-pre-line">
+						{ msg.Message }
+					</p>
+					<time
+						class="flex gap-2 items-center text-text-muted text-[13px] text-left"
+						datetime="2025-01-29T18:10:45.930Z"
+					>
+						{ msg.Date() } | { msg.Time() }
+						@icons.Check(icons.Props{Size: "16"})
+					</time>
+				</div>
+			</div>
+		</li>
+	}
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Chats.Meta.Title"),
+	}) {
+		<div class="flex flex-col p-6 h-[calc(100vh-4rem)]">
+			<h1 class="text-2xl font-medium mb-5">
+				{ pageCtx.T("Chats.Meta.Title") }
+			</h1>
+			<div
+				hx-ext="ws"
+				ws-connect={ props.WebsocketURL }
+				class="grid grid-cols-12 rounded-lg border border-primary bg-surface-300 flex-1 min-h-0"
+			>
+				<div class="col-span-4 flex flex-col overflow-hidden">
+					<div class="shrink-0 pt-5 px-4 flex items-center justify-between border-r">
+						@button.Secondary(button.Props{
+							Href: "/crm/instant-messages",
+						}) {
+							Instant messages
+						}
+						@button.Primary(button.Props{
+							Href: props.NewChatURL,
+						}) {
+							New chat
+						}
+					</div>
+					<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">
+						<div class="pb-5">
+							<div class="w-full relative">
+								<form
+									class="flex items-center gap-3"
+									hx-get={ props.SearchURL }
+									hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+									hx-target="#chats-list"
+									hx-swap="outerHTML"
+								>
+									@filters.Search([]filters.SearchField{
+										{
+											Label: "",
+											Key:   "search",
+										},
+									})
+								</form>
+							</div>
+						</div>
+						<div class="grow flex flex-col gap-2 overflow-auto">
+							@ChatList(props.Chats)
+						</div>
+					</div>
+				</div>
+				<div
+					class="col-span-8 flex flex-col min-h-0"
+					id="chat-contents"
+				>
+					{ children... }
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ ChatList(chats []*viewmodels.Chat) {
+	<ul
+		role="list"
+		id="chats-list"
+	>
+		for _, chat := range chats {
+			<li
+				role="listitem"
+				class="rounded-[8px] cursor-pointer transition-all bg-transparent"
+			>
+				@ChatCard(chat)
+			</li>
+		}
+	</ul>
+}
