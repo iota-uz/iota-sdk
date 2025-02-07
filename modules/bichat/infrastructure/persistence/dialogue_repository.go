@@ -3,11 +3,14 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+
+	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence/models"
+
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+
+	"github.com/go-faster/errors"
 )
 
 var (
@@ -36,7 +39,7 @@ const (
 		) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 
 	dialogueUpdateQuery = `
-		UPDATE dialogues SET 
+		UPDATE dialogues SET
 			   label = $1,
 		       messages = $2,
 		       updated_at = $3

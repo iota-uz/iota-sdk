@@ -4,9 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
@@ -15,6 +14,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -30,6 +31,7 @@ func main() {
 		panic(err)
 	}
 	app.RegisterNavItems(core.NavItems...)
+	app.RegisterNavItems(bichat.NavItems...)
 	app.RegisterNavItems(finance.NavItems...)
 	app.RegisterNavItems(warehouse.NavItems...)
 	app.RegisterNavItems(crm.NavItems...)
