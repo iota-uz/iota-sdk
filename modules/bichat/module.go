@@ -13,6 +13,9 @@ import (
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
+//go:embed infrastructure/persistence/schema/bichat-schema.sql
+var MigrationFiles embed.FS
+
 func NewModule() application.Module {
 	return &Module{}
 }
@@ -21,9 +24,12 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	app.RegisterMigrationDirs(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterServices(
 		services.NewEmbeddingService(app),
+	)
+	app.RegisterServices(
 		services.NewDialogueService(persistence.NewDialogueRepository(), app),
 	)
 	app.RegisterControllers(
