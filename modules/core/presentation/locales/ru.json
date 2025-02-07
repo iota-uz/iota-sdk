@@ -37,11 +37,7 @@
   "Resources": {
     "user": "Пользователь",
     "role": "Роль",
-    "account": "Счет",
-    "project": "Проект",
-    "stage": "Этап",
     "employee": "Сотрудник",
-    "settings": "Настройки",
     "payment": "Платеж",
     "expense": "Расход",
     "expense_category": "Категория расходов",

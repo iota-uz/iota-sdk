@@ -37,11 +37,7 @@
     "Resources": {
       "user": "Foydalanuvchi",
       "role": "Rol",
-      "account": "Hisob",
-      "project": "Loyiha",
-      "stage": "Bosqich",
       "employee": "Xodim",
-      "settings": "Sozlamalar",
       "payment": "To'lov",
       "expense": "Xarajat",
       "expense_category": "Xarajat toifasi",

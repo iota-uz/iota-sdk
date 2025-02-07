@@ -1,1 +1,100 @@
-{}
+{
+	"NavigationLinks": {
+		"CRM": "CRM",
+		"Clients": "Клиенты",
+		"Chats": "Чаты"
+	},
+	"Resources": {
+		"client": "Клиенты"
+	},
+	"Permissions": {
+		"Client": {
+			"Create": "Создавать клиентов",
+			"Read": "Просматривать клиентов",
+			"Update": "Редактировать клиентов",
+			"Delete": "Удалять клиентов"
+		}
+	},
+	"Clients": {
+		"List": {
+			"Meta": {
+				"Title": "Клиенты"
+			},
+			"New": "Новый клиент",
+			"FullName": "Полное имя",
+			"Phone": "Телефон"
+		},
+		"New": {
+			"Meta": {
+				"Title": "Новый клиент"
+			}
+		},
+		"Edit": {
+			"Meta": {
+				"Title": "Редактировать клиента"
+			}
+		},
+		"Single": {
+			"FirstName": {
+				"Label": "Имя",
+				"Placeholder": "Введите имя"
+			},
+			"LastName": {
+				"Label": "Фамилия",
+				"Placeholder": "Введите фамилию"
+			},
+			"MiddleName": {
+				"Label": "Отчество",
+				"Placeholder": "Введите отчество"
+			},
+			"Phone": {
+				"Label": "Телефон",
+				"Placeholder": "Введите номер телефона"
+			},	
+			"Delete": "Удалить клиента",
+			"DeleteConfirmation": "Вы уверены, что хотите удалить этого клиента?"
+		}
+	},
+	"MessageTemplates": {
+		"List": {
+			"Meta": {
+				"Title": "Мгновенные сообщения"
+			},
+			"New": "Новое мгновенное сообщение",
+			"Content": "Содержание"
+		},
+		"New": {
+			"Meta": {
+				"Title": "Новое мгновенное сообщение"
+			}
+		},
+		"Edit": {
+			"Meta": {
+				"Title": "Редактировать мгновенное сообщение"
+			}
+		},
+		"Single": {
+			"Template": {
+				"Label": "Шаблон",
+				"Placeholder": "Введите шаблон"
+			},
+			"Delete": "Удалить мгновенное сообщение",
+			"DeleteConfirmation": "Вы уверены, что хотите удалить это мгновенное сообщение?"
+		},
+		"Dialog": {
+			"Heading": "Выберите шаблон",
+			"Empty": "Шаблоны не найдены",
+			"NewTemplate": "Новый шаблон"
+		}
+	},
+	"Chats": {
+		"Meta": {
+			"Title": "Чаты"
+		},
+		"New": "Новый чат",
+		"InstantMessages": "Мгновенные сообщения",
+		"NoSelectedChat": "Выберите чат...",
+		"ChatNotFound": "Чат не найден..."
+	}
+}
+
