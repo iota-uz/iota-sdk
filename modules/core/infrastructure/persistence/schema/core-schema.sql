@@ -122,15 +122,6 @@ CREATE TABLE user_roles
     PRIMARY KEY (user_id, role_id)
 );
 
-CREATE TABLE prompts
-(
-    id          VARCHAR(30) PRIMARY KEY,
-    title       VARCHAR(255) NOT NULL,
-    description TEXT         NOT NULL,
-    prompt      TEXT         NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE employee_contacts
 (
     id          SERIAL PRIMARY KEY,
@@ -149,16 +140,6 @@ CREATE TABLE uploaded_images
     size       FLOAT        NOT NULL,
     width      INT          NOT NULL,
     height     INT          NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE dialogues
-(
-    id         SERIAL PRIMARY KEY,
-    user_id    INT          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    label      VARCHAR(255) NOT NULL,
-    messages   JSON         NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -221,20 +202,16 @@ CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
 CREATE INDEX action_log_user_id_idx ON action_logs (user_id);
 
-CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
-
 CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS companies CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
-DROP TABLE IF EXISTS dialogues CASCADE;
 DROP TABLE IF EXISTS employee_contacts CASCADE;
 DROP TABLE IF EXISTS employee_meta CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS positions CASCADE;
-DROP TABLE IF EXISTS prompts CASCADE;
 DROP TABLE IF EXISTS role_permissions CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
 DROP TABLE IF EXISTS sessions CASCADE;

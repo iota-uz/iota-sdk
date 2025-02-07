@@ -316,6 +316,19 @@ func (app *application) applyMigrations(ctx context.Context, dir migrate.Migrati
 	return applied, nil
 }
 
+// Internal in-memory migration source that respects the order of migrations.
+type memoryMigrationSourceInternal struct {
+	Migrations []*migrate.Migration
+}
+
+// FindMigrations returns the list of unsorted migrations. Giving up determenistic order in favor of
+// the order in which the migrations were added.
+func (m *memoryMigrationSourceInternal) FindMigrations() ([]*migrate.Migration, error) {
+	migrations := make([]*migrate.Migration, len(m.Migrations))
+	copy(migrations, m.Migrations)
+	return migrations, nil
+}
+
 func (app *application) RunMigrations() error {
 	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
 	migrations, err := CollectMigrations(app)
@@ -326,7 +339,7 @@ func (app *application) RunMigrations() error {
 		log.Printf("No migrations found")
 		return nil
 	}
-	migrationSource := &migrate.MemoryMigrationSource{
+	migrationSource := &memoryMigrationSourceInternal{
 		Migrations: migrations,
 	}
 	ms := migrate.MigrationSet{}
