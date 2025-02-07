@@ -22,6 +22,7 @@ CREATE TABLE action_logs
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
+CREATE INDEX action_log_user_id_idx ON action_logs (user_id);
 CREATE INDEX authentication_logs_user_id_idx ON authentication_logs (user_id);
 CREATE INDEX authentication_logs_created_at_idx ON authentication_logs (created_at);
 

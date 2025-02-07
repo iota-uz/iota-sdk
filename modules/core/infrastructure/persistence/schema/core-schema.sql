@@ -200,8 +200,6 @@ CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_
 
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
-CREATE INDEX action_log_user_id_idx ON action_logs (user_id);
-
 CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
 
 -- +migrate Down
