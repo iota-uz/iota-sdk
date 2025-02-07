@@ -3,7 +3,7 @@ package dialogue
 import (
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
+	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
 )
 
 type Messages []llm.ChatCompletionMessage
