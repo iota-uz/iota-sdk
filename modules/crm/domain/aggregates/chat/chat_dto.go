@@ -7,7 +7,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
@@ -41,6 +40,6 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *CreateDTO) ToEntity(c client.Client) (Chat, error) {
-	return New(c), nil
+func (d *CreateDTO) ToEntity() (Chat, error) {
+	return New(d.ClientID), nil
 }

@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -16,6 +20,13 @@ type MessageMedia struct {
 	MinioTempPath string
 	Filename      string
 	MimeType      string
+}
+
+// SendMessageDTO represents the data needed to send a message
+type SendMessageDTO struct {
+	ChatID      uint
+	Message     string
+	Attachments []*upload.Upload
 }
 
 type ChatService struct {
@@ -74,11 +85,7 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 }
 
 func (s *ChatService) Create(ctx context.Context, data *chat.CreateDTO) (chat.Chat, error) {
-	client, err := s.clientRepo.GetByID(ctx, data.ClientID)
-	if err != nil {
-		return nil, err
-	}
-	entity, err := data.ToEntity(client)
+	entity, err := data.ToEntity()
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +99,79 @@ func (s *ChatService) Create(ctx context.Context, data *chat.CreateDTO) (chat.Ch
 	}
 	s.publisher.Publish(ev)
 	return createdEntity, nil
+}
+
+func (s *ChatService) RegisterClientMessage(
+	ctx context.Context,
+	params *cpassproviders.ReceivedMessageEvent,
+) (chat.Chat, error) {
+	p, err := phone.NewFromE164(params.From)
+	if err != nil {
+		return nil, err
+	}
+	clientEntity, err := s.clientRepo.GetByPhone(ctx, p.Value())
+	if err != nil {
+		return nil, err
+	}
+
+	chatEntity, err := s.GetByClientIDOrCreate(ctx, clientEntity.ID())
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := chatEntity.AddMessage(
+		params.Body,
+		chat.NewClientSender(clientEntity.ID(), clientEntity.FirstName(), clientEntity.LastName()),
+	); err != nil {
+		return nil, err
+	}
+
+	updatedChat, err := s.repo.Update(ctx, chatEntity)
+	if err != nil {
+		return nil, err
+	}
+
+	return updatedChat, nil
+}
+
+func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat.Chat, error) {
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	chatEntity, err := s.GetByID(ctx, dto.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	_, err = chatEntity.AddMessage(dto.Message, chat.NewUserSender(user.ID(), user.FirstName(), user.LastName()))
+	if err != nil {
+		return nil, err
+	}
+	updatedChat, err := s.repo.Update(ctx, chatEntity)
+	if err != nil {
+		return nil, err
+	}
+	clientEntity, err := s.clientRepo.GetByID(ctx, chatEntity.ClientID())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.cpassProvider.SendMessage(ctx, cpassproviders.SendMessageDTO{
+		From:    configuration.Use().TwilioPhoneNumber,
+		To:      clientEntity.Phone().Value(),
+		Message: dto.Message,
+	}); err != nil {
+		return nil, err
+	}
+
+	event, err := chat.NewMessageAddedEvent(ctx, updatedChat)
+	if err != nil {
+		return nil, err
+	}
+
+	s.publisher.Publish(event)
+
+	return updatedChat, nil
 }
 
 func (s *ChatService) Delete(ctx context.Context, id uint) (chat.Chat, error) {

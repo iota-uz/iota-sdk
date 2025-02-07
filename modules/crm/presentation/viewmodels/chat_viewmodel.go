@@ -6,6 +6,7 @@ type Chat struct {
 	ID        string
 	Client    *Client
 	CreatedAt string
+	Messages  []*Message
 }
 
 type MessageSender interface {

@@ -4,32 +4,30 @@ import (
 	"context"
 	"log"
 
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type SMSHandler struct {
-	pool            *pgxpool.Pool
-	publisher       eventbus.EventBus
-	messagesService *services.MessagesService
+	pool        *pgxpool.Pool
+	publisher   eventbus.EventBus
+	chatService *services.ChatService
 }
 
-func RegisterSMSHandlers(
-	pool *pgxpool.Pool,
-	publisher eventbus.EventBus,
-	messagesService *services.MessagesService,
-) *SMSHandler {
+func RegisterSMSHandlers(app application.Application) *SMSHandler {
 	handler := &SMSHandler{
-		pool:            pool,
-		publisher:       publisher,
-		messagesService: messagesService,
+		pool:        app.DB(),
+		publisher:   app.EventPublisher(),
+		chatService: app.Service(services.ChatService{}).(*services.ChatService),
 	}
-	publisher.Subscribe(handler.onSMSReceived)
+	app.EventPublisher().Subscribe(handler.onSMSReceived)
 	return handler
 }
 
@@ -42,7 +40,7 @@ func (h *SMSHandler) onSMSReceived(event *cpassproviders.ReceivedMessageEvent) {
 	}
 	ctx = composables.WithPool(ctx, h.pool)
 	ctx = composables.WithTx(ctx, tx)
-	createdMessage, err := h.messagesService.RegisterClientMessage(ctx, event)
+	chatEntity, err := h.chatService.RegisterClientMessage(ctx, event)
 	if err != nil {
 		log.Printf("failed to register client message: %v", err)
 		tx.Rollback(ctx)
@@ -53,7 +51,7 @@ func (h *SMSHandler) onSMSReceived(event *cpassproviders.ReceivedMessageEvent) {
 		return
 	}
 
-	ev, err := message.NewCreatedEvent(ctx, createdMessage)
+	ev, err := chat.NewMessageAddedEvent(ctx, chatEntity)
 	if err != nil {
 		log.Printf("failed to create created message event: %v", err)
 	}
