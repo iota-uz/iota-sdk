@@ -36,10 +36,11 @@ type NewChatProps struct {
 }
 
 templ NewChat(props NewChatProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="space-y-5 p-5">
 		<div>
 			<h1 class="text-2xl font-medium">
-				New chat
+				{ pageCtx.T("Chats.New") }
 			</h1>
 		</div>
 		@card.Card(card.Props{}) {
@@ -77,9 +78,10 @@ templ NewChatForm(props NewChatProps) {
 }
 
 templ NoSelectedChat() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex items-center justify-center flex-1">
 		<p class="text-base-600">
-			Select a chat...
+			{ pageCtx.T("Chats.NoSelectedChat") }
 		</p>
 	</div>
 }
@@ -299,12 +301,12 @@ templ Index(props *IndexPageProps) {
 						@button.Secondary(button.Props{
 							Href: "/crm/instant-messages",
 						}) {
-							Instant messages
+							{ pageCtx.T("Chats.InstantMessages") }
 						}
 						@button.Primary(button.Props{
 							Href: props.NewChatURL,
 						}) {
-							New chat
+							{ pageCtx.T("Chats.New") }
 						}
 					</div>
 					<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">

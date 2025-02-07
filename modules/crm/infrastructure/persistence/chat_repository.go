@@ -21,6 +21,7 @@ const (
 		SELECT 
 			c.id,
 			c.created_at,
+			c.last_message_at,
 			c.client_id,
 			cl.id,
 			cl.first_name,
@@ -71,6 +72,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 		if err := rows.Scan(
 			&c.ID,
 			&c.CreatedAt,
+			&c.LastMessageAt,
 			&c.ClientID,
 			&dbClient.ID,
 			&dbClient.FirstName,
@@ -102,10 +104,12 @@ func (g *ChatRepository) GetPaginated(
 	sortFields := []string{}
 	for _, f := range params.SortBy.Fields {
 		switch f {
+		case chat.LastMessageAt:
+			sortFields = append(sortFields, "c.last_message_at")
 		case chat.CreatedAt:
 			sortFields = append(sortFields, "c.created_at")
 		default:
-			return nil, errors.Wrapf(fmt.Errorf("unknown sort field"), "invalid sort field: %s", f)
+			return nil, fmt.Errorf("unknown sort field: %v", f)
 		}
 	}
 

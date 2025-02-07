@@ -35,16 +35,34 @@ templ InstantMessagesDialog(props InstantMessagesDialogProps) {
 						@icons.XCircle(icons.Props{Size: "20"})
 					}
 				</header>
-				<article class="py-3 px-4 grid grid-cols-3 items-center justify-center gap-2 min-h-36">
-					for _, template := range props.Templates {
-						<button
-							class="bg-surface-300 rounded-lg border border-primary p-4 cursor-pointer"
-							@click={ templ.SafeScriptInline(props.OnClick, template.Template) }
-						>
-							<p class="overflow-hidden text-ellipsis max-h-52">
-								{ template.Template }
-							</p>
-						</button>
+				<article
+					class={
+						"py-3 px-4 min-h-36 min-w-96",
+						templ.KV("grid grid-cols-3 items-center justify-center gap-2", len(props.Templates) > 0),
+						templ.KV("flex flex-col items-center justify-center gap-2", len(props.Templates) == 0),
+					}
+				>
+					if len(props.Templates) > 0 {
+						for _, template := range props.Templates {
+							<button
+								class="bg-surface-300 rounded-lg border border-primary p-4 cursor-pointer"
+								@click={ templ.SafeScriptInline(props.OnClick, template.Template) }
+							>
+								<p class="overflow-hidden text-ellipsis max-h-52">
+									{ template.Template }
+								</p>
+							</button>
+						}
+					} else {
+						<p class="text-base-600">
+							{ pageCtx.T("MessageTemplates.Dialog.Empty") }
+						</p>
+						@button.Primary(button.Props{
+							Size: button.SizeSM,
+							Href: "/crm/instant-messages/new",
+						}) {
+							{ pageCtx.T("MessageTemplates.Dialog.NewTemplate") }
+						}
 					}
 				</article>
 				<footer class="px-4 py-3">

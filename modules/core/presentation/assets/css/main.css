@@ -392,6 +392,7 @@
     user-select: var(--user-select);
     height: var(--height);
     width: var(--width);
+    cursor: pointer;
   }
 
   .btn:not(.btn-loading):not(.htmx-request):active,

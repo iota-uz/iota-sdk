@@ -16,9 +16,10 @@ type Client struct {
 }
 
 type Chat struct {
-	ID        uint
-	ClientID  uint
-	CreatedAt time.Time
+	ID            uint
+	ClientID      uint
+	LastMessageAt sql.NullTime
+	CreatedAt     time.Time
 }
 
 type Message struct {
