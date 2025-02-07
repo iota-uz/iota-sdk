@@ -1,0 +1,19 @@
+{
+  "NavigationLinks": {
+    "BiChat": "BI-Chat"
+  },
+  "BiChat": {
+    "Meta": {
+      "Index": {
+        "Title": "BI-Chat"
+      }
+    },
+    "Title": "BI-Chat",
+    "NewDialog": "New dialog",
+    "MessagePlaceholder": "Type a message...",
+    "History": {
+      "Empty": "Empty history",
+      "HelpText": "Press \"New dialog\" to start a new dialog"
+    }
+  }
+}

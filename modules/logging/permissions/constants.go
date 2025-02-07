@@ -12,7 +12,7 @@ const (
 
 var (
 	ViewLogs = &permission.Permission{
-		ID:       uuid.MustParse("7d9454d8-607e-4f30-bc12-459bbcc939b5"),
+		ID:       uuid.MustParse("6513b6fa-b8fb-42df-9cbd-f468b2220762"),
 		Name:     "Logs.View",
 		Resource: ResourceLogs,
 		Action:   permission.ActionRead,
