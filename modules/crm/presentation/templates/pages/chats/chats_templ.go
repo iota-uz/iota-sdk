@@ -350,7 +350,7 @@ func SelectedChat(props SelectedChatProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"border border-input rounded-md p-4 mb-4\"><div x-data=\"{text: &#39;&#39;}\"><textarea id=\"message\" x-model=\"text\" @input=\"$el.style.height = &#39;auto&#39;; $el.style.height = $el.scrollHeight + &#39;px&#39;\" class=\"text-sm placeholder:text-muted-foreground resize-none w-full focus:outline-none\" placeholder=\"Type a message...\" name=\"Message\" form=\"send-message-form\"></textarea></div><div class=\"flex justify-between\"><div class=\"flex gap-2\"><button class=\"cursor-pointer\"><label class=\"cursor-pointer\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"border border-input rounded-md p-4 mb-4\"><div x-data=\"{text: &#39;&#39;}\"><textarea id=\"message\" x-model=\"text\" @input=\"$el.style.height = &#39;auto&#39;; $el.style.height = $el.scrollHeight + &#39;px&#39;\" class=\"form-control form-control-input text-sm placeholder:text-muted-foreground resize-none w-full focus:outline-none\" placeholder=\"Type a message...\" name=\"Message\" form=\"send-message-form\"></textarea></div><div class=\"flex justify-between\"><div class=\"flex gap-2\"><button class=\"cursor-pointer\"><label class=\"cursor-pointer\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
