@@ -51,7 +51,7 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.chatRepo.Create(ctx, chat.New(createdEntity))
+	_, err = s.chatRepo.Create(ctx, chat.New(createdEntity.ID()))
 	if err != nil {
 		return nil, err
 	}

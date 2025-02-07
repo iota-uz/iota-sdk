@@ -6,9 +6,9 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func ClientToViewModel(entity client.Client) *viewmodels.Client {
@@ -34,7 +34,7 @@ func initialsFromFullName(firstName, lastName string) string {
 	return res
 }
 
-func SenderToViewModel(entity message.Sender) viewmodels.MessageSender {
+func SenderToViewModel(entity chat.Sender) viewmodels.MessageSender {
 	senderID := strconv.FormatUint(uint64(entity.ID()), 10)
 	initials := initialsFromFullName(entity.FirstName(), entity.LastName())
 	if entity.IsClient() {
@@ -43,7 +43,7 @@ func SenderToViewModel(entity message.Sender) viewmodels.MessageSender {
 	return viewmodels.NewUserMessageSender(senderID, initials)
 }
 
-func MessageToViewModel(entity message.Message) *viewmodels.Message {
+func MessageToViewModel(entity chat.Message) *viewmodels.Message {
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Sender:    SenderToViewModel(entity.Sender()),
@@ -52,10 +52,11 @@ func MessageToViewModel(entity message.Message) *viewmodels.Message {
 	}
 }
 
-func ChatToViewModel(entity chat.Chat) *viewmodels.Chat {
+func ChatToViewModel(entity chat.Chat, clientEntity client.Client) *viewmodels.Chat {
 	return &viewmodels.Chat{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Client:    ClientToViewModel(entity.Client()),
+		Client:    ClientToViewModel(clientEntity),
+		Messages:  mapping.MapViewModels(entity.Messages(), MessageToViewModel),
 		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
 	}
 }

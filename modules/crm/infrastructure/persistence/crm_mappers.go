@@ -9,7 +9,6 @@ import (
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -43,11 +42,11 @@ func toDBClient(domainEntity client.Client) *models.Client {
 	}
 }
 
-func toDBMessage(domainEntity message.Message) *models.Message {
+func toDBMessage(entity chat.Message, chatID uint) *models.Message {
 	dbMessage := &models.Message{
-		ID:      domainEntity.ID(),
-		ChatID:  domainEntity.ChatID(),
-		Message: domainEntity.Message(),
+		ID:      entity.ID(),
+		Message: entity.Message(),
+		ChatID:  chatID,
 		SenderUserID: sql.NullInt64{
 			Int64: 0,
 			Valid: false,
@@ -56,13 +55,13 @@ func toDBMessage(domainEntity message.Message) *models.Message {
 			Int64: 0,
 			Valid: false,
 		},
-		IsRead:    domainEntity.IsRead(),
-		CreatedAt: domainEntity.CreatedAt(),
+		IsRead:    entity.IsRead(),
+		CreatedAt: entity.CreatedAt(),
 	}
-	if domainEntity.Sender().IsUser() {
-		dbMessage.SenderUserID = mapping.ValueToSQLNullInt64(int64(domainEntity.Sender().ID()))
+	if entity.Sender().IsUser() {
+		dbMessage.SenderUserID = mapping.ValueToSQLNullInt64(int64(entity.Sender().ID()))
 	} else {
-		dbMessage.SenderClientID = mapping.ValueToSQLNullInt64(int64(domainEntity.Sender().ID()))
+		dbMessage.SenderClientID = mapping.ValueToSQLNullInt64(int64(entity.Sender().ID()))
 	}
 	return dbMessage
 }
@@ -70,15 +69,14 @@ func toDBMessage(domainEntity message.Message) *models.Message {
 func toDomainMessage(
 	dbRow *models.Message,
 	dbUploads []*coremodels.Upload,
-	sender message.Sender,
-) (message.Message, error) {
+	sender chat.Sender,
+) (chat.Message, error) {
 	uploads := make([]*upload.Upload, 0, len(dbUploads))
 	for _, u := range dbUploads {
 		uploads = append(uploads, corepersistence.ToDomainUpload(u))
 	}
-	return message.NewWithID(
+	return chat.NewMessageWithID(
 		dbRow.ID,
-		dbRow.ChatID,
 		dbRow.Message,
 		sender,
 		dbRow.IsRead,
@@ -87,23 +85,25 @@ func toDomainMessage(
 	), nil
 }
 
-func toDBChat(domainEntity chat.Chat) *models.Chat {
+func toDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
+	dbMessages := make([]*models.Message, 0, len(domainEntity.Messages()))
+	for _, m := range domainEntity.Messages() {
+		dbMessages = append(dbMessages, toDBMessage(m, domainEntity.ID()))
+	}
 	return &models.Chat{
 		ID:        domainEntity.ID(),
-		ClientID:  domainEntity.Client().ID(),
+		ClientID:  domainEntity.ClientID(),
 		CreatedAt: domainEntity.CreatedAt(),
-	}
+	}, dbMessages
 }
 
-func toDomainChat(dbRow *models.Chat, dbClient *models.Client) (chat.Chat, error) {
-	c, err := toDomainClient(dbClient)
-	if err != nil {
-		return nil, err
-	}
+func toDomainChat(dbRow *models.Chat, messages []chat.Message) (chat.Chat, error) {
 	domainChat := chat.NewWithID(
 		dbRow.ID,
-		c,
+		dbRow.ClientID,
 		dbRow.CreatedAt,
+		messages,
+		mapping.SQLNullTimeToPointer(dbRow.LastMessageAt),
 	)
 	return domainChat, nil
 }

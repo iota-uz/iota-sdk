@@ -24,7 +24,6 @@ type SelectedChatProps struct {
 	BaseURL    string
 	ClientsURL string
 	Chat       *viewmodels.Chat
-	Messages   []*viewmodels.Message
 	Templates  []*viewmodels.MessageTemplate
 }
 
@@ -127,7 +126,7 @@ templ SelectedChat(props SelectedChatProps) {
 		</div>
 	</div>
 	<div class="flex flex-col flex-1 px-4 min-h-0">
-		@ChatMessages(props.Messages, client.ID)
+		@ChatMessages(props.Chat.Messages, client.ID)
 		<div class="border border-input rounded-md p-4 mb-4">
 			<div x-data="{text: ''}">
 				<textarea

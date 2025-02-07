@@ -19,9 +19,9 @@ func NewCreatedEvent(ctx context.Context, data CreateDTO, result Chat) (*Created
 	}, nil
 }
 
-func NewUpdatedEvent(ctx context.Context, result Chat) (*UpdatedEvent, error) {
+func NewMessageAddedEvent(ctx context.Context, result Chat) (*MessagedAddedEvent, error) {
 	u, _ := composables.UseUser(ctx)
-	return &UpdatedEvent{
+	return &MessagedAddedEvent{
 		User:   u,
 		Result: result,
 	}, nil
@@ -44,7 +44,7 @@ type CreatedEvent struct {
 	Result Chat
 }
 
-type UpdatedEvent struct {
+type MessagedAddedEvent struct {
 	User   user.User
 	Result Chat
 }
