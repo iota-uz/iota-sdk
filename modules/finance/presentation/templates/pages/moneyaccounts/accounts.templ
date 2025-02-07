@@ -2,30 +2,30 @@ package moneyaccounts
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Accounts        []*viewmodels.MoneyAccount
 	PaginationState *pagination.State
 }
 
 templ AccountsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("Accounts.List.Name"), Key: "name"},
-				{Label: props.T("Accounts.List.Balance"), Key: "balance"},
-				{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("Accounts.List.Name"), Key: "name"},
+				{Label: pageCtx.T("Accounts.List.Balance"), Key: "balance"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, account := range props.Accounts {
@@ -61,9 +61,10 @@ templ AccountsTable(props *IndexPageProps) {
 }
 
 templ AccountsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Accounts") }
+			{ pageCtx.T("NavigationLinks.Accounts") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -74,10 +75,9 @@ templ AccountsContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				@filters.Default(&filters.Props{
-					PageContext: props.PageContext,
 					Fields: []filters.SearchField{
 						{
-							Label: props.T("Accounts.List.Name"),
+							Label: pageCtx.T("Accounts.List.Name"),
 							Key:   "name",
 						},
 					},
@@ -86,7 +86,7 @@ templ AccountsContent(props *IndexPageProps) {
 					Size: button.SizeNormal, Href: "/finance/accounts/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Accounts.List.New") }
+					{ pageCtx.T("Accounts.List.New") }
 				}
 			</form>
 			@AccountsTable(props)
@@ -95,7 +95,10 @@ templ AccountsContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Accounts.Meta.List.Title"),
+	}) {
 		@AccountsContent(props)
 	}
 }

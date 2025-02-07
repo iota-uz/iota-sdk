@@ -2,28 +2,28 @@ package employees
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Employees []*viewmodels.Employee
 	NewURL    string
 }
 
 templ EmployeesTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: props.T("Employees.List.FullName"), Key: "fullname"},
-			{Label: props.T("Employees.List.Email"), Key: "email"},
-			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-			{Label: props.T("Actions"), Class: "w-16"},
+			{Label: pageCtx.T("Employees.List.FullName"), Key: "fullname"},
+			{Label: pageCtx.T("Employees.List.Email"), Key: "email"},
+			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
 		for _, employee := range props.Employees {
@@ -56,9 +56,10 @@ templ EmployeesTable(props *IndexPageProps) {
 }
 
 templ EmployeesContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Employees") }
+			{ pageCtx.T("NavigationLinks.Employees") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -72,13 +73,13 @@ templ EmployeesContent(props *IndexPageProps) {
 					AddonLeft: &input.Addon{
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
-					Placeholder: props.T("Search"),
+					Placeholder: pageCtx.T("Search"),
 					Attrs: templ.Attributes{
 						"name": "name",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: props.T("PerPage"),
+					Prefix: pageCtx.T("PerPage"),
 					Attrs: templ.Attributes{
 						"name": "limit",
 					},
@@ -88,7 +89,7 @@ templ EmployeesContent(props *IndexPageProps) {
 					<option>50</option>
 					<option>100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
+				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
 					<option>Yesterday</option>
 					<option>The day before yesterday</option>
 				}
@@ -97,7 +98,7 @@ templ EmployeesContent(props *IndexPageProps) {
 					Href: props.NewURL,
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Employees.List.New") }
+					{ pageCtx.T("Employees.List.New") }
 				}
 			</form>
 			@EmployeesTable(props)
@@ -106,7 +107,10 @@ templ EmployeesContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Employees.Meta.List.Title"),
+	}) {
 		@EmployeesContent(props)
 	}
 }

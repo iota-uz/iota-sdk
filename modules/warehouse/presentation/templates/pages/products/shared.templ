@@ -4,7 +4,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/selects"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type StatusViewModel struct {
@@ -35,25 +35,25 @@ var (
 )
 
 type StatusSelectProps struct {
-	*types.PageContext
 	Value string
 	Attrs templ.Attributes
 }
 
 templ StatusSelect(props *StatusSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Select(&base.SelectProps{
-		Label:       props.T("Products.Single.Status"),
-		Placeholder: props.T("Products.Single.SelectStatus"),
+		Label:       pageCtx.T("Products.Single.Status"),
+		Placeholder: pageCtx.T("Products.Single.SelectStatus"),
 		Attrs:       props.Attrs,
 	}) {
 		for _, status := range Statuses {
 			if status.Value == props.Value {
 				<option value={ status.Value } selected>
-					{ props.T(status.MessageId) }
+					{ pageCtx.T(status.MessageId) }
 				</option>
 			} else {
 				<option value={ status.Value }>
-					{ props.T(status.MessageId) }
+					{ pageCtx.T(status.MessageId) }
 				</option>
 			}
 		}
@@ -61,16 +61,15 @@ templ StatusSelect(props *StatusSelectProps) {
 }
 
 type PositionSelectProps struct {
-	*types.PageContext
 	Value string
 	Attrs templ.Attributes
 }
 
 templ PositionSelect(props *PositionSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@selects.SearchSelect(&selects.SearchSelectProps{
-		PageContext: props.PageContext,
-		Label:       props.T("Products.Single.Position"),
-		Placeholder: props.T("Products.Single.SearchPosition"),
+		Label:       pageCtx.T("Products.Single.Position"),
+		Placeholder: pageCtx.T("Products.Single.SearchPosition"),
 		Endpoint:    "/warehouse/positions/search",
 		Value:       props.Value,
 		Attrs:       props.Attrs,

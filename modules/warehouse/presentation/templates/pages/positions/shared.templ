@@ -3,11 +3,10 @@ package positions
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type UnitSelectProps struct {
-	*types.PageContext
 	Value string
 	Units []*viewmodels.Unit
 	Attrs templ.Attributes
@@ -15,9 +14,10 @@ type UnitSelectProps struct {
 }
 
 templ UnitSelect(props *UnitSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Select(&base.SelectProps{
-		Label:       props.T("WarehousePositions.Single.Unit"),
-		Placeholder: props.T("WarehousePositions.Single.SelectUnit"),
+		Label:       pageCtx.T("WarehousePositions.Single.Unit"),
+		Placeholder: pageCtx.T("WarehousePositions.Single.SelectUnit"),
 		Attrs:       props.Attrs,
 		Error:       props.Error,
 	}) {

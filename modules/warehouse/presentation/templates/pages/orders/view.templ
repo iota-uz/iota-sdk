@@ -17,21 +17,22 @@ type ViewPageProps struct {
 }
 
 templ viewTable(props *ViewPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ items := props.Order.Items }}
 	<table class="min-w-full table-auto rounded-b-lg table bg-surface-600 text-sm">
 		<thead>
 			<tr class="bg-surface-500 text-200">
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.View.Position") }
+					{ pageCtx.T("WarehouseOrders.View.Position") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.View.Barcode") }
+					{ pageCtx.T("WarehouseOrders.View.Barcode") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.View.Unit") }
+					{ pageCtx.T("WarehouseOrders.View.Unit") }
 				</th>
 				<th class="px-4 py-3 font-medium text-left border-r-0 border-b-0">
-					{ props.T("WarehouseOrders.View.Quantity") }
+					{ pageCtx.T("WarehouseOrders.View.Quantity") }
 				</th>
 			</tr>
 		</thead>
@@ -65,7 +66,10 @@ templ viewTable(props *ViewPageProps) {
 }
 
 templ View(props *ViewPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseOrders.View.Meta.Title"),
+	}) {
 		<div class="flex flex-col justify-between h-full">
 			@card.Card(card.Props{WrapperClass: "m-6"}) {
 				<div class="mb-2">
@@ -74,13 +78,13 @@ templ View(props *ViewPageProps) {
 					</h1>
 				</div>
 				<p>
-					{ props.T("WarehouseOrders.View.Status") }:
+					{ pageCtx.T("WarehouseOrders.View.Status") }:
 					<b>
 						{ props.Order.LocalizedStatus(props.Localizer) }
 					</b>
 				</p>
 				<p x-data="relativeformat">
-					{ props.T("WarehouseOrders.View.CreatedAt") }:
+					{ pageCtx.T("WarehouseOrders.View.CreatedAt") }:
 					<b x-text={ fmt.Sprintf("format('%s')", props.Order.CreatedAt) }></b>
 				</p>
 				<div class="overflow-x-auto relative mt-4">
@@ -95,7 +99,7 @@ templ View(props *ViewPageProps) {
 						"hx-indicator": "this",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</div>
 		</div>

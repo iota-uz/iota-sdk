@@ -10,19 +10,17 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
 
+	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-
-	"github.com/a-h/templ"
-	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type MoneyAccountController struct {
@@ -58,6 +56,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -110,15 +109,6 @@ func (c *MoneyAccountController) viewModelAccounts(r *http.Request) (*AccountPag
 }
 
 func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Accounts.Meta.List.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	paginated, err := c.viewModelAccounts(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -126,7 +116,6 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &moneyaccounts2.IndexPageProps{
-		PageContext:     pageCtx,
 		Accounts:        paginated.Accounts,
 		PaginationState: paginated.PaginationState,
 	}
@@ -144,15 +133,6 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Accounts.Meta.Edit.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	entity, err := c.moneyAccountService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
@@ -164,12 +144,11 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	props := &moneyaccounts2.EditPageProps{
-		PageContext: pageCtx,
-		Account:     mappers.MoneyAccountToViewUpdateModel(entity),
-		Currencies:  currencies,
-		Errors:      map[string]string{},
-		PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
-		DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
+		Account:    mappers.MoneyAccountToViewUpdateModel(entity),
+		Currencies: currencies,
+		Errors:     map[string]string{},
+		PostPath:   fmt.Sprintf("%s/%d", c.basePath, id),
+		DeletePath: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(moneyaccounts2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -195,17 +174,16 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	dto := moneyAccount.UpdateDTO{}
-	var pageCtx *types.PageContext
-	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.Edit.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	errorsMap, ok := dto.Ok(pageCtx.UniTranslator)
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	errorsMap, ok := dto.Ok(uniLocalizer)
 	if ok {
 		if err := c.moneyAccountService.Update(r.Context(), id, &dto); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -223,12 +201,11 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		props := &moneyaccounts2.EditPageProps{
-			PageContext: pageCtx,
-			Account:     mappers.MoneyAccountToViewUpdateModel(entity),
-			Currencies:  currencies,
-			Errors:      errorsMap,
-			PostPath:    fmt.Sprintf("%s/%d", c.basePath, id),
-			DeletePath:  fmt.Sprintf("%s/%d", c.basePath, id),
+			Account:    mappers.MoneyAccountToViewUpdateModel(entity),
+			Currencies: currencies,
+			Errors:     errorsMap,
+			PostPath:   fmt.Sprintf("%s/%d", c.basePath, id),
+			DeletePath: fmt.Sprintf("%s/%d", c.basePath, id),
 		}
 		templ.Handler(moneyaccounts2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -237,22 +214,16 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	props := &moneyaccounts2.CreatePageProps{
-		PageContext: pageCtx,
-		Currencies:  currencies,
-		Errors:      map[string]string{},
-		Account:     mappers.MoneyAccountToViewModel(&moneyAccount.Account{}),
-		PostPath:    c.basePath,
+		Currencies: currencies,
+		Errors:     map[string]string{},
+		Account:    mappers.MoneyAccountToViewModel(&moneyAccount.Account{}),
+		PostPath:   c.basePath,
 	}
 	templ.Handler(moneyaccounts2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -269,13 +240,12 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Accounts.Meta.New.Title", ""))
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -287,11 +257,10 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		props := &moneyaccounts2.CreatePageProps{
-			PageContext: pageCtx,
-			Currencies:  currencies,
-			Errors:      errorsMap,
-			Account:     mappers.MoneyAccountToViewModel(entity),
-			PostPath:    c.basePath,
+			Currencies: currencies,
+			Errors:     errorsMap,
+			Account:    mappers.MoneyAccountToViewModel(entity),
+			PostPath:   c.basePath,
 		}
 		templ.Handler(moneyaccounts2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

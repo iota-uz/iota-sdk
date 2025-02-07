@@ -21,7 +21,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type ProductsController struct {
@@ -57,6 +56,7 @@ func (c *ProductsController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -74,10 +74,6 @@ func (c *ProductsController) Register(r *mux.Router) {
 
 func (c *ProductsController) handleError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
-}
-
-func (c *ProductsController) preparePageContext(r *http.Request, titleKey string) (*types.PageContext, error) {
-	return composables.UsePageCtx(r, types.NewPageData(titleKey, ""))
 }
 
 func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedResponse, error) {
@@ -113,12 +109,6 @@ func (c *ProductsController) renderTemplate(w http.ResponseWriter, r *http.Reque
 }
 
 func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := c.preparePageContext(r, "Products.List.Meta.Title")
-	if err != nil {
-		c.handleError(w, err)
-		return
-	}
-
 	paginated, err := c.getViewModelProducts(r)
 	if err != nil {
 		c.handleError(w, err)
@@ -127,7 +117,6 @@ func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &products.IndexPageProps{
-		PageContext:     pageCtx,
 		Products:        paginated.Products,
 		PaginationState: paginated.PaginationState,
 	}
@@ -147,12 +136,6 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
-	if err != nil {
-		c.handleError(w, err)
-		return
-	}
-
 	entity, err := c.productService.GetByID(r.Context(), id)
 	if err != nil {
 		c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
@@ -160,20 +143,14 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := &products.EditPageProps{
-		PageContext: pageCtx,
-		Product:     mappers.ProductToViewModel(entity),
-		Errors:      map[string]string{},
+		Product: mappers.ProductToViewModel(entity),
+		Errors:  map[string]string{},
 	}
 	c.renderTemplate(w, r, products.Edit(props))
 }
 
 func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
-	if err != nil {
-		c.handleError(w, err)
-		return
-	}
-	pageCtx, err := c.preparePageContext(r, "Products.Edit.Meta.Title")
 	if err != nil {
 		c.handleError(w, err)
 		return
@@ -190,13 +167,23 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 		c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		c.handleError(w, fmt.Errorf("error retrieving localizer: %w", err))
+		return
+	}
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		props := &products.EditPageProps{
-			PageContext: pageCtx,
-			Product:     mappers.ProductToViewModel(entity),
-			Errors:      errorsMap,
+			Product: mappers.ProductToViewModel(entity),
+			Errors:  errorsMap,
 		}
 		c.renderTemplate(w, r, products.EditForm(props))
+		return
+	}
+
+	localizer, ok := composables.UseLocalizer(r.Context())
+	if !ok {
+		c.handleError(w, fmt.Errorf("error retrieving localizer"))
 		return
 	}
 
@@ -205,9 +192,8 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &vErr) {
 			entity.Rfid = dto.Rfid
 			props := &products.EditPageProps{
-				PageContext: pageCtx,
 				Errors: map[string]string{
-					"Rfid": vErr.Localize(pageCtx.Localizer),
+					"Rfid": vErr.Localize(localizer),
 				},
 				Product: mappers.ProductToViewModel(entity),
 			}
@@ -221,17 +207,10 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := c.preparePageContext(r, "Products.New.Meta.Title")
-	if err != nil {
-		c.handleError(w, err)
-		return
-	}
-
 	props := &products.CreatePageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
-		Product:     mappers.ProductToViewModel(&product.Product{}),
-		SaveURL:     c.basePath,
+		Errors:  map[string]string{},
+		Product: mappers.ProductToViewModel(&product.Product{}),
+		SaveURL: c.basePath,
 	}
 	c.renderTemplate(w, r, products.New(props))
 }
@@ -243,25 +222,29 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := c.preparePageContext(r, "Products.New.Meta.Title")
-	if err != nil {
-		c.handleError(w, err)
-		return
-	}
-
 	entity, err := dto.ToEntity()
 	if err != nil {
 		c.handleError(w, err)
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		c.handleError(w, fmt.Errorf("error retrieving localizer: %w", err))
+		return
+	}
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		props := &products.CreatePageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
-			Product:     mappers.ProductToViewModel(entity),
-			SaveURL:     c.basePath,
+			Errors:  errorsMap,
+			Product: mappers.ProductToViewModel(entity),
+			SaveURL: c.basePath,
 		}
 		c.renderTemplate(w, r, products.CreateForm(props))
+		return
+	}
+
+	localizer, ok := composables.UseLocalizer(r.Context())
+	if !ok {
+		c.handleError(w, fmt.Errorf("error retrieving localizer"))
 		return
 	}
 
@@ -269,9 +252,8 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		var vErr serrors.Base
 		if errors.As(err, &vErr) {
 			props := &products.CreatePageProps{
-				PageContext: pageCtx,
 				Errors: map[string]string{
-					"Rfid": vErr.Localize(pageCtx.Localizer),
+					"Rfid": vErr.Localize(localizer),
 				},
 				Product: mappers.ProductToViewModel(entity),
 				SaveURL: c.basePath,

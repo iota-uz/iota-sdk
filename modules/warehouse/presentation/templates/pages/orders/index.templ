@@ -2,42 +2,41 @@ package orders
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Orders          []*viewmodels.Order
 	PaginationState *pagination.State
 }
 
 templ OrdersTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("WarehouseOrders.List.Type"), Key: "title"},
-				{Label: props.T("WarehouseOrders.List.Status"), Key: "shortTitle"},
-				{Label: props.T("WarehouseOrders.List.Positions"), Key: "positions"},
-				{Label: props.T("WarehouseOrders.List.Products"), Key: "products"},
-				{Label: props.T("CreatedAt"), Key: "updatedAt"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("WarehouseOrders.List.Type"), Key: "title"},
+				{Label: pageCtx.T("WarehouseOrders.List.Status"), Key: "shortTitle"},
+				{Label: pageCtx.T("WarehouseOrders.List.Positions"), Key: "positions"},
+				{Label: pageCtx.T("WarehouseOrders.List.Products"), Key: "products"},
+				{Label: pageCtx.T("CreatedAt"), Key: "updatedAt"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, order := range props.Orders {
 				@base.TableRow() {
 					@base.TableCell() {
-						{ order.LocalizedType(props.Localizer) }
+						{ order.LocalizedType(pageCtx.Localizer) }
 					}
 					@base.TableCell() {
-						{ order.LocalizedStatus(props.Localizer) }
+						{ order.LocalizedStatus(pageCtx.Localizer) }
 					}
 					@base.TableCell() {
 						{ order.DistinctPositions() }
@@ -79,9 +78,10 @@ templ newOrderButton() {
 }
 
 templ OrdersContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.WarehouseOrders") }
+			{ pageCtx.T("NavigationLinks.WarehouseOrders") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -96,15 +96,15 @@ templ OrdersContent(props *IndexPageProps) {
 						"name": "Status",
 					},
 				}) {
-					<option disabled selected>{ props.T("WarehouseOrders.List.Status") }</option>
+					<option disabled selected>{ pageCtx.T("WarehouseOrders.List.Status") }</option>
 					<option value="">
-						{ props.T("All") }
+						{ pageCtx.T("All") }
 					</option>
 					<option value="pending">
-						{ props.T("WarehouseOrders.Statuses.pending") }
+						{ pageCtx.T("WarehouseOrders.Statuses.pending") }
 					</option>
 					<option value="complete">
-						{ props.T("WarehouseOrders.Statuses.complete") }
+						{ pageCtx.T("WarehouseOrders.Statuses.complete") }
 					</option>
 				}
 				@base.Select(&base.SelectProps{
@@ -112,26 +112,29 @@ templ OrdersContent(props *IndexPageProps) {
 						"name": "Type",
 					},
 				}) {
-					<option disabled selected>{ props.T("WarehouseOrders.List.Type") }</option>
+					<option disabled selected>{ pageCtx.T("WarehouseOrders.List.Type") }</option>
 					<option value="">
-						{ props.T("All") }
+						{ pageCtx.T("All") }
 					</option>
 					<option value="in">
-						{ props.T("WarehouseOrders.Types.in") }
+						{ pageCtx.T("WarehouseOrders.Types.in") }
 					</option>
 					<option value="out">
-						{ props.T("WarehouseOrders.Types.out") }
+						{ pageCtx.T("WarehouseOrders.Types.out") }
 					</option>
 				}
-				@filters.PageSize(props.PageContext)
-				@filters.CreatedAt(props.PageContext)
+				@filters.PageSize()
+				@filters.CreatedAt()
 				<div class="flex-grow"></div>
-				@base.DetailsDropdown(newOrderButton()) {
+				@base.DetailsDropdown(&base.DetailsDropdownProps{
+					Summary: newOrderButton(),
+					Classes: templ.CSSClasses{"z-0"},
+				}) {
 					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/in/new"}) {
-						{ props.T("WarehouseOrders.List.NewIn") }
+						{ pageCtx.T("WarehouseOrders.List.NewIn") }
 					}
 					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/out/new"}) {
-						{ props.T("WarehouseOrders.List.NewOut") }
+						{ pageCtx.T("WarehouseOrders.List.NewOut") }
 					}
 				}
 			</form>
@@ -141,7 +144,10 @@ templ OrdersContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseOrders.List.Meta.Title"),
+	}) {
 		@OrdersContent(props)
 	}
 }

@@ -7,11 +7,9 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type PageProps struct {
-	*types.PageContext
 	Errors   map[string]string
 	SaveURL  string
 	ItemsURL string
@@ -128,7 +126,10 @@ templ Form(props *FormProps) {
 }
 
 templ New(props *PageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseOrders.In.Meta.Title"),
+	}) {
 		<div class="flex flex-col justify-between h-full">
 			@card.Card(card.Props{WrapperClass: "m-6"}) {
 				<form
@@ -155,7 +156,7 @@ templ New(props *PageProps) {
 						"hx-include":   "#search-form",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</div>
 		</div>

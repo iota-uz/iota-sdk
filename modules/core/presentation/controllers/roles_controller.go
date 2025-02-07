@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/http"
 )
 
@@ -46,6 +45,7 @@ func (c *RolesController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -63,13 +63,6 @@ func (c *RolesController) Register(r *mux.Router) {
 }
 
 func (c *RolesController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Roles.Meta.List.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	params := composables.UsePaginated(r)
 	roleEntities, err := c.roleService.GetPaginated(r.Context(), &role.FindParams{
 		Limit:  params.Limit,
@@ -81,8 +74,7 @@ func (c *RolesController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &roles.IndexPageProps{
-		PageContext: pageCtx,
-		Roles:       mapping.MapViewModels(roleEntities, mappers.RoleToViewModel),
+		Roles: mapping.MapViewModels(roleEntities, mappers.RoleToViewModel),
 	}
 	if isHxRequest {
 		templ.Handler(roles.RolesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -98,21 +90,12 @@ func (c *RolesController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Roles.Meta.Edit.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	roleEntity, err := c.roleService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
 	props := &roles.EditFormProps{
-		PageContext:      pageCtx,
 		Role:             mappers.RoleToViewModel(roleEntity),
 		PermissionGroups: c.permissionGroups(roleEntity.Permissions()...),
 		Errors:           map[string]string{},
@@ -145,13 +128,6 @@ func (c *RolesController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Roles.Meta.Edit.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	roleEntity, err := c.roleService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
@@ -159,7 +135,6 @@ func (c *RolesController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props := &roles.EditFormProps{
-			PageContext:      pageCtx,
 			Role:             mappers.RoleToViewModel(roleEntity),
 			PermissionGroups: c.permissionGroups(roleEntity.Permissions()...),
 			Errors:           errors,
@@ -212,13 +187,7 @@ func (c *RolesController) permissionGroups(selected ...*permission.Permission) [
 }
 
 func (c *RolesController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Roles.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &roles.CreateFormProps{
-		PageContext:      pageCtx,
 		Role:             &viewmodels.Role{},
 		PermissionGroups: c.permissionGroups(),
 		Errors:           map[string]string{},
@@ -233,12 +202,6 @@ func (c *RolesController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Roles.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		roleEntity, err := dto.ToEntity(c.app.RBAC())
 		if err != nil {
@@ -246,7 +209,6 @@ func (c *RolesController) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		props := &roles.CreateFormProps{
-			PageContext:      pageCtx,
 			Role:             mappers.RoleToViewModel(roleEntity),
 			PermissionGroups: c.permissionGroups(),
 			Errors:           errors,

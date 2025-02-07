@@ -2,16 +2,17 @@ package controllers
 
 import (
 	"fmt"
-	inventory2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/inventory"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
+	inventory2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/inventory"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
@@ -20,7 +21,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type InventoryController struct {
@@ -56,6 +56,7 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
@@ -99,15 +100,6 @@ func (c *InventoryController) viewModelChecks(r *http.Request) (*InventoryCheckP
 }
 
 func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehouseInventory.List.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	paginated, err := c.viewModelChecks(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -116,7 +108,6 @@ func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &inventory2.IndexPageProps{
-		PageContext:     pageCtx,
 		Checks:          paginated.Checks,
 		PaginationState: paginated.PaginationState,
 	}
@@ -128,16 +119,10 @@ func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *InventoryController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseInventory.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &inventory2.CreatePageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
-		Check:       mappers.CheckToViewModel(&inventory.Check{}),
-		SaveURL:     c.basePath,
+		Errors:  map[string]string{},
+		Check:   mappers.CheckToViewModel(&inventory.Check{}),
+		SaveURL: c.basePath,
 	}
 	templ.Handler(inventory2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -177,28 +162,26 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := dto.ToEntity(u)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		props := &inventory2.CreatePageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
-			Check:       mappers.CheckToViewModel(entity),
+			Errors: errorsMap,
+			Check:  mappers.CheckToViewModel(entity),
 		}
 		templ.Handler(inventory2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -219,25 +202,16 @@ func (c *InventoryController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehouseInventory.Edit.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	entity, err := c.inventoryService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving inventory check", http.StatusInternalServerError)
 		return
 	}
 	props := &inventory2.EditPageProps{
-		PageContext: pageCtx,
-		Check:       mappers.CheckToViewModel(entity),
-		Errors:      map[string]string{},
-		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, entity.ID),
-		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		Check:     mappers.CheckToViewModel(entity),
+		Errors:    map[string]string{},
+		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, entity.ID),
 	}
 	templ.Handler(inventory2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -249,25 +223,16 @@ func (c *InventoryController) GetEditDifference(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehouseInventory.Edit.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	entity, err := c.inventoryService.GetByIDWithDifference(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving inventory check", http.StatusInternalServerError)
 		return
 	}
 	props := &inventory2.EditPageProps{
-		PageContext: pageCtx,
-		Check:       mappers.CheckToViewModel(entity),
-		Errors:      map[string]string{},
-		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, entity.ID),
-		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		Check:     mappers.CheckToViewModel(entity),
+		Errors:    map[string]string{},
+		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, entity.ID),
+		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, entity.ID),
 	}
 	templ.Handler(inventory2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -293,27 +258,25 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dto := inventory.UpdateCheckDTO{}
-	var pageCtx *types.PageContext
-	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := c.inventoryService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving unit", http.StatusInternalServerError)
 			return
 		}
 		props := &inventory2.EditPageProps{
-			PageContext: pageCtx,
-			Check:       mappers.CheckToViewModel(entity),
-			Errors:      errorsMap,
-			DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+			Check:     mappers.CheckToViewModel(entity),
+			Errors:    errorsMap,
+			DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 		}
 		templ.Handler(inventory2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -331,13 +294,7 @@ func (c *InventoryController) SearchPositions(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehouseUnits.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &inventory2.CreatePageProps{
-		PageContext:     pageCtx,
 		Errors:          map[string]string{},
 		Positions:       paginated.Positions,
 		PaginationState: paginated.PaginationState,

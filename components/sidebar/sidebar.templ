@@ -1,0 +1,82 @@
+package sidebar
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+)
+
+type Props struct {
+	Header templ.Component
+	Items  []Item
+	Footer templ.Component
+}
+
+templ Sidebar(props Props) {
+	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0">
+		if props.Header != nil {
+			<div class="px-6">
+				@props.Header
+			</div>
+		}
+		<nav class="py-4 flex-1">
+			<ul
+				class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar"
+			>
+				for _, item := range props.Items {
+					if item.IsLink() {
+						@AccordionLink(asLink(item))
+					} else {
+						@AccordionGroup(asGroup(item))
+					}
+				}
+			</ul>
+		</nav>
+		if props.Footer != nil {
+			<div class="px-6">
+				@props.Footer
+			</div>
+		}
+	</div>
+}
+
+templ AccordionGroup(group Group) {
+	<details class="group" open?={ group.IsActive(ctx) }>
+		<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
+			if group.Icon() != nil {
+				@group.Icon()
+			}
+			{ group.Text() }
+			@icons.CaretDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
+		</summary>
+		<ul class="ml-4 mt-2 flex flex-col gap-2">
+			for _, child := range group.Children() {
+				if child.IsLink() {
+					@AccordionLink(asLink(child))
+				} else {
+					@AccordionGroup(asGroup(child))
+				}
+			}
+		</ul>
+	</details>
+}
+
+templ AccordionLink(link Link) {
+	{{
+	className := "gap-2 w-full"
+	if link.IsActive(ctx) {
+		className = className + " active"
+	}
+	}}
+	<li>
+		@button.Sidebar(button.Props{
+			Size:  button.SizeMD,
+			Href:  link.Href(),
+			Class: className,
+		}) {
+			if link.Icon() != nil {
+				@link.Icon()
+			}
+			{ link.Text() }
+		}
+	</li>
+}

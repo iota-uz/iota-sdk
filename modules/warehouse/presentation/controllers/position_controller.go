@@ -24,7 +24,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type PositionsController struct {
@@ -60,6 +59,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
@@ -81,15 +81,9 @@ func (c *PositionsController) Register(r *mux.Router) {
 }
 
 func (c *PositionsController) GetUpload(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Upload.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &positions2.UploadPageProps{
-		PageContext: pageCtx,
-		SaveURL:     c.basePath + "/upload",
-		Errors:      map[string]string{},
+		SaveURL: c.basePath + "/upload",
+		Errors:  map[string]string{},
 	}
 	templ.Handler(positions2.Upload(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -104,18 +98,23 @@ func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Upload.Meta.Title", ""))
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		props := &positions2.UploadPageProps{
-			PageContext: pageCtx,
-			SaveURL:     c.basePath + "/upload",
-			Errors:      errorsMap,
+			SaveURL: c.basePath + "/upload",
+			Errors:  errorsMap,
 		}
 		templ.Handler(positions2.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	localizer, ok := composables.UseLocalizer(r.Context())
+	if !ok {
+		http.Error(w, "Error retrieving localizer", http.StatusInternalServerError)
 		return
 	}
 
@@ -123,10 +122,9 @@ func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Reques
 		var vErr serrors.Base
 		if errors.As(err, &vErr) {
 			props := &positions2.UploadPageProps{
-				PageContext: pageCtx,
-				SaveURL:     c.basePath + "/upload",
+				SaveURL: c.basePath + "/upload",
 				Errors: map[string]string{
-					"FileID": vErr.Localize(pageCtx.Localizer),
+					"FileID": vErr.Localize(localizer),
 				},
 			}
 			templ.Handler(positions2.UploadForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -172,15 +170,6 @@ func (c *PositionsController) viewModelUnits(r *http.Request) ([]*viewmodels2.Un
 }
 
 func (c *PositionsController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehousePositions.List.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	paginated, err := c.viewModelPositions(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -194,7 +183,6 @@ func (c *PositionsController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &positions2.IndexPageProps{
-		PageContext:     pageCtx,
 		Positions:       paginated.Positions,
 		Units:           unitViewModels,
 		PaginationState: paginated.PaginationState,
@@ -213,15 +201,6 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("WarehousePositions.Edit.Meta.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	entity, err := c.positionService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving position", http.StatusInternalServerError)
@@ -233,12 +212,11 @@ func (c *PositionsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &positions2.EditPageProps{
-		PageContext: pageCtx,
-		Position:    mappers.PositionToViewModel(entity),
-		Units:       unitViewModels,
-		Errors:      map[string]string{},
-		SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
-		DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		Position:  mappers.PositionToViewModel(entity),
+		Units:     unitViewModels,
+		Errors:    map[string]string{},
+		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(positions2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -270,17 +248,16 @@ func (c *PositionsController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dto := position.UpdateDTO{}
-	var pageCtx *types.PageContext
-	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("WarehousePositions.Edit.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := c.positionService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving position", http.StatusInternalServerError)
@@ -292,12 +269,11 @@ func (c *PositionsController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		props := &positions2.EditPageProps{
-			PageContext: pageCtx,
-			Position:    mappers.PositionToViewModel(entity),
-			Units:       unitViewModels,
-			Errors:      errorsMap,
-			SaveURL:     fmt.Sprintf("%s/%d", c.basePath, id),
-			DeleteURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+			Position:  mappers.PositionToViewModel(entity),
+			Units:     unitViewModels,
+			Errors:    errorsMap,
+			SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+			DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 		}
 		templ.Handler(positions2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -310,19 +286,13 @@ func (c *PositionsController) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PositionsController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.New.Meta.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	unitViewModels, err := c.viewModelUnits(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	props := &positions2.CreatePageProps{
-		PageContext: pageCtx,
-		Errors:      map[string]string{},
+		Errors: map[string]string{},
 		Position: mappers.PositionToViewModel(&position.Position{
 			Unit: &unit.Unit{},
 		}),
@@ -344,22 +314,20 @@ func (c *PositionsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("WarehousePositions.New.Meta.Title", ""))
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := dto.ToEntity()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		props := &positions2.CreatePageProps{
-			PageContext: pageCtx,
-			Errors:      errorsMap,
-			Position:    mappers.PositionToViewModel(entity),
+			Errors:   errorsMap,
+			Position: mappers.PositionToViewModel(entity),
 		}
 		templ.Handler(positions2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

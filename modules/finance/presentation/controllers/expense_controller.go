@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expenses2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
@@ -14,11 +16,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type ExpenseController struct {
@@ -56,6 +56,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
@@ -117,14 +118,6 @@ func (c *ExpenseController) viewModelCategories(r *http.Request) ([]*viewmodels.
 }
 
 func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Expenses.Meta.List.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	paginated, err := c.viewModelExpenses(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -132,7 +125,6 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &expenses2.IndexPageProps{
-		PageContext:     pageCtx,
 		Expenses:        paginated.Expenses,
 		PaginationState: paginated.PaginationState,
 	}
@@ -145,15 +137,6 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 
 func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	pageCtx, err := composables.UsePageCtx(
-		r,
-		types.NewPageData("Expenses.Meta.Edit.Title", ""),
-	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -175,11 +158,10 @@ func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &expenses2.EditPageProps{
-		PageContext: pageCtx,
-		Expense:     mappers.ExpenseToViewModel(entity),
-		Accounts:    accounts,
-		Categories:  categories,
-		Errors:      map[string]string{},
+		Expense:    mappers.ExpenseToViewModel(entity),
+		Accounts:   accounts,
+		Categories: categories,
+		Errors:     map[string]string{},
 	}
 	templ.Handler(expenses2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -205,17 +187,16 @@ func (c *ExpenseController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dto := expense.UpdateDTO{}
-	var pageCtx *types.PageContext
-	pageCtx, err = composables.UsePageCtx(r, types.NewPageData("Expenses.Meta.Edit.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := c.expenseService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
@@ -232,11 +213,10 @@ func (c *ExpenseController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		props := &expenses2.EditPageProps{
-			PageContext: pageCtx,
-			Expense:     mappers.ExpenseToViewModel(entity),
-			Accounts:    accounts,
-			Categories:  categories,
-			Errors:      errorsMap,
+			Expense:    mappers.ExpenseToViewModel(entity),
+			Accounts:   accounts,
+			Categories: categories,
+			Errors:     errorsMap,
 		}
 		templ.Handler(expenses2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -249,11 +229,6 @@ func (c *ExpenseController) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Expenses.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -265,11 +240,12 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &expenses2.CreatePageProps{
-		PageContext: pageCtx,
-		Accounts:    accounts,
-		Categories:  categories,
-		Errors:      map[string]string{},
-		Expense:     mappers.ExpenseToViewModel(&expense.Expense{}),
+		Accounts:   accounts,
+		Categories: categories,
+		Errors:     map[string]string{},
+		Expense: mappers.ExpenseToViewModel(&expense.Expense{
+			Category: category.New("", "", 0, &currency.USD),
+		}),
 	}
 	templ.Handler(expenses2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -286,13 +262,12 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Expenses.Meta.New.Title", ""))
+	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	if errorsMap, ok := dto.Ok(pageCtx.UniTranslator); !ok {
+	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -309,11 +284,10 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		props := &expenses2.CreatePageProps{
-			PageContext: pageCtx,
-			Accounts:    accounts,
-			Errors:      errorsMap,
-			Categories:  categories,
-			Expense:     mappers.ExpenseToViewModel(entity),
+			Accounts:   accounts,
+			Errors:     errorsMap,
+			Categories: categories,
+			Expense:    mappers.ExpenseToViewModel(entity),
 		}
 		templ.Handler(expenses2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

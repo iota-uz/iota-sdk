@@ -2,20 +2,19 @@ package users
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditFormProps struct {
-	*types.PageContext
 	User   *viewmodels.User
 	Roles  []*viewmodels.Role
 	Errors map[string]string
@@ -29,16 +28,17 @@ func useUploads(u *viewmodels.User) []*viewmodels.Upload {
 }
 
 templ EditForm(props *EditFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ uploads := useUploads(props.User) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		<div class="flex gap-5 p-6">
 			<div class="flex-1 space-y-5">
 				@card.Card(card.Props{
-					Header: card.DefaultHeader(props.T("Users.Cards.PersonalInfo")),
+					Header: card.DefaultHeader(pageCtx.T("Users.Cards.PersonalInfo")),
 					Class:  "grid grid-cols-2 gap-4",
 				}) {
 					@input.Text(&input.Props{
-						Label: props.T("Users.Single.FirstName"),
+						Label: pageCtx.T("Users.Single.FirstName"),
 						Attrs: templ.Attributes{
 							"value": props.User.FirstName,
 							"name":  "FirstName",
@@ -47,7 +47,7 @@ templ EditForm(props *EditFormProps) {
 						Error: props.Errors["FirstName"],
 					})
 					@input.Text(&input.Props{
-						Label: props.T("Users.Single.LastName"),
+						Label: pageCtx.T("Users.Single.LastName"),
 						Attrs: templ.Attributes{
 							"value": props.User.LastName,
 							"name":  "LastName",
@@ -56,7 +56,7 @@ templ EditForm(props *EditFormProps) {
 						Error: props.Errors["LastName"],
 					})
 					@input.Text(&input.Props{
-						Label: props.T("Users.Single.MiddleName"),
+						Label: pageCtx.T("Users.Single.MiddleName"),
 						Attrs: templ.Attributes{
 							"value": props.User.MiddleName,
 							"name":  "MiddleName",
@@ -65,26 +65,24 @@ templ EditForm(props *EditFormProps) {
 						Error: props.Errors["MiddleName"],
 					})
 					@EmailInput(SharedProps{
-						PageContext: props.PageContext,
-						Value:       props.User.Email,
-						Error:       props.Errors["Email"],
+						Value: props.User.Email,
+						Error: props.Errors["Email"],
 					})
 				}
 				@card.Card(card.Props{
-					Header: card.DefaultHeader(props.T("Users.Cards.UserInfo")),
+					Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
 					Class:  "grid grid-cols-3 gap-4",
 				}) {
 					@RoleSelect(&RoleSelectProps{
-						PageContext: props.PageContext,
-						Roles:       props.Roles,
-						Selected:    props.User.Roles,
-						Error:       props.Errors["RoleIDs"],
-						Form:        "save-form",
-						Name:        "RoleIDs",
+						Roles:    props.Roles,
+						Selected: props.User.Roles,
+						Error:    props.Errors["RoleIDs"],
+						Form:     "save-form",
+						Name:     "RoleIDs",
 					})
 					@input.Password(&input.Props{
-						Label:       props.T("Users.Single.Password"),
-						Placeholder: props.T("Users.Single.EnterPassword"),
+						Label:       pageCtx.T("Users.Single.Password"),
+						Placeholder: pageCtx.T("Users.Single.EnterPassword"),
 						Attrs: templ.Attributes{
 							"autocomplete": "new-password",
 							"name":         "Password",
@@ -92,8 +90,8 @@ templ EditForm(props *EditFormProps) {
 						},
 					})
 					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-						Label:       props.T("Users.Single.Language"),
-						Placeholder: props.T("Users.Single.SelectLanguage"),
+						Label:       pageCtx.T("Users.Single.Language"),
+						Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
 						Value:       string(props.User.UILanguage),
 						Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
 					})
@@ -101,7 +99,7 @@ templ EditForm(props *EditFormProps) {
 			</div>
 			@card.Card(card.Props{}) {
 				@components.UploadInput(&components.UploadInputProps{
-					Label:       props.T("Users.Single.ChooseAvatar"),
+					Label:       pageCtx.T("Users.Single.ChooseAvatar"),
 					Placeholder: "PNG, JPG",
 					Name:        "AvatarID",
 					Class:       "col-span-2",
@@ -135,7 +133,7 @@ templ EditForm(props *EditFormProps) {
 						"id":     "delete-user-btn",
 					},
 				}) {
-					{ props.T("Delete") }
+					{ pageCtx.T("Delete") }
 				}
 			</form>
 			<form
@@ -154,7 +152,7 @@ templ EditForm(props *EditFormProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -162,11 +160,14 @@ templ EditForm(props *EditFormProps) {
 }
 
 templ Edit(props *EditFormProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Users.Meta.Edit.Title"),
+	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading: props.T("Users.Single.Delete"),
-			Text:    props.T("Users.Single.DeleteConfirmation"),
+			Heading: pageCtx.T("Users.Single.Delete"),
+			Text:    pageCtx.T("Users.Single.DeleteConfirmation"),
 			Icon:    icons.Trash(icons.Props{Size: "20"}),
 			Action:  "open-delete-user-confirmation",
 			Attrs: templ.Attributes{

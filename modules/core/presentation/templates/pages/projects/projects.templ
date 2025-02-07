@@ -2,28 +2,28 @@ package projects
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	*types.PageContext
 	Projects []*viewmodels.Project
 	NewURL   string
 }
 
 templ ProjectsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Table(&base.TableProps{
 		Columns: []*base.TableColumn{
-			{Label: props.T("Projects.List.Name"), Key: "name"},
-			{Label: props.T("Projects.List.Description"), Key: "description"},
-			{Label: props.T("UpdatedAt"), Key: "updatedAt"},
-			{Label: props.T("Actions"), Class: "w-16"},
+			{Label: pageCtx.T("Projects.List.Name"), Key: "name"},
+			{Label: pageCtx.T("Projects.List.Description"), Key: "description"},
+			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
 		for _, project := range props.Projects {
@@ -55,9 +55,10 @@ templ ProjectsTable(props *IndexPageProps) {
 }
 
 templ ProjectsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<h1 class="text-2xl font-medium">
-			{ props.T("NavigationLinks.Projects") }
+			{ pageCtx.T("NavigationLinks.Projects") }
 		</h1>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
@@ -71,13 +72,13 @@ templ ProjectsContent(props *IndexPageProps) {
 					AddonLeft: &input.Addon{
 						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
 					},
-					Placeholder: props.T("Search"),
+					Placeholder: pageCtx.T("Search"),
 					Attrs: templ.Attributes{
 						"name": "name",
 					},
 				})
 				@base.Select(&base.SelectProps{
-					Prefix: props.T("PerPage"),
+					Prefix: pageCtx.T("PerPage"),
 					Attrs: templ.Attributes{
 						"name": "limit",
 					},
@@ -87,7 +88,7 @@ templ ProjectsContent(props *IndexPageProps) {
 					<option>50</option>
 					<option>100</option>
 				}
-				@base.Select(&base.SelectProps{Placeholder: props.T("CreatedAt")}) {
+				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
 					<option>Yesterday</option>
 					<option>The day before yesterday</option>
 				}
@@ -96,7 +97,7 @@ templ ProjectsContent(props *IndexPageProps) {
 					Href: props.NewURL,
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ props.T("Projects.List.New") }
+					{ pageCtx.T("Projects.List.New") }
 				}
 			</form>
 			@ProjectsTable(props)
@@ -105,7 +106,10 @@ templ ProjectsContent(props *IndexPageProps) {
 }
 
 templ Index(props *IndexPageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Projects.Meta.List.Title"),
+	}) {
 		@ProjectsContent(props)
 	}
 }

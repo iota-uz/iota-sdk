@@ -1,6 +1,8 @@
 package eventbus
 
-import "reflect"
+import (
+	"reflect"
+)
 
 type Subscriber struct {
 	Handler interface{}
@@ -22,23 +24,49 @@ func NewEventPublisher() EventBus {
 	return &publisherImpl{}
 }
 
-func matchSignature(handler interface{}, args []interface{}) bool {
+func MatchSignature(handler interface{}, args []interface{}) bool {
 	t := reflect.TypeOf(handler)
+	if t.Kind() != reflect.Func {
+		return false
+	}
+
 	if t.NumIn() != len(args) {
 		return false
 	}
+
 	for i, arg := range args {
-		if t.In(i) != reflect.TypeOf(arg) {
+		paramType := t.In(i)
+		argType := reflect.TypeOf(arg)
+
+		// Handle nil arguments
+		if arg == nil {
+			if paramType.Kind() != reflect.Interface && paramType.Kind() != reflect.Ptr {
+				return false
+			}
+			continue
+		}
+
+		// If the parameter is an interface, check if argument implements it
+		if paramType.Kind() == reflect.Interface {
+			if !argType.Implements(paramType) {
+				return false
+			}
+			continue
+		}
+
+		// For other types, check direct assignability
+		if !argType.AssignableTo(paramType) {
 			return false
 		}
 	}
+
 	return true
 }
 
 func (p *publisherImpl) Publish(args ...interface{}) {
 	for _, subscriber := range p.Subscribers {
 		v := reflect.ValueOf(subscriber.Handler)
-		if !matchSignature(subscriber.Handler, args) {
+		if !MatchSignature(subscriber.Handler, args) {
 			continue
 		}
 		in := make([]reflect.Value, len(args))

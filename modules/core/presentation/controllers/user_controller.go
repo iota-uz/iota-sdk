@@ -15,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type UsersController struct {
@@ -46,6 +45,7 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
+		middleware.WithPageContext(),
 	}
 
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -63,13 +63,6 @@ func (c *UsersController) Register(r *mux.Router) {
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Users.Meta.List.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	params := composables.UsePaginated(r)
 	us, err := c.userService.GetPaginated(r.Context(), &user.FindParams{
 		Limit:  params.Limit,
@@ -82,8 +75,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &users.IndexPageProps{
-		PageContext: pageCtx,
-		Users:       mapping.MapViewModels(us, mappers.UserToViewModel),
+		Users: mapping.MapViewModels(us, mappers.UserToViewModel),
 	}
 	if isHxRequest {
 		templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -98,15 +90,6 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Users.Meta.Edit.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	roles, err := c.roleService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
@@ -119,10 +102,9 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &users.EditFormProps{
-		PageContext: pageCtx,
-		User:        mappers.UserToViewModel(us),
-		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Errors:      map[string]string{},
+		User:   mappers.UserToViewModel(us),
+		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Errors: map[string]string{},
 	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -152,13 +134,6 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(
-		r, types.NewPageData("Users.Meta.Edit.Title", ""),
-	)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		roles, err := c.roleService.GetAll(r.Context())
 		if err != nil {
@@ -173,10 +148,9 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 
 		props := &users.EditFormProps{
-			PageContext: pageCtx,
-			User:        mappers.UserToViewModel(us),
-			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Errors:      errors,
+			User:   mappers.UserToViewModel(us),
+			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors: errors,
 		}
 		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -199,16 +173,10 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Users.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &users.CreateFormProps{
-		PageContext: pageCtx,
-		User:        viewmodels.User{},
-		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Errors:      map[string]string{},
+		User:   viewmodels.User{},
+		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Errors: map[string]string{},
 	}
 	templ.Handler(users.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -217,12 +185,6 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&user.CreateDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	pageCtx, err := composables.UsePageCtx(r, types.NewPageData("Users.Meta.New.Title", ""))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -238,10 +200,9 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		props := &users.CreateFormProps{
-			PageContext: pageCtx,
-			User:        *mappers.UserToViewModel(userEntity),
-			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Errors:      errors,
+			User:   *mappers.UserToViewModel(userEntity),
+			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors: errors,
 		}
 		templ.Handler(
 			users.CreateForm(props), templ.WithStreaming(),

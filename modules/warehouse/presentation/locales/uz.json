@@ -1,0 +1,252 @@
+{
+  "Errors": {
+    "ERR_INVALID_CELL": "\"{{.Col}}:{{.Row}}\" katakchani qayta ishlashda xatolik",
+    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} allaqachon mavjud",
+    "ERR_DUPLICATE_BARCODE": "Artikul {{.Barcode}} allaqachon mavjud",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Omborda mahsulot yetarli emas",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Ishlab chiqarishda mahsulot yetarli emas",
+    "ERR_ORDER_IS_ALREADY_COMPLETE": "Buyurtma allaqachon yakunlangan",
+    "ERR_PRODUCT_IS_SHIPPED": "Mahsulot allaqachon jo'natilgan"
+  },
+  "NavigationLinks": {
+    "Warehouse": "Ombor",
+    "Products": "Mahsulotlar",
+    "WarehousePositions": "Nomlar",
+    "WarehouseInventory": "Inventarizatsiya",
+    "WarehouseOrders": "Nakladnoylar",
+    "WarehouseUnits": "O'lchov birliklari"
+  },
+  "Products": {
+    "List": {
+      "Meta": {
+        "Title": "Mahsulotlar"
+      },
+      "New": "Yangi mahsulot",
+      "Position": "Nomi",
+      "Status": "Holati"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi mahsulot"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Mahsulotni tahrirlash"
+      }
+    },
+    "Statuses": {
+      "in_stock": "Omborda",
+      "approved": "Tasdiqlangan",
+      "in_development": "Ishlab chiqarishda"
+    },
+    "Single": {
+      "Position": "Nomi",
+      "Rfid": "RFID",
+      "SearchPosition": "Nomini qidirish",
+      "NoPositionsFound": "Nomlar topilmadi",
+      "Status": "Holati",
+      "SelectStatus": "Holatni tanlang",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu mahsulotni o'chirishni xohlaysizmi?"
+    }
+  },
+  "WarehousePositions": {
+    "List": {
+      "Meta": {
+        "Title": "Nomlar"
+      },
+      "New": "Yangi nom",
+      "Upload": ".xlsx yuklash",
+      "Position": "Nomi",
+      "Barcode": "Artikul",
+      "Unit": "O'lchov birligi",
+      "NewIn": "Yangi kirish",
+      "NewOut": "Yangi chiqish"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi nom"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Nomni tahrirlash"
+      }
+    },
+    "Single": {
+      "Images": "Rasmlar",
+      "Title": {
+        "Label": "Nomi",
+        "Placeholder": "mas.: Quvvat bloki"
+      },
+      "Barcode": {
+        "Label": "Artikul",
+        "Placeholder": "mas.: 123456"
+      },
+      "Unit": "Birlik",
+      "SelectUnit": "Birlikni tanlang",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu nomni o'chirishni xohlaysizmi?",
+      "NothingFound": "Hech narsa topilmadi"
+    },
+    "Upload": {
+      "Meta": {
+        "Title": ".xlsx yuklash"
+      },
+      "Example": {
+        "Title": "Excel yuklash",
+        "Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
+        "ItemName": "Nomi",
+        "ItemCode": "Artikul",
+        "Unit": "O'lchov birligi",
+        "Quantity": "Miqdori",
+        "Below": "Quyida yuklash uchun Excel fayl namunasi keltirilgan"
+      },
+      "UploadLabel": "Faylni tanlang",
+      "UploadPlaceholder": "Faylni tanlang",
+      "Submit": "Yuklash"
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "Ombor birliklari"
+      },
+      "New": "Yangi birlik",
+      "Title": "Nomi",
+      "ShortTitle": "Qisqa nomi"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi ombor birligi"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Ombor birligini tahrirlash"
+      }
+    },
+    "Single": {
+      "Title": {
+        "Label": "Nomi",
+        "Placeholder": "mas.: Kilogramm"
+      },
+      "ShortTitle": {
+        "Label": "Qisqa nomi",
+        "Placeholder": "mas.: kg"
+      },
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu o'lchov birligini o'chirishni xohlaysizmi?"
+    }
+  },
+  "WarehouseOrders": {
+    "List": {
+      "Meta": {
+        "Title": "Nakladnoylar"
+      },
+      "New": "Yangi nakladnoy",
+      "NewIn": "Qabul qilish",
+      "NewOut": "Jo'natish",
+      "Type": "Turi",
+      "Status": "Holati",
+      "Products": "Birliklar",
+      "Positions": "Nomlar"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi nakladnoy"
+      }
+    },
+    "View": {
+      "Meta": {
+        "Title": "Nakladnoyni ko'rish"
+      },
+      "Title": "Nakladnoy #{{.ID}}",
+      "Status": "Holati",
+      "CreatedAt": "Yaratilgan sana",
+      "Position": "Nomi",
+      "Barcode": "Artikul",
+      "Quantity": "Miqdori",
+      "Unit": "O'lchov birligi",
+      "NoItems": "Nomlar yo'q"
+    },
+    "Types": {
+      "in": "Qabul qilish",
+      "out": "Jo'natish"
+    },
+    "Statuses": {
+      "pending": "Jarayonda",
+      "complete": "Yakunlangan"
+    },
+    "Single": {
+      "Type": "Turi",
+      "TypePlaceholder": "Turini tanlang",
+      "Status": "Holati",
+      "Quantity": "Miqdori",
+      "PositionIDs": "Nomlar",
+      "NoItems": "Nomlar yo'q",
+      "Position": "Nomi",
+      "SearchPosition": "Nomini qidirish",
+      "NoPositionsFound": "Nomlar topilmadi",
+      "Barcode": "Artikul",
+      "InStock": "Ombordagi miqdori",
+      "OrderedQuantity": "Jo'natish miqdori",
+      "Unit": "O'lchov birligi",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu buyurtmani o'chirishni xohlaysizmi?"
+    }
+  },
+  "WarehouseInventory": {
+    "List": {
+      "Meta": {
+        "Title": "Inventarizatsiya"
+      },
+      "New": "Yangi inventarizatsiya",
+      "Name": "Nomi",
+      "Type": "Turi",
+      "Status": "Holati",
+      "CreatedBy": "Yaratgan",
+      "FinishedBy": "Yakunlagan",
+      "SelectStatus": "Holatni tanlang",
+      "SelectType": "Turini tanlang"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi inventarizatsiya"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Inventarizatsiyani tahrirlash"
+      }
+    },
+    "Single": {
+      "Name": {
+        "Label": "Nomi",
+        "Placeholder": "mas.: 16.12.2024 dagi tekshiruv"
+      },
+      "Type": "Turi",
+      "Inventory": "Inventarizatsiya",
+      "FactualQuantity": "Haqiqiy miqdor/1C dagi miqdor",
+      "Difference": "Farq",
+      "Types": {
+        "full": "To'liq",
+        "partial": "Qisman"
+      },
+      "Statuses": {
+        "success": "Muvaffaqiyatli",
+        "incomplete": "Jarayonda",
+        "failed": "Muvaffaqiyatsiz"
+      },
+      "Positions": {
+        "Label": "Nomi",
+        "Placeholder": "Nomi yoki artikul..."
+      },
+      "Added": "Qo'shilganlar",
+      "AllPositions": "Barcha nomlar",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu inventarizatsiyani o'chirishni xohlaysizmi?"
+    }
+  }
+}

@@ -2,6 +2,7 @@ package modules
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -12,6 +13,7 @@ var (
 		core.NewModule(),
 		finance.NewModule(),
 		warehouse.NewModule(),
+		crm.NewModule(),
 	}
 )
 

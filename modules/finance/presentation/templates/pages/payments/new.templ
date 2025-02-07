@@ -8,24 +8,24 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Payment  *viewmodels.Payment
 	Accounts []*viewmodels.MoneyAccount
 	Errors   map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="new-content">
 		@card.Card(card.Props{
 			Class:        "grid grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@input.Number(&input.Props{
-				Label: props.T("Payments.Single.Amount"),
+				Label: pageCtx.T("Payments.Single.Amount"),
 				Error: props.Errors["Amount"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.Amount,
@@ -34,7 +34,7 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@input.Date(&input.Props{
-				Label: props.T("Payments.Single.Date"),
+				Label: pageCtx.T("Payments.Single.Date"),
 				Error: props.Errors["TransactionDate"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.TransactionDate,
@@ -43,7 +43,7 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@input.Date(&input.Props{
-				Label: props.T("Payments.Single.AccountingPeriod"),
+				Label: pageCtx.T("Payments.Single.AccountingPeriod"),
 				Error: props.Errors["AccountingPeriod"],
 				Attrs: templ.Attributes{
 					"value": props.Payment.AccountingPeriod,
@@ -52,8 +52,8 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@components.AccountSelect(&components.AccountSelectProps{
-				Label:       props.T("Payments.Single.Account"),
-				Placeholder: props.T("Payments.Single.SelectAccount"),
+				Label:       pageCtx.T("Payments.Single.Account"),
+				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
 				Error:       props.Errors["AccountID"],
@@ -63,13 +63,13 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@components.CounterpartySelect(&components.CounterpartySelectProps{
-				Label:       props.T("Payments.Single.CounterpartyID.Label"),
-				Placeholder: props.T("Payments.Single.CounterpartyID.Placeholder"),
+				Label:       pageCtx.T("Payments.Single.CounterpartyID.Label"),
+				Placeholder: pageCtx.T("Payments.Single.CounterpartyID.Placeholder"),
 				Name:        "CounterpartyID",
 				Form:        "save-form",
 			})
 			@textarea.Basic(&textarea.Props{
-				Label: props.T("Payments.Single.Comment"),
+				Label: pageCtx.T("Payments.Single.Comment"),
 				Attrs: templ.Attributes{
 					"value": props.Payment.Comment,
 					"name":  "Comment",
@@ -98,7 +98,7 @@ templ CreateForm(props *CreatePageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</form>
 		</div>
@@ -106,7 +106,10 @@ templ CreateForm(props *CreatePageProps) {
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Payments.Meta.New.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }

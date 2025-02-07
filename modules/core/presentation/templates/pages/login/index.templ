@@ -1,17 +1,16 @@
 package login
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/alert"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type LoginProps struct {
-	*types.PageContext
 	ErrorsMap          map[string]string
 	ErrorMessage       string
 	Email              string
@@ -72,16 +71,17 @@ templ Header() {
 }
 
 templ Index(p *LoginProps) {
-	@layouts.Base(p.Title) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Base(pageCtx.T("Login.Meta.Title")) {
 		<div class="flex flex-col h-screen overflow-y-auto">
 			@Header()
 			<div class="flex-1 flex items-center justify-center">
 				<form class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]" method="post">
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
-							{ p.T("Login.WelcomeBack") }
+							{ pageCtx.T("Login.WelcomeBack") }
 						</h1>
-						<p class="mt-2 text-200">{ p.T("Login.EnterEmailAndPassword") }</p>
+						<p class="mt-2 text-200">{ pageCtx.T("Login.EnterEmailAndPassword") }</p>
 					</div>
 					<hr class="border border-primary"/>
 					if len(p.ErrorMessage) > 0 {
@@ -90,7 +90,7 @@ templ Index(p *LoginProps) {
 						}
 					}
 					@input.Email(&input.Props{
-						Label: p.T("Login.Email"),
+						Label: pageCtx.T("Login.Email"),
 						Attrs: templ.Attributes{
 							"name":  "Email",
 							"value": p.Email,
@@ -98,7 +98,7 @@ templ Index(p *LoginProps) {
 						Error: p.ErrorsMap["Email"],
 					})
 					@input.Password(&input.Props{
-						Label: p.T("Login.Password"),
+						Label: pageCtx.T("Login.Password"),
 						Attrs: templ.Attributes{
 							"name": "Password",
 						},
@@ -111,9 +111,9 @@ templ Index(p *LoginProps) {
 							"type": "submit",
 						},
 					}) {
-						{ p.T("Login.Login") }
+						{ pageCtx.T("Login.Login") }
 					}
-					<p class="text-100 text-center">{ p.T("Login.OrSignInWith") }</p>
+					<p class="text-100 text-center">{ pageCtx.T("Login.OrSignInWith") }</p>
 					@button.Secondary(button.Props{
 						Size:  button.SizeNormal,
 						Class: "justify-center",

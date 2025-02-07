@@ -2,11 +2,13 @@ package core
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/seed"
@@ -17,10 +19,10 @@ import (
 //go:generate go run github.com/99designs/gqlgen generate
 
 //go:embed presentation/locales/*.json
-var localeFiles embed.FS
+var LocaleFiles embed.FS
 
 //go:embed infrastructure/persistence/schema/core-schema.sql
-var migrationFiles embed.FS
+var MigrationFiles embed.FS
 
 func NewModule() application.Module {
 	return &Module{}
@@ -30,12 +32,15 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	app.RegisterMigrationDirs(&migrationFiles)
-	app.RegisterLocaleFiles(&localeFiles)
+	app.RBAC().Register(
+		permissions.Permissions...,
+	)
+	app.RegisterMigrationDirs(&MigrationFiles)
+	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterSeedFuncs(
 		seed.CreatePermissions,
 		seed.CreateCurrencies,
-		seed.CreateUser,
+		seed.UserSeedFunc("test@gmail.com", "TestPass123!", user.UILanguageEN),
 	)
 	fsStorage, err := persistence.NewFSStorage()
 	if err != nil {

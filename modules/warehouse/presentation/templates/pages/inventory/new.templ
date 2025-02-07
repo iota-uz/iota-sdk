@@ -10,11 +10,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	*types.PageContext
 	Check           *viewmodels.Check
 	Positions       []*viewmodels.Position
 	PaginationState *pagination.State
@@ -28,6 +27,7 @@ func toJSON(data any) string {
 }
 
 templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.SaveURL }
@@ -40,12 +40,12 @@ templ CreateForm(props *CreatePageProps) {
 				WrapperClass: "m-6",
 			}) {
 				@input.Text(&input.Props{
-					Label:       props.T("WarehouseInventory.Single.Name.Label"),
-					Placeholder: props.T("WarehouseInventory.Single.Name.Placeholder"),
+					Label:       pageCtx.T("WarehouseInventory.Single.Name.Label"),
+					Placeholder: pageCtx.T("WarehouseInventory.Single.Name.Placeholder"),
 					Attrs: templ.Attributes{
 						"autofocus": true,
 						"name":      "Name",
-						":value":    fmt.Sprintf("'%s ' + now()", props.T("WarehouseInventory.Single.Inventory")),
+						":value":    fmt.Sprintf("'%s ' + now()", pageCtx.T("WarehouseInventory.Single.Inventory")),
 					},
 					Error: props.Errors["Name"],
 				})
@@ -59,7 +59,7 @@ templ CreateForm(props *CreatePageProps) {
 						"id":    "save-btn",
 					},
 				}) {
-					{ props.T("Save") }
+					{ pageCtx.T("Save") }
 				}
 			</div>
 		</div>
@@ -67,13 +67,14 @@ templ CreateForm(props *CreatePageProps) {
 }
 
 templ AllPositionsTable(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-all">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: props.T("WarehousePositions.List.Position"), Key: "title"},
-				{Label: props.T("WarehousePositions.List.Barcode"), Key: "barcode"},
-				{Label: props.T("WarehousePositions.List.Unit"), Key: "unit"},
-				{Label: props.T("Actions"), Class: "w-16"},
+				{Label: pageCtx.T("WarehousePositions.List.Position"), Key: "title"},
+				{Label: pageCtx.T("WarehousePositions.List.Barcode"), Key: "barcode"},
+				{Label: pageCtx.T("WarehousePositions.List.Unit"), Key: "unit"},
+				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, position := range props.Positions {
@@ -96,7 +97,7 @@ templ AllPositionsTable(props *CreatePageProps) {
 									"@click": fmt.Sprintf("() => selected.has(%s) ? selected.delete(%s) : selected.set(%s, %s)", position.ID, position.ID, position.ID, toJSON(position)),
 								},
 							}) {
-							<span x-text={ fmt.Sprintf("selected.has(%s) ? '%s' : '%s'", position.ID, props.T("Remove"), props.T("Add")) }></span>
+							<span x-text={ fmt.Sprintf("selected.has(%s) ? '%s' : '%s'", position.ID, pageCtx.T("Remove"), pageCtx.T("Add")) }></span>
 						}
 					}
 				}
@@ -109,7 +110,10 @@ templ AllPositionsTable(props *CreatePageProps) {
 }
 
 templ New(props *CreatePageProps) {
-	@layouts.Authenticated(props.PageContext) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("WarehouseInventory.New.Meta.Title"),
+	}) {
 		@CreateForm(props)
 	}
 }
