@@ -768,7 +768,7 @@ func Message(msg *viewmodels.Message) templ.Component {
 			}
 			templ_7745c5c3_Err = avatar.Avatar(avatar.Props{
 				Initials: msg.Sender.Initials(),
-				Class:    templ.Classes("min-w-10 w-10 h-10 hidden md:block"),
+				Class:    templ.Classes("min-w-10 w-10 h-10 hidden md:flex"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -784,7 +784,7 @@ func Message(msg *viewmodels.Message) templ.Component {
 			}
 			templ_7745c5c3_Err = avatar.Avatar(avatar.Props{
 				Initials: msg.Sender.Initials(),
-				Class:    templ.Classes("w-10 h-10 min-w-10 hidden md:block"),
+				Class:    templ.Classes("w-10 h-10 min-w-10 hidden md:flex"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
