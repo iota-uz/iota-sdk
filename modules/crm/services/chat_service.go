@@ -93,12 +93,16 @@ func (s *ChatService) Create(ctx context.Context, data *chat.CreateDTO) (chat.Ch
 	if err != nil {
 		return nil, err
 	}
-	ev, err := chat.NewCreatedEvent(ctx, *data, createdEntity)
+	event, err := chat.NewCreatedEvent(ctx, *data, createdEntity)
 	if err != nil {
 		return nil, err
 	}
-	s.publisher.Publish(ev)
+	s.publisher.Publish(event)
 	return createdEntity, nil
+}
+
+func (s *ChatService) Update(ctx context.Context, entity chat.Chat) (chat.Chat, error) {
+	return s.repo.Update(ctx, entity)
 }
 
 func (s *ChatService) RegisterClientMessage(
@@ -113,7 +117,16 @@ func (s *ChatService) RegisterClientMessage(
 	if err != nil {
 		return nil, err
 	}
-
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	ctx = composables.WithTx(ctx, tx)
 	chatEntity, err := s.GetByClientIDOrCreate(ctx, clientEntity.ID())
 	if err != nil {
 		return nil, err
@@ -121,7 +134,11 @@ func (s *ChatService) RegisterClientMessage(
 
 	if _, err := chatEntity.AddMessage(
 		params.Body,
-		chat.NewClientSender(clientEntity.ID(), clientEntity.FirstName(), clientEntity.LastName()),
+		chat.NewClientSender(
+			clientEntity.ID(),
+			clientEntity.FirstName(),
+			clientEntity.LastName(),
+		),
 	); err != nil {
 		return nil, err
 	}
@@ -131,6 +148,15 @@ func (s *ChatService) RegisterClientMessage(
 		return nil, err
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	event, err := chat.NewMessageAddedEvent(ctx, chatEntity)
+	if err != nil {
+		return nil, err
+	}
+	s.publisher.Publish(event)
 	return updatedChat, nil
 }
 
@@ -139,6 +165,17 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 	if err != nil {
 		return nil, err
 	}
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	ctx = composables.WithTx(ctx, tx)
 	chatEntity, err := s.GetByID(ctx, dto.ChatID)
 	if err != nil {
 		return nil, err
@@ -155,7 +192,6 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 	if err != nil {
 		return nil, err
 	}
-
 	if err := s.cpassProvider.SendMessage(ctx, cpassproviders.SendMessageDTO{
 		From:    configuration.Use().TwilioPhoneNumber,
 		To:      clientEntity.Phone().Value(),
@@ -164,13 +200,15 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 		return nil, err
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
 	event, err := chat.NewMessageAddedEvent(ctx, updatedChat)
 	if err != nil {
 		return nil, err
 	}
-
 	s.publisher.Publish(event)
-
 	return updatedChat, nil
 }
 

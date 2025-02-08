@@ -56,6 +56,7 @@ func toDBMessage(entity chat.Message, chatID uint) *models.Message {
 			Valid: false,
 		},
 		IsRead:    entity.IsRead(),
+		ReadAt:    mapping.PointerToSQLNullTime(entity.ReadAt()),
 		CreatedAt: entity.CreatedAt(),
 	}
 	if entity.Sender().IsUser() {
@@ -91,9 +92,10 @@ func toDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 		dbMessages = append(dbMessages, toDBMessage(m, domainEntity.ID()))
 	}
 	return &models.Chat{
-		ID:        domainEntity.ID(),
-		ClientID:  domainEntity.ClientID(),
-		CreatedAt: domainEntity.CreatedAt(),
+		ID:            domainEntity.ID(),
+		ClientID:      domainEntity.ClientID(),
+		CreatedAt:     domainEntity.CreatedAt(),
+		LastMessageAt: mapping.PointerToSQLNullTime(domainEntity.LastMessageAt()),
 	}, dbMessages
 }
 

@@ -2,6 +2,7 @@ package cpassproviders
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -121,10 +122,14 @@ func (s *TwilioProvider) WebhookHandler(eventBus eventbus.EventBus) http.Handler
 		params := make(map[string]string)
 		for key, values := range r.PostForm {
 			if len(values) > 0 {
-				log.Printf("Key: %s, Value: %s", key, values[0])
 				params[key] = values[0]
 			}
 		}
+		b, err := json.MarshalIndent(params, "", "  ")
+		if err != nil {
+			log.Printf("Error marshalling params: %v", err)
+		}
+		log.Printf("Received webhook: %s", string(b))
 		isValid := s.validator.Validate(s.webhookURL, params, signature)
 		if !isValid {
 			log.Printf("Invalid signature")
