@@ -92,6 +92,7 @@
 			"Title": "Chats"
 		},
 		"New": "New chat",
+		"Back": "Back",
 		"InstantMessages": "Instant messages",
 		"NoSelectedChat": "Select a chat...",
 		"ChatNotFound": "Chat not found..."

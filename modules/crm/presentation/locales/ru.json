@@ -92,6 +92,7 @@
 			"Title": "Чаты"
 		},
 		"New": "Новый чат",
+		"Back": "Назад",
 		"InstantMessages": "Мгновенные сообщения",
 		"NoSelectedChat": "Выберите чат...",
 		"ChatNotFound": "Чат не найден..."
