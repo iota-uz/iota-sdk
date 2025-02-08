@@ -54,10 +54,11 @@ func MessageToViewModel(entity chat.Message) *viewmodels.Message {
 
 func ChatToViewModel(entity chat.Chat, clientEntity client.Client) *viewmodels.Chat {
 	return &viewmodels.Chat{
-		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Client:    ClientToViewModel(clientEntity),
-		Messages:  mapping.MapViewModels(entity.Messages(), MessageToViewModel),
-		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
+		ID:             strconv.FormatUint(uint64(entity.ID()), 10),
+		Client:         ClientToViewModel(clientEntity),
+		Messages:       mapping.MapViewModels(entity.Messages(), MessageToViewModel),
+		UnreadMessages: entity.UnreadMessages(),
+		CreatedAt:      entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 

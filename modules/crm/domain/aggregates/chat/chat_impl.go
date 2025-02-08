@@ -59,6 +59,24 @@ func (c *chat) ClientID() uint {
 	return c.clientID
 }
 
+// UnreadMessages returns the number of unread messages in the chat
+func (c *chat) UnreadMessages() int {
+	count := 0
+	for _, msg := range c.messages {
+		if !msg.IsRead() && msg.Sender().IsClient() {
+			count++
+		}
+	}
+	return count
+}
+
+// MarkAllAsRead marks all messages in the chat as read
+func (c *chat) MarkAllAsRead() {
+	for _, msg := range c.messages {
+		msg.MarkAsRead()
+	}
+}
+
 // AddMessage adds a new message to the chat
 func (c *chat) AddMessage(content string, sender Sender, attachments ...*upload.Upload) (Message, error) {
 	if content == "" && len(attachments) == 0 {

@@ -11,6 +11,8 @@ type Chat interface {
 	ClientID() uint
 	Messages() []Message
 	AddMessage(content string, sender Sender, attachments ...*upload.Upload) (Message, error)
+	UnreadMessages() int
+	MarkAllAsRead()
 	LastMessage() (Message, error)
 	LastMessageAt() *time.Time
 	CreatedAt() time.Time

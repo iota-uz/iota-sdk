@@ -5,24 +5,25 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ClientService struct {
-	repo      client.Repository
-	chatRepo  chat.Repository
-	publisher eventbus.EventBus
+	repo        client.Repository
+	chatService *ChatService
+	publisher   eventbus.EventBus
 }
 
 func NewClientService(
 	repo client.Repository,
-	chatRepo chat.Repository,
+	chatService *ChatService,
 	publisher eventbus.EventBus,
 ) *ClientService {
 	return &ClientService{
-		repo:      repo,
-		chatRepo:  chatRepo,
-		publisher: publisher,
+		repo:        repo,
+		chatService: chatService,
+		publisher:   publisher,
 	}
 }
 
@@ -47,12 +48,27 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 	if err != nil {
 		return nil, err
 	}
+	pool, err := composables.UsePool(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	ctx = composables.WithTx(ctx, tx)
 	createdEntity, err := s.repo.Create(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.chatRepo.Create(ctx, chat.New(createdEntity.ID()))
+	_, err = s.chatService.Create(ctx, &chat.CreateDTO{
+		ClientID: createdEntity.ID(),
+	})
 	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return createdEntity, nil

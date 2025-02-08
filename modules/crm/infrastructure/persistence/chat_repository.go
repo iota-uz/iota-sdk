@@ -89,14 +89,16 @@ const (
 			created_at
 		) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
-	updateMessageQuery = `UPDATE messages SET 
-		chat_id = $1,
-		message = $2,
-		sender_user_id = $3,
-		sender_client_id = $4,
-		is_read = $5, 
-		created_at = $6
-		WHERE id = $7`
+	updateMessageQuery = `
+		UPDATE messages SET 
+			chat_id = $1,
+			message = $2,
+			sender_user_id = $3,
+			sender_client_id = $4,
+			is_read = $5, 
+			read_at = $6
+		WHERE id = $7
+	`
 
 	deleteMessageQuery = `DELETE FROM messages WHERE id = $1`
 )
@@ -146,7 +148,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 			repo.Join(
 				selectMessagesQuery,
 				"WHERE m.chat_id = $1",
-				"ORDER BY m.created_at DESC",
+				"ORDER BY m.created_at ASC",
 			),
 			c.ID,
 		)
@@ -390,7 +392,7 @@ func (g *ChatRepository) updateMessage(ctx context.Context, message *models.Mess
 		message.SenderUserID,
 		message.SenderClientID,
 		message.IsRead,
-		&message.CreatedAt,
+		message.ReadAt,
 		message.ID,
 	); err != nil {
 		return errors.Wrap(err, "failed to update message")

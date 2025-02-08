@@ -48,7 +48,7 @@ func (m *Module) Register(app application.Application) error {
 		chatsService,
 		services.NewClientService(
 			clientRepo,
-			chatRepo,
+			chatsService,
 			app.EventPublisher(),
 		),
 		services.NewMessageTemplateService(

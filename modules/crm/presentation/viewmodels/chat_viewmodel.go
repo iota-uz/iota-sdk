@@ -1,12 +1,42 @@
 package viewmodels
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 type Chat struct {
-	ID        string
-	Client    *Client
-	CreatedAt string
-	Messages  []*Message
+	ID             string
+	Client         *Client
+	CreatedAt      string
+	Messages       []*Message
+	UnreadMessages int
+}
+
+func (c *Chat) ReversedMessages() []*Message {
+	reversed := make([]*Message, len(c.Messages))
+	for i, msg := range c.Messages {
+		reversed[len(c.Messages)-1-i] = msg
+	}
+	return reversed
+}
+
+func (c *Chat) LastMessage() *Message {
+	if len(c.Messages) == 0 {
+		return nil
+	}
+	return c.Messages[len(c.Messages)-1]
+}
+
+func (c *Chat) HasUnreadMessages() bool {
+	return c.UnreadMessages > 0
+}
+
+func (c *Chat) UnreadMessagesFormatted() string {
+	if c.UnreadMessages > 99 {
+		return "99+"
+	}
+	return strconv.Itoa(c.UnreadMessages)
 }
 
 type MessageSender interface {

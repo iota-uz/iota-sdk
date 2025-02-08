@@ -119,14 +119,14 @@ templ SelectedChat(props SelectedChatProps) {
 						{ client.FullName() }
 					</p>
 					<p class="transition-all font-medium text-base-600">
-						{ client.Phone }
+						+{ client.Phone }
 					</p>
 				</div>
 			</a>
 		</div>
 	</div>
 	<div class="flex flex-col flex-1 px-4 min-h-0">
-		@ChatMessages(props.Chat.Messages, client.ID)
+		@ChatMessages(props.Chat)
 		<div class="border border-input rounded-md p-4 mb-4">
 			<div x-data="{text: ''}">
 				<textarea
@@ -180,12 +180,12 @@ templ SelectedChat(props SelectedChatProps) {
 	</div>
 }
 
-templ ChatMessages(messages []*viewmodels.Message, clientID string) {
+templ ChatMessages(chat *viewmodels.Chat) {
 	<ul
-		id={ fmt.Sprintf("chat-messages-%s", clientID) }
+		id={ fmt.Sprintf("chat-messages-%s", chat.Client.ID) }
 		class="flex flex-col-reverse gap-4 px-3 py-4 overflow-y-auto no-scrollbar flex-1"
 	>
-		for _, msg := range messages {
+		for _, msg := range chat.ReversedMessages() {
 			@Message(msg)
 		}
 	</ul>
@@ -220,20 +220,29 @@ templ ChatCard(chat *viewmodels.Chat) {
 				),
 			})
 		</div>
-		<div>
+		<div class="min-w-0">
 			<p class="font-bold transition-all leading-[1.25] text-base-800">
 				{ chat.Client.FullName() }
 			</p>
-			<p class="transition-all font-medium text-base-600">
-				{ chat.Client.Phone }
-			</p>
+			if chat.LastMessage() != nil {
+				<p class="font-medium text-base-600 truncate">
+					{ chat.LastMessage().Message }
+				</p>
+			}
 		</div>
+		if !active && chat.HasUnreadMessages() {
+			<div class="flex justify-end flex-grow">
+				<div class="w-5 h-5 text-center bg-brand-500 rounded-full text-white text-sm">
+					{ chat.UnreadMessagesFormatted() }
+				</div>
+			</div>
+		}
 	</a>
 }
 
 templ Message(msg *viewmodels.Message) {
-	if msg.Sender.IsUser() {
-		<li>
+	<li>
+		if msg.Sender.IsUser() {
 			<div class="flex justify-end">
 				<div class="flex items-end justify-end gap-[6px] max-w-[526px]">
 					<div
@@ -256,9 +265,7 @@ templ Message(msg *viewmodels.Message) {
 					})
 				</div>
 			</div>
-		</li>
-	} else {
-		<li>
+		} else {
 			<div class="flex items-end gap-2.5 max-w-[526px]">
 				@avatar.Avatar(avatar.Props{
 					Initials: msg.Sender.Initials(),
@@ -277,8 +284,8 @@ templ Message(msg *viewmodels.Message) {
 					</time>
 				</div>
 			</div>
-		</li>
-	}
+		}
+	</li>
 }
 
 templ Index(props *IndexPageProps) {
@@ -287,16 +294,15 @@ templ Index(props *IndexPageProps) {
 		Title: pageCtx.T("Chats.Meta.Title"),
 	}) {
 		<div class="flex flex-col p-6 h-[calc(100vh-4rem)]">
-			<h1 class="text-2xl font-medium mb-5">
-				{ pageCtx.T("Chats.Meta.Title") }
-			</h1>
 			<div
 				hx-ext="ws"
 				ws-connect={ props.WebsocketURL }
 				class="grid grid-cols-12 rounded-lg border border-primary bg-surface-300 flex-1 min-h-0"
 			>
 				<div class="col-span-4 flex flex-col overflow-hidden">
-					<div class="shrink-0 pt-5 px-4 flex items-center justify-between border-r">
+					<div
+						class="shrink-0 pt-5 px-4 flex flex-wrap gap-2 items-center justify-between border-r"
+					>
 						@button.Secondary(button.Props{
 							Href: "/crm/instant-messages",
 						}) {

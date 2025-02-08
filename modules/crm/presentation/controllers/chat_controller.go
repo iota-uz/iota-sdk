@@ -6,11 +6,13 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -27,6 +29,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type CreateChatDTO struct {
@@ -64,7 +67,8 @@ func (c *ChatController) Key() string {
 }
 
 func (c *ChatController) Register(r *mux.Router) {
-	commonMiddleware := []mux.MiddlewareFunc{
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
@@ -72,46 +76,87 @@ func (c *ChatController) Register(r *mux.Router) {
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
-	}
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
-	getRouter.HandleFunc("/search", c.Search).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.Handle("/ws", c.wsHandler)
-
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}/messages", c.SendMessage).Methods(http.MethodPost)
+	)
+	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.Handle("/ws", c.wsHandler)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}/messages", c.SendMessage).Methods(http.MethodPost)
 
 	c.app.EventPublisher().Subscribe(c.onMessageAdded)
+	c.app.EventPublisher().Subscribe(c.onChatCreated)
+}
+
+func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
+	localizer := i18n.NewLocalizer(c.app.Bundle(), "en")
+	ctx := composables.WithLocalizer(
+		context.Background(),
+		localizer,
+	)
+	ctx = composables.WithPool(ctx, c.app.DB())
+	_url, _ := url.Parse(c.basePath)
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		URL:       _url,
+		Locale:    language.English,
+		Localizer: localizer,
+	})
+	c.broadcastChatsListUpdate(ctx)
 }
 
 func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
-	log.Printf("ChatController: received message added event: %v", event)
 	var locale string
 	if event.User != nil {
 		locale = string(event.User.UILanguage())
 	} else {
 		locale = "en"
 	}
+	localizer := i18n.NewLocalizer(c.app.Bundle(), locale)
 	ctx := composables.WithLocalizer(
 		context.Background(),
-		i18n.NewLocalizer(c.app.Bundle(), locale),
+		localizer,
 	)
 	ctx = composables.WithPool(ctx, c.app.DB())
-	chatMessages := mapping.MapViewModels(event.Result.Messages(), mappers.MessageToViewModel)
-	c.broadcastUpdate(ctx, event.Result.ClientID(), chatMessages)
+	_url, _ := url.Parse(c.basePath)
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		URL:       _url,
+		Locale:    language.English,
+		Localizer: localizer,
+	})
+
+	clientEntity, err := c.clientService.GetByID(ctx, event.Result.ClientID())
+	if err != nil {
+		log.Printf("Error getting client: %v", err)
+		return
+	}
+	chatViewModel := mappers.ChatToViewModel(event.Result, clientEntity)
+	var buf bytes.Buffer
+	if err := chatsui.ChatMessages(chatViewModel).Render(ctx, &buf); err != nil {
+		log.Printf("Error rendering chat messages: %v", err)
+		return
+	}
+	c.wsHandler.Broadcast(buf.Bytes())
+	c.broadcastChatsListUpdate(ctx)
 }
 
-func (c *ChatController) broadcastUpdate(ctx context.Context, clientID uint, messages []*viewmodels.Message) {
-	strClientID := strconv.Itoa(int(clientID))
+func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
+	chatViewModels, err := c.chatViewModels(
+		ctx,
+		&chat.FindParams{
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.LastMessageAt},
+				Ascending: false,
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("Error rendering chat list: %v", err)
+		return
+	}
 
 	var buf bytes.Buffer
-	if err := chatsui.ChatMessages(messages, strClientID).Render(ctx, &buf); err != nil {
-		log.Printf("Error rendering chat messages: %v", err)
+	if err := chatsui.ChatList(chatViewModels).Render(ctx, &buf); err != nil {
+		log.Printf("Error rendering chat list: %v", err)
 		return
 	}
 	c.wsHandler.Broadcast(buf.Bytes())
@@ -211,6 +256,12 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	chatEntity.MarkAllAsRead()
+	chatEntity, err = c.chatService.Update(r.Context(), chatEntity)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	clientEntity, err := c.clientService.GetByID(r.Context(), chatEntity.ClientID())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -250,8 +301,8 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err = c.clientService.Create(r.Context(), &client.CreateDTO{
-		FirstName: "Unknown",
-		LastName:  "Unknown",
+		FirstName: dto.Phone,
+		LastName:  "",
 		Phone:     dto.Phone,
 	})
 	if errors.Is(err, phone.ErrInvalidPhoneNumber) {
@@ -278,27 +329,11 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ch, err := c.chatService.GetByID(r.Context(), chatID)
-	if errors.Is(err, persistence.ErrChatNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	clientEntity, err := c.clientService.GetByID(r.Context(), ch.ClientID())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	dto, err := composables.UseForm(&SendMessageDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	chatEntity, err := c.chatService.SendMessage(r.Context(), services.SendMessageDTO{
 		ChatID:  chatID,
 		Message: dto.Message,
@@ -312,7 +347,11 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	c.broadcastUpdate(r.Context(), chatEntity.ClientID(), mapping.MapViewModels(chatEntity.Messages(), mappers.MessageToViewModel))
+	clientEntity, err := c.clientService.GetByID(r.Context(), chatEntity.ClientID())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	props := chatsui.SelectedChatProps{
 		BaseURL:    c.basePath,
 		ClientsURL: "/crm/clients",
