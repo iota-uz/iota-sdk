@@ -87,7 +87,9 @@ templ NoSelectedChat() {
 
 templ SelectedChat(props SelectedChatProps) {
 	{{
+		pageCtx := composables.UsePageCtx(ctx)
 		client := props.Chat.Client
+		clientPageURL := templ.SafeURL(fmt.Sprintf("%s/%s", props.ClientsURL, client.ID))
 	}}
 	<script>
 		function onUseTemplate(template) {
@@ -103,25 +105,40 @@ templ SelectedChat(props SelectedChatProps) {
 		Templates: props.Templates,
 	})
 	<div class="border-b">
-		<div class="w-full p-5">
+		<div
+			class={
+				"w-full p-2 md:p-5",
+				"flex items-center justify-between md:justify-start gap-4",
+			}
+		>
+			@button.Ghost(button.Props{
+				Href:  props.BaseURL,
+				Class: "flex md:hidden items-center gap-2 order-1",
+			}) {
+				@icons.CaretLeft(icons.Props{
+					Size: "20",
+				})
+				{ pageCtx.T("Chats.Back") }
+			}
 			<a
-				class="flex items-center justify-start gap-4 rounded-lg"
-				href={ templ.SafeURL(fmt.Sprintf("%s/%s", props.ClientsURL, client.ID)) }
+				href={ clientPageURL }
+				class="p-2 order-3 md:order-1"
 			>
-				<div class="p-2">
-					@avatar.Avatar(avatar.Props{
-						Initials: props.Chat.Client.Initials(),
-						Class:    templ.Classes("w-10 h-10 min-w-10"),
-					})
-				</div>
-				<div>
-					<p class="font-bold transition-all leading-[1.25] text-base-800">
-						{ client.FullName() }
-					</p>
-					<p class="transition-all font-medium text-base-600">
-						+{ client.Phone }
-					</p>
-				</div>
+				@avatar.Avatar(avatar.Props{
+					Initials: props.Chat.Client.Initials(),
+					Class:    templ.Classes("w-10 h-10 min-w-10"),
+				})
+			</a>
+			<a
+				class="text-center md:text-left order-2 md:order-2"
+				href={ clientPageURL }
+			>
+				<p class="font-bold transition-all leading-[1.25] text-base-800">
+					{ client.FullName() }
+				</p>
+				<p class="transition-all font-medium text-base-600">
+					+{ client.Phone }
+				</p>
 			</a>
 		</div>
 	</div>
@@ -261,7 +278,7 @@ templ Message(msg *viewmodels.Message) {
 					</div>
 					@avatar.Avatar(avatar.Props{
 						Initials: msg.Sender.Initials(),
-						Class:    templ.Classes("min-w-10 w-10 h-10"),
+						Class:    templ.Classes("min-w-10 w-10 h-10 hidden md:block"),
 					})
 				</div>
 			</div>
@@ -269,7 +286,7 @@ templ Message(msg *viewmodels.Message) {
 			<div class="flex items-end gap-2.5 max-w-[526px]">
 				@avatar.Avatar(avatar.Props{
 					Initials: msg.Sender.Initials(),
-					Class:    templ.Classes("w-10 h-10 min-w-10"),
+					Class:    templ.Classes("w-10 h-10 min-w-10 hidden md:block"),
 				})
 				<div class="bg-gray-200/90 rounded-[12px] rounded-bl-[0] py-2 px-3">
 					<p class="whitespace-pre-line">
@@ -289,17 +306,25 @@ templ Message(msg *viewmodels.Message) {
 }
 
 templ Index(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		isSelectedChat := pageCtx.URL.Query().Get("chat_id") != ""
+	}}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		Title: pageCtx.T("Chats.Meta.Title"),
 	}) {
-		<div class="flex flex-col p-6 h-[calc(100vh-4rem)]">
+		<div class="flex flex-col md:p-6 h-[calc(100vh-4rem)]">
 			<div
 				hx-ext="ws"
 				ws-connect={ props.WebsocketURL }
-				class="grid grid-cols-12 rounded-lg border border-primary bg-surface-300 flex-1 min-h-0"
+				class="grid grid-cols-12 md:rounded-lg border border-primary bg-surface-300 flex-1 min-h-0"
 			>
-				<div class="col-span-4 flex flex-col overflow-hidden">
+				<div
+					class={
+						"col-span-12 md:col-span-4 flex flex-col overflow-hidden",
+						templ.KV("hidden md:flex", isSelectedChat),
+					}
+				>
 					<div
 						class="shrink-0 pt-5 px-4 flex flex-wrap gap-2 items-center justify-between border-r"
 					>
@@ -339,8 +364,11 @@ templ Index(props *IndexPageProps) {
 					</div>
 				</div>
 				<div
-					class="col-span-8 flex flex-col min-h-0"
 					id="chat-contents"
+					class={
+						"col-span-12 md:col-span-8 flex flex-col min-h-0",
+						templ.KV("hidden md:flex", !isSelectedChat),
+					}
 				>
 					{ children... }
 				</div>
