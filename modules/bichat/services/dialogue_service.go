@@ -3,19 +3,21 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/dialogue"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/llm"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/prompt"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/llmproviders"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"io"
 	"log"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/dialogue"
+	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
+	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/prompt"
+	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
+
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	localComposables "github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	functions "github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
+
 	"github.com/sashabaranov/go-openai"
 )
 

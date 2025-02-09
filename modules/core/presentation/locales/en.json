@@ -142,7 +142,6 @@
     "Administration": "Administration",
     "Users": "Users",
     "Roles": "Roles",
-    "BiChat": "BI-Chat",
     "KnowledgeBase": "Knowledge Base",
     "Operations": "Operations",
     "Employees": "Employees",
@@ -165,20 +164,6 @@
       "Title": "Dashboard"
     },
     "Welcome": "Welcome to the dashboard"
-  },
-  "BiChat": {
-    "Meta": {
-      "Index": {
-        "Title": "BI-Chat"
-      }
-    },
-    "Title": "BI-Chat",
-    "NewDialog": "New dialog",
-    "MessagePlaceholder": "Type a message...",
-    "History": {
-      "Empty": "Empty history",
-      "HelpText": "Press \"New dialog\" to start a new dialog"
-    }
   },
   "Users": {
     "Meta": {
