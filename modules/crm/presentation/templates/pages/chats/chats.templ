@@ -209,9 +209,10 @@ templ ChatMessages(chat *viewmodels.Chat) {
 }
 
 templ ChatNotFound() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex items-center justify-center flex-1">
 		<p class="text-base-600">
-			Chat not found...
+			{ pageCtx.T("Chats.ChatNotFound") }
 		</p>
 	</div>
 }
@@ -224,7 +225,7 @@ templ ChatCard(chat *viewmodels.Chat) {
 	<button
 		class={
 			"flex items-center justify-start gap-4",
-			"cursor-pointer rounded-lg py-2 px-3 text-left",
+			"cursor-pointer rounded-lg py-2 px-3 text-left w-full",
 			templ.KV("text-white bg-brand-500", active),
 		}
 		hx-get={ fmt.Sprintf("/crm/chats?chat_id=%s", chat.ID) }
@@ -316,7 +317,7 @@ templ ChatLayout(props IndexPageProps) {
 	}}
 	<div
 		class={
-			"col-span-12 md:col-span-4 flex flex-col overflow-hidden",
+			"flex flex-col overflow-hidden",
 			templ.KV("hidden md:flex", isSelectedChat),
 		}
 	>
@@ -361,7 +362,7 @@ templ ChatLayout(props IndexPageProps) {
 	<div
 		id="chat-contents"
 		class={
-			"col-span-12 md:col-span-8 flex flex-col min-h-0",
+			"flex flex-col min-h-0",
 			templ.KV("hidden md:flex", !isSelectedChat),
 		}
 	>
@@ -376,12 +377,15 @@ templ Index(props IndexPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		Title: pageCtx.T("Chats.Meta.Title"),
 	}) {
-		<div class="flex flex-col md:p-6 h-[calc(100vh-4rem)]">
+		<div class="md:p-6 h-[calc(100vh-4rem)]">
 			<div
 				id="chat"
 				hx-ext="ws"
 				ws-connect={ props.WebsocketURL }
-				class="grid grid-cols-12 md:rounded-lg border border-primary bg-surface-300 flex-1 min-h-0"
+				class={
+					"grid grid-cols-1 md:grid-cols-[280px_auto] h-full",
+					"border border-primary md:rounded-lg bg-surface-300",
+				}
 			>
 				@ChatLayout(props) {
 					{ children... }
