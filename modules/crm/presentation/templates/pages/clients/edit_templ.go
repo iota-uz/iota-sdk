@@ -131,7 +131,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
+			Class:        "grid grid-cols-1 md:grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

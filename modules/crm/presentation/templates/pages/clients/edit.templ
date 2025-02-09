@@ -22,7 +22,7 @@ templ EditForm(props *EditPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-full" id="edit-content">
 		@card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
+			Class:        "grid grid-cols-1 md:grid-cols-3 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
