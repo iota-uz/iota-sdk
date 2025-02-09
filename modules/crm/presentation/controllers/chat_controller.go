@@ -170,7 +170,9 @@ func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.Me
 	return mapping.MapViewModels(templates, mappers.MessageTemplateToViewModel), nil
 }
 
-func (c *ChatController) chatViewModels(ctx context.Context, params *chat.FindParams) ([]*viewmodels.Chat, error) {
+func (c *ChatController) chatViewModels(
+	ctx context.Context, params *chat.FindParams,
+) ([]*viewmodels.Chat, error) {
 	chatEntities, err := c.chatService.GetPaginated(ctx, params)
 	if err != nil {
 		return nil, err
