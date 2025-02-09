@@ -2,6 +2,7 @@ package core
 
 import (
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
@@ -49,7 +50,6 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterServices(
 		services.NewUserService(persistence.NewUserRepository(), app.EventPublisher()),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
-		services.NewEmbeddingService(app),
 	)
 	app.RegisterServices(
 		services.NewAuthService(app),
@@ -59,7 +59,6 @@ func (m *Module) Register(app application.Application) error {
 		services.NewEmployeeService(persistence.NewEmployeeRepository(), app.EventPublisher()),
 		services.NewUploadService(persistence.NewUploadRepository(), fsStorage, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
-		services.NewDialogueService(persistence.NewDialogueRepository(), app),
 	)
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),
@@ -72,7 +71,6 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUsersController(app),
 		controllers.NewRolesController(app),
 		controllers.NewEmployeeController(app),
-		controllers.NewBiChatController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
@@ -83,7 +81,6 @@ func (m *Module) Register(app application.Application) error {
 	})
 	app.Spotlight().Register(
 		spotlight.NewItem(nil, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewItem(nil, BiChatLink.Name, BiChatLink.Href),
 		spotlight.NewItem(nil, EmployeesLink.Name, EmployeesLink.Href),
 		spotlight.NewItem(nil, UsersLink.Name, UsersLink.Href),
 		spotlight.NewItem(
