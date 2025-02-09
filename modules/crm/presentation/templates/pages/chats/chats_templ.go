@@ -597,7 +597,7 @@ func ChatCard(chat *viewmodels.Chat) templ.Component {
 		pageCtx := composables.UsePageCtx(ctx)
 		active := pageCtx.URL.Query().Get("chat_id") == chat.ID
 		var templ_7745c5c3_Var25 = []any{
-			"flex items-center justify-start gap-4",
+			"flex items-center justify-start gap-2",
 			"cursor-pointer rounded-lg py-2 px-3 text-left w-full",
 			templ.KV("text-white bg-brand-500", active),
 		}
@@ -631,7 +631,7 @@ func ChatCard(chat *viewmodels.Chat) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" hx-trigger=\"click\" hx-target=\"#chat\" hx-push-url=\"true\"><div class=\"p-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" hx-trigger=\"click\" hx-target=\"#chat\" hx-push-url=\"true\"><div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1187,7 +1187,7 @@ func ChatList(chats []*viewmodels.Chat) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, chat := range chats {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<li role=\"listitem\" class=\"rounded-[8px] cursor-pointer transition-all bg-transparent\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<li role=\"listitem\" class=\"cursor-pointer\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -224,7 +224,7 @@ templ ChatCard(chat *viewmodels.Chat) {
 	}}
 	<button
 		class={
-			"flex items-center justify-start gap-4",
+			"flex items-center justify-start gap-2",
 			"cursor-pointer rounded-lg py-2 px-3 text-left w-full",
 			templ.KV("text-white bg-brand-500", active),
 		}
@@ -233,7 +233,7 @@ templ ChatCard(chat *viewmodels.Chat) {
 		hx-target="#chat"
 		hx-push-url="true"
 	>
-		<div class="p-2">
+		<div>
 			@avatar.Avatar(avatar.Props{
 				Initials: chat.Client.Initials(),
 				Class: templ.Classes(
@@ -403,7 +403,7 @@ templ ChatList(chats []*viewmodels.Chat) {
 		for _, chat := range chats {
 			<li
 				role="listitem"
-				class="rounded-[8px] cursor-pointer transition-all bg-transparent"
+				class="cursor-pointer"
 			>
 				@ChatCard(chat)
 			</li>
