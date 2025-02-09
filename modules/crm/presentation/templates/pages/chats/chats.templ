@@ -221,12 +221,16 @@ templ ChatCard(chat *viewmodels.Chat) {
 		pageCtx := composables.UsePageCtx(ctx)
 		active := pageCtx.URL.Query().Get("chat_id") == chat.ID
 	}}
-	<a
+	<button
 		class={
-			"flex items-center justify-start gap-4 rounded-lg py-2 px-3",
+			"flex items-center justify-start gap-4",
+			"cursor-pointer rounded-lg py-2 px-3 text-left",
 			templ.KV("text-white bg-brand-500", active),
 		}
-		href={ templ.SafeURL(fmt.Sprintf("/crm/chats?chat_id=%s", chat.ID)) }
+		hx-get={ fmt.Sprintf("/crm/chats?chat_id=%s", chat.ID) }
+		hx-trigger="click"
+		hx-target="#chat"
+		hx-push-url="true"
 	>
 		<div class="p-2">
 			@avatar.Avatar(avatar.Props{
@@ -254,7 +258,7 @@ templ ChatCard(chat *viewmodels.Chat) {
 				</div>
 			</div>
 		}
-	</a>
+	</button>
 }
 
 templ Message(msg *viewmodels.Message) {
@@ -305,73 +309,83 @@ templ Message(msg *viewmodels.Message) {
 	</li>
 }
 
-templ Index(props *IndexPageProps) {
+templ ChatLayout(props IndexPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		isSelectedChat := pageCtx.URL.Query().Get("chat_id") != ""
+	}}
+	<div
+		class={
+			"col-span-12 md:col-span-4 flex flex-col overflow-hidden",
+			templ.KV("hidden md:flex", isSelectedChat),
+		}
+	>
+		<div
+			class="shrink-0 pt-5 px-4 flex flex-wrap gap-2 items-center justify-between border-r"
+		>
+			@button.Secondary(button.Props{
+				Href: "/crm/instant-messages",
+			}) {
+				{ pageCtx.T("Chats.InstantMessages") }
+			}
+			@button.Primary(button.Props{
+				Href: props.NewChatURL,
+			}) {
+				{ pageCtx.T("Chats.New") }
+			}
+		</div>
+		<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">
+			<div class="pb-5">
+				<div class="w-full relative">
+					<form
+						class="flex items-center gap-3"
+						hx-get={ props.SearchURL }
+						hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+						hx-target="#chats-list"
+						hx-swap="outerHTML"
+					>
+						@filters.Search([]filters.SearchField{
+							{
+								Label: "",
+								Key:   "search",
+							},
+						})
+					</form>
+				</div>
+			</div>
+			<div class="grow flex flex-col gap-2 overflow-auto">
+				@ChatList(props.Chats)
+			</div>
+		</div>
+	</div>
+	<div
+		id="chat-contents"
+		class={
+			"col-span-12 md:col-span-8 flex flex-col min-h-0",
+			templ.KV("hidden md:flex", !isSelectedChat),
+		}
+	>
+		{ children... }
+	</div>
+}
+
+templ Index(props IndexPageProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
 	}}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		Title: pageCtx.T("Chats.Meta.Title"),
 	}) {
 		<div class="flex flex-col md:p-6 h-[calc(100vh-4rem)]">
 			<div
+				id="chat"
 				hx-ext="ws"
 				ws-connect={ props.WebsocketURL }
 				class="grid grid-cols-12 md:rounded-lg border border-primary bg-surface-300 flex-1 min-h-0"
 			>
-				<div
-					class={
-						"col-span-12 md:col-span-4 flex flex-col overflow-hidden",
-						templ.KV("hidden md:flex", isSelectedChat),
-					}
-				>
-					<div
-						class="shrink-0 pt-5 px-4 flex flex-wrap gap-2 items-center justify-between border-r"
-					>
-						@button.Secondary(button.Props{
-							Href: "/crm/instant-messages",
-						}) {
-							{ pageCtx.T("Chats.InstantMessages") }
-						}
-						@button.Primary(button.Props{
-							Href: props.NewChatURL,
-						}) {
-							{ pageCtx.T("Chats.New") }
-						}
-					</div>
-					<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">
-						<div class="pb-5">
-							<div class="w-full relative">
-								<form
-									class="flex items-center gap-3"
-									hx-get={ props.SearchURL }
-									hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-									hx-target="#chats-list"
-									hx-swap="outerHTML"
-								>
-									@filters.Search([]filters.SearchField{
-										{
-											Label: "",
-											Key:   "search",
-										},
-									})
-								</form>
-							</div>
-						</div>
-						<div class="grow flex flex-col gap-2 overflow-auto">
-							@ChatList(props.Chats)
-						</div>
-					</div>
-				</div>
-				<div
-					id="chat-contents"
-					class={
-						"col-span-12 md:col-span-8 flex flex-col min-h-0",
-						templ.KV("hidden md:flex", !isSelectedChat),
-					}
-				>
+				@ChatLayout(props) {
 					{ children... }
-				</div>
+				}
 			</div>
 		</div>
 	}

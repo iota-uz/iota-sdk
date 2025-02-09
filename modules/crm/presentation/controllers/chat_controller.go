@@ -220,16 +220,20 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templHandler := templ.Handler(
-		chatsui.Index(&chatsui.IndexPageProps{
-			WebsocketURL: c.basePath + "/ws",
-			SearchURL:    c.basePath + "/search",
-			NewChatURL:   "/crm/chats/new",
-			Chats:        chatViewModels,
-		}),
-		templ.WithStreaming(),
-	)
-	templHandler.ServeHTTP(w, r)
+	props := chatsui.IndexPageProps{
+		WebsocketURL: c.basePath + "/ws",
+		SearchURL:    c.basePath + "/search",
+		NewChatURL:   "/crm/chats/new",
+		Chats:        chatViewModels,
+	}
+	var component templ.Component
+	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
+	if isHxRequest {
+		component = chatsui.ChatLayout(props)
+	} else {
+		component = chatsui.Index(props)
+	}
+	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
@@ -272,6 +276,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	props := chatsui.SelectedChatProps{
 		BaseURL:    c.basePath,
 		ClientsURL: "/crm/clients",
