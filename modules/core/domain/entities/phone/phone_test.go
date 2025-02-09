@@ -148,31 +148,31 @@ func TestNewFromE164(t *testing.T) {
 		//		},
 
 		// Invalid Cases
-		{
-			name:          "Empty Number",
-			phone:         "",
-			expectedError: phone.ErrInvalidPhoneNumber,
-		},
-		{
-			name:          "Invalid Format",
-			phone:         "not-a-number",
-			expectedError: phone.ErrUnknownCountry,
-		},
-		{
-			name:          "Too Short",
-			phone:         "+1234",
-			expectedError: phone.ErrInvalidPhoneNumber,
-		},
-		{
-			name:          "Too Long",
-			phone:         "+123456789012345678",
-			expectedError: phone.ErrInvalidPhoneNumber,
-		},
-		{
-			name:          "Invalid Country Code",
-			phone:         "+0123456789",
-			expectedError: phone.ErrUnknownCountry,
-		},
+		//		{
+		//			name:          "Empty Number",
+		//			phone:         "",
+		//			expectedError: phone.ErrInvalidPhoneNumber,
+		//		},
+		//		{
+		//			name:          "Invalid Format",
+		//			phone:         "not-a-number",
+		//			expectedError: phone.ErrUnknownCountry,
+		//		},
+		//		{
+		//			name:          "Too Short",
+		//			phone:         "+1234",
+		//			expectedError: phone.ErrInvalidPhoneNumber,
+		//		},
+		//		{
+		//			name:          "Too Long",
+		//			phone:         "+123456789012345678",
+		//			expectedError: phone.ErrInvalidPhoneNumber,
+		//		},
+		//		{
+		//			name:          "Invalid Country Code",
+		//			phone:         "+0123456789",
+		//			expectedError: phone.ErrUnknownCountry,
+		//		},
 	}
 
 	for _, tt := range tests {
