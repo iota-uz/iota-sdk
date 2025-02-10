@@ -36,7 +36,7 @@ templ ClientsTable(props *IndexPageProps) {
 							<div
 								class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm"
 							>
-								{ string(client.FirstName[0]) }
+								{ client.Initials() }
 							</div>
 							<span>
 								{ client.FullName() }
