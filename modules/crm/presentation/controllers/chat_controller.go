@@ -308,7 +308,7 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err = c.clientService.Create(r.Context(), &client.CreateDTO{
-		FirstName: dto.Phone,
+		FirstName: "",
 		LastName:  "",
 		Phone:     dto.Phone,
 	})

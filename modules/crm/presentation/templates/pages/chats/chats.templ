@@ -39,7 +39,7 @@ templ NewChat(props NewChatProps) {
 	<div class="space-y-5 p-5">
 		<div>
 			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("Chats.New") }
+				{ pageCtx.T("Chats.New.Title") }
 			</h1>
 		</div>
 		@card.Card(card.Props{}) {
@@ -49,6 +49,7 @@ templ NewChat(props NewChatProps) {
 }
 
 templ NewChatForm(props NewChatProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		hx-post={ props.CreateChatURL }
 		hx-trigger="submit"
@@ -67,10 +68,10 @@ templ NewChatForm(props NewChatProps) {
 			@button.Secondary(button.Props{
 				Href: props.BaseURL,
 			}) {
-				Cancel
+				{ pageCtx.T("Chats.New.Cancel") }
 			}
 			@button.Primary(button.Props{}) {
-				Add
+				{ pageCtx.T("Chats.New.Add") }
 			}
 		</div>
 	</form>
@@ -332,7 +333,7 @@ templ ChatLayout(props IndexPageProps) {
 			@button.Primary(button.Props{
 				Href: props.NewChatURL,
 			}) {
-				{ pageCtx.T("Chats.New") }
+				{ pageCtx.T("Chats.New.Title") }
 			}
 		</div>
 		<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">
