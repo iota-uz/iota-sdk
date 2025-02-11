@@ -2,41 +2,108 @@ package clients
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
+type ClientTab struct {
+	Name string
+	URL  string
+}
+
 type ViewPageProps struct {
-	Client    *viewmodels.Client
-	Errors    map[string]string
-	SaveURL   string
-	DeleteURL string
+	Client *viewmodels.Client
+	Tabs   []ClientTab
 }
 
 templ View(props *ViewPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
-		chatsURL := fmt.Sprintf("/crm/clients/%s/chats", props.Client.ID)
-		notesURL := fmt.Sprintf("/crm/clients/%s/notes", props.Client.ID)
 	}}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		Title: pageCtx.T("Clients.Edit.Meta.Title"),
 	}) {
-		<div class="flex flex-col justify-between h-full" id="edit-content">
-			@tab.Root(tab.Props{
-				DefaultValue: "public",
-			}) {
-				@tab.List(tab.ListProps{}) {
-					@tab.Link(chatsURL, false) {
-						{ pageCtx.T("Clients.Tabs.Chats") }
+		<div class="flex flex-col p-6 max-h-full">
+			<div>
+				<div class="flex justify-between w-full mb-4">
+					<div class="flex items-center gap-2">
+						@avatar.Avatar(avatar.Props{
+							Initials: props.Client.Initials(),
+							Class:    templ.Classes("w-12 h-12"),
+						})
+						<div>
+							<h1 class="text-lg font-semibold">
+								{ props.Client.FullName() }
+							</h1>
+							<p class="text-sm">
+								+{ props.Client.Phone }
+							</p>
+						</div>
+					</div>
+					@button.Secondary(button.Props{
+						Href: fmt.Sprintf("%s/edit", props.Client.ID),
+					}) {
+						@icons.PencilSimple(icons.Props{})
 					}
-					@tab.Link(notesURL, false) {
-						{ pageCtx.T("Clients.Tabs.Notes") }
+				</div>
+				@tab.Root(tab.Props{
+					DefaultValue: "public",
+				}) {
+					@tab.List(tab.ListProps{}) {
+						for _, t := range props.Tabs {
+							@tab.Link(t.URL, false) {
+								{ t.Name }
+							}
+						}
 					}
 				}
-			}
+			</div>
+			<div class="flex-1 flex flex-col min-h-0">
+				{ children... }
+			</div>
 		</div>
 	}
+}
+
+// ---- Chats -----
+templ Chats(props chatsui.SelectedChatProps) {
+	<script>
+		function onUseTemplate(template) {
+			const textarea = document.getElementById("message");
+			textarea.value = template;
+			textarea.focus();
+			textarea.style.height = 'auto'; 
+			textarea.style.height = textarea.scrollHeight + 'px';
+		}
+	</script>
+	@chatsui.InstantMessagesDialog(chatsui.InstantMessagesDialogProps{
+		OnClick:   "onUseTemplate",
+		Templates: props.Templates,
+	})
+	<div class="flex flex-col flex-1 px-4 min-h-0">
+		@chatsui.ChatMessages(props.Chat)
+		@chatsui.ChatInput(chatsui.ChatInputProps{
+			SendURL: fmt.Sprintf("%s/%s/messages", props.BaseURL, props.Chat.ID),
+		})
+	</div>
+}
+
+// ---- Notes -----
+templ Notes() {
+	<div>
+		Notes
+	</div>
+}
+
+// ---- Not Found ----
+templ NotFound() {
+	<div>
+		Not Found
+	</div>
 }
