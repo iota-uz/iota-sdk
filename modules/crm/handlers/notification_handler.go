@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/telegram"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 type NotificationHandler struct {
@@ -17,8 +16,8 @@ type NotificationHandler struct {
 	tgBot *telegram.Bot
 }
 
-func RegisterNotificationHandler(app application.Application) *NotificationHandler {
-	bot, err := telegram.NewBot(configuration.Use().TelegramBotToken)
+func RegisterNotificationHandler(app application.Application, botToken string) *NotificationHandler {
+	bot, err := telegram.NewBot(botToken)
 	if err != nil {
 		log.Fatalf("Error creating telegram bot: %v", err)
 	}
