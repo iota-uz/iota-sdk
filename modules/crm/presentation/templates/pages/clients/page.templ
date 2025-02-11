@@ -1,0 +1,42 @@
+package clients
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type ViewPageProps struct {
+	Client    *viewmodels.Client
+	Errors    map[string]string
+	SaveURL   string
+	DeleteURL string
+}
+
+templ View(props *ViewPageProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		chatsURL := fmt.Sprintf("/crm/clients/%s/chats", props.Client.ID)
+		notesURL := fmt.Sprintf("/crm/clients/%s/notes", props.Client.ID)
+	}}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Clients.Edit.Meta.Title"),
+	}) {
+		<div class="flex flex-col justify-between h-full" id="edit-content">
+			@tab.Root(tab.Props{
+				DefaultValue: "public",
+			}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Link(chatsURL, false) {
+						{ pageCtx.T("Clients.Tabs.Chats") }
+					}
+					@tab.Link(notesURL, false) {
+						{ pageCtx.T("Clients.Tabs.Notes") }
+					}
+				}
+			}
+		</div>
+	}
+}

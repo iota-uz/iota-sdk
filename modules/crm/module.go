@@ -64,9 +64,8 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewTwilioController(app, twilioProvider),
 	)
 
-	handlers.RegisterSMSHandlers(
-		app,
-	)
+	handlers.RegisterSMSHandlers(app)
+	handlers.RegisterNotificationHandler(app)
 
 	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)

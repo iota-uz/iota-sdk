@@ -34,6 +34,10 @@
 				"Title": "Edit client"
 			}
 		},
+		"Tabs": {
+			"Notes": "Notes",
+			"Chats": "Chats"
+		},
 		"Single": {
 			"FirstName": {
 				"Label": "First Name",
