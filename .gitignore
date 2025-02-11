@@ -11,4 +11,5 @@ static
 uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css
+bin/
 logs/
