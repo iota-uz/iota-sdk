@@ -86,6 +86,7 @@ jobs:
           make run-iota-linter
 
       - name: Test Makefile targets
+        # running seeds twice to verify that they are idempotent
         run: |
           make migrate-up
           make seed
@@ -99,3 +100,10 @@ jobs:
           git diff --exit-code
           go vet ./...
           go test -v ./...
+
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+        with:
+          build: pnpm install
+          start: pnpm cypress run
+          browser: chrome
