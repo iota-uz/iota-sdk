@@ -65,7 +65,9 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	handlers.RegisterSMSHandlers(app)
-	handlers.RegisterNotificationHandler(app)
+	if botToken := conf.TelegramBotToken; botToken != "" {
+		handlers.RegisterNotificationHandler(app, botToken)
+	}
 
 	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
