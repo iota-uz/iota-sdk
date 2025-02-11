@@ -221,6 +221,7 @@
       "Email": "Электронная почта",
       "Password": "Пароль",
       "Language": "Язык",
+      "UILanguage": "ru",
       "SelectLanguage": "Выбрать язык",
       "ChooseAvatar": "Выберите аватар",
       "Role": "Роль",

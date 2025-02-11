@@ -35,8 +35,8 @@ templ Base(title string) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			@composables.MustUseHead(ctx)
 			<script defer type="module" src={ alpine }></script>
-			<script defer async src={ htmx }></script>
-			<script defer async src={ htmxPreload }></script>
+			<script src={ htmx }></script>
+			<script src={ htmxPreload }></script>
 			<script defer async src={ apexJs }></script>
 			<script defer async src={ htmxWS }></script>
 		</head>
