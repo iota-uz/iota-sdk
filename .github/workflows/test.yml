@@ -64,6 +64,11 @@ jobs:
         run: |
           tailwindcss -h
 
+      - name: Install PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Download Go dependencies
         run: |
           go mod download
