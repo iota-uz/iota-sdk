@@ -66,6 +66,10 @@ func (s *ChatService) GetPaginated(ctx context.Context, params *chat.FindParams)
 	return s.repo.GetPaginated(ctx, params)
 }
 
+func (s *ChatService) GetByClientID(ctx context.Context, clientID uint) (chat.Chat, error) {
+	return s.repo.GetByClientID(ctx, clientID)
+}
+
 func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) (chat.Chat, error) {
 	chatEntity, err := s.repo.GetByClientID(ctx, clientID)
 	if err == nil {
