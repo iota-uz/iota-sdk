@@ -38,7 +38,7 @@ templ View(props *ViewPageProps) {
 							Class:    templ.Classes("w-12 h-12"),
 						})
 						<div>
-							<h1 class="text-xl font-semibold">
+							<h1 class="text-lg font-semibold">
 								{ props.Client.FullName() }
 							</h1>
 							<p class="text-sm">
@@ -95,6 +95,11 @@ templ Chats(props chatsui.SelectedChatProps) {
 }
 
 // ---- Notes -----
+templ Notes() {
+	<div>
+		Notes
+	</div>
+}
 
 // ---- Not Found ----
 templ NotFound() {

@@ -228,6 +228,8 @@ func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
 			Chat:       mappers.ChatToViewModel(chatEntity, entity),
 			ClientsURL: c.basePath,
 		})
+	case "notes":
+		component = clients.Notes()
 	default:
 		component = clients.NotFound()
 	}
