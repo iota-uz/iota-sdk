@@ -58,7 +58,8 @@ func (c *ClientController) Register(r *mux.Router) {
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
@@ -120,7 +121,7 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 func (c *ClientController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &clients.CreatePageProps{
 		Client:  &viewmodels.Client{},
-		SaveURL: fmt.Sprintf("%s", c.basePath),
+		SaveURL: c.basePath,
 	}
 	templ.Handler(clients.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -173,6 +174,24 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		SaveURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(clients.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := c.clientService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+	props := &clients.ViewPageProps{
+		Client: mappers.ClientToViewModel(entity),
+	}
+	templ.Handler(clients.View(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {

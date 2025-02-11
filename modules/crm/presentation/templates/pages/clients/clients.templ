@@ -26,40 +26,36 @@ templ ClientsTable(props *IndexPageProps) {
 				{Label: pageCtx.T("Clients.List.FullName"), Key: "client"},
 				{Label: pageCtx.T("Clients.List.Phone"), Key: "status"},
 				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, client := range props.Clients {
+				{{ url := templ.SafeURL(fmt.Sprintf("/crm/clients/%s", client.ID)) }}
 				@base.TableRow() {
 					@base.TableCell() {
-						<div class="flex items-center gap-3">
-							<div
-								class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm"
-							>
-								{ client.Initials() }
+						<a href={ url }>
+							<div class="flex items-center gap-3">
+								<div
+									class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm"
+								>
+									{ client.Initials() }
+								</div>
+								<span>
+									{ client.FullName() }
+								</span>
 							</div>
-							<span>
-								{ client.FullName() }
-							</span>
-						</div>
+						</a>
 					}
 					@base.TableCell() {
-						{ client.Phone }
+						<a href={ url }>
+							{ client.Phone }
+						</a>
 					}
 					@base.TableCell() {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
-						</div>
-					}
-					@base.TableCell() {
-						@button.Secondary(button.Props{
-							Fixed: true,
-							Size:  button.SizeSM,
-							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/crm/clients/%s", client.ID),
-						}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
-						}
+						<a href={ url }>
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
+							</div>
+						</a>
 					}
 				}
 			}
