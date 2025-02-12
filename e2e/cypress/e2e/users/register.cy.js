@@ -14,7 +14,7 @@ describe('user auth and registration flow', () => {
     })
 
     it('creates a user and displays changes in users table', () => {
-        cy.get('[href="/users/new"]').click()
+        cy.get('a[href="/users/new"]').click()
         cy.get('[name=FirstName]').type('Test')
         cy.get('[name=LastName]').type('User')
         cy.get('[name=MiddleName]').type('Mid')
