@@ -106,10 +106,15 @@ jobs:
           go vet ./...
           go test -v ./...
 
+      - name: Run server
+        # Run the server and fork it and wait until it starts with cypress
+        run: go run cmd/server/main.go &
+
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
           working-directory: e2e
-          build: pnpm install
+          install-command: pnpm install
           start: pnpm cypress run
+          wait-on: 'http://localhost:3200'
           browser: chrome
