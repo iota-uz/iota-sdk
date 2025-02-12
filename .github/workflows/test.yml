@@ -96,7 +96,6 @@ jobs:
           make migrate-up
           make seed
           make seed
-          make migrate-down
           make css
 
       - name: Run go vet && tests
@@ -118,3 +117,8 @@ jobs:
           start: pnpm cypress run
           wait-on: 'http://localhost:3200'
           browser: chrome
+
+      - name: Test database migrate down
+        # e2e tests require database to have the seed data. We can only down the migrations after cypress.
+        run: |
+          make migrate-down
