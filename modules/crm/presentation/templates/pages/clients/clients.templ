@@ -91,8 +91,7 @@ templ ClientsTable(props *IndexPageProps) {
 		}) {
 			for _, client := range props.Clients {
 				{{
-					url := templ.SafeURL(fmt.Sprintf("/crm/clients/%s", client.ID))
-					detailsURL := fmt.Sprintf("/crm/clients/%s/details", client.ID)
+					url := fmt.Sprintf("/crm/clients/%s", client.ID)
 				}}
 				@base.TableRow() {
 					@base.TableCell() {
@@ -100,7 +99,7 @@ templ ClientsTable(props *IndexPageProps) {
 							type="button"
 							x-data
 							@click="$dispatch('view-client')"
-							hx-get={ detailsURL }
+							hx-get={ url }
 							hx-target="#view-drawer-content"
 							hx-swap="innerHTML"
 						>
@@ -117,16 +116,12 @@ templ ClientsTable(props *IndexPageProps) {
 						</button>
 					}
 					@base.TableCell() {
-						<a href={ url }>
-							{ client.Phone }
-						</a>
+						{ client.Phone }
 					}
 					@base.TableCell() {
-						<a href={ url }>
-							<div x-data="relativeformat">
-								<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
-							</div>
-						</a>
+						<div x-data="relativeformat">
+							<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
+						</div>
 					}
 				}
 			}

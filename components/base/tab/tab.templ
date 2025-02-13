@@ -14,6 +14,8 @@ type ListProps struct {
 	Class string
 }
 
+var linkClass = "rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full"
+
 templ Root(props Props) {
 	<div x-data={ fmt.Sprintf("{selectedTab: '%s'}", props.DefaultValue) } class={ props.Class }>
 		{ children... }
@@ -37,19 +39,7 @@ templ Button(value string) {
 			":class": fmt.Sprintf("selectedTab === '%s' ? 'after:bg-brand-500' : ''", value),
 			"@click": fmt.Sprintf("selectedTab = '%s'", value),
 		},
-		Class: "rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full",
-	}) {
-		{ children... }
-	}
-}
-
-templ Link(href string, active bool) {
-	@button.Ghost(button.Props{
-		Href: href,
-		Class: templ.CSSClasses{
-			"rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full",
-			templ.KV("after:bg-brand-500", active),
-		},
+		Class: linkClass,
 	}) {
 		{ children... }
 	}
@@ -57,6 +47,50 @@ templ Link(href string, active bool) {
 
 templ Content(value string) {
 	<div x-show={ fmt.Sprintf("selectedTab === '%s'", value) }>
+		{ children... }
+	</div>
+}
+
+// --- Pure Tabs ---
+templ Link(href string, active bool) {
+	@button.Ghost(button.Props{
+		Href:  href,
+		Class: templ.CSSClasses{linkClass, templ.KV("after:bg-brand-500", active)},
+	}) {
+		{ children... }
+	}
+}
+
+type BoostLinkProps struct {
+	Href   string
+	Active bool
+	Push   bool
+}
+
+templ BoostedLink(props BoostLinkProps) {
+	{{
+		attrs := templ.Attributes{
+			"hx-get":    props.Href,
+			"hx-target": "#tab-content",
+			"hx-swap":   "innerHTML",
+		}
+		if props.Push {
+			attrs["hx-push-url"] = "true"
+		}
+	}}
+	@button.Ghost(button.Props{
+		Class: templ.CSSClasses{linkClass, templ.KV("after:bg-brand-500", props.Active)},
+		Attrs: attrs,
+	}) {
+		{ children... }
+	}
+}
+
+templ BoostedContent(class templ.CSSClasses) {
+	<div
+		id="tab-content"
+		class={ class }
+	>
 		{ children... }
 	</div>
 }
