@@ -23,15 +23,6 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-    env:
-      DB_NAME: iota_erp
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_PASSWORD: postgres
-      DOMAIN: iota.uz
-      SESSION_DURATION: 720h
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/iota_erp
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -107,7 +98,16 @@ jobs:
       - name: Cypress run
         uses: cypress-io/github-action@v6
         env:
+          SESSION_DURATION: 720h
+          DOMAIN: localhost
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          SID_COOKIE_KEY: sid
           GO_APP_ENV: production
+
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
         with:
