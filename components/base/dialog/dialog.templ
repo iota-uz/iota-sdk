@@ -17,8 +17,15 @@ type Props struct {
 }
 
 templ Confirmation(p *Props) {
-	<div x-data="dialog" { templ.Attributes{fmt.Sprintf("@%s.window", p.Action): "toggle"}... }>
-		<dialog class="dialog shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg" x-bind="dialog" { p.Attrs... }>
+	<div
+		x-data="dialog"
+		{ templ.Attributes{fmt.Sprintf("@%s.window", p.Action): "toggle"}... }
+	>
+		<dialog
+			class="dialog dialog-rounded dialog-btt shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg"
+			x-bind="dialog"
+			{ p.Attrs... }
+		>
 			<form method="dialog">
 				<header class="flex items-center gap-3 justify-between px-4 py-3 border-b border-primary">
 					<h3 class="font-medium">{ p.Heading }</h3>

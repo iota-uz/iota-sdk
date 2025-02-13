@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -82,10 +83,48 @@ templ UsersTable(props *IndexPageProps) {
 
 templ UsersContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@filters.Drawer(filters.DrawerProps{
+		Heading: "Filters",
+		Action:  "open-user-filters",
+	}) {
+		@base.Select(&base.SelectProps{
+			Prefix: pageCtx.T("PerPage"),
+			Attrs: templ.Attributes{
+				"name": "limit",
+			},
+		}) {
+			<option>15</option>
+			<option>25</option>
+			<option>50</option>
+			<option>100</option>
+		}
+		@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
+			<option>Вчера</option>
+			<option>Позавчера</option>
+		}
+	}
 	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ pageCtx.T("NavigationLinks.Users") }
-		</h1>
+		<div class="flex justify-between md:justify-start">
+			<h1 class="text-2xl font-medium">
+				{ pageCtx.T("NavigationLinks.Users") }
+			</h1>
+			<div class="flex gap-2">
+				@button.Secondary(button.Props{
+					Size:  button.SizeNormal,
+					Class: "bg-transparent",
+					Icon:  icons.List(icons.Props{Size: "18"}),
+					Attrs: templ.Attributes{
+						"x-data": "",
+						"@click": "$dispatch('open-user-filters')",
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal,
+					Href: "/users/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				})
+			</div>
+		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
@@ -103,28 +142,30 @@ templ UsersContent(props *IndexPageProps) {
 						"name": "name",
 					},
 				})
-				@base.Select(&base.SelectProps{
-					Prefix: pageCtx.T("PerPage"),
-					Attrs: templ.Attributes{
-						"name": "limit",
-					},
-				}) {
-					<option>15</option>
-					<option>25</option>
-					<option>50</option>
-					<option>100</option>
-				}
-				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-					<option>Вчера</option>
-					<option>Позавчера</option>
-				}
-				@button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Href: "/users/new",
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-				}) {
-					{ pageCtx.T("Users.List.New") }
-				}
+				<div class="hidden md:block">
+					@base.Select(&base.SelectProps{
+						Prefix: pageCtx.T("PerPage"),
+						Attrs: templ.Attributes{
+							"name": "limit",
+						},
+					}) {
+						<option>15</option>
+						<option>25</option>
+						<option>50</option>
+						<option>100</option>
+					}
+					@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
+						<option>Вчера</option>
+						<option>Позавчера</option>
+					}
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Href: "/users/new",
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					}) {
+						{ pageCtx.T("Users.List.New") }
+					}
+				</div>
 			</form>
 			@UsersTable(props)
 		</div>

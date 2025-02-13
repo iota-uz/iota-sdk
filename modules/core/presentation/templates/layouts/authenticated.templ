@@ -4,6 +4,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
@@ -130,11 +131,12 @@ templ ThemeSwitcher() {
 
 templ SidebarTrigger(class string) {
 	<button
+		x-data
 		class={
 			"flex items-center justify-center w-9 h-9 rounded-md bg-surface-400 text-black cursor-pointer",
 			class,
 		}
-		@click="open = !open"
+		@click="$dispatch('open-sidebar')"
 	>
 		@icons.List(icons.Props{Size: "20"})
 	</button>
@@ -180,30 +182,14 @@ templ SidebarFooter(pageCtx *types.PageContext) {
 }
 
 templ MobileSidebar(props sidebar.Props) {
-	<div
-		x-show="open"
-		class="fixed lg:hidden z-20 w-full bg-black/60 backdrop-blur-md shadow-lg"
-		x-transition:enter="transition ease-out duration-300"
-		x-transition:enter-start="opacity-0"
-		x-transition:enter-end="opacity-100"
-		x-transition:leave="transition ease-in duration-300"
-		x-transition:leave-start="opacity-100"
-		x-transition:leave-end="opacity-0"
-	>
-		<div
-			x-show="open"
-			class="w-2/3"
-			@click.outside="open = false"
-			x-transition:enter="transform transition ease-out duration-300"
-			x-transition:enter-start="-translate-x-full"
-			x-transition:enter-end="translate-x-0"
-			x-transition:leave="transform transition ease-in duration-300"
-			x-transition:leave-start="translate-x-0"
-			x-transition:leave-end="-translate-x-full"
-		>
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.LTR,
+		Action:    "open-sidebar",
+	}) {
+		<div class="w-2/3">
 			@sidebar.Sidebar(props)
 		</div>
-	</div>
+	}
 }
 
 templ SidebarHeader() {
@@ -229,15 +215,12 @@ templ Authenticated(props AuthenticatedProps) {
 	}
 	}}
 	@Base(props.Title) {
-		<div
-			class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto"
-			x-data="{ open: false }"
-		>
+		@MobileSidebar(sidebarProps)
+		<div class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto">
 			<div class="hidden lg:block">
 				@sidebar.Sidebar(sidebarProps)
 			</div>
-			@MobileSidebar(sidebarProps)
-			<div class="flex flex-col h-screen">
+			<div class="flex flex-col h-screen overflow-x-hidden">
 				@Navbar(pageCtx)
 				<div class="flex-1 overflow-y-auto content">
 					{ children... }
