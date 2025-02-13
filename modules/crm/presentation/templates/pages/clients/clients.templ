@@ -19,7 +19,7 @@ type IndexPageProps struct {
 	NewURL          string
 }
 
-templ NewClientDialog() {
+templ NewClientDrawer() {
 	@dialog.Drawer(dialog.DrawerProps{
 		Direction: dialog.RTL,
 		Action:    "new-client",
@@ -50,9 +50,37 @@ templ NewClientDialog() {
 	}
 }
 
+templ ViewDrawer() {
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.RTL,
+		Action:    "view-client",
+		Classes:   templ.Classes("flex items-stretch"),
+	}) {
+		<div class="flex flex-col gap-3 bg-white w-2/3 ml-auto">
+			<div class="flex justify-between p-4">
+				<h3 class="text-lg font-medium">
+					Client details
+				</h3>
+				<div>
+					@button.Secondary(button.Props{
+						Size:  button.SizeSM,
+						Fixed: true,
+						Icon:  icons.XCircle(icons.Props{Size: "18"}),
+						Attrs: templ.Attributes{
+							"@click": "toggle",
+						},
+					})
+				</div>
+			</div>
+			<div id="view-drawer-content"></div>
+		</div>
+	}
+}
+
 templ ClientsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@NewClientDialog()
+	@NewClientDrawer()
+	@ViewDrawer()
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
@@ -62,10 +90,20 @@ templ ClientsTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, client := range props.Clients {
-				{{ url := templ.SafeURL(fmt.Sprintf("/crm/clients/%s", client.ID)) }}
+				{{
+					url := templ.SafeURL(fmt.Sprintf("/crm/clients/%s", client.ID))
+					detailsURL := fmt.Sprintf("/crm/clients/%s/details", client.ID)
+				}}
 				@base.TableRow() {
 					@base.TableCell() {
-						<a href={ url }>
+						<button
+							type="button"
+							x-data
+							@click="$dispatch('view-client')"
+							hx-get={ detailsURL }
+							hx-target="#view-drawer-content"
+							hx-swap="innerHTML"
+						>
 							<div class="flex items-center gap-3">
 								<div
 									class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm"
@@ -76,7 +114,7 @@ templ ClientsTable(props *IndexPageProps) {
 									{ client.FullName() }
 								</span>
 							</div>
-						</a>
+						</button>
 					}
 					@base.TableCell() {
 						<a href={ url }>

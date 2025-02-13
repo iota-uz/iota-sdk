@@ -173,9 +173,10 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &clients.EditPageProps{
-		Client:  mappers.ClientToViewModel(entity),
-		Errors:  map[string]string{},
-		SaveURL: fmt.Sprintf("%s/%d", c.basePath, id),
+		Client:    mappers.ClientToViewModel(entity),
+		Errors:    map[string]string{},
+		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(clients.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -204,7 +205,7 @@ func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Reque
 			},
 		},
 	}
-	templ.Handler(clients.View(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(clients.ViewPage(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
