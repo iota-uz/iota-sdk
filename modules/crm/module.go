@@ -64,9 +64,10 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewTwilioController(app, twilioProvider),
 	)
 
-	handlers.RegisterSMSHandlers(
-		app,
-	)
+	handlers.RegisterSMSHandlers(app)
+	if botToken := conf.TelegramBotToken; botToken != "" {
+		handlers.RegisterNotificationHandler(app, botToken)
+	}
 
 	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)

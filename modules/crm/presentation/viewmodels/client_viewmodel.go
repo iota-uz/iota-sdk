@@ -1,5 +1,7 @@
 package viewmodels
 
+import "strings"
+
 type Client struct {
 	ID         string
 	FirstName  string
@@ -11,7 +13,17 @@ type Client struct {
 }
 
 func (c *Client) FullName() string {
-	return c.FirstName + " " + c.LastName
+	var result []string
+	if c.FirstName != "" {
+		result = append(result, c.FirstName)
+	}
+	if c.LastName != "" {
+		result = append(result, c.LastName)
+	}
+	if len(result) == 0 {
+		return "+" + c.Phone
+	}
+	return strings.Join(result, " ")
 }
 
 func (c *Client) Initials() string {
@@ -21,6 +33,9 @@ func (c *Client) Initials() string {
 	}
 	if len(c.LastName) > 0 {
 		res += string(c.LastName[0])
+	}
+	if len(res) == 0 {
+		return "NA"
 	}
 	return res
 }

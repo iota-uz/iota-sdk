@@ -47,6 +47,7 @@ require (
 	cloud.google.com/go/auth v0.11.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
+	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31 // indirect
 	github.com/agnivade/levenshtein v1.2.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect

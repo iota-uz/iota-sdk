@@ -39,7 +39,7 @@ templ NewChat(props NewChatProps) {
 	<div class="space-y-5 p-5">
 		<div>
 			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("Chats.New") }
+				{ pageCtx.T("Chats.New.Title") }
 			</h1>
 		</div>
 		@card.Card(card.Props{}) {
@@ -49,6 +49,7 @@ templ NewChat(props NewChatProps) {
 }
 
 templ NewChatForm(props NewChatProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		hx-post={ props.CreateChatURL }
 		hx-trigger="submit"
@@ -67,10 +68,10 @@ templ NewChatForm(props NewChatProps) {
 			@button.Secondary(button.Props{
 				Href: props.BaseURL,
 			}) {
-				Cancel
+				{ pageCtx.T("Chats.New.Cancel") }
 			}
 			@button.Primary(button.Props{}) {
-				Add
+				{ pageCtx.T("Chats.New.Add") }
 			}
 		</div>
 	</form>
@@ -144,55 +145,68 @@ templ SelectedChat(props SelectedChatProps) {
 	</div>
 	<div class="flex flex-col flex-1 px-4 min-h-0">
 		@ChatMessages(props.Chat)
-		<div class="border border-input rounded-md p-4 mb-4">
-			<div x-data="{text: ''}">
-				<textarea
-					id="message"
-					x-model="text"
-					@input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
-					class="form-control form-control-input text-sm placeholder:text-muted-foreground resize-none w-full focus:outline-none"
-					placeholder="Type a message..."
-					name="Message"
-					form="send-message-form"
-				></textarea>
-			</div>
-			<div class="flex justify-between">
-				<div class="flex gap-2">
-					<button class="cursor-pointer">
-						<label class="cursor-pointer">
-							@icons.Paperclip(icons.Props{
-								Size: "20",
-							})
-							<input
-								form="send-message-form"
-								accept="image/*"
-								class="sr-only"
-								name="Attachment"
-								type="file"
-							/>
-						</label>
-					</button>
-					<button
-						class="cursor-pointer"
-						@click="$dispatch('instant-messages-dialog')"
-					>
-						@icons.Lightning(icons.Props{Size: "20"})
-					</button>
-				</div>
-				<form
-					id="send-message-form"
-					hx-post={ fmt.Sprintf("%s/%s/messages", props.BaseURL, props.Chat.ID) }
-					hx-trigger="submit"
-					hx-swap="innerHTML"
-					hx-target="#chat-contents"
+		@ChatInput(ChatInputProps{
+			SendURL: fmt.Sprintf("%s/%s/messages", props.BaseURL, props.Chat.ID),
+		})
+	</div>
+}
+
+// ---- Chat Input ----
+
+type ChatInputProps struct {
+	SendURL string
+}
+
+templ ChatInput(props ChatInputProps) {
+	<div class="border border-input rounded-md p-4 mb-4">
+		<div x-data="{text: ''}">
+			<textarea
+				id="message"
+				x-model="text"
+				@input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
+				class="form-control form-control-input text-sm placeholder:text-muted-foreground resize-none w-full focus:outline-none"
+				placeholder="Type a message..."
+				name="Message"
+				form="send-message-form"
+			></textarea>
+		</div>
+		<div class="flex justify-between">
+			<div class="flex gap-2">
+				<button class="cursor-pointer">
+					<label class="cursor-pointer">
+						@icons.Paperclip(icons.Props{
+							Size: "20",
+						})
+						<input
+							form="send-message-form"
+							accept="image/*"
+							class="sr-only"
+							name="Attachment"
+							type="file"
+						/>
+					</label>
+				</button>
+				<button
+					x-data
+					class="cursor-pointer"
+					@click="$dispatch('instant-messages-dialog')"
 				>
-					<button
-						class="cursor-pointer"
-					>
-						@icons.TelegramLogo(icons.Props{Size: "20"})
-					</button>
-				</form>
+					@icons.Lightning(icons.Props{Size: "20"})
+				</button>
 			</div>
+			<form
+				id="send-message-form"
+				hx-post={ props.SendURL }
+				hx-trigger="submit"
+				hx-swap="innerHTML"
+				hx-target="#chat-contents"
+			>
+				<button
+					class="cursor-pointer"
+				>
+					@icons.TelegramLogo(icons.Props{Size: "20"})
+				</button>
+			</form>
 		</div>
 	</div>
 }
@@ -332,7 +346,7 @@ templ ChatLayout(props IndexPageProps) {
 			@button.Primary(button.Props{
 				Href: props.NewChatURL,
 			}) {
-				{ pageCtx.T("Chats.New") }
+				{ pageCtx.T("Chats.New.Title") }
 			}
 		</div>
 		<div class="grow overflow-hidden flex flex-col pt-6 px-4 border-r">

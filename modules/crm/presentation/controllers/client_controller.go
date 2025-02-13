@@ -7,10 +7,12 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
+	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/clients"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
@@ -24,6 +26,7 @@ import (
 type ClientController struct {
 	app           application.Application
 	clientService *services.ClientService
+	chatService   *services.ChatService
 	basePath      string
 }
 
@@ -36,6 +39,7 @@ func NewClientController(app application.Application, basePath string) applicati
 	return &ClientController{
 		app:           app,
 		clientService: app.Service(services.ClientService{}).(*services.ClientService),
+		chatService:   app.Service(services.ChatService{}).(*services.ChatService),
 		basePath:      basePath,
 	}
 }
@@ -58,7 +62,8 @@ func (c *ClientController) Register(r *mux.Router) {
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
@@ -120,7 +125,7 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 func (c *ClientController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &clients.CreatePageProps{
 		Client:  &viewmodels.Client{},
-		SaveURL: fmt.Sprintf("%s", c.basePath),
+		SaveURL: c.basePath,
 	}
 	templ.Handler(clients.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -173,6 +178,62 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		SaveURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
 	templ.Handler(clients.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Request, entity client.Client) {
+	localizer, ok := composables.UseLocalizer(r.Context())
+	if !ok {
+		http.Error(w, "Error using localizer", http.StatusInternalServerError)
+		return
+	}
+	clientURL := fmt.Sprintf("%s/%d", c.basePath, entity.ID())
+	props := &clients.ViewPageProps{
+		Client: mappers.ClientToViewModel(entity),
+		Tabs: []clients.ClientTab{
+			{
+				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "Clients.Tabs.Chats",
+				}),
+				URL: fmt.Sprintf("%s?tab=chats", clientURL),
+			},
+			{
+				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "Clients.Tabs.Notes",
+				}),
+				URL: fmt.Sprintf("%s?tab=notes", clientURL),
+			},
+		},
+	}
+	templ.Handler(clients.View(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
+	tab := r.URL.Query().Get("tab")
+	clientID, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	entity, err := c.clientService.GetByID(r.Context(), clientID)
+	if err != nil {
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+
+	chatEntity, err := c.chatService.GetByClientID(r.Context(), clientID)
+	var component templ.Component
+	switch tab {
+	case "chats":
+		component = clients.Chats(chatsui.SelectedChatProps{
+			Chat:       mappers.ChatToViewModel(chatEntity, entity),
+			ClientsURL: c.basePath,
+		})
+	case "notes":
+		component = clients.Notes()
+	default:
+		component = clients.NotFound()
+	}
+	c.renderViewLayout(w, r.WithContext(templ.WithChildren(r.Context(), component)), entity)
 }
 
 func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {
