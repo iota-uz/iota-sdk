@@ -15,9 +15,12 @@ func HxRedirect(w http.ResponseWriter, _ *http.Request, path string) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func IsHxRequest(r *http.Request) bool {
+	return len(r.Header.Get("Hx-Request")) > 0
+}
+
 func Redirect(w http.ResponseWriter, r *http.Request, path string) {
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	if isHxRequest {
+	if IsHxRequest(r) {
 		HxRedirect(w, r, path)
 		return
 	}

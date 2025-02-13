@@ -18,8 +18,9 @@ type ClientTab struct {
 }
 
 type ViewPageProps struct {
-	Client *viewmodels.Client
-	Tabs   []ClientTab
+	EditURL string
+	Client  *viewmodels.Client
+	Tabs    []ClientTab
 }
 
 templ ViewComponent(props *ViewPageProps) {
@@ -41,26 +42,26 @@ templ ViewComponent(props *ViewPageProps) {
 					</div>
 				</div>
 				@button.Secondary(button.Props{
-					Href: fmt.Sprintf("%s/edit", props.Client.ID),
+					Href: props.EditURL,
 				}) {
-					@icons.PencilSimple(icons.Props{})
+					@icons.PencilSimple(icons.Props{Size: "20"})
 				}
 			</div>
-			@tab.Root(tab.Props{
-				DefaultValue: "public",
-			}) {
-				@tab.List(tab.ListProps{}) {
-					for _, t := range props.Tabs {
-						@tab.Link(t.URL, false) {
-							{ t.Name }
-						}
+			@tab.List(tab.ListProps{}) {
+				for _, t := range props.Tabs {
+					@tab.BoostedLink(tab.BoostLinkProps{
+						Href:   t.URL,
+						Active: false,
+						Push:   false,
+					}) {
+						{ t.Name }
 					}
 				}
 			}
 		</div>
-		<div class="flex-1 flex flex-col min-h-0">
+		@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
 			{ children... }
-		</div>
+		}
 	</div>
 }
 
@@ -97,6 +98,13 @@ templ Chats(props chatsui.SelectedChatProps) {
 		@chatsui.ChatInput(chatsui.ChatInputProps{
 			SendURL: fmt.Sprintf("%s/%s/messages", props.BaseURL, props.Chat.ID),
 		})
+	</div>
+}
+
+// ---- General -----
+templ General() {
+	<div>
+		General
 	</div>
 }
 
