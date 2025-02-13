@@ -53,25 +53,24 @@ func (c *ClientController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}/tab/{tab:[a-z]+}", c.TabContents).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(commonMiddleware...)
+	router.Use(middleware.Tabs(), middleware.NavItems())
+	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	hxRouter := r.PathPrefix(c.basePath).Subrouter()
+	hxRouter.Use(commonMiddleware...)
+	hxRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/tab/{tab:[a-z]+}", c.TabContents).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
+
 }
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
@@ -92,7 +91,6 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
-	viewClients := mapping.MapViewModels(expenseEntities, mappers.ClientToViewModel)
 
 	total, err := c.clientService.Count(r.Context())
 	if err != nil {
@@ -100,7 +98,7 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 	}
 
 	return &ClientsPaginatedResponse{
-		Clients:         viewClients,
+		Clients:         mapping.MapViewModels(expenseEntities, mappers.ClientToViewModel),
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
