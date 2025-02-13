@@ -24,7 +24,6 @@ jobs:
           --health-retries=5
 
     env:
-      GO_APP_ENV: testing
       DB_NAME: iota_erp
       DB_HOST: localhost
       DB_PORT: 5432
@@ -109,7 +108,10 @@ jobs:
         uses: cypress-io/github-action@v6
         env:
           GO_APP_ENV: production
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
         with:
+          record: true
           working-directory: e2e
           install-command: pnpm install
           start: go run ../cmd/server/main.go
