@@ -25,6 +25,7 @@ describe('user auth and registration flow', () => {
         cy.get('[name=Password]').type('TestPass123!')
         cy.get('[name=UILanguage]').select(2)
         cy.get('[x-ref=trigger]').click()
+        cy.get('ul[x-ref=list]').should('be.visible')
         cy.get('ul[x-ref=list]').find('li').first().click()
         cy.get('[id=save-btn]').click()
         cy.visit('http://localhost:3200/users')
