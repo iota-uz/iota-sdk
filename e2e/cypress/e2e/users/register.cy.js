@@ -1,19 +1,22 @@
 /// <reference types="cypress" />
 
-describe('user auth and registration flow', () => {
-    beforeEach(() => {
+const login = (email, password) => {
+    cy.session([email, password], () => {
         cy.visit('http://localhost:3200/login')
-        cy.get('[type=email]').type('test@gmail.com')
-        cy.get('[type=password]').type('TestPass123!')
+        cy.get('[type=email]').type(email)
+        cy.get('[type=password]').type(password)
         cy.get('[type=submit]').click()
-        cy.visit('http://localhost:3200/users')
     })
+}
 
+describe('user auth and registration flow', () => {
     afterEach(() => {
         cy.visit('http://localhost:3200/logout')
     })
 
     it('creates a user and displays changes in users table', () => {
+        login('test@gmail.com', 'TestPass123!')
+        cy.visit('http://localhost:3200/users')
         cy.get('a[href="/users/new"]').click()
         cy.get('[name=FirstName]').type('Test')
         cy.get('[name=LastName]').type('User')
@@ -27,10 +30,8 @@ describe('user auth and registration flow', () => {
         cy.visit('http://localhost:3200/users')
         cy.get('tbody tr').should('have.length', 2)
         cy.visit('http://localhost:3200/logout')
-        cy.visit('http://localhost:3200/login')
-        cy.get('[type=email]').type('test1@gmail.com')
-        cy.get('[type=password]').type('TestPass123!')
-        cy.get('[type=submit]').click()
+
+        login('test1@gmail.com', 'TestPass123!')
         cy.visit('http://localhost:3200/users')
 
         cy.url().should('include', '/users')
