@@ -198,8 +198,13 @@
 
     /* Animation */
     --animation-slide-in-up: slide-in-up 500ms var(--ease-3);
+    --animation-slide-in-right: slide-in-right 500ms var(--ease-3);
+    --animation-slide-in-left: slide-in-left 500ms var(--ease-3);
+    --animation-slide-in-down: slide-in-down 500ms var(--ease-3);
     --animation-scale-down: scale-down 500ms var(--ease-3);
     --animation-slide-out-down: slide-out-down 500ms var(--ease-3);
+    --animation-slide-out-right: slide-out-right 500ms var(--ease-3);
+    --animation-slide-out-left: slide-out-left 500ms var(--ease-3);
   }
 
   ::selection {
@@ -590,10 +595,31 @@
     padding: 0;
     position: fixed;
     inset: 0;
-    border-radius: var(--radius);
     overflow: hidden;
     transition: opacity 500ms var(--ease-3);
+  }
+
+  .dialog-rounded {
+    border-radius: var(--radius);
+  }
+
+  .dialog-btt {
     animation: var(--animation-slide-out-down) forwards;
+    animation-timing-function: var(--ease-squish-2);
+  }
+
+  .dialog-rtl {
+    animation: var(--animation-slide-out-right) forwards;
+    animation-timing-function: var(--ease-squish-2);
+  }
+
+  .dialog-ltr {
+    animation: var(--animation-slide-out-left) forwards;
+    animation-timing-function: var(--ease-squish-2);
+  }
+
+  .dialog-tbd {
+    animation: var(--animation-slide-out-up) forwards;
     animation-timing-function: var(--ease-squish-2);
   }
 
@@ -602,8 +628,20 @@
     opacity: 0;
   }
 
-  .dialog[open] {
+  .dialog-btt[open] {
     animation: var(--animation-slide-in-up);
+  }
+
+  .dialog-rtl[open] {
+    animation: var(--animation-slide-in-right);
+  }
+  
+  .dialog-ltr[open] {
+    animation: var(--animation-slide-in-left);
+  }
+
+  .dialog-tbd[open] {
+    animation: var(--animation-slide-in-down);
   }
 
   .dialog::backdrop {
@@ -741,14 +779,32 @@
   }
 }
 
-@media screen(md) {
-  .dialog {
-    animation: var(--animation-scale-down) forwards;
-    animation-timing-function: var(--ease-squish-3);
+/* Keyframes */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%)
   }
 }
 
-/* Keyframes */
+@keyframes slide-out-right {
+  to {
+    transform: translateX(100%)
+  }
+}
+
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%)
+  }
+}
+
+@keyframes slide-out-left {
+  to {
+    transform: translateX(-100%)
+  }
+}
+
 @keyframes slide-in-up {
   from {
     transform: translateY(100%)
@@ -764,6 +820,18 @@
 @keyframes slide-out-down {
   to {
     transform: translateY(100%)
+  }
+}
+
+@keyframes slide-in-down {
+  from {
+    transform: translateY(-100%)
+  }
+}
+
+@keyframes slide-out-up {
+  to {
+    transform: translateY(-100%)
   }
 }
 

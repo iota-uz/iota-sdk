@@ -19,7 +19,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
+    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -139,12 +139,12 @@ let dialog = () => ({
       });
     });
   }),
-  lightDismiss({target: dialog}) {
+  lightDismiss({ target: dialog }) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({target: dialog}) {
+  async close({ target: dialog }) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);

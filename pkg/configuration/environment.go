@@ -68,6 +68,8 @@ type Configuration struct {
 	TwilioAccountSID  string `env:"TWILIO_ACCOUNT_SID"`
 	TwilioAuthToken   string `env:"TWILIO_AUTH_TOKEN"`
 	TwilioPhoneNumber string `env:"TWILIO_PHONE_NUMBER"`
+
+	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
 }
 
 func (c *Configuration) LogrusLogLevel() logrus.Level {
