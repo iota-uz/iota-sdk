@@ -108,7 +108,7 @@ templ UsersContent(props *IndexPageProps) {
 			<h1 class="text-2xl font-medium">
 				{ pageCtx.T("NavigationLinks.Users") }
 			</h1>
-			<div class="flex gap-2">
+			<div class="flex md:hidden gap-2">
 				@button.Secondary(button.Props{
 					Size:  button.SizeNormal,
 					Class: "bg-transparent",
@@ -133,16 +133,18 @@ templ UsersContent(props *IndexPageProps) {
 				hx-target="table"
 				hx-swap="outerHTML"
 			>
-				@input.Text(&input.Props{
-					AddonLeft: &input.Addon{
-						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-					},
-					Placeholder: pageCtx.T("Search"),
-					Attrs: templ.Attributes{
-						"name": "name",
-					},
-				})
-				<div class="hidden md:block">
+				<div class="flex-1">
+					@input.Text(&input.Props{
+						AddonLeft: &input.Addon{
+							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+						},
+						Placeholder: pageCtx.T("Search"),
+						Attrs: templ.Attributes{
+							"name": "name",
+						},
+					})
+				</div>
+				<div class="hidden md:flex gap-3">
 					@base.Select(&base.SelectProps{
 						Prefix: pageCtx.T("PerPage"),
 						Attrs: templ.Attributes{
