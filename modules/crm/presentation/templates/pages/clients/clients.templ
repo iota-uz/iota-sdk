@@ -25,54 +25,32 @@ templ NewClientDrawer() {
 		Action:    "new-client",
 		Classes:   templ.Classes("flex items-stretch"),
 	}) {
-		<div class="flex flex-col gap-3 bg-white w-2/3 ml-auto">
-			<div class="flex justify-between p-4">
-				<h3 class="text-lg font-medium">
-					New client
-				</h3>
-				<div>
-					@button.Secondary(button.Props{
-						Size:  button.SizeSM,
-						Fixed: true,
-						Icon:  icons.XCircle(icons.Props{Size: "18"}),
-						Attrs: templ.Attributes{
-							"@click": "toggle",
-						},
-					})
+		<div class="bg-white w-2/3 ml-auto">
+			<form
+				method="dialog"
+				class="flex flex-col gap-3 h-full"
+			>
+				<div class="flex justify-between p-4">
+					<h3 class="text-lg font-medium">
+						New client
+					</h3>
+					<div>
+						@button.Secondary(button.Props{
+							Size:  button.SizeSM,
+							Fixed: true,
+							Icon:  icons.XCircle(icons.Props{Size: "18"}),
+							Attrs: templ.Attributes{
+								"@click": "toggle",
+							},
+						})
+					</div>
 				</div>
-			</div>
-			@CreateForm(&CreatePageProps{
-				Client:  &viewmodels.Client{},
-				Errors:  map[string]string{},
-				SaveURL: "/crm/clients",
-			})
-		</div>
-	}
-}
-
-templ ViewDrawer() {
-	@dialog.Drawer(dialog.DrawerProps{
-		Direction: dialog.RTL,
-		Action:    "view-client",
-		Classes:   templ.Classes("flex items-stretch"),
-	}) {
-		<div class="flex flex-col gap-3 bg-white w-2/3 ml-auto">
-			<div class="flex justify-between p-4">
-				<h3 class="text-lg font-medium">
-					Client details
-				</h3>
-				<div>
-					@button.Secondary(button.Props{
-						Size:  button.SizeSM,
-						Fixed: true,
-						Icon:  icons.XCircle(icons.Props{Size: "18"}),
-						Attrs: templ.Attributes{
-							"@click": "toggle",
-						},
-					})
-				</div>
-			</div>
-			<div id="view-drawer-content"></div>
+				@CreateForm(&CreatePageProps{
+					Client:  &viewmodels.Client{},
+					Errors:  map[string]string{},
+					SaveURL: "/crm/clients",
+				})
+			</form>
 		</div>
 	}
 }
