@@ -195,6 +195,7 @@
       "Email": "Email",
       "Password": "Password",
       "Language": "Language",
+      "UILanguage": "en",
       "SelectLanguage": "Select language",
       "ChooseAvatar": "Choose avatar",
       "Role": "Role",

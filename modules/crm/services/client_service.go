@@ -48,11 +48,7 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 	if err != nil {
 		return nil, err
 	}
-	pool, err := composables.UsePool(ctx)
-	if err != nil {
-		return nil, err
-	}
-	tx, err := pool.Begin(ctx)
+	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +71,12 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 }
 
 func (s *ClientService) Update(ctx context.Context, id uint, data *client.UpdateDTO) error {
+	tx, err := composables.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	ctx = composables.WithTx(ctx, tx)
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
@@ -86,15 +88,27 @@ func (s *ClientService) Update(ctx context.Context, id uint, data *client.Update
 	if _, err := s.repo.Update(ctx, modified); err != nil {
 		return err
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
+	tx, err := composables.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	ctx = composables.WithTx(ctx, tx)
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return entity, nil

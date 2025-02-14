@@ -20,28 +20,42 @@ type IndexPageProps struct {
 
 templ ClientsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@NewClientDrawer()
+	@ViewDrawer()
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(&base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("Clients.List.FullName"), Key: "client"},
 				{Label: pageCtx.T("Clients.List.Phone"), Key: "status"},
 				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, client := range props.Clients {
+				{{
+					url := fmt.Sprintf("/crm/clients/%s", client.ID)
+				}}
 				@base.TableRow() {
 					@base.TableCell() {
-						<div class="flex items-center gap-3">
-							<div
-								class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm"
-							>
-								{ string(client.FirstName[0]) }
+						<button
+							type="button"
+							x-data
+							@click="$dispatch('view-client')"
+							hx-get={ url }
+							hx-target="#view-drawer-content"
+							hx-swap="innerHTML"
+							class="cursor-pointer"
+						>
+							<div class="flex items-center gap-3">
+								<div
+									class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm"
+								>
+									{ client.Initials() }
+								</div>
+								<span>
+									{ client.FullName() }
+								</span>
 							</div>
-							<span>
-								{ client.FullName() }
-							</span>
-						</div>
+						</button>
 					}
 					@base.TableCell() {
 						{ client.Phone }
@@ -50,16 +64,6 @@ templ ClientsTable(props *IndexPageProps) {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
 						</div>
-					}
-					@base.TableCell() {
-						@button.Secondary(button.Props{
-							Fixed: true,
-							Size:  button.SizeSM,
-							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/crm/clients/%s", client.ID),
-						}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
-						}
 					}
 				}
 			}
@@ -94,8 +98,12 @@ templ ClientsContent(props *IndexPageProps) {
 				@filters.CreatedAt()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
-					Href: props.NewURL,
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					Attrs: templ.Attributes{
+						"type":   "button",
+						"x-data": "",
+						"@click": "$dispatch('new-client')",
+					},
 				}) {
 					{ pageCtx.T("Clients.List.New") }
 				}
