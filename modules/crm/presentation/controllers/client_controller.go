@@ -62,15 +62,14 @@ func (c *ClientController) Register(r *mux.Router) {
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 
 	hxRouter := r.PathPrefix(c.basePath).Subrouter()
 	hxRouter.Use(commonMiddleware...)
 	hxRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/tab/{tab:[a-z]+}", c.TabContents).Methods(http.MethodGet)
-
 }
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
@@ -176,7 +175,7 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
-	templ.Handler(clients.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(clients.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Request, entity client.Client) {
@@ -202,12 +201,6 @@ func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Reque
 				}),
 				URL: fmt.Sprintf("%s/tab/chat", clientURL),
 			},
-			{
-				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "Clients.Tabs.Notes",
-				}),
-				URL: fmt.Sprintf("%s/tab/notes", clientURL),
-			},
 		},
 	}
 	var component templ.Component
@@ -221,6 +214,8 @@ func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Reque
 
 func (c *ClientController) tabToComponent(r *http.Request, clientID uint, tab string) (templ.Component, error) {
 	switch tab {
+	case "":
+		fallthrough
 	case "general":
 		return clients.General(), nil
 	case "chat":
@@ -236,8 +231,6 @@ func (c *ClientController) tabToComponent(r *http.Request, clientID uint, tab st
 			Chat:       mappers.ChatToViewModel(chatEntity, entity),
 			ClientsURL: c.basePath,
 		}), nil
-	case "notes":
-		return clients.Notes(), nil
 	default:
 		return clients.NotFound(), nil
 	}

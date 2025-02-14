@@ -4,7 +4,9 @@ import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
@@ -34,54 +36,73 @@ type ViewPageProps struct {
 	Tabs    []ClientTab
 }
 
+templ ClientViewHeader(props *ViewPageProps) {
+	<div
+		class={
+			"flex justify-between w-full",
+			"border-b border-primary p-4",
+		}
+	>
+		<div class="flex items-center gap-2">
+			@Avatar(props.Client.Initials())
+			<div>
+				<h3 class="font-medium">
+					{ props.Client.FullName() }
+				</h3>
+				<div class="text-sm text-base-600">
+					<a
+						href={ templ.SafeURL(fmt.Sprintf("tel:%s", props.Client.Phone)) }
+						class="text-blue-500"
+					>
+						+{ props.Client.Phone }
+					</a>
+				</div>
+			</div>
+		</div>
+		<div class="flex gap-3">
+			@button.Secondary(button.Props{
+				Icon: icons.PencilSimple(icons.Props{Size: "20"}),
+				Attrs: templ.Attributes{
+					"hx-get":     props.EditURL,
+					"hx-trigger": "click",
+					"hx-swap":    "innerHTML",
+					"hx-target":  "#client-body",
+				},
+			}) {
+				Edit
+			}
+			@button.Primary(button.Props{
+				Icon: icons.PlusCircle(icons.Props{Size: "20"}),
+			}) {
+				Send a message
+			}
+		</div>
+	</div>
+}
+
 templ ViewComponent(props *ViewPageProps) {
 	<div class="h-full max-h-full p-4">
 		<div class="flex flex-col border border-primary rounded-md h-full">
-			<div class="flex justify-between w-full mb-4 p-4 border-b border-primary">
-				<div class="flex items-center gap-2">
-					@Avatar(props.Client.Initials())
-					<div>
-						<h3 class="font-medium">
-							{ props.Client.FullName() }
-						</h3>
-						<div class="text-sm text-base-600">
-							<a
-								href={ templ.SafeURL(fmt.Sprintf("tel:%s", props.Client.Phone)) }
-								class="text-blue-500"
-							>
-								+{ props.Client.Phone }
-							</a>
-						</div>
-					</div>
-				</div>
-				<div class="flex gap-3">
-					@button.Secondary(button.Props{
-						Href: props.EditURL,
-						Icon: icons.PencilSimple(icons.Props{Size: "20"}),
-					}) {
-						Edit
-					}
-					@button.Primary(button.Props{
-						Icon: icons.PlusCircle(icons.Props{Size: "20"}),
-					}) {
-						Send a message
-					}
-				</div>
-			</div>
-			@tab.List(tab.ListProps{}) {
-				for _, t := range props.Tabs {
-					@tab.BoostedLink(tab.BoostLinkProps{
-						Href:   t.URL,
-						Active: false,
-						Push:   false,
-					}) {
-						{ t.Name }
+			@ClientViewHeader(props)
+			<div
+				id="client-body"
+				class="flex flex-col flex-1 min-h-0"
+			>
+				@tab.List(tab.ListProps{}) {
+					for _, t := range props.Tabs {
+						@tab.BoostedLink(tab.BoostLinkProps{
+							Href:   t.URL,
+							Active: false,
+							Push:   false,
+						}) {
+							{ t.Name }
+						}
 					}
 				}
-			}
-			@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
-				{ children... }
-			}
+				@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
+					{ children... }
+				}
+			</div>
 		</div>
 	</div>
 }
@@ -105,7 +126,7 @@ templ ViewDrawer() {
 		Action:    "view-client",
 		Classes:   templ.Classes("flex items-stretch"),
 	}) {
-		<div class="bg-white w-2/3 ml-auto">
+		<div class="bg-white w-3/4 md:w-2/3 ml-auto">
 			<form
 				method="dialog"
 				class="flex flex-col h-full"
@@ -158,16 +179,21 @@ templ Chats(props chatsui.SelectedChatProps) {
 }
 
 // ---- General -----
-templ General() {
-	<div>
-		General
+templ Notes() {
+	<div class="flex gap-3 bg-surface-100 rounded-md p-3">
+		<div class="text-gray-400">
+			@icons.Note(icons.Props{Size: "20"})
+		</div>
+		<div class="flex-1 space-y-3">
+			<h3 class="text-gray-400">Notes</h3>
+			<p>No notes available</p>
+		</div>
 	</div>
 }
 
-// ---- Notes -----
-templ Notes() {
-	<div>
-		Notes
+templ General() {
+	<div class="flex flex-col gap-3 p-4">
+		@Notes()
 	</div>
 }
 
@@ -176,4 +202,143 @@ templ NotFound() {
 	<div>
 		Not Found
 	</div>
+}
+
+// ---- Edit Page ----
+
+type EditPageProps struct {
+	Client    *viewmodels.Client
+	Errors    map[string]string
+	SaveURL   string
+	DeleteURL string
+}
+
+templ EditForm(props *EditPageProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	<div
+		id="edit-content"
+		class="flex flex-col justify-between h-full bg-surface-100"
+	>
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.FirstName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.FirstName,
+					"name":  "FirstName",
+					"form":  "save-form",
+				},
+				Error: props.Errors["FirstName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.LastName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.LastName,
+					"name":  "LastName",
+					"form":  "save-form",
+				},
+				Error: props.Errors["LastName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.MiddleName,
+					"name":  "MiddleName",
+					"form":  "save-form",
+				},
+				Error: props.Errors["MiddleName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.Phone.Label"),
+				Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.Phone,
+					"name":  "Phone",
+					"form":  "save-form",
+				},
+				Error: props.Errors["Phone"],
+			})
+		}
+		<div
+			x-data
+			class={
+				"flex items-center justify-end px-8 h-20 w-full mt-auto gap-4",
+				"bg-surface-300 border-t border-t-primary shadow-t-lg",
+			}
+		>
+			<form
+				id="delete-form"
+				hx-delete={ props.DeleteURL }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-client-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-client-confirmation')",
+						"id":     "delete-client-btn",
+					},
+				}) {
+					{ pageCtx.T("Delete") }
+				}
+			</form>
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ props.SaveURL }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Clients.Edit.Meta.Title"),
+	}) {
+		@EditForm(props)
+		@dialog.Confirmation(&dialog.Props{
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Clients.Single.Delete"),
+			Text:        pageCtx.T("Clients.Single.DeleteConfirmation"),
+			Icon:        icons.Trash(icons.Props{Size: "20"}),
+			Action:      "open-delete-client-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+		})
+	}
 }
