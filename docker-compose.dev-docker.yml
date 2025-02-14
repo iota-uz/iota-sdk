@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "8090:8090"
+      - "8080:8080"
+      - "3200:3200"
+    volumes:
+      - .:/app
+      - go-modules:/go/pkg/mod
+    environment:
+      - DB_HOST=db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=iota_erp
+      - DB_PORT=5432
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15.1
+    restart: always
+    command: [ "postgres", "-c", "log_statement=all", "-c", "log_destination=stderr", "-c", "logging_collector=off" ]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: iota_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+
+volumes:
+  go-modules:

@@ -59,6 +59,7 @@ Before starting, ensure the following tools are installed on your system:
 
 ## 🛠️ Development Setup
 
+### Setup Locally
 1. **Clone the repository**:
    ```cmd
    git clone https://github.com/iota-uz/iota-sdk.git
@@ -109,7 +110,28 @@ Before starting, ensure the following tools are installed on your system:
    air
    ```
 
-9. **Access the web app**:
+### Setup With Docker
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/iota-uz/iota-sdk.git
+   ```
+
+2. **Make env file**:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Run the project using Docker**:
+   ```bash
+   make dev-docker
+   ```
+
+4. **Apply database migrations and seed data**:
+   ```bash
+   make migrate-up && make seed
+   ```
+
+### Access the web app
 
    Open your browser and navigate to:  
    [http://localhost:8080](http://localhost:8080)
@@ -125,7 +147,7 @@ Before starting, ensure the following tools are installed on your system:
    TestPass123!
    ```
 
-10. **Access the GraphQL Schema**:  
+- **Access the GraphQL Schema**:  
     Open Postman and connect to:  
     [http://localhost:3200/query](http://localhost:3200/query)
 
