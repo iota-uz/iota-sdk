@@ -23,16 +23,6 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-    env:
-      GO_APP_ENV: testing
-      DB_NAME: iota_erp
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_PASSWORD: postgres
-      DOMAIN: iota.uz
-      SESSION_DURATION: 720h
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/iota_erp
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -64,6 +54,11 @@ jobs:
         run: |
           tailwindcss -h
 
+      - name: Install PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Download Go dependencies
         run: |
           go mod download
@@ -86,11 +81,11 @@ jobs:
           make run-iota-linter
 
       - name: Test Makefile targets
+        # running seeds twice to verify that they are idempotent
         run: |
           make migrate-up
           make seed
           make seed
-          make migrate-down
           make css
 
       - name: Run go vet && tests
@@ -99,3 +94,32 @@ jobs:
           git diff --exit-code
           go vet ./...
           go test -v ./...
+
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+        env:
+          SESSION_DURATION: 720h
+          DOMAIN: localhost
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          SID_COOKIE_KEY: sid
+          GO_APP_ENV: production
+
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+        with:
+          record: true
+          working-directory: e2e
+          install-command: pnpm install
+          start: go run ../cmd/server/main.go
+          wait-on: 'http://localhost:3200'
+          browser: chrome
+
+      - name: Test database migrate down
+        # e2e tests require database to have the seed data. We can only down the migrations after cypress.
+        run: |
+          make migrate-down
