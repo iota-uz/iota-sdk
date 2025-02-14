@@ -62,6 +62,7 @@ func (c *ClientController) Register(r *mux.Router) {
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 
@@ -69,7 +70,6 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.Use(commonMiddleware...)
 	hxRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/tab/{tab:[a-z]+}", c.TabContents).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
 
 }
 
@@ -198,9 +198,9 @@ func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Reque
 			},
 			{
 				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "Clients.Tabs.Chats",
+					MessageID: "Clients.Tabs.Chat",
 				}),
-				URL: fmt.Sprintf("%s/tab/chats", clientURL),
+				URL: fmt.Sprintf("%s/tab/chat", clientURL),
 			},
 			{
 				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
@@ -223,7 +223,7 @@ func (c *ClientController) tabToComponent(r *http.Request, clientID uint, tab st
 	switch tab {
 	case "general":
 		return clients.General(), nil
-	case "chats":
+	case "chat":
 		entity, err := c.clientService.GetByID(r.Context(), clientID)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error retrieving client")

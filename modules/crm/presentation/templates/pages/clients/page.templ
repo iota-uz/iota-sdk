@@ -3,14 +3,25 @@ package clients
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
+
+// ---- Utility Components ----
+templ Avatar(initials string) {
+	<div
+		class={ "w-10 h-10 rounded-lg font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar" }
+	>
+		{ initials }
+	</div>
+}
+
+//
 
 type ClientTab struct {
 	Name string
@@ -24,28 +35,38 @@ type ViewPageProps struct {
 }
 
 templ ViewComponent(props *ViewPageProps) {
-	<div class="flex flex-col p-6 max-h-full">
-		<div>
-			<div class="flex justify-between w-full mb-4">
+	<div class="h-full max-h-full p-4">
+		<div class="flex flex-col border border-primary rounded-md h-full">
+			<div class="flex justify-between w-full mb-4 p-4 border-b border-primary">
 				<div class="flex items-center gap-2">
-					@avatar.Avatar(avatar.Props{
-						Initials: props.Client.Initials(),
-						Class:    templ.Classes("w-12 h-12"),
-					})
+					@Avatar(props.Client.Initials())
 					<div>
-						<h1 class="text-lg font-semibold">
+						<h3 class="font-medium">
 							{ props.Client.FullName() }
-						</h1>
-						<p class="text-sm">
-							+{ props.Client.Phone }
-						</p>
+						</h3>
+						<div class="text-sm text-base-600">
+							<a
+								href={ templ.SafeURL(fmt.Sprintf("tel:%s", props.Client.Phone)) }
+								class="text-blue-500"
+							>
+								+{ props.Client.Phone }
+							</a>
+						</div>
 					</div>
 				</div>
-				@button.Secondary(button.Props{
-					Href: props.EditURL,
-				}) {
-					@icons.PencilSimple(icons.Props{Size: "20"})
-				}
+				<div class="flex gap-3">
+					@button.Secondary(button.Props{
+						Href: props.EditURL,
+						Icon: icons.PencilSimple(icons.Props{Size: "20"}),
+					}) {
+						Edit
+					}
+					@button.Primary(button.Props{
+						Icon: icons.PlusCircle(icons.Props{Size: "20"}),
+					}) {
+						Send a message
+					}
+				</div>
 			</div>
 			@tab.List(tab.ListProps{}) {
 				for _, t := range props.Tabs {
@@ -58,10 +79,10 @@ templ ViewComponent(props *ViewPageProps) {
 					}
 				}
 			}
+			@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
+				{ children... }
+			}
 		</div>
-		@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
-			{ children... }
-		}
 	</div>
 }
 
@@ -75,6 +96,41 @@ templ ViewPage(props *ViewPageProps) {
 		@ViewComponent(props) {
 			{ children... }
 		}
+	}
+}
+
+templ ViewDrawer() {
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.RTL,
+		Action:    "view-client",
+		Classes:   templ.Classes("flex items-stretch"),
+	}) {
+		<div class="bg-white w-2/3 ml-auto">
+			<form
+				method="dialog"
+				class="flex flex-col h-full"
+			>
+				<div
+					class={
+						"flex justify-between px-4 py-3",
+						"border-b border-primary",
+					}
+				>
+					<h3 class="font-medium">
+						Details about the client
+					</h3>
+					<div>
+						<button>
+							@icons.XCircle(icons.Props{Size: "20"})
+						</button>
+					</div>
+				</div>
+				<div
+					id="view-drawer-content"
+					class="flex-1 overflow-y-auto"
+				></div>
+			</form>
+		</div>
 	}
 }
 
