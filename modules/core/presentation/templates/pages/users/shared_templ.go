@@ -180,7 +180,6 @@ func EmailInput(props SharedProps) templ.Component {
 			Attrs: templ.Attributes{
 				"name":  "Email",
 				"value": props.Value,
-				"form":  "save-form",
 			},
 			AddonRight: &input.Addon{
 				Component: icons.EnvelopeSimple(icons.Props{
