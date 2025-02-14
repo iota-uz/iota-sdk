@@ -19,7 +19,7 @@ describe("user auth and registration flow", () => {
 	it("creates a user and displays changes in users table", () => {
 		login("test@gmail.com", "TestPass123!");
 		cy.visit("http://localhost:3200/users");
-		cy.get('a[href="/users/new"]').click();
+		cy.get('a[href="/users/new"]').filter(':visible').click();
 		cy.get("[name=FirstName]").type("Test");
 		cy.get("[name=LastName]").type("User");
 		cy.get("[name=MiddleName]").type("Mid");
