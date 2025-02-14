@@ -175,19 +175,26 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
-	templ.Handler(clients.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+	viewLayoutProps := c.buildViewLayoutProps(
+		composables.MustUseLocalizer(r.Context()),
+		entity,
+		true,
+	)
+	ctx := templ.WithChildren(r.Context(), clients.EditForm(props))
+	templ.Handler(clients.ViewComponent(viewLayoutProps), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
 }
 
-func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Request, entity client.Client) {
-	localizer, ok := composables.UseLocalizer(r.Context())
-	if !ok {
-		http.Error(w, "Error using localizer", http.StatusInternalServerError)
-		return
-	}
+func (c *ClientController) buildViewLayoutProps(
+	localizer *i18n.Localizer,
+	entity client.Client,
+	isEditing bool,
+) *clients.ViewPageProps {
 	clientURL := fmt.Sprintf("%s/%d", c.basePath, entity.ID())
-	props := &clients.ViewPageProps{
-		EditURL: fmt.Sprintf("%s/edit", clientURL),
-		Client:  mappers.ClientToViewModel(entity),
+	return &clients.ViewPageProps{
+		EditURL:   fmt.Sprintf("%s/edit", clientURL),
+		ClientURL: clientURL,
+		Client:    mappers.ClientToViewModel(entity),
+		IsEditing: isEditing,
 		Tabs: []clients.ClientTab{
 			{
 				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
@@ -203,13 +210,6 @@ func (c *ClientController) renderViewLayout(w http.ResponseWriter, r *http.Reque
 			},
 		},
 	}
-	var component templ.Component
-	if shared.IsHxRequest(r) {
-		component = clients.ViewComponent(props)
-	} else {
-		component = clients.ViewPage(props)
-	}
-	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) tabToComponent(r *http.Request, clientID uint, tab string) (templ.Component, error) {
@@ -248,7 +248,6 @@ func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
-
 	tab := r.URL.Query().Get("tab")
 	component, err := c.tabToComponent(r, clientID, tab)
 	if err != nil {
@@ -256,7 +255,12 @@ func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := templ.WithChildren(r.Context(), component)
-	c.renderViewLayout(w, r.WithContext(ctx), entity)
+	props := c.buildViewLayoutProps(
+		composables.MustUseLocalizer(r.Context()),
+		entity,
+		false,
+	)
+	templ.Handler(clients.ViewComponent(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
 }
 
 func (c *ClientController) TabContents(w http.ResponseWriter, r *http.Request) {
