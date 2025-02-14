@@ -158,7 +158,7 @@ templ ViewDrawer() {
 						Details about the client
 					</h3>
 					<div>
-						<button>
+						<button class="cursor-pointer">
 							@icons.XCircle(icons.Props{Size: "20"})
 						</button>
 					</div>
@@ -188,14 +188,9 @@ templ NewClientDrawer() {
 						New client
 					</h3>
 					<div>
-						@button.Secondary(button.Props{
-							Size:  button.SizeSM,
-							Fixed: true,
-							Icon:  icons.XCircle(icons.Props{Size: "18"}),
-							Attrs: templ.Attributes{
-								"@click": "toggle",
-							},
-						})
+						<button class="cursor-pointer">
+							@icons.XCircle(icons.Props{Size: "20"})
+						</button>
 					</div>
 				</div>
 				@CreateForm(&CreatePageProps{
