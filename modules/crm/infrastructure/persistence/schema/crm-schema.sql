@@ -59,5 +59,4 @@ DROP TABLE IF EXISTS message_templates;
 DROP TABLE IF EXISTS message_media;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS chats;
-DROP TABLE IF EXISTS customers;
-
+DROP TABLE IF EXISTS clients;

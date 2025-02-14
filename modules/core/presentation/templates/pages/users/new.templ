@@ -71,14 +71,13 @@ templ CreateForm(props *CreateFormProps) {
 						Attrs: templ.Attributes{
 							"autocomplete": "new-password",
 							"name":         "Password",
-							"form":         "save-form",
 						},
 					})
 					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 						Label:       pageCtx.T("Users.Single.Language"),
 						Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
 						Value:       string(props.User.UILanguage),
-						Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
+						Attrs:       templ.Attributes{"name": "UILanguage"},
 					})
 				}
 			</div>
