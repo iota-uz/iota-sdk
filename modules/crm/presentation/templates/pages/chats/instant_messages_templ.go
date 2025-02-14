@@ -42,7 +42,7 @@ func InstantMessagesDialog(props InstantMessagesDialogProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"dialog\" @instant-messages-dialog.window=\"toggle\"><dialog class=\"dialog shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg\" x-bind=\"dialog\"><form method=\"dialog\"><header class=\"flex items-center gap-3 justify-between px-4 py-3 border-b border-primary\"><h3 class=\"font-medium\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"dialog\" @instant-messages-dialog.window=\"toggle\"><dialog class=\"dialog dialog-rounded dialog-btt shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg\" x-bind=\"dialog\"><form method=\"dialog\"><header class=\"flex items-center gap-3 justify-between px-4 py-3 border-b border-primary\"><h3 class=\"font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

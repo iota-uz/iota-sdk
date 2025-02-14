@@ -34,6 +34,11 @@
 				"Title": "Edit client"
 			}
 		},
+		"Tabs": {
+			"General": "General",
+			"Notes": "Notes",
+			"Chat": "Messages"
+		},
 		"Single": {
 			"FirstName": {
 				"Label": "First Name",
@@ -91,7 +96,11 @@
 		"Meta": {
 			"Title": "Chats"
 		},
-		"New": "New chat",
+		"New": {
+			"Title": "New chat",
+			"Add": "Add",
+			"Cancel": "Cancel"
+		},
 		"Back": "Back",
 		"InstantMessages": "Instant messages",
 		"NoSelectedChat": "Select a chat...",

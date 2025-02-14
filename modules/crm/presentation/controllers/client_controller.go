@@ -7,10 +7,12 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
+	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/clients"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
@@ -24,6 +26,7 @@ import (
 type ClientController struct {
 	app           application.Application
 	clientService *services.ClientService
+	chatService   *services.ChatService
 	basePath      string
 }
 
@@ -36,6 +39,7 @@ func NewClientController(app application.Application, basePath string) applicati
 	return &ClientController{
 		app:           app,
 		clientService: app.Service(services.ClientService{}).(*services.ClientService),
+		chatService:   app.Service(services.ChatService{}).(*services.ChatService),
 		basePath:      basePath,
 	}
 }
@@ -49,23 +53,23 @@ func (c *ClientController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.Tabs(),
 		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(commonMiddleware...)
+	router.Use(middleware.Tabs(), middleware.NavItems())
+	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	hxRouter := r.PathPrefix(c.basePath).Subrouter()
+	hxRouter.Use(commonMiddleware...)
+	hxRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/tab/{tab:[a-z]+}", c.TabContents).Methods(http.MethodGet)
 }
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
@@ -86,7 +90,6 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
-	viewClients := mapping.MapViewModels(expenseEntities, mappers.ClientToViewModel)
 
 	total, err := c.clientService.Count(r.Context())
 	if err != nil {
@@ -94,7 +97,7 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 	}
 
 	return &ClientsPaginatedResponse{
-		Clients:         viewClients,
+		Clients:         mapping.MapViewModels(expenseEntities, mappers.ClientToViewModel),
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
@@ -104,13 +107,12 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &clients.IndexPageProps{
 		NewURL:          fmt.Sprintf("%s/new", c.basePath),
 		Clients:         paginated.Clients,
 		PaginationState: paginated.PaginationState,
 	}
-	if isHxRequest {
+	if shared.IsHxRequest(r) {
 		templ.Handler(clients.ClientsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(clients.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -120,7 +122,7 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 func (c *ClientController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &clients.CreatePageProps{
 		Client:  &viewmodels.Client{},
-		SaveURL: fmt.Sprintf("%s", c.basePath),
+		SaveURL: c.basePath,
 	}
 	templ.Handler(clients.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -168,11 +170,112 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &clients.EditPageProps{
-		Client:  mappers.ClientToViewModel(entity),
-		Errors:  map[string]string{},
-		SaveURL: fmt.Sprintf("%s/%d", c.basePath, id),
+		Client:    mappers.ClientToViewModel(entity),
+		Errors:    map[string]string{},
+		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
-	templ.Handler(clients.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	viewLayoutProps := c.buildViewLayoutProps(
+		composables.MustUseLocalizer(r.Context()),
+		entity,
+		true,
+	)
+	ctx := templ.WithChildren(r.Context(), clients.EditForm(props))
+	templ.Handler(clients.ViewComponent(viewLayoutProps), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
+}
+
+func (c *ClientController) buildViewLayoutProps(
+	localizer *i18n.Localizer,
+	entity client.Client,
+	isEditing bool,
+) *clients.ViewPageProps {
+	clientURL := fmt.Sprintf("%s/%d", c.basePath, entity.ID())
+	return &clients.ViewPageProps{
+		EditURL:   fmt.Sprintf("%s/edit", clientURL),
+		ClientURL: clientURL,
+		Client:    mappers.ClientToViewModel(entity),
+		IsEditing: isEditing,
+		Tabs: []clients.ClientTab{
+			{
+				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "Clients.Tabs.General",
+				}),
+				URL: fmt.Sprintf("%s/tab/general", clientURL),
+			},
+			{
+				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "Clients.Tabs.Chat",
+				}),
+				URL: fmt.Sprintf("%s/tab/chat", clientURL),
+			},
+		},
+	}
+}
+
+func (c *ClientController) tabToComponent(r *http.Request, clientID uint, tab string) (templ.Component, error) {
+	switch tab {
+	case "":
+		fallthrough
+	case "general":
+		return clients.General(), nil
+	case "chat":
+		entity, err := c.clientService.GetByID(r.Context(), clientID)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error retrieving client")
+		}
+		chatEntity, err := c.chatService.GetByClientID(r.Context(), clientID)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error retrieving chat")
+		}
+		return clients.Chats(chatsui.SelectedChatProps{
+			Chat:       mappers.ChatToViewModel(chatEntity, entity),
+			ClientsURL: c.basePath,
+		}), nil
+	default:
+		return clients.NotFound(), nil
+	}
+}
+
+func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
+	clientID, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := c.clientService.GetByID(r.Context(), clientID)
+	if err != nil {
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+	tab := r.URL.Query().Get("tab")
+	component, err := c.tabToComponent(r, clientID, tab)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	ctx := templ.WithChildren(r.Context(), component)
+	props := c.buildViewLayoutProps(
+		composables.MustUseLocalizer(r.Context()),
+		entity,
+		false,
+	)
+	templ.Handler(clients.ViewComponent(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
+}
+
+func (c *ClientController) TabContents(w http.ResponseWriter, r *http.Request) {
+	clientID, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	component, err := c.tabToComponent(r, clientID, mux.Vars(r)["tab"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {
