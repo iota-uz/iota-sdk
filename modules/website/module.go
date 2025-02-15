@@ -6,8 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
-//go:generate go run github.com/99designs/gqlgen generate
-
 ////go:embed presentation/locales/*.json
 // var localeFiles embed.FS
 
