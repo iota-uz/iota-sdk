@@ -39,6 +39,10 @@ func ChatIcon() templ.Component {
 	})
 }
 
+type Props struct {
+	Starters []string
+}
+
 func Chat() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -60,7 +64,7 @@ func Chat() templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<style type=\"text/css\">\n\t\t.wrapper {\n\t\t\t--primary-color: #2E67B4;\n\t\t\t--stroke-color: #BDC8D2;\n\t\t\t--btn-radius: 0.75rem;\n\n\t\t\tborder-radius: 0.5rem;\n\t\t\tmax-width: 480px;\n\t\t}\n\n\t\t.header{\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: row;\n\t\t\talign-items: center;\n\t\t\tgap: 0.5rem;\n\t\t\tbackground-color: var(--Black-colors-Color-black, #0A223E);\n\t\t\tcolor: var(--White-colors-Color-white, #FFFFFF);\n\t\t\tborder-radius: 0.5rem 0.5rem 0 0;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.header-text {\n\t\t\tflex: 1;\n\t\t}\n\n\t\t.body {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tgap: 0.75rem;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.faq {\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tflex-direction: row;\n\t\t\tgap: 0.75rem;\n\t\t}\n\n\t\t.faq-item {\n\t\t\tcursor: pointer;\n\t\t\tborder: 1px solid #ccc;\n\t\t\tborder-radius: 9999px;\n\t\t\tpadding: 0.75rem 1rem;\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.textarea {\n\t\t\tborder-radius: 0.5rem;\n\t\t\tpadding: 1rem;\n\t\t\tresize: none;\n\t\t\tborder-radius: 12px;\n\t\t\tborder: 0.5px solid var(--stroke-color);\n\t\t\tbackground: var(--Gray-colors-Gray-input-color, #F2F5F8);\n\t\t}\n\n\t\t.text-sm {\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.text-md {\n\t\t\tfont-size: 1rem;\n\t\t}\n\t\t\n\t\t.text-lg {\n\t\t\tfont-size: 1.25rem;\n\t\t}\n\n\t\t.btn {\n\t\t\tborder: none;\n\t\t\tborder-radius: var(--btn-radius);\n\t\t\tpadding: 1rem 1.25rem;\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.btn-primary {\n\t\t\tbackground-color: var(--primary-color);\n\t\t\tcolor: #FFFFFF;\n\t\t}\n\n\t\t.btn-secondary {\n\t\t\tborder: 1px solid var(--stroke-color);\n\t\t\tcolor: var(--primary-color);\n\t\t}\n\t</style><div class=\"wrapper\"><div class=\"header\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<style type=\"text/css\">\n\t\t.wrapper {\n\t\t\t--primary-color: #2E67B4;\n\t\t\t--stroke-color: #BDC8D2;\n\t\t\t--btn-radius: 0.75rem;\n\n\t\t\tborder: 1px solid #ccc;\n\t\t\tborder-radius: 0.5rem;\n\t\t\tmax-width: 480px;\n\t\t}\n\n\t\t.header{\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: row;\n\t\t\talign-items: center;\n\t\t\tgap: 0.5rem;\n\t\t\tbackground-color: var(--Black-colors-Color-black, #0A223E);\n\t\t\tcolor: var(--White-colors-Color-white, #FFFFFF);\n\t\t\tborder-radius: 0.5rem 0.5rem 0 0;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.header-text {\n\t\t\tflex: 1;\n\t\t}\n\n\t\t.body {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tgap: 0.75rem;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.faq {\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tflex-direction: row;\n\t\t\tgap: 0.75rem;\n\t\t}\n\n\t\t.faq-item {\n\t\t\tcursor: pointer;\n\t\t\tborder: 1px solid #ccc;\n\t\t\tborder-radius: 9999px;\n\t\t\tpadding: 0.75rem 1rem;\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.textarea {\n\t\t\tborder-radius: 0.5rem;\n\t\t\tpadding: 1rem;\n\t\t\tresize: none;\n\t\t\tborder-radius: 12px;\n\t\t\tborder: 0.5px solid var(--stroke-color);\n\t\t\tbackground: var(--Gray-colors-Gray-input-color, #F2F5F8);\n\t\t}\n\n\t\t.text-sm {\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.text-md {\n\t\t\tfont-size: 1rem;\n\t\t}\n\t\t\n\t\t.text-lg {\n\t\t\tfont-size: 1.25rem;\n\t\t}\n\n\t\t.btn {\n\t\t\tborder: none;\n\t\t\tborder-radius: var(--btn-radius);\n\t\t\tpadding: 1rem 1.25rem;\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.btn-primary {\n\t\t\tbackground-color: var(--primary-color);\n\t\t\tcolor: #FFFFFF;\n\t\t}\n\t\t\n\t\t.btn-primary:disabled {\n\t\t\tbackground-color: #E4E9EE;\n\t\t\tcolor: #BDC8D2;\n\t\t}\n\n\t\t.btn-secondary {\n\t\t\tbackground-color: #FFFFFF;\n\t\t\tborder: 1px solid var(--stroke-color);\n\t\t\tcolor: var(--primary-color);\n\t\t}\n\t</style><div class=\"wrapper\"><div class=\"header\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -78,7 +82,7 @@ func Chat() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div></div><div class=\"body\"><textarea rows=\"5\" placeholder=\"Введите вопрос\" class=\"textarea\"></textarea><div class=\"faq\"><div class=\"faq-item\">Как продлить полис?</div><div class=\"faq-item\">Где найти номер договора?</div><div class=\"faq-item\">Как подать заявление на страховой случай?</div></div><button class=\"btn btn-primary\">Отправить</button> <button class=\"btn btn-secondary\">Запрос обратного звонка</button></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div></div><div class=\"body\"><textarea rows=\"7\" placeholder=\"Введите вопрос\" class=\"textarea\"></textarea><div class=\"faq\"><div class=\"faq-item\">Как продлить полис?</div><div class=\"faq-item\">Где найти номер договора?</div><div class=\"faq-item\">Как подать заявление на страховой случай?</div></div><button class=\"btn btn-primary\" disabled>Отправить</button> <button class=\"btn btn-secondary\">Запрос обратного звонка</button></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
