@@ -21,9 +21,14 @@ func (c *AIChatController) Key() string {
 }
 
 func (c *AIChatController) Register(r *mux.Router) {
-	r.HandleFunc("/ai-chat", c.aiChat).Methods("GET")
+	r.HandleFunc("/ai-chat", c.aiChat).Methods(http.MethodGet)
+	r.HandleFunc("/ai-chat/test-wc", c.aiChatWC).Methods(http.MethodGet)
 }
 
 func (c *AIChatController) aiChat(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(aichat.Chat()).ServeHTTP(w, r)
+}
+
+func (c *AIChatController) aiChatWC(w http.ResponseWriter, r *http.Request) {
+	templ.Handler(aichat.WebComponent()).ServeHTTP(w, r)
 }

@@ -1,0 +1,13 @@
+package aichat
+
+import "github.com/iota-uz/iota-sdk/modules/website/presentation/assets"
+
+var (
+	chatScript = "/assets/" + assets.HashFS.HashName("js/aichat.js")
+)
+
+templ WebComponent() {
+	<script src={ chatScript }>
+	</script>
+	<ai-chat-widget></ai-chat-widget>
+}

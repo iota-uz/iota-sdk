@@ -1,6 +1,7 @@
 package website
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/website/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
@@ -24,6 +25,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewAIChatController(app),
 	)
+	app.RegisterHashFsAssets(assets.HashFS)
 	return nil
 }
 
