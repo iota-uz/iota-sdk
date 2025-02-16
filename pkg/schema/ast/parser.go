@@ -9,7 +9,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.New()
+var logger = logrus.New()
+
+func init() {
+	logger.SetLevel(logrus.InfoLevel)
+}
 
 // Basic SQL parsing patterns
 var (
@@ -45,7 +49,7 @@ func (p *Parser) parseCreateTable(stmt string) (*types.Node, error) {
 	// Split column definitions by commas, handling nested parentheses
 	columns := p.splitColumnDefinitions(columnsDef)
 
-	log.Printf("Parsing table %s with raw columns: %v", tableName, columns) // Add debug logging
+	logger.Debugf("Parsing table %s with raw columns: %v", tableName, columns)
 
 	// Parse each column/constraint definition
 	for _, def := range columns {
@@ -54,7 +58,7 @@ func (p *Parser) parseCreateTable(stmt string) (*types.Node, error) {
 			continue
 		}
 
-		log.Printf("Parsing column definition: %s", def) // Add debug logging
+		logger.Debugf("Parsing column definition: %s", def)
 
 		if constraintMatch := constraintPattern.FindStringSubmatch(def); constraintMatch != nil {
 			constraintName := fmt.Sprintf("%s_%s_%d", tableName, strings.ToLower(constraintMatch[1]), len(tableNode.Children))
@@ -73,12 +77,12 @@ func (p *Parser) parseCreateTable(stmt string) (*types.Node, error) {
 
 		// Parse column definition with full details
 		if column := p.ParseColumnDefinition(def); column != nil {
-			log.Printf("Found column: %s", column.Name) // Add debug logging
+			logger.Debugf("Found column: %s", column.Name)
 			tableNode.Children = append(tableNode.Children, column)
 		}
 	}
 
-	log.Printf("Finished parsing table %s with %d columns", tableName, len(tableNode.Children))
+	logger.Debugf("Finished parsing table %s with %d columns", tableName, len(tableNode.Children))
 	return tableNode, nil
 }
 
@@ -272,7 +276,7 @@ func (p *Parser) parseAlterTable(stmt string) (*types.Node, error) {
 					},
 				}
 				node.Children = append(node.Children, column)
-				log.Printf("Parsed ALTER COLUMN: %s new type: %s", colName, typeStr)
+				logger.Debugf("Parsed ALTER COLUMN: %s new type: %s", colName, typeStr)
 			}
 		}
 	} else if strings.HasPrefix(strings.ToUpper(alterDef), "ADD COLUMN") {
@@ -304,7 +308,7 @@ func (p *Parser) Parse(sql string) (*types.SchemaTree, error) {
 				return nil, err
 			}
 			if node != nil {
-				log.Printf("Adding table %s with %d columns", node.Name, len(node.Children))
+				logger.Debugf("Adding table %s with %d columns", node.Name, len(node.Children))
 				tree.Root.Children = append(tree.Root.Children, node)
 			}
 		}
@@ -331,10 +335,10 @@ func (p *Parser) Parse(sql string) (*types.SchemaTree, error) {
 	// Log final state
 	for _, node := range tree.Root.Children {
 		if node.Type == types.NodeTable {
-			log.Printf("Final table state - %s: %d columns", node.Name, len(node.Children))
+			logger.Debugf("Final table state - %s: %d columns", node.Name, len(node.Children))
 			for _, col := range node.Children {
 				if col.Type == types.NodeColumn {
-					log.Printf("  Column: %s", col.Name)
+					logger.Debugf("  Column: %s", col.Name)
 				}
 			}
 		}
@@ -385,7 +389,7 @@ func (p *Parser) applyAlterTableToTree(tree *types.SchemaTree, alterNode *types.
 						tableNode.Children[i].Metadata["fullType"] = child.Metadata["fullType"]
 						tableNode.Children[i].Metadata["definition"] = child.Metadata["definition"]
 						tableNode.Children[i].Metadata["rawType"] = child.Metadata["rawType"]
-						log.Printf("Updated column %s in table %s with new type: %s",
+						logger.Debugf("Updated column %s in table %s with new type: %s",
 							child.Name, tableName, child.Metadata["fullType"])
 						found = true
 						break
@@ -394,7 +398,7 @@ func (p *Parser) applyAlterTableToTree(tree *types.SchemaTree, alterNode *types.
 				if !found {
 					// If column doesn't exist, add it
 					tableNode.Children = append(tableNode.Children, child)
-					log.Printf("Added new column %s to table %s with type: %s",
+					logger.Debugf("Added new column %s to table %s with type: %s",
 						child.Name, tableName, child.Metadata["fullType"])
 				}
 			}
@@ -412,7 +416,7 @@ func (p *Parser) applyAlterTableToTree(tree *types.SchemaTree, alterNode *types.
 				}
 				if !exists {
 					tableNode.Children = append(tableNode.Children, child)
-					log.Printf("Added column %s to table %s", child.Name, tableName)
+					logger.Debugf("Added column %s to table %s", child.Name, tableName)
 				}
 			}
 		}
@@ -423,17 +427,17 @@ func (p *Parser) applyAlterTableToTree(tree *types.SchemaTree, alterNode *types.
 			if child.Type != types.NodeColumn || !strings.EqualFold(child.Name, columnName) {
 				newChildren = append(newChildren, child)
 			} else {
-				log.Printf("Dropped column %s from table %s", child.Name, tableName)
+				logger.Debugf("Dropped column %s from table %s", child.Name, tableName)
 			}
 		}
 		tableNode.Children = newChildren
 	}
 
 	// Log the final state of the table after applying changes
-	log.Printf("Final table state - %s: %d columns", tableName, len(tableNode.Children))
+	logger.Debugf("Final table state - %s: %d columns", tableName, len(tableNode.Children))
 	for _, col := range tableNode.Children {
 		if col.Type == types.NodeColumn {
-			log.Printf("  Column: %s Type: %s", col.Name, col.Metadata["fullType"])
+			logger.Debugf("  Column: %s Type: %s", col.Name, col.Metadata["fullType"])
 		}
 	}
 }

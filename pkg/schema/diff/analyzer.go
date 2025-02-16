@@ -11,13 +11,7 @@ import (
 var logger = logrus.New()
 
 func init() {
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-		DisableColors:   false,
-		DisableSorting:  true,
-	})
+	logger.SetLevel(logrus.InfoLevel)
 
 	// Test log to verify logger is working
 	logger.Debug("Schema analyzer logger initialized")
@@ -51,7 +45,6 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 	oldTables := make(map[string]*types.Node)
 	newTables := make(map[string]*types.Node)
 
-	logger.Info("Processing old schema tables")
 	for _, node := range a.oldSchema.Root.Children {
 		if node.Type == types.NodeTable {
 			tableName := strings.ToLower(node.Name)
@@ -59,11 +52,10 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 			logger.WithFields(logrus.Fields{
 				"table":   node.Name,
 				"columns": len(node.Children),
-			}).Info("Loaded table from old schema")
+			}).Debug("Loaded table from old schema")
 		}
 	}
 
-	logger.Info("Processing new schema tables")
 	// Find added and modified tables
 	for _, node := range a.newSchema.Root.Children {
 		if node.Type == types.NodeTable {
@@ -72,13 +64,13 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 			logger.WithFields(logrus.Fields{
 				"table":   node.Name,
 				"columns": len(node.Children),
-			}).Info("Processing table from new schema")
+			}).Debug("Processing table from new schema")
 
 			oldTable, exists := oldTables[tableName]
 			if !exists {
 				logger.WithFields(logrus.Fields{
 					"table": node.Name,
-				}).Info("Found new table")
+				}).Debug("Found new table")
 				changes.Changes = append(changes.Changes, &Change{
 					Type:       CreateTable,
 					Object:     node,
@@ -91,7 +83,7 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 					"table":       node.Name,
 					"old_columns": len(oldTable.Children),
 					"new_columns": len(node.Children),
-				}).Info("Comparing existing table")
+				}).Debug("Comparing existing table")
 
 				tableDiffs := a.compareTable(oldTable, node)
 				for _, diff := range tableDiffs {
@@ -104,7 +96,7 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 							"table":       node.Name,
 							"column":      diff.Object.Name,
 							"parent_name": diff.ParentName,
-						}).Info("Processing column change")
+						}).Debug("Processing column change")
 					} else {
 						diff.ObjectName = node.Name
 					}
@@ -115,10 +107,9 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 	}
 
 	// Find dropped tables
-	logger.Info("Checking for dropped tables")
 	for name, node := range oldTables {
 		if _, exists := newTables[strings.ToLower(name)]; !exists {
-			logger.WithField("table", name).Info("Found dropped table")
+			logger.WithField("table", name).Debug("Found dropped table")
 			changes.Changes = append(changes.Changes, &Change{
 				Type:       DropTable,
 				Object:     node,
@@ -195,7 +186,7 @@ func (a *Analyzer) compareTable(oldTable, newTable *types.Node) []*Change {
 						"new_type":        child.Metadata["type"],
 						"old_constraints": oldCol.Metadata["constraints"],
 						"new_constraints": child.Metadata["constraints"],
-					}).Info("Found modified column")
+					}).Debug("Found modified column")
 
 					changes = append(changes, &Change{
 						Type:       ModifyColumn,
@@ -215,7 +206,7 @@ func (a *Analyzer) compareTable(oldTable, newTable *types.Node) []*Change {
 				}
 			} else {
 				// New column
-				logger.WithField("table", newTable.Name).Info("Found new column")
+				logger.WithField("table", newTable.Name).Debug("Found new column")
 				changes = append(changes, &Change{
 					Type:       AddColumn,
 					Object:     child,
@@ -230,7 +221,7 @@ func (a *Analyzer) compareTable(oldTable, newTable *types.Node) []*Change {
 	// Check for dropped columns
 	for colName, oldCol := range oldCols {
 		if _, exists := newCols[colName]; !exists {
-			logger.WithField("table", newTable.Name).Info("Found dropped column")
+			logger.WithField("table", newTable.Name).Debug("Found dropped column")
 			changes = append(changes, &Change{
 				Type:       DropColumn,
 				Object:     oldCol,
@@ -276,7 +267,7 @@ func (a *Analyzer) columnsEqual(oldCol, newCol *types.Node) bool {
 			"column":        oldCol.Name,
 			"old_full_type": oldFullType,
 			"new_full_type": newFullType,
-		}).Info("Full type definitions differ")
+		}).Debug("Full type definitions differ")
 		return false
 	}
 
@@ -291,7 +282,7 @@ func (a *Analyzer) columnsEqual(oldCol, newCol *types.Node) bool {
 			"new_type": newType,
 			"old_base": oldBaseType,
 			"new_base": newBaseType,
-		}).Info("Base type mismatch")
+		}).Debug("Base type mismatch")
 		return false
 	}
 
@@ -315,7 +306,7 @@ func (a *Analyzer) columnsEqual(oldCol, newCol *types.Node) bool {
 				"new_type": newType,
 				"old_len":  oldLen,
 				"new_len":  newLen,
-			}).Info("VARCHAR length specification mismatch")
+			}).Debug("VARCHAR length specification mismatch")
 			return false
 		}
 
@@ -327,7 +318,7 @@ func (a *Analyzer) columnsEqual(oldCol, newCol *types.Node) bool {
 				"new_type": newType,
 				"old_len":  oldLen,
 				"new_len":  newLen,
-			}).Info("VARCHAR length mismatch")
+			}).Debug("VARCHAR length mismatch")
 			return false
 		}
 	}
@@ -345,7 +336,7 @@ func (a *Analyzer) columnsEqual(oldCol, newCol *types.Node) bool {
 			"column":          oldCol.Name,
 			"old_constraints": oldConstraints,
 			"new_constraints": newConstraints,
-		}).Info("Constraint mismatch")
+		}).Debug("Constraint mismatch")
 		return false
 	}
 
@@ -368,11 +359,4 @@ func normalizeConstraints(constraints string) string {
 
 	// Join back together
 	return strings.Join(parts, " ")
-}
-
-func (a *Analyzer) sortChangesByDependencies(changes *ChangeSet) {
-	// Simple topological sort based on dependencies
-	// Tables should be created before their references
-	// Columns should be added after their tables
-	// Constraints should be added after their columns
 }

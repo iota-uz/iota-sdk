@@ -2,7 +2,6 @@ package diff
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/schema/dialect"
 	"github.com/iota-uz/iota-sdk/pkg/schema/types"
+	"github.com/sirupsen/logrus"
 )
 
 // Generator handles creation of migration files from detected changes
@@ -18,6 +18,7 @@ type Generator struct {
 	outputDir string
 	templates map[ChangeType]string
 	options   GeneratorOptions
+	logger    *logrus.Logger
 }
 
 type GeneratorOptions struct {
@@ -25,6 +26,7 @@ type GeneratorOptions struct {
 	OutputDir      string
 	FileNameFormat string
 	IncludeDown    bool
+	Logger         *logrus.Logger
 }
 
 // Generate creates migration files from a change set
@@ -46,23 +48,23 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	}
 
 	filePath := filepath.Join(g.outputDir, fileName)
-	log.Printf("Generating migration file: %s", filePath)
+	g.logger.Infof("Generating migration file: %s", filePath)
 
 	var statements []string
 	for _, change := range changes.Changes {
 		stmt, err := g.generateChangeStatement(change)
 		if err != nil {
-			log.Printf("Error generating statement: %v", err)
+			g.logger.Infof("Error generating statement: %v", err)
 			continue
 		}
 		if stmt != "" {
-			log.Printf("Generated SQL: %s", stmt)
+			g.logger.Debugf("Generated SQL: %s", stmt)
 			statements = append(statements, stmt)
 		}
 	}
 
 	if len(statements) == 0 {
-		log.Printf("No statements generated")
+		g.logger.Info("No statements generated")
 		return nil
 	}
 
@@ -80,7 +82,6 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	if err := os.WriteFile(filePath, []byte(content.String()), 0644); err != nil {
 		return fmt.Errorf("failed to write migration file: %w", err)
 	}
-	log.Printf("Successfully wrote migration file")
 
 	// Generate down migration if enabled
 	if g.options.IncludeDown {
@@ -153,7 +154,7 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return stmt.String(), nil
 
 	case ModifyColumn:
-		log.Printf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		g.logger.Debugf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			// Extract type and constraints from the definition
 			parts := strings.SplitN(def, " ", 2)
@@ -190,14 +191,14 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return "", fmt.Errorf("missing column definition for %s", change.ObjectName)
 
 	case AddColumn:
-		log.Printf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
-		log.Printf("Column metadata: %+v", change.Object.Metadata)
+		g.logger.Debugf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		g.logger.Debugf("Column metadata: %+v", change.Object.Metadata)
 
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s;",
 				change.ParentName,
 				def)
-			log.Printf("Generated statement: %s", stmt)
+			g.logger.Debugf("Generated statement: %s", stmt)
 			return stmt, nil
 		}
 
@@ -211,7 +212,7 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			change.ParentName,
 			change.ObjectName,
 			rawType)
-		log.Printf("Generated fallback statement: %s", stmt)
+		g.logger.Debugf("Generated fallback statement: %s", stmt)
 		return stmt, nil
 
 	case AddConstraint:
@@ -293,11 +294,18 @@ func NewGenerator(opts GeneratorOptions) (*Generator, error) {
 		return nil, fmt.Errorf("unsupported dialect: %s", opts.Dialect)
 	}
 
+	logger := opts.Logger
+	if logger == nil {
+		logger = logrus.New()
+		logger.SetLevel(logrus.InfoLevel)
+	}
+
 	return &Generator{
 		dialect:   d,
 		outputDir: opts.OutputDir,
 		options:   opts,
 		templates: loadDefaultTemplates(),
+		logger:    logger,
 	}, nil
 }
 

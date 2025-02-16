@@ -3,7 +3,6 @@ package collector
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/schema/dialect"
 	"github.com/iota-uz/iota-sdk/pkg/schema/diff"
 	"github.com/iota-uz/iota-sdk/pkg/schema/types"
+	"github.com/sirupsen/logrus"
 )
 
 // Collector handles collecting and analyzing migrations from modules
@@ -23,6 +23,7 @@ type Collector struct {
 	parser     *ast.Parser
 	migrations map[string]*types.SchemaTree
 	dialect    dialect.Dialect
+	logger     *logrus.Logger
 }
 
 // Config holds collector configuration
@@ -30,6 +31,7 @@ type Config struct {
 	ModulesPath    string
 	MigrationsPath string
 	SQLDialect     string
+	Logger         *logrus.Logger
 }
 
 // New creates a new migration collector
@@ -39,27 +41,34 @@ func New(cfg Config) *Collector {
 		d = dialect.NewPostgresDialect() // Default to PostgreSQL
 	}
 
+	logger := cfg.Logger
+	if logger == nil {
+		logger = logrus.New()
+		logger.SetLevel(logrus.InfoLevel)
+	}
+
 	return &Collector{
 		baseDir:    cfg.MigrationsPath,
 		modulesDir: cfg.ModulesPath,
 		parser:     ast.NewParser(cfg.SQLDialect, ast.ParserOptions{StrictMode: true}),
 		migrations: make(map[string]*types.SchemaTree),
 		dialect:    d,
+		logger:     logger,
 	}
 }
 
 // CollectMigrations gathers all migrations from modules and analyzes changes
 func (c *Collector) CollectMigrations(ctx context.Context) (*diff.ChangeSet, error) {
-	log.Printf("Starting CollectMigrations")
+	c.logger.Info("Starting CollectMigrations")
 
 	oldTree, err := c.loadExistingSchema()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load existing schema: %w", err)
 	}
-	log.Printf("Loaded existing schema with %d tables", len(oldTree.Root.Children))
+	c.logger.Infof("Loaded existing schema with %d tables", len(oldTree.Root.Children))
 	for _, node := range oldTree.Root.Children {
 		if node.Type == types.NodeTable {
-			log.Printf("Existing schema table: %s with %d columns", node.Name, len(node.Children))
+			c.logger.Debugf("Existing schema table: %s with %d columns", node.Name, len(node.Children))
 		}
 	}
 
@@ -67,14 +76,14 @@ func (c *Collector) CollectMigrations(ctx context.Context) (*diff.ChangeSet, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to load module schema: %w", err)
 	}
-	log.Printf("Loaded module schema with %d tables", len(newTree.Root.Children))
+	c.logger.Debugf("Loaded module schema with %d tables", len(newTree.Root.Children))
 	for _, node := range newTree.Root.Children {
 		if node.Type == types.NodeTable {
-			log.Printf("Module schema table: %s with %d columns", node.Name, len(node.Children))
+			c.logger.Debugf("Module schema table: %s with %d columns", node.Name, len(node.Children))
 		}
 	}
 
-	log.Printf("Creating analyzer for schema comparison")
+	c.logger.Info("Creating analyzer for schema comparison")
 	analyzer := diff.NewAnalyzer(oldTree, newTree, diff.AnalyzerOptions{
 		IgnoreCase:          true,
 		IgnoreWhitespace:    true,
@@ -82,13 +91,11 @@ func (c *Collector) CollectMigrations(ctx context.Context) (*diff.ChangeSet, err
 		ValidateConstraints: true,
 	})
 
-	log.Printf("Starting schema comparison")
 	changes, err := analyzer.Compare()
 	if err != nil {
-		log.Printf("Error during comparison: %v", err)
+		c.logger.Errorf("Error during comparison: %v", err)
 		return nil, err
 	}
-	log.Printf("Completed schema comparison, found %d changes", len(changes.Changes))
 
 	// Ensure each CREATE TABLE change has complete column information
 	for i, change := range changes.Changes {
@@ -163,13 +170,13 @@ func (c *Collector) enrichTableNode(node *types.Node) *types.Node {
 
 func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 	tree := ast.NewSchemaTree()
-	log.Printf("Loading existing schema from: %s", c.baseDir)
+	c.logger.Infof("Loading existing schema filesfrom: %s", c.baseDir)
 
 	// Read migration files
 	files, err := os.ReadDir(c.baseDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("No existing migrations directory found at: %s", c.baseDir)
+			c.logger.Infof("No existing migrations directory found at: %s", c.baseDir)
 			return tree, nil
 		}
 		return nil, err
@@ -208,25 +215,25 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 
 	// Process migrations in chronological order
 	for _, fileName := range migrationFiles {
-		log.Printf("Processing migration file: %s", fileName)
+		c.logger.Infof("Processing migration file: %s", fileName)
 		timestamp := strings.TrimSuffix(strings.TrimPrefix(fileName, "changes-"), ".sql")
 		ts, err := strconv.ParseInt(timestamp, 10, 64)
 		if err != nil {
-			log.Printf("Warning: invalid timestamp in filename %s: %v", fileName, err)
+			c.logger.Warnf("Invalid timestamp in filename %s: %v", fileName, err)
 			continue
 		}
 
 		path := filepath.Join(c.baseDir, fileName)
 		content, err := os.ReadFile(path)
 		if err != nil {
-			log.Printf("Warning: failed to read file %s: %v", path, err)
+			c.logger.Warnf("Failed to read file %s: %v", path, err)
 			continue
 		}
 
 		sql := string(content)
 		parsed, err := c.parser.Parse(sql)
 		if err != nil {
-			log.Printf("Warning: failed to parse file %s: %v", path, err)
+			c.logger.Warnf("Failed to parse file %s: %v", path, err)
 			continue
 		}
 
@@ -254,7 +261,7 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 
 						// Only update if this is a newer state and the type has actually changed
 						if currentState == nil {
-							log.Printf("New column state for %s.%s in file %s (type: %s)",
+							c.logger.Debugf("New column state for %s.%s in file %s (type: %s)",
 								tableName, colName, fileName, newType)
 							tableStates[tableName][colName] = &ColumnState{
 								Node:      col,
@@ -263,7 +270,7 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 								LastFile:  fileName,
 							}
 						} else if ts > currentState.Timestamp && newType != currentState.Type {
-							log.Printf("Updating column state for %s.%s from file %s (old_type: %s, new_type: %s)",
+							c.logger.Debugf("Updating column state for %s.%s from file %s (old_type: %s, new_type: %s)",
 								tableName, colName, fileName, currentState.Type, newType)
 							tableStates[tableName][colName] = &ColumnState{
 								Node:      col,
@@ -272,7 +279,7 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 								LastFile:  fileName,
 							}
 						} else {
-							log.Printf("Skipping update for %s.%s (current_type: %s, new_type: %s, current_file: %s)",
+							c.logger.Debugf("Skipping update for %s.%s (current_type: %s, new_type: %s, current_file: %s)",
 								tableName, colName, currentState.Type, newType, currentState.LastFile)
 						}
 					}
@@ -293,7 +300,7 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 		// Add only the most recent state of each column
 		for colName, state := range columns {
 			tableNode.Children = append(tableNode.Children, state.Node)
-			log.Printf("Final state for %s.%s: type=%s from file=%s",
+			c.logger.Debugf("Final state for %s.%s: type=%s from file=%s",
 				tableName, colName, state.Type, state.LastFile)
 		}
 
@@ -305,7 +312,7 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 
 func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 	tree := ast.NewSchemaTree()
-	log.Printf("Loading module schema from: %s", c.modulesDir)
+	c.logger.Infof("Loading module schema files from: %s", c.modulesDir)
 
 	// Track processed tables to avoid duplicates
 	processedTables := make(map[string]bool)
@@ -315,7 +322,7 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(path, "-schema.sql") {
-			log.Printf("Processing schema file: %s", path)
+			c.logger.Infof("Processing schema file: %s", path)
 			content, err := os.ReadFile(path)
 			if err != nil {
 				return fmt.Errorf("failed to read file %s: %w", path, err)
@@ -324,7 +331,7 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 			sqlContent := string(content)
 			parsed, err := c.parser.Parse(sqlContent)
 			if err != nil {
-				log.Printf("Warning: failed to parse file %s: %v", path, err)
+				c.logger.Warnf("Failed to parse file %s: %v", path, err)
 				return nil
 			}
 
@@ -332,18 +339,18 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 			for _, node := range parsed.Root.Children {
 				if node.Type == types.NodeTable {
 					tableName := strings.ToLower(node.Name)
-					log.Printf("Found table: %s with %d columns", node.Name, len(node.Children))
+					c.logger.Debugf("Found table: %s with %d columns", node.Name, len(node.Children))
 
 					// Skip if we've already processed this table
 					if processedTables[tableName] {
-						log.Printf("Skipping duplicate table: %s", node.Name)
+						c.logger.Debugf("Skipping duplicate table: %s", node.Name)
 						continue
 					}
 					processedTables[tableName] = true
 
 					for _, col := range node.Children {
 						if col.Type == types.NodeColumn {
-							log.Printf("  Column: %s, Type: %s, Constraints: %s",
+							c.logger.Debugf("  Column: %s, Type: %s, Constraints: %s",
 								col.Name,
 								col.Metadata["type"],
 								col.Metadata["constraints"])
@@ -352,7 +359,7 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 
 					// Add table to tree
 					tree.Root.Children = append(tree.Root.Children, node)
-					log.Printf("Added table %s from %s", node.Name, path)
+					c.logger.Debugf("Added table %s from %s", node.Name, path)
 				}
 			}
 		}
@@ -360,13 +367,13 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 	})
 
 	// Log final state
-	log.Printf("Final module schema state:")
+	c.logger.Debug("Final module schema state:")
 	for _, node := range tree.Root.Children {
 		if node.Type == types.NodeTable {
-			log.Printf("Table %s has %d columns", node.Name, len(node.Children))
+			c.logger.Debugf("Table %s has %d columns", node.Name, len(node.Children))
 			for _, col := range node.Children {
 				if col.Type == types.NodeColumn {
-					log.Printf("  Column: %s, Type: %s, Constraints: %s",
+					c.logger.Debugf("  Column: %s, Type: %s, Constraints: %s",
 						col.Name,
 						col.Metadata["type"],
 						col.Metadata["constraints"])
@@ -381,16 +388,15 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 // StoreMigrations writes detected changes to migration files
 func (c *Collector) StoreMigrations(changes *diff.ChangeSet) error {
 	if changes == nil || len(changes.Changes) == 0 {
-		log.Printf("No changes to store")
+		c.logger.Info("No changes to store")
 		return nil
 	}
 
-	log.Printf("Found %d changes to store", len(changes.Changes))
 	for _, change := range changes.Changes {
-		log.Printf("Change details: Type=%s, Table=%s, Column=%s, ParentName=%s",
+		c.logger.Debugf("Change details: Type=%s, Table=%s, Column=%s, ParentName=%s",
 			change.Type, change.ObjectName, change.Object.Name, change.ParentName)
 		if change.Object != nil && change.Object.Metadata != nil {
-			log.Printf("Change metadata: %+v", change.Object.Metadata)
+			c.logger.Debugf("Change metadata: %+v", change.Object.Metadata)
 		}
 	}
 
@@ -399,52 +405,19 @@ func (c *Collector) StoreMigrations(changes *diff.ChangeSet) error {
 		OutputDir:      c.baseDir,
 		FileNameFormat: "changes-%d.sql",
 		IncludeDown:    true,
+		Logger:         c.logger,
 	})
 	if err != nil {
-		log.Printf("Failed to create generator: %v", err)
+		c.logger.Errorf("Failed to create generator: %v", err)
 		return fmt.Errorf("failed to create migration generator: %w", err)
 	}
 
-	log.Printf("Created generator with output dir: %s", c.baseDir)
+	c.logger.Debugf("Created generator with output dir: %s", c.baseDir)
 	if err := generator.Generate(changes); err != nil {
-		log.Printf("Error generating migrations: %v", err)
+		c.logger.Errorf("Error generating migrations: %v", err)
 		return err
 	}
 
-	log.Printf("Successfully generated migration files")
+	c.logger.Info("Successfully generated migration files")
 	return nil
-}
-
-func (c *Collector) mergeTableNodes(existing, new *types.Node) *types.Node {
-	// Create a new node to avoid modifying the original
-	merged := &types.Node{
-		Type:     types.NodeTable,
-		Name:     existing.Name,
-		Children: make([]*types.Node, 0),
-		Metadata: make(map[string]interface{}),
-	}
-
-	// Copy metadata from the new node
-	for k, v := range new.Metadata {
-		merged.Metadata[k] = v
-	}
-
-	// Create a map of existing columns and constraints
-	existingChildren := make(map[string]*types.Node)
-	for _, child := range existing.Children {
-		existingChildren[strings.ToLower(child.Name)] = child
-	}
-
-	// Process new children, overwriting or adding as needed
-	for _, child := range new.Children {
-		merged.Children = append(merged.Children, child)
-		delete(existingChildren, strings.ToLower(child.Name))
-	}
-
-	// Add remaining existing children that weren't overwritten
-	for _, child := range existingChildren {
-		merged.Children = append(merged.Children, child)
-	}
-
-	return merged
 }
