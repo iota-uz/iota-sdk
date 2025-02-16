@@ -292,6 +292,12 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 									}
 									currentState.Node.Metadata["type"] = newType
 									currentState.Node.Metadata["fullType"] = newType
+									// Update the full definition to match the new type
+									currentState.Node.Metadata["definition"] = fmt.Sprintf("%s %s", columnName, newType)
+									if constraints, ok := currentState.Node.Metadata["constraints"].(string); ok && constraints != "" {
+										currentState.Node.Metadata["definition"] = fmt.Sprintf("%s %s %s",
+											columnName, newType, strings.TrimSpace(constraints))
+									}
 									currentState.Timestamp = ts
 									currentState.LastFile = fileName
 								}
@@ -410,7 +416,7 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(path, "-schema.sql") {
+		if !info.IsDir() && strings.HasSuffix(path, ".sql") {
 			c.logger.Infof("Processing schema file: %s", path)
 			content, err := os.ReadFile(path)
 			if err != nil {
