@@ -12,12 +12,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
-	"github.com/iota-uz/iota-sdk/pkg/schema/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var (
-	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', 'collect', 'detect', 'generate', or 'validate' subcommands")
+	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', or 'collect' subcommands")
 )
 
 // ensureDirectories creates necessary directories if they don't exist
@@ -45,7 +44,7 @@ func Migrate(mods ...application.Module) error {
 	defer cancel()
 
 	switch command {
-	case "collect", "detect", "generate", "validate":
+	case "collect":
 		return handleSchemaCommands(ctx, command)
 	default:
 		conf := configuration.Use()
@@ -73,11 +72,6 @@ func handleSchemaCommands(ctx context.Context, command string) error {
 		SQLDialect:     "postgres",
 	})
 
-	store, err := migrations.NewStore(migrationsPath)
-	if err != nil {
-		return fmt.Errorf("failed to initialize migration store: %w", err)
-	}
-
 	switch command {
 	case "collect":
 		changes, err := collector.CollectMigrations(ctx)
@@ -85,40 +79,6 @@ func handleSchemaCommands(ctx context.Context, command string) error {
 			return fmt.Errorf("failed to collect migrations: %w", err)
 		}
 		return collector.StoreMigrations(changes)
-
-	case "detect":
-		changes, err := collector.CollectMigrations(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to detect schema changes: %w", err)
-		}
-		if len(changes.Changes) == 0 {
-			fmt.Println("No schema changes detected")
-			return nil
-		}
-		fmt.Printf("Detected %d schema changes\n", len(changes.Changes))
-		for _, change := range changes.Changes {
-			fmt.Printf("- %s: %s\n", change.Type, change.ObjectName)
-		}
-		return collector.StoreMigrations(changes)
-
-	case "generate":
-		changes, err := collector.CollectMigrations(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to generate migration: %w", err)
-		}
-		return collector.StoreMigrations(changes)
-
-	case "validate":
-		errors := store.ValidateMigrations()
-		if len(errors) == 0 {
-			fmt.Println("All migrations are valid")
-			return nil
-		}
-		fmt.Printf("Found %d validation errors:\n", len(errors))
-		for _, err := range errors {
-			fmt.Printf("- %s\n", err)
-		}
-		return fmt.Errorf("migration validation failed")
 
 	default:
 		return fmt.Errorf("unknown schema command: %s", command)
@@ -157,7 +117,7 @@ func handleMigrationCommands(ctx context.Context, command string, conf *configur
 		}
 
 	default:
-		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'collect', 'detect', 'generate', 'validate'", command)
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'collect'", command)
 	}
 
 	return nil
