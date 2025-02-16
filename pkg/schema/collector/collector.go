@@ -32,6 +32,7 @@ type Config struct {
 	MigrationsPath string
 	SQLDialect     string
 	Logger         *logrus.Logger
+	LogLevel       logrus.Level
 }
 
 // New creates a new migration collector
@@ -44,7 +45,9 @@ func New(cfg Config) *Collector {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = logrus.New()
-		logger.SetLevel(logrus.InfoLevel)
+		logger.SetLevel(cfg.LogLevel)
+	} else {
+		logger.SetLevel(cfg.LogLevel)
 	}
 
 	return &Collector{
