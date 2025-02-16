@@ -1,6 +1,14 @@
 package aichat
 
-import icons "github.com/iota-uz/icons/phosphor"
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
 
 templ ChatIcon() {
 	<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -23,10 +31,12 @@ templ ChatIcon() {
 }
 
 type Props struct {
-	Starters []string
+	Title       string
+	Description string
+	Starters    []string
 }
 
-templ Chat() {
+templ Chat(props Props) {
 	<style type="text/css">
 		.wrapper {
 			--primary-color: #2E67B4;
@@ -84,36 +94,37 @@ templ Chat() {
 			background: var(--Gray-colors-Gray-input-color, #F2F5F8);
 		}
 
-		.text-sm {
+		.wrapper .text-sm {
 			font-size: 0.875rem;
 		}
 
-		.text-md {
+		.wrapper .text-md {
 			font-size: 1rem;
 		}
 		
-		.text-lg {
+		.wrapper .text-lg {
 			font-size: 1.25rem;
 		}
 
-		.btn {
-			border: none;
+		.wrapper .btn {
+			display: flex;
+			justify-content: center;
 			border-radius: var(--btn-radius);
 			padding: 1rem 1.25rem;
 			cursor: pointer;
 		}
 
-		.btn-primary {
+		.wrapper .btn-primary {
 			background-color: var(--primary-color);
 			color: #FFFFFF;
 		}
 		
-		.btn-primary:disabled {
+		.wrapper .btn-primary:disabled {
 			background-color: #E4E9EE;
 			color: #BDC8D2;
 		}
 
-		.btn-secondary {
+		.wrapper .btn-secondary {
 			background-color: #FFFFFF;
 			border: 1px solid var(--stroke-color);
 			color: var(--primary-color);
@@ -124,10 +135,10 @@ templ Chat() {
 			@ChatIcon()
 			<div class="header-text">
 				<div class="text-lg">
-					AI chat bot
+					{ props.Title }
 				</div>
 				<div class="text-sm">
-					Наш AI-бот готов помочь вам круглосуточно
+					{ props.Description }
 				</div>
 			</div>
 			<div>
@@ -143,15 +154,7 @@ templ Chat() {
 				class="textarea"
 			></textarea>
 			<div class="faq">
-				<div class="faq-item">
-					Как продлить полис?
-				</div>
-				<div class="faq-item">
-					Где найти номер договора?
-				</div>
-				<div class="faq-item">
-					Как подать заявление на страховой случай?
-				</div>
+				<slot></slot>
 			</div>
 			<button
 				class="btn btn-primary"
@@ -164,4 +167,33 @@ templ Chat() {
 			</button>
 		</div>
 	</div>
+}
+
+// ---- Configuration ----
+templ Configure(props Props) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("AIChatBot.Meta.Title"),
+	}) {
+		<div class="flex gap-10 items-stretch p-10">
+			@card.Card(card.Props{WrapperClass: "flex-1"}) {
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("AIChatBot.Title.Label"),
+					Placeholder: pageCtx.T("AIChatBot.Title.Placeholder"),
+				})
+				@textarea.Basic(&textarea.Props{
+					Label:       pageCtx.T("AIChatBot.Description.Label"),
+					Placeholder: pageCtx.T("AIChatBot.Description.Placeholder"),
+				})
+				<div class="flex justify-end">
+					@button.Primary(button.Props{
+						Size: button.SizeMD,
+					}) {
+						{ pageCtx.T("Save") }
+					}
+				</div>
+			}
+			@Chat(props)
+		</div>
+	}
 }
