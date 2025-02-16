@@ -55,7 +55,7 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	for _, change := range changes.Changes {
 		stmt, err := g.generateChangeStatement(change)
 		if err != nil {
-			logger.Infof("Error generating statement: %v", err)
+			logger.Warnf("Error generating statement: %v", err)
 			continue
 		}
 		if stmt != "" {
@@ -69,8 +69,9 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 		return nil
 	}
 
-	// Join statements with proper spacing
+	// Join statements with proper spacing and add migration marker
 	var content strings.Builder
+	content.WriteString("-- +migrate Up\n\n")
 	for i, stmt := range statements {
 		stmt = strings.TrimRight(stmt, ";") + ";"
 		content.WriteString(stmt)
@@ -92,6 +93,7 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 		downStatements := g.generateDownStatements(changes)
 		if len(downStatements) > 0 {
 			var downContent strings.Builder
+			downContent.WriteString("-- +migrate Down\n\n")
 			for i, stmt := range downStatements {
 				stmt = strings.TrimRight(stmt, ";") + ";"
 				downContent.WriteString(stmt)

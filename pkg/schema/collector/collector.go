@@ -173,7 +173,7 @@ func (c *Collector) enrichTableNode(node *types.Node) *types.Node {
 
 func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 	tree := ast.NewSchemaTree()
-	c.logger.Infof("Loading existing schema filesfrom: %s", c.baseDir)
+	c.logger.Infof("Loading existing schema files from: %s", c.baseDir)
 
 	// Read migration files
 	files, err := os.ReadDir(c.baseDir)
@@ -513,6 +513,6 @@ func (c *Collector) StoreMigrations(changes *diff.ChangeSet) error {
 		return err
 	}
 
-	c.logger.Info("Successfully generated migration files")
+	c.logger.Info("Finished")
 	return nil
 }
