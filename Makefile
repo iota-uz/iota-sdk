@@ -92,4 +92,10 @@ run-iota-linter:
 clean-iota-linter:
 	rm -f bin/iotalinter
 
+build-docker-base:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:base-$v --target base .
+
+build-docker-prod:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:$v --target production .
+
 .PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter
