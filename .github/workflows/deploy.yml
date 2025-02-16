@@ -1,0 +1,20 @@
+name: Deployment
+
+on:
+  push:
+    branches: [main, staging]
+
+jobs:
+  deploy:
+    runs-on: 'gcidp'
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Build and Deploy
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: docker compose -f docker-compose.staging.yml up -d --build
+
