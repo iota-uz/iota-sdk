@@ -33,51 +33,66 @@ templ ChatIcon() {
 type Props struct {
 	Title       string
 	Description string
-	Starters    []string
 }
 
 templ chatCSS() {
 	<style type="text/css">
 		.wrapper {
+			position: fixed;
+			bottom: 0;
+			right: 0;
 			--primary-color: #2E67B4;
 			--stroke-color: #BDC8D2;
 			--btn-radius: 0.75rem;
 
 			border: 1px solid #ccc;
 			border-radius: 0.5rem;
+			width: 100%;
 			max-width: 480px;
 		}
 
-		.header{
+		.wrapper .header{
 			display: flex;
 			flex-direction: row;
 			align-items: center;
 			gap: 0.5rem;
+			width: 100%;
+			cursor: pointer;
 			background-color: var(--Black-colors-Color-black, #0A223E);
 			color: var(--White-colors-Color-white, #FFFFFF);
 			border-radius: 0.5rem 0.5rem 0 0;
 			padding: 1.25rem;
 		}
 
-		.header-text {
-			flex: 1;
+		.wrapper .hidden {
+			display: none !important;
 		}
 
-		.body {
+		.wrapper .rotate-180 {
+			transform: rotate(180deg);
+			animation: rotate 0.5s;
+		}
+
+		.wrapper .header-text {
+			flex: 1;
+			text-align: left;
+		}
+
+		.wrapper .body {
 			display: flex;
 			flex-direction: column;
 			gap: 0.75rem;
 			padding: 1.25rem;
 		}
 
-		.faq {
+		.wrapper .faq {
 			display: flex;
 			flex-wrap: wrap;
 			flex-direction: row;
 			gap: 0.75rem;
 		}
 
-		.faq-item {
+		.wrapper .faq-item {
 			cursor: pointer;
 			border: 1px solid #ccc;
 			border-radius: 9999px;
@@ -85,7 +100,7 @@ templ chatCSS() {
 			font-size: 0.875rem;
 		}
 
-		.textarea {
+		.wrapper .textarea {
 			border-radius: 0.5rem;
 			padding: 1rem;
 			resize: none;
@@ -136,7 +151,10 @@ templ chatCSS() {
 templ Chat(props Props) {
 	@chatCSS()
 	<div class="wrapper">
-		<div class="header">
+		<button
+			id="header"
+			class="header"
+		>
 			@ChatIcon()
 			<div class="header-text">
 				<div class="text-lg">
@@ -149,10 +167,16 @@ templ Chat(props Props) {
 			<div>
 				@icons.CaretDown(icons.Props{
 					Size: "20",
+					Attributes: templ.Attributes{
+						"id": "caret-down",
+					},
 				})
 			</div>
-		</div>
-		<div class="body">
+		</button>
+		<div
+			id="body"
+			class="body"
+		>
 			<textarea
 				id="message-textarea"
 				rows="7"
