@@ -9,7 +9,7 @@ services:
     environment:
       GO_APP_ENV: production
       DB_NAME: iota_erp
-      DB_HOST: erp_db
+      DB_HOST: ${COMMIT_SHA}-erp_db
       DB_PORT: 5432
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DOMAIN: erp.ci.iota.uz
@@ -34,7 +34,7 @@ services:
   erp_db:
     image: postgres:15.1
     restart: always
-    hostname: erp_db
+    hostname: ${COMMIT_SHA}-erp_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
