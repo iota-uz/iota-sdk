@@ -11,8 +11,13 @@ import (
 
 var logger = logrus.New()
 
+// SetLogLevel sets the logging level for the parser
+func SetLogLevel(level logrus.Level) {
+	logger.SetLevel(level)
+}
+
 func init() {
-	logger.SetLevel(logrus.InfoLevel)
+	logger.SetLevel(logrus.InfoLevel) // Default to INFO level
 }
 
 // Basic SQL parsing patterns

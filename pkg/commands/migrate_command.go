@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -11,8 +12,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/logging"
+	"github.com/iota-uz/iota-sdk/pkg/schema/ast"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
+	"github.com/iota-uz/iota-sdk/pkg/schema/diff"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -35,6 +40,17 @@ func Migrate(mods ...application.Module) error {
 		return ErrNoCommand
 	}
 
+	conf := configuration.Use()
+	if conf == nil {
+		return fmt.Errorf("failed to load configuration")
+	}
+
+	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
+	if err != nil {
+		log.Fatalf("failed to create logger: %v", err)
+	}
+	defer logFile.Close()
+
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
@@ -45,17 +61,13 @@ func Migrate(mods ...application.Module) error {
 
 	switch command {
 	case "collect":
-		return handleSchemaCommands(ctx, command)
+		return handleSchemaCommands(ctx, command, logger.Level)
 	default:
-		conf := configuration.Use()
-		if conf == nil {
-			return fmt.Errorf("failed to load configuration")
-		}
 		return handleMigrationCommands(ctx, command, conf, mods...)
 	}
 }
 
-func handleSchemaCommands(ctx context.Context, command string) error {
+func handleSchemaCommands(ctx context.Context, command string, logLevel logrus.Level) error {
 	migrationsPath := os.Getenv("MIGRATIONS_DIR")
 	if migrationsPath == "" {
 		migrationsPath = "migrations"
@@ -66,10 +78,15 @@ func handleSchemaCommands(ctx context.Context, command string) error {
 		modulesPath = "modules"
 	}
 
+	// Set log level for all components
+	ast.SetLogLevel(logLevel)
+	diff.SetLogLevel(logLevel)
+
 	collector := collector.New(collector.Config{
 		ModulesPath:    modulesPath,
 		MigrationsPath: migrationsPath,
 		SQLDialect:     "postgres",
+		LogLevel:       logLevel,
 	})
 
 	switch command {

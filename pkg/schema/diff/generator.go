@@ -27,6 +27,7 @@ type GeneratorOptions struct {
 	FileNameFormat string
 	IncludeDown    bool
 	Logger         *logrus.Logger
+	LogLevel       logrus.Level
 }
 
 // Generate creates migration files from a change set
@@ -297,7 +298,9 @@ func NewGenerator(opts GeneratorOptions) (*Generator, error) {
 	logger := opts.Logger
 	if logger == nil {
 		logger = logrus.New()
-		logger.SetLevel(logrus.InfoLevel)
+		logger.SetLevel(opts.LogLevel)
+	} else {
+		logger.SetLevel(opts.LogLevel)
 	}
 
 	return &Generator{

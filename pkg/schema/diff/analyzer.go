@@ -10,8 +10,13 @@ import (
 
 var logger = logrus.New()
 
+// SetLogLevel sets the logging level for the analyzer
+func SetLogLevel(level logrus.Level) {
+	logger.SetLevel(level)
+}
+
 func init() {
-	logger.SetLevel(logrus.InfoLevel)
+	logger.SetLevel(logrus.InfoLevel) // Default to INFO level
 
 	// Test log to verify logger is working
 	logger.Debug("Schema analyzer logger initialized")
