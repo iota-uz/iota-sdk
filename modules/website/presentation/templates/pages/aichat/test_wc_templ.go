@@ -48,7 +48,7 @@ func WebComponent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\">\n\t</script><ai-chat-widget></ai-chat-widget>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\">\n\t</script><ai-chat-widget title=\"AI chat bot\" subtitle=\"Наш AI-бот готов помочь вам круглосуточно\"><chat-starter>Hello, how can I help you?</chat-starter></ai-chat-widget>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

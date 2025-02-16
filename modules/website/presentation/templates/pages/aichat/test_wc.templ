@@ -9,5 +9,12 @@ var (
 templ WebComponent() {
 	<script src={ chatScript }>
 	</script>
-	<ai-chat-widget></ai-chat-widget>
+	<ai-chat-widget
+		title="AI chat bot"
+		subtitle="Наш AI-бот готов помочь вам круглосуточно"
+	>
+		<chat-starter>
+			Hello, how can I help you?
+		</chat-starter>
+	</ai-chat-widget>
 }
