@@ -36,7 +36,7 @@ type Props struct {
 	Starters    []string
 }
 
-templ Chat(props Props) {
+templ chatCSS() {
 	<style type="text/css">
 		.wrapper {
 			--primary-color: #2E67B4;
@@ -107,6 +107,7 @@ templ Chat(props Props) {
 		}
 
 		.wrapper .btn {
+			all: unset;
 			display: flex;
 			justify-content: center;
 			border-radius: var(--btn-radius);
@@ -130,6 +131,10 @@ templ Chat(props Props) {
 			color: var(--primary-color);
 		}
 	</style>
+}
+
+templ Chat(props Props) {
+	@chatCSS()
 	<div class="wrapper">
 		<div class="header">
 			@ChatIcon()
@@ -149,6 +154,7 @@ templ Chat(props Props) {
 		</div>
 		<div class="body">
 			<textarea
+				id="message-textarea"
 				rows="7"
 				placeholder="Введите вопрос"
 				class="textarea"
@@ -157,12 +163,16 @@ templ Chat(props Props) {
 				<slot></slot>
 			</div>
 			<button
+				id="send-button"
 				class="btn btn-primary"
 				disabled
 			>
 				Отправить
 			</button>
-			<button class="btn btn-secondary">
+			<button
+				id="callback-button"
+				class="btn btn-secondary"
+			>
 				Запрос обратного звонка
 			</button>
 		</div>

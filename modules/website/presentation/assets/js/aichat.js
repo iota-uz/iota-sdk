@@ -12,6 +12,17 @@ class AiChatWidget extends HTMLElement {
 		const html = await response.text();
 
 		this.shadowRoot.innerHTML = html;
+
+		const textarea = this.shadowRoot.getElementById("message-textarea");
+		const sendButton = this.shadowRoot.getElementById("send-button");
+
+		textarea.addEventListener("input", () => {
+			sendButton.disabled = !textarea.value;
+		});
+
+		sendButton.addEventListener("click", async () => {
+			console.log("Send button clicked");
+		});
 	}
 }
 

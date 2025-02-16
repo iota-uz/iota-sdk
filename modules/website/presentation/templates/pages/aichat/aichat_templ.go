@@ -53,7 +53,7 @@ type Props struct {
 	Starters    []string
 }
 
-func Chat(props Props) templ.Component {
+func chatCSS() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -74,7 +74,40 @@ func Chat(props Props) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<style type=\"text/css\">\n\t\t.wrapper {\n\t\t\t--primary-color: #2E67B4;\n\t\t\t--stroke-color: #BDC8D2;\n\t\t\t--btn-radius: 0.75rem;\n\n\t\t\tborder: 1px solid #ccc;\n\t\t\tborder-radius: 0.5rem;\n\t\t\tmax-width: 480px;\n\t\t}\n\n\t\t.header{\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: row;\n\t\t\talign-items: center;\n\t\t\tgap: 0.5rem;\n\t\t\tbackground-color: var(--Black-colors-Color-black, #0A223E);\n\t\t\tcolor: var(--White-colors-Color-white, #FFFFFF);\n\t\t\tborder-radius: 0.5rem 0.5rem 0 0;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.header-text {\n\t\t\tflex: 1;\n\t\t}\n\n\t\t.body {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tgap: 0.75rem;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.faq {\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tflex-direction: row;\n\t\t\tgap: 0.75rem;\n\t\t}\n\n\t\t.faq-item {\n\t\t\tcursor: pointer;\n\t\t\tborder: 1px solid #ccc;\n\t\t\tborder-radius: 9999px;\n\t\t\tpadding: 0.75rem 1rem;\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.textarea {\n\t\t\tborder-radius: 0.5rem;\n\t\t\tpadding: 1rem;\n\t\t\tresize: none;\n\t\t\tborder-radius: 12px;\n\t\t\tborder: 0.5px solid var(--stroke-color);\n\t\t\tbackground: var(--Gray-colors-Gray-input-color, #F2F5F8);\n\t\t}\n\n\t\t.wrapper .text-sm {\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.wrapper .text-md {\n\t\t\tfont-size: 1rem;\n\t\t}\n\t\t\n\t\t.wrapper .text-lg {\n\t\t\tfont-size: 1.25rem;\n\t\t}\n\n\t\t.wrapper .btn {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: center;\n\t\t\tborder-radius: var(--btn-radius);\n\t\t\tpadding: 1rem 1.25rem;\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.wrapper .btn-primary {\n\t\t\tbackground-color: var(--primary-color);\n\t\t\tcolor: #FFFFFF;\n\t\t}\n\t\t\n\t\t.wrapper .btn-primary:disabled {\n\t\t\tbackground-color: #E4E9EE;\n\t\t\tcolor: #BDC8D2;\n\t\t}\n\n\t\t.wrapper .btn-secondary {\n\t\t\tbackground-color: #FFFFFF;\n\t\t\tborder: 1px solid var(--stroke-color);\n\t\t\tcolor: var(--primary-color);\n\t\t}\n\t</style><div class=\"wrapper\"><div class=\"header\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<style type=\"text/css\">\n\t\t.wrapper {\n\t\t\t--primary-color: #2E67B4;\n\t\t\t--stroke-color: #BDC8D2;\n\t\t\t--btn-radius: 0.75rem;\n\n\t\t\tborder: 1px solid #ccc;\n\t\t\tborder-radius: 0.5rem;\n\t\t\tmax-width: 480px;\n\t\t}\n\n\t\t.header{\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: row;\n\t\t\talign-items: center;\n\t\t\tgap: 0.5rem;\n\t\t\tbackground-color: var(--Black-colors-Color-black, #0A223E);\n\t\t\tcolor: var(--White-colors-Color-white, #FFFFFF);\n\t\t\tborder-radius: 0.5rem 0.5rem 0 0;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.header-text {\n\t\t\tflex: 1;\n\t\t}\n\n\t\t.body {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tgap: 0.75rem;\n\t\t\tpadding: 1.25rem;\n\t\t}\n\n\t\t.faq {\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tflex-direction: row;\n\t\t\tgap: 0.75rem;\n\t\t}\n\n\t\t.faq-item {\n\t\t\tcursor: pointer;\n\t\t\tborder: 1px solid #ccc;\n\t\t\tborder-radius: 9999px;\n\t\t\tpadding: 0.75rem 1rem;\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.textarea {\n\t\t\tborder-radius: 0.5rem;\n\t\t\tpadding: 1rem;\n\t\t\tresize: none;\n\t\t\tborder-radius: 12px;\n\t\t\tborder: 0.5px solid var(--stroke-color);\n\t\t\tbackground: var(--Gray-colors-Gray-input-color, #F2F5F8);\n\t\t}\n\n\t\t.wrapper .text-sm {\n\t\t\tfont-size: 0.875rem;\n\t\t}\n\n\t\t.wrapper .text-md {\n\t\t\tfont-size: 1rem;\n\t\t}\n\t\t\n\t\t.wrapper .text-lg {\n\t\t\tfont-size: 1.25rem;\n\t\t}\n\n\t\t.wrapper .btn {\n\t\t\tall: unset;\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: center;\n\t\t\tborder-radius: var(--btn-radius);\n\t\t\tpadding: 1rem 1.25rem;\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.wrapper .btn-primary {\n\t\t\tbackground-color: var(--primary-color);\n\t\t\tcolor: #FFFFFF;\n\t\t}\n\t\t\n\t\t.wrapper .btn-primary:disabled {\n\t\t\tbackground-color: #E4E9EE;\n\t\t\tcolor: #BDC8D2;\n\t\t}\n\n\t\t.wrapper .btn-secondary {\n\t\t\tbackground-color: #FFFFFF;\n\t\t\tborder: 1px solid var(--stroke-color);\n\t\t\tcolor: var(--primary-color);\n\t\t}\n\t</style>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func Chat(props Props) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = chatCSS().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"wrapper\"><div class=\"header\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -82,33 +115,33 @@ func Chat(props Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"header-text\"><div class=\"text-lg\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 138, Col: 18}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div><div class=\"text-sm\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"header-text\"><div class=\"text-lg\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.Description)
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 141, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 143, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></div><div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div><div class=\"text-sm\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.Description)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 146, Col: 24}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div></div><div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -118,7 +151,7 @@ func Chat(props Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div></div><div class=\"body\"><textarea rows=\"7\" placeholder=\"Введите вопрос\" class=\"textarea\"></textarea><div class=\"faq\"><slot></slot></div><button class=\"btn btn-primary\" disabled>Отправить</button> <button class=\"btn btn-secondary\">Запрос обратного звонка</button></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div></div><div class=\"body\"><textarea id=\"message-textarea\" rows=\"7\" placeholder=\"Введите вопрос\" class=\"textarea\"></textarea><div class=\"faq\"><slot></slot></div><button id=\"send-button\" class=\"btn btn-primary\" disabled>Отправить</button> <button id=\"callback-button\" class=\"btn btn-secondary\">Запрос обратного звонка</button></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -143,13 +176,13 @@ func Configure(props Props) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var5 == nil {
-			templ_7745c5c3_Var5 = templ.NopComponent
+		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var6 == nil {
+			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -161,11 +194,11 @@ func Configure(props Props) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"flex gap-10 items-stretch p-10\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"flex gap-10 items-stretch p-10\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -184,7 +217,7 @@ func Configure(props Props) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, " ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, " ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -195,11 +228,11 @@ func Configure(props Props) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, " <div class=\"flex justify-end\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, " <div class=\"flex justify-end\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+				templ_7745c5c3_Var9 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 					if !templ_7745c5c3_IsBuffer {
@@ -211,12 +244,12 @@ func Configure(props Props) templ.Component {
 						}()
 					}
 					ctx = templ.InitializeContext(ctx)
-					var templ_7745c5c3_Var9 string
-					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
+					var templ_7745c5c3_Var10 string
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 192, Col: 25}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 202, Col: 25}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -224,17 +257,17 @@ func Configure(props Props) templ.Component {
 				})
 				templ_7745c5c3_Err = button.Primary(button.Props{
 					Size: button.SizeMD,
-				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = card.Card(card.Props{WrapperClass: "flex-1"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = card.Card(card.Props{WrapperClass: "flex-1"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -242,7 +275,7 @@ func Configure(props Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -250,7 +283,7 @@ func Configure(props Props) templ.Component {
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
 			Title: pageCtx.T("AIChatBot.Meta.Title"),
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
