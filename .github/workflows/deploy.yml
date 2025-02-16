@@ -16,5 +16,5 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           BRANCH_NAME: ${{ github.ref_name }}
           COMMIT_SHA: ${{ github.sha }}
-        run: docker compose -f docker-compose.staging.yml up -d --build
+        run: docker compose -f compose.staging.yml up -d --build
 
