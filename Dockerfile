@@ -1,15 +1,21 @@
-FROM golang:1.23.2 AS base
+FROM golang:1.23.2-alpine AS base
+
+RUN apk update && apk upgrade
+RUN apk add --no-cache make git curl bash
 
 WORKDIR /build
 
+ENV GO111MODULE=auto \
+    CGO_ENABLED=0 \
+    GOOS=linux
+
 COPY scripts/install.sh .
-RUN chmod +x install.sh && ./install.sh && go install github.com/a-h/templ/cmd/templ@v0.3.819
+RUN chmod +x install.sh && bash ./install.sh
 
 FROM base AS build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make generate && go vet ./...
 RUN make css
 RUN make release && go build -o migrate cmd/migrate/main.go && go build -o seed_db cmd/seed/main.go
 
@@ -32,5 +38,5 @@ COPY --from=build /build/seed_db ./seed_db
 ENV PATH=/home/iota-user:$PATH
 
 USER iota-user
-CMD ["/bin/sh", "-c", "./migrate && ./seed_db && ./run_server"]
+CMD ["/bin/sh", "-c", "migrate up && seed_db && run_server"]
 
