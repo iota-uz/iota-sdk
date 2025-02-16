@@ -49,23 +49,23 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	}
 
 	filePath := filepath.Join(g.outputDir, fileName)
-	g.logger.Infof("Generating migration file: %s", filePath)
+	logger.Info("Generating migration file: ", filePath)
 
 	var statements []string
 	for _, change := range changes.Changes {
 		stmt, err := g.generateChangeStatement(change)
 		if err != nil {
-			g.logger.Infof("Error generating statement: %v", err)
+			logger.Infof("Error generating statement: %v", err)
 			continue
 		}
 		if stmt != "" {
-			g.logger.Debugf("Generated SQL: %s", stmt)
+			logger.Debugf("Generated SQL: %s", stmt)
 			statements = append(statements, stmt)
 		}
 	}
 
 	if len(statements) == 0 {
-		g.logger.Info("No statements generated")
+		logger.Info("No statements generated")
 		return nil
 	}
 
@@ -155,7 +155,7 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return stmt.String(), nil
 
 	case ModifyColumn:
-		g.logger.Debugf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		logger.Debugf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			// Extract type and constraints from the definition
 			parts := strings.SplitN(def, " ", 2)
@@ -192,14 +192,14 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return "", fmt.Errorf("missing column definition for %s", change.ObjectName)
 
 	case AddColumn:
-		g.logger.Debugf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
-		g.logger.Debugf("Column metadata: %+v", change.Object.Metadata)
+		logger.Debugf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		logger.Debugf("Column metadata: %+v", change.Object.Metadata)
 
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s;",
 				change.ParentName,
 				def)
-			g.logger.Debugf("Generated statement: %s", stmt)
+			logger.Debugf("Generated statement: %s", stmt)
 			return stmt, nil
 		}
 
@@ -213,7 +213,7 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			change.ParentName,
 			change.ObjectName,
 			rawType)
-		g.logger.Debugf("Generated fallback statement: %s", stmt)
+		logger.Debugf("Generated fallback statement: %s", stmt)
 		return stmt, nil
 
 	case AddConstraint:
@@ -293,14 +293,6 @@ func NewGenerator(opts GeneratorOptions) (*Generator, error) {
 	d, ok := dialect.Get(opts.Dialect)
 	if !ok {
 		return nil, fmt.Errorf("unsupported dialect: %s", opts.Dialect)
-	}
-
-	logger := opts.Logger
-	if logger == nil {
-		logger = logrus.New()
-		logger.SetLevel(opts.LogLevel)
-	} else {
-		logger.SetLevel(opts.LogLevel)
 	}
 
 	return &Generator{

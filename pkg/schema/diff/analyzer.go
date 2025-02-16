@@ -15,12 +15,12 @@ func SetLogLevel(level logrus.Level) {
 	logger.SetLevel(level)
 }
 
-func init() {
-	logger.SetLevel(logrus.InfoLevel) // Default to INFO level
+// func init() {
+// 	// logger.SetLevel(logrus.InfoLevel) // Default to INFO level
 
-	// Test log to verify logger is working
-	logger.Debug("Schema analyzer logger initialized")
-}
+// 	// Test log to verify logger is working
+// 	// logger.Debug("Schema analyzer logger initialized")
+// }
 
 // Analyzer handles schema comparison and change detection
 type Analyzer struct {
@@ -39,12 +39,6 @@ type AnalyzerOptions struct {
 // Compare analyzes differences between two schema trees
 func (a *Analyzer) Compare() (*ChangeSet, error) {
 	changes := NewChangeSet()
-
-	// Log initial schema state
-	logger.WithFields(logrus.Fields{
-		"old_tables": len(a.oldSchema.Root.Children),
-		"new_tables": len(a.newSchema.Root.Children),
-	}).Info("Starting schema comparison")
 
 	// Create maps for quick lookup
 	oldTables := make(map[string]*types.Node)
@@ -296,19 +290,19 @@ func (a *Analyzer) columnsEqual(oldCol, newCol *types.Node) bool {
 		oldLen := ""
 		newLen := ""
 
-		if strings.Contains(oldType, "(") {
-			oldLen = strings.Trim(strings.Split(oldType, "(")[1], ")")
+		if strings.Contains(oldFullType, "(") {
+			oldLen = strings.Trim(strings.Split(oldFullType, "(")[1], ")")
 		}
-		if strings.Contains(newType, "(") {
-			newLen = strings.Trim(strings.Split(newType, "(")[1], ")")
+		if strings.Contains(newFullType, "(") {
+			newLen = strings.Trim(strings.Split(newFullType, "(")[1], ")")
 		}
 
 		// If one has a length and the other doesn't, they're different
 		if (oldLen == "" && newLen != "") || (oldLen != "" && newLen == "") {
 			logger.WithFields(logrus.Fields{
 				"column":   oldCol.Name,
-				"old_type": oldType,
-				"new_type": newType,
+				"old_type": oldFullType,
+				"new_type": newFullType,
 				"old_len":  oldLen,
 				"new_len":  newLen,
 			}).Debug("VARCHAR length specification mismatch")
