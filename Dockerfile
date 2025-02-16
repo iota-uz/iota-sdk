@@ -1,4 +1,4 @@
-FROM golang:1.23.2 AS install-stage
+FROM golang:1.23.2 AS base
 
 WORKDIR /build
 
@@ -13,6 +13,8 @@ RUN case "$(uname -m)" in \
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
 RUN go install github.com/a-h/templ/cmd/templ@v0.3.819 && go install github.com/mitranim/gow@latest
+
+FROM base AS install
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
@@ -33,20 +35,20 @@ RUN addgroup -g 10001 -S iota-user \
     && chown -R iota-user:iota-user /home/iota-user
 
 WORKDIR /home/iota-user
-COPY --from=install-stage /build/run_server ./run_server
+COPY --from=install /build/run_server ./run_server
 
 ENV PATH=/home/iota-user:$PATH
 
 USER iota-user
 ENTRYPOINT run_server
 
-FROM install-stage AS staging
+FROM install AS staging
 RUN go build -o run_server cmd/server/main.go && go build -o seed_db cmd/seed/main.go
 CMD go run cmd/migrate/main.go redo && /build/seed_db && /build/run_server
 
-FROM install-stage AS testing-ci
+FROM install AS testing-ci
 #CMD golangci-lint run && go test -v ./...
 CMD [ "go", "test", "-v", "./..." ]
 
-FROM install-stage AS testing-local
+FROM install AS testing-local
 CMD [ "gow", "test", "./..." ]
