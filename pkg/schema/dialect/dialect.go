@@ -4,12 +4,6 @@ import "github.com/iota-uz/iota-sdk/pkg/schema/types"
 
 // Dialect defines the interface for SQL dialect-specific operations
 type Dialect interface {
-	// ParseCreateTable parses CREATE TABLE statements
-	ParseCreateTable(sql string) (*types.Node, error)
-
-	// ParseAlterTable parses ALTER TABLE statements
-	ParseAlterTable(sql string) (*types.Node, error)
-
 	// GenerateCreate generates CREATE statements from nodes
 	GenerateCreate(node *types.Node) (string, error)
 
