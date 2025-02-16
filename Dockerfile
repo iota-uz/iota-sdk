@@ -42,7 +42,7 @@ ENTRYPOINT run_server
 
 FROM install-stage AS staging
 RUN go build -o run_server cmd/server/main.go && go build -o seed_db cmd/seed/main.go
-CMD go run cmd/migrate/main.go up && /build/seed_db && /build/run_server
+CMD go run cmd/migrate/main.go redo && /build/seed_db && /build/run_server
 
 FROM install-stage AS testing-ci
 #CMD golangci-lint run && go test -v ./...
