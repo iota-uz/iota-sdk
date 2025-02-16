@@ -96,13 +96,4 @@ clean-iota-linter:
 collect-migrations:
 	go run cmd/migrate/main.go collect
 
-detect-schema-changes:
-	go run cmd/migrate/main.go detect
-
-generate-migration:
-	go run cmd/migrate/main.go generate
-
-validate-migrations:
-	go run cmd/migrate/main.go validate
-
 .PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations detect-schema-changes generate-migration validate-migrations
