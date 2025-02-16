@@ -240,6 +240,68 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 			continue
 		}
 
+		// Handle ALTER TABLE statements specifically
+		if strings.Contains(strings.ToUpper(sql), "ALTER TABLE") {
+			// Parse each statement more carefully to handle semicolons in definitions
+			statements := strings.Split(sql, ";")
+			for _, stmt := range statements {
+				stmt = strings.TrimSpace(stmt)
+				if stmt == "" {
+					continue
+				}
+
+				if strings.Contains(strings.ToUpper(stmt), "ALTER COLUMN") {
+					parts := strings.Fields(stmt)
+					if len(parts) >= 7 && strings.EqualFold(parts[0], "ALTER") && strings.EqualFold(parts[1], "TABLE") {
+						tableName := strings.ToLower(parts[2])
+						columnName := strings.ToLower(parts[5])
+
+						// Find the TYPE keyword to properly extract the type definition
+						typeIdx := -1
+						for i, part := range parts {
+							if strings.EqualFold(part, "TYPE") {
+								typeIdx = i
+								break
+							}
+						}
+
+						if typeIdx > 0 && typeIdx < len(parts)-1 {
+							// Extract everything after TYPE keyword until any trailing keywords
+							typeEnd := len(parts)
+							for i := typeIdx + 1; i < len(parts); i++ {
+								upper := strings.ToUpper(parts[i])
+								if upper == "SET" || upper == "DROP" || upper == "USING" {
+									typeEnd = i
+									break
+								}
+							}
+
+							// Join the type parts together
+							newType := strings.Join(parts[typeIdx+1:typeEnd], " ")
+							newType = strings.TrimRight(newType, ";")
+
+							if tableState, exists := tableStates[tableName]; exists {
+								if currentState, exists := tableState[columnName]; exists {
+									c.logger.Debugf("Updating column type from ALTER statement: %s.%s to %s",
+										tableName, columnName, newType)
+
+									// Update the column state with the new type
+									currentState.Type = newType
+									if currentState.Node.Metadata == nil {
+										currentState.Node.Metadata = make(map[string]interface{})
+									}
+									currentState.Node.Metadata["type"] = newType
+									currentState.Node.Metadata["fullType"] = newType
+									currentState.Timestamp = ts
+									currentState.LastFile = fileName
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		// Update table states with changes from this migration
 		for _, node := range parsed.Root.Children {
 			if node.Type == types.NodeTable {
@@ -257,15 +319,27 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 						// Get the new type information
 						newType := ""
 						if fullType, ok := col.Metadata["fullType"].(string); ok {
-							newType = strings.ToLower(fullType)
+							newType = strings.ToLower(strings.TrimRight(fullType, ";"))
 						} else if typeStr, ok := col.Metadata["type"].(string); ok {
-							newType = strings.ToLower(typeStr)
+							newType = strings.ToLower(strings.TrimRight(typeStr, ";"))
 						}
 
 						// Only update if this is a newer state and the type has actually changed
 						if currentState == nil {
 							c.logger.Debugf("New column state for %s.%s in file %s (type: %s)",
 								tableName, colName, fileName, newType)
+
+							// Clean any metadata values of trailing semicolons
+							cleanMetadata := make(map[string]interface{})
+							for k, v := range col.Metadata {
+								if strVal, ok := v.(string); ok {
+									cleanMetadata[k] = strings.TrimRight(strVal, ";")
+								} else {
+									cleanMetadata[k] = v
+								}
+							}
+							col.Metadata = cleanMetadata
+
 							tableStates[tableName][colName] = &ColumnState{
 								Node:      col,
 								Timestamp: ts,
@@ -275,6 +349,18 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 						} else if ts > currentState.Timestamp && newType != currentState.Type {
 							c.logger.Debugf("Updating column state for %s.%s from file %s (old_type: %s, new_type: %s)",
 								tableName, colName, fileName, currentState.Type, newType)
+
+							// Clean any metadata values of trailing semicolons
+							cleanMetadata := make(map[string]interface{})
+							for k, v := range col.Metadata {
+								if strVal, ok := v.(string); ok {
+									cleanMetadata[k] = strings.TrimRight(strVal, ";")
+								} else {
+									cleanMetadata[k] = v
+								}
+							}
+							col.Metadata = cleanMetadata
+
 							tableStates[tableName][colName] = &ColumnState{
 								Node:      col,
 								Timestamp: ts,
