@@ -13,8 +13,16 @@ class AiChatWidget extends HTMLElement {
 
 		this.shadowRoot.innerHTML = html;
 
+		const header = this.shadowRoot.getElementById("header");
 		const textarea = this.shadowRoot.getElementById("message-textarea");
 		const sendButton = this.shadowRoot.getElementById("send-button");
+
+		header.addEventListener("click", () => {
+			const chatBody = this.shadowRoot.getElementById("body");
+			const caretDown = this.shadowRoot.getElementById("caret-down");
+			chatBody.classList.toggle("hidden");
+			caretDown.classList.toggle("rotate-180");
+		});
 
 		textarea.addEventListener("input", () => {
 			sendButton.disabled = !textarea.value;
