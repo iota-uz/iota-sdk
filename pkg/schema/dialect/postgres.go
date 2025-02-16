@@ -24,28 +24,6 @@ func NewPostgresDialect() *PostgresDialect {
 	}
 }
 
-func (d *PostgresDialect) ParseCreateTable(sql string) (*types.Node, error) {
-	node := &types.Node{
-		Type:     types.NodeTable,
-		Children: make([]*types.Node, 0),
-		Metadata: make(map[string]interface{}),
-	}
-
-	// Implementation details here...
-	return node, nil
-}
-
-func (d *PostgresDialect) ParseAlterTable(sql string) (*types.Node, error) {
-	node := &types.Node{
-		Type:     types.NodeTable,
-		Children: make([]*types.Node, 0),
-		Metadata: make(map[string]interface{}),
-	}
-
-	// Implementation details here...
-	return node, nil
-}
-
 func (d *PostgresDialect) GenerateCreate(node *types.Node) (string, error) {
 	if node.Type != types.NodeTable {
 		return "", fmt.Errorf("expected table node, got %s", node.Type)
@@ -82,12 +60,45 @@ func (d *PostgresDialect) GenerateAlter(node *types.Node) (string, error) {
 	}
 
 	var statements []string
+	tableName := node.Name
 
-	// Generate ALTER TABLE statements for each change
-	// Handle column additions, modifications, and drops
-	// Handle constraint changes
+	// Get alteration type from metadata
+	alterationType, hasAlteration := node.Metadata["alteration"].(string)
+	if !hasAlteration {
+		return "", fmt.Errorf("no alteration type specified in metadata")
+	}
 
-	return strings.Join(statements, "\n"), nil
+	// Handle different types of alterations
+	if strings.Contains(strings.ToUpper(alterationType), "ADD COLUMN") {
+		// Process column additions
+		for _, child := range node.Children {
+			if child.Type == types.NodeColumn {
+				colDef := d.generateColumnDefinition(child)
+				if colDef != "" {
+					stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", tableName, colDef)
+					statements = append(statements, stmt)
+				}
+			}
+		}
+	} else if strings.Contains(strings.ToUpper(alterationType), "ALTER COLUMN") {
+		// Process column modifications
+		for _, child := range node.Children {
+			if child.Type == types.NodeColumn {
+				colDef := d.generateColumnDefinition(child)
+				if colDef != "" {
+					stmt := fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s", tableName, colDef)
+					statements = append(statements, stmt)
+				}
+			}
+		}
+	}
+
+	// Join all statements and add semicolons
+	if len(statements) > 0 {
+		return strings.Join(statements, ";\n") + ";", nil
+	}
+
+	return "", nil
 }
 
 func (d *PostgresDialect) ValidateSchema(schema *types.SchemaTree) error {
@@ -106,12 +117,29 @@ func (d *PostgresDialect) generateColumnDefinition(col *types.Node) string {
 		return ""
 	}
 
-	dataType := col.Metadata["type"].(string)
-	if mappedType, ok := d.typeMapping[dataType]; ok {
-		dataType = mappedType
+	// Use the full definition if available
+	if def, ok := col.Metadata["definition"].(string); ok && def != "" {
+		return def
 	}
 
-	return fmt.Sprintf("%s %s", col.Name, dataType)
+	// Fallback to constructing the definition
+	var b strings.Builder
+	b.WriteString(col.Name)
+	b.WriteString(" ")
+
+	dataType := col.Metadata["type"].(string)
+	if mappedType, ok := d.typeMapping[strings.ToLower(dataType)]; ok {
+		dataType = mappedType
+	}
+	b.WriteString(dataType)
+
+	// Add any constraints
+	if constraints, ok := col.Metadata["constraints"].(string); ok && constraints != "" {
+		b.WriteString(" ")
+		b.WriteString(constraints)
+	}
+
+	return b.String()
 }
 
 func (d *PostgresDialect) generateConstraints(node *types.Node) string {
