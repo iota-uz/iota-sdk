@@ -11,7 +11,7 @@ services:
       DB_NAME: iota_erp
       DB_HOST: erp_db
       DB_PORT: 5432
-      DB_PASSWORD: 2dP9L9d6gB9597
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
       DOMAIN: erp.ci.iota.uz
       SESSION_DURATION: 720h
       GOOGLE_CLIENT_ID: 1234567890.apps.googleusercontent.com # TODO: Change this
@@ -20,10 +20,12 @@ services:
       OPENAI_KEY: sk-1234567890 # TODO: Change this
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.erp.rule=Host(`erp.ci.iota.uz`)"
-      - "traefik.http.routers.erp.tls=true"
-      - "traefik.http.routers.erp.tls.certresolver=letsencrypt"
-      - "traefik.http.services.erp.loadbalancer.server.port=3200"
+      - "traefik.http.routers.${COMMIT_SHA}-erp.rule=Host(`erp.ci.iota.uz`)"
+      - "traefik.http.routers.${COMMIT_SHA}-erp.tls=true"
+      - "traefik.http.routers.${COMMIT_SHA}-erp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${COMMIT_SHA}-erp.loadbalancer.server.port=3200"
+      - "traefik.http.routers.${COMMIT_SHA}-erp.tls.domains[0].main=iota.uz"
+      - "traefik.http.routers.${COMMIT_SHA}-erp.tls.domains[0].sans=*.ci.iota.uz"
     depends_on:
       - erp_db
     networks:
@@ -35,10 +37,12 @@ services:
     hostname: erp_db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 2dP9L9d6gB9597
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: iota_erp
     volumes:
-      - ~/volumes/erp/postgres/data:/var/lib/postgresql/data
+      - ~/volumes/iota_sdk/postgres/data:/var/lib/postgresql/data
+    ports:
+      - "17889:5432"
     networks:
       - app
 
