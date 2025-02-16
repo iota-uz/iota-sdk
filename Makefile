@@ -27,7 +27,7 @@ graph:
 
 # Run tests inside docker
 test-docker:
-	docker compose -f docker-compose.testing.yml up --build erp_local
+	docker compose -f compose.testing.yml up --build erp_local
 
 coverage-score:
 	go tool cover -func ./coverage/coverage.out | grep "total:" | awk '{print ((int($$3) > 80) != 1) }'
@@ -37,7 +37,7 @@ report:
 
 # Run PostgreSQL
 localdb:
-	docker compose -f docker-compose.dev.yml up
+	docker compose -f compose.dev.yml up
 
 clear-localdb:
 	rm -rf postgres-data/
