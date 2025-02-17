@@ -170,7 +170,7 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == "production",
 		Domain:   conf.Domain,
 	}
@@ -203,7 +203,7 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == "production",
 		Domain:   conf.Domain,
 	}
