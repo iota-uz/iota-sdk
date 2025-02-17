@@ -72,6 +72,7 @@ jobs:
 
       - name: Test generated files are up to date
         run: |
+          go generate ./...
           make generate
           git diff --exit-code
 

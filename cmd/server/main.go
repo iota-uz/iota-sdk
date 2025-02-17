@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
+	"github.com/iota-uz/iota-sdk/modules/website"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -51,6 +52,7 @@ func main() {
 	app.RegisterNavItems(warehouse.NavItems...)
 	app.RegisterNavItems(finance.NavItems...)
 	app.RegisterNavItems(crm.NavItems...)
+	app.RegisterNavItems(website.NavItems...)
 	app.RegisterHashFsAssets(internalassets.HashFS)
 	app.RegisterControllers(
 		controllers.NewStaticFilesController(app.HashFsAssets()),

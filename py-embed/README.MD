@@ -43,7 +43,7 @@ Instructions on how to use the project. Include code snippets and examples where
 
 ```bash
 # Run the database
-docker compose -f docker-compose.dev.yml up -d db
+docker compose -f compose.dev.yml up -d db
 
 # Running the main script
 uvicorn app.main:app --reload

@@ -158,6 +158,16 @@
         "Title": "Yangi nakladnoy"
       }
     },
+    "Out": {
+      "Meta": {
+        "Title": "Jo'natish"
+      }
+    },
+    "In": {
+      "Meta": {
+        "Title": "Qabul qilish"
+      }
+    },
     "View": {
       "Meta": {
         "Title": "Nakladnoyni ko'rish"

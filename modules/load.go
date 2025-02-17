@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
+	"github.com/iota-uz/iota-sdk/modules/website"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
@@ -18,6 +19,7 @@ var (
 		logging.NewModule(),
 		warehouse.NewModule(),
 		crm.NewModule(),
+		website.NewModule(),
 	}
 )
 

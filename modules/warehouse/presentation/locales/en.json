@@ -158,6 +158,16 @@
         "Title": "New warehouse order"
       }
     },
+    "Out": {
+      "Meta": {
+        "Title": "New shipment"
+      }
+    },
+    "In": {
+      "Meta": {
+        "Title": "New acceptance"
+      }
+    },
     "View": {
       "Meta": {
         "Title": "View warehouse order"
