@@ -74,7 +74,7 @@ Updated at Jan 6, 2025
 
 ## 🌟 Join Us
 
-<img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">  
+<img width="250" style="display: block" src="https://cdn.prod.website-files.com/660549b5ac888804e6582845/6606afddd43da2d659209149_logo.svg">  
 
 We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
 started.
