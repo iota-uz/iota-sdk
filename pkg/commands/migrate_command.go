@@ -41,9 +41,8 @@ func Migrate(mods ...application.Module) error {
 	}
 
 	conf := configuration.Use()
-	if conf == nil {
-		return fmt.Errorf("failed to load configuration")
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
 	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
 	if err != nil {
@@ -56,8 +55,6 @@ func Migrate(mods ...application.Module) error {
 	}
 
 	command := os.Args[1]
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
 
 	switch command {
 	case "collect":
