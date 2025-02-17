@@ -128,7 +128,7 @@ templ OrdersContent(props *IndexPageProps) {
 				<div class="flex-grow"></div>
 				@base.DetailsDropdown(&base.DetailsDropdownProps{
 					Summary: newOrderButton(),
-					Classes: templ.CSSClasses{"z-0"},
+					Classes: templ.CSSClasses{"z-10"},
 				}) {
 					@base.DropdownItem(base.DropdownItemProps{Href: "/warehouse/orders/in/new"}) {
 						{ pageCtx.T("WarehouseOrders.List.NewIn") }

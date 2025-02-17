@@ -1,0 +1,19 @@
+{
+	"NavigationLinks": {
+		"Website": "Website",
+		"AIChatbot": "AI Chatbot"
+	},
+	"AIChatBot": {
+		"Meta": {
+			"Title": "AI Chatbot"
+		},
+		"Title": {
+			"Label": "Title",
+			"Placeholder": "Enter the title"
+		},
+		"Description": {
+			"Label": "Description",
+			"Placeholder": "Enter the description"
+		}
+	}
+}
