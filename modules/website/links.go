@@ -12,15 +12,15 @@ var AIChatLink = types.NavigationItem{
 	Children: nil,
 }
 
-var WebsiteModuleLink = types.NavigationItem{
+var WebsiteLink = types.NavigationItem{
 	Name: "NavigationLinks.Website",
 	Icon: icons.Globe(icons.Props{Size: "20"}),
-	Href: "#",
+	Href: "/website",
 	Children: []types.NavigationItem{
 		AIChatLink,
 	},
 }
 
 var NavItems = []types.NavigationItem{
-	WebsiteModuleLink,
+	WebsiteLink,
 }
