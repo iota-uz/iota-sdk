@@ -101,7 +101,7 @@ func (s *userSeeder) createUserTabs(ctx context.Context, usr user.User, app appl
 
 	for _, t := range tabs {
 		if err := tabsRepository.CreateOrUpdate(ctx, t); err != nil {
-			return errors.Wrapf(err, "failed to create tab %s", t.Href)
+			return errors.Wrapf(err, "failed to create tab userID :%d | href: %s", t.UserID, t.Href)
 		}
 	}
 	return nil
