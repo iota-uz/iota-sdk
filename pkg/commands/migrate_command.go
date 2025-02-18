@@ -11,7 +11,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/logging"
+
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -31,7 +34,7 @@ func Migrate(mods ...application.Module) error {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(pool, eventbus.NewEventPublisher())
+	app := application.New(pool, eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel)))
 	if err := modules.Load(app, mods...); err != nil {
 		return err
 	}
