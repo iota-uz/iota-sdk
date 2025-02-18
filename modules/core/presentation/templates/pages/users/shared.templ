@@ -46,6 +46,7 @@ templ RoleSelect(props *RoleSelectProps) {
 
 type SharedProps struct {
 	Value string
+	Form  string
 	Error string
 }
 
@@ -56,6 +57,7 @@ templ EmailInput(props SharedProps) {
 		Attrs: templ.Attributes{
 			"name":  "Email",
 			"value": props.Value,
+			"form":  props.Form,
 		},
 		AddonRight: &input.Addon{
 			Component: icons.EnvelopeSimple(icons.Props{
