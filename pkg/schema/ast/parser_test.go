@@ -320,3 +320,79 @@ func TestParse(t *testing.T) {
 		})
 	}
 }
+
+func TestParseCreateIndex(t *testing.T) {
+	p := NewParser("postgres", ParserOptions{})
+
+	tests := []struct {
+		name           string
+		sql            string
+		expectedName   string
+		expectedTable  string
+		expectedCols   string
+		expectedUnique bool
+		expectedError  bool
+	}{
+		{
+			name:           "Simple index",
+			sql:            "CREATE INDEX idx_users_email ON users (email);",
+			expectedName:   "idx_users_email",
+			expectedTable:  "users",
+			expectedCols:   "email",
+			expectedUnique: false,
+			expectedError:  false,
+		},
+		{
+			name:           "Unique index",
+			sql:            "CREATE UNIQUE INDEX idx_users_unique_email ON users (email);",
+			expectedName:   "idx_users_unique_email",
+			expectedTable:  "users",
+			expectedCols:   "email",
+			expectedUnique: true,
+			expectedError:  false,
+		},
+		{
+			name:           "Multi-column index",
+			sql:            "CREATE INDEX idx_users_name_email ON users (first_name, last_name, email);",
+			expectedName:   "idx_users_name_email",
+			expectedTable:  "users",
+			expectedCols:   "first_name, last_name, email",
+			expectedUnique: false,
+			expectedError:  false,
+		},
+		{
+			name:           "Index with IF NOT EXISTS",
+			sql:            "CREATE INDEX IF NOT EXISTS idx_users_status ON users (status);",
+			expectedName:   "idx_users_status",
+			expectedTable:  "users",
+			expectedCols:   "status",
+			expectedUnique: false,
+			expectedError:  false,
+		},
+		{
+			name:          "Invalid index syntax",
+			sql:           "CREATE INDEX invalid_syntax;",
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node, err := p.parseCreateIndex(tt.sql)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotNil(t, node)
+			assert.Equal(t, types.NodeIndex, node.Type)
+			assert.Equal(t, tt.expectedName, node.Name)
+			assert.Equal(t, tt.expectedTable, node.Metadata["table"])
+			assert.Equal(t, tt.expectedCols, node.Metadata["columns"])
+			assert.Equal(t, tt.expectedUnique, node.Metadata["is_unique"])
+			assert.Equal(t, strings.TrimRight(tt.sql, ";"), node.Metadata["original_sql"])
+		})
+	}
+}

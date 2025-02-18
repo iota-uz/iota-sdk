@@ -256,6 +256,10 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		}
 		return "", fmt.Errorf("missing new index definition for %s", change.ObjectName)
 
+	case DropIndex:
+		logger.Debugf("Generating DROP INDEX statement for %s", change.ObjectName)
+		return fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName), nil
+
 	case AddConstraint:
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			return fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s %s;",
