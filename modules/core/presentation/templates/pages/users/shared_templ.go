@@ -175,14 +175,18 @@ func EmailInput(props SharedProps) templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+
 		pageCtx := composables.UsePageCtx(ctx)
+		attrs := templ.Attributes{
+			"name":  "Email",
+			"value": props.Value,
+		}
+		if props.Form != "" {
+			attrs["form"] = props.Form
+		}
 		templ_7745c5c3_Err = input.Email(&input.Props{
 			Label: pageCtx.T("Users.Single.Email"),
-			Attrs: templ.Attributes{
-				"name":  "Email",
-				"value": props.Value,
-				"form":  props.Form,
-			},
+			Attrs: attrs,
 			AddonRight: &input.Addon{
 				Component: icons.EnvelopeSimple(icons.Props{
 					Size:  "18",
