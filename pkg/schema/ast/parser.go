@@ -25,6 +25,7 @@ var (
 	createTablePattern = regexp.MustCompile(`(?is)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)\s*\(\s*((?:[^()]*|\([^()]*\))*)\s*\)`)
 	alterTablePattern  = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+([^\s]+)\s+(.*)`)
 	constraintPattern  = regexp.MustCompile(`(?i)^\s*(CONSTRAINT\s+\w+\s+|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE)\s*(.*)$`)
+	createIndexPattern = regexp.MustCompile(`(?is)CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s]+)\s+ON\s+([^\s(]+)\s*\((.*)\)`)
 )
 
 func (p *Parser) parseCreateTable(stmt string) (*types.Node, error) {
@@ -300,20 +301,38 @@ func (p *Parser) Parse(sql string) (*types.SchemaTree, error) {
 	tree := NewSchemaTree()
 	statements := p.splitStatements(sql)
 
-	// First pass: handle CREATE TABLE statements
+	logger.Debugf("Processing %d SQL statements", len(statements))
+
+	// First pass: handle CREATE TABLE and CREATE INDEX statements
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
 		if stmt == "" {
 			continue
 		}
 
-		if strings.HasPrefix(strings.ToUpper(stmt), "CREATE TABLE") {
+		upperStmt := strings.ToUpper(stmt)
+		logger.Debugf("Processing statement: %s", stmt)
+
+		if strings.HasPrefix(upperStmt, "CREATE TABLE") {
 			node, err := p.parseCreateTable(stmt)
 			if err != nil {
+				logger.Errorf("Failed to parse CREATE TABLE: %v", err)
 				return nil, err
 			}
 			if node != nil {
 				logger.Debugf("Adding table %s with %d columns", node.Name, len(node.Children))
+				tree.Root.Children = append(tree.Root.Children, node)
+			}
+		} else if strings.HasPrefix(upperStmt, "CREATE INDEX") ||
+			strings.HasPrefix(upperStmt, "CREATE UNIQUE INDEX") {
+			logger.Debugf("Found CREATE INDEX statement: %s", stmt)
+			node, err := p.parseCreateIndex(stmt)
+			if err != nil {
+				logger.Errorf("Failed to parse CREATE INDEX: %v", err)
+				return nil, err
+			}
+			if node != nil {
+				logger.Debugf("Adding index %s to tree", node.Name)
 				tree.Root.Children = append(tree.Root.Children, node)
 			}
 		}
@@ -329,6 +348,7 @@ func (p *Parser) Parse(sql string) (*types.SchemaTree, error) {
 		if strings.HasPrefix(strings.ToUpper(stmt), "ALTER TABLE") {
 			node, err := p.parseAlterTable(stmt)
 			if err != nil {
+				logger.Errorf("Failed to parse ALTER TABLE: %v", err)
 				return nil, err
 			}
 			if node != nil {
@@ -338,14 +358,21 @@ func (p *Parser) Parse(sql string) (*types.SchemaTree, error) {
 	}
 
 	// Log final state
+	logger.Debugf("Final tree state:")
 	for _, node := range tree.Root.Children {
-		if node.Type == types.NodeTable {
-			logger.Debugf("Final table state - %s: %d columns", node.Name, len(node.Children))
+		switch node.Type {
+		case types.NodeTable:
+			logger.Debugf("Table %s: %d columns", node.Name, len(node.Children))
 			for _, col := range node.Children {
 				if col.Type == types.NodeColumn {
-					logger.Debugf("  Column: %s", col.Name)
+					logger.Debugf("  Column: %s Type: %s", col.Name, col.Metadata["fullType"])
 				}
 			}
+		case types.NodeIndex:
+			logger.Debugf("Index %s on table %s (columns: %s)",
+				node.Name,
+				node.Metadata["table"],
+				node.Metadata["columns"])
 		}
 	}
 
@@ -497,6 +524,7 @@ func (p *Parser) splitStatements(sql string) []string {
 					stmt = strings.TrimSpace(stmt[:idx])
 				}
 				if stmt != "" && stmt != ";" {
+					logger.Debugf("Found statement: %s", stmt)
 					statements = append(statements, stmt)
 				}
 			}
@@ -520,8 +548,14 @@ func (p *Parser) splitStatements(sql string) []string {
 			if !strings.HasSuffix(final, ";") {
 				final += ";"
 			}
+			logger.Debugf("Found final statement: %s", final)
 			statements = append(statements, final)
 		}
+	}
+
+	logger.Debugf("Found %d raw statements before filtering", len(statements))
+	for i, stmt := range statements {
+		logger.Debugf("Raw statement %d: %s", i+1, stmt)
 	}
 
 	// Final cleanup and validation of statements
@@ -533,11 +567,55 @@ func (p *Parser) splitStatements(sql string) []string {
 			upperStmt := strings.ToUpper(stmt)
 			if strings.HasPrefix(upperStmt, "CREATE TABLE") ||
 				strings.HasPrefix(upperStmt, "ALTER TABLE") ||
-				strings.HasPrefix(upperStmt, "DROP TABLE") {
+				strings.HasPrefix(upperStmt, "DROP TABLE") ||
+				strings.HasPrefix(upperStmt, "CREATE INDEX") ||
+				strings.HasPrefix(upperStmt, "CREATE UNIQUE INDEX") {
+				logger.Debugf("Accepting valid statement: %s", stmt)
 				validStatements = append(validStatements, stmt)
+			} else {
+				logger.Debugf("Filtered out statement: %s", stmt)
 			}
 		}
 	}
 
+	logger.Debugf("Returning %d valid statements after filtering", len(validStatements))
+	for i, stmt := range validStatements {
+		logger.Debugf("Valid statement %d: %s", i+1, stmt)
+	}
+
 	return validStatements
+}
+
+func (p *Parser) parseCreateIndex(stmt string) (*types.Node, error) {
+	stmt = strings.TrimRight(stmt, ";")
+	originalStmt := stmt // Save original statement
+	stmt = regexp.MustCompile(`(?m)^\s+`).ReplaceAllString(stmt, "")
+
+	matches := createIndexPattern.FindStringSubmatch(stmt)
+	if matches == nil {
+		return nil, fmt.Errorf("invalid CREATE INDEX statement: %s", stmt)
+	}
+
+	indexName := strings.TrimSpace(matches[1])
+	tableName := strings.TrimSpace(matches[2])
+	columns := strings.TrimSpace(matches[3])
+
+	// Check if it's a unique index
+	isUnique := strings.HasPrefix(strings.ToUpper(stmt), "CREATE UNIQUE INDEX")
+
+	indexNode := &types.Node{
+		Type: types.NodeIndex,
+		Name: indexName,
+		Metadata: map[string]interface{}{
+			"table":        tableName,
+			"columns":      columns,
+			"is_unique":    isUnique,
+			"original_sql": originalStmt,
+		},
+	}
+
+	logger.Debugf("Parsed index %s on table %s (columns: %s, unique: %v)",
+		indexName, tableName, columns, isUnique)
+
+	return indexNode, nil
 }

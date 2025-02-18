@@ -207,14 +207,20 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 		return numI < numJ
 	})
 
-	// Track the latest state of each column with its type and timestamp
+	// Track the latest state of each column and index with its type and timestamp
 	type ColumnState struct {
 		Node      *types.Node
 		Timestamp int64
 		Type      string
 		LastFile  string
 	}
+	type IndexState struct {
+		Node      *types.Node
+		Timestamp int64
+		LastFile  string
+	}
 	tableStates := make(map[string]map[string]*ColumnState) // table -> column -> state
+	indexStates := make(map[string]*IndexState)             // index -> state
 
 	// Process migrations in chronological order
 	for _, fileName := range migrationFiles {
@@ -308,9 +314,10 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 			}
 		}
 
-		// Update table states with changes from this migration
+		// Update table and index states with changes from this migration
 		for _, node := range parsed.Root.Children {
-			if node.Type == types.NodeTable {
+			switch node.Type {
+			case types.NodeTable:
 				tableName := strings.ToLower(node.Name)
 				if _, exists := tableStates[tableName]; !exists {
 					tableStates[tableName] = make(map[string]*ColumnState)
@@ -379,11 +386,61 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 						}
 					}
 				}
+
+			case types.NodeIndex:
+				indexName := strings.ToLower(node.Name)
+				currentState := indexStates[indexName]
+
+				// Only update if this is a newer state
+				if currentState == nil {
+					c.logger.Debugf("New index state for %s in file %s (table: %s, columns: %s)",
+						indexName, fileName, node.Metadata["table"], node.Metadata["columns"])
+
+					// Clean any metadata values of trailing semicolons
+					cleanMetadata := make(map[string]interface{})
+					for k, v := range node.Metadata {
+						if strVal, ok := v.(string); ok {
+							cleanMetadata[k] = strings.TrimRight(strVal, ";")
+						} else {
+							cleanMetadata[k] = v
+						}
+					}
+					node.Metadata = cleanMetadata
+
+					indexStates[indexName] = &IndexState{
+						Node:      node,
+						Timestamp: ts,
+						LastFile:  fileName,
+					}
+				} else if ts > currentState.Timestamp {
+					c.logger.Debugf("Updating index state for %s from file %s",
+						indexName, fileName)
+
+					// Clean any metadata values of trailing semicolons
+					cleanMetadata := make(map[string]interface{})
+					for k, v := range node.Metadata {
+						if strVal, ok := v.(string); ok {
+							cleanMetadata[k] = strings.TrimRight(strVal, ";")
+						} else {
+							cleanMetadata[k] = v
+						}
+					}
+					node.Metadata = cleanMetadata
+
+					indexStates[indexName] = &IndexState{
+						Node:      node,
+						Timestamp: ts,
+						LastFile:  fileName,
+					}
+				} else {
+					c.logger.Debugf("Skipping update for index %s (current_file: %s)",
+						indexName, currentState.LastFile)
+				}
 			}
 		}
 	}
 
-	// Build final tree from accumulated table states
+	// Build final tree from accumulated table and index states
 	for tableName, columns := range tableStates {
 		tableNode := &types.Node{
 			Type:     types.NodeTable,
@@ -402,6 +459,13 @@ func (c *Collector) loadExistingSchema() (*types.SchemaTree, error) {
 		tree.Root.Children = append(tree.Root.Children, tableNode)
 	}
 
+	// Add indexes to the tree
+	for indexName, state := range indexStates {
+		tree.Root.Children = append(tree.Root.Children, state.Node)
+		c.logger.Debugf("Final state for index %s: table=%s, columns=%s from file=%s",
+			indexName, state.Node.Metadata["table"], state.Node.Metadata["columns"], state.LastFile)
+	}
+
 	return tree, nil
 }
 
@@ -409,8 +473,9 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 	tree := ast.NewSchemaTree()
 	c.logger.Infof("Loading module schema files from: %s", c.modulesDir)
 
-	// Track processed tables to avoid duplicates
+	// Track processed tables and indexes to avoid duplicates
 	processedTables := make(map[string]bool)
+	processedIndexes := make(map[string]bool)
 
 	err := filepath.Walk(c.modulesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -430,9 +495,10 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 				return nil
 			}
 
-			// Log found tables and columns
+			// Log found tables, columns, and indexes
 			for _, node := range parsed.Root.Children {
-				if node.Type == types.NodeTable {
+				switch node.Type {
+				case types.NodeTable:
 					tableName := strings.ToLower(node.Name)
 					c.logger.Debugf("Found table: %s with %d columns", node.Name, len(node.Children))
 
@@ -455,6 +521,21 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 					// Add table to tree
 					tree.Root.Children = append(tree.Root.Children, node)
 					c.logger.Debugf("Added table %s from %s", node.Name, path)
+
+				case types.NodeIndex:
+					indexName := strings.ToLower(node.Name)
+					c.logger.Debugf("Found index: %s on table %s", node.Name, node.Metadata["table"])
+
+					// Skip if we've already processed this index
+					if processedIndexes[indexName] {
+						c.logger.Debugf("Skipping duplicate index: %s", node.Name)
+						continue
+					}
+					processedIndexes[indexName] = true
+
+					// Add index to tree
+					tree.Root.Children = append(tree.Root.Children, node)
+					c.logger.Debugf("Added index %s from %s", node.Name, path)
 				}
 			}
 		}
@@ -464,7 +545,8 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 	// Log final state
 	c.logger.Debug("Final module schema state:")
 	for _, node := range tree.Root.Children {
-		if node.Type == types.NodeTable {
+		switch node.Type {
+		case types.NodeTable:
 			c.logger.Debugf("Table %s has %d columns", node.Name, len(node.Children))
 			for _, col := range node.Children {
 				if col.Type == types.NodeColumn {
@@ -474,6 +556,12 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 						col.Metadata["constraints"])
 				}
 			}
+		case types.NodeIndex:
+			c.logger.Debugf("Index %s on table %s (columns: %s, unique: %v)",
+				node.Name,
+				node.Metadata["table"],
+				node.Metadata["columns"],
+				node.Metadata["is_unique"])
 		}
 	}
 

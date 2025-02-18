@@ -42,22 +42,36 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 
 	// Create maps for quick lookup
 	oldTables := make(map[string]*types.Node)
+	oldIndexes := make(map[string]*types.Node)
 	newTables := make(map[string]*types.Node)
+	newIndexes := make(map[string]*types.Node)
 
+	// Map old schema objects
 	for _, node := range a.oldSchema.Root.Children {
-		if node.Type == types.NodeTable {
+		switch node.Type {
+		case types.NodeTable:
 			tableName := strings.ToLower(node.Name)
 			oldTables[tableName] = node
 			logger.WithFields(logrus.Fields{
 				"table":   node.Name,
 				"columns": len(node.Children),
 			}).Debug("Loaded table from old schema")
+		case types.NodeIndex:
+			indexName := strings.ToLower(node.Name)
+			oldIndexes[indexName] = node
+			logger.WithFields(logrus.Fields{
+				"index":  node.Name,
+				"table":  node.Metadata["table"],
+				"unique": node.Metadata["is_unique"],
+			}).Debug("Loaded index from old schema")
 		}
 	}
 
-	// Find added and modified tables
+	// Find added and modified tables and indexes
+	logger.Debugf("Processing %d nodes from new schema", len(a.newSchema.Root.Children))
 	for _, node := range a.newSchema.Root.Children {
-		if node.Type == types.NodeTable {
+		switch node.Type {
+		case types.NodeTable:
 			tableName := strings.ToLower(node.Name)
 			newTables[tableName] = node
 			logger.WithFields(logrus.Fields{
@@ -86,26 +100,65 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 
 				tableDiffs := a.compareTable(oldTable, node)
 				for _, diff := range tableDiffs {
-					// Set table name consistently
 					if diff.Type == ModifyColumn || diff.Type == AddColumn || diff.Type == DropColumn {
 						diff.ParentName = node.Name
 						diff.ObjectName = diff.Object.Name
-						logger.WithFields(logrus.Fields{
-							"type":        diff.Type,
-							"table":       node.Name,
-							"column":      diff.Object.Name,
-							"parent_name": diff.ParentName,
-						}).Debug("Processing column change")
 					} else {
 						diff.ObjectName = node.Name
 					}
 					changes.Changes = append(changes.Changes, diff)
 				}
 			}
+		case types.NodeIndex:
+			indexName := strings.ToLower(node.Name)
+			newIndexes[indexName] = node
+			logger.WithFields(logrus.Fields{
+				"index":  node.Name,
+				"table":  node.Metadata["table"],
+				"unique": node.Metadata["is_unique"],
+			}).Debug("Processing index from new schema")
+
+			oldIndex, exists := oldIndexes[indexName]
+			if !exists {
+				logger.WithFields(logrus.Fields{
+					"index": node.Name,
+					"table": node.Metadata["table"],
+				}).Debug("Found new index")
+				changes.Changes = append(changes.Changes, &Change{
+					Type:       AddIndex,
+					Object:     node,
+					ObjectName: node.Name,
+					ParentName: node.Metadata["table"].(string),
+					Reversible: true,
+				})
+			} else {
+				if !a.indexesEqual(oldIndex, node) {
+					logger.WithFields(logrus.Fields{
+						"index": node.Name,
+						"table": node.Metadata["table"],
+					}).Debug("Found modified index")
+					changes.Changes = append(changes.Changes, &Change{
+						Type:       ModifyIndex,
+						Object:     node,
+						ObjectName: node.Name,
+						ParentName: node.Metadata["table"].(string),
+						Reversible: true,
+						Metadata: map[string]interface{}{
+							"old_definition": oldIndex.Metadata["original_sql"],
+							"new_definition": node.Metadata["original_sql"],
+						},
+					})
+				}
+			}
+		default:
+			logger.WithFields(logrus.Fields{
+				"type": node.Type,
+				"name": node.Name,
+			}).Debug("Found unknown node type")
 		}
 	}
 
-	// Find dropped tables
+	// Find dropped tables and indexes
 	for name, node := range oldTables {
 		if _, exists := newTables[strings.ToLower(name)]; !exists {
 			logger.WithField("table", name).Debug("Found dropped table")
@@ -119,7 +172,24 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 		}
 	}
 
-	logger.WithField("total_changes", len(changes.Changes)).Info("Completed schema comparison")
+	for name, node := range oldIndexes {
+		if _, exists := newIndexes[strings.ToLower(name)]; !exists {
+			logger.WithField("index", name).Debug("Found dropped index")
+			changes.Changes = append(changes.Changes, &Change{
+				Type:       DropIndex,
+				Object:     node,
+				ObjectName: name,
+				ParentName: node.Metadata["table"].(string),
+				Reversible: true,
+			})
+		}
+	}
+
+	logger.WithFields(logrus.Fields{
+		"total_changes": len(changes.Changes),
+		"tables":        len(newTables),
+		"indexes":       len(newIndexes),
+	}).Info("Completed schema comparison")
 	return changes, nil
 }
 
@@ -358,4 +428,29 @@ func normalizeConstraints(constraints string) string {
 
 	// Join back together
 	return strings.Join(parts, " ")
+}
+
+func (a *Analyzer) indexesEqual(oldIndex, newIndex *types.Node) bool {
+	if oldIndex == nil || newIndex == nil {
+		return false
+	}
+
+	// Compare table names
+	oldTable := strings.ToLower(oldIndex.Metadata["table"].(string))
+	newTable := strings.ToLower(newIndex.Metadata["table"].(string))
+	if oldTable != newTable {
+		return false
+	}
+
+	// Compare uniqueness
+	oldUnique := oldIndex.Metadata["is_unique"].(bool)
+	newUnique := newIndex.Metadata["is_unique"].(bool)
+	if oldUnique != newUnique {
+		return false
+	}
+
+	// Compare columns (normalize and compare)
+	oldCols := strings.ToLower(strings.ReplaceAll(oldIndex.Metadata["columns"].(string), " ", ""))
+	newCols := strings.ToLower(strings.ReplaceAll(newIndex.Metadata["columns"].(string), " ", ""))
+	return oldCols == newCols
 }

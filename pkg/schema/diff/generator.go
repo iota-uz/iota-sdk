@@ -112,9 +112,13 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 }
 
 func (g *Generator) generateChangeStatement(change *Change) (string, error) {
+	logger.Debugf("Generating statement for change type: %v", change.Type)
+
 	switch change.Type {
 	case CreateTable:
+		logger.Debugf("Generating CREATE TABLE statement for %s", change.ObjectName)
 		if originalSQL, ok := change.Object.Metadata["original_sql"].(string); ok && originalSQL != "" {
+			logger.Debugf("Using original SQL for table %s: %s", change.ObjectName, originalSQL)
 			return originalSQL, nil
 		}
 		var columns []string
@@ -218,15 +222,44 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		logger.Debugf("Generated fallback statement: %s", stmt)
 		return stmt, nil
 
+	case AddIndex:
+		logger.Debugf("Generating CREATE INDEX statement for %s", change.ObjectName)
+		if originalSQL, ok := change.Object.Metadata["original_sql"].(string); ok && originalSQL != "" {
+			logger.Debugf("Using original SQL for index %s: %s", change.ObjectName, originalSQL)
+			return originalSQL + ";", nil
+		}
+		// Fallback to constructing the index statement
+		isUnique := change.Object.Metadata["is_unique"].(bool)
+		tableName := change.Object.Metadata["table"].(string)
+		columns := change.Object.Metadata["columns"].(string)
+
+		var stmt strings.Builder
+		stmt.WriteString("CREATE ")
+		if isUnique {
+			stmt.WriteString("UNIQUE ")
+		}
+		stmt.WriteString(fmt.Sprintf("INDEX %s ON %s (%s);",
+			change.ObjectName, tableName, columns))
+
+		result := stmt.String()
+		logger.Debugf("Generated index statement: %s", result)
+		return result, nil
+
+	case ModifyIndex:
+		logger.Debugf("Generating MODIFY INDEX statement for %s", change.ObjectName)
+		// For index modifications, we drop and recreate
+		if newDef, ok := change.Metadata["new_definition"].(string); ok {
+			dropStmt := fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName)
+			result := dropStmt + "\n" + newDef + ";"
+			logger.Debugf("Generated index modification statement: %s", result)
+			return result, nil
+		}
+		return "", fmt.Errorf("missing new index definition for %s", change.ObjectName)
+
 	case AddConstraint:
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			return fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s %s;",
 				change.ObjectName, change.Object.Name, def), nil
-		}
-	case AddIndex:
-		if def, ok := change.Object.Metadata["definition"].(string); ok {
-			return fmt.Sprintf("CREATE INDEX %s ON %s %s;",
-				change.Object.Name, change.ObjectName, def), nil
 		}
 	}
 
@@ -259,16 +292,19 @@ func extractDefaultValue(constraints string) string {
 }
 
 func (g *Generator) generateDownStatements(changes *ChangeSet) []string {
+	logger.Debugf("Generating down statements for %d changes", len(changes.Changes))
 	// Generate reverse operations in reverse order
 	statements := make([]string, 0, len(changes.Changes))
 	for i := len(changes.Changes) - 1; i >= 0; i-- {
 		change := changes.Changes[i]
 		if !change.Reversible {
+			logger.Debugf("Skipping non-reversible change: %v", change.Type)
 			continue
 		}
 
 		stmt := g.generateDownStatement(change)
 		if stmt != "" {
+			logger.Debugf("Generated down statement: %s", stmt)
 			statements = append(statements, stmt)
 		}
 	}
@@ -276,18 +312,27 @@ func (g *Generator) generateDownStatements(changes *ChangeSet) []string {
 }
 
 func (g *Generator) generateDownStatement(change *Change) string {
+	logger.Debugf("Generating down statement for change type: %v", change.Type)
+
 	switch change.Type {
 	case CreateTable:
-		return fmt.Sprintf("DROP TABLE IF EXISTS %s", change.ObjectName)
+		stmt := fmt.Sprintf("DROP TABLE IF EXISTS %s;", change.ObjectName)
+		logger.Debugf("Generated down statement for table: %s", stmt)
+		return stmt
 	case AddColumn:
-		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN IF EXISTS %s", change.ParentName, change.ObjectName)
+		stmt := fmt.Sprintf("ALTER TABLE %s DROP COLUMN IF EXISTS %s;", change.ParentName, change.ObjectName)
+		logger.Debugf("Generated down statement for column: %s", stmt)
+		return stmt
 	case AddConstraint:
-		return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s", change.ParentName, change.ObjectName)
-	case AddIndex:
-		return fmt.Sprintf("DROP INDEX IF EXISTS %s", change.ObjectName)
-	default:
-		return ""
+		stmt := fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s;", change.ParentName, change.ObjectName)
+		logger.Debugf("Generated down statement for constraint: %s", stmt)
+		return stmt
+	case AddIndex, ModifyIndex:
+		stmt := fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName)
+		logger.Debugf("Generated down statement for index: %s", stmt)
+		return stmt
 	}
+	return ""
 }
 
 // NewGenerator creates a new migration generator
