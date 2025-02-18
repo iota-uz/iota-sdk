@@ -27,7 +27,7 @@ graph:
 
 # Run tests inside docker
 test-docker:
-	docker compose -f docker-compose.testing.yml up --build erp_local
+	docker compose -f compose.testing.yml up --build erp_local
 
 coverage-score:
 	go tool cover -func ./coverage/coverage.out | grep "total:" | awk '{print ((int($$3) > 80) != 1) }'
@@ -37,7 +37,7 @@ report:
 
 # Run PostgreSQL
 localdb:
-	docker compose -f docker-compose.dev.yml up
+	docker compose -f compose.dev.yml up
 
 clear-localdb:
 	rm -rf postgres-data/
@@ -95,5 +95,11 @@ clean-iota-linter:
 # Migration management targets
 collect-migrations:
 	go run cmd/migrate/main.go collect
+
+build-docker-base:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:base-$v --target base .
+
+build-docker-prod:
+	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:$v --target production .
 
 .PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations

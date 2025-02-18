@@ -9,6 +9,7 @@
 - [Setup Demo](https://github.com/iota-uz/sdk-demo): Learn how to setup IOTA-SDK.
 - [Figma Designs (Coming soon...)](https://www.figma.com/): Access and contribute to our open-source designs.
 - [Roadmap (Coming soon...)](docs/): Explore our upcoming features and milestones.
+- [Demo stand](https://demo.iotaerp.com): Explore the SDK UI
 
 ## 🛠 Built With
 
@@ -59,12 +60,14 @@ various industries. Here's what's in the pipeline:
   invoices and other essential business documents.
 - **Documentation Website**: Launch a comprehensive docs website to streamline onboarding and provide detailed guidance
   for developers and users.
-- **Demo Stand**: Develop an interactive demo stand to showcase IOTA SDK’s capabilities for prospective users and
-  contributors.
 - **Open Source Designs and Documentation**: Share Figma designs and other internal documentation to help the community
   understand the vision and contribute more effectively.
 
 ---  
+
+## Official Docker images
+
+[Docker hub](https://hub.docker.com/r/iotauz/sdk)
 
 ## 📄 Licence
 
