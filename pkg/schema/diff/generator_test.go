@@ -148,6 +148,143 @@ func TestGenerator_Generate(t *testing.T) {
 				assert.Empty(t, downContent)
 			},
 		},
+		{
+			name: "create simple index",
+			changes: &ChangeSet{
+				Changes: []*Change{
+					{
+						Type:       AddIndex,
+						ObjectName: "idx_users_email",
+						ParentName: "users",
+						Object: &types.Node{
+							Type: types.NodeIndex,
+							Name: "idx_users_email",
+							Metadata: map[string]interface{}{
+								"table":        "users",
+								"columns":      "email",
+								"is_unique":    false,
+								"original_sql": "CREATE INDEX idx_users_email ON users (email)",
+							},
+						},
+						Reversible: true,
+					},
+				},
+			},
+			opts: GeneratorOptions{
+				Dialect:     "postgres",
+				OutputDir:   tmpDir,
+				IncludeDown: true,
+			},
+			validateOutput: func(t *testing.T, upContent, downContent string) {
+				assert.Contains(t, upContent, "CREATE INDEX idx_users_email ON users (email)")
+				assert.Contains(t, downContent, "DROP INDEX IF EXISTS idx_users_email")
+				assert.NotContains(t, downContent, "CREATE INDEX")
+			},
+		},
+		{
+			name: "create unique index",
+			changes: &ChangeSet{
+				Changes: []*Change{
+					{
+						Type:       AddIndex,
+						ObjectName: "idx_users_unique_email",
+						ParentName: "users",
+						Object: &types.Node{
+							Type: types.NodeIndex,
+							Name: "idx_users_unique_email",
+							Metadata: map[string]interface{}{
+								"table":        "users",
+								"columns":      "email",
+								"is_unique":    true,
+								"original_sql": "CREATE UNIQUE INDEX idx_users_unique_email ON users (email)",
+							},
+						},
+						Reversible: true,
+					},
+				},
+			},
+			opts: GeneratorOptions{
+				Dialect:     "postgres",
+				OutputDir:   tmpDir,
+				IncludeDown: true,
+			},
+			validateOutput: func(t *testing.T, upContent, downContent string) {
+				assert.Contains(t, upContent, "CREATE UNIQUE INDEX idx_users_unique_email ON users (email)")
+				assert.Contains(t, downContent, "DROP INDEX IF EXISTS idx_users_unique_email")
+				assert.NotContains(t, downContent, "CREATE INDEX")
+			},
+		},
+		{
+			name: "modify index",
+			changes: &ChangeSet{
+				Changes: []*Change{
+					{
+						Type:       ModifyIndex,
+						ObjectName: "idx_users_email",
+						ParentName: "users",
+						Object: &types.Node{
+							Type: types.NodeIndex,
+							Name: "idx_users_email",
+							Metadata: map[string]interface{}{
+								"table":        "users",
+								"columns":      "email, status",
+								"is_unique":    false,
+								"original_sql": "CREATE INDEX idx_users_email ON users (email, status)",
+							},
+						},
+						Metadata: map[string]interface{}{
+							"old_definition": "CREATE INDEX idx_users_email ON users (email)",
+							"new_definition": "CREATE INDEX idx_users_email ON users (email, status)",
+						},
+						Reversible: true,
+					},
+				},
+			},
+			opts: GeneratorOptions{
+				Dialect:     "postgres",
+				OutputDir:   tmpDir,
+				IncludeDown: true,
+			},
+			validateOutput: func(t *testing.T, upContent, downContent string) {
+				assert.Contains(t, upContent, "DROP INDEX IF EXISTS idx_users_email")
+				assert.Contains(t, upContent, "CREATE INDEX idx_users_email ON users (email, status)")
+				assert.Contains(t, downContent, "DROP INDEX IF EXISTS idx_users_email")
+				assert.NotContains(t, downContent, "CREATE INDEX")
+			},
+		},
+		{
+			name: "drop index",
+			changes: &ChangeSet{
+				Changes: []*Change{
+					{
+						Type:       DropIndex,
+						ObjectName: "idx_users_email",
+						ParentName: "users",
+						Object: &types.Node{
+							Type: types.NodeIndex,
+							Name: "idx_users_email",
+							Metadata: map[string]interface{}{
+								"table":        "users",
+								"columns":      "email",
+								"is_unique":    false,
+								"original_sql": "CREATE INDEX idx_users_email ON users (email)",
+							},
+						},
+						Reversible: true,
+					},
+				},
+			},
+			opts: GeneratorOptions{
+				Dialect:     "postgres",
+				OutputDir:   tmpDir,
+				IncludeDown: true,
+			},
+			validateOutput: func(t *testing.T, upContent, downContent string) {
+				assert.Contains(t, upContent, "DROP INDEX IF EXISTS idx_users_email")
+				assert.NotContains(t, downContent, "DROP INDEX")
+				assert.NotContains(t, downContent, "CREATE INDEX")
+			},
+		},
 	}
 
 	for _, tt := range tests {
