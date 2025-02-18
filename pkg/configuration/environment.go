@@ -2,11 +2,12 @@ package configuration
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/iota-uz/utils/fs"
@@ -82,6 +83,8 @@ func (c *Configuration) LogrusLogLevel() logrus.Level {
 		return logrus.WarnLevel
 	case "info":
 		return logrus.InfoLevel
+	case "debug":
+		return logrus.DebugLevel
 	default:
 		return logrus.ErrorLevel
 	}
