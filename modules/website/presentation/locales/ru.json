@@ -1,0 +1,19 @@
+{
+	"NavigationLinks": {
+		"Website": "Сайт",
+		"AIChatbot": "ИИ Чатбот"
+	},
+	"AIChatBot": {
+		"Meta": {
+			"Title": "ИИ Чатбот"
+		},
+		"Title": {
+			"Label": "Заголовок",
+			"Placeholder": "Введите заголовок"
+		},
+		"Description": {
+			"Label": "Описание",
+			"Placeholder": "Введите описание"
+		}
+	}
+}
