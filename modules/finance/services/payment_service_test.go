@@ -2,6 +2,9 @@ package services_test
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -9,10 +12,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"testing"
-	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
@@ -24,6 +25,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 // testFixtures contains common test dependencies
@@ -58,7 +62,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
-	publisher := eventbus.NewEventPublisher()
+	publisher := eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
 	app := setupApplication(t, pool, publisher)
 
 	return &testFixtures{

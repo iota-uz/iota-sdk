@@ -23,6 +23,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -43,7 +44,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(pool, eventbus.NewEventPublisher())
+	app := application.New(pool, eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel)))
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}

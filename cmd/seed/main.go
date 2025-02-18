@@ -14,8 +14,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/logging"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -26,7 +28,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(pool, eventbus.NewEventPublisher())
+	app := application.New(pool, eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel)))
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
