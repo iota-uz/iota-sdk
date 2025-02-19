@@ -154,4 +154,8 @@ Before starting, ensure the following tools are installed on your system:
      ```
    - Verify the database credentials in your `.env` file
 
+### Communication rules
+
+1. The contributer should close the conversation if he consiters it's done. t can be reopened by the reviewer if needed. 
+
 For additional help, please check our [FAQ](./FAQ.md) or open an issue on GitHub.
