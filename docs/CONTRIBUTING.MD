@@ -156,6 +156,6 @@ Before starting, ensure the following tools are installed on your system:
 
 ### Communication rules
 
-1. The contributer should close the conversation if he consiters it's done. t can be reopened by the reviewer if needed. 
+1. The contributer should close the conversation if he considers it's done. It can be reopened by the reviewer if needed. 
 
 For additional help, please check our [FAQ](./FAQ.md) or open an issue on GitHub.
