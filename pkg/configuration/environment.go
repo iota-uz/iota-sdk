@@ -2,20 +2,25 @@ package configuration
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/iota-uz/utils/fs"
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 )
 
-var (
-	singleton *Configuration
-)
+var singleton = sync.OnceValue(func() *Configuration {
+	c := &Configuration{}
+	if err := c.load([]string{".env", ".env.local"}); err != nil {
+		panic(err)
+	}
+	return c
+})
 
 func LoadEnv(envFiles []string) (int, error) {
 	exists := make([]bool, len(envFiles))
@@ -88,13 +93,7 @@ func (c *Configuration) LogrusLogLevel() logrus.Level {
 }
 
 func Use() *Configuration {
-	if singleton == nil {
-		singleton = &Configuration{}
-		if err := singleton.load([]string{".env", ".env.local"}); err != nil {
-			panic(err)
-		}
-	}
-	return singleton
+	return singleton()
 }
 
 func (c *Configuration) load(envFiles []string) error {
