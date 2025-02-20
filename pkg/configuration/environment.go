@@ -16,6 +16,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const Production = "production"
+
 var singleton = sync.OnceValue(func() *Configuration {
 	c := &Configuration{}
 	if err := c.load([]string{".env", ".env.local"}); err != nil {
@@ -123,6 +125,16 @@ func (c *Configuration) LogrusLogLevel() logrus.Level {
 	}
 }
 
+func (c *Configuration) Address() string {
+	var protocol string
+	if c.GoAppEnvironment == Production { // assume 'https' on production mode
+		protocol = "https"
+	} else {
+		protocol = "http"
+	}
+	return fmt.Sprintf("%s://%s:%d", protocol, c.Domain, c.ServerPort)
+}
+
 func Use() *Configuration {
 	return singleton()
 }
@@ -150,7 +162,7 @@ func (c *Configuration) load(envFiles []string) error {
 		return err
 	}
 	c.Database.Opts = c.Database.ConnectionString()
-	if c.GoAppEnvironment == "production" {
+	if c.GoAppEnvironment == Production {
 		c.SocketAddress = fmt.Sprintf(":%d", c.ServerPort)
 	} else {
 		c.SocketAddress = fmt.Sprintf("localhost:%d", c.ServerPort)
