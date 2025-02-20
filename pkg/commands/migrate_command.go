@@ -5,16 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/logging"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -22,6 +21,14 @@ var (
 )
 
 func Migrate(mods ...application.Module) error {
+	defer func() {
+		if r := recover(); r != nil {
+			configuration.Use().Unload()
+			debug.PrintStack()
+			os.Exit(1)
+		}
+	}()
+
 	if len(os.Args) < 2 {
 		return ErrNoCommand
 	}
@@ -30,11 +37,11 @@ func Migrate(mods ...application.Module) error {
 	conf := configuration.Use()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, conf.DBOpts)
+	pool, err := pgxpool.New(ctx, conf.Database.Opts)
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(pool, eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel)))
+	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
 	if err := modules.Load(app, mods...); err != nil {
 		return err
 	}

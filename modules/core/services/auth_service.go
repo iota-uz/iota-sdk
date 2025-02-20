@@ -30,9 +30,9 @@ func NewAuthService(app application.Application) *AuthService {
 	return &AuthService{
 		app: app,
 		oAuthConfig: &oauth2.Config{
-			RedirectURL:  conf.GoogleRedirectURL,
-			ClientID:     conf.GoogleClientID,
-			ClientSecret: conf.GoogleClientSecret,
+			RedirectURL:  conf.Google.RedirectURL,
+			ClientID:     conf.Google.ClientID,
+			ClientSecret: conf.Google.ClientSecret,
 			Scopes: []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
