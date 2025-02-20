@@ -82,7 +82,7 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 		Expires:  sess.ExpiresAt,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 		Path:     "/",
 	}
@@ -171,7 +171,7 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 	}
 	return cookie, nil
@@ -204,7 +204,7 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 	}
 	return cookie, nil
@@ -224,7 +224,7 @@ func generateStateOauthCookie() (*http.Cookie, error) {
 		Expires:  time.Now().Add(time.Minute * 5),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 	}
 	return cookie, nil
