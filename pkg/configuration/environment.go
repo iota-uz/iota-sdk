@@ -116,6 +116,8 @@ func (c *Configuration) LogrusLogLevel() logrus.Level {
 		return logrus.WarnLevel
 	case "info":
 		return logrus.InfoLevel
+	case "debug":
+		return logrus.DebugLevel
 	default:
 		return logrus.ErrorLevel
 	}
