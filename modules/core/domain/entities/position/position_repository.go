@@ -1,14 +1,25 @@
 package position
 
-import (
-	"context"
+import "context"
+
+type Field int
+
+const (
+	Name Field = iota
+	Descripton
+	CreatedAt
 )
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
 
 type FindParams struct {
 	ID     int64
 	Limit  int
 	Offset int
-	SortBy []string
+	SortBy SortBy
 }
 
 type Repository interface {

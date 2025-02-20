@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"strings"
 )
 
 var (
@@ -21,7 +21,7 @@ const (
 	permissionsCountQuery  = `SELECT COUNT(*) FROM permissions`
 	permissionsInsertQuery = `
 		INSERT INTO permissions (id, name, resource, action, modifier)
-		VALUES ($1, $2, $3, $4, $5) 
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (name) DO UPDATE SET resource = permissions.resource
 		RETURNING id`
 	permissionsUpdateQuery = `
@@ -40,45 +40,38 @@ func NewPermissionRepository() permission.Repository {
 func (g *GormPermissionRepository) GetPaginated(
 	ctx context.Context, params *permission.FindParams,
 ) ([]*permission.Permission, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, err
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case permission.FieldName:
+			sortFields = append(sortFields, "permissions.name")
+		case permission.FieldResource:
+			sortFields = append(sortFields, "permissions.resource")
+		case permission.FieldAction:
+			sortFields = append(sortFields, "permissions.action")
+		case permission.FieldModifier:
+			sortFields = append(sortFields, "permissions.modifier")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
 	}
-	where, joins, args := []string{"1 = 1"}, []string{}, []interface{}{}
 
+	joins, args := []string{}, []interface{}{}
 	if params.RoleID != 0 {
-		joins, args = append(joins, fmt.Sprintf("INNER JOIN role_permissions rp ON rp.permission_id = permissions.id and rp.role_id = $%d", len(args)+1)), append(args, params.RoleID)
-	}
-	rows, err := pool.Query(ctx, repo.Join(
-		permissionsSelectQuery,
-		strings.Join(joins, " "),
-		repo.JoinWhere(where...),
-	))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	permissions := make([]*permission.Permission, 0)
-	for rows.Next() {
-		var p models.Permission
-		if err := rows.Scan(
-			&p.ID,
-			&p.Name,
-			&p.Resource,
-			&p.Action,
-			&p.Modifier,
-		); err != nil {
-			return nil, err
-		}
-
-		domainPermission, err := toDomainPermission(&p)
-		if err != nil {
-			return nil, err
-		}
-		permissions = append(permissions, domainPermission)
+		joins = append(joins, fmt.Sprintf("INNER JOIN role_permissions rp ON rp.permission_id = permissions.id and rp.role_id = $%d", len(args)+1))
+		args = append(args, params.RoleID)
 	}
 
-	return permissions, nil
+	return g.queryPermissions(
+		ctx,
+		repo.Join(
+			permissionsSelectQuery,
+			repo.Join(joins...),
+			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		),
+		args...,
+	)
 }
 
 func (g *GormPermissionRepository) Count(ctx context.Context) (int64, error) {

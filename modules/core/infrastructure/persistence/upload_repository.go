@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -17,6 +16,17 @@ var (
 )
 
 const (
+	selectUploadQuery = `
+		SELECT
+			id,
+			hash,
+			path,
+			size,
+			mimetype,
+			created_at,
+			updated_at
+		FROM uploads u
+	`
 	insertUploadQuery  = `INSERT INTO uploads (hash, path, size, mimetype, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	updatedUploadQuery = `UPDATE uploads SET hash = $1, path = $2, size = $3, mimetype = $4, updated_at = $5 WHERE id = $6`
 )
@@ -27,36 +37,22 @@ func NewUploadRepository() upload.Repository {
 	return &GormUploadRepository{}
 }
 
-func (g *GormUploadRepository) GetPaginated(
-	ctx context.Context, params *upload.FindParams,
+func (g *GormUploadRepository) queryUploads(
+	ctx context.Context,
+	query string,
+	args ...interface{},
 ) ([]*upload.Upload, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
-	}
 
-	if params.Hash != "" {
-		where, args = append(where, fmt.Sprintf("hash = $%d", len(args)+1)), append(args, params.Hash)
-	}
-
-	if params.Type != "" {
-		where, args = append(where, fmt.Sprintf("mimetype = $%d", len(args)+1)), append(args, params.Type)
-	}
-
-	rows, err := pool.Query(ctx, `
-		SELECT id, hash, path, size, mimetype, created_at, updated_at FROM uploads
-		WHERE `+strings.Join(where, " AND ")+`
-		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
-	`, args...)
-
+	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
 	uploads := make([]*upload.Upload, 0)
 	for rows.Next() {
 		var upload models.Upload
@@ -73,12 +69,49 @@ func (g *GormUploadRepository) GetPaginated(
 		}
 		uploads = append(uploads, ToDomainUpload(&upload))
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
 	return uploads, nil
+}
+
+func (g *GormUploadRepository) GetPaginated(
+	ctx context.Context, params *upload.FindParams,
+) ([]*upload.Upload, error) {
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case upload.Size:
+			sortFields = append(sortFields, "u.size")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
+	}
+
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.ID != 0 {
+		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
+	}
+
+	if params.Hash != "" {
+		where, args = append(where, fmt.Sprintf("hash = $%d", len(args)+1)), append(args, params.Hash)
+	}
+
+	if params.Type != "" {
+		where, args = append(where, fmt.Sprintf("mimetype = $%d", len(args)+1)), append(args, params.Type)
+	}
+
+	return g.queryUploads(
+		ctx,
+		repo.Join(
+			selectUploadQuery,
+			repo.JoinWhere(where...),
+			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		),
+		args...,
+	)
 }
 
 func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {

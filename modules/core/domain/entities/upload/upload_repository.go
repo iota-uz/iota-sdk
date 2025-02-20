@@ -1,17 +1,24 @@
 package upload
 
-import (
-	"context"
-)
+import "context"
+
+type Field int
+
+const Size Field = iota
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
 
 type FindParams struct {
 	ID     uint
 	Hash   string
 	Limit  int
 	Offset int
-	SortBy []string
 	Search string
 	Type   string
+	SortBy SortBy
 }
 
 type Repository interface {

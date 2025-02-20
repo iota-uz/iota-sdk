@@ -4,17 +4,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
 	ErrCurrencyNotFound = errors.New("currency not found")
+)
+
+const (
+	selectCurrenciesQuery = `
+		SELECT
+			c.code,
+			c.name,
+			c.symbol,
+			c.created_at,
+			c.updated_at,
+		FROM c
+	`
 )
 
 type GormCurrencyRepository struct{}
@@ -23,24 +34,17 @@ func NewCurrencyRepository() currency.Repository {
 	return &GormCurrencyRepository{}
 }
 
-func (g *GormCurrencyRepository) GetPaginated(
-	ctx context.Context, params *currency.FindParams,
+func (g *GormCurrencyRepository) queryChats(
+	ctx context.Context,
+	query string,
+	args ...interface{},
 ) ([]*currency.Currency, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.Code != "" {
-		where, args = append(where, fmt.Sprintf("code = $%d", len(args)+1)), append(args, params.Code)
-	}
 
-	rows, err := pool.Query(ctx, `
-		SELECT code, name, symbol, created_at, updated_at FROM currencies
-		WHERE `+strings.Join(where, " AND ")+`
-		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
-	`, args...)
-
+	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +75,43 @@ func (g *GormCurrencyRepository) GetPaginated(
 	}
 
 	return currencies, nil
+}
+
+func (g *GormCurrencyRepository) GetPaginated(
+	ctx context.Context, params *currency.FindParams,
+) ([]*currency.Currency, error) {
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case currency.FieldCode:
+			sortFields = append(sortFields, "c.name")
+		case currency.FieldName:
+			sortFields = append(sortFields, "c.code")
+		case currency.FieldSymbol:
+			sortFields = append(sortFields, "c.symbol")
+		case currency.FieldCreatedAt:
+			sortFields = append(sortFields, "c.created_at")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
+	}
+
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.Code != "" {
+		where = append(where, "c.code ILIKE $1")
+		args = append(args, "%"+params.Code+"%")
+	}
+
+	return g.queryChats(
+		ctx,
+		repo.Join(
+			selectCurrenciesQuery,
+			repo.JoinWhere(where...),
+			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		),
+		args...,
+	)
 }
 
 func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
@@ -127,7 +168,7 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Cu
 	}
 	row := ToDBCurrency(entity)
 	if _, err := tx.Exec(ctx, `
-		UPDATE currencies 
+		UPDATE currencies
 		SET name = $1, symbol = $2
 		WHERE code = $3
 	`, row.Name, row.Symbol, row.Code); err != nil {

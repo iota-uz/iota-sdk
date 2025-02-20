@@ -2,18 +2,30 @@ package employee
 
 import "context"
 
-type DateRange struct {
-	From string
-	To   string
+type Field int
+
+const (
+	Id Field = iota
+	FirstName
+	LastName
+	MiddleName
+	Salary
+	HourlyRate
+	Coefficient
+	CreatedAt
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
 }
 
 type FindParams struct {
-	Limit     int
-	Offset    int
-	SortBy    []string
-	Query     string
-	Field     string
-	CreatedAt DateRange
+	Limit  int
+	Offset int
+	Query  string
+	Field  string
+	SortBy SortBy
 }
 
 type Repository interface {
