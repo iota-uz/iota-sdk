@@ -37,10 +37,15 @@ report:
 
 # Run PostgreSQL
 localdb:
-	docker compose -f compose.dev.yml up
+	docker compose -f compose.dev.yml up -d
 
 clear-localdb:
 	rm -rf postgres-data/
+
+reset-localdb:
+	docker compose -f compose.dev.yml down
+	make clear-localdb
+	make localdb
 
 # Apply database migrations (up)
 migrate-up:
@@ -102,4 +107,4 @@ build-docker-base:
 build-docker-prod:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:$v --target production .
 
-.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations
+.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations
