@@ -36,7 +36,6 @@ func (m *Module) Register(app application.Application) error {
 	app.RBAC().Register(
 		permissions.Permissions...,
 	)
-	app.RegisterMigrationDirs(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterSeedFuncs(
 		seed.CreatePermissions,

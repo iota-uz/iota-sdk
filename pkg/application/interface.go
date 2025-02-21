@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,7 +29,6 @@ type Application interface {
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
-	MigrationDirs() []*embed.FS
 	Seed(ctx context.Context) error
 	RBAC() permission.RBAC
 	Spotlight() spotlight.Spotlight
@@ -39,7 +39,6 @@ type Application interface {
 	RegisterSeedFuncs(seedFuncs ...SeedFunc)
 	RegisterAssets(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
-	RegisterMigrationDirs(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
 	RegisterServices(services ...interface{})
