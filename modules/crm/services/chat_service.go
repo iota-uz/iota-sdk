@@ -193,7 +193,7 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 		return nil, err
 	}
 	if err := s.cpassProvider.SendMessage(ctx, cpassproviders.SendMessageDTO{
-		From:    configuration.Use().TwilioPhoneNumber,
+		From:    configuration.Use().Twilio.PhoneNumber,
 		To:      clientEntity.Phone().Value(),
 		Message: dto.Message,
 	}); err != nil {
