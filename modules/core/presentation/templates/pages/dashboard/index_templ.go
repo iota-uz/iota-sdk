@@ -95,7 +95,7 @@ func Sales() templ.Component {
 				},
 			},
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"bg-white shadow-lg rounded-lg p-6 w-full max-w-3xl\"><div class=\"flex justify-between items-center mb-4\"><h2 class=\"text-lg font-semibold text-gray-700\">Expenses Over Time</h2><div class=\"relative\"><label><select class=\"appearance-none border rounded-lg px-4 py-2 text-gray-600 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500\"><option>2024</option> <option>2023</option> <option>2022</option></select></label></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"bg-surface-100 shadow-lg rounded-lg p-6 w-full max-w-3xl\"><div class=\"flex justify-between items-center mb-4\"><h2 class=\"text-lg font-semibold text-gray-700\">Expenses Over Time</h2><div class=\"relative\"><label><select class=\"bg-surface-100 appearance-none border rounded-lg px-4 py-2 text-gray-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500\"><option>2024</option> <option>2023</option> <option>2022</option></select></label></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -189,7 +189,7 @@ func Revenue() templ.Component {
 				},
 			},
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"bg-white shadow-lg rounded-lg p-6 w-full max-w-3xl\"><div class=\"flex justify-between items-center mb-4\"><h2 class=\"text-lg font-semibold text-gray-700\">Expenses Over Time</h2><div class=\"relative\"><select class=\"appearance-none border rounded-lg px-4 py-2 text-gray-600 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500\"><option>2024</option> <option>2023</option> <option>2022</option></select></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"bg-surface-100 shadow-lg rounded-lg p-6 w-full max-w-3xl\"><div class=\"flex justify-between items-center mb-4\"><h2 class=\"text-lg font-semibold text-gray-700\">Expenses Over Time</h2><div class=\"relative\"><select class=\"bg-surface-100 appearance-none border rounded-lg px-4 py-2 text-gray-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500\"><option>2024</option> <option>2023</option> <option>2022</option></select></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
