@@ -26,12 +26,16 @@ var (
 
 // ensureDirectories creates necessary directories if they don't exist
 func ensureDirectories() error {
-	dirs := []string{"migrations", "modules"}
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
+	// Make sure migrations directory exists
+	migrationsPath := os.Getenv("MIGRATIONS_DIR")
+	if migrationsPath == "" {
+		migrationsPath = "migrations"
 	}
+
+	if err := os.MkdirAll(migrationsPath, 0755); err != nil {
+		return fmt.Errorf("failed to create migrations directory: %w", err)
+	}
+
 	return nil
 }
 

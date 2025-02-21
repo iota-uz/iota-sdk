@@ -24,7 +24,6 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	app.RegisterMigrationDirs(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterServices(
 		services.NewEmbeddingService(app),
