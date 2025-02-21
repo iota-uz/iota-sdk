@@ -4,15 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
 	ErrTabNotFound = errors.New("tab not found")
+)
+
+const (
+	selectTabsQuery     = `SELECT id, href, user_id, position FROM tabs`
+	countTabsQuery      = `SELECT COUNT(*) as count FROM tabs`
+	insertTabsQuery     = `INSERT INTO tabs (href, user_id, position) VALUES ($1, $2, $3) RETURNING id`
+	updateTabsQuery     = `UPDATE tabs SET href = $1, position = $2 WHERE id = $3`
+	deleteTabsQuery     = `DELETE FROM tabs WHERE id = $1`
+	deleteUserTabsQuery = `DELETE FROM tabs WHERE user_id = $1`
 )
 
 type GormTabRepository struct{}
@@ -21,37 +30,12 @@ func NewTabRepository() tab.Repository {
 	return &GormTabRepository{}
 }
 
-func (g *GormTabRepository) Count(ctx context.Context) (int64, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return 0, err
-	}
-	var count int64
-	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM tabs
-	`).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
+func (g *GormTabRepository) queryTabs(ctx context.Context, query string, args ...interface{}) ([]*tab.Tab, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.UserID != 0 {
-		where, args = append(where, fmt.Sprintf("user_id = $%d", len(args)+1)), append(args, params.UserID)
-	}
-
-	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
-	}
-
-	rows, err := pool.Query(ctx, `
-		SELECT id, href, user_id, position FROM tabs
-		WHERE `+strings.Join(where, " AND "), args...)
+	rows, err := pool.Query(ctx, query, args...)
 
 	if err != nil {
 		return nil, err
@@ -82,6 +66,30 @@ func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) 
 	}
 
 	return tabs, nil
+
+}
+
+func (g *GormTabRepository) Count(ctx context.Context) (int64, error) {
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) as count FROM tabs
+	`).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (g *GormTabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.UserID != 0 {
+		where, args = append(where, fmt.Sprintf("user_id = $%d", len(args)+1)), append(args, params.UserID)
+	}
+
+	return g.queryTabs(ctx, repo.Join(selectTabsQuery, repo.JoinWhere(where...)), args...)
 }
 
 func (g *GormTabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Tab, error) {
@@ -113,9 +121,13 @@ func (g *GormTabRepository) Create(ctx context.Context, data *tab.Tab) error {
 		return err
 	}
 	tab := ToDBTab(data)
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO tabs (href, user_id, position) VALUES ($1, $2, $3) RETURNING id
-	`, tab.Href, tab.UserID, tab.Position).Scan(&data.ID); err != nil {
+	if err := tx.QueryRow(
+		ctx,
+		insertTabsQuery,
+		tab.Href,
+		tab.UserID,
+		tab.Position,
+	).Scan(&data.ID); err != nil {
 		return err
 	}
 	return nil
@@ -138,20 +150,18 @@ func (g *GormTabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) err
 }
 
 func (g *GormTabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) error {
-	u, err := g.GetByID(ctx, data.ID)
-	if err != nil && !errors.Is(err, ErrTabNotFound) {
+	matches, err := g.queryTabs(ctx, repo.Join(selectTabsQuery, "WHERE user_id = $1 AND href = $2"), data.UserID, data.Href)
+	if err != nil {
 		return err
 	}
-	if u != nil {
-		if err := g.Update(ctx, data); err != nil {
-			return err
-		}
-	} else {
-		if err := g.Create(ctx, data); err != nil {
-			return err
-		}
+	if len(matches) > 1 {
+		return errors.New("multiple tabs found")
 	}
-	return nil
+	if len(matches) == 1 {
+		data.ID = matches[0].ID
+		return g.Update(ctx, data)
+	}
+	return g.Create(ctx, data)
 }
 
 func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
@@ -160,11 +170,13 @@ func (g *GormTabRepository) Update(ctx context.Context, data *tab.Tab) error {
 		return err
 	}
 	tab := ToDBTab(data)
-	if _, err := tx.Exec(ctx, `
-		UPDATE tabs
-		SET href = $1, position = $2
-		WHERE id = $3
-	`, tab.Href, tab.Position, tab.ID); err != nil {
+	if _, err := tx.Exec(
+		ctx,
+		updateTabsQuery,
+		tab.Href,
+		tab.Position,
+		tab.ID,
+	); err != nil {
 		return err
 	}
 	return nil
@@ -175,7 +187,7 @@ func (g *GormTabRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM tabs where id = $1`, id); err != nil {
+	if _, err := tx.Exec(ctx, deleteTabsQuery, id); err != nil {
 		return err
 	}
 	return nil
@@ -186,7 +198,7 @@ func (g *GormTabRepository) DeleteUserTabs(ctx context.Context, userID uint) err
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM tabs where user_id = $1`, userID); err != nil {
+	if _, err := tx.Exec(ctx, deleteUserTabsQuery, userID); err != nil {
 		return err
 	}
 	return nil
