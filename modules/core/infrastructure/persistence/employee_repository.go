@@ -3,12 +3,13 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
+
+	"github.com/go-faster/errors"
 )
 
 var (
@@ -81,9 +82,31 @@ func NewEmployeeRepository() employee.Repository {
 }
 
 func (g *GormEmployeeRepository) GetPaginated(ctx context.Context, params *employee.FindParams) ([]employee.Employee, error) {
-	var args []interface{}
-	where := []string{"1 = 1"}
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case employee.Id:
+			sortFields = append(sortFields, "e.id")
+		case employee.FirstName:
+			sortFields = append(sortFields, "e.first_name")
+		case employee.LastName:
+			sortFields = append(sortFields, "e.last_name")
+		case employee.MiddleName:
+			sortFields = append(sortFields, "e.middle_name")
+		case employee.Salary:
+			sortFields = append(sortFields, "e.salary")
+		case employee.HourlyRate:
+			sortFields = append(sortFields, "e.hourly_rate")
+		case employee.Coefficient:
+			sortFields = append(sortFields, "e.coefficient_rate")
+		case employee.CreatedAt:
+			sortFields = append(sortFields, "e.created_at")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
+	}
 
+	where, args := []string{"1 = 1"}, []interface{}{}
 	if params.Query != "" && params.Field != "" {
 		where = append(where, fmt.Sprintf("e.%s::VARCHAR ILIKE $%d", params.Field, len(where)))
 		args = append(args, "%"+params.Query+"%")
@@ -92,6 +115,7 @@ func (g *GormEmployeeRepository) GetPaginated(ctx context.Context, params *emplo
 	q := repo.Join(
 		employeeFindQuery,
 		repo.JoinWhere(where...),
+		repo.OrderBy(sortFields, params.SortBy.Ascending),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryEmployees(ctx, q, args...)

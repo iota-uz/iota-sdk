@@ -21,7 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/websocket"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
+	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"

@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -16,15 +17,15 @@ var (
 
 const (
 	roleFindQuery = `
-		SELECT 
-			r.id, 
-			r.name, 
-			r.description, 
-			r.created_at, 
+		SELECT
+			r.id,
+			r.name,
+			r.description,
+			r.created_at,
 			r.updated_at
 		FROM roles r`
 	rolePermissionsQuery = `
-		SELECT 
+		SELECT
 			p.id,
 			p.name,
 			p.resource,
@@ -39,7 +40,7 @@ const (
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
 		INSERT INTO role_permissions (role_id, permission_id)
-		VALUES ($1, $2) 
+		VALUES ($1, $2)
 		ON CONFLICT (role_id, permission_id) DO NOTHING`
 	roleDeleteQuery = `DELETE FROM roles WHERE id = $1`
 )
@@ -51,6 +52,20 @@ func NewRoleRepository() role.Repository {
 }
 
 func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.FindParams) ([]role.Role, error) {
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case role.Name:
+			sortFields = append(sortFields, "r.name")
+		case role.Description:
+			sortFields = append(sortFields, "r.description")
+		case role.CreatedAt:
+			sortFields = append(sortFields, "r.created_at")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
+	}
+
 	where, args := []string{"1 = 1"}, []interface{}{}
 	if params.Name != "" {
 		where = append(where, fmt.Sprintf("r.name = $%d", len(args)+1))
@@ -60,6 +75,7 @@ func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.Find
 	query := repo.Join(
 		roleFindQuery,
 		repo.JoinWhere(where...),
+		repo.OrderBy(sortFields, params.SortBy.Ascending),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryRoles(ctx, query, args...)

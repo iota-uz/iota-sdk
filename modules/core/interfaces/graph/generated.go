@@ -65,7 +65,7 @@ type ComplexityRoot struct {
 	Query struct {
 		Hello func(childComplexity int, name *string) int
 		User  func(childComplexity int, id int64) int
-		Users func(childComplexity int, offset int, limit int, sortBy []string) int
+		Users func(childComplexity int, offset int, limit int, sortBy []int, ascending bool) int
 	}
 
 	Session struct {
@@ -102,7 +102,7 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Hello(ctx context.Context, name *string) (*string, error)
 	User(ctx context.Context, id int64) (*model.User, error)
-	Users(ctx context.Context, offset int, limit int, sortBy []string) (*model.PaginatedUsers, error)
+	Users(ctx context.Context, offset int, limit int, sortBy []int, ascending bool) (*model.PaginatedUsers, error)
 }
 type SubscriptionResolver interface {
 	Counter(ctx context.Context) (<-chan int, error)
@@ -219,7 +219,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Users(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]string)), true
+		return e.complexity.Query.Users(childComplexity, args["offset"].(int), args["limit"].(int), args["sortBy"].([]int), args["ascending"].(bool)), true
 
 	case "Session.createdAt":
 		if e.complexity.Session.CreatedAt == nil {
@@ -732,6 +732,11 @@ func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["sortBy"] = arg2
+	arg3, err := ec.field_Query_users_argsAscending(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["ascending"] = arg3
 	return args, nil
 }
 func (ec *executionContext) field_Query_users_argsOffset(
@@ -781,22 +786,44 @@ func (ec *executionContext) field_Query_users_argsLimit(
 func (ec *executionContext) field_Query_users_argsSortBy(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) ([]string, error) {
+) ([]int, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["sortBy"]
 	if !ok {
-		var zeroVal []string
+		var zeroVal []int
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("sortBy"))
 	if tmp, ok := rawArgs["sortBy"]; ok {
-		return ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
+		return ec.unmarshalOInt2ᚕintᚄ(ctx, tmp)
 	}
 
-	var zeroVal []string
+	var zeroVal []int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_users_argsAscending(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (bool, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["ascending"]
+	if !ok {
+		var zeroVal bool
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("ascending"))
+	if tmp, ok := rawArgs["ascending"]; ok {
+		return ec.unmarshalNBoolean2bool(ctx, tmp)
+	}
+
+	var zeroVal bool
 	return zeroVal, nil
 }
 
@@ -1333,7 +1360,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Users(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]string))
+		return ec.resolvers.Query().Users(rctx, fc.Args["offset"].(int), fc.Args["limit"].(int), fc.Args["sortBy"].([]int), fc.Args["ascending"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5134,7 +5161,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+func (ec *executionContext) unmarshalOInt2ᚕintᚄ(ctx context.Context, v interface{}) ([]int, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -5143,10 +5170,10 @@ func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v
 		vSlice = graphql.CoerceList(v)
 	}
 	var err error
-	res := make([]string, len(vSlice))
+	res := make([]int, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNInt2int(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -5154,13 +5181,13 @@ func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v
 	return res, nil
 }
 
-func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+func (ec *executionContext) marshalOInt2ᚕintᚄ(ctx context.Context, sel ast.SelectionSet, v []int) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	ret := make(graphql.Array, len(v))
 	for i := range v {
-		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+		ret[i] = ec.marshalNInt2int(ctx, sel, v[i])
 	}
 
 	for _, e := range ret {
