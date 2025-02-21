@@ -126,13 +126,14 @@ func (c *Configuration) LogrusLogLevel() logrus.Level {
 }
 
 func (c *Configuration) Address() string {
-	var protocol string
+	return fmt.Sprintf("%s://%s:%d", c.Scheme(), c.Domain, c.ServerPort)
+}
+
+func (c *Configuration) Scheme() string {
 	if c.GoAppEnvironment == Production { // assume 'https' on production mode
-		protocol = "https"
-	} else {
-		protocol = "http"
+		return "https"
 	}
-	return fmt.Sprintf("%s://%s:%d", protocol, c.Domain, c.ServerPort)
+	return "http"
 }
 
 func Use() *Configuration {

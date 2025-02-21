@@ -30,22 +30,6 @@ func NewCreatedEvent(ctx context.Context, data CreateDTO, result Upload) (*Creat
 	}, nil
 }
 
-func NewUpdatedEvent(ctx context.Context, data UpdateDTO, result Upload) (*UpdatedEvent, error) {
-	// sender, err := composables.UseUser(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// sess, err := composables.UseSession(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	return &UpdatedEvent{
-		Session: session.Session{},
-		Data:    data,
-		Result:  result,
-	}, nil
-}
-
 func NewDeletedEvent(ctx context.Context, result Upload) (*DeletedEvent, error) {
 	// sender, err := composables.UseUser(ctx)
 	// if err != nil {
@@ -65,13 +49,6 @@ type CreatedEvent struct {
 	// Sender  user.User
 	Session session.Session
 	Data    CreateDTO
-	Result  Upload
-}
-
-type UpdatedEvent struct {
-	// Sender  user.User
-	Session session.Session
-	Data    UpdateDTO
 	Result  Upload
 }
 
