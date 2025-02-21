@@ -68,7 +68,7 @@ func ToDomainProduct(
 
 func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.WarehouseUnit) (*position.Position, error) {
 	// TODO: decouple
-	images := make([]*upload.Upload, len(dbPosition.Images))
+	images := make([]upload.Upload, len(dbPosition.Images))
 	for i, img := range dbPosition.Images {
 		images[i] = persistence.ToDomainUpload(&img)
 	}
@@ -90,7 +90,7 @@ func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 		junctionRows = append(
 			junctionRows, &models.WarehousePositionImage{
 				WarehousePositionID: entity.ID,
-				UploadID:            image.ID,
+				UploadID:            image.ID(),
 			},
 		)
 	}

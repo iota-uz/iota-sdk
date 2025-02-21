@@ -4,18 +4,28 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-// ----
+// ---- Value Objects ----
+
+type UploadType int
+
+const (
+	UploadTypeImage UploadType = iota
+	UploadTypeDocument
+)
 
 // ---- Interfaces ----
 
 type Size interface {
+	String() string
 	Bytes() int
 	Kilobytes() int
 	Megabytes() int
@@ -24,26 +34,41 @@ type Size interface {
 
 type Upload interface {
 	ID() uint
+	Type() UploadType
 	Hash() string
 	Path() string
 	Size() Size
+	IsImage() bool
+	PreviewURL() string
 	URL() url.URL
-	Mimetype() mimetype.MIME
+	Mimetype() *mimetype.MIME
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 }
 
 // ---- Upload Implementation ----
 
-func New() Upload {
-	return &upload{}
+func New(
+	hash, path string,
+	size int,
+	mimetype *mimetype.MIME,
+) Upload {
+	return &upload{
+		id:        0,
+		hash:      hash,
+		path:      path,
+		size:      NewSize(size),
+		mimetype:  mimetype,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
+	}
 }
 
 func NewWithID(
 	id uint,
 	hash, path string,
 	size int,
-	mimetype mimetype.MIME,
+	mimetype *mimetype.MIME,
 	createdAt, updatedAt time.Time,
 ) Upload {
 	return &upload{
@@ -62,13 +87,20 @@ type upload struct {
 	hash      string
 	path      string
 	size      Size
-	mimetype  mimetype.MIME
+	mimetype  *mimetype.MIME
 	createdAt time.Time
 	updatedAt time.Time
 }
 
 func (u *upload) ID() uint {
 	return u.id
+}
+
+func (u *upload) Type() UploadType {
+	if strings.HasPrefix(u.mimetype.String(), "image") {
+		return UploadTypeImage
+	}
+	return UploadTypeDocument
 }
 
 func (u *upload) Hash() string {
@@ -83,22 +115,11 @@ func (u *upload) Size() Size {
 	return u.size
 }
 
-//
-//	Scheme      string
-//	Opaque      string    // encoded opaque data
-//	User        *Userinfo // username and password information
-//	Host        string    // host or host:port (see Hostname and Port methods)
-//	Path        string    // path (relative paths may omit leading slash)
-//	RawPath     string    // encoded path hint (see EscapedPath method)
-//	OmitHost    bool      // do not emit empty host (authority)
-//	ForceQuery  bool      // append a query ('?') even if RawQuery is empty
-//	RawQuery    string    // encoded query values, without '?'
-//	Fragment    string    // fragment for references, without '#'
-//	RawFragment string    // encoded fragment hint (see EscapedFragment method)
-
 func (u *upload) URL() url.URL {
+	conf := configuration.Use()
 	return url.URL{
-		Scheme: "https",
+		Scheme: conf.Scheme(),
+		Host:   conf.Domain,
 		Path:   u.path,
 	}
 }
@@ -112,7 +133,14 @@ func (u *upload) PreviewURL() string {
 	return "/" + u.path
 }
 
-func (u *upload) Mimetype() mimetype.MIME {
+func (u *upload) IsImage() bool {
+	if strings.HasPrefix(u.mimetype.String(), "image") {
+		return true
+	}
+	return false
+}
+
+func (u *upload) Mimetype() *mimetype.MIME {
 	return u.mimetype
 }
 
