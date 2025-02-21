@@ -34,18 +34,19 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	uploads := make([]*upload.Upload, 0, 1000)
+	uploads := make([]upload.Upload, 0, 1000)
 	for i := 0; i < 1000; i++ {
 		entity, err := uploadRepository.Create(
 			f.ctx,
-			&upload.Upload{
-				ID:        0,
-				Hash:      random.String(32, random.LowerCharSet),
-				Size:      1,
-				Mimetype:  *mimetype.Lookup("image/png"),
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
+			upload.NewWithID(
+				0,
+				random.String(32, random.LowerCharSet),
+				"image.png",
+				1,
+				mimetype.Lookup("image/png"),
+				time.Now(),
+				time.Now(),
+			),
 		)
 		if err != nil {
 			b.Fatal(err)
@@ -94,15 +95,17 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	createdUpload, err := uploadRepository.Create(
-		f.ctx, &upload.Upload{
-			ID:        1,
-			Hash:      "hash",
-			Path:      "url",
-			Size:      1,
-			Mimetype:  *mimetype.Lookup("image/png"),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		})
+		f.ctx,
+		upload.NewWithID(
+			1,
+			"hash",
+			"url",
+			1,
+			mimetype.Lookup("image/png"),
+			time.Now(),
+			time.Now(),
+		),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +116,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			Title:     "Position 1",
 			Barcode:   "3141592653589",
 			UnitID:    1,
-			Images:    []*upload.Upload{createdUpload},
+			Images:    []upload.Upload{createdUpload},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}); err != nil {
@@ -144,7 +147,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 					Title:   "Updated Position 1",
 					Barcode: "3141592653589",
 					UnitID:  1,
-					Images:  []*upload.Upload{},
+					Images:  []upload.Upload{},
 				},
 			); err != nil {
 				t.Fatal(err)
