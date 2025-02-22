@@ -4,18 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/iota-uz/iota-sdk/pkg/schema/ast"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 	"github.com/iota-uz/iota-sdk/pkg/schema/diff"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -40,6 +40,14 @@ func ensureDirectories() error {
 }
 
 func Migrate(mods ...application.Module) error {
+	defer func() {
+		if r := recover(); r != nil {
+			configuration.Use().Unload()
+			debug.PrintStack()
+			os.Exit(1)
+		}
+	}()
+
 	if len(os.Args) < 2 {
 		return ErrNoCommand
 	}
@@ -47,12 +55,6 @@ func Migrate(mods ...application.Module) error {
 	conf := configuration.Use()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-
-	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
-	if err != nil {
-		log.Fatalf("failed to create logger: %v", err)
-	}
-	defer logFile.Close()
 
 	if err := ensureDirectories(); err != nil {
 		return err
@@ -62,7 +64,7 @@ func Migrate(mods ...application.Module) error {
 
 	switch command {
 	case "collect":
-		return handleSchemaCommands(ctx, command, logger.Level)
+		return handleSchemaCommands(ctx, command, conf.LogrusLogLevel())
 	default:
 		return handleMigrationCommands(ctx, command, conf, mods...)
 	}
@@ -104,13 +106,13 @@ func handleSchemaCommands(ctx context.Context, command string, logLevel logrus.L
 }
 
 func handleMigrationCommands(ctx context.Context, command string, conf *configuration.Configuration, mods ...application.Module) error {
-	pool, err := pgxpool.New(ctx, conf.DBOpts)
+	pool, err := pgxpool.New(ctx, conf.Database.Opts)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer pool.Close()
 
-	app := application.New(pool, eventbus.NewEventPublisher())
+	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
 	if err := modules.Load(app, mods...); err != nil {
 		return err
 	}

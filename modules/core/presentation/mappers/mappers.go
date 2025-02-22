@@ -1,7 +1,6 @@
 package mappers
 
 import (
-	"slices"
 	"strconv"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
@@ -58,23 +56,15 @@ func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
 	}
 }
 
-func UploadToViewModel(entity *upload.Upload) *viewmodels.Upload {
-	var url string
-	// TODO: this is gotta be implemented better
-	if slices.Contains([]string{".xls", ".xlsx"}, entity.Mimetype.Extension()) {
-		url = "/assets/" + assets.HashFS.HashName("images/excel-logo.svg")
-	} else if entity.Path != "" {
-		url = "/" + entity.Path
-	}
-
+func UploadToViewModel(entity upload.Upload) *viewmodels.Upload {
 	return &viewmodels.Upload{
-		ID:        strconv.FormatUint(uint64(entity.ID), 10),
-		Hash:      entity.Hash,
-		URL:       url,
-		Mimetype:  entity.Mimetype.String(),
-		Size:      strconv.Itoa(entity.Size),
-		CreatedAt: entity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: entity.UpdatedAt.Format(time.RFC3339),
+		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
+		Hash:      entity.Hash(),
+		URL:       entity.PreviewURL(),
+		Mimetype:  entity.Mimetype().String(),
+		Size:      entity.Size().String(),
+		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt: entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
 

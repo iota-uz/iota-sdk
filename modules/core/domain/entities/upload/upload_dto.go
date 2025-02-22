@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"io"
 	"path/filepath"
-	"time"
 
 	"github.com/gabriel-vasile/mimetype"
 
@@ -22,9 +21,6 @@ type CreateDTO struct {
 	Type string
 }
 
-type UpdateDTO struct {
-}
-
 func (d *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
@@ -38,20 +34,7 @@ func (d *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
-	errorMessages := map[string]string{}
-	errs := constants.Validate.Struct(d)
-	if errs == nil {
-		return errorMessages, true
-	}
-
-	for _, err := range errs.(validator.ValidationErrors) {
-		errorMessages[err.Field()] = err.Translate(l)
-	}
-	return errorMessages, len(errorMessages) == 0
-}
-
-func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
+func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
 	conf := configuration.Use()
 	bytes, err := io.ReadAll(d.File)
 	if err != nil {
@@ -60,21 +43,10 @@ func (d *CreateDTO) ToEntity() (*Upload, []byte, error) {
 	mdsum := md5.Sum(bytes)
 	hash := hex.EncodeToString(mdsum[:])
 	ext := filepath.Ext(d.Name)
-	return &Upload{
-		ID:        0,
-		Hash:      hash,
-		Path:      filepath.Join(conf.UploadsPath, hash+ext),
-		Size:      d.Size,
-		Mimetype:  *mimetype.Detect(bytes),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, bytes, nil
-}
-
-func (d *UpdateDTO) ToEntity(id uint) (*Upload, error) {
-	return &Upload{
-		ID:        id,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, nil
+	return New(
+		hash,
+		filepath.Join(conf.UploadsPath, hash+ext),
+		d.Size,
+		mimetype.Detect(bytes),
+	), bytes, nil
 }
