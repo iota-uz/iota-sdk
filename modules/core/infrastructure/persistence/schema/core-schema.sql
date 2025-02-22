@@ -122,16 +122,6 @@ CREATE TABLE tabs
     UNIQUE (href, user_id)
 );
 
-CREATE TABLE custom_fields (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    entity_type TEXT NOT NULL,  -- e.g., "customer", "invoice"
-    entity_id UUID NOT NULL,    -- ID of the main entity
-    field_name TEXT NOT NULL,
-    field_value TEXT NOT NULL,
-    field_type TEXT NOT NULL,   -- e.g., "string", "int", "date"
-    UNIQUE(entity_type, entity_id, field_name)
-);
-
 CREATE INDEX users_first_name_idx ON users (first_name);
 CREATE INDEX users_last_name_idx ON users (last_name);
 
@@ -142,11 +132,6 @@ CREATE INDEX role_permissions_role_id_idx ON role_permissions (role_id);
 CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_id);
 
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
-
-CREATE INDEX custom_fields_entity_type_idx ON custom_fields (entity_type);
-CREATE INDEX custom_fields_entity_id_idx ON custom_fields (entity_id);
-CREATE INDEX custom_fields_field_name_idx ON custom_fields (field_name);
-CREATE INDEX custom_fields_field_type_idx ON custom_fields (field_type);
 
 -- +migrate Down
 DROP TABLE IF EXISTS companies CASCADE;
@@ -160,4 +145,3 @@ DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS tabs CASCADE;
 DROP TABLE IF EXISTS sessions CASCADE;
-DROP TABLE IF EXISTS custom_fields CASCADE;
