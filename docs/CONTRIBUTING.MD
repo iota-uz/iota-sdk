@@ -95,7 +95,7 @@ Before starting, ensure the following tools are installed on your system:
 
 6. **Apply database migrations**:
    ```cmd
-   make migrate-up && make seed
+   make migrate up && make seed
    ```
 
 7. **Run TailwindCSS in watch mode**:
