@@ -1,4 +1,16 @@
 -- +migrate Up
+CREATE TABLE companies
+(
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL,
+    about      TEXT,
+    address    VARCHAR(255),
+    phone      VARCHAR(255),
+    logo_id    INT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+);
+
 CREATE TABLE uploads
 (
     id         SERIAL PRIMARY KEY,
@@ -10,79 +22,11 @@ CREATE TABLE uploads
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
-CREATE TABLE positions
-(
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE settings
-(
-    id              SERIAL PRIMARY KEY,
-    default_risks   FLOAT NOT NULL,
-    default_margin  FLOAT NOT NULL,
-    income_tax_rate FLOAT NOT NULL,
-    social_tax_rate FLOAT NOT NULL,
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
 CREATE TABLE currencies
 (
     code       VARCHAR(3)   NOT NULL PRIMARY KEY, -- RUB
     name       VARCHAR(255) NOT NULL,             -- Russian Ruble
     symbol     VARCHAR(3)   NOT NULL,             -- ₽
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE employees
-(
-    id                 SERIAL PRIMARY KEY,
-    first_name         VARCHAR(255)  NOT NULL,
-    last_name          VARCHAR(255)  NOT NULL,
-    middle_name        VARCHAR(255),
-    email              VARCHAR(255)  NOT NULL UNIQUE,
-    phone              VARCHAR(255),
-    salary             NUMERIC(9, 2) NOT NULL,
-    salary_currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
-    hourly_rate        NUMERIC(9, 2) NOT NULL,
-    coefficient        FLOAT         NOT NULL,
-    avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
-
-CREATE TABLE employee_positions
-(
-    employee_id INT NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
-    position_id INT NOT NULL REFERENCES positions (id) ON DELETE CASCADE,
-    PRIMARY KEY (employee_id, position_id)
-);
-
-CREATE TABLE employee_meta
-(
-    employee_id        INT PRIMARY KEY NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
-    primary_language   VARCHAR(255),
-    secondary_language VARCHAR(255),
-    tin                VARCHAR(255),
-    pin              VARCHAR(255),
-    notes            TEXT,
-    birth_date         DATE,
-    hire_date        DATE,
-    resignation_date DATE
-);
-
-CREATE TABLE companies
-(
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    about      TEXT,
-    address    VARCHAR(255),
-    phone      VARCHAR(255),
-    logo_id    INT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
@@ -120,16 +64,6 @@ CREATE TABLE user_roles
     role_id    INT NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     PRIMARY KEY (user_id, role_id)
-);
-
-CREATE TABLE employee_contacts
-(
-    id          SERIAL PRIMARY KEY,
-    employee_id INT          NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
-    type        VARCHAR(255) NOT NULL,
-    value       VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
 
 CREATE TABLE uploaded_images
@@ -189,6 +123,16 @@ CREATE TABLE tabs
     UNIQUE (href, user_id)
 );
 
+CREATE TABLE custom_fields (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    entity_type TEXT NOT NULL,  -- e.g., "customer", "invoice"
+    entity_id UUID NOT NULL,    -- ID of the main entity
+    field_name TEXT NOT NULL,
+    field_value TEXT NOT NULL,
+    field_type TEXT NOT NULL,   -- e.g., "string", "int", "date"
+    UNIQUE(entity_type, entity_id, field_name)
+);
+
 CREATE INDEX users_first_name_idx ON users (first_name);
 CREATE INDEX users_last_name_idx ON users (last_name);
 
@@ -200,24 +144,21 @@ CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_
 
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
-CREATE INDEX employees_avatar_id_idx ON employees (avatar_id);
+CREATE INDEX custom_fields_entity_type_idx ON custom_fields (entity_type);
+CREATE INDEX custom_fields_entity_id_idx ON custom_fields (entity_id);
+CREATE INDEX custom_fields_field_name_idx ON custom_fields (field_name);
+CREATE INDEX custom_fields_field_type_idx ON custom_fields (field_type);
 
 -- +migrate Down
 DROP TABLE IF EXISTS companies CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
-DROP TABLE IF EXISTS employee_contacts CASCADE;
-DROP TABLE IF EXISTS employee_meta CASCADE;
-DROP TABLE IF EXISTS employees CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
-DROP TABLE IF EXISTS positions CASCADE;
 DROP TABLE IF EXISTS role_permissions CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
-DROP TABLE IF EXISTS sessions CASCADE;
-DROP TABLE IF EXISTS settings CASCADE;
-DROP TABLE IF EXISTS telegram_sessions CASCADE;
 DROP TABLE IF EXISTS uploaded_images CASCADE;
 DROP TABLE IF EXISTS uploads CASCADE;
-DROP TABLE IF EXISTS employee_positions CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS tabs CASCADE;
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS custom_fields CASCADE;
