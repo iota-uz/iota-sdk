@@ -15,7 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -59,7 +59,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.PostPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 30, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/hrm/presentation/templates/pages/employees/new.templ`, Line: 30, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -108,7 +108,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Employees.Tabs.Public"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 40, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/hrm/presentation/templates/pages/employees/new.templ`, Line: 40, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -139,7 +139,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Employees.Tabs.Private"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 43, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/hrm/presentation/templates/pages/employees/new.templ`, Line: 43, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -536,7 +536,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/employees/new.templ`, Line: 162, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/hrm/presentation/templates/pages/employees/new.templ`, Line: 162, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {

@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+type Position struct {
+	ID          uint
+	Name        string
+	Description sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Employee struct {
 	ID               uint
 	FirstName        string

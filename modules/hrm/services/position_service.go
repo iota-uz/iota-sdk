@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
