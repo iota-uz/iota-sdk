@@ -2,15 +2,14 @@ package persistence
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/position"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/entities/position"
+	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -47,17 +46,15 @@ func (g *GormPositionRepository) GetPaginated(
 	positions := make([]*position.Position, 0)
 	for rows.Next() {
 		var p models.Position
-		var description sql.NullString
 		if err := rows.Scan(
 			&p.ID,
 			&p.Name,
-			&description,
+			&p.Description,
 			&p.CreatedAt,
 			&p.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		p.Description = description.String
 		domainPosition, err := toDomainPosition(&p)
 		if err != nil {
 			return nil, err

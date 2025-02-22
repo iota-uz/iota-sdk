@@ -2,25 +2,26 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/employees"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
+	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/templates/pages/employees"
+	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/hrm/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type EmployeeController struct {
@@ -33,7 +34,7 @@ func NewEmployeeController(app application.Application) application.Controller {
 	return &EmployeeController{
 		app:             app,
 		employeeService: app.Service(services.EmployeeService{}).(*services.EmployeeService),
-		basePath:        "/operations/employees",
+		basePath:        "/hrm/employees",
 	}
 }
 

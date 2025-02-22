@@ -2,7 +2,8 @@ package services
 
 import (
 	"context"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
+
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 

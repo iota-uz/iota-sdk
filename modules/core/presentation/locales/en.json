@@ -37,7 +37,6 @@
   "Resources": {
     "user": "User",
     "role": "Roles",
-    "employee": "Employees",
     "payment": "Payment",
     "expense": "Expense",
     "expense_category": "Expense category",
@@ -77,12 +76,6 @@
       "Read": "Read stage",
       "Update": "Update stage",
       "Delete": "Delete stage"
-    },
-    "Employee": {
-      "Create": "Create employee",
-      "Read": "Read employee",
-      "Update": "Update employee",
-      "Delete": "Delete employee"
     },
     "Settings": {
       "Update": "Update settings",
@@ -144,7 +137,6 @@
     "Roles": "Roles",
     "KnowledgeBase": "Knowledge Base",
     "Operations": "Operations",
-    "Employees": "Employees",
     "Settings": "Settings",
     "Calendar": "Calendar",
     "Enums": "Enums",
@@ -254,98 +246,6 @@
       "Description": "Description",
       "Delete": "Delete project",
       "DeleteConfirmation": "Are you sure you want to delete this project?"
-    }
-  },
-  "Employees": {
-    "Meta": {
-      "List": {
-        "Title": "Employees"
-      },
-      "Edit": {
-        "Title": "Edit employee"
-      },
-      "New": {
-        "Title": "Add employee"
-      }
-    },
-    "List": {
-      "New": "Add employee",
-      "FullName": "Full name",
-      "Position": "Position",
-      "Email": "Email"
-    },
-    "Tabs": {
-      "Public": "Public",
-      "Private": "Sensitive"
-    },
-    "Cards": {
-      "PersonalInfo": "Personal information",
-      "JobInfo": "Job information"
-    },
-    "Single": {
-      "Edit": "Edit employee",
-      "Delete": "Delete employee",
-      "DeleteConfirmation": "Are you sure you want to delete this employee?"
-    },
-    "Public": {
-      "FirstName": {
-        "Label": "First name",
-        "Placeholder": "Enter name"
-      },
-      "LastName": {
-        "Label": "Last name",
-        "Placeholder": "Enter last name"
-      },
-      "MiddleName": {
-        "Label": "Middle name",
-        "Placeholder": "Enter middle name"
-      },
-      "Phone": {
-        "Label": "Phone",
-        "Placeholder": "+998 (__) ___ __ __"
-      },
-      "Email": {
-        "Label": "Email",
-        "Placeholder": "jodoe@gmail.com"
-      },
-      "BirthDate": {
-        "Label": "Birth date"
-      },
-      "Position": {
-        "Label": "Position",
-        "Placeholder": "Choose position"
-      },
-      "HireDate": {
-        "Label": "Employment start date"
-      },
-      "ResignationDate": {
-        "Label": "Employment termination date"
-      },
-      "EmploymentStatus": {
-        "Label": "Employment status",
-        "Placeholder": "Choose employment status"
-      },
-      "Level": {
-        "Label": "Level",
-        "Placeholder": "Choose level"
-      }
-    },
-    "Private": {
-      "Salary": {
-        "Label": "Salary"
-      },
-      "PassportSN": {
-        "Label": "Passport series and number",
-        "Placeholder": "AA 123 45 67"
-      },
-      "TIN": {
-        "Label": "TIN",
-        "Placeholder": "1234567"
-      },
-      "Pin": {
-        "Label": "Pin (Personal Identification Number)",
-        "Placeholder": "123456789192121"
-      }
     }
   },
   "Account": {
