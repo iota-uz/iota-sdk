@@ -23,7 +23,6 @@ type User interface {
 	Email() string
 	AvatarID() uint
 	Avatar() upload.Upload
-	EmployeeID() uint
 	LastIP() string
 	UILanguage() UILanguage
 	Roles() []role.Role
@@ -39,7 +38,6 @@ type User interface {
 	SetName(firstName, lastName, middleName string) User
 	SetUILanguage(lang UILanguage) User
 	SetAvatarID(id uint) User
-	SetEmployeeID(id uint) User
 	SetLastIP(ip string) User
 	SetPassword(password string) (User, error)
 	SetEmail(email string) User
@@ -49,8 +47,7 @@ type User interface {
 
 func New(
 	firstName, lastName, middleName, password, email string,
-	avatar upload.Upload, employeeID uint,
-	uiLanguage UILanguage,
+	avatar upload.Upload, uiLanguage UILanguage,
 	roles []role.Role,
 ) User {
 	var avatarID uint
@@ -66,7 +63,6 @@ func New(
 		email:      email,
 		avatarID:   avatarID,
 		avatar:     avatar,
-		employeeID: employeeID,
 		lastIP:     "",
 		uiLanguage: uiLanguage,
 		roles:      roles,
@@ -80,8 +76,7 @@ func New(
 func NewWithID(
 	id uint,
 	firstName, lastName, middleName, password, email string,
-	avatar upload.Upload, employeeID uint,
-	lastIP string,
+	avatar upload.Upload, lastIP string,
 	uiLanguage UILanguage,
 	roles []role.Role,
 	lastLogin, lastAction, createdAt, updatedAt time.Time,
@@ -99,7 +94,6 @@ func NewWithID(
 		email:      email,
 		avatarID:   avatarID,
 		avatar:     avatar,
-		employeeID: employeeID,
 		lastIP:     lastIP,
 		uiLanguage: uiLanguage,
 		roles:      roles,
@@ -119,7 +113,6 @@ type user struct {
 	email      string
 	avatarID   uint
 	avatar     upload.Upload
-	employeeID uint
 	lastIP     string
 	uiLanguage UILanguage
 	roles      []role.Role
@@ -161,10 +154,6 @@ func (u *user) Avatar() upload.Upload {
 	return u.avatar
 }
 
-func (u *user) EmployeeID() uint {
-	return u.employeeID
-}
-
 func (u *user) LastIP() string {
 	return u.lastIP
 }
@@ -203,7 +192,6 @@ func (u *user) AddRole(r role.Role) User {
 		email:      u.email,
 		avatarID:   u.avatarID,
 		avatar:     u.avatar,
-		employeeID: u.employeeID,
 		lastIP:     u.lastIP,
 		uiLanguage: u.uiLanguage,
 		roles:      append(u.roles, r),
@@ -256,7 +244,6 @@ func (u *user) SetName(firstName, lastName, middleName string) User {
 		email:      u.email,
 		avatarID:   u.avatarID,
 		avatar:     u.avatar,
-		employeeID: u.employeeID,
 		lastIP:     u.lastIP,
 		uiLanguage: u.uiLanguage,
 		roles:      u.roles,
@@ -277,7 +264,6 @@ func (u *user) SetEmail(email string) User {
 		email:      email,
 		avatarID:   u.avatarID,
 		avatar:     u.avatar,
-		employeeID: u.employeeID,
 		lastIP:     u.lastIP,
 		uiLanguage: u.uiLanguage,
 		roles:      u.roles,
@@ -298,7 +284,6 @@ func (u *user) SetUILanguage(lang UILanguage) User {
 		email:      u.email,
 		avatarID:   u.avatarID,
 		avatar:     u.avatar,
-		employeeID: u.employeeID,
 		lastIP:     u.lastIP,
 		uiLanguage: lang,
 		roles:      u.roles,
@@ -319,28 +304,6 @@ func (u *user) SetAvatarID(id uint) User {
 		email:      u.email,
 		avatarID:   id,
 		avatar:     u.avatar,
-		employeeID: u.employeeID,
-		lastIP:     u.lastIP,
-		uiLanguage: u.uiLanguage,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
-}
-
-func (u *user) SetEmployeeID(id uint) User {
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   u.password,
-		email:      u.email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		employeeID: id,
 		lastIP:     u.lastIP,
 		uiLanguage: u.uiLanguage,
 		roles:      u.roles,
@@ -361,7 +324,6 @@ func (u *user) SetLastIP(ip string) User {
 		email:      u.email,
 		avatarID:   u.avatarID,
 		avatar:     u.avatar,
-		employeeID: u.employeeID,
 		lastIP:     ip,
 		uiLanguage: u.uiLanguage,
 		roles:      u.roles,
@@ -387,7 +349,6 @@ func (u *user) SetPassword(password string) (User, error) {
 		email:      u.email,
 		avatarID:   u.avatarID,
 		avatar:     u.avatar,
-		employeeID: u.employeeID,
 		lastIP:     u.lastIP,
 		uiLanguage: u.uiLanguage,
 		roles:      u.roles,

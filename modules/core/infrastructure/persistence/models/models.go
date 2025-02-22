@@ -69,7 +69,6 @@ type User struct {
 	LastIP     sql.NullString
 	UILanguage string
 	LastAction sql.NullTime
-	EmployeeID sql.NullInt32
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
