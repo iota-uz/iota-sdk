@@ -14,11 +14,14 @@ import (
 
 // Generator handles creation of migration files from detected changes
 type Generator struct {
-	dialect   dialect.Dialect
-	outputDir string
-	templates map[ChangeType]string
-	options   GeneratorOptions
-	logger    *logrus.Logger
+	dialect           dialect.Dialect
+	outputDir         string
+	templates         map[ChangeType]string
+	options           GeneratorOptions
+	logger            *logrus.Logger
+	tableDependencies map[string][]string // tracks table -> dependencies
+	processedTables   map[string]bool     // tracks which tables have been processed
+	processedChanges  map[string]struct{} // tracks all processed objects by name
 }
 
 type GeneratorOptions struct {
@@ -35,6 +38,53 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	if changes == nil || len(changes.Changes) == 0 {
 		return nil
 	}
+
+	// Initialize tracking maps
+	g.tableDependencies = make(map[string][]string)
+	g.processedTables = make(map[string]bool)
+	g.processedChanges = make(map[string]struct{})
+
+	// First pass: build dependency graph and deduplicate tables
+	deduplicatedChanges := make([]*Change, 0)
+
+	// Process CREATE TABLE statements first
+	for _, change := range changes.Changes {
+		if change.Type == CreateTable {
+			tableName := strings.ToLower(change.ObjectName)
+			// Skip if we've already processed this table
+			if _, exists := g.processedChanges[tableName]; exists {
+				continue
+			}
+			g.processedChanges[tableName] = struct{}{}
+
+			// Track dependencies
+			for _, child := range change.Object.Children {
+				if child.Type == types.NodeColumn {
+					if refTable, ok := child.Metadata["referenced_table"].(string); ok && refTable != "" {
+						refTable = strings.ToLower(refTable)
+						g.tableDependencies[tableName] = append(g.tableDependencies[tableName], refTable)
+					}
+				}
+			}
+			deduplicatedChanges = append(deduplicatedChanges, change)
+		}
+	}
+
+	// Process non-CREATE TABLE statements
+	for _, change := range changes.Changes {
+		if change.Type != CreateTable {
+			objectKey := strings.ToLower(fmt.Sprintf("%s:%s", change.Type, change.ObjectName))
+			if _, exists := g.processedChanges[objectKey]; exists {
+				continue
+			}
+			g.processedChanges[objectKey] = struct{}{}
+			deduplicatedChanges = append(deduplicatedChanges, change)
+		}
+	}
+
+	// Sort changes based on dependencies
+	sortedChanges := g.sortChangesByDependencies(deduplicatedChanges)
+	changes.Changes = sortedChanges
 
 	// Ensure output directory exists
 	if err := os.MkdirAll(g.outputDir, 0755); err != nil {
@@ -403,4 +453,90 @@ func (g *Generator) generateColumnDefinition(col *types.Node) string {
 	}
 
 	return strings.TrimSpace(b.String())
+}
+
+// Add new method to sort changes based on dependencies
+func (g *Generator) sortChangesByDependencies(changes []*Change) []*Change {
+	tableCreations := make(map[string]*Change)
+	var otherChanges []*Change
+
+	// Create map of table creations, using lowercase names for consistency
+	for _, change := range changes {
+		if change.Type == CreateTable {
+			tableName := strings.ToLower(change.ObjectName)
+			// Only include each table once
+			if _, exists := tableCreations[tableName]; !exists {
+				tableCreations[tableName] = change
+			}
+		} else {
+			otherChanges = append(otherChanges, change)
+		}
+	}
+
+	// Perform topological sort
+	var sorted []*Change
+	visited := make(map[string]bool)
+	visiting := make(map[string]bool)
+
+	var visit func(string) error
+	visit = func(table string) error {
+		tableLower := strings.ToLower(table)
+		if visiting[tableLower] {
+			return fmt.Errorf("circular dependency detected involving table %s", table)
+		}
+		if visited[tableLower] {
+			return nil
+		}
+
+		visiting[tableLower] = true
+		// Process dependencies first
+		for _, dep := range g.tableDependencies[tableLower] {
+			depLower := strings.ToLower(dep)
+			if change, exists := tableCreations[depLower]; exists {
+				if err := visit(depLower); err != nil {
+					return err
+				}
+				// Only add if not already in sorted list
+				if !g.isTableInList(change.ObjectName, sorted) {
+					sorted = append(sorted, change)
+				}
+			}
+		}
+		visiting[tableLower] = false
+		visited[tableLower] = true
+
+		// Add the current table if not already in sorted list
+		if change, exists := tableCreations[tableLower]; exists {
+			if !g.isTableInList(change.ObjectName, sorted) {
+				sorted = append(sorted, change)
+			}
+		}
+		return nil
+	}
+
+	// Visit all tables
+	for tableName := range tableCreations {
+		if !visited[tableName] {
+			if err := visit(tableName); err != nil {
+				g.logger.Warnf("Dependency resolution error: %v", err)
+				// Fall back to original order if there's an error
+				return changes
+			}
+		}
+	}
+
+	// Append non-table changes at the end
+	sorted = append(sorted, otherChanges...)
+	return sorted
+}
+
+// Helper function to check if a table is already in the sorted list
+func (g *Generator) isTableInList(tableName string, list []*Change) bool {
+	tableLower := strings.ToLower(tableName)
+	for _, change := range list {
+		if change.Type == CreateTable && strings.ToLower(change.ObjectName) == tableLower {
+			return true
+		}
+	}
+	return false
 }

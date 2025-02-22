@@ -26,6 +26,7 @@ var (
 	alterTablePattern  = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+([^\s]+)\s+(.*)`)
 	constraintPattern  = regexp.MustCompile(`(?i)^\s*(CONSTRAINT\s+\w+\s+|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE)\s*(.*)$`)
 	createIndexPattern = regexp.MustCompile(`(?is)CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s]+)\s+ON\s+([^\s(]+)\s*\((.*)\)`)
+	referencesPattern  = regexp.MustCompile(`(?i)REFERENCES\s+([^\s(]+)\s*(?:\(([^)]+)\))?`)
 )
 
 func (p *Parser) parseCreateTable(stmt string) (*types.Node, error) {
@@ -145,6 +146,21 @@ TypeFound:
 		constraints = strings.TrimSpace(def[typeEnd:])
 	}
 
+	// Extract REFERENCES from constraints if present
+	var references string
+	var referencedTable string
+	var referencedColumns string
+
+	if constraints != "" {
+		if matches := referencesPattern.FindStringSubmatch(constraints); matches != nil {
+			referencedTable = strings.Trim(matches[1], `"'`)
+			if len(matches) > 2 {
+				referencedColumns = matches[2]
+			}
+			references = matches[0]
+		}
+	}
+
 	// Build full definition
 	fullDef := strings.TrimSpace(fmt.Sprintf("%s %s %s", colName, dataType, constraints))
 
@@ -152,11 +168,14 @@ TypeFound:
 		Type: types.NodeColumn,
 		Name: colName,
 		Metadata: map[string]interface{}{
-			"type":        strings.Split(dataType, "(")[0],
-			"fullType":    dataType,
-			"definition":  fullDef,
-			"rawType":     def,
-			"constraints": constraints,
+			"type":             strings.Split(dataType, "(")[0],
+			"fullType":         dataType,
+			"definition":       fullDef,
+			"rawType":          def,
+			"constraints":      constraints,
+			"references":       references,
+			"referenced_table": referencedTable,
+			"referenced_cols":  referencedColumns,
 		},
 	}
 }
