@@ -53,7 +53,6 @@ CREATE TABLE users
     last_login  TIMESTAMP                NULL,
     last_ip     VARCHAR(255)             NULL,
     last_action TIMESTAMP WITH TIME ZONE NULL,
-    employee_id INT                      REFERENCES employees (id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
