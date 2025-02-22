@@ -1,3 +1,4 @@
+-- +migrate Up
 CREATE TABLE positions
 (
     id          SERIAL PRIMARY KEY,
@@ -55,3 +56,9 @@ CREATE TABLE employee_contacts
 );
 
 
+-- +migrate Down
+DROP TABLE employee_contacts;
+DROP TABLE employee_meta;
+DROP TABLE employee_positions;
+DROP TABLE employees;
+DROP TABLE positions;
