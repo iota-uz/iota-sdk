@@ -11,8 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-//go:generate go run github.com/99designs/gqlgen generate
-
 //go:embed presentation/locales/*.toml
 var LocaleFiles embed.FS
 
