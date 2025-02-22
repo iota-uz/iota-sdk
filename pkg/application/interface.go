@@ -29,14 +29,13 @@ type Application interface {
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
-	Seed(ctx context.Context) error
+	MigrationDirs() []*embed.FS
 	RBAC() permission.RBAC
 	Spotlight() spotlight.Spotlight
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
-	RegisterSeedFuncs(seedFuncs ...SeedFunc)
 	RegisterAssets(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)
@@ -47,6 +46,11 @@ type Application interface {
 	Bundle() *i18n.Bundle
 	RunMigrations() error
 	RollbackMigrations() error
+}
+
+type Seeder interface {
+	Seed(ctx context.Context, app Application) error
+	Register(funcs ...SeedFunc)
 }
 
 type SeedFunc func(ctx context.Context, app Application) error

@@ -72,7 +72,7 @@ func toDomainMessage(
 	dbUploads []*coremodels.Upload,
 	sender chat.Sender,
 ) (chat.Message, error) {
-	uploads := make([]*upload.Upload, 0, len(dbUploads))
+	uploads := make([]upload.Upload, 0, len(dbUploads))
 	for _, u := range dbUploads {
 		uploads = append(uploads, corepersistence.ToDomainUpload(u))
 	}

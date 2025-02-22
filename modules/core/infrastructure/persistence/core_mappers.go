@@ -27,7 +27,7 @@ import (
 )
 
 func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role) (user.User, error) {
-	var avatar *upload.Upload
+	var avatar upload.Upload
 	if dbUpload != nil {
 		avatar = ToDomainUpload(dbUpload)
 	}
@@ -214,31 +214,32 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 	return dbEmployee, dbEmployeeMeta
 }
 
-func ToDBUpload(upload *upload.Upload) *models.Upload {
+func ToDBUpload(upload upload.Upload) *models.Upload {
 	return &models.Upload{
-		ID:        upload.ID,
-		Path:      upload.Path,
-		Hash:      upload.Hash,
-		Size:      upload.Size,
-		Mimetype:  upload.Mimetype.String(),
-		CreatedAt: upload.CreatedAt,
-		UpdatedAt: upload.UpdatedAt,
+		ID:        upload.ID(),
+		Path:      upload.Path(),
+		Hash:      upload.Hash(),
+		Size:      upload.Size().Bytes(),
+		Mimetype:  upload.Mimetype().String(),
+		CreatedAt: upload.CreatedAt(),
+		UpdatedAt: upload.UpdatedAt(),
 	}
 }
 
-func ToDomainUpload(dbUpload *models.Upload) *upload.Upload {
-	var mime mimetype.MIME
+func ToDomainUpload(dbUpload *models.Upload) upload.Upload {
+	var mime *mimetype.MIME
 	if dbUpload.Mimetype != "" {
-		mime = *mimetype.Lookup(dbUpload.Mimetype)
+		mime = mimetype.Lookup(dbUpload.Mimetype)
 	}
-	return &upload.Upload{
-		ID:        dbUpload.ID,
-		Size:      dbUpload.Size,
-		Path:      dbUpload.Path,
-		Mimetype:  mime,
-		CreatedAt: dbUpload.CreatedAt,
-		UpdatedAt: dbUpload.UpdatedAt,
-	}
+	return upload.NewWithID(
+		dbUpload.ID,
+		dbUpload.Hash,
+		dbUpload.Path,
+		dbUpload.Size,
+		mime,
+		dbUpload.CreatedAt,
+		dbUpload.UpdatedAt,
+	)
 }
 
 func ToDBCurrency(entity *currency.Currency) *models.Currency {
