@@ -98,4 +98,4 @@ build-docker-prod:
 %:
 	@:
 
-.PHONY: default deps test test-watch localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations
+.PHONY: default deps test test-watch localdb migrate migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations
