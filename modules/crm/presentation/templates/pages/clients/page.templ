@@ -26,180 +26,56 @@ templ Avatar(initials string) {
 //
 
 type ClientTab struct {
+	tab.BoostLinkProps
 	Name string
-	URL  string
 }
 
-type ViewPageProps struct {
-	Tabs      []ClientTab
-	ClientURL string
-	EditURL   string
-	IsEditing bool
-	Client    *viewmodels.Client
+type ViewDrawerProps struct {
+	SelectedTab string
+	CallbackURL string
+	Tabs        []ClientTab
 }
 
-templ ClientViewHeader(props *ViewPageProps) {
-	<div
-		class={
-			"flex justify-between w-full",
-			"border-b border-primary p-4",
-		}
-	>
-		<div class="flex items-center gap-2">
-			@Avatar(props.Client.Initials())
-			<div>
-				<h3 class="font-medium">
-					{ props.Client.FullName() }
-				</h3>
-				<div class="text-sm text-base-600">
-					<a
-						href={ templ.SafeURL(fmt.Sprintf("tel:%s", props.Client.Phone)) }
-						class="text-blue-500"
-					>
-						+{ props.Client.Phone }
-					</a>
-				</div>
-			</div>
-		</div>
-		<div class="flex gap-3">
-			if props.IsEditing {
-				@button.Danger(button.Props{
-					Icon: icons.XCircle(icons.Props{Size: "20"}),
-					Attrs: templ.Attributes{
-						"hx-get":     props.ClientURL,
-						"hx-trigger": "click",
-						"hx-swap":    "innerHTML",
-						"hx-target":  "#view-drawer-content",
-					},
-				}) {
-					Cancel
-				}
-			} else {
-				@button.Secondary(button.Props{
-					Icon: icons.PencilSimple(icons.Props{Size: "20"}),
-					Attrs: templ.Attributes{
-						"hx-get":     props.EditURL,
-						"hx-trigger": "click",
-						"hx-swap":    "innerHTML",
-						"hx-target":  "#view-drawer-content",
-					},
-				}) {
-					Edit
-				}
-			}
-			@button.Primary(button.Props{
-				Icon: icons.PlusCircle(icons.Props{Size: "20"}),
-			}) {
-				Send a message
-			}
-		</div>
-	</div>
-}
-
-templ ViewComponent(props *ViewPageProps) {
-	<div class="h-full max-h-full p-4">
-		<div class="flex flex-col border border-primary rounded-md h-full">
-			@ClientViewHeader(props)
-			<div class="flex flex-col flex-1 min-h-0">
-				if props.IsEditing {
-					{ children... }
-				} else {
+templ ViewDrawer(props ViewDrawerProps) {
+	@dialog.StdViewDrawer(dialog.StdDrawerProps{
+		ID:     "view-drawer",
+		Open:   true,
+		Action: "view-client",
+		Title:  "Details about the client",
+		Attrs: templ.Attributes{
+			"@closing": fmt.Sprintf("history.pushState(null, '', '%s')", props.CallbackURL),
+			"@closed":  "document.getElementById('view-drawer').remove()",
+		},
+	}) {
+		<div class="flex-1 overflow-y-auto">
+			<div class="flex flex-col">
+				@tab.Root(tab.Props{DefaultValue: props.SelectedTab}) {
 					@tab.List(tab.ListProps{}) {
 						for _, t := range props.Tabs {
-							@tab.BoostedLink(tab.BoostLinkProps{
-								Href:   t.URL,
-								Active: false,
-								Push:   false,
-							}) {
+							@tab.BoostedLink(t.BoostLinkProps) {
 								{ t.Name }
 							}
 						}
 					}
-					@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
-						{ children... }
-					}
+				}
+				@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
+					{ children... }
 				}
 			</div>
-		</div>
-	</div>
-}
-
-templ ViewPage(props *ViewPageProps) {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Clients.Edit.Meta.Title"),
-	}) {
-		@ViewComponent(props) {
-			{ children... }
-		}
-	}
-}
-
-templ ViewDrawer() {
-	@dialog.Drawer(dialog.DrawerProps{
-		Direction: dialog.RTL,
-		Action:    "view-client",
-		Classes:   templ.Classes("flex items-stretch"),
-	}) {
-		<div class="bg-white w-3/4 md:w-2/3 ml-auto">
-			<form
-				method="dialog"
-				class="flex flex-col h-full"
-			>
-				<div
-					class={
-						"flex justify-between px-4 py-3",
-						"border-b border-primary",
-					}
-				>
-					<h3 class="font-medium">
-						Details about the client
-					</h3>
-					<div>
-						<button class="cursor-pointer">
-							@icons.XCircle(icons.Props{Size: "20"})
-						</button>
-					</div>
-				</div>
-				<div
-					id="view-drawer-content"
-					class="flex-1 overflow-y-auto"
-				></div>
-			</form>
 		</div>
 	}
 }
 
 templ NewClientDrawer() {
-	@dialog.Drawer(dialog.DrawerProps{
-		Direction: dialog.RTL,
-		Action:    "new-client",
-		Classes:   templ.Classes("flex items-stretch"),
+	@dialog.StdViewDrawer(dialog.StdDrawerProps{
+		Action: "new-client",
+		Title:  "New client",
 	}) {
-		<div class="bg-white w-2/3 ml-auto">
-			<form
-				method="dialog"
-				class="flex flex-col gap-3 h-full"
-			>
-				<div class="flex justify-between p-4">
-					<h3 class="text-lg font-medium">
-						New client
-					</h3>
-					<div>
-						<button class="cursor-pointer">
-							@icons.XCircle(icons.Props{Size: "20"})
-						</button>
-					</div>
-				</div>
-				@CreateForm(&CreatePageProps{
-					Client:  &viewmodels.Client{},
-					Errors:  map[string]string{},
-					SaveURL: "/crm/clients",
-				})
-			</form>
-		</div>
+		@CreateForm(&CreatePageProps{
+			Client:  &viewmodels.Client{},
+			Errors:  map[string]string{},
+			SaveURL: "/crm/clients",
+		})
 	}
 }
 
@@ -226,7 +102,90 @@ templ Chats(props chatsui.SelectedChatProps) {
 	</div>
 }
 
-// ---- General -----
+// ---- Profile -----
+
+type ProfileProps struct {
+	ClientURL string
+	EditURL   string
+	IsEditing bool
+	Client    *viewmodels.Client
+}
+
+templ Profile(props ProfileProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="h-full max-h-full p-4">
+		<div class="flex flex-col border border-primary rounded-md h-full">
+			<div
+				class={
+					"flex justify-between w-full",
+					"border-b border-primary p-4",
+				}
+			>
+				<div class="flex items-center gap-2">
+					@Avatar(props.Client.Initials())
+					<div>
+						<h3 class="font-medium">
+							{ props.Client.FullName() }
+						</h3>
+						<div class="text-sm text-base-600">
+							<a
+								href={ templ.SafeURL(fmt.Sprintf("tel:%s", props.Client.Phone)) }
+								class="text-blue-500"
+							>
+								+{ props.Client.Phone }
+							</a>
+						</div>
+					</div>
+				</div>
+				<div
+					class="flex gap-3"
+					x-data="{ isEditing: false }"
+				>
+					@button.Danger(button.Props{
+						Icon: icons.XCircle(icons.Props{Size: "20"}),
+						Attrs: templ.Attributes{
+							"x-show":     "isEditing",
+							"@click":     "isEditing = false",
+							"hx-get":     pageCtx.URL.RawPath,
+							"hx-trigger": "click",
+							"hx-swap":    "innerHTML",
+							"hx-target":  "#tab-content",
+						},
+					}) {
+						Cancel
+					}
+					@button.Secondary(button.Props{
+						Icon: icons.PencilSimple(icons.Props{Size: "20"}),
+						Attrs: templ.Attributes{
+							"x-show":     "!isEditing",
+							"@click":     "isEditing = true",
+							"hx-get":     props.EditURL,
+							"hx-trigger": "click",
+							"hx-swap":    "innerHTML",
+							"hx-target":  "#profile-content",
+						},
+					}) {
+						Edit
+					}
+					@button.Primary(button.Props{
+						Icon: icons.PlusCircle(icons.Props{Size: "20"}),
+					}) {
+						Send a message
+					}
+				</div>
+			</div>
+			<div class="flex flex-col flex-1 min-h-0">
+				<div
+					id="profile-content"
+					class="flex flex-col gap-3 p-4"
+				>
+					@Notes()
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
 templ Notes() {
 	<div class="flex gap-3 bg-surface-100 rounded-md p-3">
 		<div class="text-gray-400">
@@ -236,12 +195,6 @@ templ Notes() {
 			<h3 class="text-gray-400">Notes</h3>
 			<p>No notes available</p>
 		</div>
-	</div>
-}
-
-templ General() {
-	<div class="flex flex-col gap-3 p-4">
-		@Notes()
 	</div>
 }
 
