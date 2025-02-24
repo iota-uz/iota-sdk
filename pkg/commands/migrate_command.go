@@ -4,18 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
-	"runtime/debug"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/iota-uz/iota-sdk/pkg/schema/ast"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 	"github.com/iota-uz/iota-sdk/pkg/schema/diff"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -26,28 +26,16 @@ var (
 
 // ensureDirectories creates necessary directories if they don't exist
 func ensureDirectories() error {
-	// Make sure migrations directory exists
-	migrationsPath := os.Getenv("MIGRATIONS_DIR")
-	if migrationsPath == "" {
-		migrationsPath = "migrations"
+	dirs := []string{"migrations", "modules"}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
 	}
-
-	if err := os.MkdirAll(migrationsPath, 0755); err != nil {
-		return fmt.Errorf("failed to create migrations directory: %w", err)
-	}
-
 	return nil
 }
 
 func Migrate(mods ...application.Module) error {
-	defer func() {
-		if r := recover(); r != nil {
-			configuration.Use().Unload()
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
 	if len(os.Args) < 2 {
 		return ErrNoCommand
 	}
@@ -55,6 +43,12 @@ func Migrate(mods ...application.Module) error {
 	conf := configuration.Use()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
+
+	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
+	if err != nil {
+		log.Fatalf("failed to create logger: %v", err)
+	}
+	defer logFile.Close()
 
 	if err := ensureDirectories(); err != nil {
 		return err
@@ -64,7 +58,7 @@ func Migrate(mods ...application.Module) error {
 
 	switch command {
 	case "collect":
-		return handleSchemaCommands(ctx, command, conf.LogrusLogLevel())
+		return handleSchemaCommands(ctx, command, logger.Level)
 	default:
 		return handleMigrationCommands(ctx, command, conf, mods...)
 	}
