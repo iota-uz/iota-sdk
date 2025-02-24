@@ -53,8 +53,6 @@ func New(cfg Config) *Collector {
 	} else {
 		logger.SetLevel(cfg.LogLevel)
 	}
-	logger.Println("Logger should be good")
-	logger.Println(cfg.LogLevel)
 
 	return &Collector{
 		baseDir:    cfg.MigrationsPath,
