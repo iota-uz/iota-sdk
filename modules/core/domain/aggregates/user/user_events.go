@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
@@ -13,7 +12,7 @@ func NewCreatedEvent(ctx context.Context, data User) (*CreatedEvent, error) {
 	if !ok {
 		return nil, errors.New("no user found")
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+	sess, ok := ctx.Value(constants.SessionKey).(*Session)
 	if !ok {
 		return nil, errors.New("no session found")
 	}
@@ -29,7 +28,7 @@ func NewUpdatedEvent(ctx context.Context, data User) (*UpdatedEvent, error) {
 	if !ok {
 		return nil, errors.New("no user found")
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+	sess, ok := ctx.Value(constants.SessionKey).(*Session)
 	if !ok {
 		return nil, errors.New("no session found")
 	}
@@ -45,7 +44,7 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 	if !ok {
 		return nil, errors.New("no user found")
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+	sess, ok := ctx.Value(constants.SessionKey).(*Session)
 	if !ok {
 		return nil, errors.New("no session found")
 	}
@@ -57,20 +56,20 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 
 type CreatedEvent struct {
 	Sender  User
-	Session session.Session
+	Session Session
 	Data    User
 	Result  User
 }
 
 type UpdatedEvent struct {
 	Sender  User
-	Session session.Session
+	Session Session
 	Data    User
 	Result  User
 }
 
 type DeletedEvent struct {
 	Sender  User
-	Session session.Session
+	Session Session
 	Result  User
 }

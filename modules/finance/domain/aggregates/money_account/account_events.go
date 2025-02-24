@@ -59,20 +59,20 @@ func NewDeletedEvent(ctx context.Context, result Account) (*DeletedEvent, error)
 
 type CreatedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Data    CreateDTO
 	Result  Account
 }
 
 type UpdatedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Data    UpdateDTO
 	Result  Account
 }
 
 type DeletedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Result  Account
 }

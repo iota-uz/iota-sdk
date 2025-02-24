@@ -3,16 +3,7 @@ package upload
 
 import (
 	"context"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 )
-
-// import (
-// 	"context"
-
-// 	"github.com/iota-uz/iota-sdk/pkg/composables"
-// 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-// 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-// )
 
 func NewCreatedEvent(ctx context.Context, data CreateDTO, result Upload) (*CreatedEvent, error) {
 	// sender, err := composables.UseUser(ctx)
@@ -24,9 +15,8 @@ func NewCreatedEvent(ctx context.Context, data CreateDTO, result Upload) (*Creat
 	// 	return nil, err
 	// }
 	return &CreatedEvent{
-		Session: session.Session{},
-		Data:    data,
-		Result:  result,
+		Data:   data,
+		Result: result,
 	}, nil
 }
 
@@ -40,20 +30,17 @@ func NewDeletedEvent(ctx context.Context, result Upload) (*DeletedEvent, error) 
 	// 	return nil, err
 	// }
 	return &DeletedEvent{
-		Session: session.Session{},
-		Result:  result,
+		Result: result,
 	}, nil
 }
 
 type CreatedEvent struct {
 	// Sender  user.User
-	Session session.Session
-	Data    CreateDTO
-	Result  Upload
+	Data   CreateDTO
+	Result Upload
 }
 
 type DeletedEvent struct {
 	// Sender  user.User
-	Session session.Session
-	Result  Upload
+	Result Upload
 }

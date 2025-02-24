@@ -6,7 +6,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -51,8 +50,8 @@ func CanUser(ctx context.Context, permission *permission.Permission) error {
 }
 
 // UseSession returns the session from the context.
-func UseSession(ctx context.Context) (*session.Session, error) {
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+func UseSession(ctx context.Context) (*user.Session, error) {
+	sess, ok := ctx.Value(constants.SessionKey).(*user.Session)
 	if !ok {
 		return nil, ErrNoSessionFound
 	}
@@ -60,6 +59,6 @@ func UseSession(ctx context.Context) (*session.Session, error) {
 }
 
 // WithSession returns a new context with the session.
-func WithSession(ctx context.Context, sess *session.Session) context.Context {
+func WithSession(ctx context.Context, sess *user.Session) context.Context {
 	return context.WithValue(ctx, constants.SessionKey, sess)
 }

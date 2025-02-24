@@ -111,7 +111,7 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
 	return g.queryUsers(ctx, userFindQuery)
 }
 
-func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
+func (g *GormUserRepository) GetByID(ctx context.Context, id user.UserID) (user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 	if err != nil {
 		return nil, err
@@ -157,10 +157,10 @@ func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.U
 	if err != nil {
 		return nil, err
 	}
-	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles()); err != nil {
+	if err := g.updateUserRoles(ctx, user.UserID(dbUser.ID), data.Roles()); err != nil {
 		return nil, err
 	}
-	return g.GetByID(ctx, dbUser.ID)
+	return g.GetByID(ctx, user.UserID(dbUser.ID))
 }
 
 func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
@@ -192,11 +192,11 @@ func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 	return g.updateUserRoles(ctx, data.ID(), data.Roles())
 }
 
-func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
+func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id user.UserID) error {
 	return g.execQuery(ctx, userUpdateLastLoginQuery, id)
 }
 
-func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
+func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id user.UserID) error {
 	return g.execQuery(ctx, userUpdateLastActionQuery, id)
 }
 
@@ -405,7 +405,7 @@ func (g *GormUserRepository) execQuery(ctx context.Context, query string, args .
 	return err
 }
 
-func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
+func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID user.UserID, roles []role.Role) error {
 	// Delete existing roles
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
 		return err

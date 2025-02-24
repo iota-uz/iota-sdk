@@ -60,7 +60,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	})
 
 	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithSession(ctx, &session.Session{})
+	ctx = composables.WithSession(ctx, &user.Session{})
 
 	publisher := eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
 	app := setupApplication(t, pool, publisher)

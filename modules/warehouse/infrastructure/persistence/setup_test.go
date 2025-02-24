@@ -50,7 +50,7 @@ func setupBenchmark(b *testing.B) *testFixtures {
 	})
 
 	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithSession(ctx, &session.Session{})
+	ctx = composables.WithSession(ctx, &user.Session{})
 
 	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
 	if err != nil {
@@ -85,7 +85,7 @@ func setupTest(t *testing.T) *testFixtures {
 	})
 
 	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithSession(ctx, &session.Session{})
+	ctx = composables.WithSession(ctx, &user.Session{})
 
 	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
 	if err != nil {

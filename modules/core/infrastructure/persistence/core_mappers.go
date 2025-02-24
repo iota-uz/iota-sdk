@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
@@ -210,10 +209,10 @@ func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
 	}, nil
 }
 
-func toDBSession(session *session.Session) *models.Session {
+func toDBSession(session *user.Session) *models.Session {
 	return &models.Session{
-		UserID:    session.UserID,
-		Token:     session.Token,
+		UserID:    uint(session.UserID),
+		Token:     string(session.Token),
 		IP:        session.IP,
 		UserAgent: session.UserAgent,
 		CreatedAt: session.CreatedAt,
@@ -221,10 +220,10 @@ func toDBSession(session *session.Session) *models.Session {
 	}
 }
 
-func toDomainSession(dbSession *models.Session) *session.Session {
-	return &session.Session{
-		UserID:    dbSession.UserID,
-		Token:     dbSession.Token,
+func toDomainSession(dbSession *models.Session) *user.Session {
+	return &user.Session{
+		UserID:    user.UserID(dbSession.UserID),
+		Token:     user.SessionID(dbSession.Token),
 		IP:        dbSession.IP,
 		UserAgent: dbSession.UserAgent,
 		CreatedAt: dbSession.CreatedAt,

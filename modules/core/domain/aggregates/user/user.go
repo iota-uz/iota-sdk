@@ -1,21 +1,39 @@
 package user
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/utils/sequence"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/utils/sequence"
 )
+
+// ---- Session Interfaces ----
+type SessionID string
+
+type Session struct {
+	Token     SessionID
+	UserID    UserID
+	IP        string
+	UserAgent string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+func (s *Session) IsExpired() bool {
+	return s.ExpiresAt.Before(time.Now())
+}
 
 // ---- Interfaces ----
 
+type UserID uint
+
 type User interface {
-	ID() uint
+	ID() UserID
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -86,7 +104,7 @@ func NewWithID(
 		avatarID = avatar.ID()
 	}
 	return &user{
-		id:         id,
+		id:         UserID(id),
 		firstName:  firstName,
 		lastName:   lastName,
 		middleName: middleName,
@@ -105,7 +123,7 @@ func NewWithID(
 }
 
 type user struct {
-	id         uint
+	id         UserID
 	firstName  string
 	lastName   string
 	middleName string
@@ -122,7 +140,7 @@ type user struct {
 	updatedAt  time.Time
 }
 
-func (u *user) ID() uint {
+func (u *user) ID() UserID {
 	return u.id
 }
 

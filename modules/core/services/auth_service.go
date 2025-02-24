@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -44,7 +43,7 @@ func NewAuthService(app application.Application) *AuthService {
 	}
 }
 
-func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, *session.Session, error) {
+func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, *user.Session, error) {
 	// Use code to get token and get user info from Google.
 	token, err := s.oAuthConfig.Exchange(ctx, code)
 	if err != nil {
@@ -78,7 +77,7 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 	conf := configuration.Use()
 	cookie := &http.Cookie{
 		Name:     conf.SidCookieKey,
-		Value:    sess.Token,
+		Value:    string(sess.Token),
 		Expires:  sess.ExpiresAt,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -89,7 +88,7 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 	return cookie, nil
 }
 
-func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Session, error) {
+func (s *AuthService) Authorize(ctx context.Context, token user.SessionID) (*user.Session, error) {
 	sess, err := s.sessionService.GetByToken(ctx, token)
 	if err != nil {
 		return nil, err
@@ -119,15 +118,15 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
-func (s *AuthService) authenticate(ctx context.Context, u user.User) (*session.Session, error) {
+func (s *AuthService) authenticate(ctx context.Context, u user.User) (*user.Session, error) {
 	ip, _ := composables.UseIP(ctx)
 	userAgent, _ := composables.UseUserAgent(ctx)
 	token, err := s.newSessionToken()
 	if err != nil {
 		return nil, err
 	}
-	sess := &session.CreateDTO{
-		Token:     token,
+	sess := &user.CreateSessionDTO{
+		Token:     user.SessionID(token),
 		UserID:    u.ID(),
 		IP:        ip,
 		UserAgent: userAgent,
@@ -144,7 +143,7 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User) (*session.S
 	return sess.ToEntity(), nil
 }
 
-func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, password string) (user.User, *session.Session, error) {
+func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, password string) (user.User, *user.Session, error) {
 	u, err := s.usersService.GetByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -177,7 +176,7 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 	return cookie, nil
 }
 
-func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, *session.Session, error) {
+func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, *user.Session, error) {
 	u, err := s.usersService.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, nil, err

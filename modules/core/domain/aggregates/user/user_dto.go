@@ -3,13 +3,36 @@ package user
 import (
 	"context"
 	"fmt"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
+
+// ---- Session DTOs ----
+type CreateSessionDTO struct {
+	Token     SessionID
+	UserID    UserID
+	IP        string
+	UserAgent string
+}
+
+func (d *CreateSessionDTO) ToEntity() *Session {
+	return &Session{
+		Token:     SessionID(d.Token),
+		UserID:    d.UserID,
+		IP:        d.IP,
+		UserAgent: d.UserAgent,
+		ExpiresAt: time.Now().Add(configuration.Use().SessionDuration),
+		CreatedAt: time.Now(),
+	}
+}
+
+// ---- User DTOs ----
 
 type CreateDTO struct {
 	FirstName  string `validate:"required"`
@@ -118,7 +141,7 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		roles[i] = r
 	}
 	return &user{
-		id:         id,
+		id:         UserID(id),
 		firstName:  u.FirstName,
 		lastName:   u.LastName,
 		email:      u.Email,

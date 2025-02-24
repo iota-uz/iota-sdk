@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -63,18 +61,18 @@ type CreatedEvent struct {
 	Data    Dialogue
 	Result  Dialogue
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 }
 
 type UpdatedEvent struct {
 	Data    Dialogue
 	Result  Dialogue
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 }
 
 type DeletedEvent struct {
 	Result  Dialogue
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 }

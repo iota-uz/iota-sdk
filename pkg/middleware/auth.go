@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
-func getToken(r *http.Request) (string, error) {
+func GetToken(r *http.Request) (string, error) {
 	conf := configuration.Use()
 	token, err := r.Cookie(conf.SidCookieKey)
 	if errors.Is(err, http.ErrNoCookie) {
@@ -37,7 +37,7 @@ func Authorize() mux.MiddlewareFunc {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
-				token, err := getToken(r)
+				token, err := GetToken(r)
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return

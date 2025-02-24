@@ -3,7 +3,6 @@ package currency
 import (
 	"context"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -56,20 +55,20 @@ func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 
 type CreatedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Data    CreateDTO
 	Result  Currency
 }
 
 type UpdatedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Data    UpdateDTO
 	Result  Currency
 }
 
 type DeletedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Result  Currency
 }

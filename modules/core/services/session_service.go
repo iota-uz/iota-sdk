@@ -3,16 +3,16 @@ package services
 import (
 	"context"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type SessionService struct {
-	repo      session.Repository
+	repo      user.SessionRepository
 	publisher eventbus.EventBus
 }
 
-func NewSessionService(repo session.Repository, publisher eventbus.EventBus) *SessionService {
+func NewSessionService(repo user.SessionRepository, publisher eventbus.EventBus) *SessionService {
 	return &SessionService{
 		repo:      repo,
 		publisher: publisher,
@@ -23,45 +23,38 @@ func (s *SessionService) GetCount(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *SessionService) GetAll(ctx context.Context) ([]*session.Session, error) {
+func (s *SessionService) GetAll(ctx context.Context) ([]*user.Session, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *SessionService) GetByToken(ctx context.Context, id string) (*session.Session, error) {
-	return s.repo.GetByToken(ctx, id)
+func (s *SessionService) GetByToken(ctx context.Context, id user.SessionID) (*user.Session, error) {
+	return s.repo.GetByID(ctx, id)
 }
 
 func (s *SessionService) GetPaginated(
-	ctx context.Context, params *session.FindParams,
-) ([]*session.Session, error) {
+	ctx context.Context, params *user.SessionFindParams,
+) ([]*user.Session, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
+func (s *SessionService) Create(ctx context.Context, data *user.CreateSessionDTO) error {
 	entity := data.ToEntity()
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := session.NewCreatedEvent(*data, *entity)
-	if err != nil {
-		return err
-	}
-	s.publisher.Publish(createdEvent)
 	return nil
 }
 
-func (s *SessionService) Update(ctx context.Context, data *session.Session) error {
+func (s *SessionService) Update(ctx context.Context, data *user.Session) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	s.publisher.Publish("session.updated", data)
 	return nil
 }
 
-func (s *SessionService) Delete(ctx context.Context, token string) error {
+func (s *SessionService) Delete(ctx context.Context, token user.SessionID) error {
 	if err := s.repo.Delete(ctx, token); err != nil {
 		return err
 	}
-	s.publisher.Publish("session.deleted", token)
 	return nil
 }

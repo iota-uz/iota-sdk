@@ -40,35 +40,26 @@ func (s *UserService) GetPaginated(ctx context.Context, params *user.FindParams)
 }
 
 func (s *UserService) Create(ctx context.Context, data user.User) error {
-	createdEvent, err := user.NewCreatedEvent(ctx, data)
-	if err != nil {
-		return err
-	}
-	data, err = data.SetPassword(data.Password())
+	data, err := data.SetPassword(data.Password())
 	if err != nil {
 		return err
 	}
 	if _, err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
-	createdEvent.Result = data
-	s.publisher.Publish(createdEvent)
 	return nil
 }
 
-func (s *UserService) UpdateLastAction(ctx context.Context, id uint) error {
+func (s *UserService) UpdateLastAction(ctx context.Context, id user.UserID) error {
 	return s.repo.UpdateLastAction(ctx, id)
 }
 
-func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
+func (s *UserService) UpdateLastLogin(ctx context.Context, id user.UserID) error {
 	return s.repo.UpdateLastLogin(ctx, id)
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) error {
-	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
-	if err != nil {
-		return err
-	}
+	var err error
 	if data.Password() != "" {
 		data, err = data.SetPassword(data.Password())
 		if err != nil {
@@ -78,16 +69,10 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
-	updatedEvent.Result = data
-	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
-	deletedEvent, err := user.NewDeletedEvent(ctx)
-	if err != nil {
-		return nil, err
-	}
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -95,7 +80,5 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = entity
-	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }

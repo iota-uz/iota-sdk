@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/gabriel-vasile/mimetype"
-
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )

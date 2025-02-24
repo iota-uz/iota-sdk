@@ -2,8 +2,8 @@ package project
 
 import (
 	"context"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -59,20 +59,20 @@ func NewDeletedEvent(ctx context.Context, result Project) (*DeletedEvent, error)
 
 type CreatedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Data    CreateDTO
 	Result  Project
 }
 
 type UpdatedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Data    UpdateDTO
 	Result  Project
 }
 
 type DeletedEvent struct {
 	Sender  user.User
-	Session session.Session
+	Session user.Session
 	Result  Project
 }

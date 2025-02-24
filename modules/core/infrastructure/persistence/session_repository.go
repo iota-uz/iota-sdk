@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"context"
-	"fmt"
+
 	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -45,86 +45,15 @@ const (
 
 type GormSessionRepository struct{}
 
-func NewSessionRepository() session.Repository {
+func NewSessionRepository() user.SessionRepository {
 	return &GormSessionRepository{}
 }
 
-func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
-	var args []interface{}
-	where := []string{"1 = 1"}
-
-	if params.Token != "" {
-		where = append(where, fmt.Sprintf("token = $%d", len(args)+1))
-		args = append(args, params.Token)
-	}
-
-	q := repo.Join(
-		sessionFindQuery,
-		repo.JoinWhere(where...),
-		repo.FormatLimitOffset(params.Limit, params.Offset),
-	)
-
-	return g.querySessions(ctx, q, args...)
-}
-
-func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return 0, err
-	}
-	var count int64
-	if err := tx.QueryRow(ctx, sessionCountQuery).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
-	return g.querySessions(ctx, sessionFindQuery)
-}
-
-func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
-	sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1"), token)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get session by token")
-	}
-	if len(sessions) == 0 {
-		return nil, ErrSessionNotFound
-	}
-	return sessions[0], nil
-}
-
-func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
-	dbSession := toDBSession(data)
-	return g.execQuery(
-		ctx,
-		sessionInsertQuery,
-		dbSession.Token,
-		dbSession.UserID,
-		dbSession.ExpiresAt,
-		dbSession.IP,
-		dbSession.UserAgent,
-		dbSession.CreatedAt,
-	)
-}
-
-func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
-	dbSession := toDBSession(data)
-	return g.execQuery(
-		ctx,
-		sessionUpdateQuery,
-		dbSession.ExpiresAt,
-		dbSession.IP,
-		dbSession.UserAgent,
-		dbSession.Token,
-	)
-}
-
-func (g *GormSessionRepository) Delete(ctx context.Context, token string) error {
-	return g.execQuery(ctx, sessionDeleteQuery, token)
-}
-
-func (g *GormSessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]*session.Session, error) {
+func (g *GormSessionRepository) querySessions(
+	ctx context.Context,
+	query string,
+	args ...interface{},
+) ([]*user.Session, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -136,20 +65,20 @@ func (g *GormSessionRepository) querySessions(ctx context.Context, query string,
 	}
 	defer rows.Close()
 
-	var sessions []*session.Session
+	var sessions []*user.Session
 	for rows.Next() {
-		var sessionRow models.Session
+		var dbSession models.Session
 		if err := rows.Scan(
-			&sessionRow.Token,
-			&sessionRow.UserID,
-			&sessionRow.ExpiresAt,
-			&sessionRow.IP,
-			&sessionRow.UserAgent,
-			&sessionRow.CreatedAt,
+			&dbSession.Token,
+			&dbSession.UserID,
+			&dbSession.ExpiresAt,
+			&dbSession.IP,
+			&dbSession.UserAgent,
+			&dbSession.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
-		sessions = append(sessions, toDomainSession(&sessionRow))
+		sessions = append(sessions, toDomainSession(&dbSession))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -166,4 +95,73 @@ func (g *GormSessionRepository) execQuery(ctx context.Context, query string, arg
 	}
 	_, err = tx.Exec(ctx, query, args...)
 	return err
+}
+
+func (g *GormSessionRepository) GetPaginated(
+	ctx context.Context,
+	params *user.SessionFindParams,
+) ([]*user.Session, error) {
+	q := repo.Join(
+		sessionFindQuery,
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+
+	return g.querySessions(ctx, q)
+}
+
+func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	if err := tx.QueryRow(ctx, sessionCountQuery).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*user.Session, error) {
+	return g.querySessions(ctx, sessionFindQuery)
+}
+
+func (g *GormSessionRepository) GetByID(ctx context.Context, token user.SessionID) (*user.Session, error) {
+	sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1"), token)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get session by token")
+	}
+	if len(sessions) == 0 {
+		return nil, ErrSessionNotFound
+	}
+	return sessions[0], nil
+}
+
+func (g *GormSessionRepository) Create(ctx context.Context, data *user.Session) error {
+	dbSession := toDBSession(data)
+	return g.execQuery(
+		ctx,
+		sessionInsertQuery,
+		dbSession.Token,
+		dbSession.UserID,
+		dbSession.ExpiresAt,
+		dbSession.IP,
+		dbSession.UserAgent,
+		dbSession.CreatedAt,
+	)
+}
+
+func (g *GormSessionRepository) Update(ctx context.Context, data *user.Session) error {
+	dbSession := toDBSession(data)
+	return g.execQuery(
+		ctx,
+		sessionUpdateQuery,
+		dbSession.ExpiresAt,
+		dbSession.IP,
+		dbSession.UserAgent,
+		dbSession.Token,
+	)
+}
+
+func (g *GormSessionRepository) Delete(ctx context.Context, token user.SessionID) error {
+	return g.execQuery(ctx, sessionDeleteQuery, token)
 }

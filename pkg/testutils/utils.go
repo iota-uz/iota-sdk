@@ -61,8 +61,8 @@ func MockUser(permissions ...*permission.Permission) user.User {
 	)
 }
 
-func MockSession() *session.Session {
-	return &session.Session{
+func MockSession() *user.Session {
+	return &user.Session{
 		Token:     "",
 		UserID:    0,
 		IP:        "",
