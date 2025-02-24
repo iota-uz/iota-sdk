@@ -31,9 +31,12 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		},
 	)
 	srv := graphql.NewBaseServer(schema)
-
 	for _, schema := range g.app.GraphSchemas() {
-		srv.AddExecutor(executor.New(schema.Value))
+		exec := executor.New(schema.Value)
+		if schema.ExecutorCb != nil {
+			schema.ExecutorCb(exec)
+		}
+		srv.AddExecutor(exec)
 	}
 	router := r.Methods(http.MethodGet, http.MethodPost).Subrouter()
 	router.Use(
