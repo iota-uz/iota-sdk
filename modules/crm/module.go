@@ -31,10 +31,10 @@ func (m *Module) Register(app application.Application) error {
 	conf := configuration.Use()
 	twilioProvider := cpassproviders.NewTwilioProvider(
 		twilio.ClientParams{
-			Username: conf.TwilioAccountSID,
-			Password: conf.TwilioAuthToken,
+			Username: conf.Twilio.AccountSID,
+			Password: conf.Twilio.AuthToken,
 		},
-		conf.TwilioWebhookURL,
+		conf.Twilio.WebhookURL,
 	)
 	chatRepo := persistence.NewChatRepository()
 	clientRepo := persistence.NewClientRepository()

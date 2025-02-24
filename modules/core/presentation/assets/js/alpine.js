@@ -103,8 +103,8 @@ async function animationsComplete(el) {
   );
 }
 
-let dialog = () => ({
-  open: false,
+let dialog = (initialState) => ({
+  open: initialState || false,
   toggle() {
     this.open = !this.open;
   },

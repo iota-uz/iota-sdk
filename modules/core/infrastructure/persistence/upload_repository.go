@@ -41,7 +41,7 @@ func (g *GormUploadRepository) queryUploads(
 	ctx context.Context,
 	query string,
 	args ...interface{},
-) ([]*upload.Upload, error) {
+) ([]upload.Upload, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (g *GormUploadRepository) queryUploads(
 	}
 	defer rows.Close()
 
-	uploads := make([]*upload.Upload, 0)
+	uploads := make([]upload.Upload, 0)
 	for rows.Next() {
 		var upload models.Upload
 		if err := rows.Scan(
@@ -78,11 +78,11 @@ func (g *GormUploadRepository) queryUploads(
 
 func (g *GormUploadRepository) GetPaginated(
 	ctx context.Context, params *upload.FindParams,
-) ([]*upload.Upload, error) {
+) ([]upload.Upload, error) {
 	sortFields := []string{}
 	for _, f := range params.SortBy.Fields {
 		switch f {
-		case upload.Size:
+		case upload.FieldSize:
 			sortFields = append(sortFields, "u.size")
 		default:
 			return nil, fmt.Errorf("unknown sort field: %v", f)
@@ -128,13 +128,13 @@ func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormUploadRepository) GetAll(ctx context.Context) ([]*upload.Upload, error) {
+func (g *GormUploadRepository) GetAll(ctx context.Context) ([]upload.Upload, error) {
 	return g.GetPaginated(ctx, &upload.FindParams{
 		Limit: 100000,
 	})
 }
 
-func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Upload, error) {
+func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (upload.Upload, error) {
 	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
 		ID: id,
 	})
@@ -147,7 +147,7 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (*upload.Up
 	return uploads[0], nil
 }
 
-func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upload.Upload, error) {
+func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {
 	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
 		Hash: hash,
 	})
@@ -160,7 +160,7 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (*upl
 	return uploads[0], nil
 }
 
-func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) (*upload.Upload, error) {
+func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (upload.Upload, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data *upload.Upload) 
 	return g.GetByID(ctx, dbUpload.ID)
 }
 
-func (g *GormUploadRepository) Update(ctx context.Context, data *upload.Upload) error {
+func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err

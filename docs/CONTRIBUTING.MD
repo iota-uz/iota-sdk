@@ -95,7 +95,7 @@ Before starting, ensure the following tools are installed on your system:
 
 6. **Apply database migrations**:
    ```cmd
-   make migrate-up && make seed
+   make migrate up && make seed
    ```
 
 7. **Run TailwindCSS in watch mode**:
@@ -153,5 +153,9 @@ Before starting, ensure the following tools are installed on your system:
      docker ps
      ```
    - Verify the database credentials in your `.env` file
+
+### Communication rules
+
+1. The contributer should close the conversation if he considers it's done. It can be reopened by the reviewer if needed. 
 
 For additional help, please check our [FAQ](./FAQ.md) or open an issue on GitHub.

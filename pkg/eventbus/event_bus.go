@@ -2,6 +2,8 @@ package eventbus
 
 import (
 	"reflect"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Subscriber struct {
@@ -17,11 +19,12 @@ type EventBus interface {
 }
 
 type publisherImpl struct {
+	log         *logrus.Logger
 	Subscribers []Subscriber
 }
 
-func NewEventPublisher() EventBus {
-	return &publisherImpl{}
+func NewEventPublisher(log *logrus.Logger) EventBus {
+	return &publisherImpl{log: log}
 }
 
 func MatchSignature(handler interface{}, args []interface{}) bool {
@@ -64,16 +67,24 @@ func MatchSignature(handler interface{}, args []interface{}) bool {
 }
 
 func (p *publisherImpl) Publish(args ...interface{}) {
+	in := make([]reflect.Value, len(args))
+	for i, arg := range args {
+		in[i] = reflect.ValueOf(arg)
+	}
+
+	handled := false
 	for _, subscriber := range p.Subscribers {
 		v := reflect.ValueOf(subscriber.Handler)
 		if !MatchSignature(subscriber.Handler, args) {
 			continue
 		}
-		in := make([]reflect.Value, len(args))
-		for i, arg := range args {
-			in[i] = reflect.ValueOf(arg)
-		}
 		v.Call(in)
+		handled = true
+	}
+
+	if !handled {
+		p.log.Warnf("eventbus.Publish: no matching subscribers for event with args: %v", in)
+		return
 	}
 }
 

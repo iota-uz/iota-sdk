@@ -3,6 +3,8 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -10,6 +12,7 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
@@ -22,6 +25,14 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
+
+func clientIDFromQ(u *url.URL) (uint, error) {
+	v, err := strconv.Atoi(u.Query().Get("view"))
+	if err != nil {
+		return 0, err
+	}
+	return uint(v), nil
+}
 
 type ClientController struct {
 	app           application.Application
@@ -69,7 +80,6 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.Use(commonMiddleware...)
 	hxRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit", c.GetEdit).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/tab/{tab:[a-z]+}", c.TabContents).Methods(http.MethodGet)
 }
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
@@ -86,7 +96,7 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 		return nil, errors.Wrap(err, "Error using query")
 	}
 
-	expenseEntities, err := c.clientService.GetPaginated(r.Context(), params)
+	clientEntities, err := c.clientService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
@@ -97,7 +107,7 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 	}
 
 	return &ClientsPaginatedResponse{
-		Clients:         mapping.MapViewModels(expenseEntities, mappers.ClientToViewModel),
+		Clients:         mapping.MapViewModels(clientEntities, mappers.ClientToViewModel),
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
@@ -107,12 +117,17 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	isHxRequest := shared.IsHxRequest(r)
+	if isHxRequest && r.URL.Query().Get("view") != "" {
+		c.View(w, r)
+		return
+	}
 	props := &clients.IndexPageProps{
 		NewURL:          fmt.Sprintf("%s/new", c.basePath),
 		Clients:         paginated.Clients,
 		PaginationState: paginated.PaginationState,
 	}
-	if shared.IsHxRequest(r) {
+	if isHxRequest {
 		templ.Handler(clients.ClientsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(clients.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -175,60 +190,33 @@ func (c *ClientController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
 		DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
 	}
-	viewLayoutProps := c.buildViewLayoutProps(
-		composables.MustUseLocalizer(r.Context()),
-		entity,
-		true,
-	)
-	ctx := templ.WithChildren(r.Context(), clients.EditForm(props))
-	templ.Handler(clients.ViewComponent(viewLayoutProps), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
+	templ.Handler(clients.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) buildViewLayoutProps(
-	localizer *i18n.Localizer,
-	entity client.Client,
-	isEditing bool,
-) *clients.ViewPageProps {
-	clientURL := fmt.Sprintf("%s/%d", c.basePath, entity.ID())
-	return &clients.ViewPageProps{
-		EditURL:   fmt.Sprintf("%s/edit", clientURL),
-		ClientURL: clientURL,
-		Client:    mappers.ClientToViewModel(entity),
-		IsEditing: isEditing,
-		Tabs: []clients.ClientTab{
-			{
-				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "Clients.Tabs.General",
-				}),
-				URL: fmt.Sprintf("%s/tab/general", clientURL),
-			},
-			{
-				Name: localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "Clients.Tabs.Chat",
-				}),
-				URL: fmt.Sprintf("%s/tab/chat", clientURL),
-			},
-		},
+func (c *ClientController) tabToComponent(
+	r *http.Request,
+	clientID uint,
+	tab string,
+) (templ.Component, error) {
+	clientEntity, err := c.clientService.GetByID(r.Context(), clientID)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving client")
 	}
-}
 
-func (c *ClientController) tabToComponent(r *http.Request, clientID uint, tab string) (templ.Component, error) {
 	switch tab {
-	case "":
-		fallthrough
-	case "general":
-		return clients.General(), nil
+	case "profile":
+		return clients.Profile(clients.ProfileProps{
+			ClientURL: c.basePath,
+			EditURL:   fmt.Sprintf("%s/%d/edit", c.basePath, clientID),
+			Client:    mappers.ClientToViewModel(clientEntity),
+		}), nil
 	case "chat":
-		entity, err := c.clientService.GetByID(r.Context(), clientID)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error retrieving client")
-		}
 		chatEntity, err := c.chatService.GetByClientID(r.Context(), clientID)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error retrieving chat")
 		}
 		return clients.Chats(chatsui.SelectedChatProps{
-			Chat:       mappers.ChatToViewModel(chatEntity, entity),
+			Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
 			ClientsURL: c.basePath,
 		}), nil
 	default:
@@ -237,45 +225,74 @@ func (c *ClientController) tabToComponent(r *http.Request, clientID uint, tab st
 }
 
 func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
-	clientID, err := shared.ParseID(r)
+	clientID, err := clientIDFromQ(r.URL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	qTab := r.URL.Query().Get("tab")
+	disablePush := r.URL.Query().Get("dp") == "true"
 
 	entity, err := c.clientService.GetByID(r.Context(), clientID)
 	if err != nil {
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
-	tab := r.URL.Query().Get("tab")
-	component, err := c.tabToComponent(r, clientID, tab)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	ctx := templ.WithChildren(r.Context(), component)
-	props := c.buildViewLayoutProps(
-		composables.MustUseLocalizer(r.Context()),
-		entity,
-		false,
-	)
-	templ.Handler(clients.ViewComponent(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
-}
-
-func (c *ClientController) TabContents(w http.ResponseWriter, r *http.Request) {
-	clientID, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	component, err := c.tabToComponent(r, clientID, mux.Vars(r)["tab"])
+	component, err := c.tabToComponent(r, clientID, qTab)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+	localizer := composables.MustUseLocalizer(r.Context())
+
+	hxCurrentURL, err := url.Parse(r.Header.Get("Hx-Current-URL"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := clients.ViewDrawerProps{
+		SelectedTab: r.URL.RequestURI(),
+		CallbackURL: hxCurrentURL.Path,
+		Tabs:        []clients.ClientTab{},
+	}
+	tabs := []struct {
+		Name  string
+		Value string
+	}{
+		{
+			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "Clients.Tabs.Profile",
+			}),
+			Value: "profile",
+		},
+		{
+			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "Clients.Tabs.Chat",
+			}),
+			Value: "chat",
+		},
+	}
+	for _, t := range tabs {
+		q := url.Values{}
+		q.Set("view", strconv.Itoa(int(entity.ID())))
+		q.Set("tab", t.Value)
+		href := fmt.Sprintf("%s?%s", c.basePath, q.Encode())
+		props.Tabs = append(props.Tabs, clients.ClientTab{
+			Name: t.Name,
+			BoostLinkProps: tab.BoostLinkProps{
+				Href: href,
+				Push: !disablePush,
+			},
+		})
+	}
+
+	if r.Header.Get("Hx-Target") != "" {
+		templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		ctx := templ.WithChildren(r.Context(), component)
+		templ.Handler(clients.ViewDrawer(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
+	}
 }
 
 func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {

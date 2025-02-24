@@ -2,6 +2,7 @@ package warehouse
 
 import (
 	"embed"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"

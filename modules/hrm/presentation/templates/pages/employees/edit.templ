@@ -1,0 +1,249 @@
+package employees
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type EditPageProps struct {
+	Employee  *viewmodels.Employee
+	Errors    map[string]string
+	SaveURL   string
+	DeleteURL string
+}
+
+templ EditForm(props *EditPageProps) {
+	{{
+	sharedProps := SharedProps{
+		Employee: props.Employee,
+		Errors:   props.Errors,
+	}
+	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col justify-between h-full" id="edit-content">
+		<div class="m-6">
+			@tab.Root(tab.Props{
+				DefaultValue: "public",
+			}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Button("public") {
+						{ pageCtx.T("Employees.Tabs.Public") }
+					}
+					@tab.Button("private") {
+						{ pageCtx.T("Employees.Tabs.Private") }
+					}
+				}
+				<div x-show="selectedTab === 'public'">
+					@card.Card(card.Props{
+						Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.PersonalInfo")),
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Employees.Public.FirstName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.FirstName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "FirstName",
+								"value": props.Employee.FirstName,
+								"form":  "save-form",
+							},
+							Error: props.Errors["FirstName"],
+						})
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Employees.Public.LastName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.LastName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "LastName",
+								"value": props.Employee.LastName,
+								"form":  "save-form",
+							},
+							Error: props.Errors["LastName"],
+						})
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Employees.Public.MiddleName.Label"),
+							Placeholder: pageCtx.T("Employees.Public.MiddleName.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "MiddleName",
+								"value": props.Employee.MiddleName,
+								"form":  "save-form",
+							},
+							Error: props.Errors["MiddleName"],
+						})
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Employees.Public.Email.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Email.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "Email",
+								"value": props.Employee.Email,
+								"form":  "save-form",
+							},
+							Error: props.Errors["Email"],
+						})
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Employees.Public.Phone.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Phone.Placeholder"),
+							Error:       props.Errors["Phone"],
+							Attrs: templ.Attributes{
+								"name":  "Phone",
+								"value": props.Employee.Phone,
+						
+								"form": "save-form",
+							},
+						})
+						@input.Date(&input.Props{
+							Label: pageCtx.T("Employees.Public.BirthDate.Label"),
+							Error: props.Errors["BirthDate"],
+							Attrs: templ.Attributes{
+								"name": "BirthDate",
+								// "value": props.Employee.BirthDate,
+								"form": "save-form",
+							},
+						})
+					}
+					@card.Card(card.Props{
+						Header:       card.DefaultHeader(pageCtx.T("Employees.Cards.JobInfo")),
+						WrapperClass: "mt-5",
+						Class:        "grid grid-cols-3 gap-4",
+					}) {
+						@JoinDateInput(sharedProps)
+						@ResignationDateInput(sharedProps)
+						@base.Select(&base.SelectProps{
+							Label:       pageCtx.T("Employees.Public.Position.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Position.Placeholder"),
+							Attrs: templ.Attributes{
+								"form": "save-form",
+							},
+						}) {
+							<option>PM</option>
+							<option>Developer</option>
+						}
+						@base.Select(&base.SelectProps{
+							Label:       pageCtx.T("Employees.Public.Level.Label"),
+							Placeholder: pageCtx.T("Employees.Public.Level.Placeholder"),
+							Attrs: templ.Attributes{
+								"form": "save-form",
+							},
+						}) {
+							<option>Junior</option>
+							<option>Middle</option>
+							<option>Senior</option>
+						}
+						@base.Select(&base.SelectProps{
+							Label:       pageCtx.T("Employees.Public.EmploymentStatus.Label"),
+							Placeholder: pageCtx.T("Employees.Public.EmploymentStatus.Placeholder"),
+							Attrs: templ.Attributes{
+								"form": "save-form",
+							},
+						}) {
+							<option>Part time</option>
+							<option>Full time</option>
+						}
+					}
+				</div>
+				<div x-show="selectedTab === 'private'">
+					@card.Card(card.Props{
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@input.Number(&input.Props{
+							Label: pageCtx.T("Employees.Private.Salary.Label"),
+							Error: props.Errors["Salary"],
+							Attrs: templ.Attributes{
+								"name":  "Salary",
+								"value": props.Employee.Salary,
+								"form":  "save-form",
+							},
+						})
+					}
+					@card.Card(card.Props{
+						Class:        "grid grid-cols-3 gap-4",
+						WrapperClass: "mt-5",
+					}) {
+						@TinInput(sharedProps)
+						@PinInput(sharedProps)
+						@PassportInput(sharedProps)
+					}
+				</div>
+			}
+		</div>
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="delete-form"
+				hx-delete={ props.DeleteURL }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-employee-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-employee-confirmation')",
+						"id":     "delete-employee-btn",
+					},
+				}) {
+					{ pageCtx.T("Delete") }
+				}
+			</form>
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ props.SaveURL }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Employees.Meta.Edit.Title"),
+	}) {
+		@EditForm(props)
+		@dialog.Confirmation(&dialog.Props{
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Employees.Single.Delete"),
+			Text:        pageCtx.T("Employees.Single.DeleteConfirmation"),
+			Icon:        icons.Trash(icons.Props{Size: "20"}),
+			Action:      "open-delete-employee-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+		})
+	}
+}

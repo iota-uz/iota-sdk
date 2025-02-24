@@ -1,0 +1,96 @@
+package employees
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type SharedProps struct {
+	*types.PageContext
+	Employee *viewmodels.Employee
+	Errors   map[string]string
+}
+
+templ SalaryInput(props SharedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@input.Number(&input.Props{
+		Label: pageCtx.T("Employees.Private.Salary.Label"),
+		Error: props.Errors["Salary"],
+		Attrs: templ.Attributes{
+			"name":  "Salary",
+			"value": props.Employee.Salary,
+		},
+		AddonRight: &input.Addon{
+			Component: icons.Money(icons.Props{
+				Size:  "18",
+				Class: "text-gray-400",
+			}),
+		},
+	})
+}
+
+templ TinInput(props SharedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@input.Text(&input.Props{
+		Label:       pageCtx.T("Employees.Private.TIN.Label"),
+		Placeholder: pageCtx.T("Employees.Private.TIN.Placeholder"),
+		Error:       props.Errors["Tin"],
+		Attrs: templ.Attributes{
+			"name":  "Tin",
+			"value": props.Employee.Tin,
+		},
+	})
+}
+
+templ PinInput(props SharedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@input.Text(&input.Props{
+		Label:       pageCtx.T("Employees.Private.Pin.Label"),
+		Placeholder: pageCtx.T("Employees.Private.Pin.Placeholder"),
+		Error:       props.Errors["Pin"],
+		Attrs: templ.Attributes{
+			"name":  "Pin",
+			"value": "",
+		},
+	})
+}
+
+templ PassportInput(props SharedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@input.Text(&input.Props{
+		Label:       pageCtx.T("Employees.Private.PassportSN.Label"),
+		Placeholder: pageCtx.T("Employees.Private.PassportSN.Placeholder"),
+		Error:       props.Errors["PassportSN"],
+		Attrs: templ.Attributes{
+			"name":  "PassportSN",
+			"value": "",
+		},
+	})
+}
+
+templ JoinDateInput(props SharedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@input.Date(&input.Props{
+		Label: pageCtx.T("Employees.Public.HireDate.Label"),
+		Error: props.Errors["HireDate"],
+		Attrs: templ.Attributes{
+			"name":  "HireDate",
+			"value": props.Employee.HireDate,
+		},
+	})
+}
+
+templ ResignationDateInput(props SharedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@input.Date(&input.Props{
+		Label: pageCtx.T("Employees.Public.ResignationDate.Label"),
+		Error: props.Errors["ResignationDate"],
+		Attrs: templ.Attributes{
+			"name":  "ResignationDate",
+			"value": props.Employee.ResignationDate,
+		},
+	})
+}

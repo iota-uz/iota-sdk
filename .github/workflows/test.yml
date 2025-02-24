@@ -84,7 +84,7 @@ jobs:
       - name: Test Makefile targets
         # running seeds twice to verify that they are idempotent
         run: |
-          make migrate-up
+          make migrate up
           make seed
           make seed
           make css
@@ -123,4 +123,4 @@ jobs:
       - name: Test database migrate down
         # e2e tests require database to have the seed data. We can only down the migrations after cypress.
         run: |
-          make migrate-down
+          make migrate down

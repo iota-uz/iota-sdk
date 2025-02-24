@@ -46,17 +46,24 @@ templ RoleSelect(props *RoleSelectProps) {
 
 type SharedProps struct {
 	Value string
+	Form  string
 	Error string
 }
 
 templ EmailInput(props SharedProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@input.Email(&input.Props{
-		Label: pageCtx.T("Users.Single.Email"),
-		Attrs: templ.Attributes{
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		attrs := templ.Attributes{
 			"name":  "Email",
 			"value": props.Value,
-		},
+		}
+		if props.Form != "" {
+			attrs["form"] = props.Form
+		}
+	}}
+	@input.Email(&input.Props{
+		Label: pageCtx.T("Users.Single.Email"),
+		Attrs: attrs,
 		AddonRight: &input.Addon{
 			Component: icons.EnvelopeSimple(icons.Props{
 				Size:  "18",

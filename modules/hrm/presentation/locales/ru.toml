@@ -1,0 +1,85 @@
+[NavigationLinks]
+HRM = "HRM"
+Employees = "Сотрудники"
+
+[Resources]
+employee = "Сотрудник"
+
+[Permissions.Employee]
+Create = "Добавить сотрудника"
+Read = "Просмотреть сотрудника"
+Update = "Редактировать сотрудника"
+Delete = "Удалить сотрудника"
+
+[Employees]
+[Employees.Meta]
+[Employees.Meta.List]
+Title = "Сотрудники"
+[Employees.Meta.Edit]
+Title = "Редактировать сотрудника"
+[Employees.Meta.New]
+Title = "Добавить сотрудника"
+
+[Employees.Tabs]
+Public = "Публичные"
+Private = "Конфиденциальные"
+
+[Employees.Cards]
+PersonalInfo = "Персональные данные"
+JobInfo = "Рабочие данные"
+
+[Employees.List]
+New = "Добавить сотрудника"
+FullName = "Полное имя"
+Position = "Должность"
+Email = "Электронная почта"
+
+[Employees.Single]
+Edit = "Редактировать сотрудника"
+Delete = "Удалить сотрудника"
+DeleteConfirmation = "Вы уверены что хотите удалить этого сотрудника?"
+
+[Employees.Public]
+[Employees.Public.FirstName]
+Label = "Имя"
+Placeholder = "Введите имя"
+[Employees.Public.LastName]
+Label = "Фамилия"
+Placeholder = "Введите фамилию"
+[Employees.Public.MiddleName]
+Label = "Отчество"
+Placeholder = "Введите отчество"
+[Employees.Public.Phone]
+Label = "Телефон"
+Placeholder = "+998 (__) ___ __ __"
+[Employees.Public.Email]
+Label = "Электронная почта"
+Placeholder = "jodoe@gmail.com"
+[Employees.Public.BirthDate]
+Label = "Дата рождения"
+[Employees.Public.Position]
+Label = "Должность"
+Placeholder = "Выберите должность"
+[Employees.Public.HireDate]
+Label = "Дата трудоустройства"
+[Employees.Public.ResignationDate]
+Label = "Дата увольнения"
+[Employees.Public.EmploymentStatus]
+Label = "Тип занятости"
+Placeholder = "Выберите тип занятости"
+[Employees.Public.Level]
+Label = "Уровень"
+Placeholder = "Выберите уровень"
+
+[Employees.Private]
+[Employees.Private.Salary]
+Label = "Зарплата"
+[Employees.Private.PassportSN]
+Label = "Серия и номер пасспорта"
+Placeholder = "AA 123 45 67"
+[Employees.Private.TIN]
+Label = "ИНН"
+Placeholder = "1234567"
+[Employees.Private.Pin]
+Label = "ПИНФЛ"
+Placeholder = "123456789192121"

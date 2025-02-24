@@ -31,7 +31,6 @@ const (
             u.last_login,
             u.last_ip,
             u.last_action,
-            u.employee_id,
             u.created_at,
             u.updated_at,
             up.id,
@@ -52,10 +51,9 @@ const (
             password,
             ui_language,
             avatar_id,
-            employee_id,
             created_at,
             updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id`
 
 	userUpdateQuery = `
@@ -67,9 +65,8 @@ const (
             password = COALESCE(NULLIF($5, ''), users.password),
             ui_language = $6,
             avatar_id = $7,
-            employee_id = $8,
-            updated_at = $9
-        WHERE id = $10`
+            updated_at = $8
+        WHERE id = $9`
 
 	userCountQuery = `SELECT COUNT(*) FROM users`
 
@@ -176,7 +173,6 @@ func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.U
 		dbUser.Password,
 		dbUser.UILanguage,
 		dbUser.AvatarID,
-		dbUser.EmployeeID,
 		dbUser.CreatedAt,
 		dbUser.UpdatedAt,
 	).Scan(&dbUser.ID)
@@ -207,7 +203,6 @@ func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 		dbUser.Password,
 		dbUser.UILanguage,
 		dbUser.AvatarID,
-		dbUser.EmployeeID,
 		dbUser.UpdatedAt,
 		dbUser.ID,
 	)
@@ -273,7 +268,6 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 			&u.LastLogin,
 			&u.LastIP,
 			&u.LastAction,
-			&u.EmployeeID,
 			&u.CreatedAt,
 			&u.UpdatedAt,
 			&avatarId,

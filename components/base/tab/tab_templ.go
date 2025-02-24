@@ -303,9 +303,8 @@ func Link(href string, active bool) templ.Component {
 }
 
 type BoostLinkProps struct {
-	Href   string
-	Active bool
-	Push   bool
+	Href string
+	Push bool
 }
 
 func BoostedLink(props BoostLinkProps) templ.Component {
@@ -331,9 +330,11 @@ func BoostedLink(props BoostLinkProps) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 
 		attrs := templ.Attributes{
+			"@click":    fmt.Sprintf("selectedTab = '%s'", props.Href),
 			"hx-get":    props.Href,
 			"hx-target": "#tab-content",
 			"hx-swap":   "innerHTML",
+			":class":    fmt.Sprintf("{'after:bg-brand-500': selectedTab === '%s'}", props.Href),
 		}
 		if props.Push {
 			attrs["hx-push-url"] = "true"
@@ -357,7 +358,7 @@ func BoostedLink(props BoostLinkProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = button.Ghost(button.Props{
-			Class: templ.CSSClasses{linkClass, templ.KV("after:bg-brand-500", props.Active)},
+			Class: templ.CSSClasses{linkClass},
 			Attrs: attrs,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

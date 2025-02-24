@@ -7,14 +7,28 @@ args_bin = []
 bin = "./tmp/main"
 cmd = "go build -o ./tmp/main cmd/server/main.go"
 delay = 1000
-exclude_dir = ["tmp", "vendor", "testdata", "postgres-data", "static", "py-embed", "e2e"]
-exclude_file = []
+exclude_dir = [
+  "tmp",
+  "vendor",
+  "testdata",
+  "postgres-data",
+  "static",
+  "py-embed",
+  "e2e",
+]
+exclude_file = [
+  ".air.toml",
+  ".air.testing.toml",
+  "compose.yml",
+  "compose.dev.yml",
+  "compose.testing.yml",
+]
 exclude_regex = ["_test.go"]
 exclude_unchanged = false
 follow_symlink = false
 full_bin = ""
 include_dir = []
-include_ext = ["go", "html", "json", "js", "css"]
+include_ext = ["go", "html", "json", "js", "css", "toml", "yml", "yaml"]
 include_file = []
 kill_delay = "0s"
 log = "build-errors.log"

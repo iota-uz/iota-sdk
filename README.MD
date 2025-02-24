@@ -7,8 +7,10 @@
 - [Discord Community](https://discord.gg/zKeTEZAQqF): Join our community for support and Q&A.
 - [Contribution Guide](docs/CONTRIBUTING.MD): Learn how to contribute to the project.
 - [Setup Demo](https://github.com/iota-uz/sdk-demo): Learn how to setup IOTA-SDK.
-- [Figma Designs (Coming soon...)](https://www.figma.com/): Access and contribute to our open-source designs.
+- [Demo stand](https://demo.iotaerp.com): Explore the SDK UI
+- [Docker hub](https://hub.docker.com/r/iotauz/sdk) - Official Docker images
 - [Roadmap (Coming soon...)](docs/): Explore our upcoming features and milestones.
+- [Figma Designs (Coming soon...)](https://www.figma.com/): Access and contribute to our open-source designs.
 
 ## 🛠 Built With
 
@@ -59,16 +61,10 @@ various industries. Here's what's in the pipeline:
   invoices and other essential business documents.
 - **Documentation Website**: Launch a comprehensive docs website to streamline onboarding and provide detailed guidance
   for developers and users.
-- **Demo Stand**: Develop an interactive demo stand to showcase IOTA SDK’s capabilities for prospective users and
-  contributors.
 - **Open Source Designs and Documentation**: Share Figma designs and other internal documentation to help the community
   understand the vision and contribute more effectively.
 
 ---  
-
-## Official Docker images
-
-[Docker hub](https://hub.docker.com/r/iotauz/sdk)
 
 ## 📄 Licence
 
@@ -78,7 +74,7 @@ Updated at Jan 6, 2025
 
 ## 🌟 Join Us
 
-<img width="250" style="display: block" src="https://www.iota.uz/images/common/logotype.svg">  
+<img width="250" style="display: block" src="https://cdn.prod.website-files.com/660549b5ac888804e6582845/6606afddd43da2d659209149_logo.svg">  
 
 We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
 started.

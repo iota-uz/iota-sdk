@@ -43,7 +43,6 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		"",
 		"test@gmail.com",
 		nil,
-		0,
 		user.UILanguageEN,
 		[]role.Role{roleEntity},
 	)

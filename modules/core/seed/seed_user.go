@@ -83,7 +83,6 @@ func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.Use
 		"",
 		s.email,
 		nil,
-		0,
 		s.uiLang,
 		[]role.Role{r},
 	).SetPassword(s.pass)

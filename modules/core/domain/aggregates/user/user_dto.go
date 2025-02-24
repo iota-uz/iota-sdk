@@ -103,7 +103,6 @@ func (u *CreateDTO) ToEntity() (User, error) {
 		lastIP:     "",
 		avatarID:   u.AvatarID,
 		uiLanguage: UILanguage(u.UILanguage),
-		employeeID: 0,
 		createdAt:  time.Now(),
 		updatedAt:  time.Now(),
 	}, nil
@@ -130,7 +129,6 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		lastIP:     "",
 		avatarID:   u.AvatarID,
 		uiLanguage: UILanguage(u.UILanguage),
-		employeeID: 0,
 		createdAt:  time.Now(),
 		updatedAt:  time.Now(),
 	}, nil

@@ -5,7 +5,6 @@ import "context"
 type FindParams struct {
 	SortBy []string
 	UserID uint
-	ID     uint
 }
 
 type Repository interface {

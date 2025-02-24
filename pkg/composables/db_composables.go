@@ -39,6 +39,10 @@ func UsePool(ctx context.Context) (*pgxpool.Pool, error) {
 }
 
 func BeginTx(ctx context.Context) (pgx.Tx, error) {
+	tx := ctx.Value(constants.TxKey)
+	if tx != nil {
+		return tx.(pgx.Tx), nil
+	}
 	pool, err := UsePool(ctx)
 	if err != nil {
 		return nil, err

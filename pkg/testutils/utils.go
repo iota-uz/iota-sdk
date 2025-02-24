@@ -4,13 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
-	_ "github.com/lib/pq"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -21,6 +16,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 )
 
 type TestFixtures struct {
@@ -51,7 +51,6 @@ func MockUser(permissions ...*permission.Permission) user.User {
 		"",
 		"",
 		nil,
-		0,
 		"",
 		"",
 		[]role.Role{r},
@@ -95,10 +94,7 @@ func DefaultParams() *composables.Params {
 
 func CreateDB(name string) {
 	c := configuration.Use()
-	db, err := sql.Open("postgres", fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.DBHost, c.DBPort, c.DBUser, c.DBName, c.DBPassword,
-	))
+	db, err := sql.Open("postgres", c.Database.ConnectionString())
 	if err != nil {
 		panic(err)
 	}
@@ -121,12 +117,13 @@ func DbOpts(name string) string {
 	c := configuration.Use()
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.DBHost, c.DBPort, c.DBUser, strings.ToLower(name), c.DBPassword,
+		c.Database.Host, c.Database.Port, c.Database.User, strings.ToLower(name), c.Database.Password,
 	)
 }
 
 func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
-	app := application.New(pool, eventbus.NewEventPublisher())
+	conf := configuration.Use()
+	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
 	}
@@ -138,8 +135,8 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 
 func GetTestContext() *TestFixtures {
 	conf := configuration.Use()
-	pool := NewPool(conf.DBOpts)
-	app := application.New(pool, eventbus.NewEventPublisher())
+	pool := NewPool(conf.Database.Opts)
+	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}

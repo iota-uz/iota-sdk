@@ -67,6 +67,7 @@ templ EditForm(props *EditFormProps) {
 					@EmailInput(SharedProps{
 						Value: props.User.Email,
 						Error: props.Errors["Email"],
+						Form:  "save-form",
 					})
 				}
 				@card.Card(card.Props{
