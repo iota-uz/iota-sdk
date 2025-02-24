@@ -22,6 +22,9 @@ import (
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
+//go:embed infrastructure/persistence/schema/warehouse-schema.sql
+var migrationFiles embed.FS
+
 func NewModule() application.Module {
 	return &Module{}
 }
@@ -88,6 +91,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewInventoryController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
+	app.RegisterMigrationDirs(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.Spotlight().Register(
 		spotlight.NewItem(nil, ProductsItem.Name, ProductsItem.Href),

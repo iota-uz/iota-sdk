@@ -31,10 +31,10 @@ func (m *Module) Register(app application.Application) error {
 	conf := configuration.Use()
 	twilioProvider := cpassproviders.NewTwilioProvider(
 		twilio.ClientParams{
-			Username: conf.Twilio.AccountSID,
-			Password: conf.Twilio.AuthToken,
+			Username: conf.TwilioAccountSID,
+			Password: conf.TwilioAuthToken,
 		},
-		conf.Twilio.WebhookURL,
+		conf.TwilioWebhookURL,
 	)
 	chatRepo := persistence.NewChatRepository()
 	clientRepo := persistence.NewClientRepository()
@@ -71,6 +71,7 @@ func (m *Module) Register(app application.Application) error {
 
 	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
+	app.RegisterMigrationDirs(&migrationFiles)
 	return nil
 }
 
