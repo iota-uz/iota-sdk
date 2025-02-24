@@ -16,7 +16,6 @@ import (
 type Generator struct {
 	dialect           dialect.Dialect
 	outputDir         string
-	templates         map[ChangeType]string
 	options           GeneratorOptions
 	logger            *logrus.Logger
 	tableDependencies map[string][]string // tracks table -> dependencies
@@ -86,11 +85,6 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	sortedChanges := g.sortChangesByDependencies(deduplicatedChanges)
 	changes.Changes = sortedChanges
 
-	// Ensure output directory exists
-	if err := os.MkdirAll(g.outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
 	// Create timestamp-based filename
 	timestamp := time.Now().Unix()
 	fileName := fmt.Sprintf("changes-%d.sql", timestamp)
@@ -99,23 +93,23 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	}
 
 	filePath := filepath.Join(g.outputDir, fileName)
-	logger.Info("Generating migration file: ", filePath)
+	g.logger.Infof("Generating migration file: %s", filePath)
 
 	var statements []string
 	for _, change := range changes.Changes {
 		stmt, err := g.generateChangeStatement(change)
 		if err != nil {
-			logger.Warnf("Error generating statement: %v", err)
+			g.logger.Warnf("Error generating statement: %v", err)
 			continue
 		}
 		if stmt != "" {
-			logger.Debugf("Generated SQL: %s", stmt)
+			g.logger.Debugf("Generated SQL: %s", stmt)
 			statements = append(statements, stmt)
 		}
 	}
 
 	if len(statements) == 0 {
-		logger.Info("No statements generated")
+		g.logger.Info("No statements generated")
 		return nil
 	}
 
@@ -132,7 +126,7 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 
 	// Write the migration file
 	if err := os.WriteFile(filePath, []byte(content.String()), 0644); err != nil {
-		return fmt.Errorf("failed to write migration file: %w", err)
+		return fmt.Errorf("failed to write migration file %q: %w", filePath, err)
 	}
 
 	// Generate down migration if enabled
@@ -162,13 +156,13 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 }
 
 func (g *Generator) generateChangeStatement(change *Change) (string, error) {
-	logger.Debugf("Generating statement for change type: %v", change.Type)
+	g.logger.Debugf("Generating statement for change type: %v", change.Type)
 
 	switch change.Type {
 	case CreateTable:
-		logger.Debugf("Generating CREATE TABLE statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating CREATE TABLE statement for %s", change.ObjectName)
 		if originalSQL, ok := change.Object.Metadata["original_sql"].(string); ok && originalSQL != "" {
-			logger.Debugf("Using original SQL for table %s: %s", change.ObjectName, originalSQL)
+			g.logger.Debugf("Using original SQL for table %s: %s", change.ObjectName, originalSQL)
 			return originalSQL, nil
 		}
 		var columns []string
@@ -211,7 +205,7 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return stmt.String(), nil
 
 	case ModifyColumn:
-		logger.Debugf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		g.logger.Debugf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			// Extract type and constraints from the definition
 			parts := strings.SplitN(def, " ", 2)
@@ -248,14 +242,14 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return "", fmt.Errorf("missing column definition for %s", change.ObjectName)
 
 	case AddColumn:
-		logger.Debugf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
-		logger.Debugf("Column metadata: %+v", change.Object.Metadata)
+		g.logger.Debugf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		g.logger.Debugf("Column metadata: %+v", change.Object.Metadata)
 
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s;",
 				change.ParentName,
 				def)
-			logger.Debugf("Generated statement: %s", stmt)
+			g.logger.Debugf("Generated statement: %s", stmt)
 			return stmt, nil
 		}
 
@@ -269,13 +263,13 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			change.ParentName,
 			change.ObjectName,
 			rawType)
-		logger.Debugf("Generated fallback statement: %s", stmt)
+		g.logger.Debugf("Generated fallback statement: %s", stmt)
 		return stmt, nil
 
 	case AddIndex:
-		logger.Debugf("Generating CREATE INDEX statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating CREATE INDEX statement for %s", change.ObjectName)
 		if originalSQL, ok := change.Object.Metadata["original_sql"].(string); ok && originalSQL != "" {
-			logger.Debugf("Using original SQL for index %s: %s", change.ObjectName, originalSQL)
+			g.logger.Debugf("Using original SQL for index %s: %s", change.ObjectName, originalSQL)
 			return originalSQL + ";", nil
 		}
 		// Fallback to constructing the index statement
@@ -292,22 +286,22 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			change.ObjectName, tableName, columns))
 
 		result := stmt.String()
-		logger.Debugf("Generated index statement: %s", result)
+		g.logger.Debugf("Generated index statement: %s", result)
 		return result, nil
 
 	case ModifyIndex:
-		logger.Debugf("Generating MODIFY INDEX statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating MODIFY INDEX statement for %s", change.ObjectName)
 		// For index modifications, we drop and recreate
 		if newDef, ok := change.Metadata["new_definition"].(string); ok {
 			dropStmt := fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName)
 			result := dropStmt + "\n" + newDef + ";"
-			logger.Debugf("Generated index modification statement: %s", result)
+			g.logger.Debugf("Generated index modification statement: %s", result)
 			return result, nil
 		}
 		return "", fmt.Errorf("missing new index definition for %s", change.ObjectName)
 
 	case DropIndex:
-		logger.Debugf("Generating DROP INDEX statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating DROP INDEX statement for %s", change.ObjectName)
 		return fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName), nil
 
 	case AddConstraint:
@@ -315,6 +309,10 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			return fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s %s;",
 				change.ObjectName, change.Object.Name, def), nil
 		}
+
+	case DropTable:
+		g.logger.Debugf("Generating DROP TABLE statement for %s", change.ObjectName)
+		return fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;", change.ObjectName), nil
 	}
 
 	return "", fmt.Errorf("unsupported change type or missing data: %v", change.Type)
@@ -346,19 +344,19 @@ func extractDefaultValue(constraints string) string {
 }
 
 func (g *Generator) generateDownStatements(changes *ChangeSet) []string {
-	logger.Debugf("Generating down statements for %d changes", len(changes.Changes))
+	g.logger.Debugf("Generating down statements for %d changes", len(changes.Changes))
 	// Generate reverse operations in reverse order
 	statements := make([]string, 0, len(changes.Changes))
 	for i := len(changes.Changes) - 1; i >= 0; i-- {
 		change := changes.Changes[i]
 		if !change.Reversible {
-			logger.Debugf("Skipping non-reversible change: %v", change.Type)
+			g.logger.Debugf("Skipping non-reversible change: %v", change.Type)
 			continue
 		}
 
 		stmt := g.generateDownStatement(change)
 		if stmt != "" {
-			logger.Debugf("Generated down statement: %s", stmt)
+			g.logger.Debugf("Generated down statement: %s", stmt)
 			statements = append(statements, stmt)
 		}
 	}
@@ -366,24 +364,24 @@ func (g *Generator) generateDownStatements(changes *ChangeSet) []string {
 }
 
 func (g *Generator) generateDownStatement(change *Change) string {
-	logger.Debugf("Generating down statement for change type: %v", change.Type)
+	g.logger.Debugf("Generating down statement for change type: %v", change.Type)
 
 	switch change.Type {
 	case CreateTable:
-		stmt := fmt.Sprintf("DROP TABLE IF EXISTS %s;", change.ObjectName)
-		logger.Debugf("Generated down statement for table: %s", stmt)
+		stmt := fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;", change.ObjectName)
+		g.logger.Debugf("Generated down statement for table: %s", stmt)
 		return stmt
 	case AddColumn:
 		stmt := fmt.Sprintf("ALTER TABLE %s DROP COLUMN IF EXISTS %s;", change.ParentName, change.ObjectName)
-		logger.Debugf("Generated down statement for column: %s", stmt)
+		g.logger.Debugf("Generated down statement for column: %s", stmt)
 		return stmt
 	case AddConstraint:
 		stmt := fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s;", change.ParentName, change.ObjectName)
-		logger.Debugf("Generated down statement for constraint: %s", stmt)
+		g.logger.Debugf("Generated down statement for constraint: %s", stmt)
 		return stmt
 	case AddIndex, ModifyIndex:
 		stmt := fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName)
-		logger.Debugf("Generated down statement for index: %s", stmt)
+		g.logger.Debugf("Generated down statement for index: %s", stmt)
 		return stmt
 	}
 	return ""
@@ -391,26 +389,28 @@ func (g *Generator) generateDownStatement(change *Change) string {
 
 // NewGenerator creates a new migration generator
 func NewGenerator(opts GeneratorOptions) (*Generator, error) {
-	d, ok := dialect.Get(opts.Dialect)
-	if !ok {
-		return nil, fmt.Errorf("unsupported dialect: %s", opts.Dialect)
+	if opts.Logger == nil {
+		opts.Logger = logrus.New()
+	}
+
+	// Validate output directory
+	if opts.OutputDir == "" {
+		return nil, fmt.Errorf("output directory path cannot be empty")
+	}
+
+	// Clean and validate the path
+	outputDir := filepath.Clean(opts.OutputDir)
+
+	// Create output directory if it doesn't exist
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create output directory %q: %w", outputDir, err)
 	}
 
 	return &Generator{
-		dialect:   d,
-		outputDir: opts.OutputDir,
 		options:   opts,
-		templates: loadDefaultTemplates(),
-		logger:    logger,
+		outputDir: outputDir,
+		logger:    opts.Logger,
 	}, nil
-}
-
-func loadDefaultTemplates() map[ChangeType]string {
-	return map[ChangeType]string{
-		AddColumn:     `ALTER TABLE {{ .TableName }} ADD COLUMN {{ .ColumnDef }}`,
-		AddConstraint: `ALTER TABLE {{ .TableName }} ADD CONSTRAINT {{ .ConstraintName }} {{ .ConstraintDef }}`,
-		AddIndex:      `CREATE INDEX {{ .IndexName }} ON {{ .TableName }} {{ .IndexDef }}`,
-	}
 }
 
 func (g *Generator) generateColumnDefinition(col *types.Node) string {
