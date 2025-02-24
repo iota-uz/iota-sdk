@@ -12,6 +12,11 @@ const login = (email, password) => {
 };
 
 describe("user auth and registration flow", () => {
+	before(() => {
+		cy.task("resetDatabase");
+		cy.task("seedDatabase");
+	});
+
 	afterEach(() => {
 		cy.visit("http://localhost:3200/logout");
 	});
