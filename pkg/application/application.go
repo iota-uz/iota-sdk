@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -238,34 +237,24 @@ func (app *application) Bundle() *i18n.Bundle {
 
 func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 	var migrations []*migrate.Migration
-
-	// Get migrations directory from env or use default
-	migrationsPath := os.Getenv("MIGRATIONS_DIR")
-	if migrationsPath == "" {
-		migrationsPath = "migrations"
-	}
-
-	// Read from filesystem instead of embedded
-	files, err := os.ReadDir(migrationsPath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading migrations directory: %w", err)
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		content, err := os.ReadFile(filepath.Join(migrationsPath, file.Name()))
+	for _, migrationFs := range app.migrationDirs {
+		files, err := listFiles(migrationFs, ".")
 		if err != nil {
-			return nil, fmt.Errorf("error reading migration file %s: %w", file.Name(), err)
+			return nil, err
 		}
 
-		migration, err := migrate.ParseMigration(file.Name(), bytes.NewReader(content))
-		if err != nil {
-			return nil, fmt.Errorf("error parsing migration %s: %w", file.Name(), err)
+		for _, file := range files {
+			content, err := migrationFs.ReadFile(file)
+			if err != nil {
+				return nil, err
+			}
+
+			migration, err := migrate.ParseMigration(filepath.Join(file), bytes.NewReader(content))
+			if err != nil {
+				return nil, err
+			}
+			migrations = append(migrations, migration)
 		}
-		migrations = append(migrations, migration)
 	}
 
 	return migrations, nil
