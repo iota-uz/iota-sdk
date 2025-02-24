@@ -244,11 +244,13 @@ func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		for _, file := range files {
 			content, err := migrationFs.ReadFile(file)
 			if err != nil {
 				return nil, err
 			}
+
 			migration, err := migrate.ParseMigration(filepath.Join(file), bytes.NewReader(content))
 			if err != nil {
 				return nil, err
@@ -256,6 +258,7 @@ func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 			migrations = append(migrations, migration)
 		}
 	}
+
 	return migrations, nil
 }
 
