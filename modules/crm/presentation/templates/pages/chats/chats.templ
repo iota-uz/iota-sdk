@@ -13,20 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
-type IndexPageProps struct {
-	SearchURL    string
-	WebsocketURL string
-	NewChatURL   string
-	Chats        []*viewmodels.Chat
-}
-
-type SelectedChatProps struct {
-	BaseURL    string
-	ClientsURL string
-	Chat       *viewmodels.Chat
-	Templates  []*viewmodels.MessageTemplate
-}
-
 type NewChatProps struct {
 	BaseURL       string
 	CreateChatURL string
@@ -86,11 +72,20 @@ templ NoSelectedChat() {
 	</div>
 }
 
+// ---- Selected Chat ----
+
+type SelectedChatProps struct {
+	BaseURL    string
+	ClientsURL string
+	Chat       *viewmodels.Chat
+	Templates  []*viewmodels.MessageTemplate
+}
+
 templ SelectedChat(props SelectedChatProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		client := props.Chat.Client
-		clientPageURL := templ.SafeURL(fmt.Sprintf("%s/%s", props.ClientsURL, client.ID))
+		clientPageURL := fmt.Sprintf("%s?tab=profile&view=%s&dp=true", props.ClientsURL, client.ID)
 	}}
 	<script>
 		function onUseTemplate(template) {
@@ -121,18 +116,26 @@ templ SelectedChat(props SelectedChatProps) {
 				})
 				{ pageCtx.T("Chats.Back") }
 			}
-			<a
-				href={ clientPageURL }
+			<button
+				x-data
+				hx-get={ clientPageURL }
+				hx-target="body"
+				hx-swap="beforeend"
+				hx-trigger="click"
 				class="p-2 order-3 md:order-1"
 			>
 				@avatar.Avatar(avatar.Props{
 					Initials: props.Chat.Client.Initials(),
 					Class:    templ.Classes("w-10 h-10 min-w-10"),
 				})
-			</a>
-			<a
-				class="text-center md:text-left order-2 md:order-2"
-				href={ clientPageURL }
+			</button>
+			<button
+				class="cursor-pointer text-center md:text-left order-2 md:order-2"
+				x-data
+				hx-get={ clientPageURL }
+				hx-target="body"
+				hx-swap="beforeend"
+				hx-trigger="click"
 			>
 				<p class="font-bold transition-all leading-[1.25] text-base-800">
 					{ client.FullName() }
@@ -140,7 +143,7 @@ templ SelectedChat(props SelectedChatProps) {
 				<p class="transition-all font-medium text-base-600">
 					+{ client.Phone }
 				</p>
-			</a>
+			</button>
 		</div>
 	</div>
 	<div class="flex flex-col flex-1 px-4 min-h-0">
@@ -324,6 +327,38 @@ templ Message(msg *viewmodels.Message) {
 	</li>
 }
 
+type IndexPageProps struct {
+	SearchURL    string
+	WebsocketURL string
+	NewChatURL   string
+	Chats        []*viewmodels.Chat
+}
+
+templ Index(props IndexPageProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		Title: pageCtx.T("Chats.Meta.Title"),
+	}) {
+		<div class="md:p-6 h-[calc(100vh-4rem)]">
+			<div
+				id="chat"
+				hx-ext="ws"
+				ws-connect={ props.WebsocketURL }
+				class={
+					"grid grid-cols-1 md:grid-cols-[280px_auto] h-full",
+					"border border-primary md:rounded-lg bg-surface-300",
+				}
+			>
+				@ChatLayout(props) {
+					{ children... }
+				}
+			</div>
+		</div>
+	}
+}
+
 templ ChatLayout(props IndexPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
@@ -382,31 +417,6 @@ templ ChatLayout(props IndexPageProps) {
 	>
 		{ children... }
 	</div>
-}
-
-templ Index(props IndexPageProps) {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Chats.Meta.Title"),
-	}) {
-		<div class="md:p-6 h-[calc(100vh-4rem)]">
-			<div
-				id="chat"
-				hx-ext="ws"
-				ws-connect={ props.WebsocketURL }
-				class={
-					"grid grid-cols-1 md:grid-cols-[280px_auto] h-full",
-					"border border-primary md:rounded-lg bg-surface-300",
-				}
-			>
-				@ChatLayout(props) {
-					{ children... }
-				}
-			</div>
-		</div>
-	}
 }
 
 templ ChatList(chats []*viewmodels.Chat) {
