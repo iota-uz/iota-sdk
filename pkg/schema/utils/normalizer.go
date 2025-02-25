@@ -3,8 +3,6 @@ package utils
 import (
 	"strings"
 	"unicode"
-
-	"github.com/iota-uz/iota-sdk/pkg/schema/types"
 )
 
 // Normalizer handles SQL and schema normalization
@@ -16,28 +14,6 @@ type NormalizerOptions struct {
 	CaseInsensitive bool
 	TrimSpaces      bool
 	SortElements    bool
-}
-
-// NormalizeNode normalizes an AST node and its children
-func (n *Normalizer) NormalizeNode(node *types.Node) {
-	if node == nil {
-		return
-	}
-
-	// Normalize node name
-	if n.options.CaseInsensitive {
-		node.Name = strings.ToLower(node.Name)
-	}
-
-	// Sort children if enabled
-	if n.options.SortElements && len(node.Children) > 0 {
-		n.sortNodeChildren(node)
-	}
-
-	// Recursively normalize children
-	for _, child := range node.Children {
-		n.NormalizeNode(child)
-	}
 }
 
 // NormalizeSQL normalizes SQL text for consistent comparison
@@ -70,11 +46,6 @@ func (n *Normalizer) normalizeWhitespace(sql string) string {
 	}
 
 	return strings.TrimSpace(result.String())
-}
-
-func (n *Normalizer) sortNodeChildren(node *types.Node) {
-	// Sort children based on type and name
-	// This ensures consistent ordering for comparison
 }
 
 // New creates a new SQL normalizer

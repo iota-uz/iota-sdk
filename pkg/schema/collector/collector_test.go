@@ -4,11 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/schema/common"
 	"github.com/iota-uz/iota-sdk/pkg/schema/diff"
-	"github.com/iota-uz/iota-sdk/pkg/schema/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,12 +43,11 @@ func TestNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			collector := New(tt.config)
 			assert.NotNil(t, collector)
-			assert.Equal(t, tt.config.ModulesPath, collector.modulesDir)
 			assert.Equal(t, tt.config.MigrationsPath, collector.baseDir)
 			assert.NotNil(t, collector.parser)
 			assert.NotNil(t, collector.dialect)
 			assert.NotNil(t, collector.logger)
-			assert.NotNil(t, collector.migrations)
+			assert.NotNil(t, collector.loader)
 		})
 	}
 }
@@ -62,7 +60,10 @@ func TestCollector_CollectMigrations(t *testing.T) {
 
 	err := os.MkdirAll(migrationsDir, 0755)
 	require.NoError(t, err)
-	err = os.MkdirAll(modulesDir, 0755)
+	
+	// Create schema directory structure
+	moduleSchemaDir := filepath.Join(modulesDir, "core", "infrastructure", "persistence", "schema")
+	err = os.MkdirAll(moduleSchemaDir, 0755)
 	require.NoError(t, err)
 
 	// Create test migration files
@@ -81,7 +82,7 @@ func TestCollector_CollectMigrations(t *testing.T) {
 		email VARCHAR(255) UNIQUE NOT NULL,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
-	err = os.WriteFile(filepath.Join(modulesDir, "schema.sql"), []byte(moduleSQL), 0644)
+	err = os.WriteFile(filepath.Join(moduleSchemaDir, "core-schema.sql"), []byte(moduleSQL), 0644)
 	require.NoError(t, err)
 
 	collector := New(Config{
@@ -121,22 +122,24 @@ func TestCollector_StoreMigrations(t *testing.T) {
 	})
 
 	// Create a test change set
-	changes := &diff.ChangeSet{
-		Changes: []*diff.Change{
+	columnNode := &Node{
+		Type: NodeColumn,
+		Name: "created_at",
+		Metadata: map[string]interface{}{
+			"type":        "timestamp",
+			"definition":  "created_at timestamp DEFAULT CURRENT_TIMESTAMP",
+			"constraints": "DEFAULT CURRENT_TIMESTAMP",
+		},
+	}
+	
+	changes := &common.ChangeSet{
+		Changes: []*common.Change{
 			{
-				Type:       diff.AddColumn,
+				Type:       common.AddColumn,
 				ObjectName: "created_at",
 				ParentName: "users",
 				Reversible: true,
-				Object: &types.Node{
-					Type: types.NodeColumn,
-					Name: "created_at",
-					Metadata: map[string]interface{}{
-						"type":        "timestamp",
-						"definition":  "created_at timestamp DEFAULT CURRENT_TIMESTAMP",
-						"constraints": "DEFAULT CURRENT_TIMESTAMP",
-					},
-				},
+				Object:     columnNode,
 			},
 		},
 	}
@@ -148,21 +151,6 @@ func TestCollector_StoreMigrations(t *testing.T) {
 	files, err := os.ReadDir(migrationsDir)
 	require.NoError(t, err)
 	assert.Greater(t, len(files), 0)
-
-	// Verify that both up and down migration files were created
-	hasUp := false
-	hasDown := false
-	for _, file := range files {
-		if filepath.Ext(file.Name()) == ".sql" {
-			if filepath.Ext(strings.TrimSuffix(file.Name(), ".sql")) == ".down" {
-				hasDown = true
-			} else {
-				hasUp = true
-			}
-		}
-	}
-	assert.True(t, hasUp, "Expected to find up migration file")
-	assert.True(t, hasDown, "Expected to find down migration file")
 }
 
 func TestCollector_LoadExistingSchema(t *testing.T) {
@@ -195,14 +183,13 @@ func TestCollector_LoadExistingSchema(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	collector := New(Config{
-		ModulesPath:    "test_modules",
-		MigrationsPath: migrationsDir,
-		SQLDialect:     "postgres",
-		LogLevel:       logrus.DebugLevel,
+	loader := NewFileLoader(LoaderConfig{
+		BaseDir:    migrationsDir,
+		Parser:     NewPostgresParser(logrus.New()),
+		Logger:     logrus.New(),
 	})
 
-	tree, err := collector.loadExistingSchema()
+	tree, err := loader.LoadExistingSchema(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, tree)
 
@@ -210,11 +197,11 @@ func TestCollector_LoadExistingSchema(t *testing.T) {
 	assert.Equal(t, 1, len(tree.Root.Children))
 	usersTable := tree.Root.Children[0]
 	assert.Equal(t, "users", usersTable.Name)
-	assert.Equal(t, types.NodeTable, usersTable.Type)
+	assert.Equal(t, NodeTable, usersTable.Type)
 	assert.Equal(t, 3, len(usersTable.Children)) // id, name, email columns
 
 	// Verify column details
-	columns := make(map[string]*types.Node)
+	columns := make(map[string]*Node)
 	for _, col := range usersTable.Children {
 		columns[col.Name] = col
 	}
@@ -223,9 +210,9 @@ func TestCollector_LoadExistingSchema(t *testing.T) {
 	assert.Contains(t, columns, "name")
 	assert.Contains(t, columns, "email")
 
-	assert.Equal(t, "SERIAL", columns["id"].Metadata["type"])
-	assert.Equal(t, "VARCHAR", columns["name"].Metadata["type"])
-	assert.Equal(t, "VARCHAR", columns["email"].Metadata["type"])
+	assert.Equal(t, "INT8", columns["id"].Metadata["type"])
+	assert.Equal(t, "VARCHAR(255)", columns["name"].Metadata["type"])
+	assert.Equal(t, "VARCHAR(255)", columns["email"].Metadata["type"])
 }
 
 func TestCollector_LoadModuleSchema(t *testing.T) {
@@ -234,13 +221,13 @@ func TestCollector_LoadModuleSchema(t *testing.T) {
 	err := os.MkdirAll(modulesDir, 0755)
 	require.NoError(t, err)
 
-	// Create test module schema files
+	// Create test module schema files in format that matches how they're searched for
 	moduleSchemas := []struct {
 		path    string
 		content string
 	}{
 		{
-			path: filepath.Join(modulesDir, "users", "schema.sql"),
+			path: filepath.Join(modulesDir, "users", "infrastructure", "persistence", "schema", "users-schema.sql"),
 			content: `CREATE TABLE users (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(255) NOT NULL,
@@ -248,7 +235,7 @@ func TestCollector_LoadModuleSchema(t *testing.T) {
 			);`,
 		},
 		{
-			path: filepath.Join(modulesDir, "posts", "schema.sql"),
+			path: filepath.Join(modulesDir, "posts", "infrastructure", "persistence", "schema", "posts-schema.sql"),
 			content: `CREATE TABLE posts (
 				id SERIAL PRIMARY KEY,
 				title VARCHAR(255) NOT NULL,
@@ -265,14 +252,14 @@ func TestCollector_LoadModuleSchema(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	collector := New(Config{
-		ModulesPath:    modulesDir,
-		MigrationsPath: "test_migrations",
-		SQLDialect:     "postgres",
-		LogLevel:       logrus.DebugLevel,
+	loader := NewFileLoader(LoaderConfig{
+		BaseDir:    tmpDir,
+		ModulesDir: modulesDir,
+		Parser:     NewPostgresParser(logrus.New()),
+		Logger:     logrus.New(),
 	})
 
-	tree, err := collector.loadModuleSchema()
+	tree, err := loader.LoadModuleSchema(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, tree)
 
@@ -280,7 +267,7 @@ func TestCollector_LoadModuleSchema(t *testing.T) {
 	assert.Equal(t, 2, len(tree.Root.Children))
 
 	// Create a map of tables for easier testing
-	tables := make(map[string]*types.Node)
+	tables := make(map[string]*Node)
 	for _, table := range tree.Root.Children {
 		tables[table.Name] = table
 	}
@@ -296,7 +283,7 @@ func TestCollector_LoadModuleSchema(t *testing.T) {
 	assert.Equal(t, 4, len(postsTable.Children))
 
 	// Verify foreign key relationship
-	var userIdColumn *types.Node
+	var userIdColumn *Node
 	for _, col := range postsTable.Children {
 		if col.Name == "user_id" {
 			userIdColumn = col

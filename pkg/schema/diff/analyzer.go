@@ -4,29 +4,33 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/schema/types"
+	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
+	"github.com/iota-uz/iota-sdk/pkg/schema/common"
 	"github.com/sirupsen/logrus"
 )
 
-var logger = logrus.New()
-
-// SetLogLevel sets the logging level for the analyzer
-func SetLogLevel(level logrus.Level) {
-	logger.SetLevel(level)
+// Initialize analyzer logger as an instance variable, not package variable
+type analyzerLogger struct {
+	logger *logrus.Logger
 }
 
-// func init() {
-// 	// logger.SetLevel(logrus.InfoLevel) // Default to INFO level
+func newAnalyzerLogger() *analyzerLogger {
+	return &analyzerLogger{
+		logger: logrus.New(),
+	}
+}
 
-// 	// Test log to verify logger is working
-// 	// logger.Debug("Schema analyzer logger initialized")
-// }
+// SetLogLevel sets the logging level for the analyzer
+func (l *analyzerLogger) SetLogLevel(level logrus.Level) {
+	l.logger.SetLevel(level)
+}
 
 // Analyzer handles schema comparison and change detection
 type Analyzer struct {
-	oldSchema *types.SchemaTree
-	newSchema *types.SchemaTree
+	oldSchema *common.Schema
+	newSchema *common.Schema
 	options   AnalyzerOptions
+	logger    *analyzerLogger
 }
 
 type AnalyzerOptions struct {
@@ -36,150 +40,112 @@ type AnalyzerOptions struct {
 	ValidateConstraints bool
 }
 
-// Compare analyzes differences between two schema trees
-func (a *Analyzer) Compare() (*ChangeSet, error) {
+// Compare analyzes differences between two schemas
+func (a *Analyzer) Compare() (*common.ChangeSet, error) {
 	changes := NewChangeSet()
+	logger := a.logger.logger
 
-	// Create maps for quick lookup
-	oldTables := make(map[string]*types.Node)
-	oldIndexes := make(map[string]*types.Node)
-	newTables := make(map[string]*types.Node)
-	newIndexes := make(map[string]*types.Node)
+	// Find added and modified tables
+	logger.Debugf("Processing tables from new schema")
+	for tableName, newTable := range a.newSchema.Tables {
+		tableNameLower := strings.ToLower(tableName)
+		logger.WithFields(logrus.Fields{
+			"table": tableName,
+		}).Debug("Processing table from new schema")
 
-	// Map old schema objects
-	for _, node := range a.oldSchema.Root.Children {
-		switch node.Type {
-		case types.NodeTable:
-			tableName := strings.ToLower(node.Name)
-			oldTables[tableName] = node
+		if oldTable, exists := a.oldSchema.Tables[tableNameLower]; !exists {
+			// New table
 			logger.WithFields(logrus.Fields{
-				"table":   node.Name,
-				"columns": len(node.Children),
-			}).Debug("Loaded table from old schema")
-		case types.NodeIndex:
-			indexName := strings.ToLower(node.Name)
-			oldIndexes[indexName] = node
-			logger.WithFields(logrus.Fields{
-				"index":  node.Name,
-				"table":  node.Metadata["table"],
-				"unique": node.Metadata["is_unique"],
-			}).Debug("Loaded index from old schema")
+				"table": tableName,
+			}).Debug("Found new table")
+			changes.Changes = append(changes.Changes, &common.Change{
+				Type:       common.CreateTable,
+				Object:     newTable,
+				ObjectName: tableName,
+				ParentName: "",
+				Reversible: true,
+			})
+		} else {
+			// Existing table - compare columns
+			tableDiffs := a.compareTableColumns(tableNameLower, oldTable, newTable)
+			for _, diff := range tableDiffs {
+				changes.Changes = append(changes.Changes, diff)
+			}
 		}
 	}
 
-	// Find added and modified tables and indexes
-	logger.Debugf("Processing %d nodes from new schema", len(a.newSchema.Root.Children))
-	for _, node := range a.newSchema.Root.Children {
-		switch node.Type {
-		case types.NodeTable:
-			tableName := strings.ToLower(node.Name)
-			newTables[tableName] = node
-			logger.WithFields(logrus.Fields{
-				"table":   node.Name,
-				"columns": len(node.Children),
-			}).Debug("Processing table from new schema")
-
-			oldTable, exists := oldTables[tableName]
-			if !exists {
-				logger.WithFields(logrus.Fields{
-					"table": node.Name,
-				}).Debug("Found new table")
-				changes.Changes = append(changes.Changes, &Change{
-					Type:       CreateTable,
-					Object:     node,
-					ObjectName: node.Name,
-					ParentName: "",
-					Reversible: true,
-				})
-			} else {
-				logger.WithFields(logrus.Fields{
-					"table":       node.Name,
-					"old_columns": len(oldTable.Children),
-					"new_columns": len(node.Children),
-				}).Debug("Comparing existing table")
-
-				tableDiffs := a.compareTable(oldTable, node)
-				for _, diff := range tableDiffs {
-					if diff.Type == ModifyColumn || diff.Type == AddColumn || diff.Type == DropColumn {
-						diff.ParentName = node.Name
-						diff.ObjectName = diff.Object.Name
-					} else {
-						diff.ObjectName = node.Name
-					}
-					changes.Changes = append(changes.Changes, diff)
-				}
-			}
-		case types.NodeIndex:
-			indexName := strings.ToLower(node.Name)
-			newIndexes[indexName] = node
-			logger.WithFields(logrus.Fields{
-				"index":  node.Name,
-				"table":  node.Metadata["table"],
-				"unique": node.Metadata["is_unique"],
-			}).Debug("Processing index from new schema")
-
-			oldIndex, exists := oldIndexes[indexName]
-			if !exists {
-				logger.WithFields(logrus.Fields{
-					"index": node.Name,
-					"table": node.Metadata["table"],
-				}).Debug("Found new index")
-				changes.Changes = append(changes.Changes, &Change{
-					Type:       AddIndex,
-					Object:     node,
-					ObjectName: node.Name,
-					ParentName: node.Metadata["table"].(string),
-					Reversible: true,
-				})
-			} else {
-				if !a.indexesEqual(oldIndex, node) {
-					logger.WithFields(logrus.Fields{
-						"index": node.Name,
-						"table": node.Metadata["table"],
-					}).Debug("Found modified index")
-					changes.Changes = append(changes.Changes, &Change{
-						Type:       ModifyIndex,
-						Object:     node,
-						ObjectName: node.Name,
-						ParentName: node.Metadata["table"].(string),
-						Reversible: true,
-						Metadata: map[string]interface{}{
-							"old_definition": oldIndex.Metadata["original_sql"],
-							"new_definition": node.Metadata["original_sql"],
-						},
-					})
-				}
-			}
-		default:
-			logger.WithFields(logrus.Fields{
-				"type": node.Type,
-				"name": node.Name,
-			}).Debug("Found unknown node type")
-		}
-	}
-
-	// Find dropped tables and indexes
-	for name, node := range oldTables {
-		if _, exists := newTables[strings.ToLower(name)]; !exists {
-			logger.WithField("table", name).Debug("Found dropped table")
-			changes.Changes = append(changes.Changes, &Change{
-				Type:       DropTable,
-				Object:     node,
-				ObjectName: name,
+	// Find dropped tables
+	for tableName := range a.oldSchema.Tables {
+		tableNameLower := strings.ToLower(tableName)
+		if _, exists := a.newSchema.Tables[tableNameLower]; !exists {
+			logger.WithField("table", tableName).Debug("Found dropped table")
+			changes.Changes = append(changes.Changes, &common.Change{
+				Type:       common.DropTable,
+				Object:     a.oldSchema.Tables[tableNameLower],
+				ObjectName: tableName,
 				ParentName: "",
 				Reversible: true,
 			})
 		}
 	}
 
-	for name, node := range oldIndexes {
-		if _, exists := newIndexes[strings.ToLower(name)]; !exists {
-			logger.WithField("index", name).Debug("Found dropped index")
-			changes.Changes = append(changes.Changes, &Change{
-				Type:       DropIndex,
-				Object:     node,
-				ObjectName: name,
-				ParentName: node.Metadata["table"].(string),
+	// Find added and modified indexes
+	logger.Debugf("Processing indexes from new schema")
+	for indexName, newIndex := range a.newSchema.Indexes {
+		indexNameLower := strings.ToLower(indexName)
+		tableName := newIndex.Table.String()
+		
+		logger.WithFields(logrus.Fields{
+			"index": indexName,
+			"table": tableName,
+		}).Debug("Processing index from new schema")
+
+		if oldIndex, exists := a.oldSchema.Indexes[indexNameLower]; !exists {
+			// New index
+			logger.WithFields(logrus.Fields{
+				"index": indexName,
+				"table": tableName,
+			}).Debug("Found new index")
+			changes.Changes = append(changes.Changes, &common.Change{
+				Type:       common.AddIndex,
+				Object:     newIndex,
+				ObjectName: indexName,
+				ParentName: tableName,
+				Reversible: true,
+			})
+		} else {
+			// Existing index - check if modified
+			if !a.indexesEqual(oldIndex, newIndex) {
+				logger.WithFields(logrus.Fields{
+					"index": indexName,
+					"table": tableName,
+				}).Debug("Found modified index")
+				changes.Changes = append(changes.Changes, &common.Change{
+					Type:       common.ModifyIndex,
+					Object:     newIndex,
+					ObjectName: indexName,
+					ParentName: tableName,
+					Reversible: true,
+					Metadata: map[string]interface{}{
+						"old_definition": oldIndex.String(),
+						"new_definition": newIndex.String(),
+					},
+				})
+			}
+		}
+	}
+
+	// Find dropped indexes
+	for indexName, oldIndex := range a.oldSchema.Indexes {
+		indexNameLower := strings.ToLower(indexName)
+		if _, exists := a.newSchema.Indexes[indexNameLower]; !exists {
+			tableName := oldIndex.Table.String()
+			logger.WithField("index", indexName).Debug("Found dropped index")
+			changes.Changes = append(changes.Changes, &common.Change{
+				Type:       common.DropIndex,
+				Object:     oldIndex,
+				ObjectName: indexName,
+				ParentName: tableName,
 				Reversible: true,
 			})
 		}
@@ -187,270 +153,290 @@ func (a *Analyzer) Compare() (*ChangeSet, error) {
 
 	logger.WithFields(logrus.Fields{
 		"total_changes": len(changes.Changes),
-		"tables":        len(newTables),
-		"indexes":       len(newIndexes),
+		"tables":        len(a.newSchema.Tables),
+		"indexes":       len(a.newSchema.Indexes),
 	}).Info("Completed schema comparison")
 	return changes, nil
 }
 
 // NewAnalyzer creates a new schema analyzer
-func NewAnalyzer(oldSchema, newSchema *types.SchemaTree, opts AnalyzerOptions) *Analyzer {
+func NewAnalyzer(oldSchema, newSchema *common.Schema, opts AnalyzerOptions) *Analyzer {
 	return &Analyzer{
 		oldSchema: oldSchema,
 		newSchema: newSchema,
 		options:   opts,
+		logger:    newAnalyzerLogger(),
 	}
 }
 
-func (a *Analyzer) compareTable(oldTable, newTable *types.Node) []*Change {
-	var changes []*Change
-	oldCols := make(map[string]*types.Node)
-	newCols := make(map[string]*types.Node)
+// SetLogLevel sets the logging level for the analyzer
+func (a *Analyzer) SetLogLevel(level logrus.Level) {
+	a.logger.SetLogLevel(level)
+}
 
-	logger.WithFields(logrus.Fields{
-		"table":       newTable.Name,
-		"old_columns": len(oldTable.Children),
-		"new_columns": len(newTable.Children),
-	}).Debug("Starting table comparison")
-
-	// Map old columns
-	for _, child := range oldTable.Children {
-		if child.Type == types.NodeColumn {
-			oldCols[strings.ToLower(child.Name)] = child
+// compareTableColumns compares columns between old and new tables
+func (a *Analyzer) compareTableColumns(tableName string, oldTable, newTable *tree.CreateTable) []*common.Change {
+	var changes []*common.Change
+	logger := a.logger.logger
+	
+	// Get columns from old table
+	oldColumns := make(map[string]*tree.ColumnTableDef)
+	for _, def := range oldTable.Defs {
+		if colDef, ok := def.(*tree.ColumnTableDef); ok {
+			colName := strings.ToLower(string(colDef.Name))
+			oldColumns[colName] = colDef
 			logger.WithFields(logrus.Fields{
-				"table":       oldTable.Name,
-				"column":      child.Name,
-				"type":        child.Metadata["type"],
-				"constraints": child.Metadata["constraints"],
+				"table":  tableName,
+				"column": colName,
+				"type":   colDef.Type.String(),
 			}).Debug("Loaded column from old schema")
 		}
 	}
-
-	// Compare new columns
-	for _, child := range newTable.Children {
-		if child.Type == types.NodeColumn {
-			newCols[strings.ToLower(child.Name)] = child
-			colName := strings.ToLower(child.Name)
-
+	
+	// Get columns from new table and compare
+	newColumns := make(map[string]*tree.ColumnTableDef)
+	for _, def := range newTable.Defs {
+		if colDef, ok := def.(*tree.ColumnTableDef); ok {
+			colName := strings.ToLower(string(colDef.Name))
+			newColumns[colName] = colDef
+			
 			logger.WithFields(logrus.Fields{
-				"table":       newTable.Name,
-				"column":      child.Name,
-				"type":        child.Metadata["type"],
-				"constraints": child.Metadata["constraints"],
+				"table":  tableName,
+				"column": colName,
+				"type":   colDef.Type.String(),
 			}).Debug("Processing column from new schema")
-
-			if oldCol, exists := oldCols[colName]; exists {
-				logger.WithFields(logrus.Fields{
-					"table":    newTable.Name,
-					"column":   child.Name,
-					"old_type": oldCol.Metadata["type"],
-					"new_type": child.Metadata["type"],
-				}).Debug("Comparing existing column")
-
-				if !a.columnsEqual(oldCol, child) {
+			
+			// Check if column exists in old table
+			if oldCol, exists := oldColumns[colName]; exists {
+				// Compare column definitions
+				if !a.columnsEqual(oldCol, colDef) {
 					logger.WithFields(logrus.Fields{
-						"table":           newTable.Name,
-						"column":          child.Name,
-						"old_type":        oldCol.Metadata["type"],
-						"new_type":        child.Metadata["type"],
-						"old_constraints": oldCol.Metadata["constraints"],
-						"new_constraints": child.Metadata["constraints"],
+						"table":     tableName,
+						"column":    colName,
+						"old_type":  oldCol.Type.String(),
+						"new_type":  colDef.Type.String(),
 					}).Debug("Found modified column")
-
-					changes = append(changes, &Change{
-						Type:       ModifyColumn,
-						Object:     child,
-						ObjectName: child.Name,
-						ParentName: newTable.Name,
+					
+					changes = append(changes, &common.Change{
+						Type:       common.ModifyColumn,
+						Object:     colDef,
+						ObjectName: string(colDef.Name),
+						ParentName: tableName,
 						Reversible: true,
 						Metadata: map[string]interface{}{
-							"old_definition":  oldCol.Metadata["definition"],
-							"new_definition":  child.Metadata["definition"],
-							"old_type":        oldCol.Metadata["type"],
-							"new_type":        child.Metadata["type"],
-							"old_constraints": oldCol.Metadata["constraints"],
-							"new_constraints": child.Metadata["constraints"],
+							"old_definition": oldCol.String(),
+							"new_definition": colDef.String(),
+							"old_type":       oldCol.Type.String(),
+							"new_type":       colDef.Type.String(),
 						},
 					})
 				}
 			} else {
 				// New column
-				logger.WithField("table", newTable.Name).Debug("Found new column")
-				changes = append(changes, &Change{
-					Type:       AddColumn,
-					Object:     child,
-					ObjectName: child.Name,
-					ParentName: newTable.Name,
+				logger.WithFields(logrus.Fields{
+					"table":  tableName,
+					"column": colName,
+				}).Debug("Found new column")
+				
+				changes = append(changes, &common.Change{
+					Type:       common.AddColumn,
+					Object:     colDef,
+					ObjectName: string(colDef.Name),
+					ParentName: tableName,
 					Reversible: true,
 				})
 			}
 		}
 	}
-
+	
 	// Check for dropped columns
-	for colName, oldCol := range oldCols {
-		if _, exists := newCols[colName]; !exists {
-			logger.WithField("table", newTable.Name).Debug("Found dropped column")
-			changes = append(changes, &Change{
-				Type:       DropColumn,
+	for colName, oldCol := range oldColumns {
+		if _, exists := newColumns[colName]; !exists {
+			logger.WithFields(logrus.Fields{
+				"table":  tableName,
+				"column": colName,
+			}).Debug("Found dropped column")
+			
+			changes = append(changes, &common.Change{
+				Type:       common.DropColumn,
 				Object:     oldCol,
-				ObjectName: oldCol.Name,
-				ParentName: newTable.Name,
+				ObjectName: string(oldCol.Name),
+				ParentName: tableName,
 				Reversible: true,
 			})
 		}
 	}
-
+	
 	return changes
 }
 
-func (a *Analyzer) columnsEqual(oldCol, newCol *types.Node) bool {
+// columnsEqual compares two column definitions
+func (a *Analyzer) columnsEqual(oldCol, newCol *tree.ColumnTableDef) bool {
+	logger := a.logger.logger
+	
 	if oldCol == nil || newCol == nil {
 		logger.Debug("One of the columns is nil")
 		return false
 	}
 
-	// Get and normalize types
-	oldType := strings.ToLower(oldCol.Metadata["type"].(string))
-	newType := strings.ToLower(newCol.Metadata["type"].(string))
-
-	// Log the raw types before any processing
+	// Compare column types
+	oldType := oldCol.Type.String()
+	newType := newCol.Type.String()
+	
 	logger.WithFields(logrus.Fields{
-		"column":          oldCol.Name,
-		"old_type_raw":    oldType,
-		"new_type_raw":    newType,
-		"old_definition":  oldCol.Metadata["definition"],
-		"new_definition":  newCol.Metadata["definition"],
-		"old_constraints": oldCol.Metadata["constraints"],
-		"new_constraints": newCol.Metadata["constraints"],
-		"old_full_type":   oldCol.Metadata["fullType"],
-		"new_full_type":   newCol.Metadata["fullType"],
-	}).Debug("Starting column comparison")
-
-	// Compare the full type definitions first
-	oldFullType := strings.ToLower(oldCol.Metadata["fullType"].(string))
-	newFullType := strings.ToLower(newCol.Metadata["fullType"].(string))
-
-	if oldFullType != newFullType {
+		"column":    string(oldCol.Name),
+		"old_type":  oldType,
+		"new_type":  newType,
+	}).Debug("Comparing column types")
+	
+	if oldType != newType {
 		logger.WithFields(logrus.Fields{
-			"column":        oldCol.Name,
-			"old_full_type": oldFullType,
-			"new_full_type": newFullType,
-		}).Debug("Full type definitions differ")
-		return false
-	}
-
-	// Compare base types (varchar vs varchar)
-	oldBaseType := strings.Split(oldType, "(")[0]
-	newBaseType := strings.Split(newType, "(")[0]
-
-	if oldBaseType != newBaseType {
-		logger.WithFields(logrus.Fields{
-			"column":   oldCol.Name,
+			"column":   string(oldCol.Name),
 			"old_type": oldType,
 			"new_type": newType,
-			"old_base": oldBaseType,
-			"new_base": newBaseType,
-		}).Debug("Base type mismatch")
+		}).Debug("Column type mismatch")
 		return false
 	}
-
-	// For VARCHAR types, compare lengths exactly as specified
-	if oldBaseType == "varchar" {
-		oldLen := ""
-		newLen := ""
-
-		if strings.Contains(oldFullType, "(") {
-			oldLen = strings.Trim(strings.Split(oldFullType, "(")[1], ")")
-		}
-		if strings.Contains(newFullType, "(") {
-			newLen = strings.Trim(strings.Split(newFullType, "(")[1], ")")
-		}
-
-		// If one has a length and the other doesn't, they're different
-		if (oldLen == "" && newLen != "") || (oldLen != "" && newLen == "") {
-			logger.WithFields(logrus.Fields{
-				"column":   oldCol.Name,
-				"old_type": oldFullType,
-				"new_type": newFullType,
-				"old_len":  oldLen,
-				"new_len":  newLen,
-			}).Debug("VARCHAR length specification mismatch")
-			return false
-		}
-
-		// If both have lengths, compare them
-		if oldLen != "" && newLen != "" && oldLen != newLen {
-			logger.WithFields(logrus.Fields{
-				"column":   oldCol.Name,
-				"old_type": oldType,
-				"new_type": newType,
-				"old_len":  oldLen,
-				"new_len":  newLen,
-			}).Debug("VARCHAR length mismatch")
-			return false
-		}
-	}
-
-	// Compare constraints
-	oldConstraints := strings.ToLower(strings.TrimSpace(oldCol.Metadata["constraints"].(string)))
-	newConstraints := strings.ToLower(strings.TrimSpace(newCol.Metadata["constraints"].(string)))
-
-	// Normalize constraint strings
-	oldConstraints = normalizeConstraints(oldConstraints)
-	newConstraints = normalizeConstraints(newConstraints)
-
-	if oldConstraints != newConstraints {
+	
+	// Compare nullability
+	if oldCol.Nullable.Nullability != newCol.Nullable.Nullability {
 		logger.WithFields(logrus.Fields{
-			"column":          oldCol.Name,
-			"old_constraints": oldConstraints,
-			"new_constraints": newConstraints,
-		}).Debug("Constraint mismatch")
+			"column":        string(oldCol.Name),
+			"old_nullable":  oldCol.Nullable.Nullability,
+			"new_nullable":  newCol.Nullable.Nullability,
+		}).Debug("Column nullability mismatch")
 		return false
+	}
+	
+	// Compare default expressions
+	oldHasDefault := oldCol.DefaultExpr.Expr != nil
+	newHasDefault := newCol.DefaultExpr.Expr != nil
+	
+	if oldHasDefault != newHasDefault {
+		logger.WithFields(logrus.Fields{
+			"column":       string(oldCol.Name),
+			"old_default":  oldHasDefault,
+			"new_default":  newHasDefault,
+		}).Debug("Column default presence mismatch")
+		return false
+	}
+	
+	if oldHasDefault && newHasDefault {
+		oldDefault := oldCol.DefaultExpr.Expr.String()
+		newDefault := newCol.DefaultExpr.Expr.String()
+		if oldDefault != newDefault {
+			logger.WithFields(logrus.Fields{
+				"column":       string(oldCol.Name),
+				"old_default":  oldDefault,
+				"new_default":  newDefault,
+			}).Debug("Column default value mismatch")
+			return false
+		}
+	}
+	
+	// Compare primary key flag
+	if oldCol.PrimaryKey.IsPrimaryKey != newCol.PrimaryKey.IsPrimaryKey {
+		logger.WithFields(logrus.Fields{
+			"column":      string(oldCol.Name),
+			"old_pk":      oldCol.PrimaryKey.IsPrimaryKey,
+			"new_pk":      newCol.PrimaryKey.IsPrimaryKey,
+		}).Debug("Column primary key flag mismatch")
+		return false
+	}
+	
+	// Compare uniqueness
+	if oldCol.Unique != newCol.Unique {
+		logger.WithFields(logrus.Fields{
+			"column":      string(oldCol.Name),
+			"old_unique":  oldCol.Unique,
+			"new_unique":  newCol.Unique,
+		}).Debug("Column uniqueness mismatch")
+		return false
+	}
+	
+	// Compare references
+	oldHasRef := oldCol.References.Table != nil
+	newHasRef := newCol.References.Table != nil
+	
+	if oldHasRef != newHasRef {
+		logger.WithFields(logrus.Fields{
+			"column":    string(oldCol.Name),
+			"old_ref":   oldHasRef,
+			"new_ref":   newHasRef,
+		}).Debug("Column references presence mismatch")
+		return false
+	}
+	
+	if oldHasRef && newHasRef {
+		oldRef := oldCol.References.Table.String()
+		newRef := newCol.References.Table.String()
+		oldRefCol := oldCol.References.Col.String()
+		newRefCol := newCol.References.Col.String()
+		
+		if oldRef != newRef || oldRefCol != newRefCol {
+			logger.WithFields(logrus.Fields{
+				"column":      string(oldCol.Name),
+				"old_ref":     oldRef,
+				"old_ref_col": oldRefCol,
+				"new_ref":     newRef, 
+				"new_ref_col": newRefCol,
+			}).Debug("Column reference mismatch")
+			return false
+		}
 	}
 
 	logger.WithFields(logrus.Fields{
-		"column":      oldCol.Name,
-		"type":        oldType,
-		"full_type":   oldFullType,
-		"constraints": oldConstraints,
+		"column": string(oldCol.Name),
+		"type":   oldType,
 	}).Debug("Column definitions are equal")
 	return true
 }
 
-// normalizeConstraints normalizes constraint strings for comparison
-func normalizeConstraints(constraints string) string {
-	// Split constraints into parts
-	parts := strings.Fields(constraints)
-
-	// Sort parts to ensure consistent ordering
-	sort.Strings(parts)
-
-	// Join back together
-	return strings.Join(parts, " ")
-}
-
-func (a *Analyzer) indexesEqual(oldIndex, newIndex *types.Node) bool {
+// indexesEqual compares two index definitions
+func (a *Analyzer) indexesEqual(oldIndex, newIndex *tree.CreateIndex) bool {
 	if oldIndex == nil || newIndex == nil {
 		return false
 	}
 
 	// Compare table names
-	oldTable := strings.ToLower(oldIndex.Metadata["table"].(string))
-	newTable := strings.ToLower(newIndex.Metadata["table"].(string))
+	oldTable := strings.ToLower(oldIndex.Table.String())
+	newTable := strings.ToLower(newIndex.Table.String())
 	if oldTable != newTable {
 		return false
 	}
 
 	// Compare uniqueness
-	oldUnique := oldIndex.Metadata["is_unique"].(bool)
-	newUnique := newIndex.Metadata["is_unique"].(bool)
-	if oldUnique != newUnique {
+	if oldIndex.Unique != newIndex.Unique {
 		return false
 	}
 
-	// Compare columns (normalize and compare)
-	oldCols := strings.ToLower(strings.ReplaceAll(oldIndex.Metadata["columns"].(string), " ", ""))
-	newCols := strings.ToLower(strings.ReplaceAll(newIndex.Metadata["columns"].(string), " ", ""))
-	return oldCols == newCols
+	// Compare columns
+	if len(oldIndex.Columns) != len(newIndex.Columns) {
+		return false
+	}
+	
+	// Extract column names for comparison
+	oldCols := make([]string, len(oldIndex.Columns))
+	newCols := make([]string, len(newIndex.Columns))
+	
+	for i, col := range oldIndex.Columns {
+		oldCols[i] = strings.ToLower(string(col.Column))
+	}
+	
+	for i, col := range newIndex.Columns {
+		newCols[i] = strings.ToLower(string(col.Column))
+	}
+	
+	// Sort for consistent comparison
+	sort.Strings(oldCols)
+	sort.Strings(newCols)
+	
+	// Compare sorted column lists
+	for i := range oldCols {
+		if oldCols[i] != newCols[i] {
+			return false
+		}
+	}
+	
+	return true
 }
