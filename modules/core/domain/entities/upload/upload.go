@@ -15,11 +15,15 @@ import (
 
 // ---- Value Objects ----
 
-type UploadType int
+type UploadType string
+
+func (t UploadType) String() string {
+	return string(t)
+}
 
 const (
-	UploadTypeImage UploadType = iota
-	UploadTypeDocument
+	UploadTypeImage    UploadType = "image"
+	UploadTypeDocument UploadType = "document"
 )
 
 // ---- Interfaces ----
@@ -53,12 +57,19 @@ func New(
 	size int,
 	mimetype *mimetype.MIME,
 ) Upload {
+	var t UploadType
+	if strings.HasPrefix(mimetype.String(), "image") {
+		t = UploadTypeImage
+	} else {
+		t = UploadTypeDocument
+	}
 	return &upload{
 		id:        0,
 		hash:      hash,
 		path:      path,
 		size:      NewSize(size),
 		mimetype:  mimetype,
+		_type:     t,
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
 	}
@@ -69,6 +80,7 @@ func NewWithID(
 	hash, path string,
 	size int,
 	mimetype *mimetype.MIME,
+	_type UploadType,
 	createdAt, updatedAt time.Time,
 ) Upload {
 	return &upload{
@@ -77,6 +89,7 @@ func NewWithID(
 		path:      path,
 		size:      NewSize(size),
 		mimetype:  mimetype,
+		_type:     _type,
 		createdAt: createdAt,
 		updatedAt: updatedAt,
 	}
@@ -87,6 +100,7 @@ type upload struct {
 	hash      string
 	path      string
 	size      Size
+	_type     UploadType
 	mimetype  *mimetype.MIME
 	createdAt time.Time
 	updatedAt time.Time
@@ -97,10 +111,7 @@ func (u *upload) ID() uint {
 }
 
 func (u *upload) Type() UploadType {
-	if strings.HasPrefix(u.mimetype.String(), "image") {
-		return UploadTypeImage
-	}
-	return UploadTypeDocument
+	return u._type
 }
 
 func (u *upload) Hash() string {

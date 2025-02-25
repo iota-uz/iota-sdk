@@ -10,9 +10,11 @@ import (
 	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 // UploadFile is the resolver for the uploadFile field.
@@ -36,5 +38,17 @@ func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload)
 
 // Uploads is the resolver for the uploads field.
 func (r *queryResolver) Uploads(ctx context.Context, filter model.UploadFilter) ([]*model.Upload, error) {
-	panic(fmt.Errorf("not implemented: Uploads - uploads"))
+	params := &upload.FindParams{}
+	if filter.Type != nil {
+		params.Type = *filter.Type
+	}
+	if filter.MimeType != nil {
+		params.Mimetype = mimetype.Lookup(*filter.MimeType)
+	}
+	uploads, err := r.uploadService.GetPaginated(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find uploads: %w", err)
+	}
+
+	return mapping.MapViewModels(uploads, mappers.UploadToGraphModel), nil
 }

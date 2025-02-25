@@ -39,6 +39,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	router.Use(
 		middleware.Authorize(),
 		middleware.ProvideUser(),
+		middleware.WithLocalizer(g.app.Bundle()),
 	)
 
 	router.Handle("/query", srv)

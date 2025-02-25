@@ -39,6 +39,10 @@ func (s *UploadService) GetAll(ctx context.Context) ([]upload.Upload, error) {
 	return s.repo.GetAll(ctx)
 }
 
+func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindParams) ([]upload.Upload, error) {
+	return s.repo.GetPaginated(ctx, params)
+}
+
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
 	entity, bytes, err := data.ToEntity()
 	if err != nil {

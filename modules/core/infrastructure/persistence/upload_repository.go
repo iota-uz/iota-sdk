@@ -44,7 +44,11 @@ func (g *GormUploadRepository) GetPaginated(
 	}
 
 	if params.Type != "" {
-		where, args = append(where, fmt.Sprintf("mimetype = $%d", len(args)+1)), append(args, params.Type)
+		where, args = append(where, fmt.Sprintf("type = $%d", len(args)+1)), append(args, params.Type.String())
+	}
+
+	if params.Mimetype != nil {
+		where, args = append(where, fmt.Sprintf("mimetype = $%d", len(args)+1)), append(args, params.Mimetype.String())
 	}
 
 	rows, err := pool.Query(ctx, `
