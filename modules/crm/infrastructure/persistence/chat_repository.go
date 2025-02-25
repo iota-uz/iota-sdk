@@ -20,7 +20,7 @@ var (
 
 const (
 	selectChatQuery = `
-		SELECT 
+		SELECT
 			c.id,
 			c.created_at,
 			c.last_message_at,
@@ -46,7 +46,7 @@ const (
 	deleteChatQuery = `DELETE FROM chats WHERE id = $1`
 
 	selectMessagesQuery = `
-		SELECT 
+		SELECT
 			m.id,
 			m.chat_id,
 			m.message,
@@ -63,7 +63,7 @@ const (
 	selectMessageClientSender = `SELECT id, first_name, last_name FROM clients WHERE id = $1`
 
 	selectMessageAttachmentsQuery = `
-		SELECT 
+		SELECT
 			u.id AS upload_id,
 			u.hash,
 			u.path,
@@ -90,12 +90,12 @@ const (
 		) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
 	updateMessageQuery = `
-		UPDATE messages SET 
+		UPDATE messages SET
 			chat_id = $1,
 			message = $2,
 			sender_user_id = $3,
 			sender_client_id = $4,
-			is_read = $5, 
+			is_read = $5,
 			read_at = $6
 		WHERE id = $7
 	`

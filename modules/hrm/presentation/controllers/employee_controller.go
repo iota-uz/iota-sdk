@@ -6,10 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/a-h/templ"
-	"github.com/go-faster/errors"
-	"github.com/gorilla/mux"
-
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
@@ -17,11 +13,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/templates/pages/employees"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
+
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+
+	"github.com/a-h/templ"
+	"github.com/go-faster/errors"
+	"github.com/gorilla/mux"
 )
 
 type EmployeeController struct {
@@ -71,7 +72,10 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	employeeEntities, err := c.employeeService.GetPaginated(r.Context(), &employee.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: []string{"id"},
+		SortBy: employee.SortBy{
+			Fields:    []employee.Field{employee.Id},
+			Ascending: true,
+		},
 	})
 	if err != nil {
 		http.Error(w, errors.Wrap(err, "Error retrieving employees").Error(), http.StatusInternalServerError)

@@ -1,14 +1,24 @@
 package session
 
-import (
-	"context"
+import "context"
+
+type Field int
+
+const (
+	ExpiresAt Field = iota
+	CreatedAt
 )
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
 
 type FindParams struct {
 	Limit  int
 	Offset int
-	SortBy []string
 	Token  string
+	SortBy SortBy
 }
 
 type Repository interface {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence/models"
@@ -16,33 +15,40 @@ var (
 	ErrPositionNotFound = errors.New("position not found")
 )
 
+const (
+	selectPositionsQuery = `
+		SELECT
+			id,
+			name,
+			description,
+			created_at,
+			updated_at
+		FROM positions p
+	`
+)
+
 type GormPositionRepository struct{}
 
 func NewPositionRepository() position.Repository {
 	return &GormPositionRepository{}
 }
 
-func (g *GormPositionRepository) GetPaginated(
-	ctx context.Context, params *position.FindParams,
+func (g *GormPositionRepository) queryChats(
+	ctx context.Context,
+	query string,
+	args ...interface{},
 ) ([]*position.Position, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
-	}
 
-	rows, err := pool.Query(ctx, `
-		SELECT id, name, description, created_at, updated_at FROM positions
-		WHERE `+strings.Join(where, " AND ")+`
-		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
-	`, args...)
+	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
 	positions := make([]*position.Position, 0)
 	for rows.Next() {
 		var p models.Position
@@ -67,6 +73,41 @@ func (g *GormPositionRepository) GetPaginated(
 	}
 
 	return positions, nil
+}
+
+func (g *GormPositionRepository) GetPaginated(
+	ctx context.Context, params *position.FindParams,
+) ([]*position.Position, error) {
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case position.Name:
+			sortFields = append(sortFields, "p.name")
+		case position.Descripton:
+			sortFields = append(sortFields, "p.description")
+		case position.CreatedAt:
+			sortFields = append(sortFields, "p.created_at")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
+	}
+
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if params.ID != 0 {
+		where = append(where, fmt.Sprintf("id = $%d", len(args)+1))
+		args = append(args, params.ID)
+	}
+
+	return g.queryChats(
+		ctx,
+		repo.Join(
+			selectPositionsQuery,
+			repo.JoinWhere(where...),
+			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		),
+		args...,
+	)
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
@@ -124,7 +165,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	}
 	dbRow := toDBPosition(data)
 	if _, err := tx.Exec(ctx, `
-		UPDATE positions 
+		UPDATE positions
 		SET name = $1, description = $2
 		WHERE id = $3
 	`, dbRow.Name, dbRow.Description, dbRow.ID); err != nil {

@@ -1,13 +1,26 @@
 package permission
 
-import (
-	"context"
+import "context"
+
+type Field int
+
+const (
+	FieldName Field = iota
+	FieldResource
+	FieldAction
+	FieldModifier
 )
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
 
 type FindParams struct {
 	Limit  int
 	Offset int
 	RoleID uint
+	SortBy SortBy
 }
 
 type Repository interface {
