@@ -19,6 +19,10 @@ func IsHxRequest(r *http.Request) bool {
 	return len(r.Header.Get("Hx-Request")) > 0
 }
 
+func IsHXBoosted(r *http.Request) bool {
+	return len(r.Header.Get("Hx-Boosted")) > 0
+}
+
 func Redirect(w http.ResponseWriter, r *http.Request, path string) {
 	if IsHxRequest(r) {
 		HxRedirect(w, r, path)

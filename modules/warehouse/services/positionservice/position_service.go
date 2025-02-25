@@ -153,7 +153,7 @@ func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error
 	if err != nil {
 		return err
 	}
-	return s.LoadFromFilePath(ctx, uploadEntity.Path)
+	return s.LoadFromFilePath(ctx, uploadEntity.Path())
 }
 
 func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (*position.Position, error) {

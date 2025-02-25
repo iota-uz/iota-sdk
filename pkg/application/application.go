@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/go-gorp/gorp/v3"
 	"github.com/gorilla/mux"
@@ -63,9 +64,35 @@ func listFiles(fsys fs.FS, dir string) ([]string, error) {
 	return fileList, nil
 }
 
+// ---- Seeder implementation ----
+
+func NewSeeder() Seeder {
+	return &seeder{}
+}
+
+type seeder struct {
+	seedFuncs []SeedFunc
+}
+
+func (s *seeder) Seed(ctx context.Context, app Application) error {
+	for _, seedFunc := range s.seedFuncs {
+		if err := seedFunc(ctx, app); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *seeder) Register(seedFuncs ...SeedFunc) {
+	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
+}
+
+// ---- Application implementation ----
+
 func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
+	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
@@ -89,7 +116,6 @@ type application struct {
 	assets         []*embed.FS
 	migrationDirs  []*embed.FS
 	graphSchemas   []GraphSchema
-	seedFuncs      []SeedFunc
 	bundle         *i18n.Bundle
 	spotlight      spotlight.Spotlight
 	navItems       []types.NavigationItem
@@ -105,15 +131,6 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 
 func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
-}
-
-func (app *application) Seed(ctx context.Context) error {
-	for _, seedFunc := range app.seedFuncs {
-		if err := seedFunc(ctx, app); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (app *application) RBAC() permission.RBAC {
@@ -198,10 +215,6 @@ func (app *application) RegisterMigrationDirs(fs ...*embed.FS) {
 	app.migrationDirs = append(app.migrationDirs, fs...)
 }
 
-func (app *application) RegisterSeedFuncs(seedFuncs ...SeedFunc) {
-	app.seedFuncs = append(app.seedFuncs, seedFuncs...)
-}
-
 // RegisterServices registers a new service in the application by its type
 func (app *application) RegisterServices(services ...interface{}) {
 	for _, service := range services {
@@ -231,11 +244,13 @@ func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		for _, file := range files {
 			content, err := migrationFs.ReadFile(file)
 			if err != nil {
 				return nil, err
 			}
+
 			migration, err := migrate.ParseMigration(filepath.Join(file), bytes.NewReader(content))
 			if err != nil {
 				return nil, err
@@ -243,6 +258,7 @@ func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 			migrations = append(migrations, migration)
 		}
 	}
+
 	return migrations, nil
 }
 
