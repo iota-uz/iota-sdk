@@ -84,10 +84,6 @@ run-iota-linter:
 clean-iota-linter:
 	rm -f bin/iotalinter
 
-# Migration management targets
-collect-migrations:
-	go run cmd/migrate/main.go collect
-
 build-docker-base:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:base-$v --target base .
 
