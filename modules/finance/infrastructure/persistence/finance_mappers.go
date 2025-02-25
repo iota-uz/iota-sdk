@@ -93,7 +93,6 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 			"",
 			"",
 			nil,
-			0,
 			"",
 			"",
 			nil,

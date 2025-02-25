@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
@@ -32,27 +31,6 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		UpdatedAt:  entity.UpdatedAt().Format(time.RFC3339),
 		Roles:      mapping.MapViewModels(entity.Roles(), RoleToViewModel),
 		AvatarID:   strconv.Itoa(int(entity.AvatarID())),
-	}
-}
-
-func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
-	var email string
-	if entity.Email() != nil {
-		email = entity.Email().Value()
-	}
-	return &viewmodels.Employee{
-		ID:              strconv.FormatUint(uint64(entity.ID()), 10),
-		FirstName:       entity.FirstName(),
-		LastName:        entity.LastName(),
-		Email:           email,
-		Salary:          strconv.FormatFloat(entity.Salary().Value(), 'f', 2, 64),
-		Phone:           entity.Phone(),
-		BirthDate:       entity.BirthDate().Format(time.DateOnly),
-		HireDate:        entity.HireDate().Format(time.DateOnly),
-		ResignationDate: entity.BirthDate().Format(time.DateOnly),
-		Notes:           entity.Notes(),
-		UpdatedAt:       entity.UpdatedAt().Format(time.RFC3339),
-		CreatedAt:       entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 

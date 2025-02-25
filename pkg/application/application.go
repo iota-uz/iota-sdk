@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/go-gorp/gorp/v3"
 	"github.com/gorilla/mux"
@@ -91,6 +92,7 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
+	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
