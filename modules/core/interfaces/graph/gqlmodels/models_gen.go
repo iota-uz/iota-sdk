@@ -4,6 +4,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
 type Mutation struct {
@@ -27,6 +29,23 @@ type Session struct {
 }
 
 type Subscription struct {
+}
+
+type Upload struct {
+	ID       int64             `json:"id"`
+	URL      string            `json:"url"`
+	Hash     string            `json:"hash"`
+	Path     string            `json:"path"`
+	Name     string            `json:"name"`
+	Mimetype string            `json:"mimetype"`
+	Type     upload.UploadType `json:"type"`
+	Size     int               `json:"size"`
+}
+
+type UploadFilter struct {
+	MimeType       *string            `json:"mimeType,omitempty"`
+	MimeTypePrefix *string            `json:"mimeTypePrefix,omitempty"`
+	Type           *upload.UploadType `json:"type,omitempty"`
 }
 
 type User struct {

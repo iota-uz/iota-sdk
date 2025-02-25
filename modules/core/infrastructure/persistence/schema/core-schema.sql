@@ -14,10 +14,11 @@ CREATE TABLE companies
 CREATE TABLE uploads
 (
     id         SERIAL PRIMARY KEY,
-    hash       VARCHAR(255)  NOT NULL UNIQUE,
-    path       VARCHAR(1024) NOT NULL   DEFAULT '',
-    size       INT           NOT NULL   DEFAULT 0,
-    mimetype   VARCHAR(255)  NOT NULL,
+    hash       VARCHAR(255)  NOT NULL UNIQUE, -- md5 hash of the file
+    path       VARCHAR(1024) NOT NULL   DEFAULT '', -- relative path to the file
+    size       INT           NOT NULL   DEFAULT 0, -- in bytes
+    mimetype   VARCHAR(255)  NOT NULL, -- image/jpeg, application/pdf, etc.
+    type       VARCHAR(255)  NOT NULL, -- image, document, etc.
     created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
 );
