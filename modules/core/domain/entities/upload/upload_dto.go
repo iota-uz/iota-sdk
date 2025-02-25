@@ -3,12 +3,14 @@ package upload
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"path/filepath"
 
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"golang.org/x/net/context"
 
-	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -21,17 +23,27 @@ type CreateDTO struct {
 	Type string
 }
 
-func (d *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
+func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := ctx.Value(constants.LocalizerKey).(*i18n.Localizer)
+	if !ok {
+		panic("localizer not found in context")
+	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
 	if errs == nil {
 		return errorMessages, true
 	}
-
 	for _, err := range errs.(validator.ValidationErrors) {
-		errorMessages[err.Field()] = err.Translate(l)
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": err.Field(),
+			},
+		})
 	}
+
 	return errorMessages, len(errorMessages) == 0
+
 }
 
 func (d *CreateDTO) ToEntity() (Upload, []byte, error) {

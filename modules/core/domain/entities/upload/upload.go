@@ -40,7 +40,7 @@ type Upload interface {
 	Size() Size
 	IsImage() bool
 	PreviewURL() string
-	URL() url.URL
+	URL() *url.URL
 	Mimetype() *mimetype.MIME
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
@@ -115,9 +115,9 @@ func (u *upload) Size() Size {
 	return u.size
 }
 
-func (u *upload) URL() url.URL {
+func (u *upload) URL() *url.URL {
 	conf := configuration.Use()
-	return url.URL{
+	return &url.URL{
 		Scheme: conf.Scheme(),
 		Host:   conf.Domain,
 		Path:   u.path,

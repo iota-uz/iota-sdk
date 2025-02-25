@@ -121,3 +121,7 @@ models:
         resolver: true
       total:
         resolver: true
+  File:
+    model:
+      - github.com/99designs/gqlgen/graphql.Upload
+
