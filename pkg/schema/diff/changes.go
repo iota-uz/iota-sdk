@@ -2,21 +2,30 @@ package diff
 
 import "github.com/iota-uz/iota-sdk/pkg/schema/types"
 
+// ChangeType represents the type of schema change
 type ChangeType string
 
 const (
-	CreateTable      ChangeType = "CREATE_TABLE"
-	DropTable        ChangeType = "DROP_TABLE"
-	AlterTable       ChangeType = "ALTER_TABLE"
-	AddColumn        ChangeType = "ADD_COLUMN"
-	DropColumn       ChangeType = "DROP_COLUMN"
-	ModifyColumn     ChangeType = "MODIFY_COLUMN"
-	AddConstraint    ChangeType = "ADD_CONSTRAINT"
-	DropConstraint   ChangeType = "DROP_CONSTRAINT"
-	ModifyConstraint ChangeType = "MODIFY_CONSTRAINT"
-	AddIndex         ChangeType = "ADD_INDEX"
-	DropIndex        ChangeType = "DROP_INDEX"
-	ModifyIndex      ChangeType = "MODIFY_INDEX"
+	// CreateTable represents a new table creation
+	CreateTable ChangeType = "CREATE_TABLE"
+	// DropTable represents a table deletion
+	DropTable ChangeType = "DROP_TABLE"
+	// DropColumn represents dropping a column
+	DropColumn ChangeType = "DROP_COLUMN"
+	// AddColumn represents adding a column to a table
+	AddColumn ChangeType = "ADD_COLUMN"
+	// ModifyColumn represents modifying an existing column
+	ModifyColumn ChangeType = "MODIFY_COLUMN"
+	// AddConstraint represents adding a constraint
+	AddConstraint ChangeType = "ADD_CONSTRAINT"
+	// DropConstraint represents dropping a constraint
+	DropConstraint ChangeType = "DROP_CONSTRAINT"
+	// AddIndex represents adding an index
+	AddIndex ChangeType = "ADD_INDEX"
+	// DropIndex represents dropping an index
+	DropIndex ChangeType = "DROP_INDEX"
+	// ModifyIndex represents modifying an index
+	ModifyIndex ChangeType = "MODIFY_INDEX"
 )
 
 // Change represents a single schema change
