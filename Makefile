@@ -42,6 +42,11 @@ localdb:
 clear-localdb:
 	rm -rf postgres-data/
 
+reset-localdb:
+	docker compose -f compose.dev.yml down
+	make clear-localdb
+	make localdb
+
 migrate:
 	go run cmd/migrate/main.go $(filter-out $@,$(MAKECMDGOALS))
 
@@ -84,10 +89,6 @@ run-iota-linter:
 clean-iota-linter:
 	rm -f bin/iotalinter
 
-# Migration management targets
-collect-migrations:
-	go run cmd/migrate/main.go collect
-
 build-docker-base:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:base-$v --target base .
 
@@ -98,4 +99,4 @@ build-docker-prod:
 %:
 	@:
 
-.PHONY: default deps test test-watch localdb migrate migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations
+.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations
