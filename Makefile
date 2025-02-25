@@ -47,13 +47,8 @@ reset-localdb:
 	make clear-localdb
 	make localdb
 
-# Apply database migrations (up)
-migrate-up:
-	go run cmd/migrate/main.go up
-
-# Downgrade database migrations (down)
-migrate-down:
-	go run cmd/migrate/main.go down
+migrate:
+	go run cmd/migrate/main.go $(filter-out $@,$(MAKECMDGOALS))
 
 # Compile TailwindCSS (with watch)
 css-watch:
@@ -79,9 +74,6 @@ release-local:
 clean:
 	rm -rf $(TAILWIND_OUTPUT)
 
-# Full setup
-setup: deps localdb migrate-up css lint
-
 ## Linter targets
 #.PHONY: build-iota-linter run-iota-linter clean-iota-linter
 
@@ -97,14 +89,14 @@ run-iota-linter:
 clean-iota-linter:
 	rm -f bin/iotalinter
 
-# Migration management targets
-collect-migrations:
-	go run cmd/migrate/main.go collect
-
 build-docker-base:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:base-$v --target base .
 
 build-docker-prod:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:$v --target production .
+
+# Prevents make from treating the argument as an undefined target
+%:
+	@:
 
 .PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations

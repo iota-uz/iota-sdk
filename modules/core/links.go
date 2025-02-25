@@ -26,20 +26,12 @@ var RolesLink = types.NavigationItem{
 	Children: nil,
 }
 
-var EmployeesLink = types.NavigationItem{
-	Name:     "NavigationLinks.Employees",
-	Icon:     nil,
-	Href:     "/operations/employees",
-	Children: nil,
-}
-
 var AdministrationLink = types.NavigationItem{
 	Name: "NavigationLinks.Administration",
 	Icon: icons.AirTrafficControl(icons.Props{Size: "20"}),
 	Href: "#",
 	Children: []types.NavigationItem{
 		UsersLink,
-		EmployeesLink,
 		RolesLink,
 	},
 }

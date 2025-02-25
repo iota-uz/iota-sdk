@@ -169,11 +169,7 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 	if err != nil {
 		return nil, err
 	}
-	pool, err := composables.UsePool(ctx)
-	if err != nil {
-		return nil, err
-	}
-	tx, err := pool.Begin(ctx)
+	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return nil, err
 	}

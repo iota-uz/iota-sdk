@@ -3,11 +3,13 @@ package application
 import (
 	"context"
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -16,8 +18,9 @@ import (
 )
 
 type GraphSchema struct {
-	Value    graphql.ExecutableSchema
-	BasePath string
+	Value      graphql.ExecutableSchema
+	BasePath   string
+	ExecutorCb func(*executor.Executor)
 }
 
 // Application with a dynamically extendable service registry
@@ -29,14 +32,12 @@ type Application interface {
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
 	MigrationDirs() []*embed.FS
-	Seed(ctx context.Context) error
 	RBAC() permission.RBAC
 	Spotlight() spotlight.Spotlight
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
-	RegisterSeedFuncs(seedFuncs ...SeedFunc)
 	RegisterAssets(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
 	RegisterMigrationDirs(fs ...*embed.FS)
@@ -48,6 +49,11 @@ type Application interface {
 	Bundle() *i18n.Bundle
 	RunMigrations() error
 	RollbackMigrations() error
+}
+
+type Seeder interface {
+	Seed(ctx context.Context, app Application) error
+	Register(funcs ...SeedFunc)
 }
 
 type SeedFunc func(ctx context.Context, app Application) error

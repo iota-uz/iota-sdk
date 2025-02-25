@@ -62,24 +62,25 @@ templ Link(href string, active bool) {
 }
 
 type BoostLinkProps struct {
-	Href   string
-	Active bool
-	Push   bool
+	Href string
+	Push bool
 }
 
 templ BoostedLink(props BoostLinkProps) {
 	{{
 		attrs := templ.Attributes{
+			"@click":    fmt.Sprintf("selectedTab = '%s'", props.Href),
 			"hx-get":    props.Href,
 			"hx-target": "#tab-content",
 			"hx-swap":   "innerHTML",
+			":class":    fmt.Sprintf("{'after:bg-brand-500': selectedTab === '%s'}", props.Href),
 		}
 		if props.Push {
 			attrs["hx-push-url"] = "true"
 		}
 	}}
 	@button.Ghost(button.Props{
-		Class: templ.CSSClasses{linkClass, templ.KV("after:bg-brand-500", props.Active)},
+		Class: templ.CSSClasses{linkClass},
 		Attrs: attrs,
 	}) {
 		{ children... }

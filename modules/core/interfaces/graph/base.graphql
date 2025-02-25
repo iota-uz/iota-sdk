@@ -1,6 +1,15 @@
 scalar Time
 scalar Int64
 
+directive @goModel(
+    model: String
+    models: [String!]
+) on OBJECT | INPUT_OBJECT | SCALAR | ENUM | INTERFACE | UNION
+
+directive @goEnum(
+    value: String
+) on ENUM_VALUE
+
 type Query {
     hello(name: String): String
 }
