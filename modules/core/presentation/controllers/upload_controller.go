@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -68,12 +67,6 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uniTranslator, err := composables.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	id := r.FormValue("_id")
 	name := r.FormValue("_name")
 	formName := r.FormValue("_formName")
@@ -98,7 +91,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// TODO: proper error handling
-		if _, ok := dto.Ok(uniTranslator); !ok {
+		if _, ok := dto.Ok(r.Context()); !ok {
 			_, _, err := dto.ToEntity()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
