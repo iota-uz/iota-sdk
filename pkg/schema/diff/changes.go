@@ -1,57 +1,36 @@
 package diff
 
-import "github.com/iota-uz/iota-sdk/pkg/schema/types"
-
-// ChangeType represents the type of schema change
-type ChangeType string
-
-const (
-	// CreateTable represents a new table creation
-	CreateTable ChangeType = "CREATE_TABLE"
-	// DropTable represents a table deletion
-	DropTable ChangeType = "DROP_TABLE"
-	// DropColumn represents dropping a column
-	DropColumn ChangeType = "DROP_COLUMN"
-	// AddColumn represents adding a column to a table
-	AddColumn ChangeType = "ADD_COLUMN"
-	// ModifyColumn represents modifying an existing column
-	ModifyColumn ChangeType = "MODIFY_COLUMN"
-	// AddConstraint represents adding a constraint
-	AddConstraint ChangeType = "ADD_CONSTRAINT"
-	// DropConstraint represents dropping a constraint
-	DropConstraint ChangeType = "DROP_CONSTRAINT"
-	// AddIndex represents adding an index
-	AddIndex ChangeType = "ADD_INDEX"
-	// DropIndex represents dropping an index
-	DropIndex ChangeType = "DROP_INDEX"
-	// ModifyIndex represents modifying an index
-	ModifyIndex ChangeType = "MODIFY_INDEX"
+import (
+	"github.com/iota-uz/iota-sdk/pkg/schema/common"
 )
 
-// Change represents a single schema change
-type Change struct {
-	Type         ChangeType
-	Object       *types.Node
-	ObjectName   string
-	ParentName   string
-	Statements   []string
-	Reversible   bool
-	Dependencies []string
-	Metadata     map[string]interface{}
+// Import common types to maintain API compatibility
+type ChangeType = common.ChangeType
+type Schema = common.Schema
+type SchemaObject = common.SchemaObject
+type Change = common.Change
+type ChangeSet = common.ChangeSet
+
+// Re-export constants for backward compatibility
+const (
+	CreateTable    = common.CreateTable
+	DropTable      = common.DropTable
+	DropColumn     = common.DropColumn
+	AddColumn      = common.AddColumn
+	ModifyColumn   = common.ModifyColumn
+	AddConstraint  = common.AddConstraint
+	DropConstraint = common.DropConstraint
+	AddIndex       = common.AddIndex
+	DropIndex      = common.DropIndex
+	ModifyIndex    = common.ModifyIndex
+)
+
+// NewSchema creates a new empty schema
+func NewSchema() *Schema {
+	return common.NewSchema()
 }
 
-// ChangeSet represents a collection of related schema changes
-type ChangeSet struct {
-	Changes   []*Change
-	Timestamp int64
-	Version   string
-	Hash      string
-	Metadata  map[string]interface{}
-}
-
+// NewChangeSet creates a new empty change set
 func NewChangeSet() *ChangeSet {
-	return &ChangeSet{
-		Changes:  make([]*Change, 0),
-		Metadata: make(map[string]interface{}),
-	}
+	return common.NewChangeSet()
 }

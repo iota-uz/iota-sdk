@@ -2,9 +2,9 @@ package dialect
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/schema/types"
+	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
+	"github.com/iota-uz/iota-sdk/pkg/schema/common"
 )
 
 // PostgresDialect implements the Dialect interface for PostgreSQL
@@ -24,84 +24,37 @@ func NewPostgresDialect() *PostgresDialect {
 	}
 }
 
-func (d *PostgresDialect) GenerateCreate(node *types.Node) (string, error) {
-	if node.Type != types.NodeTable {
-		return "", fmt.Errorf("expected table node, got %s", node.Type)
+func (d *PostgresDialect) GenerateCreate(obj interface{}) (string, error) {
+	switch node := obj.(type) {
+	case *tree.CreateTable:
+		// Use the SQL string representation directly
+		return node.String(), nil
+		
+	case *tree.CreateIndex:
+		// Use the SQL string representation directly
+		return node.String(), nil
+		
+	default:
+		return "", fmt.Errorf("unsupported object type for GenerateCreate: %T", obj)
 	}
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "CREATE TABLE IF NOT EXISTS %s (\n", node.Name)
-
-	// Generate columns
-	for i, col := range node.Children {
-		if col.Type != types.NodeColumn {
-			continue
-		}
-		if i > 0 {
-			b.WriteString(",\n")
-		}
-		colDef := d.generateColumnDefinition(col)
-		b.WriteString("  " + colDef)
-	}
-
-	// Generate constraints
-	constraints := d.generateConstraints(node)
-	if constraints != "" {
-		b.WriteString(",\n  " + constraints)
-	}
-
-	b.WriteString("\n);")
-	return b.String(), nil
 }
 
-func (d *PostgresDialect) GenerateAlter(node *types.Node) (string, error) {
-	if node.Type != types.NodeTable {
-		return "", fmt.Errorf("expected table node, got %s", node.Type)
+func (d *PostgresDialect) GenerateAlter(obj interface{}) (string, error) {
+	switch node := obj.(type) {
+	case *tree.AlterTable:
+		// Use the SQL string representation directly
+		return node.String(), nil
+		
+	case *tree.ColumnTableDef:
+		// We're dealing with a column definition for an ALTER TABLE statement
+		return node.String(), nil
+		
+	default:
+		return "", fmt.Errorf("unsupported object type for GenerateAlter: %T", obj)
 	}
-
-	var statements []string
-	tableName := node.Name
-
-	// Get alteration type from metadata
-	alterationType, hasAlteration := node.Metadata["alteration"].(string)
-	if !hasAlteration {
-		return "", fmt.Errorf("no alteration type specified in metadata")
-	}
-
-	// Handle different types of alterations
-	if strings.Contains(strings.ToUpper(alterationType), "ADD COLUMN") {
-		// Process column additions
-		for _, child := range node.Children {
-			if child.Type == types.NodeColumn {
-				colDef := d.generateColumnDefinition(child)
-				if colDef != "" {
-					stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", tableName, colDef)
-					statements = append(statements, stmt)
-				}
-			}
-		}
-	} else if strings.Contains(strings.ToUpper(alterationType), "ALTER COLUMN") {
-		// Process column modifications
-		for _, child := range node.Children {
-			if child.Type == types.NodeColumn {
-				colDef := d.generateColumnDefinition(child)
-				if colDef != "" {
-					stmt := fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s", tableName, colDef)
-					statements = append(statements, stmt)
-				}
-			}
-		}
-	}
-
-	// Join all statements and add semicolons
-	if len(statements) > 0 {
-		return strings.Join(statements, ";\n") + ";", nil
-	}
-
-	return "", nil
 }
 
-func (d *PostgresDialect) ValidateSchema(schema *types.SchemaTree) error {
+func (d *PostgresDialect) ValidateSchema(schema *common.Schema) error {
 	// Validate PostgreSQL specific constraints
 	// Check type compatibility
 	// Verify constraint definitions
@@ -110,51 +63,6 @@ func (d *PostgresDialect) ValidateSchema(schema *types.SchemaTree) error {
 
 func (d *PostgresDialect) GetDataTypeMapping() map[string]string {
 	return d.typeMapping
-}
-
-func (d *PostgresDialect) generateColumnDefinition(col *types.Node) string {
-	if col == nil {
-		return ""
-	}
-
-	// Use the full definition if available
-	if def, ok := col.Metadata["definition"].(string); ok && def != "" {
-		return def
-	}
-
-	// Fallback to constructing the definition
-	var b strings.Builder
-	b.WriteString(col.Name)
-	b.WriteString(" ")
-
-	dataType := col.Metadata["type"].(string)
-	if mappedType, ok := d.typeMapping[strings.ToLower(dataType)]; ok {
-		dataType = mappedType
-	}
-	b.WriteString(dataType)
-
-	// Add any constraints
-	if constraints, ok := col.Metadata["constraints"].(string); ok && constraints != "" {
-		b.WriteString(" ")
-		b.WriteString(constraints)
-	}
-
-	return b.String()
-}
-
-func (d *PostgresDialect) generateConstraints(node *types.Node) string {
-	if node == nil {
-		return ""
-	}
-
-	constraints := []string{}
-	for _, child := range node.Children {
-		if child.Type == types.NodeConstraint {
-			constraints = append(constraints, child.Name)
-		}
-	}
-
-	return strings.Join(constraints, ",\n")
 }
 
 func init() {

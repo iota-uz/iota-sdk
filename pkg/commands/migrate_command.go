@@ -13,9 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
-	"github.com/iota-uz/iota-sdk/pkg/schema/ast"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
-	"github.com/iota-uz/iota-sdk/pkg/schema/diff"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -76,8 +74,7 @@ func handleSchemaCommands(ctx context.Context, command string, logLevel logrus.L
 	}
 
 	// Set log level for all components
-	ast.SetLogLevel(logLevel)
-	diff.SetLogLevel(logLevel)
+	// Now handled internally by the collector
 
 	collector := collector.New(collector.Config{
 		ModulesPath:    modulesPath,
