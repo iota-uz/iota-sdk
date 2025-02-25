@@ -31,9 +31,12 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		},
 	)
 	srv := graphql.NewBaseServer(schema)
-
 	for _, schema := range g.app.GraphSchemas() {
-		srv.AddExecutor(executor.New(schema.Value))
+		exec := executor.New(schema.Value)
+		if schema.ExecutorCb != nil {
+			schema.ExecutorCb(exec)
+		}
+		srv.AddExecutor(exec)
 	}
 	router := r.Methods(http.MethodGet, http.MethodPost).Subrouter()
 	router.Use(
@@ -44,7 +47,11 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	router.Handle("/query", srv)
 	router.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
 	for _, schema := range g.app.GraphSchemas() {
-		router.Handle(filepath.Join(fmt.Sprintf("/query/%s", schema.BasePath)), graphql.NewHandler(executor.New(schema.Value)))
+		exec := executor.New(schema.Value)
+		if schema.ExecutorCb != nil {
+			schema.ExecutorCb(exec)
+		}
+		router.Handle(filepath.Join(fmt.Sprintf("/query/%s", schema.BasePath)), graphql.NewHandler(exec))
 	}
 	log.Printf("connect to http://localhost:%d/playground for GraphQL playground", configuration.Use().ServerPort)
 }
