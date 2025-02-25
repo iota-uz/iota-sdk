@@ -61,7 +61,7 @@ describe("user auth and registration flow", () => {
 
 		cy.visit("http://localhost:3200/users");
 		cy.get("tbody tr").should("have.length", 2);
-		cy.get("tbody tr").should("contain.text", "TestNew UserNew");
+		cy.get("tbody tr").should("contain.text", "TestNew UserNew MidNew");
 		cy.get("tbody tr").should("contain.text", "test1new@gmail.com");
 
 		cy.visit("http://localhost:3200/logout");
