@@ -4,6 +4,7 @@ go 1.23.2
 
 require (
 	github.com/99designs/gqlgen v0.17.57
+	github.com/BurntSushi/toml v1.4.0
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31

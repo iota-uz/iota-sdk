@@ -48,8 +48,6 @@ func (m *Module) Register(app application.Application) error {
 		services.NewAuthService(app),
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
 		services.NewRoleService(persistence.NewRoleRepository(), app.EventPublisher()),
-		services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher()),
-		services.NewEmployeeService(persistence.NewEmployeeRepository(), app.EventPublisher()),
 		services.NewUploadService(persistence.NewUploadRepository(), fsStorage, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
 	)
@@ -58,7 +56,6 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewLoginController(app),
 		controllers.NewSpotlightController(app),
 		controllers.NewAccountController(app),
-		controllers.NewEmployeeController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
 		controllers.NewUsersController(app),
@@ -73,7 +70,6 @@ func (m *Module) Register(app application.Application) error {
 	})
 	app.Spotlight().Register(
 		spotlight.NewItem(nil, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewItem(nil, EmployeesLink.Name, EmployeesLink.Href),
 		spotlight.NewItem(nil, UsersLink.Name, UsersLink.Href),
 		spotlight.NewItem(
 			icons.Gear(icons.Props{Size: "24"}),

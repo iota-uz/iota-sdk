@@ -51,7 +51,6 @@ func MockUser(permissions ...*permission.Permission) user.User {
 		"",
 		"",
 		nil,
-		0,
 		"",
 		"",
 		[]role.Role{r},
