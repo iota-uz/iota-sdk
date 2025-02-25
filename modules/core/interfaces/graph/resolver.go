@@ -10,13 +10,15 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	app         application.Application
-	userService *services.UserService
+	app           application.Application
+	userService   *services.UserService
+	uploadService *services.UploadService
 }
 
 func NewResolver(app application.Application) *Resolver {
 	return &Resolver{
-		app:         app,
-		userService: app.Service(services.UserService{}).(*services.UserService),
+		app:           app,
+		userService:   app.Service(services.UserService{}).(*services.UserService),
+		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
 	}
 }
