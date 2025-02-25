@@ -144,6 +144,7 @@ func ToDBUpload(upload upload.Upload) *models.Upload {
 		Path:      upload.Path(),
 		Hash:      upload.Hash(),
 		Size:      upload.Size().Bytes(),
+		Type:      upload.Type().String(),
 		Mimetype:  upload.Mimetype().String(),
 		CreatedAt: upload.CreatedAt(),
 		UpdatedAt: upload.UpdatedAt(),
@@ -161,6 +162,7 @@ func ToDomainUpload(dbUpload *models.Upload) upload.Upload {
 		dbUpload.Path,
 		dbUpload.Size,
 		mime,
+		upload.UploadType(dbUpload.Type),
 		dbUpload.CreatedAt,
 		dbUpload.UpdatedAt,
 	)

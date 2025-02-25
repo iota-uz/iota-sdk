@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -17,8 +18,9 @@ import (
 )
 
 type GraphSchema struct {
-	Value    graphql.ExecutableSchema
-	BasePath string
+	Value      graphql.ExecutableSchema
+	BasePath   string
+	ExecutorCb func(*executor.Executor)
 }
 
 // Application with a dynamically extendable service registry

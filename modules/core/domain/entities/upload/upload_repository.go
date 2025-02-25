@@ -2,16 +2,19 @@ package upload
 
 import (
 	"context"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 type FindParams struct {
-	ID     uint
-	Hash   string
-	Limit  int
-	Offset int
-	SortBy []string
-	Search string
-	Type   string
+	ID       uint
+	Hash     string
+	Limit    int
+	Offset   int
+	SortBy   []string
+	Search   string
+	Type     UploadType
+	Mimetype *mimetype.MIME
 }
 
 type Repository interface {
