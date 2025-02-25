@@ -1,11 +1,12 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -86,17 +87,12 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	dto := dtos.SaveAccountDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&dtos.SaveAccountDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	errors, ok := dto.Ok(r.Context())
-	if !ok {
+	if errors, ok := dto.Ok(r.Context()); !ok {
 		props, err := c.defaultProps(r, errors)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
