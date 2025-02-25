@@ -16,11 +16,13 @@ import (
 
 // Generator handles creation of migration files from detected changes
 type Generator struct {
-	dialect   dialect.Dialect
-	outputDir string
-	templates map[ChangeType]string
-	options   GeneratorOptions
-	logger    *logrus.Logger
+	dialect           dialect.Dialect
+	outputDir         string
+	options           GeneratorOptions
+	logger            *logrus.Logger
+	tableDependencies map[string][]string // tracks table -> dependencies
+	processedTables   map[string]bool     // tracks which tables have been processed
+	processedChanges  map[string]struct{} // tracks all processed objects by name
 }
 
 type GeneratorOptions struct {
@@ -168,6 +170,10 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// Sort changes based on dependencies
+	sortedChanges := g.sortChangesByDependencies(deduplicatedChanges)
+	changes.Changes = sortedChanges
+
 	// Create timestamp-based filename
 	timestamp := time.Now().Unix()
 	fileName := fmt.Sprintf("changes-%d.sql", timestamp)
@@ -209,7 +215,7 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 
 	// Write the migration file
 	if err := os.WriteFile(filePath, []byte(content.String()), 0644); err != nil {
-		return fmt.Errorf("failed to write migration file: %w", err)
+		return fmt.Errorf("failed to write migration file %q: %w", filePath, err)
 	}
 
 	// Generate down migration if enabled
@@ -459,6 +465,10 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			return fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s %s;",
 				change.ObjectName, change.Object.Name, def), nil
 		}
+
+	case DropTable:
+		g.logger.Debugf("Generating DROP TABLE statement for %s", change.ObjectName)
+		return fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;", change.ObjectName), nil
 	}
 
 	return "", fmt.Errorf("unsupported change type or missing data: %v", change.Type)
@@ -588,9 +598,21 @@ func (g *Generator) generateDownStatement(change *Change) string {
 
 // NewGenerator creates a new migration generator
 func NewGenerator(opts GeneratorOptions) (*Generator, error) {
-	d, ok := dialect.Get(opts.Dialect)
-	if !ok {
-		return nil, fmt.Errorf("unsupported dialect: %s", opts.Dialect)
+	if opts.Logger == nil {
+		opts.Logger = logrus.New()
+	}
+
+	// Validate output directory
+	if opts.OutputDir == "" {
+		return nil, fmt.Errorf("output directory path cannot be empty")
+	}
+
+	// Clean and validate the path
+	outputDir := filepath.Clean(opts.OutputDir)
+
+	// Create output directory if it doesn't exist
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create output directory %q: %w", outputDir, err)
 	}
 
 	// Initialize logger if not provided
@@ -601,11 +623,9 @@ func NewGenerator(opts GeneratorOptions) (*Generator, error) {
 	}
 
 	return &Generator{
-		dialect:   d,
-		outputDir: opts.OutputDir,
 		options:   opts,
-		templates: loadDefaultTemplates(),
-		logger:    logger,
+		outputDir: outputDir,
+		logger:    opts.Logger,
 	}, nil
 }
 

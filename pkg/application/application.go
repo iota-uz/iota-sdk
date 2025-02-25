@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/go-gorp/gorp/v3"
 	"github.com/gorilla/mux"
@@ -91,6 +92,7 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
+	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
@@ -242,11 +244,13 @@ func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		for _, file := range files {
 			content, err := migrationFs.ReadFile(file)
 			if err != nil {
 				return nil, err
 			}
+
 			migration, err := migrate.ParseMigration(filepath.Join(file), bytes.NewReader(content))
 			if err != nil {
 				return nil, err
@@ -254,6 +258,7 @@ func CollectMigrations(app *application) ([]*migrate.Migration, error) {
 			migrations = append(migrations, migration)
 		}
 	}
+
 	return migrations, nil
 }
 

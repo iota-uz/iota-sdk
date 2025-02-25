@@ -13,6 +13,7 @@ import (
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
 	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
+	"github.com/iota-uz/iota-sdk/modules/hrm"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/modules/website"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -52,6 +53,7 @@ func main() {
 	}
 	app.RegisterNavItems(core.NavItems...)
 	app.RegisterNavItems(bichat.NavItems...)
+	app.RegisterNavItems(hrm.NavItems...)
 	app.RegisterNavItems(finance.NavItems...)
 	app.RegisterNavItems(warehouse.NavItems...)
 	app.RegisterNavItems(crm.NavItems...)

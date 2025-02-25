@@ -45,9 +45,11 @@ func New(cfg Config) *Collector {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = logrus.New()
+		// Default log level to INFO if not configured
 		if cfg.LogLevel == 0 {
 			cfg.LogLevel = logrus.InfoLevel
 		}
+		// logger.SetLevel(cfg.LogLevel)
 	} else {
 		logger.SetLevel(cfg.LogLevel)
 	}
@@ -478,6 +480,7 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 	// Track processed tables and indexes to avoid duplicates
 	processedTables := make(map[string]bool)
 	processedIndexes := make(map[string]bool)
+	droppedTables := make(map[string]bool) // Track tables that should be dropped
 
 	err := filepath.Walk(c.modulesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -497,12 +500,35 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 				return nil
 			}
 
-			// Log found tables, columns, and indexes
+			// First pass: collect DROP TABLE statements
+			statements := strings.Split(sqlContent, ";")
+			for _, stmt := range statements {
+				stmt = strings.TrimSpace(stmt)
+				if strings.HasPrefix(strings.ToUpper(stmt), "DROP TABLE") {
+					// Extract table name from DROP TABLE statement
+					parts := strings.Fields(stmt)
+					if len(parts) >= 3 {
+						tableName := strings.ToLower(strings.TrimRight(parts[2], " \t\n\r;"))
+						tableName = strings.TrimPrefix(tableName, "IF EXISTS ")
+						tableName = strings.TrimSuffix(tableName, "CASCADE")
+						tableName = strings.TrimSpace(tableName)
+						droppedTables[tableName] = true
+						c.logger.Debugf("Marked table for dropping: %s", tableName)
+					}
+				}
+			}
+
+			// Second pass: process CREATE and ALTER statements
 			for _, node := range parsed.Root.Children {
 				switch node.Type {
 				case types.NodeTable:
 					tableName := strings.ToLower(node.Name)
-					c.logger.Debugf("Found table: %s with %d columns", node.Name, len(node.Children))
+
+					// Skip if table is marked for dropping
+					if droppedTables[tableName] {
+						c.logger.Debugf("Skipping dropped table: %s", tableName)
+						continue
+					}
 
 					// Skip if we've already processed this table
 					if processedTables[tableName] {
@@ -511,6 +537,7 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 					}
 					processedTables[tableName] = true
 
+					c.logger.Debugf("Found table: %s with %d columns", node.Name, len(node.Children))
 					for _, col := range node.Children {
 						if col.Type == types.NodeColumn {
 							c.logger.Debugf("  Column: %s, Type: %s, Constraints: %s",
@@ -526,7 +553,13 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 
 				case types.NodeIndex:
 					indexName := strings.ToLower(node.Name)
-					c.logger.Debugf("Found index: %s on table %s", node.Name, node.Metadata["table"])
+					tableName := strings.ToLower(node.Metadata["table"].(string))
+
+					// Skip if parent table is marked for dropping
+					if droppedTables[tableName] {
+						c.logger.Debugf("Skipping index for dropped table: %s", indexName)
+						continue
+					}
 
 					// Skip if we've already processed this index
 					if processedIndexes[indexName] {
@@ -535,7 +568,7 @@ func (c *Collector) loadModuleSchema() (*types.SchemaTree, error) {
 					}
 					processedIndexes[indexName] = true
 
-					// Add index to tree
+					c.logger.Debugf("Found index: %s on table %s", node.Name, node.Metadata["table"])
 					tree.Root.Children = append(tree.Root.Children, node)
 					c.logger.Debugf("Added index %s from %s", node.Name, path)
 				}
