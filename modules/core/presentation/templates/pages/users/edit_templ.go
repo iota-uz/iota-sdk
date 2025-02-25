@@ -401,6 +401,8 @@ func Edit(props *EditFormProps) templ.Component {
 					}
 				}`,
 				},
+				CancelText:  pageCtx.T("Cancel"),
+				ConfirmText: pageCtx.T("Delete"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
