@@ -20,7 +20,6 @@ type CreateDTO struct {
 	File io.ReadSeeker `validate:"required"`
 	Name string        `validate:"required"`
 	Size int           `validate:"required"`
-	Type string
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {

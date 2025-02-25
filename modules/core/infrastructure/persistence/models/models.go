@@ -11,6 +11,7 @@ type Upload struct {
 	Path      string
 	Size      int
 	Mimetype  string
+	Type      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -88,7 +89,6 @@ type UploadedImage struct {
 	Height    int
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Upload    Upload
 }
 
 type Session struct {
