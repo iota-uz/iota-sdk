@@ -37,7 +37,7 @@ report:
 
 # Run PostgreSQL
 localdb:
-	docker compose -f compose.dev.yml up -d
+	docker compose -f compose.dev.yml up
 
 clear-localdb:
 	rm -rf postgres-data/
