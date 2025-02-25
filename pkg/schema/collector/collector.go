@@ -45,7 +45,9 @@ func New(cfg Config) *Collector {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = logrus.New()
-		logger.SetLevel(cfg.LogLevel)
+		if cfg.LogLevel == 0 {
+			cfg.LogLevel = logrus.InfoLevel
+		}
 	} else {
 		logger.SetLevel(cfg.LogLevel)
 	}

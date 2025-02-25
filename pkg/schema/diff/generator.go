@@ -49,23 +49,23 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 	}
 
 	filePath := filepath.Join(g.outputDir, fileName)
-	logger.Info("Generating migration file: ", filePath)
+	g.logger.Info("Generating migration file: ", filePath)
 
 	var statements []string
 	for _, change := range changes.Changes {
 		stmt, err := g.generateChangeStatement(change)
 		if err != nil {
-			logger.Warnf("Error generating statement: %v", err)
+			g.logger.Warnf("Error generating statement: %v", err)
 			continue
 		}
 		if stmt != "" {
-			logger.Debugf("Generated SQL: %s", stmt)
+			g.logger.Debugf("Generated SQL: %s", stmt)
 			statements = append(statements, stmt)
 		}
 	}
 
 	if len(statements) == 0 {
-		logger.Info("No statements generated")
+		g.logger.Info("No statements generated")
 		return nil
 	}
 
@@ -112,13 +112,13 @@ func (g *Generator) Generate(changes *ChangeSet) error {
 }
 
 func (g *Generator) generateChangeStatement(change *Change) (string, error) {
-	logger.Debugf("Generating statement for change type: %v", change.Type)
+	g.logger.Debugf("Generating statement for change type: %v", change.Type)
 
 	switch change.Type {
 	case CreateTable:
-		logger.Debugf("Generating CREATE TABLE statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating CREATE TABLE statement for %s", change.ObjectName)
 		if originalSQL, ok := change.Object.Metadata["original_sql"].(string); ok && originalSQL != "" {
-			logger.Debugf("Using original SQL for table %s: %s", change.ObjectName, originalSQL)
+			g.logger.Debugf("Using original SQL for table %s: %s", change.ObjectName, originalSQL)
 			return originalSQL, nil
 		}
 		var columns []string
@@ -161,7 +161,7 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return stmt.String(), nil
 
 	case ModifyColumn:
-		logger.Debugf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		g.logger.Debugf("Generating ALTER COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			// Extract type and constraints from the definition
 			parts := strings.SplitN(def, " ", 2)
@@ -198,14 +198,14 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 		return "", fmt.Errorf("missing column definition for %s", change.ObjectName)
 
 	case AddColumn:
-		logger.Debugf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
-		logger.Debugf("Column metadata: %+v", change.Object.Metadata)
+		g.logger.Debugf("Generating ADD COLUMN statement for %s.%s", change.ParentName, change.ObjectName)
+		g.logger.Debugf("Column metadata: %+v", change.Object.Metadata)
 
 		if def, ok := change.Object.Metadata["definition"].(string); ok {
 			stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s;",
 				change.ParentName,
 				def)
-			logger.Debugf("Generated statement: %s", stmt)
+			g.logger.Debugf("Generated statement: %s", stmt)
 			return stmt, nil
 		}
 
@@ -219,13 +219,13 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			change.ParentName,
 			change.ObjectName,
 			rawType)
-		logger.Debugf("Generated fallback statement: %s", stmt)
+		g.logger.Debugf("Generated fallback statement: %s", stmt)
 		return stmt, nil
 
 	case AddIndex:
-		logger.Debugf("Generating CREATE INDEX statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating CREATE INDEX statement for %s", change.ObjectName)
 		if originalSQL, ok := change.Object.Metadata["original_sql"].(string); ok && originalSQL != "" {
-			logger.Debugf("Using original SQL for index %s: %s", change.ObjectName, originalSQL)
+			g.logger.Debugf("Using original SQL for index %s: %s", change.ObjectName, originalSQL)
 			return originalSQL + ";", nil
 		}
 		// Fallback to constructing the index statement
@@ -242,22 +242,22 @@ func (g *Generator) generateChangeStatement(change *Change) (string, error) {
 			change.ObjectName, tableName, columns))
 
 		result := stmt.String()
-		logger.Debugf("Generated index statement: %s", result)
+		g.logger.Debugf("Generated index statement: %s", result)
 		return result, nil
 
 	case ModifyIndex:
-		logger.Debugf("Generating MODIFY INDEX statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating MODIFY INDEX statement for %s", change.ObjectName)
 		// For index modifications, we drop and recreate
 		if newDef, ok := change.Metadata["new_definition"].(string); ok {
 			dropStmt := fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName)
 			result := dropStmt + "\n" + newDef + ";"
-			logger.Debugf("Generated index modification statement: %s", result)
+			g.logger.Debugf("Generated index modification statement: %s", result)
 			return result, nil
 		}
 		return "", fmt.Errorf("missing new index definition for %s", change.ObjectName)
 
 	case DropIndex:
-		logger.Debugf("Generating DROP INDEX statement for %s", change.ObjectName)
+		g.logger.Debugf("Generating DROP INDEX statement for %s", change.ObjectName)
 		return fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName), nil
 
 	case AddConstraint:
@@ -296,19 +296,19 @@ func extractDefaultValue(constraints string) string {
 }
 
 func (g *Generator) generateDownStatements(changes *ChangeSet) []string {
-	logger.Debugf("Generating down statements for %d changes", len(changes.Changes))
+	g.logger.Debugf("Generating down statements for %d changes", len(changes.Changes))
 	// Generate reverse operations in reverse order
 	statements := make([]string, 0, len(changes.Changes))
 	for i := len(changes.Changes) - 1; i >= 0; i-- {
 		change := changes.Changes[i]
 		if !change.Reversible {
-			logger.Debugf("Skipping non-reversible change: %v", change.Type)
+			g.logger.Debugf("Skipping non-reversible change: %v", change.Type)
 			continue
 		}
 
 		stmt := g.generateDownStatement(change)
 		if stmt != "" {
-			logger.Debugf("Generated down statement: %s", stmt)
+			g.logger.Debugf("Generated down statement: %s", stmt)
 			statements = append(statements, stmt)
 		}
 	}
@@ -316,24 +316,24 @@ func (g *Generator) generateDownStatements(changes *ChangeSet) []string {
 }
 
 func (g *Generator) generateDownStatement(change *Change) string {
-	logger.Debugf("Generating down statement for change type: %v", change.Type)
+	g.logger.Debugf("Generating down statement for change type: %v", change.Type)
 
 	switch change.Type {
 	case CreateTable:
 		stmt := fmt.Sprintf("DROP TABLE IF EXISTS %s;", change.ObjectName)
-		logger.Debugf("Generated down statement for table: %s", stmt)
+		g.logger.Debugf("Generated down statement for table: %s", stmt)
 		return stmt
 	case AddColumn:
 		stmt := fmt.Sprintf("ALTER TABLE %s DROP COLUMN IF EXISTS %s;", change.ParentName, change.ObjectName)
-		logger.Debugf("Generated down statement for column: %s", stmt)
+		g.logger.Debugf("Generated down statement for column: %s", stmt)
 		return stmt
 	case AddConstraint:
 		stmt := fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s;", change.ParentName, change.ObjectName)
-		logger.Debugf("Generated down statement for constraint: %s", stmt)
+		g.logger.Debugf("Generated down statement for constraint: %s", stmt)
 		return stmt
 	case AddIndex, ModifyIndex:
 		stmt := fmt.Sprintf("DROP INDEX IF EXISTS %s;", change.ObjectName)
-		logger.Debugf("Generated down statement for index: %s", stmt)
+		g.logger.Debugf("Generated down statement for index: %s", stmt)
 		return stmt
 	}
 	return ""
@@ -344,6 +344,13 @@ func NewGenerator(opts GeneratorOptions) (*Generator, error) {
 	d, ok := dialect.Get(opts.Dialect)
 	if !ok {
 		return nil, fmt.Errorf("unsupported dialect: %s", opts.Dialect)
+	}
+
+	// Initialize logger if not provided
+	logger := opts.Logger
+	if logger == nil {
+		logger = logrus.New()
+		logger.SetLevel(opts.LogLevel)
 	}
 
 	return &Generator{
