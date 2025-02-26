@@ -134,15 +134,3 @@ CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_
 
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
--- +migrate Down
-DROP TABLE IF EXISTS companies CASCADE;
-DROP TABLE IF EXISTS currencies CASCADE;
-DROP TABLE IF EXISTS permissions CASCADE;
-DROP TABLE IF EXISTS role_permissions CASCADE;
-DROP TABLE IF EXISTS roles CASCADE;
-DROP TABLE IF EXISTS uploaded_images CASCADE;
-DROP TABLE IF EXISTS uploads CASCADE;
-DROP TABLE IF EXISTS user_roles CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS tabs CASCADE;
-DROP TABLE IF EXISTS sessions CASCADE;
