@@ -5,8 +5,15 @@ const { Pool } = require("pg");
 
 const exec = util.promisify(cp.exec);
 const { env } = process;
+const [DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME] = [
+	env.DB_USER ?? "postgres",
+	env.DB_PASSWORD ?? "postgres",
+	env.DB_HOST ?? "localhost",
+	env.DB_PORT ?? 5432,
+	env.DB_NAME ?? "iota_erp",
+];
 const pool = new Pool({
-	connectionString: `postgres://${env.DB_USER}:${env.DB_PASSWORD}@${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}`,
+	connectionString: `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`,
 });
 
 async function resetDatabase() {
