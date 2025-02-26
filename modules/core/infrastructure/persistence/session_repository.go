@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -15,30 +16,23 @@ var (
 )
 
 const (
-	sessionFindQuery = `
-        SELECT token, 
-        user_id, 
-        expires_at, 
-        ip, 
-        user_agent, 
-        created_at 
-        FROM sessions`
+	sessionFindQuery   = `SELECT token, user_id, expires_at, ip, user_agent, created_at FROM sessions`
 	sessionCountQuery  = `SELECT COUNT(*) as count FROM sessions`
 	sessionInsertQuery = `
         INSERT INTO sessions (
-            token, 
-            user_id, 
-            expires_at, 
-            ip, 
+            token,
+            user_id,
+            expires_at,
+            ip,
             user_agent,
             created_at
         )
         VALUES ($1, $2, $3, $4, $5, $6)`
 	sessionUpdateQuery = `
-        UPDATE sessions 
-        SET expires_at = $1, 
-            ip = $2, 
-            user_agent = $3 
+        UPDATE sessions
+        SET expires_at = $1,
+            ip = $2,
+            user_agent = $3
         WHERE token = $4`
 	sessionDeleteQuery = `DELETE FROM sessions WHERE token = $1`
 )
@@ -50,6 +44,18 @@ func NewSessionRepository() session.Repository {
 }
 
 func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case session.ExpiresAt:
+			sortFields = append(sortFields, "sessions.expires_at")
+		case session.CreatedAt:
+			sortFields = append(sortFields, "sessions.created_at")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
+	}
+
 	var args []interface{}
 	where := []string{"1 = 1"}
 
@@ -58,13 +64,16 @@ func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *sessio
 		args = append(args, params.Token)
 	}
 
-	q := repo.Join(
-		sessionFindQuery,
-		repo.JoinWhere(where...),
-		repo.FormatLimitOffset(params.Limit, params.Offset),
+	return g.querySessions(
+		ctx,
+		repo.Join(
+			sessionFindQuery,
+			repo.JoinWhere(where...),
+			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		),
+		args...,
 	)
-
-	return g.querySessions(ctx, q, args...)
 }
 
 func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {

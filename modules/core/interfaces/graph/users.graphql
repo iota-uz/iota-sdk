@@ -15,5 +15,5 @@ type PaginatedUsers {
 
 extend type Query {
     user(id: ID!): User
-    users(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedUsers!
+    users(offset: Int!, limit: Int!, sortBy: [Int!], ascending: Boolean!): PaginatedUsers!
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -18,7 +19,7 @@ var (
 
 const (
 	userFindQuery = `
-        SELECT 
+        SELECT
             u.id,
             u.first_name,
             u.last_name,
@@ -85,10 +86,30 @@ func NewUserRepository() user.Repository {
 }
 
 func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
+	sortFields := []string{}
+	for _, f := range params.SortBy.Fields {
+		switch f {
+		case user.FirstName:
+			sortFields = append(sortFields, "u.first_name")
+		case user.LastName:
+			sortFields = append(sortFields, "u.last_name")
+		case user.MiddleName:
+			sortFields = append(sortFields, "u.middle_name")
+		case user.Email:
+			sortFields = append(sortFields, "u.email")
+		case user.LastLogin:
+			sortFields = append(sortFields, "u.last_login")
+		case user.CreatedAt:
+			sortFields = append(sortFields, "u.created_at")
+		default:
+			return nil, fmt.Errorf("unknown sort field: %v", f)
+		}
+	}
 	where, args := []string{"1 = 1"}, []interface{}{}
 	query := repo.Join(
 		userFindQuery,
 		repo.JoinWhere(where...),
+		repo.OrderBy(sortFields, params.SortBy.Ascending),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryUsers(ctx, query, args...)
@@ -346,12 +367,12 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 	}
 
 	rows, err := tx.Query(ctx, `
-		SELECT 
+		SELECT
 			r.id,
 			r.name,
 			r.description,
 			r.created_at,
-			r.updated_at 
+			r.updated_at
 		FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
 	`,
 		userID,
