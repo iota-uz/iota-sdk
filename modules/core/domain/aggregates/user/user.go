@@ -1,10 +1,11 @@
 package user
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/utils/sequence"
 	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/utils/sequence"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -40,6 +41,7 @@ type User interface {
 	SetAvatarID(id uint) User
 	SetLastIP(ip string) User
 	SetPassword(password string) (User, error)
+	SetPasswordUnsafe(password string) User
 	SetEmail(email string) User
 }
 
@@ -357,4 +359,24 @@ func (u *user) SetPassword(password string) (User, error) {
 		createdAt:  u.createdAt,
 		updatedAt:  time.Now(),
 	}, nil
+}
+
+func (u *user) SetPasswordUnsafe(newPassword string) User {
+	return &user{
+		id:         u.id,
+		firstName:  u.firstName,
+		lastName:   u.lastName,
+		middleName: u.middleName,
+		password:   newPassword,
+		email:      u.email,
+		avatarID:   u.avatarID,
+		avatar:     u.avatar,
+		lastIP:     u.lastIP,
+		uiLanguage: u.uiLanguage,
+		roles:      u.roles,
+		lastLogin:  u.lastLogin,
+		lastAction: u.lastAction,
+		createdAt:  u.createdAt,
+		updatedAt:  time.Now(),
+	}
 }

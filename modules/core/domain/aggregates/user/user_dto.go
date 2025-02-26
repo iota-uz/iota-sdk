@@ -3,8 +3,9 @@ package user
 import (
 	"context"
 	"fmt"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"time"
+
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -14,6 +15,7 @@ import (
 type CreateDTO struct {
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
+	MiddleName string `validate:"required"`
 	Email      string `validate:"required,email"`
 	Password   string
 	RoleIDs    []uint `validate:"required"`
@@ -24,6 +26,7 @@ type CreateDTO struct {
 type UpdateDTO struct {
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
+	MiddleName string `validate:"required"`
 	Email      string `validate:"required,email"`
 	Password   string
 	RoleIDs    []uint
@@ -95,6 +98,7 @@ func (u *CreateDTO) ToEntity() (User, error) {
 	return &user{
 		firstName:  u.FirstName,
 		lastName:   u.LastName,
+		middleName: u.MiddleName,
 		email:      u.Email,
 		roles:      roles,
 		password:   u.Password,
@@ -120,6 +124,7 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 	return &user{
 		id:         id,
 		firstName:  u.FirstName,
+		middleName: u.MiddleName,
 		lastName:   u.LastName,
 		email:      u.Email,
 		roles:      roles,
