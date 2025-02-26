@@ -28,7 +28,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RBAC().Register(
 		permissions.Permissions...,
 	)
-	app.RegisterMigrationDirs(&MigrationFiles)
+	app.RegisterSchemaFS(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterServices(
 		services.NewPositionService(persistence.NewPositionRepository(), app.EventPublisher()),

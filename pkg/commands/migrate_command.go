@@ -63,24 +63,21 @@ func Migrate(mods ...application.Module) error {
 }
 
 func handleSchemaCommands(ctx context.Context, command string, logLevel logrus.Level) error {
+	// Get migrations path from environment or use default
 	migrationsPath := os.Getenv("MIGRATIONS_DIR")
 	if migrationsPath == "" {
 		migrationsPath = "migrations"
 	}
 
-	modulesPath := os.Getenv("MODULES_DIR")
-	if modulesPath == "" {
-		modulesPath = "modules"
-	}
+	// For CLI-only schema collection, we don't need a migration manager
 
-	// Set log level for all components
-	// Now handled internally by the collector
-
+	// Initialize collector with empty embed.FS list
+	// For CLI only migrations dir is used
 	collector := collector.New(collector.Config{
-		ModulesPath:    modulesPath,
 		MigrationsPath: migrationsPath,
 		SQLDialect:     "postgres",
 		LogLevel:       logLevel,
+		EmbedFSs:       nil,
 	})
 
 	switch command {
@@ -108,22 +105,25 @@ func handleMigrationCommands(ctx context.Context, command string, conf *configur
 		return err
 	}
 
+	// Get the migration manager from the application
+	migrations := app.Migrations()
+
 	switch command {
 	case "up":
-		if err := app.RunMigrations(); err != nil {
+		if err := migrations.RunMigrations(); err != nil {
 			return fmt.Errorf("failed to run migrations: %w", err)
 		}
 
 	case "down":
-		if err := app.RollbackMigrations(); err != nil {
+		if err := migrations.RollbackMigrations(); err != nil {
 			return fmt.Errorf("failed to rollback migrations: %w", err)
 		}
 
 	case "redo":
-		if err := app.RollbackMigrations(); err != nil {
+		if err := migrations.RollbackMigrations(); err != nil {
 			return errors.Join(err, errors.New("failed to rollback migrations"))
 		}
-		if err := app.RunMigrations(); err != nil {
+		if err := migrations.RunMigrations(); err != nil {
 			return errors.Join(err, errors.New("failed to run migrations"))
 		}
 

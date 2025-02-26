@@ -91,7 +91,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewInventoryController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
-	app.RegisterMigrationDirs(&migrationFiles)
+	app.RegisterSchemaFS(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.Spotlight().Register(
 		spotlight.NewItem(nil, ProductsItem.Name, ProductsItem.Href),
