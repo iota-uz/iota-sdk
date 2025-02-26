@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime/debug"
 	"time"
@@ -30,16 +31,21 @@ func pgxPool() *pgxpool.Pool {
 	defer cancel()
 	pool, err := pgxpool.New(ctx, conf.Database.Opts)
 	if err != nil {
-		panic(err)
+		panicWithStack(err)
 	}
 	return pool
+}
+
+func panicWithStack(err error) {
+	errorWithStack := string(debug.Stack()) + "\n\nError: " + err.Error()
+	panic(errorWithStack)
 }
 
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			configuration.Use().Unload()
-			debug.PrintStack()
+			fmt.Println(r)
 			os.Exit(1)
 		}
 	}()
@@ -49,7 +55,7 @@ func main() {
 	pool := pgxPool()
 	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
-		panic(err)
+		panicWithStack(err)
 	}
 	app.RegisterNavItems(core.NavItems...)
 	app.RegisterNavItems(bichat.NavItems...)
@@ -60,7 +66,7 @@ func main() {
 	app.RegisterNavItems(website.NavItems...)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		panic(err)
+		panicWithStack(err)
 	}
 	seeder := application.NewSeeder()
 	seeder.Register(
@@ -69,9 +75,9 @@ func main() {
 		coreseed.UserSeedFunc("test@gmail.com", "TestPass123!", user.UILanguageEN),
 	)
 	if err := seeder.Seed(composables.WithTx(ctx, tx), app); err != nil {
-		panic(err)
+		panicWithStack(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		panic(err)
+		panicWithStack(err)
 	}
 }
