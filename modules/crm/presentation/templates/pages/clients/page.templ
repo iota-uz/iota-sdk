@@ -37,11 +37,12 @@ type ViewDrawerProps struct {
 }
 
 templ ViewDrawer(props ViewDrawerProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@dialog.StdViewDrawer(dialog.StdDrawerProps{
 		ID:     "view-drawer",
 		Open:   true,
 		Action: "view-client",
-		Title:  "Details about the client",
+		Title:  pageCtx.T("Clients.Single.ViewDrawer.Title"),
 		Attrs: templ.Attributes{
 			"@closing": fmt.Sprintf("history.pushState(null, '', '%s')", props.CallbackURL),
 			"@closed":  "document.getElementById('view-drawer').remove()",
@@ -65,9 +66,10 @@ templ ViewDrawer(props ViewDrawerProps) {
 }
 
 templ NewClientDrawer() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@dialog.StdViewDrawer(dialog.StdDrawerProps{
 		Action: "new-client",
-		Title:  "New client",
+		Title:  pageCtx.T("Clients.New.Meta.Title"),
 	}) {
 		@CreateForm(&CreatePageProps{
 			Client:  &viewmodels.Client{},
@@ -150,7 +152,7 @@ templ Profile(props ProfileProps) {
 							"hx-target":  "#tab-content",
 						},
 					}) {
-						Cancel
+						{ pageCtx.T("Cancel") }
 					}
 					@button.Secondary(button.Props{
 						Icon: icons.PencilSimple(icons.Props{Size: "20"}),
@@ -163,12 +165,12 @@ templ Profile(props ProfileProps) {
 							"hx-target":  "#profile-content",
 						},
 					}) {
-						Edit
+						{ pageCtx.T("Edit") }
 					}
 					@button.Primary(button.Props{
 						Icon: icons.PlusCircle(icons.Props{Size: "20"}),
 					}) {
-						Send a message
+						{ pageCtx.T("Clients.Single.SendMessage") }
 					}
 				</div>
 			</div>
@@ -185,21 +187,23 @@ templ Profile(props ProfileProps) {
 }
 
 templ Notes() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex gap-3 bg-surface-100 rounded-md p-3">
 		<div class="text-gray-400">
 			@icons.Note(icons.Props{Size: "20"})
 		</div>
 		<div class="flex-1 space-y-3">
-			<h3 class="text-gray-400">Notes</h3>
-			<p>No notes available</p>
+			<h3 class="text-gray-400">{ pageCtx.T("Clients.Tabs.Notes") }</h3>
+			<p>{ pageCtx.T("Clients.Notes.NoNotes") }</p>
 		</div>
 	</div>
 }
 
 // ---- Not Found ----
 templ NotFound() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div>
-		Not Found
+		{ pageCtx.T("NotFound") }
 	</div>
 }
 
