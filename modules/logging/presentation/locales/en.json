@@ -1,2 +1,10 @@
 {
+	"Resources": {
+		"logs": "Logs"
+	},
+	"Permissions": {
+		"Logs": {
+			"View": "View logs"
+		}
+	}
 }

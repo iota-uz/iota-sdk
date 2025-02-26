@@ -1,6 +1,9 @@
 package dialog
 
-import "fmt"
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+)
 
 type Direction int
 
@@ -19,6 +22,8 @@ var directions = map[Direction]string{
 }
 
 type DrawerProps struct {
+	ID        string
+	Open      bool
 	Direction Direction
 	Action    string
 	Attrs     templ.Attributes
@@ -26,9 +31,18 @@ type DrawerProps struct {
 }
 
 templ Drawer(props DrawerProps) {
+	{{
+		listener := fmt.Sprintf("@%s.window", props.Action)
+		attrs := templ.Attributes{
+			"x-data": templ.SafeScriptInline("dialog", props.Open),
+			listener: "toggle",
+		}
+		if props.ID != "" {
+			attrs["id"] = props.ID
+		}
+	}}
 	<div
-		x-data="dialog"
-		{ templ.Attributes{fmt.Sprintf("@%s.window", props.Action): "toggle"}... }
+		{ attrs... }
 	>
 		<dialog
 			x-bind="dialog"
@@ -45,4 +59,47 @@ templ Drawer(props DrawerProps) {
 			{ children... }
 		</dialog>
 	</div>
+}
+
+type StdDrawerProps struct {
+	ID     string
+	Title  string
+	Action string
+	Open   bool
+	Attrs  templ.Attributes
+}
+
+templ StdViewDrawer(props StdDrawerProps) {
+	@Drawer(DrawerProps{
+		ID:        props.ID,
+		Direction: RTL,
+		Open:      props.Open,
+		Action:    props.Action,
+		Classes:   templ.Classes("flex items-stretch"),
+		Attrs:     props.Attrs,
+	}) {
+		<div class="bg-white w-3/4 md:w-2/3 ml-auto">
+			<form
+				method="dialog"
+				class="flex flex-col h-full"
+			>
+				<div
+					class={
+						"flex justify-between px-4 py-3",
+						"border-b border-primary",
+					}
+				>
+					<h3 class="font-medium">
+						{ props.Title }
+					</h3>
+					<div>
+						<button class="cursor-pointer">
+							@icons.XCircle(icons.Props{Size: "20"})
+						</button>
+					</div>
+				</div>
+				{ children... }
+			</form>
+		</div>
+	}
 }

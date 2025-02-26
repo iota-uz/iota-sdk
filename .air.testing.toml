@@ -3,16 +3,24 @@ testdata_dir = "testdata"
 
 [build]
 cmd = "go test -v ./..."
-args = [] # Replace default args with test command
+args = []                # Replace default args with test command
 # Binary name after build (not used in this setup)
 bin = ""
 # Specify working directory if needed
 full_bin = ""
 # Timeout for the build process
-delay = 2000 # in milliseconds
+delay = 2000           # in milliseconds
 kill_signal = "SIGINT"
 # Patterns to watch
-exclude_dir = ["tmp", "vendor", "testdata", "postgres-data", "static", "py-embed", "e2e"]
+exclude_dir = [
+  "tmp",
+  "vendor",
+  "testdata",
+  "postgres-data",
+  "static",
+  "py-embed",
+  "e2e",
+]
 exclude_file = []
 exclude_regex = []
 exclude_unchanged = false

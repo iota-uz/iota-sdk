@@ -95,7 +95,7 @@ Before starting, ensure the following tools are installed on your system:
 
 6. **Apply database migrations**:
    ```cmd
-   make migrate-up && make seed
+   make migrate up && make seed
    ```
 
 7. **Run TailwindCSS in watch mode**:
@@ -111,7 +111,7 @@ Before starting, ensure the following tools are installed on your system:
 
 9. **Access the web app**:
 
-   Open your browser and navigate to:  
+   Open your browser and navigate to:
    [http://localhost:8080](http://localhost:8080)
 
    Use the following credentials to log in:
@@ -125,9 +125,26 @@ Before starting, ensure the following tools are installed on your system:
    TestPass123!
    ```
 
-10. **Access the GraphQL Schema**:  
-    Open Postman and connect to:  
+10. **Access the GraphQL Schema**:
+    Open Postman and connect to:
     [http://localhost:3200/query](http://localhost:3200/query)
+
+### Running tests
+
+To run end-to-end Cypress tests you need to have a working, migrated and seeded database and a running back-end on the background. Tests require these environment variables to be able to truncate the database before each test suite:
+
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+
+If they are not provided the tests will assume sensible defaults for a local database. To run the tests:
+
+```bash
+cd e2e/
+pnpm cypress run --headed
+```
 
 ### Troubleshooting Windows Setup
 
@@ -153,5 +170,9 @@ Before starting, ensure the following tools are installed on your system:
      docker ps
      ```
    - Verify the database credentials in your `.env` file
+
+### Communication rules
+
+1. The contributer should close the conversation if he considers it's done. It can be reopened by the reviewer if needed.
 
 For additional help, please check our [FAQ](./FAQ.md) or open an issue on GitHub.

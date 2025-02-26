@@ -37,7 +37,6 @@
     "Resources": {
       "user": "Foydalanuvchi",
       "role": "Rol",
-      "employee": "Xodim",
       "payment": "To'lov",
       "expense": "Xarajat",
       "expense_category": "Xarajat toifasi",
@@ -77,12 +76,6 @@
         "Read": "Bosqichni ko'rish",
         "Update": "Bosqichni tahrirlash",
         "Delete": "Bosqichni o'chirish"
-      },
-      "Employee": {
-        "Create": "Xodim yaratish",
-        "Read": "Xodimni ko'rish",
-        "Update": "Xodimni tahrirlash",
-        "Delete": "Xodimni o'chirish"
       },
       "Settings": {
         "Update": "Sozlamalarni tahrirlash",
@@ -144,7 +137,6 @@
       "Roles": "Rollar",
       "KnowledgeBase": "Bilimlar bazasi",
       "Operations": "Operatsiyalar",
-      "Employees": "Xodimlar",
       "Settings": "Sozlamalar",
       "Calendar": "Taqvim",
       "Enums": "Ro'yxatlar",
@@ -256,98 +248,6 @@
         "DeleteConfirmation": "Haqiqatan ham bu loyihani o'chirmoqchimisiz?"
       }
     },
-    "Employees": {
-      "Meta": {
-        "List": {
-          "Title": "Xodimlar"
-        },
-        "Edit": {
-          "Title": "Xodimni tahrirlash"
-        },
-        "New": {
-          "Title": "Yangi xodim"
-        }
-      },
-      "List": {
-        "New": "Yangi xodim",
-        "FullName": "To'liq ism",
-        "Position": "Lavozim",
-        "Email": "Email"
-      },
-      "Tabs": {
-        "Public": "Umumiy",
-        "Private": "Maxfiy"
-      },
-      "Cards": {
-        "PersonalInfo": "Shaxsiy ma'lumotlar",
-        "JobInfo": "Ish ma'lumotlari"
-      },
-      "Single": {
-        "Edit": "Xodimni tahrirlash",
-        "Delete": "Xodimni o'chirish",
-        "DeleteConfirmation": "Haqiqatan ham bu xodimni o'chirmoqchimisiz?"
-      },
-      "Public": {
-        "FirstName": {
-          "Label": "Ism",
-          "Placeholder": "Ismni kiriting"
-        },
-        "LastName": {
-          "Label": "Familiya",
-          "Placeholder": "Familiyani kiriting"
-        },
-        "MiddleName": {
-          "Label": "Otasining ismi",
-          "Placeholder": "Otasining ismini kiriting"
-        },
-        "Phone": {
-          "Label": "Telefon",
-          "Placeholder": "+998 (__) ___ __ __"
-        },
-        "Email": {
-          "Label": "Email",
-          "Placeholder": "jodoe@gmail.com"
-        },
-        "BirthDate": {
-          "Label": "Tug'ilgan sana"
-        },
-        "Position": {
-          "Label": "Lavozim",
-          "Placeholder": "Lavozimni tanlang"
-        },
-        "HireDate": {
-          "Label": "Ishga kirgan sana"
-        },
-        "ResignationDate": {
-          "Label": "Ishdan ketgan sana"
-        },
-        "EmploymentStatus": {
-          "Label": "Bandlik holati",
-          "Placeholder": "Bandlik holatini tanlang"
-        },
-        "Level": {
-          "Label": "Daraja",
-          "Placeholder": "Darajani tanlang"
-        }
-      },
-      "Private": {
-        "Salary": {
-          "Label": "Maosh"
-        },
-        "PassportSN": {
-          "Label": "Pasport seriyasi va raqami",
-          "Placeholder": "AA 123 45 67"
-        },
-        "TIN": {
-          "Label": "STIR",
-          "Placeholder": "1234567"
-        },
-        "Pin": {
-          "Label": "JSHSHIR",
-          "Placeholder": "123456789192121"
-        }
-      }
-    },
     "Account": {
       "Meta": {
         "Index": {
@@ -401,5 +301,6 @@
     "Back": "Orqaga",
     "Add": "Qo'shish",
     "Remove": "O'chirish",
-    "All": "Hammasi"
+    "All": "Hammasi",
+    "Edit": "Tahrirlash"
 }

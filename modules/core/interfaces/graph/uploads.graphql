@@ -1,0 +1,31 @@
+scalar File
+
+enum UploadType @goModel(model: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadType") {
+  Document @goEnum(value: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadTypeDocument")
+  Image @goEnum(value: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadTypeImage")
+}
+
+type Upload {
+  id: ID!
+  url: String!
+  hash: String!
+  path: String!
+  name: String!
+  mimetype: String!
+  type: UploadType!
+  size: Int!
+}
+
+input UploadFilter {
+  mimeType: String
+  mimeTypePrefix: String
+  type: UploadType
+}
+
+extend type Mutation {
+  uploadFile(file: File): Upload!
+}
+
+extend type Query {
+  uploads(filter: UploadFilter!): [Upload!]!
+}

@@ -30,9 +30,9 @@ func NewAuthService(app application.Application) *AuthService {
 	return &AuthService{
 		app: app,
 		oAuthConfig: &oauth2.Config{
-			RedirectURL:  conf.GoogleRedirectURL,
-			ClientID:     conf.GoogleClientID,
-			ClientSecret: conf.GoogleClientSecret,
+			RedirectURL:  conf.Google.RedirectURL,
+			ClientID:     conf.Google.ClientID,
+			ClientSecret: conf.Google.ClientSecret,
 			Scopes: []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
@@ -82,7 +82,7 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 		Expires:  sess.ExpiresAt,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 		Path:     "/",
 	}
@@ -170,8 +170,8 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 	}
 	return cookie, nil
@@ -203,8 +203,8 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		Value:    sess.Token,
 		Expires:  sess.ExpiresAt,
 		HttpOnly: false,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 	}
 	return cookie, nil
@@ -224,7 +224,7 @@ func generateStateOauthCookie() (*http.Cookie, error) {
 		Expires:  time.Now().Add(time.Minute * 5),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == "production",
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
 	}
 	return cookie, nil

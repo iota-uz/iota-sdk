@@ -37,7 +37,6 @@
   "Resources": {
     "user": "Пользователь",
     "role": "Роль",
-    "employee": "Сотрудник",
     "payment": "Платеж",
     "expense": "Расход",
     "expense_category": "Категория расходов",
@@ -77,12 +76,6 @@
       "Read": "Просмотр этапов",
       "Update": "Изменение этапов",
       "Delete": "Удаление этапов"
-    },
-    "Employee": {
-      "Create": "Создание сотрудников",
-      "Read": "Просмотр сотрудников",
-      "Update": "Изменение сотрудников",
-      "Delete": "Удаление сотрудников"
     },
     "Settings": {
       "Update": "Изменение настроек",
@@ -144,7 +137,6 @@
     "Roles": "Роли",
     "KnowledgeBase": "База знаний",
     "Operations": "Операции",
-    "Employees": "Сотрудники",
     "Settings": "Настройки",
     "Calendar": "Календарь",
     "Enums": "Перечисления",
@@ -256,98 +248,6 @@
       "DeleteConfirmation": "Вы уверены что хотите удалить этот проект?"
     }
   },
-  "Employees": {
-    "Meta": {
-      "List": {
-        "Title": "Сотрудники"
-      },
-      "Edit": {
-        "Title": "Редактировать сотрудника"
-      },
-      "New": {
-        "Title": "Добавить сотрудника"
-      }
-    },
-    "Tabs": {
-      "Public": "Публичные",
-      "Private": "Конфиденциальные"
-    },
-    "Cards": {
-      "PersonalInfo": "Персональные данные",
-      "JobInfo": "Рабочие данные"
-    },
-    "List": {
-      "New": "Добавить сотрудника",
-      "FullName": "Полное имя",
-      "Position": "Должность",
-      "Email": "Электронная почта"
-    },
-    "Single": {
-      "Edit": "Редактировать сотрудника",
-      "Delete": "Удалить сотрудника",
-      "DeleteConfirmation": "Вы уверены что хотите удалить этого сотрудника?"
-    },
-    "Public": {
-      "FirstName": {
-        "Label": "Имя",
-        "Placeholder": "Введите имя"
-      },
-      "LastName": {
-        "Label": "Фамилия",
-        "Placeholder": "Введите фамилию"
-      },
-      "MiddleName": {
-        "Label": "Отчество",
-        "Placeholder": "Введите отчество"
-      },
-      "Phone": {
-        "Label": "Телефон",
-        "Placeholder": "+998 (__) ___ __ __"
-      },
-      "Email": {
-        "Label": "Электронная почта",
-        "Placeholder": "jodoe@gmail.com"
-      },
-      "BirthDate": {
-        "Label": "Дата рождения"
-      },
-      "Position": {
-        "Label": "Должность",
-        "Placeholder": "Выберите должность"
-      },
-      "HireDate": {
-        "Label": "Дата трудоустройства"
-      },
-      "ResignationDate": {
-        "Label": "Дата увольнения"
-      },
-      "EmploymentStatus": {
-        "Label": "Тип занятости",
-        "Placeholder": "Выберите тип занятости"
-      },
-      "Level": {
-        "Label": "Уровень",
-        "Placeholder": "Выберите уровень"
-      }
-    },
-    "Private": {
-      "Salary": {
-        "Label": "Зарплата"
-      },
-      "PassportSN": {
-        "Label": "Серия и номер пасспорта",
-        "Placeholder": "AA 123 45 67"
-      },
-      "TIN": {
-        "Label": "ИНН",
-        "Placeholder": "1234567"
-      },
-      "Pin": {
-        "Label": "ПИНФЛ",
-        "Placeholder": "123456789192121"
-      }
-    }
-  },
   "Account": {
     "Meta": {
       "Index": {
@@ -401,5 +301,6 @@
   "Back": "Назад",
   "Add": "Добавить",
   "Remove": "Удалить",
-  "All": "Все"
+  "All": "Все",
+  "Edit": "Редактировать"
 }

@@ -35,11 +35,18 @@
 			}
 		},
 		"Tabs": {
-			"General": "Общее",
+			"Profile": "Общее",
 			"Notes": "Заметки",
 			"Chat": "Сообщения"
 		},
+		"Notes": {
+			"NoNotes": "Нет доступных заметок"
+		},
 		"Single": {
+			"ViewDrawer": {
+				"Title": "Информация о клиенте"
+			},
+			"SendMessage": "Отправить сообщение",
 			"FirstName": {
 				"Label": "Имя",
 				"Placeholder": "Введите имя"

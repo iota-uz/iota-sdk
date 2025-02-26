@@ -35,11 +35,18 @@
 			}
 		},
 		"Tabs": {
-			"General": "General",
+			"Profile": "General",
 			"Notes": "Notes",
 			"Chat": "Messages"
 		},
+		"Notes": {
+			"NoNotes": "No notes available"
+		},
 		"Single": {
+			"ViewDrawer": {
+				"Title": "Details about the client"
+			},
+			"SendMessage": "Send a message",
 			"FirstName": {
 				"Label": "First Name",
 				"Placeholder": "Enter the first name"
