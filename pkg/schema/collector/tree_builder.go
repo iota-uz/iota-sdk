@@ -2,6 +2,11 @@ package collector
 
 import (
 	"strings"
+
+	"github.com/auxten/postgresql-parser/pkg/sql/parser"
+	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
+	"github.com/auxten/postgresql-parser/pkg/walk"
+	"github.com/iota-uz/iota-sdk/pkg/schema/common"
 )
 
 type schemaState struct {
@@ -11,14 +16,14 @@ type schemaState struct {
 }
 
 type columnState struct {
-	node      *Node
+	node      *tree.ColumnTableDef
 	timestamp int64
 	type_     string
 	lastFile  string
 }
 
 type indexState struct {
-	node      *Node
+	node      *tree.CreateIndex
 	timestamp int64
 	lastFile  string
 }
@@ -31,19 +36,27 @@ func newSchemaState() *schemaState {
 	}
 }
 
-func (s *schemaState) updateFromParsedTree(tree *SchemaTree, timestamp int64, fileName string) {
-	for _, node := range tree.Root.Children {
-		switch node.Type {
-		case NodeTable:
-			s.updateTableState(node, timestamp, fileName)
-		case NodeIndex:
-			s.updateIndexState(node, timestamp, fileName)
-		}
+func (s *schemaState) update(stmts parser.Statements, timestamp int64, fileName string) {
+	w := &walk.AstWalker{
+		Fn: func(ctx interface{}, node interface{}) bool {
+			switch n := node.(type) {
+			case *tree.CreateTable:
+				s.updateTableState(n, timestamp, fileName)
+			case *tree.CreateIndex:
+				s.updateIndexState(n, timestamp, fileName)
+			case *tree.DropTable:
+				for _, name := range n.Names {
+					s.drops[strings.ToLower(name.String())] = true
+				}
+			}
+			return true
+		},
 	}
+	_, _ = w.Walk(stmts, nil)
 }
 
-func (s *schemaState) updateTableState(node *Node, timestamp int64, fileName string) {
-	tableName := strings.ToLower(node.Name)
+func (s *schemaState) updateTableState(node *tree.CreateTable, timestamp int64, fileName string) {
+	tableName := strings.ToLower(node.Table.String())
 
 	// Handle dropped tables
 	if s.drops[tableName] {
@@ -54,22 +67,23 @@ func (s *schemaState) updateTableState(node *Node, timestamp int64, fileName str
 		s.tables[tableName] = make(map[string]*columnState)
 	}
 
-	for _, col := range node.Children {
-		if col.Type == NodeColumn {
-			s.updateColumnState(tableName, col, timestamp, fileName)
+	for _, def := range node.Defs {
+		switch d := def.(type) {
+		case *tree.ColumnTableDef:
+			s.updateColumnState(tableName, d, timestamp, fileName)
 		}
 	}
 }
 
-func (s *schemaState) updateColumnState(tableName string, col *Node, timestamp int64, fileName string) {
-	colName := strings.ToLower(col.Name)
+func (s *schemaState) updateColumnState(tableName string, col *tree.ColumnTableDef, timestamp int64, fileName string) {
+	colName := strings.ToLower(col.Name.String())
 	currentState := s.tables[tableName][colName]
 
-	newType := s.extractColumnType(col)
+	newType := col.Type.String()
 
 	if shouldUpdateColumn(currentState, timestamp, newType) {
 		s.tables[tableName][colName] = &columnState{
-			node:      cleanNode(col),
+			node:      col,
 			timestamp: timestamp,
 			type_:     newType,
 			lastFile:  fileName,
@@ -77,21 +91,21 @@ func (s *schemaState) updateColumnState(tableName string, col *Node, timestamp i
 	}
 }
 
-func (s *schemaState) updateIndexState(node *Node, timestamp int64, fileName string) {
-	indexName := strings.ToLower(node.Name)
+func (s *schemaState) updateIndexState(node *tree.CreateIndex, timestamp int64, fileName string) {
+	indexName := strings.ToLower(node.Name.String())
 	currentState := s.indexes[indexName]
 
 	if shouldUpdateIndex(currentState, timestamp) {
 		s.indexes[indexName] = &indexState{
-			node:      cleanNode(node),
+			node:      node,
 			timestamp: timestamp,
 			lastFile:  fileName,
 		}
 	}
 }
 
-func (s *schemaState) buildFinalTree() *SchemaTree {
-	tree := NewSchemaTree()
+func (s *schemaState) buildSchema() *common.Schema {
+	schema := common.NewSchema()
 
 	// Add tables
 	for tableName, columns := range s.tables {
@@ -99,26 +113,24 @@ func (s *schemaState) buildFinalTree() *SchemaTree {
 			continue
 		}
 
-		tableNode := &Node{
-			Type:     NodeTable,
-			Name:     tableName,
-			Children: make([]*Node, 0, len(columns)),
-			Metadata: make(map[string]interface{}),
-		}
-
+		defs := make(tree.TableDefs, 0, len(columns))
 		for _, state := range columns {
-			tableNode.Children = append(tableNode.Children, state.node)
+			defs = append(defs, state.node)
 		}
 
-		tree.Root.Children = append(tree.Root.Children, tableNode)
+		schema.Tables[tableName] = &tree.CreateTable{
+			IfNotExists: false,
+			Table:       tree.MakeUnqualifiedTableName(tree.Name(tableName)),
+			Defs:        defs,
+		}
 	}
 
 	// Add indexes
 	for _, state := range s.indexes {
-		tree.Root.Children = append(tree.Root.Children, state.node)
+		schema.Indexes[strings.ToLower(state.node.Name.String())] = state.node
 	}
 
-	return tree
+	return schema
 }
 
 // Helper functions
@@ -129,39 +141,4 @@ func shouldUpdateColumn(current *columnState, newTimestamp int64, newType string
 
 func shouldUpdateIndex(current *indexState, newTimestamp int64) bool {
 	return current == nil || newTimestamp > current.timestamp
-}
-
-func cleanNode(node *Node) *Node {
-	cleaned := &Node{
-		Type:     node.Type,
-		Name:     node.Name,
-		Children: make([]*Node, len(node.Children)),
-		Metadata: make(map[string]interface{}),
-	}
-
-	// Clean metadata
-	for k, v := range node.Metadata {
-		if strVal, ok := v.(string); ok {
-			cleaned.Metadata[k] = strings.TrimRight(strVal, ";")
-		} else {
-			cleaned.Metadata[k] = v
-		}
-	}
-
-	// Clean children recursively
-	for i, child := range node.Children {
-		cleaned.Children[i] = cleanNode(child)
-	}
-
-	return cleaned
-}
-
-func (s *schemaState) extractColumnType(node *Node) string {
-	if fullType, ok := node.Metadata["fullType"].(string); ok {
-		return strings.ToLower(strings.TrimRight(fullType, ";"))
-	}
-	if typeStr, ok := node.Metadata["type"].(string); ok {
-		return strings.ToLower(strings.TrimRight(typeStr, ";"))
-	}
-	return ""
 }

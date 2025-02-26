@@ -31,24 +31,22 @@ type Application interface {
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
-	MigrationDirs() []*embed.FS
 	RBAC() permission.RBAC
 	Spotlight() spotlight.Spotlight
+	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)
 	RegisterControllers(controllers ...Controller)
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterAssets(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
-	RegisterMigrationDirs(fs ...*embed.FS)
+	RegisterSchemaFS(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
 	RegisterServices(services ...interface{})
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
 	Bundle() *i18n.Bundle
-	RunMigrations() error
-	RollbackMigrations() error
 }
 
 type Seeder interface {

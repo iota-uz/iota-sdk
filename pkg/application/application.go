@@ -1,26 +1,19 @@
 package application
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
 	"path/filepath"
 	"reflect"
-	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
-	"github.com/go-gorp/gorp/v3"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	migrate "github.com/rubenv/sql-migrate"
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -93,6 +86,10 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	
+	// Create a new migration manager
+	migrations := NewMigrationManager(pool)
+	
 	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
@@ -101,6 +98,7 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 		services:       make(map[reflect.Type]interface{}),
 		spotlight:      spotlight.New(),
 		bundle:         bundle,
+		migrations:     migrations,
 	}
 }
 
@@ -114,10 +112,10 @@ type application struct {
 	middleware     []mux.MiddlewareFunc
 	hashFsAssets   []*hashfs.FS
 	assets         []*embed.FS
-	migrationDirs  []*embed.FS
 	graphSchemas   []GraphSchema
 	bundle         *i18n.Bundle
 	spotlight      spotlight.Spotlight
+	migrations     MigrationManager
 	navItems       []types.NavigationItem
 }
 
@@ -165,8 +163,8 @@ func (app *application) HashFsAssets() []*hashfs.FS {
 	return app.hashFsAssets
 }
 
-func (app *application) MigrationDirs() []*embed.FS {
-	return app.migrationDirs
+func (app *application) Migrations() MigrationManager {
+	return app.migrations
 }
 
 func (app *application) GraphSchemas() []GraphSchema {
@@ -211,8 +209,8 @@ func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
 	}
 }
 
-func (app *application) RegisterMigrationDirs(fs ...*embed.FS) {
-	app.migrationDirs = append(app.migrationDirs, fs...)
+func (app *application) RegisterSchemaFS(fs ...*embed.FS) {
+	app.migrations.RegisterSchemaFS(fs...)
 }
 
 // RegisterServices registers a new service in the application by its type
@@ -237,164 +235,3 @@ func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }
 
-func CollectMigrations(app *application) ([]*migrate.Migration, error) {
-	var migrations []*migrate.Migration
-	for _, migrationFs := range app.migrationDirs {
-		files, err := listFiles(migrationFs, ".")
-		if err != nil {
-			return nil, err
-		}
-
-		for _, file := range files {
-			content, err := migrationFs.ReadFile(file)
-			if err != nil {
-				return nil, err
-			}
-
-			migration, err := migrate.ParseMigration(filepath.Join(file), bytes.NewReader(content))
-			if err != nil {
-				return nil, err
-			}
-			migrations = append(migrations, migration)
-		}
-	}
-
-	return migrations, nil
-}
-
-func newTxError(migration *migrate.PlannedMigration, err error) *migrate.TxError {
-	return &migrate.TxError{
-		Migration: migration.Migration,
-		Err:       err,
-	}
-}
-
-func (app *application) applyMigrations(ctx context.Context, dir migrate.MigrationDirection, migrations []*migrate.PlannedMigration, dbMap *gorp.DbMap) (int, error) {
-	applied := 0
-	for _, migration := range migrations {
-		e, err := dbMap.Begin()
-		if err != nil {
-			return applied, newTxError(migration, err)
-		}
-		executor := e.WithContext(ctx)
-
-		for _, stmt := range migration.Queries {
-			// remove the semicolon from stmt, fix ORA-00922 issue in database oracle
-			stmt = strings.TrimSuffix(stmt, "\n")
-			stmt = strings.TrimSuffix(stmt, " ")
-			stmt = strings.TrimSuffix(stmt, ";")
-			if _, err := executor.Exec(stmt); err != nil {
-				if trans, ok := executor.(*gorp.Transaction); ok {
-					_ = trans.Rollback()
-				}
-
-				return applied, newTxError(migration, err)
-			}
-		}
-
-		switch dir {
-		case migrate.Up:
-			err = executor.Insert(&migrate.MigrationRecord{
-				Id:        migration.Id,
-				AppliedAt: time.Now(),
-			})
-			if err != nil {
-				if trans, ok := executor.(*gorp.Transaction); ok {
-					_ = trans.Rollback()
-				}
-
-				return applied, newTxError(migration, err)
-			}
-		case migrate.Down:
-			_, err := executor.Delete(&migrate.MigrationRecord{
-				Id: migration.Id,
-			})
-			if err != nil {
-				if trans, ok := executor.(*gorp.Transaction); ok {
-					_ = trans.Rollback()
-				}
-
-				return applied, newTxError(migration, err)
-			}
-		default:
-			panic("Not possible")
-		}
-
-		if trans, ok := executor.(*gorp.Transaction); ok {
-			if err := trans.Commit(); err != nil {
-				return applied, newTxError(migration, err)
-			}
-		}
-
-		applied++
-	}
-
-	return applied, nil
-}
-
-// Internal in-memory migration source that respects the order of migrations.
-type memoryMigrationSourceInternal struct {
-	Migrations []*migrate.Migration
-}
-
-// FindMigrations returns the list of unsorted migrations. Giving up determenistic order in favor of
-// the order in which the migrations were added.
-func (m *memoryMigrationSourceInternal) FindMigrations() ([]*migrate.Migration, error) {
-	migrations := make([]*migrate.Migration, len(m.Migrations))
-	copy(migrations, m.Migrations)
-	return migrations, nil
-}
-
-func (app *application) RunMigrations() error {
-	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
-	migrations, err := CollectMigrations(app)
-	if err != nil {
-		return err
-	}
-	if len(migrations) == 0 {
-		log.Printf("No migrations found")
-		return nil
-	}
-	migrationSource := &memoryMigrationSourceInternal{
-		Migrations: migrations,
-	}
-	ms := migrate.MigrationSet{}
-	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Up, 0)
-	if err != nil {
-		return err
-	}
-
-	applied, err := app.applyMigrations(context.Background(), migrate.Up, plannedMigrations, dbMap)
-	if err != nil {
-		return err
-	}
-	log.Printf("Applied %d migrations", applied)
-	return nil
-}
-
-func (app *application) RollbackMigrations() error {
-	db := stdlib.OpenDB(*app.pool.Config().ConnConfig)
-	migrations, err := CollectMigrations(app)
-	if err != nil {
-		return err
-	}
-	if len(migrations) == 0 {
-		log.Printf("No migrations found")
-		return nil
-	}
-	migrationSource := &migrate.MemoryMigrationSource{
-		Migrations: migrations,
-	}
-	ms := migrate.MigrationSet{}
-	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Down, 0)
-	if err != nil {
-		return err
-	}
-
-	applied, err := app.applyMigrations(context.Background(), migrate.Down, plannedMigrations, dbMap)
-	if err != nil {
-		return err
-	}
-	log.Printf("Rolled back %d migrations", applied)
-	return nil
-}
