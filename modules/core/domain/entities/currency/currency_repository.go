@@ -4,11 +4,25 @@ import (
 	"context"
 )
 
+type Field int
+
+const (
+	FieldCode Field = iota
+	FieldName
+	FieldSymbol
+	FieldCreatedAt
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
+
 type FindParams struct {
 	Code   string
 	Limit  int
 	Offset int
-	SortBy []string
+	SortBy SortBy
 }
 
 type Repository interface {
