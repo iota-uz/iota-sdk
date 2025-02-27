@@ -4,10 +4,22 @@ import (
 	"context"
 )
 
+type Field int
+
+const (
+	ExpiresAt Field = iota
+	CreatedAt
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
+
 type FindParams struct {
 	Limit  int
 	Offset int
-	SortBy []string
+	SortBy SortBy
 	Token  string
 }
 
