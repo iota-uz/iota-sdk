@@ -4,10 +4,26 @@ import (
 	"context"
 )
 
+type Field = int
+
+const (
+	FirstName Field = iota
+	LastName
+	MiddleName
+	Email
+	LastLogin
+	CreatedAt
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
+
 type FindParams struct {
 	Limit  int
 	Offset int
-	SortBy []string
+	SortBy SortBy
 }
 
 type Repository interface {
