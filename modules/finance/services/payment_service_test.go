@@ -80,7 +80,7 @@ func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher eventbus.Event
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.Migrations().RunMigrations(); err != nil {
+	if err := app.Migrations().Run(); err != nil {
 		t.Fatal(err)
 	}
 	return app

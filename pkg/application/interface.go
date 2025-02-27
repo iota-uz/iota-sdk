@@ -40,7 +40,6 @@ type Application interface {
 	RegisterHashFsAssets(fs ...*hashfs.FS)
 	RegisterAssets(fs ...*embed.FS)
 	RegisterLocaleFiles(fs ...*embed.FS)
-	RegisterSchemaFS(fs ...*embed.FS)
 	RegisterGraphSchema(schema GraphSchema)
 	GraphSchemas() []GraphSchema
 	RegisterServices(services ...interface{})

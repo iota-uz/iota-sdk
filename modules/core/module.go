@@ -34,7 +34,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RBAC().Register(
 		permissions.Permissions...,
 	)
-	app.RegisterSchemaFS(&MigrationFiles)
+	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	fsStorage, err := persistence.NewFSStorage()
 	if err != nil {

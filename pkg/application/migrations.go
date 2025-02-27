@@ -15,6 +15,7 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/sirupsen/logrus"
 
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 )
 
@@ -22,18 +23,21 @@ import (
 type MigrationManager interface {
 	// CollectSchema collects schema changes from embedded modules and generates SQL migration
 	CollectSchema(ctx context.Context) error
-	// RunMigrations applies pending migrations to the database
-	RunMigrations() error
-	// RollbackMigrations rolls back the last applied migration
-	RollbackMigrations() error
-	// RegisterSchemaFS registers an embedded filesystem containing schema definitions
-	RegisterSchemaFS(fs ...*embed.FS)
+	// Run applies pending migrations to the database
+	Run() error
+	// Rollback rolls back the last applied migration
+	Rollback() error
+	// RegisterSchema registers an embedded filesystem containing schema definitions
+	RegisterSchema(fs ...*embed.FS)
 	// SchemaFSs returns all registered schema embedded filesystems
 	SchemaFSs() []*embed.FS
 }
 
 func NewMigrationManager(pool *pgxpool.Pool) MigrationManager {
+	conf := configuration.Use()
 	return &migrationManager{
+		migrationsDir:  conf.MigrationsDir,
+		logger:         conf.Logger(),
 		pool:           pool,
 		schemaEmbedFSs: make([]*embed.FS, 0),
 	}
@@ -41,6 +45,8 @@ func NewMigrationManager(pool *pgxpool.Pool) MigrationManager {
 
 // migrationManager implements the MigrationManager interface
 type migrationManager struct {
+	migrationsDir  string
+	logger         logrus.FieldLogger
 	pool           *pgxpool.Pool
 	schemaEmbedFSs []*embed.FS // For schema definitions in embed.FS
 }
@@ -49,40 +55,35 @@ func (m *migrationManager) SchemaFSs() []*embed.FS {
 	return m.schemaEmbedFSs
 }
 
-func (m *migrationManager) RegisterSchemaFS(fs ...*embed.FS) {
+func (m *migrationManager) RegisterSchema(fs ...*embed.FS) {
 	m.schemaEmbedFSs = append(m.schemaEmbedFSs, fs...)
 }
 
 // CollectSchema collects schema changes from embedded module.FS and generates SQL migration
 func (m *migrationManager) CollectSchema(ctx context.Context) error {
-	// Set up temporary directory for migrations if it doesn't exist
-	migrationsPath := "migrations"
-	if err := os.MkdirAll(migrationsPath, 0755); err != nil {
+	if err := os.MkdirAll(m.migrationsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create migrations directory: %w", err)
 	}
 
-	// Create collector with embedded schemas
 	schemaCollector := collector.New(collector.Config{
-		MigrationsPath: migrationsPath,
-		SQLDialect:     "postgres",
+		MigrationsPath: m.migrationsDir,
 		LogLevel:       logrus.InfoLevel,
 		EmbedFSs:       m.schemaEmbedFSs,
 	})
 
 	// Collect migrations
-	changes, err := schemaCollector.CollectMigrations(ctx)
+	upChanges, downChanges, err := schemaCollector.CollectMigrations(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to collect migrations: %w", err)
 	}
 
 	// Store migrations to file
-	return schemaCollector.StoreMigrations(changes)
+	return schemaCollector.StoreMigrations(upChanges, downChanges)
 }
 
 // CollectMigrations loads the migration files from the migrations directory
 func (m *migrationManager) CollectMigrations() ([]*migrate.Migration, error) {
-	migrationsDir := "migrations"
-	entries, err := os.ReadDir(migrationsDir)
+	entries, err := os.ReadDir(m.migrationsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []*migrate.Migration{}, nil
@@ -96,7 +97,7 @@ func (m *migrationManager) CollectMigrations() ([]*migrate.Migration, error) {
 			continue
 		}
 
-		content, err := os.ReadFile(fmt.Sprintf("%s/%s", migrationsDir, entry.Name()))
+		content, err := os.ReadFile(fmt.Sprintf("%s/%s", m.migrationsDir, entry.Name()))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read migration file %s: %w", entry.Name(), err)
 		}
@@ -128,7 +129,12 @@ func newTxError(migration *migrate.PlannedMigration, err error) *migrate.TxError
 	}
 }
 
-func (m *migrationManager) applyMigrations(ctx context.Context, dir migrate.MigrationDirection, migrations []*migrate.PlannedMigration, dbMap *gorp.DbMap) (int, error) {
+func (m *migrationManager) applyMigrations(
+	ctx context.Context,
+	dir migrate.MigrationDirection,
+	migrations []*migrate.PlannedMigration,
+	dbMap *gorp.DbMap,
+) (int, error) {
 	applied := 0
 	for _, migration := range migrations {
 		e, err := dbMap.Begin()
@@ -204,7 +210,7 @@ func (m *memoryMigrationSourceInternal) FindMigrations() ([]*migrate.Migration, 
 	return migrations, nil
 }
 
-func (m *migrationManager) RunMigrations() error {
+func (m *migrationManager) Run() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
 	migrations, err := m.CollectMigrations()
 	if err != nil {
@@ -214,8 +220,8 @@ func (m *migrationManager) RunMigrations() error {
 		log.Printf("No migrations found")
 		return nil
 	}
-	migrationSource := &memoryMigrationSourceInternal{
-		Migrations: migrations,
+	migrationSource := &migrate.FileMigrationSource{
+		Dir: m.migrationsDir,
 	}
 	ms := migrate.MigrationSet{}
 	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Up, 0)
@@ -227,11 +233,12 @@ func (m *migrationManager) RunMigrations() error {
 	if err != nil {
 		return err
 	}
+	m.logger.Infof("Applied %d migrations", applied)
 	log.Printf("Applied %d migrations", applied)
 	return nil
 }
 
-func (m *migrationManager) RollbackMigrations() error {
+func (m *migrationManager) Rollback() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
 	migrations, err := m.CollectMigrations()
 	if err != nil {
@@ -254,6 +261,6 @@ func (m *migrationManager) RollbackMigrations() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Rolled back %d migrations", applied)
+	m.logger.Infof("Rolled back %d migrations", applied)
 	return nil
 }

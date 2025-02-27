@@ -1,7 +1,10 @@
 # CLAUDE.md - IOTA SDK Guide
 
+## Overview
+The project follows DDD principles 
+
 ## Build/Lint/Test Commands
-- Build app: `make generate && make css`
+- After changes to css or .templ files: `make generate && make css`
 - Run all tests: `make test` or `go test -v ./...` 
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
@@ -16,6 +19,6 @@
 - Testing: table-driven tests with descriptive names (TestFunctionName_Scenario)
 - Error handling: use pkg/serrors for standard error types
 - Type safety: use strong typing and avoid interface{} where possible
-- Use the functional programming utilities in pkg/fp/ for collections
 - Follow existing patterns for database operations with jmoiron/sqlx
 - For UI components, follow the existing templ/htmx patterns
+

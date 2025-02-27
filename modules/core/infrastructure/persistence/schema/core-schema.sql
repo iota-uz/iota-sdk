@@ -1,4 +1,3 @@
--- +migrate Up
 CREATE TABLE companies
 (
     id         SERIAL PRIMARY KEY,

@@ -1,4 +1,3 @@
--- +migrate Up
 CREATE TABLE clients (
     id            SERIAL PRIMARY KEY,
     first_name    VARCHAR(255) NOT NULL,
@@ -54,9 +53,3 @@ CREATE INDEX idx_customers_first_name ON clients (first_name);
 CREATE INDEX idx_customers_last_name ON clients (last_name);
 CREATE INDEX idx_customers_phone_number ON clients (phone_number);
 
--- +migrate Down
-DROP TABLE IF EXISTS message_templates;
-DROP TABLE IF EXISTS message_media;
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS chats;
-DROP TABLE IF EXISTS clients;

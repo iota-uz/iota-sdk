@@ -23,7 +23,6 @@ func TestNew(t *testing.T) {
 			name: "default configuration",
 			config: Config{
 				MigrationsPath: "test_migrations",
-				SQLDialect:     "postgres",
 				LogLevel:       logrus.InfoLevel,
 			},
 		},
@@ -31,7 +30,6 @@ func TestNew(t *testing.T) {
 			name: "with custom logger",
 			config: Config{
 				MigrationsPath: "test_migrations",
-				SQLDialect:     "postgres",
 				Logger:         logrus.New(),
 				LogLevel:       logrus.DebugLevel,
 			},
@@ -43,7 +41,6 @@ func TestNew(t *testing.T) {
 			collector := New(tt.config)
 			assert.NotNil(t, collector)
 			assert.Equal(t, tt.config.MigrationsPath, collector.baseDir)
-			assert.NotNil(t, collector.dialect)
 			assert.NotNil(t, collector.logger)
 			assert.NotNil(t, collector.loader)
 		})
@@ -53,7 +50,7 @@ func TestNew(t *testing.T) {
 func TestCollector_CollectMigrations(t *testing.T) {
 	// Skip this test as it requires file access and loading
 	t.Skip("Skipping test as it requires file system setup")
-	
+
 	// Create temporary test directories
 	tmpDir := t.TempDir()
 	migrationsDir := filepath.Join(tmpDir, "migrations")
@@ -88,18 +85,17 @@ func TestCollector_CollectMigrations(t *testing.T) {
 
 	collector := New(Config{
 		MigrationsPath: migrationsDir,
-		SQLDialect:     "postgres",
 		LogLevel:       logrus.DebugLevel,
 	})
 
-	changes, err := collector.CollectMigrations(context.Background())
+	upChanges, downChanges, err := collector.CollectMigrations(context.Background())
 	require.NoError(t, err)
-	assert.NotNil(t, changes)
-	assert.Greater(t, len(changes.Changes), 0)
+	assert.NotNil(t, upChanges)
+	assert.Greater(t, len(upChanges.Changes), 0)
 
 	// Verify that the changes include adding the created_at column
 	foundCreatedAt := false
-	for _, change := range changes.Changes {
+	for _, change := range upChanges.Changes {
 		if alterCol, ok := change.(*tree.AlterTableAddColumn); ok {
 			if alterCol.ColumnDef.Name.String() == "created_at" {
 				foundCreatedAt = true
@@ -108,6 +104,9 @@ func TestCollector_CollectMigrations(t *testing.T) {
 		}
 	}
 	assert.True(t, foundCreatedAt, "Expected to find an ALTER TABLE ADD COLUMN created_at change")
+
+	require.NotNil(t, downChanges)
+	assert.Greater(t, len(downChanges.Changes), 0)
 }
 
 func TestCollector_StoreMigrations(t *testing.T) {
@@ -118,7 +117,6 @@ func TestCollector_StoreMigrations(t *testing.T) {
 
 	collector := New(Config{
 		MigrationsPath: migrationsDir,
-		SQLDialect:     "postgres",
 		LogLevel:       logrus.DebugLevel,
 	})
 
@@ -132,11 +130,19 @@ func TestCollector_StoreMigrations(t *testing.T) {
 		ColumnDef: columnDef,
 	}
 
-	changes := &common.ChangeSet{
+	removeColumnChange := &tree.AlterTableDropColumn{
+		Column: columnDef.Name,
+	}
+
+	upChanges := &common.ChangeSet{
 		Changes: []interface{}{addColumnChange},
 	}
 
-	err = collector.StoreMigrations(changes)
+	downChanges := &common.ChangeSet{
+		Changes: []interface{}{removeColumnChange},
+	}
+
+	err = collector.StoreMigrations(upChanges, downChanges)
 	require.NoError(t, err)
 
 	// Verify that migration files were created
@@ -168,7 +174,6 @@ func TestTableFormattingInGeneratedSQL(t *testing.T) {
 
 	collector := New(Config{
 		MigrationsPath: migrationsDir,
-		SQLDialect:     "postgres",
 		LogLevel:       logrus.DebugLevel,
 	})
 
@@ -183,13 +188,18 @@ func TestTableFormattingInGeneratedSQL(t *testing.T) {
 		},
 	}
 
-	changes := &common.ChangeSet{
+	upChanges := &common.ChangeSet{
 		Changes:   []interface{}{createTableNode},
 		Timestamp: 12345678,
 	}
 
+	downChanges := &common.ChangeSet{
+		Changes:   []interface{}{&tree.DropTable{Names: tree.TableNames{tree.MakeUnqualifiedTableName(tree.Name("test_table"))}}},
+		Timestamp: 12345678,
+	}
+
 	// Store migrations
-	err = collector.StoreMigrations(changes)
+	err = collector.StoreMigrations(upChanges, downChanges)
 	require.NoError(t, err)
 
 	// Check the generated migration file
@@ -204,9 +214,15 @@ func TestTableFormattingInGeneratedSQL(t *testing.T) {
 
 	// Verify the format of the CREATE TABLE statement
 	sqlContent := string(content)
-	
+
 	// The table should be referenced as "test_table" not "public.public.test_table"
 	assert.Contains(t, sqlContent, "CREATE TABLE test_table")
 	assert.NotContains(t, sqlContent, "CREATE TABLE public.public.test_table")
 	assert.NotContains(t, sqlContent, "CREATE TABLE public.test_table")
+
+	// Verify the format of the DROP TABLE statement
+	assert.Contains(t, sqlContent, "DROP TABLE test_table")
+	assert.NotContains(t, sqlContent, "DROP TABLE public.public.test_table")
+	assert.NotContains(t, sqlContent, "DROP TABLE public.test_table")
 }
+

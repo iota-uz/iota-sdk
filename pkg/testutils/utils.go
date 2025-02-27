@@ -127,7 +127,7 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
 	}
-	if err := app.Migrations().RunMigrations(); err != nil {
+	if err := app.Migrations().Run(); err != nil {
 		return nil, err
 	}
 	return app, nil
@@ -140,10 +140,10 @@ func GetTestContext() *TestFixtures {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
-	if err := app.Migrations().RollbackMigrations(); err != nil {
+	if err := app.Migrations().Rollback(); err != nil {
 		panic(err)
 	}
-	if err := app.Migrations().RunMigrations(); err != nil {
+	if err := app.Migrations().Run(); err != nil {
 		panic(err)
 	}
 
