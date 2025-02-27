@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
@@ -16,14 +15,12 @@ import (
 
 type Collector struct {
 	loader  *FileLoader
-	dialect string
 	logger  *logrus.Logger
 	baseDir string
 }
 
 type Config struct {
 	MigrationsPath string
-	SQLDialect     string
 	Logger         *logrus.Logger
 	LogLevel       logrus.Level
 	EmbedFSs       []*embed.FS
@@ -40,46 +37,46 @@ func New(cfg Config) *Collector {
 	}
 
 	fileLoader := NewFileLoader(LoaderConfig{
-		BaseDir:    cfg.MigrationsPath,
-		Logger:     logger,
-		EmbedFSs:   cfg.EmbedFSs,
+		BaseDir:  cfg.MigrationsPath,
+		Logger:   logger,
+		EmbedFSs: cfg.EmbedFSs,
 	})
 
 	return &Collector{
 		loader:  fileLoader,
-		dialect: cfg.SQLDialect,
 		logger:  logger,
 		baseDir: cfg.MigrationsPath,
 	}
 }
 
-func (c *Collector) CollectMigrations(ctx context.Context) (*common.ChangeSet, error) {
+func (c *Collector) CollectMigrations(ctx context.Context) (*common.ChangeSet, *common.ChangeSet, error) {
 	c.logger.Info("Starting migration collection")
 
 	oldTree, err := c.loader.LoadExistingSchema(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load existing schema: %w", err)
+		return nil, nil, fmt.Errorf("failed to load existing schema: %w", err)
 	}
 
 	newTree, err := c.loader.LoadModuleSchema(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load module schema: %w", err)
+		return nil, nil, fmt.Errorf("failed to load module schema: %w", err)
 	}
 
 	// Use the adapter to convert and compare schemas
-	changes, err := CollectSchemaChanges(oldTree, newTree)
+	upChanges, downChanges, err := CollectSchemaChanges(oldTree, newTree)
 	if err != nil {
 		c.logger.WithError(err).Error("Schema comparison failed")
-		return nil, err
+		return nil, nil, err
 	}
 
-	c.logger.Infof("Found %d changes", len(changes.Changes))
+	c.logger.Infof("Found %d up changes and %d down changes",
+		len(upChanges.Changes), len(downChanges.Changes))
 
-	return changes, nil
+	return upChanges, downChanges, nil
 }
 
-func (c *Collector) StoreMigrations(changes *common.ChangeSet) error {
-	if changes == nil || len(changes.Changes) == 0 {
+func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) error {
+	if (upChanges == nil || len(upChanges.Changes) == 0) && (downChanges == nil || len(downChanges.Changes) == 0) {
 		c.logger.Info("No changes to store")
 		return nil
 	}
@@ -87,8 +84,8 @@ func (c *Collector) StoreMigrations(changes *common.ChangeSet) error {
 	c.logger.Info("Storing migrations")
 
 	// Generate timestamp for the filename
-	timestamp := fmt.Sprintf("%d", changes.Timestamp)
-	if changes.Timestamp == 0 {
+	timestamp := fmt.Sprintf("%d", upChanges.Timestamp)
+	if upChanges.Timestamp == 0 {
 		// If timestamp is not set, use current Unix time
 		timestamp = fmt.Sprintf("%d", time.Now().Unix())
 	}
@@ -99,46 +96,105 @@ func (c *Collector) StoreMigrations(changes *common.ChangeSet) error {
 
 	c.logger.Infof("Creating migration file: %s", filepath)
 
-	// Build SQL content
-	var sqlContent strings.Builder
-	sqlContent.WriteString("-- Generated migration\n\n")
+	fmtCtx := tree.NewFmtCtx(tree.FmtSimple)
 
-	// Process each change and convert to SQL
-	for i, change := range changes.Changes {
-		switch node := change.(type) {
-		case *tree.CreateTable:
-			sqlContent.WriteString(fmt.Sprintf("-- Change CREATE_TABLE: %s\n", node.Table.TableName))
-			sqlContent.WriteString(node.String())
-			sqlContent.WriteString(";;\n\n")
+	// Up migrations
+	fmtCtx.WriteString("-- +migrate Up\n\n")
 
-		case *tree.AlterTableAddColumn:
-			sqlContent.WriteString(fmt.Sprintf("-- Change ADD_COLUMN: %s\n", node.ColumnDef.Name))
-			sqlContent.WriteString(node.String())
-			sqlContent.WriteString(";;\n\n")
+	if upChanges != nil && len(upChanges.Changes) > 0 {
+		// Process each up change and convert to SQL
+		for i, change := range upChanges.Changes {
+			switch node := change.(type) {
+			case *tree.CreateTable:
+				fmtCtx.WriteString(fmt.Sprintf("-- Change CREATE_TABLE: %s\n", node.Table.TableName))
+				fmtCtx.FormatNode(node)
+				fmtCtx.WriteString(";\n\n")
 
-		case *tree.AlterTableAlterColumnType:
-			sqlContent.WriteString(fmt.Sprintf("-- Change ALTER_COLUMN_TYPE: %s\n", node.Column))
-			sqlContent.WriteString(node.String())
-			sqlContent.WriteString(";;\n\n")
+			case *tree.AlterTable:
+				// Handle each command in the AlterTable
+				for _, cmd := range node.Cmds {
+					switch altCmd := cmd.(type) {
+					case *tree.AlterTableAddColumn:
+						fmtCtx.WriteString(fmt.Sprintf("-- Change ADD_COLUMN: %s\n", altCmd.ColumnDef.Name))
+						fmtCtx.FormatNode(node)
+						fmtCtx.WriteString(";\n\n")
+					case *tree.AlterTableAlterColumnType:
+						fmtCtx.WriteString(fmt.Sprintf("-- Change ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
+						fmtCtx.FormatNode(node)
+						fmtCtx.WriteString(";\n\n")
+					default:
+						fmtCtx.WriteString(fmt.Sprintf("-- Change ALTER_TABLE: %T\n", altCmd))
+						fmtCtx.FormatNode(node)
+						fmtCtx.WriteString(";\n\n")
+					}
+				}
 
-		case *tree.CreateIndex:
-			sqlContent.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
-			sqlContent.WriteString(node.String())
-			sqlContent.WriteString(";;\n\n")
+			case *tree.CreateIndex:
+				fmtCtx.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
+				fmtCtx.FormatNode(node)
 
-		default:
-			c.logger.Warnf("Unknown change type at index %d: %T", i, change)
-			sqlContent.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
-			// Try to use String() method if available via reflection
-			if stringer, ok := change.(fmt.Stringer); ok {
-				sqlContent.WriteString(stringer.String())
-				sqlContent.WriteString(";;\n\n")
+			default:
+				c.logger.Warnf("Unknown up change type at index %d: %T", i, change)
+				fmtCtx.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
+				// Try to use String() method if available via reflection
+				if stringer, ok := change.(fmt.Stringer); ok {
+					fmtCtx.WriteString(stringer.String())
+					fmtCtx.WriteString(";\n\n")
+				}
+			}
+		}
+	}
+
+	// Down migrations
+	fmtCtx.WriteString("\n-- +migrate Down\n\n")
+
+	if downChanges != nil && len(downChanges.Changes) > 0 {
+		// Process each down change and convert to SQL
+		for i, change := range downChanges.Changes {
+			switch node := change.(type) {
+			case *tree.DropTable:
+				fmtCtx.WriteString(fmt.Sprintf("-- Undo CREATE_TABLE: %s\n", node.Names[0].TableName))
+				fmtCtx.WriteString(node.String())
+				fmtCtx.WriteString(";\n\n")
+
+			case *tree.AlterTable:
+				// Handle each command in the AlterTable
+				for _, cmd := range node.Cmds {
+					switch altCmd := cmd.(type) {
+					case *tree.AlterTableDropColumn:
+						fmtCtx.WriteString(fmt.Sprintf("-- Undo ADD_COLUMN: %s\n", altCmd.Column))
+						fmtCtx.FormatNode(node)
+						fmtCtx.WriteString(";\n\n")
+					case *tree.AlterTableAlterColumnType:
+						fmtCtx.WriteString(fmt.Sprintf("-- Undo ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
+						fmtCtx.FormatNode(node)
+						fmtCtx.WriteString(";\n\n")
+					default:
+						fmtCtx.WriteString(fmt.Sprintf("-- Undo ALTER_TABLE: %T\n", altCmd))
+						fmtCtx.FormatNode(node)
+						fmtCtx.WriteString(";\n\n")
+					}
+				}
+
+			case *tree.DropIndex:
+				fmtCtx.WriteString(fmt.Sprintf("-- Undo CREATE_INDEX: %s\n", node.IndexList[0]))
+				fmtCtx.WriteString(node.String())
+				fmtCtx.WriteString(";\n\n")
+
+			default:
+				c.logger.Warnf("Unknown down change type at index %d: %T", i, change)
+				fmtCtx.WriteString(fmt.Sprintf("-- Unknown down change type: %T\n", change))
+				// Try to use String() method if available via reflection
+				if stringer, ok := change.(fmt.Stringer); ok {
+					fmtCtx.WriteString(stringer.String())
+					fmtCtx.WriteString(";\n\n")
+				}
 			}
 		}
 	}
 
 	// Write the file
-	err := os.WriteFile(filepath, []byte(sqlContent.String()), 0644)
+	err := os.WriteFile(filepath, []byte(fmtCtx.CloseAndGetString()), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write migration file: %w", err)
 	}

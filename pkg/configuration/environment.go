@@ -83,6 +83,7 @@ type Configuration struct {
 	Google   GoogleOptions
 	Twilio   TwilioOptions
 
+	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
 	SessionDuration  time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
 	GoAppEnvironment string        `env:"GO_APP_ENV" envDefault:"development"`

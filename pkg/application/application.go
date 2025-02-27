@@ -86,10 +86,7 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
-	
-	// Create a new migration manager
-	migrations := NewMigrationManager(pool)
-	
+
 	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
@@ -98,7 +95,7 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 		services:       make(map[reflect.Type]interface{}),
 		spotlight:      spotlight.New(),
 		bundle:         bundle,
-		migrations:     migrations,
+		migrations:     NewMigrationManager(pool),
 	}
 }
 
@@ -209,10 +206,6 @@ func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
 	}
 }
 
-func (app *application) RegisterSchemaFS(fs ...*embed.FS) {
-	app.migrations.RegisterSchemaFS(fs...)
-}
-
 // RegisterServices registers a new service in the application by its type
 func (app *application) RegisterServices(services ...interface{}) {
 	for _, service := range services {
@@ -234,4 +227,3 @@ func (app *application) Service(service interface{}) interface{} {
 func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }
-

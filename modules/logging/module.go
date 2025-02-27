@@ -23,7 +23,7 @@ type Module struct {
 func (m *Module) Register(app application.Application) error {
 	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
-	app.RegisterSchemaFS(&migrationFiles)
+	app.Migrations().RegisterSchema(&migrationFiles)
 	return nil
 }
 

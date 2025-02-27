@@ -1,4 +1,3 @@
--- +migrate Up
 CREATE TABLE prompts
 (
     id          VARCHAR(30) PRIMARY KEY,
@@ -19,7 +18,3 @@ CREATE TABLE dialogues
 );
 
 CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
-
--- +migrate Down
-DROP TABLE IF EXISTS dialogues CASCADE;
-DROP TABLE IF EXISTS prompts CASCADE;

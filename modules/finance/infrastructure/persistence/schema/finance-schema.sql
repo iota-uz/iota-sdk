@@ -1,4 +1,3 @@
--- +migrate Up
 CREATE TABLE counterparty
 (
     id            SERIAL PRIMARY KEY,
@@ -108,12 +107,3 @@ CREATE INDEX inventory_currency_id_idx ON inventory (currency_id);
 
 CREATE INDEX money_accounts_balance_currency_id_idx ON money_accounts (balance_currency_id);
 
--- +migrate Down
-DROP TABLE IF EXISTS payments;
-DROP TABLE IF EXISTS expenses;
-DROP TABLE IF EXISTS transactions;
-DROP TABLE IF EXISTS money_accounts;
-DROP TABLE IF EXISTS expense_categories;
-DROP TABLE IF EXISTS inventory;
-DROP TABLE IF EXISTS counterparty_contacts;
-DROP TABLE IF EXISTS counterparty;
