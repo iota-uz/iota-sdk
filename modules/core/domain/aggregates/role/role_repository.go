@@ -4,11 +4,25 @@ import (
 	"context"
 )
 
+type Field int
+
+const (
+	Name Field = iota
+	Description
+	CreatedAt
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
+
 type FindParams struct {
 	Name              string
 	AttachPermissions bool
 	Limit             int
 	Offset            int
+	SortBy            SortBy
 }
 
 type Repository interface {
