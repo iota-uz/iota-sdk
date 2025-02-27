@@ -16,7 +16,7 @@ var (
 )
 
 const (
-	selectCurrenciesQuery = `SELECT c.code, c.name, c.symbol, c.created_at, c.updated_at, FROM currencies c`
+	selectCurrenciesQuery = `SELECT code, name, symbol, created_at, updated_at FROM currencies c`
 )
 
 type GormCurrencyRepository struct{}
