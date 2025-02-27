@@ -6,12 +6,23 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
+type Field int
+
+const (
+	FieldSize Field = iota
+)
+
+type SortBy struct {
+	Fields    []Field
+	Ascending bool
+}
+
 type FindParams struct {
 	ID       uint
 	Hash     string
 	Limit    int
 	Offset   int
-	SortBy   []string
+	SortBy   SortBy
 	Search   string
 	Type     UploadType
 	Mimetype *mimetype.MIME
