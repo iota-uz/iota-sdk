@@ -3,8 +3,6 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/a-h/templ"
-	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
@@ -15,6 +13,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+
+	"github.com/a-h/templ"
+	"github.com/gorilla/mux"
 )
 
 type UsersController struct {
@@ -67,7 +68,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	us, err := c.userService.GetPaginated(r.Context(), &user.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: []string{},
+		SortBy: user.SortBy{Fields: []user.Field{}},
 	})
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
