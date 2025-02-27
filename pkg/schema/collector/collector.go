@@ -128,11 +128,9 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 						fmtCtx.WriteString(";\n\n")
 					}
 				}
-
 			case *tree.CreateIndex:
 				fmtCtx.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
 				fmtCtx.FormatNode(node)
-
 			default:
 				c.logger.Warnf("Unknown up change type at index %d: %T", i, change)
 				fmtCtx.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
