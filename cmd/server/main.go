@@ -30,6 +30,7 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			configuration.Use().Unload()
+			log.Println(r)
 			debug.PrintStack()
 			os.Exit(1)
 		}
