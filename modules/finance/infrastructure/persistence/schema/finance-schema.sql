@@ -6,8 +6,8 @@ CREATE TABLE counterparty
     type          VARCHAR(255) NOT NULL, -- customer, supplier, individual
     legal_type    VARCHAR(255) NOT NULL, -- LLC, JSC, etc.
     legal_address VARCHAR(255),
-    created_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE counterparty_contacts
@@ -19,8 +19,8 @@ CREATE TABLE counterparty_contacts
     middle_name     VARCHAR(255) NULL,
     email           VARCHAR(255),
     phone           VARCHAR(255),
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE inventory
@@ -31,8 +31,8 @@ CREATE TABLE inventory
     currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
     price       NUMERIC(9, 2) NOT NULL,
     quantity    INT           NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE expense_categories
@@ -42,8 +42,8 @@ CREATE TABLE expense_categories
     description        TEXT,
     amount             NUMERIC(9, 2) NOT NULL,
     amount_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 
@@ -55,8 +55,8 @@ CREATE TABLE money_accounts
     description         TEXT,
     balance             NUMERIC(9, 2) NOT NULL,
     balance_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
-    created_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at          TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at          TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at          TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE transactions
@@ -65,11 +65,11 @@ CREATE TABLE transactions
     amount                 NUMERIC(9, 2) NOT NULL,
     origin_account_id      INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
     destination_account_id INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    transaction_date       DATE          NOT NULL   DEFAULT CURRENT_DATE,
-    accounting_period      DATE          NOT NULL   DEFAULT CURRENT_DATE,
+    transaction_date       DATE          NOT NULL   DEFAULT now()::DATE,
+    accounting_period      DATE          NOT NULL   DEFAULT now()::DATE,
     transaction_type       VARCHAR(255)  NOT NULL, -- income, expense, transfer
     comment                TEXT,
-    created_at             TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at             TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE expenses
@@ -77,8 +77,8 @@ CREATE TABLE expenses
     id             SERIAL PRIMARY KEY,
     transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
     category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE payments
@@ -86,8 +86,8 @@ CREATE TABLE payments
     id              SERIAL PRIMARY KEY,
     transaction_id  INT NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
     counterparty_id INT NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE INDEX expenses_category_id_idx ON expenses (category_id);

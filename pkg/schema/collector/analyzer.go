@@ -3,8 +3,8 @@ package collector
 import (
 	"time"
 
-	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
+	"github.com/iota-uz/psql-parser/sql/sem/tree"
 )
 
 func CompareTables(oldTable, newTable *tree.CreateTable) ([]interface{}, []interface{}, error) {
@@ -153,11 +153,17 @@ func CollectSchemaChanges(oldSchema, newSchema *common.Schema) (*common.ChangeSe
 	downChanges := &common.ChangeSet{
 		Changes:   []interface{}{},
 		Timestamp: timestamp,
-		Metadata:  map[string]interface{}{"type": "down_migration"},
 	}
 
+	newSchemaTables := make([]*tree.CreateTable, 0, len(newSchema.Tables))
+	for _, t := range newSchema.Tables {
+		newSchemaTables = append(newSchemaTables, t)
+	}
+	newSchemaTables = common.SortTableDefs(newSchemaTables)
+
 	// Check for tables in new schema
-	for tableName, newTable := range newSchema.Tables {
+	for _, newTable := range newSchemaTables {
+		tableName := newTable.Table.Table()
 		if oldTable, exists := oldSchema.Tables[tableName]; !exists {
 			// New table was added (up operation)
 			createTable := &tree.CreateTable{
@@ -205,10 +211,19 @@ func CollectSchemaChanges(oldSchema, newSchema *common.Schema) (*common.ChangeSe
 	}
 
 	// Check for removed tables
-	for tableName := range oldSchema.Tables {
+	for tableName, oldTable := range oldSchema.Tables {
 		if _, exists := newSchema.Tables[tableName]; !exists {
-			// Table was removed (would be handled here if needed)
-			// Not implementing this case since it wasn't in the original code
+			upChanges.Changes = append(upChanges.Changes, &tree.DropTable{
+				Names:        tree.TableNames{oldTable.Table},
+				IfExists:     true,
+				DropBehavior: tree.DropCascade,
+			})
+
+			downChanges.Changes = append(downChanges.Changes, &tree.CreateTable{
+				IfNotExists: false,
+				Table:       oldTable.Table,
+				Defs:        oldTable.Defs,
+			})
 		}
 	}
 

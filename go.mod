@@ -9,7 +9,6 @@ require (
 	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
 	github.com/a-h/templ v0.3.819
-	github.com/auxten/postgresql-parser v1.0.1
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/gabriel-vasile/mimetype v1.4.7
@@ -24,6 +23,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
 	github.com/iota-uz/icons v0.0.2
+	github.com/iota-uz/psql-parser v0.0.0-20250228072450-846adaf4e091
 	github.com/iota-uz/utils v0.0.2
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jmoiron/sqlx v1.4.0

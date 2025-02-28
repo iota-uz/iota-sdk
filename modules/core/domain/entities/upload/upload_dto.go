@@ -57,6 +57,7 @@ func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
 	return New(
 		hash,
 		filepath.Join(conf.UploadsPath, hash+ext),
+		d.Name,
 		d.Size,
 		mimetype.Detect(bytes),
 	), bytes, nil

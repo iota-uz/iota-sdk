@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"fmt"
@@ -8,8 +9,8 @@ import (
 	"path"
 	"time"
 
-	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
+	"github.com/iota-uz/psql-parser/sql/sem/tree"
 	"github.com/sirupsen/logrus"
 )
 
@@ -96,103 +97,111 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 
 	c.logger.Infof("Creating migration file: %s", filepath)
 
-	fmtCtx := tree.NewFmtCtx(tree.FmtSimple)
+	// string builder
+	buffer := &bytes.Buffer{}
+	pPrinter := tree.PrettyCfg{
+		LineWidth: 120,
+		Simplify:  false,
+		TabWidth:  4,
+		UseTabs:   true,
+		Align:     tree.PrettyAlignOnly,
+	}
 
 	// Up migrations
-	fmtCtx.WriteString("-- +migrate Up\n\n")
+	buffer.WriteString("-- +migrate Up\n\n")
 
 	if upChanges != nil && len(upChanges.Changes) > 0 {
 		// Process each up change and convert to SQL
 		for i, change := range upChanges.Changes {
 			switch node := change.(type) {
 			case *tree.CreateTable:
-				fmtCtx.WriteString(fmt.Sprintf("-- Change CREATE_TABLE: %s\n", node.Table.TableName))
-				fmtCtx.FormatNode(node)
-				fmtCtx.WriteString(";\n\n")
+				buffer.WriteString(fmt.Sprintf("-- Change CREATE_TABLE: %s\n", node.Table.TableName))
+				buffer.WriteString(pPrinter.Pretty(node))
+				buffer.WriteString(";\n\n")
 
 			case *tree.AlterTable:
 				// Handle each command in the AlterTable
 				for _, cmd := range node.Cmds {
 					switch altCmd := cmd.(type) {
 					case *tree.AlterTableAddColumn:
-						fmtCtx.WriteString(fmt.Sprintf("-- Change ADD_COLUMN: %s\n", altCmd.ColumnDef.Name))
-						fmtCtx.FormatNode(node)
-						fmtCtx.WriteString(";\n\n")
+						buffer.WriteString(fmt.Sprintf("-- Change ADD_COLUMN: %s\n", altCmd.ColumnDef.Name))
+						buffer.WriteString(pPrinter.Pretty(node))
+						buffer.WriteString(";\n\n")
 					case *tree.AlterTableAlterColumnType:
-						fmtCtx.WriteString(fmt.Sprintf("-- Change ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
-						fmtCtx.FormatNode(node)
-						fmtCtx.WriteString(";\n\n")
+						buffer.WriteString(fmt.Sprintf("-- Change ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
+						buffer.WriteString(pPrinter.Pretty(node))
+						buffer.WriteString(";\n\n")
 					default:
-						fmtCtx.WriteString(fmt.Sprintf("-- Change ALTER_TABLE: %T\n", altCmd))
-						fmtCtx.FormatNode(node)
-						fmtCtx.WriteString(";\n\n")
+						buffer.WriteString(fmt.Sprintf("-- Change ALTER_TABLE: %T\n", altCmd))
+						buffer.WriteString(pPrinter.Pretty(node))
+						buffer.WriteString(";\n\n")
 					}
 				}
 			case *tree.CreateIndex:
-				fmtCtx.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
-				fmtCtx.FormatNode(node)
+				buffer.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
+				buffer.WriteString(pPrinter.Pretty(node))
 			default:
 				c.logger.Warnf("Unknown up change type at index %d: %T", i, change)
-				fmtCtx.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
+				buffer.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
 				// Try to use String() method if available via reflection
 				if stringer, ok := change.(fmt.Stringer); ok {
-					fmtCtx.WriteString(stringer.String())
-					fmtCtx.WriteString(";\n\n")
+					buffer.WriteString(stringer.String())
+					buffer.WriteString(";\n\n")
 				}
 			}
 		}
 	}
 
 	// Down migrations
-	fmtCtx.WriteString("\n-- +migrate Down\n\n")
+	buffer.WriteString("\n-- +migrate Down\n\n")
 
 	if downChanges != nil && len(downChanges.Changes) > 0 {
 		// Process each down change and convert to SQL
 		for i, change := range downChanges.Changes {
 			switch node := change.(type) {
 			case *tree.DropTable:
-				fmtCtx.WriteString(fmt.Sprintf("-- Undo CREATE_TABLE: %s\n", node.Names[0].TableName))
-				fmtCtx.WriteString(node.String())
-				fmtCtx.WriteString(";\n\n")
+				buffer.WriteString(fmt.Sprintf("-- Undo CREATE_TABLE: %s\n", node.Names[0].TableName))
+				buffer.WriteString(node.String())
+				buffer.WriteString(";\n\n")
 
 			case *tree.AlterTable:
 				// Handle each command in the AlterTable
 				for _, cmd := range node.Cmds {
 					switch altCmd := cmd.(type) {
 					case *tree.AlterTableDropColumn:
-						fmtCtx.WriteString(fmt.Sprintf("-- Undo ADD_COLUMN: %s\n", altCmd.Column))
-						fmtCtx.FormatNode(node)
-						fmtCtx.WriteString(";\n\n")
+						buffer.WriteString(fmt.Sprintf("-- Undo ADD_COLUMN: %s\n", altCmd.Column))
+						buffer.WriteString(pPrinter.Pretty(node))
+						buffer.WriteString(";\n\n")
 					case *tree.AlterTableAlterColumnType:
-						fmtCtx.WriteString(fmt.Sprintf("-- Undo ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
-						fmtCtx.FormatNode(node)
-						fmtCtx.WriteString(";\n\n")
+						buffer.WriteString(fmt.Sprintf("-- Undo ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
+						buffer.WriteString(pPrinter.Pretty(node))
+						buffer.WriteString(";\n\n")
 					default:
-						fmtCtx.WriteString(fmt.Sprintf("-- Undo ALTER_TABLE: %T\n", altCmd))
-						fmtCtx.FormatNode(node)
-						fmtCtx.WriteString(";\n\n")
+						buffer.WriteString(fmt.Sprintf("-- Undo ALTER_TABLE: %T\n", altCmd))
+						buffer.WriteString(pPrinter.Pretty(node))
+						buffer.WriteString(";\n\n")
 					}
 				}
 
 			case *tree.DropIndex:
-				fmtCtx.WriteString(fmt.Sprintf("-- Undo CREATE_INDEX: %s\n", node.IndexList[0]))
-				fmtCtx.WriteString(node.String())
-				fmtCtx.WriteString(";\n\n")
+				buffer.WriteString(fmt.Sprintf("-- Undo CREATE_INDEX: %s\n", node.IndexList[0]))
+				buffer.WriteString(node.String())
+				buffer.WriteString(";\n\n")
 
 			default:
 				c.logger.Warnf("Unknown down change type at index %d: %T", i, change)
-				fmtCtx.WriteString(fmt.Sprintf("-- Unknown down change type: %T\n", change))
+				buffer.WriteString(fmt.Sprintf("-- Unknown down change type: %T\n", change))
 				// Try to use String() method if available via reflection
 				if stringer, ok := change.(fmt.Stringer); ok {
-					fmtCtx.WriteString(stringer.String())
-					fmtCtx.WriteString(";\n\n")
+					buffer.WriteString(stringer.String())
+					buffer.WriteString(";\n\n")
 				}
 			}
 		}
 	}
 
 	// Write the file
-	err := os.WriteFile(filepath, []byte(fmtCtx.CloseAndGetString()), 0644)
+	err := os.WriteFile(filepath, []byte(buffer.String()), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write migration file: %w", err)
 	}

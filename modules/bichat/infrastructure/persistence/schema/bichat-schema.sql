@@ -4,7 +4,7 @@ CREATE TABLE prompts
     title       VARCHAR(255) NOT NULL,
     description TEXT         NOT NULL,
     prompt      TEXT         NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE dialogues
@@ -13,8 +13,8 @@ CREATE TABLE dialogues
     user_id    INT          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     label      VARCHAR(255) NOT NULL,
     messages   JSON         NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);

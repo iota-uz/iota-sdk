@@ -5,7 +5,7 @@ CREATE TABLE authentication_logs
         CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
     ip         VARCHAR(255)             NOT NULL,
     user_agent VARCHAR(255)             NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE TABLE action_logs
@@ -18,7 +18,7 @@ CREATE TABLE action_logs
     before     JSON,
     user_agent VARCHAR(255) NOT NULL,
     ip         VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE INDEX action_log_user_id_idx ON action_logs (user_id);

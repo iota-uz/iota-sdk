@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"fmt"
@@ -11,8 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/auxten/postgresql-parser/pkg/sql/parser"
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
+	"github.com/iota-uz/psql-parser/sql/parser"
+	migrate "github.com/rubenv/sql-migrate"
 	"github.com/sirupsen/logrus"
 )
 
@@ -60,13 +62,13 @@ func (l *FileLoader) LoadExistingSchema(ctx context.Context) (*common.Schema, er
 		}
 	}
 
+	l.logger.Debugf("Found %d migration files", len(migrationFiles))
+
 	sort.Slice(migrationFiles, func(i, j int) bool {
 		return l.extractTimestamp(migrationFiles[i]) < l.extractTimestamp(migrationFiles[j])
 	})
 
 	schemaState := newSchemaState()
-
-	l.logger.Infof("Loading %d migration files", len(migrationFiles))
 
 	for _, file := range migrationFiles {
 		path := filepath.Join(l.baseDir, file)
@@ -74,14 +76,19 @@ func (l *FileLoader) LoadExistingSchema(ctx context.Context) (*common.Schema, er
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file %s: %w", path, err)
 		}
+		migration, err := migrate.ParseMigration(path, bytes.NewReader(content))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse migration file %s: %w", path, err)
+		}
 
-		stmts, err := parser.Parse(string(content))
+		stmts, err := parser.Parse(strings.Join(migration.Up, "\n"))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse file %s: %w", file, err)
 		}
 
 		timestamp := l.extractTimestamp(file)
 		schemaState.update(stmts, timestamp, file)
+		l.logger.Debugf("Updating schema state from file: %s with timestamp: %d", file, timestamp)
 	}
 
 	return schemaState.buildSchema(), nil
@@ -126,7 +133,7 @@ func (l *FileLoader) LoadModuleSchema(ctx context.Context) (*common.Schema, erro
 					return nil
 				}
 
-				l.logger.Debug("Updating schema state from file:", path, "with timestamp:", currentTimestamp)
+				l.logger.Debugf("Updating schema state from embedded file: %s with timestamp: %d", path, currentTimestamp)
 				schemaState.update(parsed, currentTimestamp, path)
 			}
 			return nil

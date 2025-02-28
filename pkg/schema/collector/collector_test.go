@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
-	"github.com/auxten/postgresql-parser/pkg/sql/types"
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
+	"github.com/iota-uz/psql-parser/sql/sem/tree"
+	"github.com/iota-uz/psql-parser/sql/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,7 +78,7 @@ func TestCollector_CollectMigrations(t *testing.T) {
 		id SERIAL PRIMARY KEY,
 		name VARCHAR(255) NOT NULL,
 		email VARCHAR(255) UNIQUE NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		created_at TIMESTAMP DEFAULT now()
 	);`
 	err = os.WriteFile(filepath.Join(moduleSchemaDir, "core-schema.sql"), []byte(moduleSQL), 0644)
 	require.NoError(t, err)
@@ -225,4 +225,3 @@ func TestTableFormattingInGeneratedSQL(t *testing.T) {
 	assert.NotContains(t, sqlContent, "DROP TABLE public.public.test_table")
 	assert.NotContains(t, sqlContent, "DROP TABLE public.test_table")
 }
-

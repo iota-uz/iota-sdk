@@ -4,22 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/auxten/postgresql-parser/pkg/sql/parser"
-	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
-	"github.com/auxten/postgresql-parser/pkg/walk"
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
+	"github.com/iota-uz/psql-parser/sql/parser"
+	"github.com/iota-uz/psql-parser/sql/sem/tree"
+	"github.com/iota-uz/psql-parser/walk"
 )
 
 type schemaState struct {
-	tables  map[string]map[string]*columnState // table -> column -> state
+	tables  map[string]*tree.CreateTable // table -> column -> state
 	indexes map[string]*indexState
 	drops   map[string]bool
-}
-
-type columnState struct {
-	node      *tree.ColumnTableDef
-	timestamp int64
-	lastFile  string
 }
 
 type indexState struct {
@@ -30,7 +24,7 @@ type indexState struct {
 
 func newSchemaState() *schemaState {
 	return &schemaState{
-		tables:  make(map[string]map[string]*columnState),
+		tables:  make(map[string]*tree.CreateTable),
 		indexes: make(map[string]*indexState),
 		drops:   make(map[string]bool),
 	}
@@ -41,7 +35,8 @@ func (s *schemaState) update(stmts parser.Statements, timestamp int64, fileName 
 		Fn: func(ctx interface{}, node interface{}) bool {
 			switch n := node.(type) {
 			case *tree.CreateTable:
-				s.applyCreateTable(n, timestamp, fileName)
+				name := n.Table.String()
+				s.tables[name] = n
 			case *tree.AlterTable:
 				s.applyAlterTable(n, timestamp, fileName)
 			case *tree.CreateIndex:
@@ -58,33 +53,6 @@ func (s *schemaState) update(stmts parser.Statements, timestamp int64, fileName 
 	_, _ = w.Walk(stmts, nil)
 }
 
-func (s *schemaState) applyCreateTable(node *tree.CreateTable, timestamp int64, fileName string) {
-	name := node.Table.String()
-	if s.drops[name] {
-		return
-	}
-
-	if _, exists := s.tables[name]; !exists {
-		s.tables[name] = make(map[string]*columnState)
-	}
-
-	// Process all column definitions
-	for _, def := range node.Defs {
-		switch d := def.(type) {
-		case *tree.ColumnTableDef:
-			s.updateColumnState(name, d, timestamp, fileName)
-		case *tree.ForeignKeyConstraintTableDef:
-			s.updateColumnState(name, d, timestamp, fileName)
-		case *tree.UniqueConstraintTableDef:
-			s.updateColumnState(name, d, timestamp, fileName)
-		case *tree.IndexTableDef:
-		// TODO: handle indexes
-		default:
-			println("    Found unknown table def type for table:", name, "type:", fmt.Sprintf("%T", d))
-		}
-	}
-}
-
 func (s *schemaState) applyAlterTable(node *tree.AlterTable, timestamp int64, fileName string) {
 	name := node.Table.String()
 	if s.drops[name] {
@@ -96,9 +64,10 @@ func (s *schemaState) applyAlterTable(node *tree.AlterTable, timestamp int64, fi
 		case *tree.AlterTableAddColumn:
 			s.updateColumnState(name, c.ColumnDef, timestamp, fileName)
 		case *tree.AlterTableDropColumn:
-			colName := strings.ToLower(c.Column.String())
-			if _, exists := s.tables[name][colName]; exists {
-				delete(s.tables[name], colName)
+			if _, exists := s.tables[name]; exists {
+				dropColumn(s.tables[name], strings.ToLower(c.Column.String()))
+			} else {
+				println("    Found unknown table for column:", name)
 			}
 		case *tree.AlterTableAlterColumnType:
 			s.updateColumnState(name, c, timestamp, fileName)
@@ -118,72 +87,58 @@ func (s *schemaState) applyAlterTable(node *tree.AlterTable, timestamp int64, fi
 
 func (s *schemaState) updateColumnState(tableName string, cmd interface{}, timestamp int64, fileName string) {
 	if def, ok := cmd.(*tree.ColumnTableDef); ok {
-		colName := strings.ToLower(def.Name.String())
-		s.tables[tableName][colName] = &columnState{
-			node:      cmd.(*tree.ColumnTableDef),
-			timestamp: timestamp,
-			lastFile:  fileName,
-		}
+		s.tables[tableName].Defs = append(s.tables[tableName].Defs, def)
+		return
 	}
-	tableState, ok := s.tables[tableName]
+	table, ok := s.tables[tableName]
 	if !ok {
 		println("    Found unknown table for column:", tableName)
 		return
 	}
 	switch c := cmd.(type) {
-	case *tree.ColumnTableDef:
-		colName := strings.ToLower(c.Name.String())
-		if state, exists := tableState[colName]; exists {
-			state.node = c
-			state.timestamp = timestamp
-			state.lastFile = fileName
-		} else {
-			println("    Found unknown column for table:", tableName, "column:", colName)
-		}
 	case *tree.AlterTableDropConstraint:
 		// TODO: handle constraints
 	case *tree.AlterTableDropNotNull:
 		colName := strings.ToLower(c.Column.String())
-		if state, exists := tableState[colName]; exists {
-			state.node.Nullable.Nullability = tree.Null
-		} else {
+		idx := findColumnIndex(table.Defs, colName)
+		if idx == -1 {
 			println("    Found unknown column for table:", tableName, "column:", colName)
+			return
 		}
+		col := table.Defs[idx].(*tree.ColumnTableDef)
+		col.Nullable.Nullability = tree.Null
 	case *tree.AlterTableAlterColumnType:
 		colName := strings.ToLower(c.Column.String())
-		if state, exists := tableState[colName]; exists {
-			state.node.Type = c.ToType
-		} else {
+		idx := findColumnIndex(table.Defs, colName)
+		if idx == -1 {
 			println("    Found unknown column for table:", tableName, "column:", colName)
+			return
 		}
+		col := table.Defs[idx].(*tree.ColumnTableDef)
+		col.Type = c.ToType
 	case *tree.AlterTableSetDefault:
 		colName := strings.ToLower(c.Column.String())
-		if state, exists := tableState[colName]; exists {
-			state.node.DefaultExpr.Expr = c.Default
-		} else {
+		idx := findColumnIndex(table.Defs, colName)
+		if idx == -1 {
 			println("    Found unknown column for table:", tableName, "column:", colName)
+			return
 		}
+		col := table.Defs[idx].(*tree.ColumnTableDef)
+		col.DefaultExpr.Expr = c.Default
 	case *tree.ForeignKeyConstraintTableDef:
 		for _, col := range c.FromCols {
-			if state, exists := tableState[string(col)]; exists {
-				state.node.References.Table = &c.Table
-				state.node.References.Col = col
-				state.node.References.ConstraintName = c.Name
-				state.node.References.Actions = c.Actions
-				state.node.References.Match = c.Match
-			} else {
-				println("    Found unknown foreign key for table:", tableName, "column:", col)
+			idx := findColumnIndex(table.Defs, strings.ToLower(col.String()))
+			if idx == -1 {
+				println("    Found unknown column for table:", tableName, "column:", col)
+				continue
 			}
-
-		}
-	case *tree.UniqueConstraintTableDef:
-		for _, col := range c.Columns {
-			if state, exists := tableState[strings.ToLower(string(col.Column))]; exists {
-				state.node.Unique = true
-				state.node.UniqueConstraintName = c.Name
-			} else {
-				println("    Found unknown unique constraint for table:", tableName, "column:", col.Column)
-			}
+			col1 := table.Defs[idx].(*tree.ColumnTableDef)
+			col1.References.Table = &c.Table
+			col1.References.Table = &c.Table
+			col1.References.Col = col
+			col1.References.ConstraintName = c.Name
+			col1.References.Actions = c.Actions
+			col1.References.Match = c.Match
 		}
 	}
 }
@@ -204,23 +159,14 @@ func (s *schemaState) updateIndexState(node *tree.CreateIndex, timestamp int64, 
 func (s *schemaState) buildSchema() *common.Schema {
 	schema := common.NewSchema()
 
-	for tableName, columns := range s.tables {
+	for _, t := range s.tables {
+		tableName := t.Table.String()
 		if s.drops[tableName] {
 			continue
 		}
 
-		// Create table definition array
-		defs := make(tree.TableDefs, 0, len(columns))
-		for _, state := range columns {
-			defs = append(defs, state.node)
-		}
-
 		// Create the table in the schema
-		schema.Tables[tableName] = &tree.CreateTable{
-			IfNotExists: false,
-			Table:       tree.MakeUnqualifiedTableName(tree.Name(tableName)),
-			Defs:        defs,
-		}
+		schema.Tables[tableName] = t
 	}
 
 	return schema
@@ -229,4 +175,28 @@ func (s *schemaState) buildSchema() *common.Schema {
 func shouldUpdateIndex(current *indexState, newTimestamp int64) bool {
 	// Accept new index definitions regardless of timestamp
 	return current == nil || newTimestamp >= current.timestamp
+}
+
+func findColumnIndex(defs tree.TableDefs, colName string) int {
+	for i, def := range defs {
+		if col, ok := def.(*tree.ColumnTableDef); ok {
+			if strings.ToLower(col.String()) == colName {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func dropColumn(node *tree.CreateTable, colName string) {
+	var filteredDefs tree.TableDefs
+	for _, def := range node.Defs {
+		if col, ok := def.(*tree.ColumnTableDef); ok {
+			if strings.ToLower(col.Name.String()) == colName {
+				continue
+			}
+		}
+		filteredDefs = append(filteredDefs, def)
+	}
+	node.Defs = filteredDefs
 }

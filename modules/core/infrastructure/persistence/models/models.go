@@ -9,6 +9,7 @@ type Upload struct {
 	ID        uint
 	Hash      string
 	Path      string
+	Name      string
 	Size      int
 	Mimetype  string
 	Type      string

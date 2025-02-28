@@ -1,3 +1,16 @@
+CREATE TABLE uploads
+(
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL, -- original file name
+    hash       VARCHAR(255)  NOT NULL UNIQUE, -- md5 hash of the file
+    path       VARCHAR(1024) NOT NULL   DEFAULT '', -- relative path to the file
+    size       INT           NOT NULL   DEFAULT 0, -- in bytes
+    mimetype   VARCHAR(255)  NOT NULL, -- image/jpeg, application/pdf, etc.
+    type       VARCHAR(255)  NOT NULL, -- image, document, etc.
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
 CREATE TABLE companies
 (
     id         SERIAL PRIMARY KEY,
@@ -5,30 +18,19 @@ CREATE TABLE companies
     about      TEXT,
     address    VARCHAR(255),
     phone      VARCHAR(255),
-    logo_id    INT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    logo_id    INT REFERENCES uploads (id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
-CREATE TABLE uploads
-(
-    id         SERIAL PRIMARY KEY,
-    hash       VARCHAR(255)  NOT NULL UNIQUE, -- md5 hash of the file
-    path       VARCHAR(1024) NOT NULL   DEFAULT '', -- relative path to the file
-    size       INT           NOT NULL   DEFAULT 0, -- in bytes
-    mimetype   VARCHAR(255)  NOT NULL, -- image/jpeg, application/pdf, etc.
-    type       VARCHAR(255)  NOT NULL, -- image, document, etc.
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
-);
 
 CREATE TABLE currencies
 (
     code       VARCHAR(3)   NOT NULL PRIMARY KEY, -- RUB
     name       VARCHAR(255) NOT NULL,             -- Russian Ruble
     symbol     VARCHAR(3)   NOT NULL,             -- ₽
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE roles
@@ -36,8 +38,8 @@ CREATE TABLE roles
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE users
@@ -53,15 +55,15 @@ CREATE TABLE users
     last_login  TIMESTAMP                NULL,
     last_ip     VARCHAR(255)             NULL,
     last_action TIMESTAMP WITH TIME ZONE NULL,
-    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE TABLE user_roles
 (
     user_id    INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     role_id    INT NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
     PRIMARY KEY (user_id, role_id)
 );
 
@@ -73,8 +75,8 @@ CREATE TABLE uploaded_images
     size       FLOAT        NOT NULL,
     width      INT          NOT NULL,
     height     INT          NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE permissions
@@ -89,28 +91,19 @@ CREATE TABLE permissions
 
 CREATE TABLE role_permissions
 (
-    role_id       INT  NOT NULL,
-    permission_id uuid NOT NULL,
-    PRIMARY KEY (role_id, permission_id),
-    CONSTRAINT fk_role_permissions_role
-        FOREIGN KEY (role_id)
-            REFERENCES roles (id)
-            ON DELETE CASCADE,
-    CONSTRAINT fk_permission
-        FOREIGN KEY (permission_id)
-            REFERENCES permissions (id)
-            ON DELETE CASCADE
+    role_id       INT  NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
+    permission_id uuid NOT NULL REFERENCES permissions (id) ON DELETE CASCADE,
+    PRIMARY KEY (role_id, permission_id)
 );
 
 CREATE TABLE sessions
 (
-    token      VARCHAR(255)             NOT NULL UNIQUE PRIMARY KEY,
-    user_id    INTEGER                  NOT NULL
-        CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
+    token      VARCHAR(255)             NOT NULL PRIMARY KEY,
+    user_id    INTEGER                  NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     ip         VARCHAR(255)             NOT NULL,
     user_agent VARCHAR(255)             NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE TABLE tabs
