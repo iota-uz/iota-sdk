@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/iota-uz/psql-parser/sql/sem/tree"
@@ -46,7 +45,6 @@ func TestSchemaState_buildSchema(t *testing.T) {
 			schema := state.buildSchema()
 
 			// Verify the table exists in the schema
-			fmt.Println(schema.Tables)
 			table, exists := schema.Tables[tt.wantTable]
 			assert.True(t, exists, "Table should exist in schema")
 
@@ -66,4 +64,3 @@ func TestSchemaState_buildSchema(t *testing.T) {
 		})
 	}
 }
-

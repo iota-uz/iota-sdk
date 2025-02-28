@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
 	"runtime/debug"
 	"time"
@@ -45,7 +45,7 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			configuration.Use().Unload()
-			fmt.Println(r)
+			log.Println(r)
 			os.Exit(1)
 		}
 	}()

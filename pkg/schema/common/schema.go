@@ -59,6 +59,11 @@ func AllReferencesSatisfied(t *tree.CreateTable, tables []*tree.CreateTable) boo
 		if colDef.References.Table == nil {
 			continue
 		}
+		// For self-references
+		if colDef.References.Table.String() == t.Table.String() {
+			continue
+		}
+
 		found := false
 		for _, table := range tables {
 			if table.Table.String() == colDef.References.Table.String() {
