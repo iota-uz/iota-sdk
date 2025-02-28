@@ -62,7 +62,7 @@ func (l *FileLoader) LoadExistingSchema(ctx context.Context) (*common.Schema, er
 		}
 	}
 
-	l.logger.Debugf("Found %d migration files", len(migrationFiles))
+	l.logger.Debugf("Found %d existing migrations", len(migrationFiles))
 
 	sort.Slice(migrationFiles, func(i, j int) bool {
 		return l.extractTimestamp(migrationFiles[i]) < l.extractTimestamp(migrationFiles[j])
@@ -133,7 +133,7 @@ func (l *FileLoader) LoadModuleSchema(ctx context.Context) (*common.Schema, erro
 					return nil
 				}
 
-				l.logger.Debugf("Updating schema state from embedded file: %s with timestamp: %d", path, currentTimestamp)
+				l.logger.Debugf("Processing file: %s with timestamp: %d", path, currentTimestamp)
 				schemaState.update(parsed, currentTimestamp, path)
 			}
 			return nil

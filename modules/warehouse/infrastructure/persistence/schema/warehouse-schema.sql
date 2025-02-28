@@ -1,4 +1,3 @@
--- +migrate Up
 CREATE TABLE warehouse_units
 (
     id          SERIAL PRIMARY KEY,
@@ -74,12 +73,3 @@ CREATE TABLE inventory_check_results
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- +migrate Down
-DROP TABLE IF EXISTS inventory_check_results CASCADE;
-DROP TABLE IF EXISTS warehouse_order_items CASCADE;
-DROP TABLE IF EXISTS warehouse_orders CASCADE;
-DROP TABLE IF EXISTS inventory_checks CASCADE;
-DROP TABLE IF EXISTS warehouse_products CASCADE;
-DROP TABLE IF EXISTS warehouse_positions CASCADE;
-DROP TABLE IF EXISTS warehouse_position_images CASCADE;
-DROP TABLE IF EXISTS warehouse_units CASCADE;
