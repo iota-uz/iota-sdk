@@ -311,17 +311,14 @@ func TestCompareTables_MultipleChanges(t *testing.T) {
 	require.Len(t, downChanges, 3, "Should have exactly 3 down changes")
 
 	// Check the first change
-	alterTable := upChanges[0].(*tree.AlterTable)
-	alterColumnType := alterTable.Cmds[0].(*tree.AlterTableAlterColumnType)
-	assert.Equal(t, "id", alterColumnType.Column.String(), "Column name should match")
+	change1 := upChanges[0].(*tree.AlterTable).Cmds[0].(*tree.AlterTableAlterColumnType)
+	assert.Equal(t, "id", change1.Column.String(), "Column name should match")
 
-	// Check the second change
-	addColumn := upChanges[1].(*tree.AlterTable)
-	assert.Equal(t, "email", addColumn.Cmds[0].(*tree.AlterTableAddColumn).ColumnDef.Name.String(), "Column name should match")
+	change2 := upChanges[1].(*tree.AlterTable).Cmds[0].(*tree.AlterTableAddColumn)
+	assert.Equal(t, "email", change2.ColumnDef.Name.String(), "Column name should match")
 
-	// Check the third change
-	addColumn = upChanges[2].(*tree.AlterTable)
-	assert.Equal(t, "created_at", addColumn.Cmds[0].(*tree.AlterTableAddColumn).ColumnDef.Name.String(), "Column name should match")
+	change3 := upChanges[2].(*tree.AlterTable).Cmds[0].(*tree.AlterTableAddColumn)
+	assert.Equal(t, "created_at", change3.ColumnDef.Name.String(), "Column name should match")
 }
 
 func TestCompareTables_ColumnsRemoved(t *testing.T) {

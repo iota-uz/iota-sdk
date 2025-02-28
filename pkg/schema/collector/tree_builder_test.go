@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/iota-uz/psql-parser/sql/sem/tree"
@@ -20,17 +21,17 @@ func TestSchemaState_buildSchema(t *testing.T) {
 
 				// Create a test table with a column
 				tableName := "test_table"
-				
+
 				// Create a CreateTable node
 				createTable := &tree.CreateTable{
-					Table: tree.MakeTableName("", tree.Name(tableName)),
+					Table: tree.MakeUnqualifiedTableName(tree.Name(tableName)),
 					Defs: tree.TableDefs{
 						&tree.ColumnTableDef{
 							Name: tree.Name("id"),
 						},
 					},
 				}
-				
+
 				state.tables[tableName] = createTable
 
 				return state
@@ -45,8 +46,14 @@ func TestSchemaState_buildSchema(t *testing.T) {
 			schema := state.buildSchema()
 
 			// Verify the table exists in the schema
+			fmt.Println(schema.Tables)
 			table, exists := schema.Tables[tt.wantTable]
 			assert.True(t, exists, "Table should exist in schema")
+
+			// Skip additional checks if table doesn't exist to avoid nil pointer dereference
+			if !exists {
+				return
+			}
 
 			// Verify the table name is unqualified (not public.public.tablename)
 			tableName := table.Table.String()
@@ -59,3 +66,4 @@ func TestSchemaState_buildSchema(t *testing.T) {
 		})
 	}
 }
+

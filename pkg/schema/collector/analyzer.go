@@ -26,7 +26,13 @@ func CompareTables(oldTable, newTable *tree.CreateTable) ([]interface{}, []inter
 		}
 	}
 
-	for colName, newCol := range newColumns {
+	// iterate over the array instead of map to preserve order
+	for _, def := range newTable.Defs {
+		newCol, ok := def.(*tree.ColumnTableDef)
+		if !ok {
+			continue
+		}
+		colName := newCol.Name.String()
 		if oldCol, exists := oldColumns[colName]; !exists {
 			// Column was added (up operation)
 			tableName, _ := tree.NewUnresolvedObjectName(
@@ -101,7 +107,11 @@ func CompareTables(oldTable, newTable *tree.CreateTable) ([]interface{}, []inter
 	}
 
 	// Detect removed columns
-	for _, oldCol := range oldColumns {
+	for _, def := range oldTable.Defs {
+		oldCol, ok := def.(*tree.ColumnTableDef)
+		if !ok {
+			continue
+		}
 		if _, exists := newColumns[oldCol.Name.String()]; !exists {
 			// Column was removed (up operation)
 			tableName, _ := tree.NewUnresolvedObjectName(
