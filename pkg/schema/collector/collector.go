@@ -140,6 +140,7 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 			case *tree.CreateIndex:
 				buffer.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
 				buffer.WriteString(pPrinter.Pretty(node))
+				buffer.WriteString(";\n\n")
 			default:
 				c.logger.Warnf("Unknown up change type at index %d: %T", i, change)
 				buffer.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))

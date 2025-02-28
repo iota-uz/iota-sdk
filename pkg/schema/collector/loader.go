@@ -133,7 +133,7 @@ func (l *FileLoader) LoadModuleSchema(ctx context.Context) (*common.Schema, erro
 					return nil
 				}
 
-				l.logger.Debugf("Processing file: %s with timestamp: %d", path, currentTimestamp)
+				l.logger.Debugf("Processing file: %s", path)
 				schemaState.update(parsed, currentTimestamp, path)
 			}
 			return nil
