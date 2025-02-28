@@ -16,22 +16,23 @@ var (
 )
 
 const (
-	selectUploadQuery = `SELECT id, hash, path, size, type, mimetype, created_at, updated_at FROM uploads`
+	selectUploadQuery = `SELECT id, hash, path, name, size, type, mimetype, created_at, updated_at FROM uploads`
 
 	countUploadsQuery = `SELECT COUNT(*) FROM uploads`
 
-	insertUploadQuery = `INSERT INTO uploads (hash, path, size, type, mimetype, created_at, updated_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7)
+	insertUploadQuery = `INSERT INTO uploads (hash, path, name, size, type, mimetype, created_at, updated_at)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                          RETURNING id`
 
 	updatedUploadQuery = `UPDATE uploads
                           SET hash = $1,
                               path = $2,
-                              size = $3,
-                              type = $4,
-                              mimetype = $5,
-                              updated_at = $6
-                          WHERE id = $7`
+                              name = $3,
+                              size = $4,
+                              type = $5,
+                              mimetype = $6,
+                              updated_at = $7
+                          WHERE id = $8`
 
 	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1`
 )
@@ -58,20 +59,21 @@ func (g *GormUploadRepository) queryUploads(
 	defer rows.Close()
 	uploads := make([]upload.Upload, 0)
 	for rows.Next() {
-		var upload models.Upload
+		var dbUpload models.Upload
 		if err := rows.Scan(
-			&upload.ID,
-			&upload.Hash,
-			&upload.Path,
-			&upload.Size,
-			&upload.Type,
-			&upload.Mimetype,
-			&upload.CreatedAt,
-			&upload.UpdatedAt,
+			&dbUpload.ID,
+			&dbUpload.Hash,
+			&dbUpload.Path,
+			&dbUpload.Name,
+			&dbUpload.Size,
+			&dbUpload.Type,
+			&dbUpload.Mimetype,
+			&dbUpload.CreatedAt,
+			&dbUpload.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		uploads = append(uploads, ToDomainUpload(&upload))
+		uploads = append(uploads, ToDomainUpload(&dbUpload))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -174,6 +176,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 		insertUploadQuery,
 		dbUpload.Hash,
 		dbUpload.Path,
+		dbUpload.Name,
 		dbUpload.Size,
 		dbUpload.Type,
 		dbUpload.Mimetype,
@@ -196,6 +199,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 		updatedUploadQuery,
 		dbUpload.Hash,
 		dbUpload.Path,
+		dbUpload.Name,
 		dbUpload.Size,
 		dbUpload.Type,
 		dbUpload.Mimetype,

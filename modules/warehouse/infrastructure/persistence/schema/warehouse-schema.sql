@@ -4,8 +4,8 @@ CREATE TABLE warehouse_units
     id          SERIAL PRIMARY KEY,
     title       VARCHAR(255) NOT NULL, -- Kilogram, Piece, etc.
     short_title VARCHAR(255) NOT NULL, -- kg, pcs, etc.
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE warehouse_positions
@@ -15,8 +15,8 @@ CREATE TABLE warehouse_positions
     barcode     VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
     unit_id     INT          REFERENCES warehouse_units (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE warehouse_position_images
@@ -32,8 +32,8 @@ CREATE TABLE warehouse_products
     position_id INT          NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
     rfid        VARCHAR(255) NULL UNIQUE,
     status      VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE warehouse_orders
@@ -41,7 +41,7 @@ CREATE TABLE warehouse_orders
     id         SERIAL PRIMARY KEY,
     type       VARCHAR(255) NOT NULL,
     status     VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE warehouse_order_items
@@ -57,7 +57,7 @@ CREATE TABLE inventory_checks
     status         VARCHAR(255) NOT NULL,
     name           VARCHAR(255) NOT NULL,
     type           VARCHAR(255) NOT NULL,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT now(),
     finished_at    TIMESTAMP WITH TIME ZONE,
     created_by_id  INT          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     finished_by_id INT REFERENCES users (id) ON DELETE CASCADE
@@ -71,7 +71,7 @@ CREATE TABLE inventory_check_results
     expected_quantity  INT NOT NULL,
     actual_quantity    INT NOT NULL,
     difference         INT NOT NULL,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- +migrate Down

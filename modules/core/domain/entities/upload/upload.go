@@ -41,6 +41,7 @@ type Upload interface {
 	Type() UploadType
 	Hash() string
 	Path() string
+	Name() string
 	Size() Size
 	IsImage() bool
 	PreviewURL() string
@@ -53,7 +54,7 @@ type Upload interface {
 // ---- Upload Implementation ----
 
 func New(
-	hash, path string,
+	hash, path, name string,
 	size int,
 	mimetype *mimetype.MIME,
 ) Upload {
@@ -67,6 +68,7 @@ func New(
 		id:        0,
 		hash:      hash,
 		path:      path,
+		name:      name,
 		size:      NewSize(size),
 		mimetype:  mimetype,
 		_type:     t,
@@ -77,7 +79,7 @@ func New(
 
 func NewWithID(
 	id uint,
-	hash, path string,
+	hash, path, name string,
 	size int,
 	mimetype *mimetype.MIME,
 	_type UploadType,
@@ -87,6 +89,7 @@ func NewWithID(
 		id:        id,
 		hash:      hash,
 		path:      path,
+		name:      name,
 		size:      NewSize(size),
 		mimetype:  mimetype,
 		_type:     _type,
@@ -99,6 +102,7 @@ type upload struct {
 	id        uint
 	hash      string
 	path      string
+	name      string
 	size      Size
 	_type     UploadType
 	mimetype  *mimetype.MIME
@@ -120,6 +124,10 @@ func (u *upload) Hash() string {
 
 func (u *upload) Path() string {
 	return u.path
+}
+
+func (u *upload) Name() string {
+	return u.name
 }
 
 func (u *upload) Size() Size {

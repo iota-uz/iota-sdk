@@ -9,20 +9,20 @@ CREATE TABLE clients (
     hourly_rate   FLOAT,
     date_of_birth DATE,
     gender        VARCHAR(15),
-    created_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE chats (
     id          SERIAL PRIMARY KEY,
-    created_at  TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at  TIMESTAMP(3) DEFAULT now() NOT NULL,
     client_id   INT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    last_message_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP
+    last_message_at TIMESTAMP(3) DEFAULT now()
 );
 
 CREATE TABLE messages (
     id               SERIAL PRIMARY KEY,
-    created_at       TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at       TIMESTAMP(3) DEFAULT now() NOT NULL,
     chat_id          INT NOT NULL REFERENCES chats(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     message          TEXT NOT NULL,
     sender_user_id   INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
@@ -40,7 +40,7 @@ CREATE TABLE message_media (
 CREATE TABLE message_templates (
     id          SERIAL PRIMARY KEY,
     template    TEXT NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE INDEX idx_chats_client_id ON chats (client_id);

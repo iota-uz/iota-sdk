@@ -3,7 +3,7 @@ package collector
 import (
 	"testing"
 
-	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
+	"github.com/iota-uz/psql-parser/sql/sem/tree"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,4 +58,3 @@ func TestSchemaState_buildSchema(t *testing.T) {
 		})
 	}
 }
-

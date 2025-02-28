@@ -14,3 +14,5 @@ modules/core/presentation/assets/css/main.min.css
 bin/
 logs/
 
+go.work*
+

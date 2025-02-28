@@ -3,8 +3,8 @@ CREATE TABLE positions
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
     description TEXT,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE employees
@@ -20,8 +20,8 @@ CREATE TABLE employees
     hourly_rate        NUMERIC(9, 2) NOT NULL,
     coefficient        FLOAT         NOT NULL,
     avatar_id          INT           REFERENCES uploads (id) ON DELETE SET NULL,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE TABLE employee_positions
@@ -50,7 +50,7 @@ CREATE TABLE employee_contacts
     employee_id INT          NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
     type        VARCHAR(255) NOT NULL,
     value       VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT current_timestamp
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
