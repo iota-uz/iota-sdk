@@ -150,14 +150,10 @@ func (s *schemaState) updateColumnState(tableName string, cmd interface{}, times
 
 func (s *schemaState) updateIndexState(node *tree.CreateIndex, timestamp int64, fileName string) {
 	indexName := strings.ToLower(node.Name.String())
-	currentState := s.indexes[indexName]
-
-	if shouldUpdateIndex(currentState, timestamp) {
-		s.indexes[indexName] = &indexState{
-			node:      node,
-			timestamp: timestamp,
-			lastFile:  fileName,
-		}
+	s.indexes[indexName] = &indexState{
+		node:      node,
+		timestamp: timestamp,
+		lastFile:  fileName,
 	}
 }
 
@@ -174,12 +170,11 @@ func (s *schemaState) buildSchema() *common.Schema {
 		schema.Tables[tableName] = t
 	}
 
-	return schema
-}
+	for name, idx := range s.indexes {
+		schema.Indexes[name] = idx.node
+	}
 
-func shouldUpdateIndex(current *indexState, newTimestamp int64) bool {
-	// Accept new index definitions regardless of timestamp
-	return current == nil || newTimestamp >= current.timestamp
+	return schema
 }
 
 func findColumnIndex(defs tree.TableDefs, colName string) int {

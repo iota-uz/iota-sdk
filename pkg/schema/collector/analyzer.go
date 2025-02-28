@@ -204,11 +204,8 @@ func CollectSchemaChanges(oldSchema, newSchema *common.Schema) (*common.ChangeSe
 	// Check for new indexes
 	for indexName, newIndex := range newSchema.Indexes {
 		if _, exists := oldSchema.Indexes[indexName]; !exists {
-			// New index was added (up operation)
 			upChanges.Changes = append(upChanges.Changes, newIndex)
 
-			// Corresponding down operation: create a simple DROP INDEX string
-			// since the tree.DropIndex structure is complex and varies between versions
 			downChanges.Changes = append(downChanges.Changes, &tree.DropIndex{
 				IndexList: tree.TableIndexNames{
 					&tree.TableIndexName{
