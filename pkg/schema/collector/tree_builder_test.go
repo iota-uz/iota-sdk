@@ -20,17 +20,18 @@ func TestSchemaState_buildSchema(t *testing.T) {
 
 				// Create a test table with a column
 				tableName := "test_table"
-				state.tables[tableName] = make(map[string]*columnState)
-
-				columnName := "id"
-				columnDef := &tree.ColumnTableDef{
-					Name: tree.Name(columnName),
+				
+				// Create a CreateTable node
+				createTable := &tree.CreateTable{
+					Table: tree.MakeTableName("", tree.Name(tableName)),
+					Defs: tree.TableDefs{
+						&tree.ColumnTableDef{
+							Name: tree.Name("id"),
+						},
+					},
 				}
-
-				state.tables[tableName][columnName] = &columnState{
-					node:      columnDef,
-					timestamp: 123456,
-				}
+				
+				state.tables[tableName] = createTable
 
 				return state
 			},

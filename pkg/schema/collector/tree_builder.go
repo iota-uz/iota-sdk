@@ -16,6 +16,11 @@ type schemaState struct {
 	drops   map[string]bool
 }
 
+type columnState struct {
+	node      *tree.ColumnTableDef
+	timestamp int64
+}
+
 type indexState struct {
 	node      *tree.CreateIndex
 	timestamp int64
