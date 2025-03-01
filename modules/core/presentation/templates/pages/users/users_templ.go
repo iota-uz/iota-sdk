@@ -31,7 +31,7 @@ type IndexPageProps struct {
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	return templ.Attributes{
 		"hx-get":     fmt.Sprintf("/users?page=%d&name=%s&limit=%d", props.Page+1, props.Search, props.PerPage),
-		"hx-trigger": "revealed",
+		"hx-trigger": "intersect once",
 		"hx-swap":    "afterend",
 		"hx-target":  "this",
 	}
