@@ -65,10 +65,12 @@ func (c *UsersController) Register(r *mux.Router) {
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	params := composables.UsePaginated(r)
+	search := r.URL.Query().Get("name")
 	us, total, err := c.userService.GetPaginatedWithTotal(r.Context(), &user.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: user.SortBy{Fields: []user.Field{}},
+		Name:   search,
 	})
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
@@ -79,7 +81,7 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 		Users:   mapping.MapViewModels(us, mappers.UserToViewModel),
 		Page:    params.Page,
 		PerPage: params.Limit,
-		Search:  r.URL.Query().Get("name"),
+		Search:  search,
 		HasMore: total > int64(params.Page*params.Limit),
 	}
 	if isHxRequest {
