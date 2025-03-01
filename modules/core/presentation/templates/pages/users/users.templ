@@ -28,7 +28,7 @@ templ UsersTable(props *IndexPageProps) {
 		},
 	}) {
 		for _, user := range props.Users {
-			@base.TableRow() {
+			@base.TableRow(&base.TableRowProps{}) {
 				@base.TableCell() {
 					<div class="flex items-center gap-3">
 						if user.Avatar != nil && user.Avatar.URL != "" {

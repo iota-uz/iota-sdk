@@ -29,7 +29,7 @@ templ CategoriesTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, category := range props.Categories {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ category.Name }
 					}

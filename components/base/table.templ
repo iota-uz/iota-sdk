@@ -10,8 +10,12 @@ type TableColumn struct {
 	Sortable   bool
 }
 
-templ TableRow() {
-	<tr>
+type TableRowProps struct {
+	Attrs templ.Attributes
+}
+
+templ TableRow(props *TableRowProps) {
+	<tr { props.Attrs... }>
 		{ children... }
 	</tr>
 }
