@@ -78,7 +78,7 @@ templ AllPositionsTable(props *CreatePageProps) {
 			},
 		}) {
 			for _, position := range props.Positions {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ position.Title }
 					}
