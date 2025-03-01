@@ -13,7 +13,83 @@ import (
 )
 
 type IndexPageProps struct {
-	Users []*viewmodels.User
+	Users   []*viewmodels.User
+	Page    int
+	PerPage int
+	Search  string
+	HasMore bool
+}
+
+func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+	return templ.Attributes{
+		"hx-get":     fmt.Sprintf("/users?page=%d&name=%s&limit=%d", props.Page+1, props.Search, props.PerPage),
+		"hx-trigger": "revealed",
+		"hx-swap":    "afterend",
+		"hx-target":  "this",
+	}
+}
+
+templ UserRow(props *IndexPageProps, user *viewmodels.User, isLastRow bool) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ rowProps := &base.TableRowProps{} }}
+	if isLastRow && props.HasMore {
+		{{ rowProps.Attrs = mkInfiniteAttrs(props) }}
+	}
+	@base.TableRow(rowProps) {
+		@base.TableCell() {
+			<div class="flex items-center gap-3">
+				if user.Avatar != nil && user.Avatar.URL != "" {
+					<img
+						src={ user.Avatar.URL }
+						class="w-8 h-8 object-cover rounded-full"
+						alt="User Avatar"
+					/>
+				} else {
+					<div class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm">
+						{ string(user.FirstName[0]) }
+					</div>
+				}
+				<span>
+					{ user.FullName() }
+				</span>
+			</div>
+		}
+		@base.TableCell() {
+			if user.LastAction != "" {
+				<div>
+					{ user.RolesVerbose() }
+				</div>
+			} else {
+				{ pageCtx.T("Unknown") }
+			}
+		}
+		@base.TableCell() {
+			<div>
+				{ user.Email }
+			</div>
+		}
+		@base.TableCell() {
+			<div x-data="relativeformat">
+				<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt) }></span>
+			</div>
+		}
+		@base.TableCell() {
+			@button.Secondary(button.Props{
+				Fixed: true,
+				Size:  button.SizeSM,
+				Class: "btn-fixed",
+				Href:  fmt.Sprintf("/users/%s", user.ID),
+			}) {
+				@icons.PencilSimple(icons.Props{Size: "20"})
+			}
+		}
+	}
+}
+
+templ UserRows(props *IndexPageProps) {
+	for ix, user := range props.Users {
+		@UserRow(props, user, ix == len(props.Users)-1)
+	}
 }
 
 templ UsersTable(props *IndexPageProps) {
@@ -27,57 +103,7 @@ templ UsersTable(props *IndexPageProps) {
 			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
-		for _, user := range props.Users {
-			@base.TableRow(&base.TableRowProps{}) {
-				@base.TableCell() {
-					<div class="flex items-center gap-3">
-						if user.Avatar != nil && user.Avatar.URL != "" {
-							<img
-								src={ user.Avatar.URL }
-								class="w-8 h-8 object-cover rounded-full"
-								alt="User Avatar"
-							/>
-						} else {
-							<div class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm">
-								{ string(user.FirstName[0]) }
-							</div>
-						}
-						<span>
-							{ user.FullName() }
-						</span>
-					</div>
-				}
-				@base.TableCell() {
-					if user.LastAction != "" {
-						<div>
-							{ user.RolesVerbose() }
-						</div>
-					} else {
-						{ pageCtx.T("Unknown") }
-					}
-				}
-				@base.TableCell() {
-					<div>
-						{ user.Email }
-					</div>
-				}
-				@base.TableCell() {
-					<div x-data="relativeformat">
-						<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt) }></span>
-					</div>
-				}
-				@base.TableCell() {
-					@button.Secondary(button.Props{
-						Fixed: true,
-						Size:  button.SizeSM,
-						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/users/%s", user.ID),
-					}) {
-						@icons.PencilSimple(icons.Props{Size: "20"})
-					}
-				}
-			}
-		}
+		@UserRows(props)
 	}
 }
 
@@ -93,7 +119,7 @@ templ UsersContent(props *IndexPageProps) {
 				"name": "limit",
 			},
 		}) {
-			<option>15</option>
+			<option selected>15</option>
 			<option>25</option>
 			<option>50</option>
 			<option>100</option>
@@ -133,6 +159,7 @@ templ UsersContent(props *IndexPageProps) {
 				hx-target="table"
 				hx-swap="outerHTML"
 			>
+				<input type="hidden" name="page" value="1"/>
 				<div class="flex-1">
 					@input.Text(&input.Props{
 						AddonLeft: &input.Addon{
@@ -140,7 +167,8 @@ templ UsersContent(props *IndexPageProps) {
 						},
 						Placeholder: pageCtx.T("Search"),
 						Attrs: templ.Attributes{
-							"name": "name",
+							"name":  "name",
+							"value": props.Search,
 						},
 					})
 				</div>
@@ -151,7 +179,7 @@ templ UsersContent(props *IndexPageProps) {
 							"name": "limit",
 						},
 					}) {
-						<option>15</option>
+						<option selected>15</option>
 						<option>25</option>
 						<option>50</option>
 						<option>100</option>

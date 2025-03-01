@@ -65,7 +65,7 @@ func (c *UsersController) Register(r *mux.Router) {
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	params := composables.UsePaginated(r)
-	us, err := c.userService.GetPaginated(r.Context(), &user.FindParams{
+	us, total, err := c.userService.GetPaginatedWithTotal(r.Context(), &user.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: user.SortBy{Fields: []user.Field{}},
@@ -76,10 +76,19 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &users.IndexPageProps{
-		Users: mapping.MapViewModels(us, mappers.UserToViewModel),
+		Users:   mapping.MapViewModels(us, mappers.UserToViewModel),
+		Page:    params.Page,
+		PerPage: params.Limit,
+		Search:  r.URL.Query().Get("name"),
+		HasMore: total > int64(params.Page*params.Limit),
 	}
 	if isHxRequest {
-		templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		if params.Page > 1 {
+			// pages after the first one are served as extensions of the previous table due to infinite scroll
+			templ.Handler(users.UserRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		}
 	} else {
 		templ.Handler(users.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
