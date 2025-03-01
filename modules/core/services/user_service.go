@@ -39,6 +39,18 @@ func (s *UserService) GetPaginated(ctx context.Context, params *user.FindParams)
 	return s.repo.GetPaginated(ctx, params)
 }
 
+func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.FindParams) ([]user.User, int64, error) {
+	us, err := s.repo.GetPaginated(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	return us, total, nil
+}
+
 func (s *UserService) Create(ctx context.Context, data user.User) error {
 	createdEvent, err := user.NewCreatedEvent(ctx, data)
 	if err != nil {

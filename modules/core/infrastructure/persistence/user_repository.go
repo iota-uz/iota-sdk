@@ -68,7 +68,7 @@ const (
             updated_at = $8
         WHERE id = $9`
 
-	userCountQuery = `SELECT COUNT(*) FROM users`
+	userCountQuery = `SELECT COUNT(id) FROM users`
 
 	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
 
