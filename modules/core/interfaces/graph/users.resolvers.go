@@ -24,18 +24,19 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []int, ascending bool) (*model.PaginatedUsers, error) {
-	domainUsers, err := r.userService.GetPaginated(ctx, &user.FindParams{
+	params := &user.FindParams{
 		Limit:  limit,
 		Offset: offset,
 		SortBy: user.SortBy{
 			Fields:    sortBy,
 			Ascending: ascending,
 		},
-	})
+	}
+	domainUsers, err := r.userService.GetPaginated(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	total, err := r.userService.Count(ctx)
+	total, err := r.userService.Count(ctx, params)
 	if err != nil {
 		return nil, err
 	}

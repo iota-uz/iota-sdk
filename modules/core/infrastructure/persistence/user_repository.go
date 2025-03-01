@@ -106,6 +106,12 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.Find
 		}
 	}
 	where, args := []string{"1 = 1"}, []interface{}{}
+
+	if params.Name != "" {
+		where = append(where, "(u.first_name ILIKE $1 OR u.last_name ILIKE $1 OR u.middle_name ILIKE $1)")
+		args = append(args, "%"+params.Name+"%")
+	}
+
 	query := repo.Join(
 		userFindQuery,
 		repo.JoinWhere(where...),
@@ -115,13 +121,20 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.Find
 	return g.queryUsers(ctx, query, args...)
 }
 
-func (g *GormUserRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormUserRepository) Count(ctx context.Context, params *user.FindParams) (int64, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
+
+	query, args := userCountQuery, []interface{}{}
+	if params != nil && params.Name != "" {
+		query += " WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR middle_name ILIKE $1"
+		args = append(args, "%"+params.Name+"%")
+	}
+
 	var count int64
-	err = tx.QueryRow(ctx, userCountQuery).Scan(&count)
+	err = tx.QueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
 		return 0, err
 	}

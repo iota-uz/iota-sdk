@@ -23,8 +23,8 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (user.User, 
 	return s.repo.GetByEmail(ctx, email)
 }
 
-func (s *UserService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *UserService) Count(ctx context.Context, params *user.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }
 
 func (s *UserService) GetAll(ctx context.Context) ([]user.User, error) {
@@ -44,7 +44,7 @@ func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.Fi
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := s.repo.Count(ctx)
+	total, err := s.repo.Count(ctx, params)
 	if err != nil {
 		return nil, 0, err
 	}
