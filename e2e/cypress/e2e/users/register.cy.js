@@ -1,16 +1,5 @@
 /// <reference types="cypress" />
 
-Cypress.on("uncaught:exception", (err) => !err.message.includes("ResizeObserver loop"));
-
-const login = (email, password) => {
-	cy.session([email, password], () => {
-		cy.visit("http://localhost:3200/login");
-		cy.get("[type=email]").type(email);
-		cy.get("[type=password]").type(password);
-		cy.get("[type=submit]").click();
-	});
-};
-
 describe("user auth and registration flow", () => {
 	before(() => {
 		cy.task("resetDatabase");
@@ -18,11 +7,11 @@ describe("user auth and registration flow", () => {
 	});
 
 	afterEach(() => {
-		cy.visit("http://localhost:3200/logout");
+		cy.logout();
 	});
 
 	it("creates a user and displays changes in users table", () => {
-		login("test@gmail.com", "TestPass123!");
+		cy.login("test@gmail.com", "TestPass123!");
 		cy.visit("http://localhost:3200/users");
 		cy.get('a[href="/users/new"]').filter(":visible").click();
 		cy.get("[name=FirstName]").type("Test");
@@ -37,9 +26,9 @@ describe("user auth and registration flow", () => {
 		cy.get("[id=save-btn]").click();
 		cy.visit("http://localhost:3200/users");
 		cy.get("tbody tr").should("have.length", 2);
-		cy.visit("http://localhost:3200/logout");
+		cy.logout();
 
-		login("test1@gmail.com", "TestPass123!");
+		cy.login("test1@gmail.com", "TestPass123!");
 		cy.visit("http://localhost:3200/users");
 
 		cy.url().should("include", "/users");
@@ -47,7 +36,7 @@ describe("user auth and registration flow", () => {
 	});
 
 	it("edits a user and displays changes in users table", () => {
-		login("test1@gmail.com", "TestPass123!");
+		cy.login("test1@gmail.com", "TestPass123!");
 		cy.visit("http://localhost:3200/users");
 
 		cy.get("tbody tr").contains("td", "Test User").parent("tr").find("td a").click();
@@ -64,8 +53,8 @@ describe("user auth and registration flow", () => {
 		cy.get("tbody tr").should("contain.text", "TestNew UserNew MidNew");
 		cy.get("tbody tr").should("contain.text", "test1new@gmail.com");
 
-		cy.visit("http://localhost:3200/logout");
-		login("test1new@gmail.com", "TestPass123!");
+		cy.logout();
+		cy.login("test1new@gmail.com", "TestPass123!");
 		cy.visit("http://localhost:3200/users");
 		cy.url().should("include", "/users");
 	});
