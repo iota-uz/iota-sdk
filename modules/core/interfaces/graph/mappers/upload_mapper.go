@@ -9,7 +9,7 @@ func UploadToGraphModel(u upload.Upload) *model.Upload {
 	return &model.Upload{
 		ID:       int64(u.ID()),
 		Hash:     u.Hash(),
-		Name:     u.Path(),
+		Name:     u.Name(),
 		Path:     u.Path(),
 		Size:     u.Size().Bytes(),
 		Mimetype: u.Mimetype().String(),
