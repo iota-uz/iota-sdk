@@ -3,9 +3,9 @@ package persistence
 import (
 	"database/sql"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/passport"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -15,7 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func toDomainClient(dbRow *models.Client) (client.Client, error) {
+func ToDomainClient(dbRow *models.Client) (client.Client, error) {
 	p, err := phone.NewFromE164(dbRow.PhoneNumber)
 	if err != nil {
 		return nil, err
@@ -31,12 +31,17 @@ func toDomainClient(dbRow *models.Client) (client.Client, error) {
 	)
 }
 
-func toDomainClientComplete(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
+func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
 	p, err := phone.NewFromE164(dbRow.PhoneNumber)
 	if err != nil {
 		return nil, err
 	}
-	
+
+	// If passport data is nil, create an empty passport
+	if passportData == nil {
+		passportData = passport.New("", "")
+	}
+
 	return client.NewComplete(
 		dbRow.ID,
 		dbRow.FirstName,
@@ -55,34 +60,36 @@ func toDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 	)
 }
 
-func toDBClient(domainEntity client.Client) *models.Client {
-	// Passport ID will be handled in separate transaction logic
-	// This just creates the client record
+func ToDBClient(domainEntity client.Client) *models.Client {
+	// First check if we need to create a passport
 	var passportID sql.NullString
-	if domainEntity.Passport() != nil && (domainEntity.Passport().Series() != "" || domainEntity.Passport().Number() != "") {
-		// If passport is linked to this client, you would set the passport ID here
-		// But that would typically be managed in the repository logic
+
+	if domainEntity.Passport() != nil {
+		passportID = sql.NullString{
+			String: domainEntity.Passport().ID().String(),
+			Valid:  true,
+		}
 	}
-	
+
 	return &models.Client{
-		ID:            domainEntity.ID(),
-		FirstName:     domainEntity.FirstName(),
-		LastName:      mapping.ValueToSQLNullString(domainEntity.LastName()),
-		MiddleName:    mapping.ValueToSQLNullString(domainEntity.MiddleName()),
-		PhoneNumber:   domainEntity.Phone().Value(),
-		Address:       mapping.ValueToSQLNullString(domainEntity.Address()),
-		Email:         mapping.ValueToSQLNullString(domainEntity.Email()),
-		HourlyRate:    mapping.ValueToSQLNullFloat64(domainEntity.HourlyRate()),
-		DateOfBirth:   mapping.PointerToSQLNullTime(domainEntity.DateOfBirth()),
-		Gender:        mapping.ValueToSQLNullString(domainEntity.Gender()),
-		PassportID:    passportID,
-		PIN:           mapping.ValueToSQLNullString(domainEntity.PIN()),
-		CreatedAt:     domainEntity.CreatedAt(),
-		UpdatedAt:     domainEntity.UpdatedAt(),
+		ID:          domainEntity.ID(),
+		FirstName:   domainEntity.FirstName(),
+		LastName:    mapping.ValueToSQLNullString(domainEntity.LastName()),
+		MiddleName:  mapping.ValueToSQLNullString(domainEntity.MiddleName()),
+		PhoneNumber: domainEntity.Phone().Value(),
+		Address:     mapping.ValueToSQLNullString(domainEntity.Address()),
+		Email:       mapping.ValueToSQLNullString(domainEntity.Email()),
+		HourlyRate:  mapping.ValueToSQLNullFloat64(domainEntity.HourlyRate()),
+		DateOfBirth: mapping.PointerToSQLNullTime(domainEntity.DateOfBirth()),
+		Gender:      mapping.ValueToSQLNullString(domainEntity.Gender()),
+		PassportID:  passportID,
+		PIN:         mapping.ValueToSQLNullString(domainEntity.PIN()),
+		CreatedAt:   domainEntity.CreatedAt(),
+		UpdatedAt:   domainEntity.UpdatedAt(),
 	}
 }
 
-func toDBMessage(entity chat.Message, chatID uint) *models.Message {
+func ToDBMessage(entity chat.Message, chatID uint) *models.Message {
 	dbMessage := &models.Message{
 		ID:      entity.ID(),
 		Message: entity.Message(),
@@ -107,7 +114,7 @@ func toDBMessage(entity chat.Message, chatID uint) *models.Message {
 	return dbMessage
 }
 
-func toDomainMessage(
+func ToDomainMessage(
 	dbRow *models.Message,
 	dbUploads []*coremodels.Upload,
 	sender chat.Sender,
@@ -126,10 +133,10 @@ func toDomainMessage(
 	), nil
 }
 
-func toDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
+func ToDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 	dbMessages := make([]*models.Message, 0, len(domainEntity.Messages()))
 	for _, m := range domainEntity.Messages() {
-		dbMessages = append(dbMessages, toDBMessage(m, domainEntity.ID()))
+		dbMessages = append(dbMessages, ToDBMessage(m, domainEntity.ID()))
 	}
 	return &models.Chat{
 		ID:            domainEntity.ID(),
@@ -139,7 +146,7 @@ func toDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 	}, dbMessages
 }
 
-func toDomainChat(dbRow *models.Chat, messages []chat.Message) (chat.Chat, error) {
+func ToDomainChat(dbRow *models.Chat, messages []chat.Message) (chat.Chat, error) {
 	domainChat := chat.NewWithID(
 		dbRow.ID,
 		dbRow.ClientID,
@@ -150,7 +157,7 @@ func toDomainChat(dbRow *models.Chat, messages []chat.Message) (chat.Chat, error
 	return domainChat, nil
 }
 
-func toDomainMessageTemplate(dbTemplate *models.MessageTemplate) (messagetemplate.MessageTemplate, error) {
+func ToDomainMessageTemplate(dbTemplate *models.MessageTemplate) (messagetemplate.MessageTemplate, error) {
 	return messagetemplate.NewWithID(
 		dbTemplate.ID,
 		dbTemplate.Template,
@@ -158,7 +165,7 @@ func toDomainMessageTemplate(dbTemplate *models.MessageTemplate) (messagetemplat
 	), nil
 }
 
-func toDBMessageTemplate(domainTemplate messagetemplate.MessageTemplate) *models.MessageTemplate {
+func ToDBMessageTemplate(domainTemplate messagetemplate.MessageTemplate) *models.MessageTemplate {
 	return &models.MessageTemplate{
 		ID:        domainTemplate.ID(),
 		Template:  domainTemplate.Template(),

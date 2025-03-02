@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/passport"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 )
@@ -67,7 +68,9 @@ func createTestClient(t *testing.T, withPassport bool) client.Client {
 func TestClientRepository_Create(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository()
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	t.Run("Create client without passport", func(t *testing.T) {
 		testClient := createTestClient(t, false)
@@ -123,7 +126,9 @@ func TestClientRepository_Create(t *testing.T) {
 func TestClientRepository_GetByID(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository()
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	testClient := createTestClient(t, true)
 	created, err := repo.Create(f.ctx, testClient)
@@ -169,7 +174,9 @@ func TestClientRepository_GetByID(t *testing.T) {
 func TestClientRepository_GetByPhone(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository()
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	p, err := phone.NewFromE164("98765432109")
 	if err != nil {
@@ -232,7 +239,9 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 func TestClientRepository_Update(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository()
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	testClient := createTestClient(t, false)
 	created, err := repo.Create(f.ctx, testClient)
@@ -292,7 +301,9 @@ func TestClientRepository_Update(t *testing.T) {
 func TestClientRepository_GetPaginated(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository()
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	// Create multiple clients for pagination testing
 	for i := 0; i < 5; i++ {
@@ -386,7 +397,9 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 func TestClientRepository_Count(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository()
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	// Create a known number of clients
 	numClients := 3
@@ -435,7 +448,9 @@ func TestClientRepository_Count(t *testing.T) {
 func TestClientRepository_GetAll(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository()
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	// Create clients for GetAll test
 	initialCount, err := repo.Count(f.ctx)
@@ -490,7 +505,9 @@ func TestClientRepository_GetAll(t *testing.T) {
 func TestClientRepository_Delete(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	clientRepo := persistence.NewClientRepository()
+	clientRepo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
 
 	// Create a client with passport for deletion testing
 	testClient := createTestClient(t, true)
@@ -515,4 +532,3 @@ func TestClientRepository_Delete(t *testing.T) {
 		t.Errorf("Expected ErrClientNotFound, got %v", err)
 	}
 }
-

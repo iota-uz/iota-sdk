@@ -3,6 +3,7 @@ package crm
 import (
 	"embed"
 
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -36,8 +37,10 @@ func (m *Module) Register(app application.Application) error {
 		},
 		conf.Twilio.WebhookURL,
 	)
+
+	passportRepo := corepersistence.NewPassportRepository()
 	chatRepo := persistence.NewChatRepository()
-	clientRepo := persistence.NewClientRepository()
+	clientRepo := persistence.NewClientRepository(passportRepo)
 	chatsService := services.NewChatService(
 		chatRepo,
 		clientRepo,
