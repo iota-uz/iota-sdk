@@ -101,7 +101,7 @@ jobs:
         # Install pg_formatter and verify all SQL files are properly formatted
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpg-formatter-perl
+          sudo apt-get install -y pgformatter
           # Create a temporary directory for formatted files
           mkdir -p /tmp/formatted
           # Format each SQL file and check for differences
