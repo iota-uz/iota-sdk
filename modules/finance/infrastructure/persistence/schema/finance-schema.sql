@@ -1,102 +1,96 @@
-CREATE TABLE counterparty
-(
-    id            SERIAL PRIMARY KEY,
-    tin           VARCHAR(20),
-    name          VARCHAR(255) NOT NULL,
-    type          VARCHAR(255) NOT NULL, -- customer, supplier, individual
-    legal_type    VARCHAR(255) NOT NULL, -- LLC, JSC, etc.
-    legal_address VARCHAR(255),
-    created_at    TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE counterparty (
+    id serial PRIMARY KEY,
+    tin varchar(20),
+    name varchar(255) NOT NULL,
+    type VARCHAR(255) NOT NULL, -- customer, supplier, individual
+    legal_type varchar(255) NOT NULL, -- LLC, JSC, etc.
+    legal_address varchar(255),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE counterparty_contacts
-(
-    id              SERIAL PRIMARY KEY,
-    counterparty_id INT          NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
-    first_name      VARCHAR(255) NOT NULL,
-    last_name       VARCHAR(255) NOT NULL,
-    middle_name     VARCHAR(255) NULL,
-    email           VARCHAR(255),
-    phone           VARCHAR(255),
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE counterparty_contacts (
+    id serial PRIMARY KEY,
+    counterparty_id int NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
+    first_name varchar(255) NOT NULL,
+    last_name varchar(255) NOT NULL,
+    middle_name varchar(255) NULL,
+    email varchar(255),
+    phone varchar(255),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE inventory
-(
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255)  NOT NULL,
-    description TEXT,
-    currency_id VARCHAR(3)    REFERENCES currencies (code) ON DELETE SET NULL,
-    price       NUMERIC(9, 2) NOT NULL,
-    quantity    INT           NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE inventory (
+    id serial PRIMARY KEY,
+    name varchar(255) NOT NULL,
+    description text,
+    currency_id varchar(3) REFERENCES currencies (code) ON DELETE SET NULL,
+    price numeric(9, 2) NOT NULL,
+    quantity int NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE expense_categories
-(
-    id                 SERIAL PRIMARY KEY,
-    name               VARCHAR(255)  NOT NULL,
-    description        TEXT,
-    amount             NUMERIC(9, 2) NOT NULL,
-    amount_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE expense_categories (
+    id serial PRIMARY KEY,
+    name varchar(255) NOT NULL,
+    description text,
+    amount numeric(9, 2) NOT NULL,
+    amount_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-
-CREATE TABLE money_accounts
-(
-    id                  SERIAL PRIMARY KEY,
-    name                VARCHAR(255)  NOT NULL,
-    account_number      VARCHAR(255)  NOT NULL,
-    description         TEXT,
-    balance             NUMERIC(9, 2) NOT NULL,
-    balance_currency_id VARCHAR(3)    NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
-    created_at          TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at          TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE money_accounts (
+    id serial PRIMARY KEY,
+    name varchar(255) NOT NULL,
+    account_number varchar(255) NOT NULL,
+    description text,
+    balance numeric(9, 2) NOT NULL,
+    balance_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE transactions
-(
-    id                     SERIAL PRIMARY KEY,
-    amount                 NUMERIC(9, 2) NOT NULL,
-    origin_account_id      INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    destination_account_id INT REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    transaction_date       DATE          NOT NULL   DEFAULT now()::DATE,
-    accounting_period      DATE          NOT NULL   DEFAULT now()::DATE,
-    transaction_type       VARCHAR(255)  NOT NULL, -- income, expense, transfer
-    comment                TEXT,
-    created_at             TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE transactions (
+    id serial PRIMARY KEY,
+    amount numeric(9, 2) NOT NULL,
+    origin_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
+    destination_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
+    transaction_date date NOT NULL DEFAULT now() ::date,
+    accounting_period date NOT NULL DEFAULT now() ::date,
+    transaction_type varchar(255) NOT NULL, -- income, expense, transfer
+    comment text,
+    created_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE expenses
-(
-    id             SERIAL PRIMARY KEY,
-    transaction_id INT NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
-    category_id    INT NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE expenses (
+    id serial PRIMARY KEY,
+    transaction_id int NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
+    category_id int NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE payments
-(
-    id              SERIAL PRIMARY KEY,
-    transaction_id  INT NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
-    counterparty_id INT NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE payments (
+    id serial PRIMARY KEY,
+    transaction_id int NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
+    counterparty_id int NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
 CREATE INDEX expenses_category_id_idx ON expenses (category_id);
+
 CREATE INDEX expenses_transaction_id_idx ON expenses (transaction_id);
 
 CREATE INDEX payments_counterparty_id_idx ON payments (counterparty_id);
+
 CREATE INDEX payments_transaction_id_idx ON payments (transaction_id);
 
 CREATE INDEX transactions_destination_account_id_idx ON transactions (destination_account_id);
+
 CREATE INDEX transactions_origin_account_id_idx ON transactions (origin_account_id);
 
 CREATE INDEX counterparty_contacts_counterparty_id_idx ON counterparty_contacts (counterparty_id);
