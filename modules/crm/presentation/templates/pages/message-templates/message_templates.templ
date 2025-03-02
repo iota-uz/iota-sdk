@@ -27,7 +27,7 @@ templ TemplatesTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, template := range props.Templates {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ template.Template }
 					}

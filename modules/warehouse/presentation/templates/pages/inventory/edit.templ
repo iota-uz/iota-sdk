@@ -69,7 +69,7 @@ templ EditForm(props *EditPageProps) {
 					},
 				}) {
 					for _, result := range props.Check.Results {
-						@base.TableRow() {
+						@base.TableRow(&base.TableRowProps{}) {
 							@base.TableCell() {
 								{ result.Position.Title }
 							}

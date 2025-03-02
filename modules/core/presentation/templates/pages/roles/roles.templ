@@ -25,7 +25,7 @@ templ RolesTable(props *IndexPageProps) {
 		},
 	}) {
 		for _, role := range props.Roles {
-			@base.TableRow() {
+			@base.TableRow(&base.TableRowProps{}) {
 				@base.TableCell() {
 					{ role.Name }
 				}

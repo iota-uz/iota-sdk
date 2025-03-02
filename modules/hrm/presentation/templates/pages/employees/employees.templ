@@ -27,7 +27,7 @@ templ EmployeesTable(props *IndexPageProps) {
 		},
 	}) {
 		for _, employee := range props.Employees {
-			@base.TableRow() {
+			@base.TableRow(&base.TableRowProps{}) {
 				@base.TableCell() {
 					{ employee.FirstName }
 					{ employee.LastName }

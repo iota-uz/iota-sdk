@@ -29,7 +29,7 @@ templ AccountsTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, account := range props.Accounts {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ account.Name }
 					}
