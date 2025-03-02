@@ -24,10 +24,11 @@ type FindParams struct {
 	Limit  int
 	Offset int
 	SortBy SortBy
+	Name   string
 }
 
 type Repository interface {
-	Count(ctx context.Context) (int64, error)
+	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetAll(ctx context.Context) ([]User, error)
 	GetByEmail(ctx context.Context, email string) (User, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]User, error)

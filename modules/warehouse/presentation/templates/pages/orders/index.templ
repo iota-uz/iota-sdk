@@ -31,7 +31,7 @@ templ OrdersTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, order := range props.Orders {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ order.LocalizedType(pageCtx.Localizer) }
 					}
