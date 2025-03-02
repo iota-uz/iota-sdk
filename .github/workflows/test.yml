@@ -60,8 +60,7 @@ jobs:
           version: 9
 
       - name: Download Go dependencies
-        run: |
-          go mod download
+        run: go mod download
 
       - name: Wait for PostgreSQL to be ready
         run: |
@@ -77,17 +76,44 @@ jobs:
           git diff --exit-code
 
       - name: Run custom linter
+        run: make build-iota-linter && make run-iota-linter
+
+      - name: Check migrations collect idempotence
         run: |
-          make build-iota-linter
-          make run-iota-linter
+          make migrate collect
+          git status --porcelain migrations/
+          if [ -n "$(git status --porcelain migrations/)" ]; then
+            echo "Error: make migrate collect produced changes, please run 'make migrate collect' and commit the changes"
+            git status --porcelain migrations/
+            exit 1
+          fi
 
       - name: Test Makefile targets
-        # running seeds twice to verify that they are idempotent
+        # running migrations and seeds twice to verify that they are idempotent
         run: |
+          make migrate up
           make migrate up
           make seed
           make seed
           make css
+
+      - name: Check SQL files are properly formatted
+        # Install pg_formatter and verify all SQL files are properly formatted
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpg-formatter-perl
+          # Create a temporary directory for formatted files
+          mkdir -p /tmp/formatted
+          # Format each SQL file and check for differences
+          find modules -name "*.sql" -type f | while read -r sqlfile; do
+            pg_format "$sqlfile" > "/tmp/formatted/$(basename "$sqlfile")"
+            if ! diff -q "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")" > /dev/null; then
+              echo "Error: $sqlfile is not properly formatted"
+              diff "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")"
+              exit 1
+            fi
+          done
+          echo "All SQL files are properly formatted"
 
       - name: Run go vet && tests
         run: |
@@ -124,3 +150,4 @@ jobs:
         # e2e tests require database to have the seed data. We can only down the migrations after cypress.
         run: |
           make migrate down
+
