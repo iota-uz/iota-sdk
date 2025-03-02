@@ -16,11 +16,24 @@ var (
 
 // ---- Interfaces ----
 
+type MessageSource string
+
+const (
+	TelegramSource  MessageSource = "telegram"
+	WhatsAppSource  MessageSource = "whatsapp"
+	InstagramSource MessageSource = "instagram"
+	SMSSource       MessageSource = "sms"
+	EmailSource     MessageSource = "email"
+	PhoneSource     MessageSource = "phone"
+	WebsiteSource   MessageSource = "website"
+	OtherSource     MessageSource = "other"
+)
+
 type Chat interface {
 	ID() uint
 	ClientID() uint
 	Messages() []Message
-	AddMessage(content string, sender Sender, attachments ...upload.Upload) (Message, error)
+	AddMessage(content string, sender Sender, source MessageSource, attachments ...upload.Upload) (Message, error)
 	UnreadMessages() int
 	MarkAllAsRead()
 	LastMessage() (Message, error)
@@ -41,6 +54,7 @@ type Message interface {
 	Message() string
 	Sender() Sender
 	IsRead() bool
+	Source() MessageSource
 	MarkAsRead()
 	ReadAt() *time.Time
 	Attachments() []upload.Upload
@@ -115,7 +129,12 @@ func (c *chat) MarkAllAsRead() {
 }
 
 // AddMessage adds a new message to the chat
-func (c *chat) AddMessage(content string, sender Sender, attachments ...upload.Upload) (Message, error) {
+func (c *chat) AddMessage(
+	content string,
+	sender Sender,
+	source MessageSource,
+	attachments ...upload.Upload,
+) (Message, error) {
 	if content == "" && len(attachments) == 0 {
 		return nil, ErrEmptyMessage
 	}
@@ -123,6 +142,7 @@ func (c *chat) AddMessage(content string, sender Sender, attachments ...upload.U
 	msg := WithAttachments(
 		content,
 		sender,
+		source,
 		attachments...,
 	)
 
@@ -155,11 +175,13 @@ func (c *chat) CreatedAt() time.Time {
 func NewMessage(
 	msg string,
 	sender Sender,
+	source MessageSource,
 ) Message {
 	return &message{
 		id:          0,
 		message:     msg,
 		sender:      sender,
+		source:      source,
 		isRead:      false,
 		readAt:      nil,
 		attachments: []upload.Upload{},
@@ -170,12 +192,14 @@ func NewMessage(
 func WithAttachments(
 	msg string,
 	sender Sender,
+	source MessageSource,
 	attachments ...upload.Upload,
 ) Message {
 	return &message{
 		id:          0,
 		message:     msg,
 		sender:      sender,
+		source:      source,
 		isRead:      false,
 		readAt:      nil,
 		attachments: attachments,
@@ -209,6 +233,7 @@ type message struct {
 	sender      Sender
 	isRead      bool
 	readAt      *time.Time
+	source      MessageSource
 	attachments []upload.Upload
 	createdAt   time.Time
 }
@@ -227,6 +252,10 @@ func (m *message) Message() string {
 
 func (m *message) Sender() Sender {
 	return m.sender
+}
+
+func (m *message) Source() MessageSource {
+	return m.source
 }
 
 func (m *message) IsRead() bool {

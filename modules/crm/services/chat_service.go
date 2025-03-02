@@ -143,6 +143,7 @@ func (s *ChatService) RegisterClientMessage(
 			clientEntity.FirstName(),
 			clientEntity.LastName(),
 		),
+		chat.SMSSource,
 	); err != nil {
 		return nil, err
 	}
@@ -180,7 +181,11 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 	if err != nil {
 		return nil, err
 	}
-	_, err = chatEntity.AddMessage(dto.Message, chat.NewUserSender(user.ID(), user.FirstName(), user.LastName()))
+	_, err = chatEntity.AddMessage(
+		dto.Message,
+		chat.NewUserSender(user.ID(), user.FirstName(), user.LastName()),
+		chat.SMSSource,
+	)
 	if err != nil {
 		return nil, err
 	}
