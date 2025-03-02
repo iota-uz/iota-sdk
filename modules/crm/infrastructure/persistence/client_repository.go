@@ -64,10 +64,10 @@ const (
 )
 
 type ClientRepository struct {
-	passportRepo passport.PassportRepository
+	passportRepo passport.Repository
 }
 
-func NewClientRepository(passportRepo passport.PassportRepository) client.Repository {
+func NewClientRepository(passportRepo passport.Repository) client.Repository {
 	return &ClientRepository{
 		passportRepo: passportRepo,
 	}
