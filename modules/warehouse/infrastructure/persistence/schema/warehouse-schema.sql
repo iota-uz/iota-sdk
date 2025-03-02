@@ -1,75 +1,67 @@
-CREATE TABLE warehouse_units
-(
-    id          SERIAL PRIMARY KEY,
-    title       VARCHAR(255) NOT NULL, -- Kilogram, Piece, etc.
-    short_title VARCHAR(255) NOT NULL, -- kg, pcs, etc.
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE warehouse_units (
+    id serial PRIMARY KEY,
+    title varchar(255) NOT NULL, -- Kilogram, Piece, etc.
+    short_title varchar(255) NOT NULL, -- kg, pcs, etc.
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE warehouse_positions
-(
-    id          SERIAL PRIMARY KEY,
-    title       VARCHAR(255) NOT NULL,
-    barcode     VARCHAR(255) NOT NULL UNIQUE,
-    description TEXT,
-    unit_id     INT          REFERENCES warehouse_units (id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE warehouse_positions (
+    id serial PRIMARY KEY,
+    title varchar(255) NOT NULL,
+    barcode varchar(255) NOT NULL UNIQUE,
+    description text,
+    unit_id int REFERENCES warehouse_units (id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE warehouse_position_images
-(
-    warehouse_position_id INT NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-    upload_id             INT NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
+CREATE TABLE warehouse_position_images (
+    warehouse_position_id int NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    upload_id int NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,
     PRIMARY KEY (upload_id, warehouse_position_id)
 );
 
-CREATE TABLE warehouse_products
-(
-    id          SERIAL PRIMARY KEY,
-    position_id INT          NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-    rfid        VARCHAR(255) NULL UNIQUE,
-    status      VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE warehouse_products (
+    id serial PRIMARY KEY,
+    position_id int NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    rfid varchar(255) NULL UNIQUE,
+    status varchar(255) NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE warehouse_orders
-(
-    id         SERIAL PRIMARY KEY,
-    type       VARCHAR(255) NOT NULL,
-    status     VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE warehouse_orders (
+    id serial PRIMARY KEY,
+    type VARCHAR(255) NOT NULL,
+    status varchar(255) NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE warehouse_order_items
-(
-    warehouse_order_id   INT NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
-    warehouse_product_id INT NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
+CREATE TABLE warehouse_order_items (
+    warehouse_order_id int NOT NULL REFERENCES warehouse_orders (id) ON DELETE CASCADE,
+    warehouse_product_id int NOT NULL REFERENCES warehouse_products (id) ON DELETE CASCADE,
     PRIMARY KEY (warehouse_order_id, warehouse_product_id)
 );
 
-CREATE TABLE inventory_checks
-(
-    id             SERIAL PRIMARY KEY,
-    status         VARCHAR(255) NOT NULL,
-    name           VARCHAR(255) NOT NULL,
-    type           VARCHAR(255) NOT NULL,
-    created_at     TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    finished_at    TIMESTAMP WITH TIME ZONE,
-    created_by_id  INT          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    finished_by_id INT REFERENCES users (id) ON DELETE CASCADE
+CREATE TABLE inventory_checks (
+    id serial PRIMARY KEY,
+    status varchar(255) NOT NULL,
+    name varchar(255) NOT NULL,
+    type VARCHAR(255) NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    finished_at timestamp with time zone,
+    created_by_id int NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    finished_by_id int REFERENCES users (id) ON DELETE CASCADE
 );
 
-CREATE TABLE inventory_check_results
-(
-    id                 SERIAL PRIMARY KEY,
-    inventory_check_id INT NOT NULL REFERENCES inventory_checks (id) ON DELETE CASCADE,
-    position_id        INT NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-    expected_quantity  INT NOT NULL,
-    actual_quantity    INT NOT NULL,
-    difference         INT NOT NULL,
-    created_at         TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE inventory_check_results (
+    id serial PRIMARY KEY,
+    inventory_check_id int NOT NULL REFERENCES inventory_checks (id) ON DELETE CASCADE,
+    position_id int NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
+    expected_quantity int NOT NULL,
+    actual_quantity int NOT NULL,
+    difference int NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
 );
 
