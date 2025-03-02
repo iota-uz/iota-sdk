@@ -154,6 +154,39 @@ func (r *PassportRepository) queryPassports(ctx context.Context, query string, a
 	return passports, nil
 }
 
+func (r *PassportRepository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
+	return r.exists(ctx, id.String())
+}
+
+func (r *PassportRepository) exists(ctx context.Context, id string) (bool, error) {
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	var exists bool
+	err = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM passports WHERE id = $1)", id).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+func (r *PassportRepository) Save(ctx context.Context, data passport.Passport) (passport.Passport, error) {
+	if data.ID() == uuid.Nil {
+		return r.Create(ctx, data)
+	}
+	exists, err := r.exists(ctx, data.ID().String())
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return r.Create(ctx, data)
+	}
+	return r.Update(ctx, data.ID(), data)
+}
+
 func (r *PassportRepository) Create(ctx context.Context, data passport.Passport) (passport.Passport, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
