@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -179,20 +178,6 @@ func (g *ClientRepository) queryClients(
 	return clients, nil
 }
 
-func (g *ClientRepository) savePassport(
-	ctx context.Context,
-	p passport.Passport,
-) (passport.Passport, error) {
-	if p.ID().String() == "" {
-		return g.passportRepo.Create(ctx, p)
-	}
-	_, err := g.passportRepo.GetByID(ctx, p.ID())
-	if errors.Is(err, corepersistence.ErrPassportNotFound) {
-		return g.passportRepo.Create(ctx, p)
-	}
-	return g.passportRepo.Update(ctx, p.ID(), p)
-}
-
 func (g *ClientRepository) GetPaginated(
 	ctx context.Context, params *client.FindParams,
 ) ([]client.Client, error) {
@@ -280,7 +265,7 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 	dbRow := ToDBClient(data)
 
 	if data.Passport() != nil {
-		p, err := g.savePassport(ctx, data.Passport())
+		p, err := g.passportRepo.Save(ctx, data.Passport())
 		if err != nil {
 			return nil, err
 		}
@@ -319,7 +304,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 
 	dbRow := ToDBClient(data)
 	if data.Passport() != nil {
-		p, err := g.savePassport(ctx, data.Passport())
+		p, err := g.passportRepo.Save(ctx, data.Passport())
 		if err != nil {
 			return nil, err
 		}
