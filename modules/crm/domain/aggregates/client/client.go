@@ -3,8 +3,8 @@ package client
 import (
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/passport"
 )
 
 type Client interface {

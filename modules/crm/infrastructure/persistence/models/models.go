@@ -6,20 +6,20 @@ import (
 )
 
 type Client struct {
-	ID            uint
-	FirstName     string
-	LastName      sql.NullString
-	MiddleName    sql.NullString
-	PhoneNumber   string
-	Address       sql.NullString
-	Email         sql.NullString
-	HourlyRate    sql.NullFloat64
-	DateOfBirth   sql.NullTime
-	Gender        sql.NullString
-	PassportID    sql.NullString // UUID reference to passports table
-	PIN           sql.NullString
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID          uint
+	FirstName   string
+	LastName    sql.NullString
+	MiddleName  sql.NullString
+	PhoneNumber string
+	Address     sql.NullString
+	Email       sql.NullString
+	HourlyRate  sql.NullFloat64
+	DateOfBirth sql.NullTime
+	Gender      sql.NullString
+	PassportID  sql.NullString // UUID reference to passports table
+	PIN         sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Chat struct {

@@ -1,8 +1,13 @@
 package passport
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Passport interface {
+	ID() uuid.UUID
 	Series() string
 	Number() string
 	Identifier() string // Series + Number
@@ -27,7 +32,6 @@ type Passport interface {
 // Option is a function type that configures a passport
 type Option func(*passport)
 
-// Full Name
 func WithFullName(firstName, lastName, middleName string) Option {
 	return func(p *passport) {
 		p.firstName = firstName
@@ -36,14 +40,12 @@ func WithFullName(firstName, lastName, middleName string) Option {
 	}
 }
 
-// Gender
 func WithGender(gender string) Option {
 	return func(p *passport) {
 		p.gender = gender
 	}
 }
 
-// Birth Details
 func WithBirthDetails(birthDate time.Time, birthPlace string) Option {
 	return func(p *passport) {
 		p.birthDate = birthDate
@@ -51,79 +53,69 @@ func WithBirthDetails(birthDate time.Time, birthPlace string) Option {
 	}
 }
 
-// Nationality
 func WithNationality(nationality string) Option {
 	return func(p *passport) {
 		p.nationality = nationality
 	}
 }
 
-// Passport Type
 func WithPassportType(passportType string) Option {
 	return func(p *passport) {
 		p.passportType = passportType
 	}
 }
 
-// Issued At
 func WithIssuedAt(issuedAt time.Time) Option {
 	return func(p *passport) {
 		p.issuedAt = issuedAt
 	}
 }
 
-// Issued By
 func WithIssuedBy(issuedBy string) Option {
 	return func(p *passport) {
 		p.issuedBy = issuedBy
 	}
 }
 
-// Issuing Country
 func WithIssuingCountry(issuingCountry string) Option {
 	return func(p *passport) {
 		p.issuingCountry = issuingCountry
 	}
 }
 
-// Expiration Date
 func WithExpiresAt(expiresAt time.Time) Option {
 	return func(p *passport) {
 		p.expiresAt = expiresAt
 	}
 }
 
-// Machine Readable Zone
 func WithMachineReadableZone(mrz string) Option {
 	return func(p *passport) {
 		p.machineReadableZone = mrz
 	}
 }
 
-// Biometric Data
 func WithBiometricData(data map[string]interface{}) Option {
 	return func(p *passport) {
 		p.biometricData = data
 	}
 }
 
-// Signature Image
 func WithSignatureImage(signature []byte) Option {
 	return func(p *passport) {
 		p.signatureImage = signature
 	}
 }
 
-// Remarks
 func WithRemarks(remarks string) Option {
 	return func(p *passport) {
 		p.remarks = remarks
 	}
 }
 
-// Constructor
 func New(series, number string, opts ...Option) Passport {
 	p := &passport{
+		id:     uuid.New(),
 		series: series,
 		number: number,
 	}
@@ -133,8 +125,20 @@ func New(series, number string, opts ...Option) Passport {
 	return p
 }
 
-// Struct Implementation
+func NewWithID(id uuid.UUID, series, number string, opts ...Option) Passport {
+	p := &passport{
+		id:     id,
+		series: series,
+		number: number,
+	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
+}
+
 type passport struct {
+	id                  uuid.UUID
 	firstName           string
 	lastName            string
 	middleName          string
@@ -155,7 +159,10 @@ type passport struct {
 	remarks             string
 }
 
-// Getters Implementation
+func (p *passport) ID() uuid.UUID {
+	return p.id
+}
+
 func (p *passport) Series() string {
 	return p.series
 }
@@ -231,3 +238,4 @@ func (p *passport) SignatureImage() []byte {
 func (p *passport) Remarks() string {
 	return p.remarks
 }
+

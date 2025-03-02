@@ -80,7 +80,7 @@ func (r *MessageTemplateRepository) queryMessageTemplates(
 		return nil, err
 	}
 
-	return mapping.MapDBModels(dbTemplates, toDomainMessageTemplate)
+	return mapping.MapDBModels(dbTemplates, ToDomainMessageTemplate)
 }
 
 func (r *MessageTemplateRepository) GetPaginated(
@@ -131,7 +131,7 @@ func (r *MessageTemplateRepository) Create(ctx context.Context, data messagetemp
 		return nil, err
 	}
 
-	dbTemplate := toDBMessageTemplate(data)
+	dbTemplate := ToDBMessageTemplate(data)
 	if err := tx.QueryRow(
 		ctx,
 		insertMessageTemplateQuery,
@@ -153,7 +153,7 @@ func (r *MessageTemplateRepository) Update(
 		return nil, err
 	}
 
-	dbTemplate := toDBMessageTemplate(data)
+	dbTemplate := ToDBMessageTemplate(data)
 	result, err := tx.Exec(
 		ctx,
 		updateMessageTemplateQuery,

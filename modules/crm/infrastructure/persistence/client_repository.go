@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/passport"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -38,31 +38,6 @@ const (
 			c.updated_at
 		FROM clients c
 	`
-	// For getting passport data when needed
-	selectPassportQuery = `
-		SELECT 
-			id,
-			first_name,
-			last_name,
-			middle_name,
-			gender,
-			birth_date,
-			birth_place,
-			nationality,
-			passport_type,
-			passport_number,
-			series,
-			issuing_country,
-			issued_at,
-			issued_by,
-			expires_at,
-			machine_readable_zone,
-			biometric_data,
-			signature_image,
-			remarks
-		FROM passports
-		WHERE id = $1
-	`
 	countClientQuery  = `SELECT COUNT(*) as count FROM clients`
 	insertClientQuery = `
 		INSERT INTO clients (
@@ -90,67 +65,25 @@ const (
 )
 
 type ClientRepository struct {
+	passportRepo passport.PassportRepository
 }
 
-func NewClientRepository() client.Repository {
-	return &ClientRepository{}
-}
-
-// Helper method to load a passport for a client if it has a passport ID
-func (g *ClientRepository) loadPassportForClient(ctx context.Context, clientPassportID string) (passport.Passport, error) {
-	// If no passport ID, return empty passport
-	if clientPassportID == "" {
-		return passport.New("", ""), nil
+func NewClientRepository(passportRepo passport.PassportRepository) client.Repository {
+	return &ClientRepository{
+		passportRepo: passportRepo,
 	}
+}
 
+func (g *ClientRepository) queryClients(
+	ctx context.Context,
+	query string,
+	args ...interface{},
+) ([]client.Client, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Query the passport data
-	var dbPassport coremodels.Passport
-
-	err = pool.QueryRow(ctx, selectPassportQuery, clientPassportID).Scan(
-		&dbPassport.ID,
-		&dbPassport.FirstName,
-		&dbPassport.LastName,
-		&dbPassport.MiddleName,
-		&dbPassport.Gender,
-		&dbPassport.BirthDate,
-		&dbPassport.BirthPlace,
-		&dbPassport.Nationality,
-		&dbPassport.PassportType,
-		&dbPassport.PassportNumber,
-		&dbPassport.Series,
-		&dbPassport.IssuingCountry,
-		&dbPassport.IssuedAt,
-		&dbPassport.IssuedBy,
-		&dbPassport.ExpiresAt,
-		&dbPassport.MachineReadableZone,
-		&dbPassport.BiometricData,
-		&dbPassport.SignatureImage,
-		&dbPassport.Remarks,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// No passport found with this ID, return empty passport
-			return passport.New("", ""), nil
-		}
-		return nil, err
-	}
-
-	// Convert to domain passport
-	return corepersistence.ToDomainPassport(&dbPassport), nil
-}
-
-func (g *ClientRepository) queryClients(ctx context.Context, query string, args ...interface{}) ([]client.Client, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	
 	// First collect all client records
 	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
@@ -185,8 +118,8 @@ func (g *ClientRepository) queryClients(ctx context.Context, query string, args 
 		}
 
 		clientRecords = append(clientRecords, c)
-		
-		// Collect passport IDs for later batch query
+
+		// Collect passport IDs for later retrieval
 		if c.PassportID.Valid {
 			passportIDs = append(passportIDs, c.PassportID.String)
 		}
@@ -195,7 +128,7 @@ func (g *ClientRepository) queryClients(ctx context.Context, query string, args 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	
+
 	// If no clients found, return empty slice
 	if len(clientRecords) == 0 {
 		return []client.Client{}, nil
@@ -203,107 +136,61 @@ func (g *ClientRepository) queryClients(ctx context.Context, query string, args 
 
 	// Create a map to store passport data by ID
 	passportMap := make(map[string]passport.Passport)
-	
+
 	// Fetch passport data if there are any passport IDs
 	if len(passportIDs) > 0 {
-		// Build query for IN clause
-		passportQuery := `
-			SELECT 
-				id,
-				first_name,
-				last_name,
-				middle_name,
-				gender,
-				birth_date,
-				birth_place,
-				nationality,
-				passport_type,
-				passport_number,
-				series,
-				issuing_country,
-				issued_at,
-				issued_by,
-				expires_at,
-				machine_readable_zone,
-				biometric_data,
-				signature_image,
-				remarks
-			FROM passports
-			WHERE id = ANY($1)
-		`
-		
-		// Execute batch query for passports
-		passportRows, err := pool.Query(ctx, passportQuery, passportIDs)
-		if err != nil {
-			return nil, err
-		}
-		defer passportRows.Close()
-		
-		// Process passport rows
-		for passportRows.Next() {
-			var dbPassport coremodels.Passport
-			err = passportRows.Scan(
-				&dbPassport.ID,
-				&dbPassport.FirstName,
-				&dbPassport.LastName,
-				&dbPassport.MiddleName,
-				&dbPassport.Gender,
-				&dbPassport.BirthDate,
-				&dbPassport.BirthPlace,
-				&dbPassport.Nationality,
-				&dbPassport.PassportType,
-				&dbPassport.PassportNumber,
-				&dbPassport.Series,
-				&dbPassport.IssuingCountry,
-				&dbPassport.IssuedAt,
-				&dbPassport.IssuedBy,
-				&dbPassport.ExpiresAt,
-				&dbPassport.MachineReadableZone,
-				&dbPassport.BiometricData,
-				&dbPassport.SignatureImage,
-				&dbPassport.Remarks,
-			)
+		// Fetch passports individually using passport repository
+		// In a real implementation, the passport repository should have a GetByIDs batch method
+		for _, passportID := range passportIDs {
+			passportEntity, err := g.passportRepo.GetByID(ctx, uuid.MustParse(passportID))
 			if err != nil {
-				return nil, err
+				// If we can't get a passport, skip it (don't fail the whole operation)
+				continue
 			}
-			
-			// Add passport to map
-			passportMap[dbPassport.ID] = corepersistence.ToDomainPassport(&dbPassport)
-		}
-		
-		if err := passportRows.Err(); err != nil {
-			return nil, err
+			passportMap[passportID] = passportEntity
 		}
 	}
-	
+
 	// Create domain client entities
 	clients := make([]client.Client, 0, len(clientRecords))
 	for _, c := range clientRecords {
 		var passportData passport.Passport
-		
+
 		// Get passport from map if it exists, otherwise create an empty one
 		if c.PassportID.Valid {
 			var ok bool
 			passportData, ok = passportMap[c.PassportID.String]
 			if !ok {
-				// Create empty passport if the passport was not found for some reason
 				passportData = passport.New("", "")
 			}
 		} else {
-			// Create empty passport if no passport ID
 			passportData = passport.New("", "")
 		}
-		
+
 		// Create complete client with passport data
-		entity, err := toDomainClientComplete(&c, passportData)
+		entity, err := ToDomainClientComplete(&c, passportData)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		clients = append(clients, entity)
 	}
 
 	return clients, nil
+}
+
+func (g *ClientRepository) savePassport(
+	ctx context.Context,
+	p passport.Passport,
+) (passport.Passport, error) {
+	if p.ID().String() == "" {
+		return g.passportRepo.Create(ctx, p)
+	}
+	_, err := g.passportRepo.GetByID(ctx, p.ID())
+	if errors.Is(err, corepersistence.ErrPassportNotFound) {
+		return g.passportRepo.Create(ctx, p)
+	}
+	return g.passportRepo.Update(ctx, p.ID(), p)
 }
 
 func (g *ClientRepository) GetPaginated(
@@ -384,78 +271,24 @@ func (g *ClientRepository) GetByPhone(ctx context.Context, phoneNumber string) (
 	return clients[0], nil
 }
 
-// SQL queries for passport operations
-const (
-	insertPassportQuery = `
-		INSERT INTO passports (
-			first_name, last_name, middle_name, gender, birth_date, birth_place,
-			nationality, passport_type, passport_number, series, issuing_country,
-			issued_at, issued_by, expires_at, machine_readable_zone,
-			biometric_data, signature_image, remarks
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-		RETURNING id`
-
-	updatePassportQuery = `
-		UPDATE passports
-		SET first_name = $1, last_name = $2, middle_name = $3, gender = $4,
-			birth_date = $5, birth_place = $6, nationality = $7, passport_type = $8,
-			passport_number = $9, series = $10, issuing_country = $11, issued_at = $12,
-			issued_by = $13, expires_at = $14, machine_readable_zone = $15,
-			biometric_data = $16, signature_image = $17, remarks = $18, updated_at = now()
-		WHERE id = $19`
-)
-
 func (g *ClientRepository) Create(ctx context.Context, data client.Client) (client.Client, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// First check if we need to create a passport
-	var passportID sql.NullString
+	dbRow := ToDBClient(data)
 
-	if data.Passport() != nil && (data.Passport().Series() != "" || data.Passport().Number() != "") {
-		// Create passport record
-		dbPassport := corepersistence.ToDBPassport(data.Passport())
-
-		// Save passport to database
-		var passportUUID string
-		err := tx.QueryRow(
-			ctx,
-			insertPassportQuery,
-			dbPassport.FirstName,
-			dbPassport.LastName,
-			dbPassport.MiddleName,
-			dbPassport.Gender,
-			dbPassport.BirthDate,
-			dbPassport.BirthPlace,
-			dbPassport.Nationality,
-			dbPassport.PassportType,
-			dbPassport.PassportNumber,
-			dbPassport.Series,
-			dbPassport.IssuingCountry,
-			dbPassport.IssuedAt,
-			dbPassport.IssuedBy,
-			dbPassport.ExpiresAt,
-			dbPassport.MachineReadableZone,
-			dbPassport.BiometricData,
-			dbPassport.SignatureImage,
-			dbPassport.Remarks,
-		).Scan(&passportUUID)
-
+	if data.Passport() != nil {
+		p, err := g.savePassport(ctx, data.Passport())
 		if err != nil {
 			return nil, err
 		}
-
-		passportID = sql.NullString{
-			String: passportUUID,
+		dbRow.PassportID = sql.NullString{
+			String: p.ID().String(),
 			Valid:  true,
 		}
 	}
-
-	// Now create the client with passport reference
-	dbRow := toDBClient(data)
-	dbRow.PassportID = passportID
 
 	if err := tx.QueryRow(
 		ctx,
@@ -484,136 +317,17 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		return nil, err
 	}
 
-	// First, get the existing client to check passport status
-	existingClient, err := g.GetByID(ctx, data.ID())
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if we need to handle passport data
-	var passportID sql.NullString
-
-	// Check if client has passport data
-	if data.Passport() != nil && (data.Passport().Series() != "" || data.Passport().Number() != "") {
-		dbPassport := corepersistence.ToDBPassport(data.Passport())
-
-		// Check if existing client already has a passport ID
-		if existingClient.Passport() != nil && (existingClient.Passport().Series() != "" || existingClient.Passport().Number() != "") {
-			// Get the existing client's passport ID by querying the database
-			var existingPassportID string
-			err := tx.QueryRow(ctx, "SELECT passport_id FROM clients WHERE id = $1", data.ID()).Scan(&existingPassportID)
-			if err != nil && err != sql.ErrNoRows {
-				return nil, err
-			}
-
-			if existingPassportID != "" {
-				// Update existing passport
-				_, err = tx.Exec(
-					ctx,
-					updatePassportQuery,
-					dbPassport.FirstName,
-					dbPassport.LastName,
-					dbPassport.MiddleName,
-					dbPassport.Gender,
-					dbPassport.BirthDate,
-					dbPassport.BirthPlace,
-					dbPassport.Nationality,
-					dbPassport.PassportType,
-					dbPassport.PassportNumber,
-					dbPassport.Series,
-					dbPassport.IssuingCountry,
-					dbPassport.IssuedAt,
-					dbPassport.IssuedBy,
-					dbPassport.ExpiresAt,
-					dbPassport.MachineReadableZone,
-					dbPassport.BiometricData,
-					dbPassport.SignatureImage,
-					dbPassport.Remarks,
-					existingPassportID,
-				)
-				if err != nil {
-					return nil, err
-				}
-
-				passportID = sql.NullString{
-					String: existingPassportID,
-					Valid:  true,
-				}
-			} else {
-				// Create new passport
-				var passportUUID string
-				err := tx.QueryRow(
-					ctx,
-					insertPassportQuery,
-					dbPassport.FirstName,
-					dbPassport.LastName,
-					dbPassport.MiddleName,
-					dbPassport.Gender,
-					dbPassport.BirthDate,
-					dbPassport.BirthPlace,
-					dbPassport.Nationality,
-					dbPassport.PassportType,
-					dbPassport.PassportNumber,
-					dbPassport.Series,
-					dbPassport.IssuingCountry,
-					dbPassport.IssuedAt,
-					dbPassport.IssuedBy,
-					dbPassport.ExpiresAt,
-					dbPassport.MachineReadableZone,
-					dbPassport.BiometricData,
-					dbPassport.SignatureImage,
-					dbPassport.Remarks,
-				).Scan(&passportUUID)
-
-				if err != nil {
-					return nil, err
-				}
-
-				passportID = sql.NullString{
-					String: passportUUID,
-					Valid:  true,
-				}
-			}
-		} else {
-			// Create new passport
-			var passportUUID string
-			err := tx.QueryRow(
-				ctx,
-				insertPassportQuery,
-				dbPassport.FirstName,
-				dbPassport.LastName,
-				dbPassport.MiddleName,
-				dbPassport.Gender,
-				dbPassport.BirthDate,
-				dbPassport.BirthPlace,
-				dbPassport.Nationality,
-				dbPassport.PassportType,
-				dbPassport.PassportNumber,
-				dbPassport.Series,
-				dbPassport.IssuingCountry,
-				dbPassport.IssuedAt,
-				dbPassport.IssuedBy,
-				dbPassport.ExpiresAt,
-				dbPassport.MachineReadableZone,
-				dbPassport.BiometricData,
-				dbPassport.SignatureImage,
-				dbPassport.Remarks,
-			).Scan(&passportUUID)
-
-			if err != nil {
-				return nil, err
-			}
-
-			passportID = sql.NullString{
-				String: passportUUID,
-				Valid:  true,
-			}
+	dbRow := ToDBClient(data)
+	if data.Passport() != nil {
+		p, err := g.savePassport(ctx, data.Passport())
+		if err != nil {
+			return nil, err
+		}
+		dbRow.PassportID = sql.NullString{
+			String: p.ID().String(),
+			Valid:  true,
 		}
 	}
-
-	// Now update the client with passport reference
-	dbRow := toDBClient(data)
-	dbRow.PassportID = passportID
 
 	if _, err := tx.Exec(
 		ctx,
@@ -643,7 +357,6 @@ func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	// First get the client's passport ID before deleting (if any)
 	var passportID sql.NullString
 	err = tx.QueryRow(ctx, "SELECT passport_id FROM clients WHERE id = $1", id).Scan(&passportID)
 	if err != nil && err != sql.ErrNoRows {
@@ -665,10 +378,11 @@ func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
+	// If client had a passport, delete it using passport repository
 	if passportID.Valid {
-		_, err = tx.Exec(ctx, "DELETE FROM passports WHERE id = $1", passportID.String)
+		err = g.passportRepo.Delete(ctx, uuid.MustParse(passportID.String))
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to delete passport: %w", err)
 		}
 	}
 

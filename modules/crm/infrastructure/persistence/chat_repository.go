@@ -155,7 +155,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get messages for chat")
 		}
-		domainChat, err := toDomainChat(c, messages)
+		domainChat, err := ToDomainChat(c, messages)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain chat")
 		}
@@ -253,7 +253,7 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 			return nil, errors.Wrap(err, "error occurred while iterating uploads")
 		}
 
-		domainMessage, err := toDomainMessage(message, dbUploads, sender)
+		domainMessage, err := ToDomainMessage(message, dbUploads, sender)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain message")
 		}
@@ -352,7 +352,7 @@ func (g *ChatRepository) GetMessageByID(ctx context.Context, id uint) (chat.Mess
 }
 
 func (g *ChatRepository) AddMessage(ctx context.Context, chatID uint, message chat.Message) (chat.Message, error) {
-	id, err := g.insertMessage(ctx, toDBMessage(message, chatID))
+	id, err := g.insertMessage(ctx, ToDBMessage(message, chatID))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to insert message")
 	}
@@ -432,7 +432,7 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	dbChat, dbMessages := toDBChat(data)
+	dbChat, dbMessages := ToDBChat(data)
 	if err := tx.QueryRow(
 		ctx,
 		insertChatQuery,
@@ -453,7 +453,7 @@ func (g *ChatRepository) Update(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	dbChat, dbMessages := toDBChat(data)
+	dbChat, dbMessages := ToDBChat(data)
 	if _, err := tx.Exec(
 		ctx,
 		updateChatQuery,

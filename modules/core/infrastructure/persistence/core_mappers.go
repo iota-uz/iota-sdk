@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -12,11 +13,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -258,112 +259,130 @@ func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.Authent
 }
 
 // Passport mappers
-func ToDomainPassport(dbPassport *models.Passport) passport.Passport {
+func ToDomainPassport(dbPassport *models.Passport) (passport.Passport, error) {
 	// Create option list based on available fields
 	var opts []passport.Option
-	
+
 	if dbPassport.FirstName.Valid || dbPassport.LastName.Valid || dbPassport.MiddleName.Valid {
 		opts = append(opts, passport.WithFullName(
-			dbPassport.FirstName.String, 
-			dbPassport.LastName.String, 
+			dbPassport.FirstName.String,
+			dbPassport.LastName.String,
 			dbPassport.MiddleName.String,
 		))
 	}
-	
+
 	if dbPassport.Gender.Valid {
 		opts = append(opts, passport.WithGender(dbPassport.Gender.String))
 	}
-	
-	if dbPassport.BirthDate.Valid && dbPassport.BirthPlace.Valid {
-		opts = append(opts, passport.WithBirthDetails(
-			dbPassport.BirthDate.Time,
-			dbPassport.BirthPlace.String,
-		))
+
+	if dbPassport.BirthDate.Valid || dbPassport.BirthPlace.Valid {
+		birthDate := time.Time{}
+		if dbPassport.BirthDate.Valid {
+			birthDate = dbPassport.BirthDate.Time
+		}
+
+		birthPlace := ""
+		if dbPassport.BirthPlace.Valid {
+			birthPlace = dbPassport.BirthPlace.String
+		}
+
+		opts = append(opts, passport.WithBirthDetails(birthDate, birthPlace))
 	}
-	
+
 	if dbPassport.Nationality.Valid {
 		opts = append(opts, passport.WithNationality(dbPassport.Nationality.String))
 	}
-	
+
 	if dbPassport.PassportType.Valid {
 		opts = append(opts, passport.WithPassportType(dbPassport.PassportType.String))
 	}
-	
+
 	if dbPassport.IssuedAt.Valid {
 		opts = append(opts, passport.WithIssuedAt(dbPassport.IssuedAt.Time))
 	}
-	
+
 	if dbPassport.IssuedBy.Valid {
 		opts = append(opts, passport.WithIssuedBy(dbPassport.IssuedBy.String))
 	}
-	
+
 	if dbPassport.IssuingCountry.Valid {
 		opts = append(opts, passport.WithIssuingCountry(dbPassport.IssuingCountry.String))
 	}
-	
+
 	if dbPassport.ExpiresAt.Valid {
 		opts = append(opts, passport.WithExpiresAt(dbPassport.ExpiresAt.Time))
 	}
-	
+
 	if dbPassport.MachineReadableZone.Valid {
 		opts = append(opts, passport.WithMachineReadableZone(dbPassport.MachineReadableZone.String))
 	}
-	
+
 	if len(dbPassport.BiometricData) > 0 {
 		// In a real implementation, you would parse the json from bytes to map
-		// This is a simplification
-		bioMap := make(map[string]interface{})
+		var bioMap map[string]interface{}
+		if err := json.Unmarshal(dbPassport.BiometricData, &bioMap); err != nil {
+			return nil, err
+		}
 		opts = append(opts, passport.WithBiometricData(bioMap))
 	}
-	
+
 	if len(dbPassport.SignatureImage) > 0 {
 		opts = append(opts, passport.WithSignatureImage(dbPassport.SignatureImage))
 	}
-	
+
 	if dbPassport.Remarks.Valid {
 		opts = append(opts, passport.WithRemarks(dbPassport.Remarks.String))
 	}
-	
+
 	// Create the passport with the series, number and all the options
 	series := ""
 	if dbPassport.Series.Valid {
 		series = dbPassport.Series.String
 	}
-	
+
 	number := ""
 	if dbPassport.PassportNumber.Valid {
 		number = dbPassport.PassportNumber.String
 	}
-	
-	return passport.New(series, number, opts...)
+
+	id, err := uuid.Parse(dbPassport.ID)
+	if err != nil {
+		return nil, err
+	}
+	return passport.NewWithID(id, series, number, opts...), nil
 }
 
-func ToDBPassport(passportEntity passport.Passport) *models.Passport {
-	// Generate a new UUID for the passport ID
-	// In a real implementation, you would manage existing IDs in your repository layer
-	passportID := uuid.New().String()
-	
-	return &models.Passport{
-		ID: passportID,
-		FirstName: mapping.ValueToSQLNullString(passportEntity.FirstName()),
-		LastName: mapping.ValueToSQLNullString(passportEntity.LastName()),
-		MiddleName: mapping.ValueToSQLNullString(passportEntity.MiddleName()),
-		Gender: mapping.ValueToSQLNullString(passportEntity.Gender()),
-		BirthDate: mapping.ValueToSQLNullTime(passportEntity.BirthDate()),
-		BirthPlace: mapping.ValueToSQLNullString(passportEntity.BirthPlace()),
-		Nationality: mapping.ValueToSQLNullString(passportEntity.Nationality()),
-		PassportType: mapping.ValueToSQLNullString(passportEntity.PassportType()),
-		PassportNumber: mapping.ValueToSQLNullString(passportEntity.Number()),
-		Series: mapping.ValueToSQLNullString(passportEntity.Series()),
-		IssuingCountry: mapping.ValueToSQLNullString(passportEntity.IssuingCountry()),
-		IssuedAt: mapping.ValueToSQLNullTime(passportEntity.IssuedAt()),
-		IssuedBy: mapping.ValueToSQLNullString(passportEntity.IssuedBy()),
-		ExpiresAt: mapping.ValueToSQLNullTime(passportEntity.ExpiresAt()),
-		MachineReadableZone: mapping.ValueToSQLNullString(passportEntity.MachineReadableZone()),
-		BiometricData: nil, // In a real implementation, you would convert map to json bytes
-		SignatureImage: passportEntity.SignatureImage(),
-		Remarks: mapping.ValueToSQLNullString(passportEntity.Remarks()),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+func ToDBPassport(passportEntity passport.Passport) (*models.Passport, error) {
+	var biometricDataJSON []byte
+	if passportEntity.BiometricData() != nil {
+		var err error
+		biometricDataJSON, err = json.Marshal(passportEntity.BiometricData())
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	return &models.Passport{
+		ID:                  passportEntity.ID().String(),
+		FirstName:           mapping.ValueToSQLNullString(passportEntity.FirstName()),
+		LastName:            mapping.ValueToSQLNullString(passportEntity.LastName()),
+		MiddleName:          mapping.ValueToSQLNullString(passportEntity.MiddleName()),
+		Gender:              mapping.ValueToSQLNullString(passportEntity.Gender()),
+		BirthDate:           mapping.ValueToSQLNullTime(passportEntity.BirthDate()),
+		BirthPlace:          mapping.ValueToSQLNullString(passportEntity.BirthPlace()),
+		Nationality:         mapping.ValueToSQLNullString(passportEntity.Nationality()),
+		PassportType:        mapping.ValueToSQLNullString(passportEntity.PassportType()),
+		PassportNumber:      mapping.ValueToSQLNullString(passportEntity.Number()),
+		Series:              mapping.ValueToSQLNullString(passportEntity.Series()),
+		IssuingCountry:      mapping.ValueToSQLNullString(passportEntity.IssuingCountry()),
+		IssuedAt:            mapping.ValueToSQLNullTime(passportEntity.IssuedAt()),
+		IssuedBy:            mapping.ValueToSQLNullString(passportEntity.IssuedBy()),
+		ExpiresAt:           mapping.ValueToSQLNullTime(passportEntity.ExpiresAt()),
+		MachineReadableZone: mapping.ValueToSQLNullString(passportEntity.MachineReadableZone()),
+		BiometricData:       biometricDataJSON,
+		SignatureImage:      passportEntity.SignatureImage(),
+		Remarks:             mapping.ValueToSQLNullString(passportEntity.Remarks()),
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}, nil
 }
