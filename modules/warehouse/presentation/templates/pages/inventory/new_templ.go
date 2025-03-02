@@ -359,7 +359,7 @@ func AllPositionsTable(props *CreatePageProps) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = base.TableRow().Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = base.TableRow(&base.TableRowProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -35,14 +35,14 @@ templ InventoryTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, check := range props.Checks {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ check.Name }
 					}
 					@base.TableCell() {
 						<div
-							class={ "text-sm max-w-fit px-2 py-1 rounded-md font-medium", 
-							templ.KV("bg-green-100 text-green-600", check.Status == string(inventory.Success)), 
+							class={ "text-sm max-w-fit px-2 py-1 rounded-md font-medium",
+							templ.KV("bg-green-100 text-green-600", check.Status == string(inventory.Success)),
 							templ.KV("bg-yellow-100 text-yellow-700", check.Status == string(inventory.Incomplete)),
 							templ.KV("bg-red-100 text-red-500", check.Status == string(inventory.Failed)) }
 						>

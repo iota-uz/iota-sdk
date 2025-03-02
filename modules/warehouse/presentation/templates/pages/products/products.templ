@@ -29,7 +29,7 @@ templ ProductsTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, product := range props.Products {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ product.Position.Title }
 					}
