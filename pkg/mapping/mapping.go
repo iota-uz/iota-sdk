@@ -86,6 +86,13 @@ func ValueToSQLNullInt64(i int64) sql.NullInt64 {
 	}
 }
 
+func ValueToSQLNullFloat64(f float64) sql.NullFloat64 {
+	return sql.NullFloat64{
+		Float64: f,
+		Valid:   f != 0,
+	}
+}
+
 func PointerToSQLNullString(s *string) sql.NullString {
 	if s != nil {
 		return sql.NullString{

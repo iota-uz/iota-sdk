@@ -115,3 +115,27 @@ type Tab struct {
 	Position uint
 	UserID   uint
 }
+
+type Passport struct {
+	ID                  string
+	FirstName           sql.NullString
+	LastName            sql.NullString
+	MiddleName          sql.NullString
+	Gender              sql.NullString
+	BirthDate           sql.NullTime
+	BirthPlace          sql.NullString
+	Nationality         sql.NullString
+	PassportType        sql.NullString
+	PassportNumber      sql.NullString
+	Series              sql.NullString
+	IssuingCountry      sql.NullString
+	IssuedAt            sql.NullTime
+	IssuedBy            sql.NullString
+	ExpiresAt           sql.NullTime
+	MachineReadableZone sql.NullString
+	BiometricData       []byte // JSONB data stored as bytes
+	SignatureImage      []byte // Binary data
+	Remarks             sql.NullString
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}

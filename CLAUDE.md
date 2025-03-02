@@ -1,7 +1,7 @@
 # CLAUDE.md - IOTA SDK Guide
 
 ## Overview
-The project follows DDD principles 
+The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
 
 ## Build/Lint/Test Commands
 - After changes to css or .templ files: `make generate && make css`

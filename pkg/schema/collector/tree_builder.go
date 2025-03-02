@@ -92,6 +92,10 @@ func (s *schemaState) applyAlterTable(node *tree.AlterTable, timestamp int64, fi
 
 func (s *schemaState) updateColumnState(tableName string, cmd interface{}, timestamp int64, fileName string) {
 	if def, ok := cmd.(*tree.ColumnTableDef); ok {
+		if _, exists := s.tables[tableName]; !exists {
+			println(fmt.Sprintf("    Found unknown column %s for table %s", def.Name, tableName))
+			return
+		}
 		s.tables[tableName].Defs = append(s.tables[tableName].Defs, def)
 		return
 	}
