@@ -1,9 +1,10 @@
 package composables
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"net/http"
 	"strconv"
+
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 type PaginationParams struct {
@@ -19,11 +20,14 @@ func UsePaginated(r *http.Request) PaginationParams {
 		limit = config.PageSize
 	}
 
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
 
 	return PaginationParams{
 		Limit:  limit,
-		Offset: page * limit,
+		Offset: (page - 1) * limit,
 		Page:   page,
 	}
 }

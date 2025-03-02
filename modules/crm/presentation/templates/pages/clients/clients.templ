@@ -33,7 +33,7 @@ templ ClientsTable(props *IndexPageProps) {
 				{{
 					url := fmt.Sprintf("/crm/clients?tab=profile&view=%s", client.ID)
 				}}
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						<button
 							type="button"

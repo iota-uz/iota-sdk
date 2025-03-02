@@ -29,7 +29,7 @@ templ UnitsTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, unit := range props.Units {
-				@base.TableRow() {
+				@base.TableRow(&base.TableRowProps{}) {
 					@base.TableCell() {
 						{ unit.Title }
 					}
