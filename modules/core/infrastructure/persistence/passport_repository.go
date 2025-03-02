@@ -93,7 +93,7 @@ const (
 
 type PassportRepository struct{}
 
-func NewPassportRepository() passport.PassportRepository {
+func NewPassportRepository() passport.Repository {
 	return &PassportRepository{}
 }
 

@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type PassportRepository interface {
+type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Passport, error)
 	GetByPassportNumber(ctx context.Context, series, number string) (Passport, error)
 	Exists(ctx context.Context, id uuid.UUID) (bool, error)
