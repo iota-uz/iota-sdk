@@ -84,8 +84,8 @@ templ RolesContent(props *IndexPageProps) {
 					<option>100</option>
 				}
 				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-					<option>Вчера</option>
-					<option>Позавчера</option>
+					<option>{ pageCtx.T("Yesterday") }</option>
+					<option>{ pageCtx.T("Ereyesterday") }</option>
 				}
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
