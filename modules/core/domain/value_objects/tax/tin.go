@@ -2,7 +2,7 @@ package tax
 
 import (
 	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
+	country2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/utils/sequence"
 	"strings"
 )
@@ -14,11 +14,11 @@ var (
 var (
 	NilTin Tin = &tin{
 		v:      "",
-		county: country.NilCountry,
+		county: country2.NilCountry,
 	}
 )
 
-func NewTin(t string, c country.Country) (Tin, error) {
+func NewTin(t string, c country2.Country) (Tin, error) {
 	if err := ValidateTin(t, c); err != nil {
 		return nil, err
 	}
@@ -27,10 +27,10 @@ func NewTin(t string, c country.Country) (Tin, error) {
 
 type tin struct {
 	v      string
-	county country.Country
+	county country2.Country
 }
 
-func (t tin) Country() country.Country {
+func (t tin) Country() country2.Country {
 	return t.county
 }
 
@@ -38,11 +38,11 @@ func (t tin) Value() string {
 	return t.v
 }
 
-func ValidateTin(t string, c country.Country) error {
+func ValidateTin(t string, c country2.Country) error {
 	t = strings.Trim(t, " ")
 	// TODO: Implement Tin validation for other countries
 	switch c {
-	case country.Uzbekistan:
+	case country2.Uzbekistan:
 		if !sequence.IsNumeric(t) {
 			return errors.Wrap(ErrInvalidTin, "Uzbekistan Tin must be numeric")
 		}
@@ -50,7 +50,7 @@ func ValidateTin(t string, c country.Country) error {
 			return errors.Wrap(ErrInvalidTin, "Uzbekistan Tin length must be 9")
 		}
 		return nil
-	case country.Kazakhstan:
+	case country2.Kazakhstan:
 		if !sequence.IsNumeric(t) {
 			return errors.Wrap(ErrInvalidTin, "Kazakhstan Tin must be numeric")
 		}

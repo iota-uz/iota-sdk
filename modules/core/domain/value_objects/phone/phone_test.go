@@ -2,52 +2,51 @@ package phone_test
 
 import (
 	"errors"
+	country2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"testing"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 )
 
 func TestNewPhoneNumber(t *testing.T) {
 	tests := []struct {
 		phone   string
-		country country.Country
+		country country2.Country
 		err     error
 	}{
 		// ✅ Valid US numbers
-		{"415-555-1234", country.UnitedStates, nil},
-		{"(415) 555-1234", country.UnitedStates, nil},
-		{"+1 415-555-1234", country.UnitedStates, nil},
-		{"415.555.1234", country.UnitedStates, nil},
-		{"14155551234", country.UnitedStates, nil},
-		{"800-555-1234", country.UnitedStates, nil}, // Toll-free
+		{"415-555-1234", country2.UnitedStates, nil},
+		{"(415) 555-1234", country2.UnitedStates, nil},
+		{"+1 415-555-1234", country2.UnitedStates, nil},
+		{"415.555.1234", country2.UnitedStates, nil},
+		{"14155551234", country2.UnitedStates, nil},
+		{"800-555-1234", country2.UnitedStates, nil}, // Toll-free
 
 		// ❌ Invalid US numbers
-		{"911-555-1234", country.UnitedStates, phone.ErrInvalidPhoneNumber},    // Exchange cannot be 911
-		{"123-456-7890", country.UnitedStates, phone.ErrInvalidPhoneNumber},    // Area code cannot start with 1
-		{"000-555-1234", country.UnitedStates, phone.ErrInvalidPhoneNumber},    // Invalid area code
-		{"555-555-5555", country.UnitedStates, phone.ErrInvalidPhoneNumber},    // Reserved 555 number
-		{"415555", country.UnitedStates, phone.ErrInvalidPhoneNumber},          // Too short
-		{"415555123456789", country.UnitedStates, phone.ErrInvalidPhoneNumber}, // Too long
+		{"911-555-1234", country2.UnitedStates, phone.ErrInvalidPhoneNumber},    // Exchange cannot be 911
+		{"123-456-7890", country2.UnitedStates, phone.ErrInvalidPhoneNumber},    // Area code cannot start with 1
+		{"000-555-1234", country2.UnitedStates, phone.ErrInvalidPhoneNumber},    // Invalid area code
+		{"555-555-5555", country2.UnitedStates, phone.ErrInvalidPhoneNumber},    // Reserved 555 number
+		{"415555", country2.UnitedStates, phone.ErrInvalidPhoneNumber},          // Too short
+		{"415555123456789", country2.UnitedStates, phone.ErrInvalidPhoneNumber}, // Too long
 
 		// ✅ Valid international numbers
-		{"+1 415-555-1234", country.UnitedStates, nil},
-		{"+44 20 7946 0958", country.UnitedKingdom, nil},
-		{"+91-9876543210", country.India, nil},
-		{"08123456789", country.Indonesia, nil},
-		{"+81 90-1234-5678", country.Japan, nil},
-		{"+49 170 1234567", country.Germany, nil},
-		{"+33 6 12 34 56 78", country.France, nil},
-		{"+254712345678", country.Kenya, nil},
-		{"+61 400 123 456", country.Australia, nil},
-		{"+358 50 1234567", country.Finland, nil},
+		{"+1 415-555-1234", country2.UnitedStates, nil},
+		{"+44 20 7946 0958", country2.UnitedKingdom, nil},
+		{"+91-9876543210", country2.India, nil},
+		{"08123456789", country2.Indonesia, nil},
+		{"+81 90-1234-5678", country2.Japan, nil},
+		{"+49 170 1234567", country2.Germany, nil},
+		{"+33 6 12 34 56 78", country2.France, nil},
+		{"+254712345678", country2.Kenya, nil},
+		{"+61 400 123 456", country2.Australia, nil},
+		{"+358 50 1234567", country2.Finland, nil},
 
 		// ❌ Invalid international numbers
-		{"001-555-234-5678", country.UnitedStates, phone.ErrInvalidPhoneNumber},     // Invalid country code (001)
-		{"+0 1234567890", country.UnitedStates, phone.ErrInvalidPhoneNumber},        // Country code cannot start with 0
-		{"123456", country.UnitedStates, phone.ErrInvalidPhoneNumber},               // Too short
-		{"99999999999999999999", country.UnitedStates, phone.ErrInvalidPhoneNumber}, // Too long
-		{"abcd-1234-5678", country.UnitedStates, phone.ErrInvalidPhoneNumber},       // Non-numeric
+		{"001-555-234-5678", country2.UnitedStates, phone.ErrInvalidPhoneNumber},     // Invalid country code (001)
+		{"+0 1234567890", country2.UnitedStates, phone.ErrInvalidPhoneNumber},        // Country code cannot start with 0
+		{"123456", country2.UnitedStates, phone.ErrInvalidPhoneNumber},               // Too short
+		{"99999999999999999999", country2.UnitedStates, phone.ErrInvalidPhoneNumber}, // Too long
+		{"abcd-1234-5678", country2.UnitedStates, phone.ErrInvalidPhoneNumber},       // Non-numeric
 	}
 
 	for _, tt := range tests {
@@ -190,20 +189,20 @@ func TestParseCountry(t *testing.T) {
 		name            string
 		phone           string
 		expectedError   error
-		expectedCountry country.Country
+		expectedCountry country2.Country
 	}{
 		// North America
 		{
 			name:            "US Number",
 			phone:           "+14155551234",
 			expectedError:   nil,
-			expectedCountry: country.UnitedStates,
+			expectedCountry: country2.UnitedStates,
 		},
 		{
 			name:            "Canadian Number",
 			phone:           "+14165551234",
 			expectedError:   nil,
-			expectedCountry: country.Canada,
+			expectedCountry: country2.Canada,
 		},
 
 		// Europe
@@ -211,13 +210,13 @@ func TestParseCountry(t *testing.T) {
 			name:            "UK Number",
 			phone:           "+447911123456",
 			expectedError:   nil,
-			expectedCountry: country.UnitedKingdom,
+			expectedCountry: country2.UnitedKingdom,
 		},
 		{
 			name:            "German Number",
 			phone:           "+4917012345678",
 			expectedError:   nil,
-			expectedCountry: country.Germany,
+			expectedCountry: country2.Germany,
 		},
 
 		// Asia
@@ -225,13 +224,13 @@ func TestParseCountry(t *testing.T) {
 			name:            "Chinese Number",
 			phone:           "+8613912345678",
 			expectedError:   nil,
-			expectedCountry: country.China,
+			expectedCountry: country2.China,
 		},
 		{
 			name:            "Japanese Number",
 			phone:           "+819012345678",
 			expectedError:   nil,
-			expectedCountry: country.Japan,
+			expectedCountry: country2.Japan,
 		},
 
 		// Shared Codes
@@ -254,19 +253,19 @@ func TestParseCountry(t *testing.T) {
 			name:            "Empty Number",
 			phone:           "",
 			expectedError:   phone.ErrUnknownCountry,
-			expectedCountry: country.NilCountry,
+			expectedCountry: country2.NilCountry,
 		},
 		{
 			name:            "Invalid Country Code",
 			phone:           "+0123456789",
 			expectedError:   phone.ErrUnknownCountry,
-			expectedCountry: country.NilCountry,
+			expectedCountry: country2.NilCountry,
 		},
 		{
 			name:            "Non-numeric",
 			phone:           "+abcdefghijk",
 			expectedError:   phone.ErrUnknownCountry,
-			expectedCountry: country.NilCountry,
+			expectedCountry: country2.NilCountry,
 		},
 	}
 

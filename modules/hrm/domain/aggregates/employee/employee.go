@@ -1,9 +1,9 @@
 package employee
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"

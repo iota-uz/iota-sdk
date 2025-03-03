@@ -3,11 +3,11 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )

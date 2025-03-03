@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"

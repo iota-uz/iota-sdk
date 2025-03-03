@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
 )
 
 type Passport interface {
@@ -14,7 +15,7 @@ type Passport interface {
 	FirstName() string
 	LastName() string
 	MiddleName() string
-	Gender() string
+	Gender() general.Gender
 	BirthDate() time.Time
 	BirthPlace() string
 	Nationality() string
@@ -40,7 +41,7 @@ func WithFullName(firstName, lastName, middleName string) Option {
 	}
 }
 
-func WithGender(gender string) Option {
+func WithGender(gender general.Gender) Option {
 	return func(p *passport) {
 		p.gender = gender
 	}
@@ -142,7 +143,7 @@ type passport struct {
 	firstName           string
 	lastName            string
 	middleName          string
-	gender              string
+	gender              general.Gender
 	birthDate           time.Time
 	birthPlace          string
 	nationality         string
@@ -187,7 +188,7 @@ func (p *passport) MiddleName() string {
 	return p.middleName
 }
 
-func (p *passport) Gender() string {
+func (p *passport) Gender() general.Gender {
 	return p.gender
 }
 
@@ -238,4 +239,3 @@ func (p *passport) SignatureImage() []byte {
 func (p *passport) Remarks() string {
 	return p.remarks
 }
-

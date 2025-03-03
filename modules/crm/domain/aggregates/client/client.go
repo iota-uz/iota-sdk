@@ -3,8 +3,10 @@ package client
 import (
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 )
 
 type Client interface {
@@ -17,7 +19,7 @@ type Client interface {
 	Email() string
 	HourlyRate() float64
 	DateOfBirth() *time.Time
-	Gender() string
+	Gender() general.Gender
 	Passport() passport.Passport
 	PIN() string
 	CreatedAt() time.Time
@@ -29,7 +31,7 @@ type Client interface {
 	SetEmail(email string) Client
 	SetHourlyRate(rate float64) Client
 	SetDateOfBirth(dob *time.Time) Client
-	SetGender(gender string) Client
+	SetGender(gender general.Gender) Client
 	SetPassport(p passport.Passport) Client
 	SetPIN(pin string) Client
 }
@@ -78,6 +80,10 @@ func NewComplete(
 	pin string,
 	createdAt, updatedAt time.Time,
 ) (Client, error) {
+	g, err := general.NewGender(gender)
+	if err != nil {
+		return nil, err
+	}
 	return &client{
 		id:          id,
 		firstName:   firstName,
@@ -88,7 +94,7 @@ func NewComplete(
 		email:       email,
 		hourlyRate:  hourlyRate,
 		dateOfBirth: dateOfBirth,
-		gender:      gender,
+		gender:      g,
 		passport:    passportData,
 		pin:         pin,
 		createdAt:   createdAt,
@@ -106,7 +112,7 @@ type client struct {
 	email       string
 	hourlyRate  float64
 	dateOfBirth *time.Time
-	gender      string
+	gender      general.Gender
 	passport    passport.Passport
 	pin         string
 	createdAt   time.Time
@@ -149,7 +155,7 @@ func (c *client) DateOfBirth() *time.Time {
 	return c.dateOfBirth
 }
 
-func (c *client) Gender() string {
+func (c *client) Gender() general.Gender {
 	return c.gender
 }
 
@@ -213,7 +219,7 @@ func (c *client) SetDateOfBirth(dob *time.Time) Client {
 	return &result
 }
 
-func (c *client) SetGender(gender string) Client {
+func (c *client) SetGender(gender general.Gender) Client {
 	result := *c
 	result.gender = gender
 	result.updatedAt = time.Now()
