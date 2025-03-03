@@ -1,7 +1,7 @@
 package phone
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 )
 
 // PhoneCodeToCountry maps phone number prefixes to their respective countries

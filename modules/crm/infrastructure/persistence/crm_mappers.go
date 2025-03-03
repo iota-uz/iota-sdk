@@ -2,9 +2,9 @@ package persistence
 
 import (
 	"database/sql"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -81,7 +81,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		Email:       mapping.ValueToSQLNullString(domainEntity.Email()),
 		HourlyRate:  mapping.ValueToSQLNullFloat64(domainEntity.HourlyRate()),
 		DateOfBirth: mapping.PointerToSQLNullTime(domainEntity.DateOfBirth()),
-		Gender:      mapping.ValueToSQLNullString(domainEntity.Gender()),
+		Gender:      mapping.ValueToSQLNullString(domainEntity.Gender().String()),
 		PassportID:  passportID,
 		PIN:         mapping.ValueToSQLNullString(domainEntity.PIN()),
 		CreatedAt:   domainEntity.CreatedAt(),

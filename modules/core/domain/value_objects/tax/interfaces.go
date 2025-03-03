@@ -1,6 +1,8 @@
 package tax
 
-import "github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
+)
 
 // Tin - Taxpayer Identification Number (ИНН - Идентификационный номер налогоплательщика)
 type Tin interface {

@@ -1,10 +1,10 @@
 package phone
 
 import (
+	country2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"unicode"
 
 	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 )
 
 var (
@@ -14,7 +14,7 @@ var (
 
 // AreaCode represents the mapping between area codes and countries
 type AreaCode struct {
-	Country    country.Country
+	Country    country2.Country
 	AreaCodes  []string
 	CodeLength int // Expected length of phone number for this country
 }
@@ -34,10 +34,10 @@ func Strip(v string) string {
 }
 
 // ParseCountry attempts to determine the country from a phone number
-func ParseCountry(phoneNumber string) (country.Country, error) {
+func ParseCountry(phoneNumber string) (country2.Country, error) {
 	cleaned := Strip(phoneNumber)
 	if cleaned == "" {
-		return country.NilCountry, errors.Wrap(ErrUnknownCountry, "phone number is empty")
+		return country2.NilCountry, errors.Wrap(ErrUnknownCountry, "phone number is empty")
 	}
 
 	// Try different prefix lengths (from longest to shortest)
@@ -65,10 +65,10 @@ func ParseCountry(phoneNumber string) (country.Country, error) {
 		}
 	}
 
-	return country.NilCountry, errors.Wrapf(ErrUnknownCountry, "could not determine country for phone number: %s", phoneNumber)
+	return country2.NilCountry, errors.Wrapf(ErrUnknownCountry, "could not determine country for phone number: %s", phoneNumber)
 }
 
-func New(v string, c country.Country) (Phone, error) {
+func New(v string, c country2.Country) (Phone, error) {
 	if v == "" {
 		return phone(""), errors.Wrap(ErrInvalidPhoneNumber, "phone number is empty")
 	}
@@ -140,9 +140,9 @@ func IsValidGlobalPhoneNumber(v string) bool {
 	return true
 }
 
-func IsValidPhoneNumber(v string, c country.Country) bool {
+func IsValidPhoneNumber(v string, c country2.Country) bool {
 	switch c {
-	case country.UnitedStates:
+	case country2.UnitedStates:
 		return IsValidUSPhoneNumber(v)
 	default:
 		return IsValidGlobalPhoneNumber(v)

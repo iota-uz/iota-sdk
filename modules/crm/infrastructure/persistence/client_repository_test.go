@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -17,7 +19,7 @@ func createTestPassport() passport.Passport {
 		"AB",      // series
 		"1234567", // number
 		passport.WithFullName("John", "Doe", "Smith"),
-		passport.WithGender("Male"),
+		passport.WithGender(general.Male),
 		passport.WithBirthDetails(time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC), "New York"),
 		passport.WithNationality("USA"),
 		passport.WithPassportType("Regular"),

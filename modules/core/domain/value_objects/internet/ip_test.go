@@ -1,7 +1,7 @@
 package internet_test
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"testing"
 )
 

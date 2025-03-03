@@ -11,13 +11,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -272,7 +273,11 @@ func ToDomainPassport(dbPassport *models.Passport) (passport.Passport, error) {
 	}
 
 	if dbPassport.Gender.Valid {
-		opts = append(opts, passport.WithGender(dbPassport.Gender.String))
+		g, err := general.NewGender(dbPassport.Gender.String)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, passport.WithGender(g))
 	}
 
 	if dbPassport.BirthDate.Valid || dbPassport.BirthPlace.Valid {
@@ -367,7 +372,7 @@ func ToDBPassport(passportEntity passport.Passport) (*models.Passport, error) {
 		FirstName:           mapping.ValueToSQLNullString(passportEntity.FirstName()),
 		LastName:            mapping.ValueToSQLNullString(passportEntity.LastName()),
 		MiddleName:          mapping.ValueToSQLNullString(passportEntity.MiddleName()),
-		Gender:              mapping.ValueToSQLNullString(passportEntity.Gender()),
+		Gender:              mapping.ValueToSQLNullString(passportEntity.Gender().String()),
 		BirthDate:           mapping.ValueToSQLNullTime(passportEntity.BirthDate()),
 		BirthPlace:          mapping.ValueToSQLNullString(passportEntity.BirthPlace()),
 		Nationality:         mapping.ValueToSQLNullString(passportEntity.Nationality()),

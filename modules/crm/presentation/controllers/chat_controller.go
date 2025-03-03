@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"log"
 	"net/http"
 	"net/url"
@@ -14,7 +15,6 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/phone"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"

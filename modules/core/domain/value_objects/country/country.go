@@ -5,6 +5,10 @@ import (
 	"slices"
 )
 
+type Country interface {
+	String() string
+}
+
 type country string
 
 var (
