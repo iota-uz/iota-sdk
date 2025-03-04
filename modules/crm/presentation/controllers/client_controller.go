@@ -159,7 +159,7 @@ func (c *ClientController) Create(w http.ResponseWriter, r *http.Request) {
 				MiddleName: dto.MiddleName,
 				Phone:      dto.Phone,
 			},
-			SaveURL: fmt.Sprintf("%s", c.basePath),
+			SaveURL: c.basePath,
 		}
 		templ.Handler(clients.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -288,7 +288,7 @@ func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if r.Header.Get("Hx-Target") != "" {
+	if htmx.Target(r) != "" {
 		templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		ctx := templ.WithChildren(r.Context(), component)
