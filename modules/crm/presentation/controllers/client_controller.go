@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -117,7 +118,7 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := shared.IsHxRequest(r)
+	isHxRequest := htmx.IsHxRequest(r)
 	if isHxRequest && r.URL.Query().Get("view") != "" {
 		c.View(w, r)
 		return

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"log"
 	"net/http"
 	"net/url"
@@ -327,7 +328,7 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	shared.HxRedirect(w, r, c.basePath)
+	htmx.Redirect(w, r, c.basePath)
 }
 
 func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
