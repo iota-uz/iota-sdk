@@ -3,6 +3,7 @@ package shared
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"net/http"
 	"strconv"
 
@@ -10,22 +11,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func HxRedirect(w http.ResponseWriter, _ *http.Request, path string) {
-	w.Header().Add("Hx-Redirect", path)
-	w.WriteHeader(http.StatusOK)
-}
-
-func IsHxRequest(r *http.Request) bool {
-	return len(r.Header.Get("Hx-Request")) > 0
-}
-
-func IsHXBoosted(r *http.Request) bool {
-	return len(r.Header.Get("Hx-Boosted")) > 0
-}
-
 func Redirect(w http.ResponseWriter, r *http.Request, path string) {
-	if IsHxRequest(r) {
-		HxRedirect(w, r, path)
+	if htmx.IsHxRequest(r) {
+		htmx.Redirect(w, r, path)
 		return
 	}
 	http.Redirect(w, r, path, http.StatusFound)
