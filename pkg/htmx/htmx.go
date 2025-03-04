@@ -14,3 +14,7 @@ func IsHxRequest(r *http.Request) bool {
 func IsBoosted(r *http.Request) bool {
 	return len(r.Header.Get("Hx-Boosted")) > 0
 }
+
+func Target(r *http.Request) string {
+	return r.Header.Get("Hx-Target")
+}
