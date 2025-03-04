@@ -33,6 +33,12 @@ type Passport interface {
 // Option is a function type that configures a passport
 type Option func(*passport)
 
+func WithID(id uuid.UUID) Option {
+	return func(p *passport) {
+		p.id = id
+	}
+}
+
 func WithFullName(firstName, lastName, middleName string) Option {
 	return func(p *passport) {
 		p.firstName = firstName
@@ -117,18 +123,6 @@ func WithRemarks(remarks string) Option {
 func New(series, number string, opts ...Option) Passport {
 	p := &passport{
 		id:     uuid.New(),
-		series: series,
-		number: number,
-	}
-	for _, opt := range opts {
-		opt(p)
-	}
-	return p
-}
-
-func NewWithID(id uuid.UUID, series, number string, opts ...Option) Passport {
-	p := &passport{
-		id:     id,
 		series: series,
 		number: number,
 	}

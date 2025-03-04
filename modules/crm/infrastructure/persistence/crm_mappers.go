@@ -54,8 +54,8 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 	}
 
 	// Add PIN if it's valid
-	if dbRow.PIN.Valid && dbRow.PIN.String != "" {
-		tPin, err := tax.NewPin(dbRow.PIN.String, country.Uzbekistan)
+	if dbRow.Pin.Valid && dbRow.Pin.String != "" {
+		tPin, err := tax.NewPin(dbRow.Pin.String, country.Uzbekistan)
 		if err == nil {
 			options = append(options, client.WithPin(tPin))
 		}
@@ -102,8 +102,8 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 	}
 
 	var pin sql.NullString
-	if domainEntity.PIN().Value() != "" {
-		pin = mapping.ValueToSQLNullString(domainEntity.PIN().Value())
+	if domainEntity.Pin().Value() != "" {
+		pin = mapping.ValueToSQLNullString(domainEntity.Pin().Value())
 	}
 
 	return &models.Client{
@@ -117,7 +117,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		DateOfBirth: mapping.PointerToSQLNullTime(domainEntity.DateOfBirth()),
 		Gender:      gender,
 		PassportID:  passportID,
-		PIN:         pin,
+		Pin:         pin,
 		CreatedAt:   domainEntity.CreatedAt(),
 		UpdatedAt:   domainEntity.UpdatedAt(),
 	}

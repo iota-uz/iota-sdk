@@ -17,7 +17,7 @@ type Client struct {
 	DateOfBirth sql.NullTime
 	Gender      sql.NullString
 	PassportID  sql.NullString // UUID reference to passports table
-	PIN         sql.NullString
+	Pin         sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
