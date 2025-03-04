@@ -109,7 +109,7 @@ func (g *ClientRepository) queryClients(
 			&c.DateOfBirth,
 			&c.Gender,
 			&c.PassportID,
-			&c.PIN,
+			&c.Pin,
 			&c.CreatedAt,
 			&c.UpdatedAt,
 		); err != nil {
@@ -301,7 +301,7 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 		dbRow.DateOfBirth,
 		dbRow.Gender,
 		dbRow.PassportID,
-		dbRow.PIN,
+		dbRow.Pin,
 	).Scan(&dbRow.ID); err != nil {
 		return nil, err
 	}
@@ -340,7 +340,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		dbRow.DateOfBirth,
 		dbRow.Gender,
 		dbRow.PassportID,
-		dbRow.PIN,
+		dbRow.Pin,
 		data.ID(),
 	); err != nil {
 		return nil, err

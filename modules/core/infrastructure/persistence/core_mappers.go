@@ -261,8 +261,13 @@ func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.Authent
 
 // Passport mappers
 func ToDomainPassport(dbPassport *models.Passport) (passport.Passport, error) {
-	// Create option list based on available fields
-	var opts []passport.Option
+	id, err := uuid.Parse(dbPassport.ID)
+	if err != nil {
+		return nil, err
+	}
+	opts := []passport.Option{
+		passport.WithID(id),
+	}
 
 	if dbPassport.FirstName.Valid || dbPassport.LastName.Valid || dbPassport.MiddleName.Valid {
 		opts = append(opts, passport.WithFullName(
@@ -350,11 +355,7 @@ func ToDomainPassport(dbPassport *models.Passport) (passport.Passport, error) {
 		number = dbPassport.PassportNumber.String
 	}
 
-	id, err := uuid.Parse(dbPassport.ID)
-	if err != nil {
-		return nil, err
-	}
-	return passport.NewWithID(id, series, number, opts...), nil
+	return passport.New(series, number, opts...), nil
 }
 
 func ToDBPassport(passportEntity passport.Passport) (*models.Passport, error) {

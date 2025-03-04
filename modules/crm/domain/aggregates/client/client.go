@@ -81,7 +81,7 @@ type Client interface {
 	DateOfBirth() *time.Time
 	Gender() general.Gender
 	Passport() passport.Passport
-	PIN() tax.Pin
+	Pin() tax.Pin
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
@@ -171,7 +171,7 @@ func (c *client) Passport() passport.Passport {
 	return c.passport
 }
 
-func (c *client) PIN() tax.Pin {
+func (c *client) Pin() tax.Pin {
 	return c.pin
 }
 

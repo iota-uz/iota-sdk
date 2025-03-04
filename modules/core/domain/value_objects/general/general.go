@@ -9,19 +9,19 @@ type Gender interface {
 }
 
 var (
-	Male   Gender = gender("male")
-	Female Gender = gender("female")
-	Other  Gender = gender("other")
+	Male   Gender = GenderEnum("male")
+	Female Gender = GenderEnum("female")
+	Other  Gender = GenderEnum("other")
 )
 
-type gender string
+type GenderEnum string
 
 var (
 	ErrInvalidGender = errors.New("invalid gender")
-	NilGender        = gender("")
+	NilGender        = GenderEnum("")
 )
 
-func (g gender) String() string {
+func (g GenderEnum) String() string {
 	return string(g)
 }
 
@@ -41,7 +41,7 @@ func IsValid(c string) bool {
 
 func NewGender(c string) (Gender, error) {
 	if IsValid(c) {
-		return gender(c), nil
+		return GenderEnum(c), nil
 	}
 	return nil, ErrInvalidGender
 }
