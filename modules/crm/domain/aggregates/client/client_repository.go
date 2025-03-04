@@ -40,5 +40,6 @@ type Repository interface {
 	GetByPhone(ctx context.Context, phoneNumber string) (Client, error)
 	Create(ctx context.Context, data Client) (Client, error)
 	Update(ctx context.Context, data Client) (Client, error)
+	Save(ctx context.Context, data Client) (Client, error) // Create or Update
 	Delete(ctx context.Context, id uint) error
 }

@@ -3,11 +3,72 @@ package client
 import (
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
-
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 )
+
+type Option func(c *client)
+
+// --- Option setters ---
+
+func WithID(id uint) Option {
+	return func(c *client) {
+		c.id = id
+	}
+}
+
+func WithAddress(address string) Option {
+	return func(c *client) {
+		c.address = address
+	}
+}
+
+func WithEmail(email internet.Email) Option {
+	return func(c *client) {
+		c.email = email
+	}
+}
+
+func WithDateOfBirth(dob *time.Time) Option {
+	return func(c *client) {
+		c.dateOfBirth = dob
+	}
+}
+
+func WithPassport(p passport.Passport) Option {
+	return func(c *client) {
+		c.passport = p
+	}
+}
+
+func WithPin(pin tax.Pin) Option {
+	return func(c *client) {
+		c.pin = pin
+	}
+}
+
+func WithGender(g general.Gender) Option {
+	return func(c *client) {
+		c.gender = g
+	}
+}
+
+func WithCreatedAt(t time.Time) Option {
+	return func(c *client) {
+		c.createdAt = t
+	}
+}
+
+func WithUpdatedAt(t time.Time) Option {
+	return func(c *client) {
+		c.updatedAt = t
+	}
+}
+
+// --- Interface ---
 
 type Client interface {
 	ID() uint
@@ -16,31 +77,30 @@ type Client interface {
 	MiddleName() string
 	Phone() phone.Phone
 	Address() string
-	Email() string
-	HourlyRate() float64
+	Email() internet.Email
 	DateOfBirth() *time.Time
 	Gender() general.Gender
 	Passport() passport.Passport
-	PIN() string
+	PIN() tax.Pin
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
 	SetPhone(number phone.Phone) Client
 	SetName(firstName, lastName, middleName string) Client
 	SetAddress(address string) Client
-	SetEmail(email string) Client
-	SetHourlyRate(rate float64) Client
+	SetEmail(email internet.Email) Client
 	SetDateOfBirth(dob *time.Time) Client
 	SetGender(gender general.Gender) Client
 	SetPassport(p passport.Passport) Client
-	SetPIN(pin string) Client
+	SetPIN(pin tax.Pin) Client
 }
 
 func New(
 	firstName, lastName, middleName string,
 	phoneNumber phone.Phone,
+	opts ...Option,
 ) (Client, error) {
-	return &client{
+	c := &client{
 		id:         0,
 		firstName:  firstName,
 		lastName:   lastName,
@@ -48,58 +108,11 @@ func New(
 		phone:      phoneNumber,
 		createdAt:  time.Now(),
 		updatedAt:  time.Now(),
-	}, nil
-}
-
-func NewWithID(
-	id uint,
-	firstName, lastName, middleName string,
-	phoneNumber phone.Phone,
-	createdAt, updatedAt time.Time,
-) (Client, error) {
-	return &client{
-		id:         id,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: middleName,
-		phone:      phoneNumber,
-		createdAt:  createdAt,
-		updatedAt:  updatedAt,
-	}, nil
-}
-
-func NewComplete(
-	id uint,
-	firstName, lastName, middleName string,
-	phoneNumber phone.Phone,
-	address, email string,
-	hourlyRate float64,
-	dateOfBirth *time.Time,
-	gender string,
-	passportData passport.Passport,
-	pin string,
-	createdAt, updatedAt time.Time,
-) (Client, error) {
-	g, err := general.NewGender(gender)
-	if err != nil {
-		return nil, err
 	}
-	return &client{
-		id:          id,
-		firstName:   firstName,
-		lastName:    lastName,
-		middleName:  middleName,
-		phone:       phoneNumber,
-		address:     address,
-		email:       email,
-		hourlyRate:  hourlyRate,
-		dateOfBirth: dateOfBirth,
-		gender:      g,
-		passport:    passportData,
-		pin:         pin,
-		createdAt:   createdAt,
-		updatedAt:   updatedAt,
-	}, nil
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
 }
 
 type client struct {
@@ -109,12 +122,11 @@ type client struct {
 	middleName  string
 	phone       phone.Phone
 	address     string
-	email       string
-	hourlyRate  float64
+	email       internet.Email
 	dateOfBirth *time.Time
 	gender      general.Gender
 	passport    passport.Passport
-	pin         string
+	pin         tax.Pin
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -143,12 +155,8 @@ func (c *client) Address() string {
 	return c.address
 }
 
-func (c *client) Email() string {
+func (c *client) Email() internet.Email {
 	return c.email
-}
-
-func (c *client) HourlyRate() float64 {
-	return c.hourlyRate
 }
 
 func (c *client) DateOfBirth() *time.Time {
@@ -163,7 +171,7 @@ func (c *client) Passport() passport.Passport {
 	return c.passport
 }
 
-func (c *client) PIN() string {
+func (c *client) PIN() tax.Pin {
 	return c.pin
 }
 
@@ -198,16 +206,9 @@ func (c *client) SetAddress(address string) Client {
 	return &result
 }
 
-func (c *client) SetEmail(email string) Client {
+func (c *client) SetEmail(email internet.Email) Client {
 	result := *c
 	result.email = email
-	result.updatedAt = time.Now()
-	return &result
-}
-
-func (c *client) SetHourlyRate(rate float64) Client {
-	result := *c
-	result.hourlyRate = rate
 	result.updatedAt = time.Now()
 	return &result
 }
@@ -233,7 +234,7 @@ func (c *client) SetPassport(p passport.Passport) Client {
 	return &result
 }
 
-func (c *client) SetPIN(pin string) Client {
+func (c *client) SetPIN(pin tax.Pin) Client {
 	result := *c
 	result.pin = pin
 	result.updatedAt = time.Now()

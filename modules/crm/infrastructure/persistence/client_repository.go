@@ -178,6 +178,19 @@ func (g *ClientRepository) queryClients(
 	return clients, nil
 }
 
+func (g *ClientRepository) exists(ctx context.Context, id uint) (bool, error) {
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, err
+	}
+	var exists bool
+	q := "SELECT EXISTS(SELECT 1 FROM clients WHERE id = $1)"
+	if err := pool.QueryRow(ctx, q, id).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (g *ClientRepository) GetPaginated(
 	ctx context.Context, params *client.FindParams,
 ) ([]client.Client, error) {
@@ -334,6 +347,17 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 	}
 
 	return g.GetByID(ctx, data.ID())
+}
+
+func (g *ClientRepository) Save(ctx context.Context, data client.Client) (client.Client, error) {
+	exists, err := g.exists(ctx, data.ID())
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return g.Update(ctx, data)
+	}
+	return g.Create(ctx, data)
 }
 
 func (g *ClientRepository) Delete(ctx context.Context, id uint) error {

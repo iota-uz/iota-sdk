@@ -367,12 +367,17 @@ func ToDBPassport(passportEntity passport.Passport) (*models.Passport, error) {
 		}
 	}
 
+	var gender sql.NullString
+	if passportEntity.Gender() != nil {
+		gender = mapping.ValueToSQLNullString(passportEntity.Gender().String())
+	}
+
 	return &models.Passport{
 		ID:                  passportEntity.ID().String(),
 		FirstName:           mapping.ValueToSQLNullString(passportEntity.FirstName()),
 		LastName:            mapping.ValueToSQLNullString(passportEntity.LastName()),
 		MiddleName:          mapping.ValueToSQLNullString(passportEntity.MiddleName()),
-		Gender:              mapping.ValueToSQLNullString(passportEntity.Gender().String()),
+		Gender:              gender,
 		BirthDate:           mapping.ValueToSQLNullTime(passportEntity.BirthDate()),
 		BirthPlace:          mapping.ValueToSQLNullString(passportEntity.BirthPlace()),
 		Nationality:         mapping.ValueToSQLNullString(passportEntity.Nationality()),
