@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -40,28 +43,33 @@ func createTestClient(t *testing.T, withPassport bool) client.Client {
 	}
 
 	birthDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
-	client, err := client.NewComplete(
-		0, // ID will be assigned by database
+	email, err := internet.NewEmail("john.doe@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := []client.Option{
+		client.WithEmail(email),
+		client.WithAddress("123 Main St"),
+		client.WithDateOfBirth(&birthDate),
+		client.WithGender(general.Male),
+		client.WithPin(pin),
+	}
+	if withPassport {
+		opts = append(opts, client.WithPassport(createTestPassport()))
+	}
+	client, err := client.New(
 		"John",
 		"Doe",
 		"Smith",
 		p,
-		"123 Main St",
-		"john.doe@example.com",
-		50.0, // hourly rate
-		&birthDate,
-		"Male",
-		nil,          // passport will be set below if needed
-		"1234567890", // PIN
-		time.Now(),
-		time.Now(),
+		opts...,
 	)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if withPassport {
-		client = client.SetPassport(createTestPassport())
 	}
 
 	return client
@@ -186,21 +194,27 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 	}
 
 	birthDate := time.Date(1992, 2, 2, 0, 0, 0, 0, time.UTC)
-	uniquePhoneClient, err := client.NewComplete(
-		0,
+	email, err := internet.NewEmail("jane.smith@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	pin, err := tax.NewPin("98765432109876", country.Uzbekistan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	uniquePhoneClient, err := client.New(
 		"Jane",
 		"Smith",
 		"Doe",
 		p,
-		"456 Oak St",
-		"jane.smith@example.com",
-		60.0,
-		&birthDate,
-		"Female",
-		nil,
-		"9876543210",
-		time.Now(),
-		time.Now(),
+		client.WithID(0),
+		client.WithAddress("456 Oak St"),
+		client.WithEmail(email),
+		client.WithDateOfBirth(&birthDate),
+		client.WithGender(general.Female),
+		client.WithPin(pin),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -238,68 +252,6 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 	})
 }
 
-func TestClientRepository_Update(t *testing.T) {
-	t.Parallel()
-	f := setupTest(t)
-	repo := persistence.NewClientRepository(
-		corepersistence.NewPassportRepository(),
-	)
-
-	testClient := createTestClient(t, false)
-	created, err := repo.Create(f.ctx, testClient)
-	if err != nil {
-		t.Fatalf("Failed to create test client: %v", err)
-	}
-
-	t.Run("Update client basic info", func(t *testing.T) {
-		updated := created.SetName("Robert", "Johnson", "Lee").
-			SetEmail("robert.johnson@example.com").
-			SetAddress("789 Pine St")
-
-		updatedClient, err := repo.Update(f.ctx, updated)
-		if err != nil {
-			t.Fatalf("Failed to update client: %v", err)
-		}
-
-		if updatedClient.FirstName() != "Robert" {
-			t.Errorf("Expected FirstName 'Robert', got '%s'", updatedClient.FirstName())
-		}
-
-		if updatedClient.LastName() != "Johnson" {
-			t.Errorf("Expected LastName 'Johnson', got '%s'", updatedClient.LastName())
-		}
-
-		if updatedClient.Email() != "robert.johnson@example.com" {
-			t.Errorf("Expected Email 'robert.johnson@example.com', got '%s'", updatedClient.Email())
-		}
-
-		if updatedClient.Address() != "789 Pine St" {
-			t.Errorf("Expected Address '789 Pine St', got '%s'", updatedClient.Address())
-		}
-	})
-
-	t.Run("Add passport to existing client", func(t *testing.T) {
-		updated := created.SetPassport(createTestPassport())
-
-		updatedClient, err := repo.Update(f.ctx, updated)
-		if err != nil {
-			t.Fatalf("Failed to update client with passport: %v", err)
-		}
-
-		if updatedClient.Passport() == nil {
-			t.Error("Updated client should have a passport")
-		}
-
-		if updatedClient.Passport().Series() != "AB" {
-			t.Errorf("Expected passport series 'AB', got '%s'", updatedClient.Passport().Series())
-		}
-
-		if updatedClient.Passport().Number() != "1234567" {
-			t.Errorf("Expected passport number '1234567', got '%s'", updatedClient.Passport().Number())
-		}
-	})
-}
-
 func TestClientRepository_GetPaginated(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
@@ -314,21 +266,27 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		testClient, err := client.NewComplete(
-			0,
+		email, err := internet.NewEmail("client" + string([]byte{'a' + byte(i)}) + "@example.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Create a valid 14-digit PIN for Uzbekistan
+		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testClient, err := client.New(
 			"Client",
 			string([]byte{'A' + byte(i)}), // Client A, Client B, ...
 			"Test",
 			p,
-			"Address Test",
-			"client"+string([]byte{'a' + byte(i)})+"@example.com",
-			50.0+float64(i)*10.0,
-			nil,
-			"Male",
-			nil,
-			string([]byte{'1', '1', '1', '1', '1', '1', '1', '1', '1', '1' + byte(i)}),
-			time.Now(),
-			time.Now(),
+			client.WithID(0),
+			client.WithAddress("Address Test"),
+			client.WithEmail(email),
+			client.WithGender(general.Male),
+			client.WithPin(pin),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -411,21 +369,27 @@ func TestClientRepository_Count(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		testClient, err := client.NewComplete(
-			0,
+		email, err := internet.NewEmail("count" + string([]byte{'a' + byte(i)}) + "@example.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Create a valid 14-digit PIN for Uzbekistan
+		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testClient, err := client.New(
 			"Count",
 			"Test",
 			string([]byte{'X' + byte(i)}),
 			p,
-			"Count Test Address",
-			"count"+string([]byte{'a' + byte(i)})+"@example.com",
-			100.0,
-			nil,
-			"Female",
-			nil,
-			string([]byte{'2', '2', '2', '2', '2', '2', '2', '2', '2', '2' + byte(i)}),
-			time.Now(),
-			time.Now(),
+			client.WithID(0),
+			client.WithAddress("Count Test Address"),
+			client.WithEmail(email),
+			client.WithGender(general.Female),
+			client.WithPin(pin),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -467,21 +431,27 @@ func TestClientRepository_GetAll(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		testClient, err := client.NewComplete(
-			0,
+		email, err := internet.NewEmail("all" + string([]byte{'a' + byte(i)}) + "@example.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Create a valid 14-digit PIN for Uzbekistan
+		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testClient, err := client.New(
 			"All",
 			"Test",
 			string([]byte{'Y' + byte(i)}),
 			p,
-			"GetAll Test Address",
-			"all"+string([]byte{'a' + byte(i)})+"@example.com",
-			75.0,
-			nil,
-			"Male",
-			nil,
-			string([]byte{'3', '3', '3', '3', '3', '3', '3', '3', '3', '3' + byte(i)}),
-			time.Now(),
-			time.Now(),
+			client.WithID(0),
+			client.WithAddress("GetAll Test Address"),
+			client.WithEmail(email),
+			client.WithGender(general.Male),
+			client.WithPin(pin),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -533,4 +503,125 @@ func TestClientRepository_Delete(t *testing.T) {
 	if !errors.Is(err, persistence.ErrClientNotFound) {
 		t.Errorf("Expected ErrClientNotFound, got %v", err)
 	}
+}
+
+// TestClientRepository_Update tests updating client details
+func TestClientRepository_Update(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
+
+	// Create a client without passport
+	p, err := phone.NewFromE164("12345678901")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	birthDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
+	email, err := internet.NewEmail("john.doe@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	basicClient, err := client.New(
+		"John",
+		"Doe",
+		"Smith",
+		p,
+		client.WithEmail(email),
+		client.WithAddress("123 Main St"),
+		client.WithDateOfBirth(&birthDate),
+		client.WithGender(general.Male),
+		client.WithPin(pin),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := repo.Create(f.ctx, basicClient)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Test updating basic info first
+	t.Run("Update basic info", func(t *testing.T) {
+		newEmail, err := internet.NewEmail("robert.johnson@example.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		updatedClient := created.SetName("Robert", "Johnson", "Lee").
+			SetEmail(newEmail).
+			SetAddress("789 Pine St")
+
+		result, err := repo.Update(f.ctx, updatedClient)
+		if err != nil {
+			t.Fatalf("Failed to update client: %v", err)
+		}
+
+		if result.FirstName() != "Robert" {
+			t.Errorf("Expected FirstName 'Robert', got '%s'", result.FirstName())
+		}
+
+		if result.LastName() != "Johnson" {
+			t.Errorf("Expected LastName 'Johnson', got '%s'", result.LastName())
+		}
+
+		if result.Email().Value() != "robert.johnson@example.com" {
+			t.Errorf("Expected Email 'robert.johnson@example.com', got '%s'", result.Email().Value())
+		}
+
+		if result.Address() != "789 Pine St" {
+			t.Errorf("Expected Address '789 Pine St', got '%s'", result.Address())
+		}
+	})
+
+	// Create another client specifically for testing passport updates
+	t.Run("Update with passport", func(t *testing.T) {
+		// Create a new client without passport
+		noPassportClient, err := client.New(
+			"Alice",
+			"Wonder",
+			"",
+			p,
+			client.WithEmail(email),
+			client.WithPin(pin),
+			client.WithGender(general.Female),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		created, err := repo.Create(f.ctx, noPassportClient)
+		if err != nil {
+			t.Fatalf("Failed to create client: %v", err)
+		}
+
+		// Now add a passport
+		pass := createTestPassport()
+		clientWithPassport := created.SetPassport(pass)
+
+		updated, err := repo.Update(f.ctx, clientWithPassport)
+		if err != nil {
+			t.Fatalf("Failed to update client with passport: %v", err)
+		}
+
+		if updated.Passport() == nil {
+			t.Errorf("Expected client to have passport after update")
+		}
+
+		if updated.Passport().Series() != "AB" {
+			t.Errorf("Expected passport series to be 'AB', got '%s'", updated.Passport().Series())
+		}
+
+		if updated.Passport().Number() != "1234567" {
+			t.Errorf("Expected passport number to be '1234567', got '%s'", updated.Passport().Number())
+		}
+	})
 }

@@ -2,7 +2,7 @@ package tax
 
 import (
 	"errors"
-	country2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/utils/sequence"
 	"strings"
 )
@@ -14,11 +14,11 @@ var (
 var (
 	NilPin Pin = &pin{
 		v:       "",
-		country: country2.NilCountry,
+		country: country.NilCountry,
 	}
 )
 
-func NewPin(v string, c country2.Country) (Pin, error) {
+func NewPin(v string, c country.Country) (Pin, error) {
 	if !IsValidPin(v, c) {
 		return nil, ErrInvalidPin
 	}
@@ -27,24 +27,24 @@ func NewPin(v string, c country2.Country) (Pin, error) {
 
 type pin struct {
 	v       string
-	country country2.Country
+	country country.Country
 }
 
 func (p pin) Value() string {
 	return p.v
 }
 
-func (p pin) Country() country2.Country {
+func (p pin) Country() country.Country {
 	return p.country
 }
 
-func IsValidPin(v string, c country2.Country) bool {
+func IsValidPin(v string, c country.Country) bool {
 	v = strings.Trim(v, " ")
 	// TODO: Implement PIN validation for other countries
 	switch c {
-	case country2.Uzbekistan:
+	case country.Uzbekistan:
 		return len(v) == 14 && sequence.IsNumeric(v)
-	case country2.Kazakhstan:
+	case country.Kazakhstan:
 		return len(v) == 12 && sequence.IsNumeric(v)
 	}
 	return false

@@ -2,7 +2,12 @@ package persistence
 
 import (
 	"database/sql"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -15,48 +20,63 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func ToDomainClient(dbRow *models.Client) (client.Client, error) {
-	p, err := phone.NewFromE164(dbRow.PhoneNumber)
-	if err != nil {
-		return nil, err
-	}
-	return client.NewWithID(
-		dbRow.ID,
-		dbRow.FirstName,
-		dbRow.LastName.String,
-		dbRow.MiddleName.String,
-		p,
-		dbRow.CreatedAt,
-		dbRow.UpdatedAt,
-	)
-}
-
 func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
 	p, err := phone.NewFromE164(dbRow.PhoneNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	// If passport data is nil, create an empty passport
-	if passportData == nil {
-		passportData = passport.New("", "")
+	options := []client.Option{
+		client.WithID(dbRow.ID),
+		client.WithCreatedAt(dbRow.CreatedAt),
+		client.WithUpdatedAt(dbRow.UpdatedAt),
 	}
 
-	return client.NewComplete(
-		dbRow.ID,
+	// Add address if it's valid
+	if dbRow.Address.Valid {
+		options = append(options, client.WithAddress(dbRow.Address.String))
+	}
+
+	// Add email if it's valid
+	if dbRow.Email.Valid && dbRow.Email.String != "" {
+		e, err := internet.NewEmail(dbRow.Email.String)
+		if err == nil {
+			options = append(options, client.WithEmail(e))
+		}
+	}
+
+	// Add gender if it's valid
+	if dbRow.Gender.Valid && dbRow.Gender.String != "" {
+		g, err := general.NewGender(dbRow.Gender.String)
+		if err == nil {
+			options = append(options, client.WithGender(g))
+		}
+	}
+
+	// Add PIN if it's valid
+	if dbRow.PIN.Valid && dbRow.PIN.String != "" {
+		tPin, err := tax.NewPin(dbRow.PIN.String, country.Uzbekistan)
+		if err == nil {
+			options = append(options, client.WithPin(tPin))
+		}
+	}
+
+	// Add date of birth if it's valid
+	if dbRow.DateOfBirth.Valid {
+		options = append(options, client.WithDateOfBirth(mapping.SQLNullTimeToPointer(dbRow.DateOfBirth)))
+	}
+
+	// Add passport if it's valid
+	if passportData != nil {
+		options = append(options, client.WithPassport(passportData))
+	}
+
+	return client.New(
 		dbRow.FirstName,
 		dbRow.LastName.String,
 		dbRow.MiddleName.String,
 		p,
-		dbRow.Address.String,
-		dbRow.Email.String,
-		dbRow.HourlyRate.Float64,
-		mapping.SQLNullTimeToPointer(dbRow.DateOfBirth),
-		dbRow.Gender.String,
-		passportData,
-		dbRow.PIN.String,
-		dbRow.CreatedAt,
-		dbRow.UpdatedAt,
+		options...,
 	)
 }
 
@@ -71,6 +91,21 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		}
 	}
 
+	var email sql.NullString
+	if domainEntity.Email().Value() != "" {
+		email = mapping.ValueToSQLNullString(domainEntity.Email().Value())
+	}
+
+	var gender sql.NullString
+	if domainEntity.Gender() != nil {
+		gender = mapping.ValueToSQLNullString(domainEntity.Gender().String())
+	}
+
+	var pin sql.NullString
+	if domainEntity.PIN().Value() != "" {
+		pin = mapping.ValueToSQLNullString(domainEntity.PIN().Value())
+	}
+
 	return &models.Client{
 		ID:          domainEntity.ID(),
 		FirstName:   domainEntity.FirstName(),
@@ -78,12 +113,11 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		MiddleName:  mapping.ValueToSQLNullString(domainEntity.MiddleName()),
 		PhoneNumber: domainEntity.Phone().Value(),
 		Address:     mapping.ValueToSQLNullString(domainEntity.Address()),
-		Email:       mapping.ValueToSQLNullString(domainEntity.Email()),
-		HourlyRate:  mapping.ValueToSQLNullFloat64(domainEntity.HourlyRate()),
+		Email:       email,
 		DateOfBirth: mapping.PointerToSQLNullTime(domainEntity.DateOfBirth()),
-		Gender:      mapping.ValueToSQLNullString(domainEntity.Gender().String()),
+		Gender:      gender,
 		PassportID:  passportID,
-		PIN:         mapping.ValueToSQLNullString(domainEntity.PIN()),
+		PIN:         pin,
 		CreatedAt:   domainEntity.CreatedAt(),
 		UpdatedAt:   domainEntity.UpdatedAt(),
 	}
