@@ -32,19 +32,28 @@ templ DefaultHead() {
 	<script src={ htmxWS }></script>
 }
 
-templ Base(title string) {
+type BaseProps struct {
+	Title        string
+	WebsocketURL string
+}
+
+templ Base(props *BaseProps) {
 	<!DOCTYPE html>
 	<html
 		lang="en"
 		class="system bg-surface-100 text-100"
 	>
 		<head>
-			<title>{ title }</title>
+			<title>{ props.Title }</title>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			@composables.MustUseHead(ctx)
 		</head>
-		<body class="antialiased overflow-y-hidden">
+		<body
+			class="antialiased overflow-y-hidden"
+			hx-ext="ws"
+			ws-connect={ props.WebsocketURL }
+		>
 			{ children... }
 		</body>
 	</html>
