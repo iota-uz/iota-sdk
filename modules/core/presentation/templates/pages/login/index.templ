@@ -72,7 +72,7 @@ templ Header() {
 
 templ Index(p *LoginProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@layouts.Base(pageCtx.T("Login.Meta.Title")) {
+	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("Login.Meta.Title"), WebsocketURL: "/ws"}) {
 		<div class="flex flex-col h-screen overflow-y-auto">
 			@Header()
 			<div class="flex-1 flex items-center justify-center">
