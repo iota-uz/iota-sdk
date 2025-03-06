@@ -3,14 +3,16 @@ package ws
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 
-	"github.com/gorilla/websocket"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+
+	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 type Connection struct {
@@ -95,11 +97,13 @@ type Hub struct {
 	userConnections    map[uint]Set[*Connection]
 	channelConnections map[string]Set[*Connection]
 	mu                 sync.RWMutex
+	log                *logrus.Logger
 }
 
 var _ Huber = (*Hub)(nil)
 
 func NewHub() *Hub {
+	conf := configuration.Use()
 	return &Hub{
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
@@ -111,13 +115,14 @@ func NewHub() *Hub {
 		connections:        make(Set[*Connection]),
 		userConnections:    make(map[uint]Set[*Connection]),
 		channelConnections: make(map[string]Set[*Connection]),
+		log:                conf.Logger(),
 	}
 }
 
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Error upgrading connection: %v", err)
+		h.log.Printf("Error upgrading connection: %v", err)
 		return
 	}
 
@@ -156,13 +161,13 @@ func (h *Hub) readPump(conn *Connection) {
 		_, message, err := conn.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				h.log.Printf("WebSocket error: %v", err)
 			}
 			break
 		}
 
 		if err := h.handleMessage(conn, message); err != nil {
-			log.Printf("Error handling message: %v", err)
+			h.log.Printf("Error handling message: %v", err)
 			break
 		}
 	}
@@ -215,7 +220,7 @@ func (h *Hub) BroadcastToAll(message []byte) {
 
 	for conn := range h.connections {
 		if err := conn.SendMessage(message); err != nil {
-			log.Printf("Error broadcasting message: %v", err)
+			h.log.Printf("Error broadcasting message: %v", err)
 		}
 	}
 }
@@ -227,7 +232,7 @@ func (h *Hub) BroadcastToUser(userID uint, message []byte) {
 	if userConns, ok := h.userConnections[userID]; ok {
 		for conn := range userConns {
 			if err := conn.SendMessage(message); err != nil {
-				log.Printf("Error broadcasting to user %d: %v", userID, err)
+				h.log.Printf("Error broadcasting to user %d: %v", userID, err)
 			}
 		}
 	}
@@ -240,7 +245,7 @@ func (h *Hub) BroadcastToChannel(channel string, message []byte) {
 	if channelConns, ok := h.channelConnections[channel]; ok {
 		for conn := range channelConns {
 			if err := conn.SendMessage(message); err != nil {
-				log.Printf("Error broadcasting to channel %s: %v", channel, err)
+				h.log.Printf("Error broadcasting to channel %s: %v", channel, err)
 			}
 		}
 	}
