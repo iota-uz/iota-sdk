@@ -202,6 +202,8 @@ templ SidebarHeader() {
 
 type AuthenticatedProps struct {
 	Title string
+
+	BaseProps
 }
 
 templ Authenticated(props AuthenticatedProps) {
@@ -214,7 +216,10 @@ templ Authenticated(props AuthenticatedProps) {
 		Footer: SidebarFooter(pageCtx),
 	}
 	}}
-	@Base(&BaseProps{Title: props.Title, WebsocketURL: "/ws"}) {
+	if props.WebsocketURL == "" {
+		{{ props.WebsocketURL = "/ws" }}
+	}
+	@Base(&BaseProps{Title: props.Title, WebsocketURL: props.WebsocketURL}) {
 		@MobileSidebar(sidebarProps)
 		<div class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto">
 			<div class="hidden lg:block">
