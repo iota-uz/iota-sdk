@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -131,6 +132,8 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		log.Printf("Error rendering chat messages: %v", err)
 		return
 	}
+	hub := server.WsHub()
+	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
 	c.broadcastChatsListUpdate(ctx)
 }
 
@@ -154,6 +157,8 @@ func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 		log.Printf("Error rendering chat list: %v", err)
 		return
 	}
+	hub := server.WsHub()
+	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
 }
 
 func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.MessageTemplate, error) {
