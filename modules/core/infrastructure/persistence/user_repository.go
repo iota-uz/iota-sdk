@@ -42,20 +42,6 @@ const (
             up.updated_at
         FROM users u LEFT JOIN uploads up ON u.avatar_id = up.id`
 
-	userInsertQuery = `
-        INSERT INTO users (
-            first_name,
-            last_name,
-            middle_name,
-            email,
-            password,
-            ui_language,
-            avatar_id,
-            created_at,
-            updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id`
-
 	userUpdateQuery = `
         UPDATE users SET
             first_name = $1,
@@ -175,9 +161,19 @@ func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.U
 
 	dbUser, _ := toDBUser(data)
 
-	err = tx.QueryRow(
-		ctx,
-		userInsertQuery,
+	fields := []string{
+		"first_name",
+		"last_name",
+		"middle_name",
+		"email",
+		"password",
+		"ui_language",
+		"avatar_id",
+		"created_at",
+		"updated_at",
+	}
+
+	values := []interface{}{
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -187,7 +183,16 @@ func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.U
 		dbUser.AvatarID,
 		dbUser.CreatedAt,
 		dbUser.UpdatedAt,
-	).Scan(&dbUser.ID)
+	}
+
+	if efs, ok := data.(repo.ExtendedFieldSet); ok {
+		fields = append(fields, efs.Fields()...)
+		for _, f := range efs.Fields() {
+			values = append(values, efs.Value(f))
+		}
+	}
+
+	err = tx.QueryRow(ctx, repo.Insert("users", fields, "id"), values...).Scan(&dbUser.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -205,9 +210,18 @@ func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 
 	dbUser, _ := toDBUser(data)
 
-	_, err = tx.Exec(
-		ctx,
-		userUpdateQuery,
+	fields := []string{
+		"first_name",
+		"last_name",
+		"middle_name",
+		"email",
+		"password",
+		"ui_language",
+		"avatar_id",
+		"updated_at",
+	}
+
+	values := []interface{}{
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -216,8 +230,18 @@ func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 		dbUser.UILanguage,
 		dbUser.AvatarID,
 		dbUser.UpdatedAt,
-		dbUser.ID,
-	)
+	}
+
+	if efs, ok := data.(repo.ExtendedFieldSet); ok {
+		fields = append(fields, efs.Fields()...)
+		for _, f := range efs.Fields() {
+			values = append(values, efs.Value(f))
+		}
+	}
+
+	values = append(values, dbUser.ID)
+
+	_, err = tx.Exec(ctx, repo.Update("users", fields, fmt.Sprintf("id = $%d", len(values))), values...)
 
 	if err != nil {
 		return err
@@ -449,7 +473,7 @@ func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, r
 	for _, r := range roles {
 		values = append(values, []interface{}{userID, r.ID()})
 	}
-	q, args := repo.BuildBatchInsertQueryN(userRoleInsertQuery, values)
+	q, args := repo.BatchInsertQueryN(userRoleInsertQuery, values)
 	if err := g.execQuery(ctx, q, args...); err != nil {
 		return err
 	}
