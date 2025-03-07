@@ -19,6 +19,12 @@ type Tx interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+// ExtendedFieldSet is an interface you have to implement to persist custom fields with a repository
+type ExtendedFieldSet interface {
+	Fields() []string
+	Value(k string) interface{}
+}
+
 func FormatLimitOffset(limit, offset int) string {
 	if limit > 0 && offset > 0 {
 		return fmt.Sprintf("LIMIT %d OFFSET %d", limit, offset)
@@ -51,8 +57,38 @@ func JoinWhere(expressions ...string) string {
 	return fmt.Sprintf("WHERE %s", strings.Join(expressions, " AND "))
 }
 
-// BuildBatchInsertQueryN creates a parameterized SQL query for batch inserting multiple values per row
-func BuildBatchInsertQueryN(baseQuery string, rows [][]interface{}) (string, []interface{}) {
+// Insert creates a parameterized SQL query for inserting a single row
+func Insert(tableName string, fields []string, returning ...string) string {
+	args := make([]string, len(fields))
+	for i := range fields {
+		args[i] = fmt.Sprintf("$%d", i)
+	}
+
+	return fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES (%s) RETURNING %s",
+		tableName,
+		strings.Join(fields, ", "), strings.Join(args, ", "),
+		strings.Join(returning, ", "),
+	)
+}
+
+func Update(tableName string, fields []string, where ...string) string {
+	setFields := make([]string, len(fields))
+
+	for i, field := range fields {
+		setFields[i] = fmt.Sprintf("%s = $%d", field, i)
+	}
+
+	return fmt.Sprintf(
+		"UPDATE %s SET %s %s",
+		tableName,
+		strings.Join(setFields, ", "),
+		strings.Join(where, " AND "),
+	)
+}
+
+// BatchInsertQueryN creates a parameterized SQL query for batch inserting multiple values per row
+func BatchInsertQueryN(baseQuery string, rows [][]interface{}) (string, []interface{}) {
 	if len(rows) == 0 {
 		return baseQuery, nil
 	}

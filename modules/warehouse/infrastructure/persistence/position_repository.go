@@ -242,7 +242,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	for _, junctionRow := range junctionRows {
 		values = append(values, []interface{}{data.ID, junctionRow.UploadID})
 	}
-	q, args := repo.BuildBatchInsertQueryN(insertPositionImageQuery, values)
+	q, args := repo.BatchInsertQueryN(insertPositionImageQuery, values)
 	if _, err := tx.Exec(ctx, q, args...); err != nil {
 		return err
 	}
@@ -275,7 +275,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	for _, junctionRow := range junctionRows {
 		values = append(values, []interface{}{data.ID, junctionRow.UploadID})
 	}
-	q, args := repo.BuildBatchInsertQueryN(insertPositionImageQuery, values)
+	q, args := repo.BatchInsertQueryN(insertPositionImageQuery, values)
 	if _, err := tx.Exec(ctx, q, args...); err != nil {
 		return err
 	}

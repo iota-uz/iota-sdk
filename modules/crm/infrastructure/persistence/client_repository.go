@@ -37,27 +37,7 @@ const (
 			c.updated_at
 		FROM clients c
 	`
-	countClientQuery  = `SELECT COUNT(*) as count FROM clients`
-	insertClientQuery = `
-		INSERT INTO clients (
-			first_name, 
-			last_name, 
-			middle_name, 
-			phone_number,
-			address,
-			email,
-			hourly_rate,
-			date_of_birth,
-			gender,
-			passport_id,
-			pin
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`
-	updateClientQuery = `
-		UPDATE clients 
-		SET first_name = $1, last_name = $2, middle_name = $3, phone_number = $4,
-		    address = $5, email = $6, hourly_rate = $7, date_of_birth = $8,
-		    gender = $9, passport_id = $10, pin = $11
-		WHERE id = $12`
+	countClientQuery        = `SELECT COUNT(*) as count FROM clients`
 	deleteChatMessagesQuery = `DELETE FROM messages WHERE chat_id IN (SELECT id FROM chats WHERE client_id = $1)`
 	deleteClientChatsQuery  = `DELETE FROM chats WHERE client_id = $1`
 	deleteClientQuery       = `DELETE FROM clients WHERE id = $1`
@@ -288,9 +268,23 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 		}
 	}
 
-	if err := tx.QueryRow(
-		ctx,
-		insertClientQuery,
+	fields := []string{
+		"first_name",
+		"last_name",
+		"middle_name",
+		"phone_number",
+		"address",
+		"email",
+		"hourly_rate",
+		"date_of_birth",
+		"gender",
+		"passport_id",
+		"pin",
+		"created_at",
+		"updated_at",
+	}
+
+	values := []interface{}{
 		dbRow.FirstName,
 		dbRow.LastName,
 		dbRow.MiddleName,
@@ -302,7 +296,18 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 		dbRow.Gender,
 		dbRow.PassportID,
 		dbRow.Pin,
-	).Scan(&dbRow.ID); err != nil {
+		dbRow.CreatedAt,
+		dbRow.UpdatedAt,
+	}
+
+	if efs, ok := data.(repo.ExtendedFieldSet); ok {
+		fields = append(fields, efs.Fields()...)
+		for _, k := range efs.Fields() {
+			values = append(values, efs.Value(k))
+		}
+	}
+
+	if err := tx.QueryRow(ctx, repo.Insert("clients", fields, "id"), values...).Scan(&dbRow.ID); err != nil {
 		return nil, err
 	}
 
@@ -327,9 +332,22 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		}
 	}
 
-	if _, err := tx.Exec(
-		ctx,
-		updateClientQuery,
+	fields := []string{
+		"first_name",
+		"last_name",
+		"middle_name",
+		"phone_number",
+		"address",
+		"email",
+		"hourly_rate",
+		"date_of_birth",
+		"gender",
+		"passport_id",
+		"pin",
+		"updated_at",
+	}
+
+	values := []interface{}{
 		dbRow.FirstName,
 		dbRow.LastName,
 		dbRow.MiddleName,
@@ -341,7 +359,22 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		dbRow.Gender,
 		dbRow.PassportID,
 		dbRow.Pin,
-		data.ID(),
+		dbRow.UpdatedAt,
+	}
+
+	if efs, ok := data.(repo.ExtendedFieldSet); ok {
+		fields = append(fields, efs.Fields()...)
+		for _, k := range efs.Fields() {
+			values = append(values, efs.Value(k))
+		}
+	}
+
+	values = append(values, data.ID())
+
+	if _, err := tx.Exec(
+		ctx,
+		repo.Update("clients", fields, fmt.Sprintf("id = $%d", len(values))),
+		values...,
 	); err != nil {
 		return nil, err
 	}
