@@ -61,7 +61,7 @@ func JoinWhere(expressions ...string) string {
 func Insert(tableName string, fields []string, returning ...string) string {
 	args := make([]string, len(fields))
 	for i := range fields {
-		args[i] = fmt.Sprintf("$%d", i)
+		args[i] = fmt.Sprintf("$%d", i+1)
 	}
 
 	return fmt.Sprintf(
@@ -76,7 +76,7 @@ func Update(tableName string, fields []string, where ...string) string {
 	setFields := make([]string, len(fields))
 
 	for i, field := range fields {
-		setFields[i] = fmt.Sprintf("%s = $%d", field, i)
+		setFields[i] = fmt.Sprintf("%s = $%d", field, i+1)
 	}
 
 	return fmt.Sprintf(
