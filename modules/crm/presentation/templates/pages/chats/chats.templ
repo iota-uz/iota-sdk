@@ -92,7 +92,7 @@ templ SelectedChat(props SelectedChatProps) {
 			const textarea = document.getElementById("message");
 			textarea.value = template;
 			textarea.focus();
-			textarea.style.height = 'auto'; 
+			textarea.style.height = 'auto';
 			textarea.style.height = textarea.scrollHeight + 'px';
 		}
 	</script>
@@ -329,7 +329,6 @@ templ Message(msg *viewmodels.Message) {
 
 type IndexPageProps struct {
 	SearchURL    string
-	WebsocketURL string
 	NewChatURL   string
 	Chats        []*viewmodels.Chat
 }
@@ -339,13 +338,11 @@ templ Index(props IndexPageProps) {
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Chats.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Chats.Meta.Title")},
 	}) {
 		<div class="md:p-6 h-[calc(100vh-4rem)]">
 			<div
 				id="chat"
-				hx-ext="ws"
-				ws-connect={ props.WebsocketURL }
 				class={
 					"grid grid-cols-1 md:grid-cols-[280px_auto] h-full",
 					"border border-primary md:rounded-lg bg-surface-300",

@@ -20,15 +20,15 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/websocket"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
+	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -43,7 +43,6 @@ type SendMessageDTO struct {
 
 type ChatController struct {
 	app             application.Application
-	wsHandler       *websocket.Hub
 	userService     *coreservices.UserService
 	templateService *services.MessageTemplateService
 	clientService   *services.ClientService
@@ -54,7 +53,6 @@ type ChatController struct {
 func NewChatController(app application.Application, basePath string) application.Controller {
 	return &ChatController{
 		app:             app,
-		wsHandler:       websocket.NewHub(),
 		userService:     app.Service(coreservices.UserService{}).(*coreservices.UserService),
 		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
 		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
@@ -81,7 +79,6 @@ func (c *ChatController) Register(r *mux.Router) {
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
 	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	router.Handle("/ws", c.wsHandler)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}/messages", c.SendMessage).Methods(http.MethodPost)
 
@@ -136,7 +133,8 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		log.Printf("Error rendering chat messages: %v", err)
 		return
 	}
-	c.wsHandler.Broadcast(buf.Bytes())
+	hub := server.WsHub()
+	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
 	c.broadcastChatsListUpdate(ctx)
 }
 
@@ -160,7 +158,8 @@ func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 		log.Printf("Error rendering chat list: %v", err)
 		return
 	}
-	c.wsHandler.Broadcast(buf.Bytes())
+	hub := server.WsHub()
+	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
 }
 
 func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.MessageTemplate, error) {
@@ -224,10 +223,9 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := chatsui.IndexPageProps{
-		WebsocketURL: c.basePath + "/ws",
-		SearchURL:    c.basePath + "/search",
-		NewChatURL:   "/crm/chats/new",
-		Chats:        chatViewModels,
+		SearchURL:  c.basePath + "/search",
+		NewChatURL: "/crm/chats/new",
+		Chats:      chatViewModels,
 	}
 	var component templ.Component
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0

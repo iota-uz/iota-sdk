@@ -295,7 +295,7 @@ func New(props *CreateFormProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			Title: pageCtx.T("Users.Meta.New.Title"),
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.New.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
