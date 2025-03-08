@@ -1,6 +1,8 @@
 package modules
 
 import (
+	"slices"
+
 	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/crm"
@@ -23,6 +25,16 @@ var (
 		crm.NewModule(),
 		website.NewModule(),
 	}
+
+	NavLinks = slices.Concat(
+		core.NavItems,
+		bichat.NavItems,
+		hrm.NavItems,
+		finance.NavItems,
+		warehouse.NavItems,
+		crm.NavItems,
+		website.NavItems,
+	)
 )
 
 func Load(app application.Application, externalModules ...application.Module) error {

@@ -17,6 +17,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -68,7 +69,10 @@ type seeder struct {
 }
 
 func (s *seeder) Seed(ctx context.Context, app Application) error {
+	conf := configuration.Use()
+	fmt.Println(conf.LogrusLogLevel())
 	for _, seedFunc := range s.seedFuncs {
+		conf.Logger().Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
 		if err := seedFunc(ctx, app); err != nil {
 			return err
 		}
