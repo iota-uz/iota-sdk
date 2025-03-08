@@ -72,8 +72,7 @@ jobs:
           echo "All SQL files are properly formatted"
 
   test:
-    runs-on: blacksmith-2vcpu-ubuntu-2204  # (unchanged)
-
+    runs-on: blacksmith-2vcpu-ubuntu-2204
     services:
       postgres:
         image: postgres:15.1
@@ -155,7 +154,7 @@ jobs:
           go test -v ./...
 
   e2e:
-    runs-on: blacksmith-2vcpu-ubuntu-2204  # (unchanged)
+    runs-on: blacksmith-2vcpu-ubuntu-2204
     needs: 
       - lint
       - test
