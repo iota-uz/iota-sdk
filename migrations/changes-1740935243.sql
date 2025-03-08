@@ -66,20 +66,20 @@ CREATE INDEX idx_clients_email ON clients (email);
 CREATE INDEX idx_clients_last_name ON clients (last_name);
 
 -- +migrate Down
--- Undo CREATE_INDEX: clients@idx_clients_last_name
-DROP INDEX clients@idx_clients_last_name;
+-- Undo CREATE_INDEX: idx_clients_last_name
+DROP INDEX idx_clients_last_name;
 
--- Undo CREATE_INDEX: clients@idx_clients_email
-DROP INDEX clients@idx_clients_email;
+-- Undo CREATE_INDEX: idx_clients_email
+DROP INDEX idx_clients_email;
 
--- Undo CREATE_INDEX: clients@idx_clients_phone_number
-DROP INDEX clients@idx_clients_phone_number;
+-- Undo CREATE_INDEX: idx_clients_phone_number
+DROP INDEX idx_clients_phone_number;
 
--- Undo CREATE_INDEX: client_contacts@idx_client_contacts_client_id
-DROP INDEX client_contacts@idx_client_contacts_client_id;
+-- Undo CREATE_INDEX: idx_client_contacts_client_id
+DROP INDEX idx_client_contacts_client_id;
 
--- Undo CREATE_INDEX: clients@idx_clients_first_name
-DROP INDEX clients@idx_clients_first_name;
+-- Undo CREATE_INDEX: idx_clients_first_name
+DROP INDEX idx_clients_first_name;
 
 -- Undo ADD_COLUMN: source
 ALTER TABLE messages
