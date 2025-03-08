@@ -102,7 +102,7 @@ templ UploadForm(props *UploadPageProps) {
 templ Upload(props *UploadPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("WarehousePositions.Upload.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("WarehousePositions.Upload.Title")},
 	}) {
 		@card.Card(card.Props{WrapperClass: "m-6"}) {
 			<h1 class="text-xl font-bold mb-4">

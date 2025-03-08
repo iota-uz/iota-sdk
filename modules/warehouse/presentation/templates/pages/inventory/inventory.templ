@@ -125,7 +125,7 @@ templ InventoryContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("WarehouseInventory.List.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("WarehouseInventory.List.Meta.Title")},
 	}) {
 		@InventoryContent(props)
 	}
