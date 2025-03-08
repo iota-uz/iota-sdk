@@ -198,8 +198,8 @@ jobs:
             sleep 1
           done
 
-      - name: Run migrations
-        run: make migrate up
+      - name: Set up database
+        run: make migrate up && make seed
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
