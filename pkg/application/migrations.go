@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -79,47 +78,6 @@ func (m *migrationManager) CollectSchema(ctx context.Context) error {
 
 	// Store migrations to file
 	return schemaCollector.StoreMigrations(upChanges, downChanges)
-}
-
-// CollectMigrations loads the migration files from the migrations directory
-func (m *migrationManager) CollectMigrations() ([]*migrate.Migration, error) {
-	entries, err := os.ReadDir(m.migrationsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []*migrate.Migration{}, nil
-		}
-		return nil, fmt.Errorf("failed to read migrations directory: %w", err)
-	}
-
-	var migrations []*migrate.Migration
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
-			continue
-		}
-
-		content, err := os.ReadFile(fmt.Sprintf("%s/%s", m.migrationsDir, entry.Name()))
-		if err != nil {
-			return nil, fmt.Errorf("failed to read migration file %s: %w", entry.Name(), err)
-		}
-
-		migration := &migrate.Migration{
-			Id: entry.Name(),
-		}
-
-		// Split content by ;; to separate migration queries
-		queries := strings.Split(string(content), ";;")
-		for _, query := range queries {
-			query = strings.TrimSpace(query)
-			if query == "" {
-				continue
-			}
-			migration.Up = append(migration.Up, query)
-		}
-
-		migrations = append(migrations, migration)
-	}
-
-	return migrations, nil
 }
 
 func newTxError(migration *migrate.PlannedMigration, err error) *migrate.TxError {
@@ -197,29 +155,8 @@ func (m *migrationManager) applyMigrations(
 	return applied, nil
 }
 
-// Internal in-memory migration source that respects the order of migrations.
-type memoryMigrationSourceInternal struct {
-	Migrations []*migrate.Migration
-}
-
-// FindMigrations returns the list of unsorted migrations. Giving up deterministic order in favor of
-// the order in which the migrations were added.
-func (m *memoryMigrationSourceInternal) FindMigrations() ([]*migrate.Migration, error) {
-	migrations := make([]*migrate.Migration, len(m.Migrations))
-	copy(migrations, m.Migrations)
-	return migrations, nil
-}
-
 func (m *migrationManager) Run() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
-	migrations, err := m.CollectMigrations()
-	if err != nil {
-		return err
-	}
-	if len(migrations) == 0 {
-		log.Printf("No migrations found")
-		return nil
-	}
 	migrationSource := &migrate.FileMigrationSource{
 		Dir: m.migrationsDir,
 	}
@@ -234,22 +171,13 @@ func (m *migrationManager) Run() error {
 		return err
 	}
 	m.logger.Infof("Applied %d migrations", applied)
-	log.Printf("Applied %d migrations", applied)
 	return nil
 }
 
 func (m *migrationManager) Rollback() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
-	migrations, err := m.CollectMigrations()
-	if err != nil {
-		return err
-	}
-	if len(migrations) == 0 {
-		log.Printf("No migrations found")
-		return nil
-	}
-	migrationSource := &migrate.MemoryMigrationSource{
-		Migrations: migrations,
+	migrationSource := &migrate.FileMigrationSource{
+		Dir: m.migrationsDir,
 	}
 	ms := migrate.MigrationSet{}
 	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, migrate.Down, 0)
