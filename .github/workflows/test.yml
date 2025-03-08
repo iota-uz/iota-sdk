@@ -144,8 +144,10 @@ jobs:
           go test -v ./...
 
       - name: Prepare database for Cypress
-        run: make migrate up
-        run: make seed
+        run: |
+          make migrate down
+          make migrate up
+          make seed
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
