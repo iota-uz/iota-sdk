@@ -143,6 +143,10 @@ jobs:
           go vet ./...
           go test -v ./...
 
+      - name: Prepare database for Cypress
+        run: make migrate up
+        run: make seed
+
       - name: Cypress run
         uses: cypress-io/github-action@v6
         env:
