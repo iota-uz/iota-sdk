@@ -133,6 +133,9 @@ jobs:
         run: |
           make migrate up
           make migrate up
+          make migrate down
+          make migrate down
+          make migrate up
           make seed
           make seed
 
@@ -145,7 +148,6 @@ jobs:
 
       - name: Prepare database for Cypress
         run: |
-          make migrate down
           make migrate up
           make seed
 
