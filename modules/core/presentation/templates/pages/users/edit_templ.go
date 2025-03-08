@@ -410,7 +410,7 @@ func Edit(props *EditFormProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			Title: pageCtx.T("Users.Meta.Edit.Title"),
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.Edit.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

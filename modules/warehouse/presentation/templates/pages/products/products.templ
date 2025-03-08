@@ -103,7 +103,7 @@ templ ProductsContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Products.List.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Products.List.Meta.Title")},
 	}) {
 		@ProductsContent(props)
 	}

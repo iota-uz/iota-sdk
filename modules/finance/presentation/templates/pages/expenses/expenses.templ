@@ -96,7 +96,7 @@ templ ExpensesContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Expenses.Meta.List.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Expenses.Meta.List.Title")},
 	}) {
 		@ExpensesContent(props)
 	}

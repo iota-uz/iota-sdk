@@ -112,7 +112,7 @@ templ AllPositionsTable(props *CreatePageProps) {
 templ New(props *CreatePageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("WarehouseInventory.New.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("WarehouseInventory.New.Meta.Title")},
 	}) {
 		@CreateForm(props)
 	}
