@@ -151,13 +151,12 @@ jobs:
           go test -v ./...
 
       - name: Prepare database for Cypress
-        run: |
-          make migrate up
-          make seed
+        run: make migrate up
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
         env:
+          LOG_LEVEL: debug
           SESSION_DURATION: 720h
           DOMAIN: localhost
           DB_HOST: localhost
