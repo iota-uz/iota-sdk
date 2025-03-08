@@ -100,7 +100,7 @@ templ SettingsForm(props *SettingsPageProps) {
 templ Settings(props *SettingsPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Account.Meta.Settings.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Settings.Title")},
 	}) {
 		@SettingsForm(props)
 	}

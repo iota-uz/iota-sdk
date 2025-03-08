@@ -110,7 +110,7 @@ templ BiChatPage(props *ChatPageProps) {
 templ Index(props *ChatPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("BiChat.Meta.Index.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("BiChat.Meta.Index.Title")},
 	}) {
 		@BiChatPage(props)
 	}

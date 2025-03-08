@@ -116,7 +116,7 @@ templ chatCSS() {
 		.wrapper .text-md {
 			font-size: 1rem;
 		}
-		
+
 		.wrapper .text-lg {
 			font-size: 1.25rem;
 		}
@@ -134,7 +134,7 @@ templ chatCSS() {
 			background-color: var(--primary-color);
 			color: #FFFFFF;
 		}
-		
+
 		.wrapper .btn-primary:disabled {
 			background-color: #E4E9EE;
 			color: #BDC8D2;
@@ -207,7 +207,7 @@ templ Chat(props Props) {
 templ Configure(props Props) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("AIChatBot.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("AIChatBot.Meta.Title")},
 	}) {
 		<div class="flex gap-10 items-stretch p-10">
 			@card.Card(card.Props{WrapperClass: "flex-1"}) {

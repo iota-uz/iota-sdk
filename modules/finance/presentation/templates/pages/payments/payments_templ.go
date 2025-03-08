@@ -475,7 +475,7 @@ func Index(props *IndexPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			Title: pageCtx.T("Payments.Meta.List.Title"),
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("Payments.Meta.List.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

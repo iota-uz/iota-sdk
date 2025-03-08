@@ -93,7 +93,7 @@ templ ProfileForm(props *ProfilePageProps) {
 templ Index(props *ProfilePageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Account.Meta.Index.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Index.Title")},
 	}) {
 		@ProfileForm(props)
 	}
