@@ -6,6 +6,8 @@ on:
 jobs:
   lint:
     runs-on: blacksmith-2vcpu-ubuntu-2204
+    env:
+      LOG_LEVEL: debug
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -75,6 +77,8 @@ jobs:
 
   test:
     runs-on: blacksmith-2vcpu-ubuntu-2204
+    env:
+      LOG_LEVEL: debug
     services:
       postgres:
         image: postgres:15.1
