@@ -15,7 +15,7 @@ import (
 type CreateDTO struct {
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
-	MiddleName string `validate:"required"`
+	MiddleName string
 	Email      string `validate:"required,email"`
 	Password   string
 	RoleIDs    []uint `validate:"required"`
@@ -26,7 +26,7 @@ type CreateDTO struct {
 type UpdateDTO struct {
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
-	MiddleName string `validate:"required"`
+	MiddleName string
 	Email      string `validate:"required,email"`
 	Password   string
 	RoleIDs    []uint
