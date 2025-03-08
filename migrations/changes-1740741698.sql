@@ -512,89 +512,89 @@ CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 
 -- +migrate Down
 
--- Undo CREATE_INDEX: sessions@sessions_user_id_idx
-DROP INDEX sessions@sessions_user_id_idx;
+-- Undo CREATE_INDEX: sessions_user_id_idx
+DROP INDEX sessions_user_id_idx;
 
--- Undo CREATE_INDEX: authentication_logs@authentication_logs_created_at_idx
-DROP INDEX authentication_logs@authentication_logs_created_at_idx;
+-- Undo CREATE_INDEX: authentication_logs_created_at_idx
+DROP INDEX authentication_logs_created_at_idx;
 
--- Undo CREATE_INDEX: sessions@sessions_expires_at_idx
-DROP INDEX sessions@sessions_expires_at_idx;
+-- Undo CREATE_INDEX: sessions_expires_at_idx
+DROP INDEX sessions_expires_at_idx;
 
--- Undo CREATE_INDEX: clients@idx_customers_first_name
-DROP INDEX clients@idx_customers_first_name;
+-- Undo CREATE_INDEX: idx_customers_first_name
+DROP INDEX idx_customers_first_name;
 
--- Undo CREATE_INDEX: payments@payments_transaction_id_idx
-DROP INDEX payments@payments_transaction_id_idx;
+-- Undo CREATE_INDEX: payments_transaction_id_idx
+DROP INDEX payments_transaction_id_idx;
 
--- Undo CREATE_INDEX: money_accounts@money_accounts_balance_currency_id_idx
-DROP INDEX money_accounts@money_accounts_balance_currency_id_idx;
+-- Undo CREATE_INDEX: money_accounts_balance_currency_id_idx
+DROP INDEX money_accounts_balance_currency_id_idx;
 
--- Undo CREATE_INDEX: transactions@transactions_destination_account_id_idx
-DROP INDEX transactions@transactions_destination_account_id_idx;
+-- Undo CREATE_INDEX: transactions_destination_account_id_idx
+DROP INDEX transactions_destination_account_id_idx;
 
--- Undo CREATE_INDEX: payments@payments_counterparty_id_idx
-DROP INDEX payments@payments_counterparty_id_idx;
+-- Undo CREATE_INDEX: payments_counterparty_id_idx
+DROP INDEX payments_counterparty_id_idx;
 
--- Undo CREATE_INDEX: expenses@expenses_transaction_id_idx
-DROP INDEX expenses@expenses_transaction_id_idx;
+-- Undo CREATE_INDEX: expenses_transaction_id_idx
+DROP INDEX expenses_transaction_id_idx;
 
--- Undo CREATE_INDEX: users@users_last_name_idx
-DROP INDEX users@users_last_name_idx;
+-- Undo CREATE_INDEX: users_last_name_idx
+DROP INDEX users_last_name_idx;
 
--- Undo CREATE_INDEX: clients@idx_customers_last_name
-DROP INDEX clients@idx_customers_last_name;
+-- Undo CREATE_INDEX: idx_customers_last_name
+DROP INDEX idx_customers_last_name;
 
--- Undo CREATE_INDEX: dialogues@dialogues_user_id_idx
-DROP INDEX dialogues@dialogues_user_id_idx;
+-- Undo CREATE_INDEX: dialogues_user_id_idx
+DROP INDEX dialogues_user_id_idx;
 
--- Undo CREATE_INDEX: counterparty@counterparty_tin_idx
-DROP INDEX counterparty@counterparty_tin_idx;
+-- Undo CREATE_INDEX: counterparty_tin_idx
+DROP INDEX counterparty_tin_idx;
 
--- Undo CREATE_INDEX: expenses@expenses_category_id_idx
-DROP INDEX expenses@expenses_category_id_idx;
+-- Undo CREATE_INDEX: expenses_category_id_idx
+DROP INDEX expenses_category_id_idx;
 
--- Undo CREATE_INDEX: role_permissions@role_permissions_permission_id_idx
-DROP INDEX role_permissions@role_permissions_permission_id_idx;
+-- Undo CREATE_INDEX: role_permissions_permission_id_idx
+DROP INDEX role_permissions_permission_id_idx;
 
--- Undo CREATE_INDEX: counterparty_contacts@counterparty_contacts_counterparty_id_idx
-DROP INDEX counterparty_contacts@counterparty_contacts_counterparty_id_idx;
+-- Undo CREATE_INDEX: counterparty_contacts_counterparty_id_idx
+DROP INDEX counterparty_contacts_counterparty_id_idx;
 
--- Undo CREATE_INDEX: transactions@transactions_origin_account_id_idx
-DROP INDEX transactions@transactions_origin_account_id_idx;
+-- Undo CREATE_INDEX: transactions_origin_account_id_idx
+DROP INDEX transactions_origin_account_id_idx;
 
--- Undo CREATE_INDEX: inventory@inventory_currency_id_idx
-DROP INDEX inventory@inventory_currency_id_idx;
+-- Undo CREATE_INDEX: inventory_currency_id_idx
+DROP INDEX inventory_currency_id_idx;
 
--- Undo CREATE_INDEX: users@users_first_name_idx
-DROP INDEX users@users_first_name_idx;
+-- Undo CREATE_INDEX: users_first_name_idx
+DROP INDEX users_first_name_idx;
 
--- Undo CREATE_INDEX: action_logs@action_log_user_id_idx
-DROP INDEX action_logs@action_log_user_id_idx;
+-- Undo CREATE_INDEX: action_log_user_id_idx
+DROP INDEX action_log_user_id_idx;
 
--- Undo CREATE_INDEX: clients@idx_customers_phone_number
-DROP INDEX clients@idx_customers_phone_number;
+-- Undo CREATE_INDEX: idx_customers_phone_number
+DROP INDEX idx_customers_phone_number;
 
--- Undo CREATE_INDEX: messages@idx_messages_sender_client_id
-DROP INDEX messages@idx_messages_sender_client_id;
+-- Undo CREATE_INDEX: idx_messages_sender_client_id
+DROP INDEX idx_messages_sender_client_id;
 
--- Undo CREATE_INDEX: role_permissions@role_permissions_role_id_idx
-DROP INDEX role_permissions@role_permissions_role_id_idx;
+-- Undo CREATE_INDEX: role_permissions_role_id_idx
+DROP INDEX role_permissions_role_id_idx;
 
--- Undo CREATE_INDEX: authentication_logs@authentication_logs_user_id_idx
-DROP INDEX authentication_logs@authentication_logs_user_id_idx;
+-- Undo CREATE_INDEX: authentication_logs_user_id_idx
+DROP INDEX authentication_logs_user_id_idx;
 
--- Undo CREATE_INDEX: chats@idx_chats_client_id
-DROP INDEX chats@idx_chats_client_id;
+-- Undo CREATE_INDEX: idx_chats_client_id
+DROP INDEX idx_chats_client_id;
 
--- Undo CREATE_INDEX: messages@idx_messages_sender_user_id
-DROP INDEX messages@idx_messages_sender_user_id;
+-- Undo CREATE_INDEX: idx_messages_sender_user_id
+DROP INDEX idx_messages_sender_user_id;
 
--- Undo CREATE_INDEX: uploaded_images@uploaded_images_upload_id_idx
-DROP INDEX uploaded_images@uploaded_images_upload_id_idx;
+-- Undo CREATE_INDEX: uploaded_images_upload_id_idx
+DROP INDEX uploaded_images_upload_id_idx;
 
--- Undo CREATE_INDEX: messages@idx_messages_chat_id
-DROP INDEX messages@idx_messages_chat_id;
+-- Undo CREATE_INDEX: idx_messages_chat_id
+DROP INDEX idx_messages_chat_id;
 
 -- Undo CREATE_TABLE: payments
 DROP TABLE IF EXISTS payments CASCADE;
