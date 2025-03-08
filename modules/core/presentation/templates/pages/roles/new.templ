@@ -70,7 +70,7 @@ templ CreateForm(props *CreateFormProps) {
 templ New(props *CreateFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Roles.Meta.New.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Roles.Meta.New.Title")},
 	}) {
 		@CreateForm(props)
 	}

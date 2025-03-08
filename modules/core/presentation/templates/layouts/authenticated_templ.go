@@ -598,7 +598,7 @@ func SidebarHeader() templ.Component {
 }
 
 type AuthenticatedProps struct {
-	Title string
+	BaseProps
 }
 
 func Authenticated(props AuthenticatedProps) templ.Component {
@@ -629,6 +629,9 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			Header: SidebarHeader(),
 			Items:  MapNavItemsToSidebar(navItems),
 			Footer: SidebarFooter(pageCtx),
+		}
+		if props.WebsocketURL == "" {
+			props.WebsocketURL = "/ws"
 		}
 		templ_7745c5c3_Var26 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -676,7 +679,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Base(props.Title).Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Base(&props.BaseProps).Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

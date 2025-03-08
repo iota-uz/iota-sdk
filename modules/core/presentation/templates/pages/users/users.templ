@@ -205,7 +205,7 @@ templ UsersContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Users.Meta.List.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.List.Title")},
 	}) {
 		@UsersContent(props)
 	}
