@@ -29,7 +29,6 @@ func Default(options *DefaultOptions) (*server.HTTPServer, error) {
 		middleware.Provide(constants.PoolKey, options.Pool),
 		middleware.Cors("http://localhost:3000", "ws://localhost:3000"),
 		middleware.RequestParams(),
-		middleware.LogRequests(),
 	)
 	serverInstance := server.NewHTTPServer(
 		app,
