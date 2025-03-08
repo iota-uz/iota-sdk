@@ -4,8 +4,75 @@ on:
   - push
 
 jobs:
-  test:
+  lint:
     runs-on: blacksmith-2vcpu-ubuntu-2204
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v1.61.0
+          golangci-lint version
+
+      - name: Install templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@v0.3.819
+
+      - name: Install TailwindCSS
+        run: |
+          echo "Installing TailwindCSS for x64 architecture..."
+          mkdir -p downloaded
+          curl -sL -o downloaded/tailwindcss \
+            https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
+          chmod +x downloaded/tailwindcss
+          echo "$PWD/downloaded" >> $GITHUB_PATH
+
+      - name: Verify TailwindCSS installation
+        run: tailwindcss -h
+
+      - name: Install PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Test generated files are up to date
+        run: |
+          go generate ./...
+          make generate
+          git diff --exit-code
+
+      - name: Run custom linter
+        run: |
+          make build-iota-linter
+          make run-iota-linter
+
+      - name: Check SQL files are properly formatted
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pgformatter
+          mkdir -p /tmp/formatted
+          find modules -name "*.sql" -type f | while read -r sqlfile; do
+            pg_format "$sqlfile" > "/tmp/formatted/$(basename "$sqlfile")"
+            if ! diff -q "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")" > /dev/null; then
+              echo "Error: $sqlfile is not properly formatted"
+              diff "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")"
+              exit 1
+            fi
+          done
+          echo "All SQL files are properly formatted"
+
+  test:
+    runs-on: blacksmith-2vcpu-ubuntu-2204  # (unchanged)
 
     services:
       postgres:
@@ -32,27 +99,20 @@ jobs:
         with:
           go-version: "1.23.2"
 
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
-          golangci-lint version
-
       - name: Install templ
         run: |
           go install github.com/a-h/templ/cmd/templ@v0.3.819
-          templ --help
 
       - name: Install TailwindCSS
         run: |
-          echo "Installing TailwindCSS for x64 architecture..."
           mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
+          curl -sL -o downloaded/tailwindcss \
+            https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
           chmod +x downloaded/tailwindcss
           echo "$PWD/downloaded" >> $GITHUB_PATH
 
       - name: Verify TailwindCSS installation
-        run: |
-          tailwindcss -h
+        run: tailwindcss -h
 
       - name: Install PNPM
         uses: pnpm/action-setup@v4
@@ -69,27 +129,17 @@ jobs:
             sleep 1
           done
 
-      - name: Test generated files are up to date
-        run: |
-          go generate ./...
-          make generate
-          git diff --exit-code
-
-      - name: Run custom linter
-        run: make build-iota-linter && make run-iota-linter
-
       - name: Check migrations collect idempotence
         run: |
           make migrate collect
-          git status --porcelain migrations/
           if [ -n "$(git status --porcelain migrations/)" ]; then
-            echo "Error: make migrate collect produced changes, please run 'make migrate collect' and commit the changes"
+            echo "Error: make migrate collect produced changes."
             git status --porcelain migrations/
             exit 1
           fi
 
       - name: Test Makefile targets
-        # running migrations and seeds twice to verify that they are idempotent
+        # Migrations & seeds (run twice to ensure idempotence)
         run: |
           make migrate up
           make migrate up
@@ -97,30 +147,58 @@ jobs:
           make seed
           make css
 
-      - name: Check SQL files are properly formatted
-        # Install pg_formatter and verify all SQL files are properly formatted
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pgformatter
-          # Create a temporary directory for formatted files
-          mkdir -p /tmp/formatted
-          # Format each SQL file and check for differences
-          find modules -name "*.sql" -type f | while read -r sqlfile; do
-            pg_format "$sqlfile" > "/tmp/formatted/$(basename "$sqlfile")"
-            if ! diff -q "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")" > /dev/null; then
-              echo "Error: $sqlfile is not properly formatted"
-              diff "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")"
-              exit 1
-            fi
-          done
-          echo "All SQL files are properly formatted"
-
       - name: Run go vet && tests
         run: |
           make generate
           git diff --exit-code
           go vet ./...
           go test -v ./...
+
+  e2e:
+    runs-on: blacksmith-2vcpu-ubuntu-2204  # (unchanged)
+    needs: 
+      - lint
+      - test
+
+    services:
+      postgres:
+        image: postgres:15.1
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --hostname=erp_db
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Install PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
@@ -147,7 +225,5 @@ jobs:
           browser: chrome
 
       - name: Test database migrate down
-        # e2e tests require database to have the seed data. We can only down the migrations after cypress.
-        run: |
-          make migrate down
+        run: make migrate down
 
