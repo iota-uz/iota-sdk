@@ -349,7 +349,7 @@ func Index(props *ChatPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			Title: pageCtx.T("BiChat.Meta.Index.Title"),
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("BiChat.Meta.Index.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

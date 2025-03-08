@@ -178,7 +178,7 @@ templ DashboardContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Dashboard.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Dashboard.Meta.Title")},
 	}) {
 		@DashboardContent(props)
 	}

@@ -115,7 +115,7 @@ templ EditForm(props *EditPageProps) {
 templ Edit(props *EditPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Expenses.Meta.Edit.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Expenses.Meta.Edit.Title")},
 	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{

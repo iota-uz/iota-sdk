@@ -118,7 +118,7 @@ templ PaymentsContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Payments.Meta.List.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Payments.Meta.List.Title")},
 	}) {
 		@PaymentsContent(props)
 	}

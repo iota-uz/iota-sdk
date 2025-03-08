@@ -124,7 +124,7 @@ templ CategoriesContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("ExpenseCategories.Meta.List.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("ExpenseCategories.Meta.List.Title")},
 	}) {
 		@CategoriesContent(props)
 	}

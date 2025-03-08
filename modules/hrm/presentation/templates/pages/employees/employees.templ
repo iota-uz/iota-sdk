@@ -109,7 +109,7 @@ templ EmployeesContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("Employees.Meta.List.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Employees.Meta.List.Title")},
 	}) {
 		@EmployeesContent(props)
 	}
