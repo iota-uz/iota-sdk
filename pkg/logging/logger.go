@@ -1,8 +1,10 @@
 package logging
 
 import (
-	"github.com/sirupsen/logrus"
+	"io"
 	"os"
+
+	"github.com/sirupsen/logrus"
 )
 
 func FileLogger(level logrus.Level) (*os.File, *logrus.Logger, error) {
@@ -18,7 +20,7 @@ func FileLogger(level logrus.Level) (*os.File, *logrus.Logger, error) {
 	}
 
 	logger.SetFormatter(&logrus.JSONFormatter{})
-	logger.SetOutput(logFile)
+	logger.SetOutput(io.MultiWriter(os.Stdout, logFile))
 	logger.SetLevel(level)
 	return logFile, logger, nil
 }

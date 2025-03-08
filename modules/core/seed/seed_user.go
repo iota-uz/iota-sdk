@@ -2,6 +2,7 @@ package seed
 
 import (
 	"context"
+
 	"github.com/go-faster/errors"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -9,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -55,7 +57,9 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	if err != nil {
 		return nil, err
 	}
+	conf := configuration.Use()
 	if len(matches) > 0 {
+		conf.Logger().Infof("Role %s already exists", adminRoleName)
 		return matches[0], nil
 	}
 
@@ -63,6 +67,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	if err != nil {
 		return nil, err
 	}
+	conf.Logger().Infof("Creating role %s", adminRoleName)
 	return roleRepository.Create(ctx, newRole)
 }
 
@@ -72,7 +77,10 @@ func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.Use
 	if err != nil && !errors.Is(err, persistence.ErrUserNotFound) {
 		return nil, err
 	}
+
+	conf := configuration.Use()
 	if foundUser != nil {
+		conf.Logger().Infof("User %s already exists", s.email)
 		return foundUser, nil
 	}
 
@@ -90,6 +98,7 @@ func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.Use
 		return nil, err
 	}
 
+	conf.Logger().Infof("Creating user %s", s.email)
 	return userRepository.Create(ctx, usr)
 }
 

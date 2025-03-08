@@ -142,13 +142,6 @@ func Use() *Configuration {
 }
 
 func (c *Configuration) load(envFiles []string) error {
-	f, logger, err := logging.FileLogger(c.LogrusLogLevel())
-	if err != nil {
-		return err
-	}
-	c.logFile = f
-	c.logger = logger
-
 	n, err := LoadEnv(envFiles)
 	if err != nil {
 		return err
@@ -163,6 +156,12 @@ func (c *Configuration) load(envFiles []string) error {
 	if err := env.Parse(c); err != nil {
 		return err
 	}
+	f, logger, err := logging.FileLogger(c.LogrusLogLevel())
+	if err != nil {
+		return err
+	}
+	c.logFile = f
+	c.logger = logger
 	c.Database.Opts = c.Database.ConnectionString()
 	if c.GoAppEnvironment == Production {
 		c.SocketAddress = fmt.Sprintf(":%d", c.ServerPort)
