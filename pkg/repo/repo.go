@@ -79,12 +79,13 @@ func Update(tableName string, fields []string, where ...string) string {
 		setFields[i] = fmt.Sprintf("%s = $%d", field, i+1)
 	}
 
-	return fmt.Sprintf(
-		"UPDATE %s SET %s %s",
-		tableName,
-		strings.Join(setFields, ", "),
-		strings.Join(where, " AND "),
-	)
+	q := fmt.Sprintf("UPDATE %s SET %s", tableName, strings.Join(setFields, ", "))
+
+	if len(where) > 0 {
+		q += " " + JoinWhere(where...)
+	}
+
+	return q
 }
 
 // BatchInsertQueryN creates a parameterized SQL query for batch inserting multiple values per row
