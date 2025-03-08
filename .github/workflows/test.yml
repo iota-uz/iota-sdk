@@ -4,81 +4,9 @@ on:
   - push
 
 jobs:
-  lint:
-    runs-on: blacksmith-2vcpu-ubuntu-2204
-    env:
-      LOG_LEVEL: debug
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: useblacksmith/setup-go@v6
-        with:
-          go-version: "1.23.2"
-
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-            | sh -s -- -b "$(go env GOPATH)/bin" v1.61.0
-
-      - name: Install templ
-        run: |
-          go install github.com/a-h/templ/cmd/templ@v0.3.819
-
-      - name: Install TailwindCSS
-        run: |
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss \
-            https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
-
-      - name: Verify TailwindCSS
-        run: tailwindcss -h
-
-      - name: Install PNPM
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Go mod download
-        run: go mod download
-
-      - name: Check generated files
-        run: |
-          make generate
-          git diff --exit-code
-
-      - name: Custom linter
-        run: |
-          make build-iota-linter
-          make run-iota-linter
-
-      - name: Format SQL
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pgformatter
-          mkdir -p /tmp/formatted
-          find modules -name "*.sql" -type f | while read -r f; do
-            pg_format "$f" > "/tmp/formatted/$(basename "$f")"
-            diff -q "$f" "/tmp/formatted/$(basename "$f")" || exit 1
-          done
-
-      - name: Migrations collect
-        run: |
-          make migrate collect
-          if [ -n "$(git status --porcelain migrations/)" ]; then
-            exit 1
-          fi
-
-      - name: Build CSS
-        run: make css
-
   test:
     runs-on: blacksmith-2vcpu-ubuntu-2204
-    env:
-      LOG_LEVEL: debug
+
     services:
       postgres:
         image: postgres:15.1
@@ -94,8 +22,9 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Go
@@ -103,60 +32,99 @@ jobs:
         with:
           go-version: "1.23.2"
 
-      - name: Go mod download
-        run: go mod download
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
+          golangci-lint version
 
       - name: Install templ
         run: |
           go install github.com/a-h/templ/cmd/templ@v0.3.819
+          templ --help
 
       - name: Install TailwindCSS
         run: |
+          echo "Installing TailwindCSS for x64 architecture..."
           mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss \
-            https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
+          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
           chmod +x downloaded/tailwindcss
           echo "$PWD/downloaded" >> $GITHUB_PATH
 
-      - name: Verify TailwindCSS
-        run: tailwindcss -h
+      - name: Verify TailwindCSS installation
+        run: |
+          tailwindcss -h
 
       - name: Install PNPM
         uses: pnpm/action-setup@v4
         with:
           version: 9
 
-      - name: Wait for Postgres
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Wait for PostgreSQL to be ready
         run: |
           until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
+            echo "Waiting for postgres..."
             sleep 1
           done
 
-      - name: Test Make targets
-        # Run the same target twice to ensure idempotency
+      - name: Test generated files are up to date
+        run: |
+          go generate ./...
+          make generate
+          git diff --exit-code
+
+      - name: Run custom linter
+        run: make build-iota-linter && make run-iota-linter
+
+      - name: Check migrations collect idempotence
+        run: |
+          make migrate collect
+          git status --porcelain migrations/
+          if [ -n "$(git status --porcelain migrations/)" ]; then
+            echo "Error: make migrate collect produced changes, please run 'make migrate collect' and commit the changes"
+            git status --porcelain migrations/
+            exit 1
+          fi
+
+      - name: Test Makefile targets
+        # running migrations and seeds twice to verify that they are idempotent
         run: |
           make migrate up
           make migrate up
-          make migrate down
-          make migrate down
-          make migrate up
           make seed
           make seed
+          make css
 
-      - name: Go vet & tests
+      - name: Check SQL files are properly formatted
+        # Install pg_formatter and verify all SQL files are properly formatted
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pgformatter
+          # Create a temporary directory for formatted files
+          mkdir -p /tmp/formatted
+          # Format each SQL file and check for differences
+          find modules -name "*.sql" -type f | while read -r sqlfile; do
+            pg_format "$sqlfile" > "/tmp/formatted/$(basename "$sqlfile")"
+            if ! diff -q "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")" > /dev/null; then
+              echo "Error: $sqlfile is not properly formatted"
+              diff "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")"
+              exit 1
+            fi
+          done
+          echo "All SQL files are properly formatted"
+
+      - name: Run go vet && tests
         run: |
           make generate
           git diff --exit-code
           go vet ./...
           go test -v ./...
 
-      - name: Prepare database for Cypress
-        run: make migrate up
-
       - name: Cypress run
         uses: cypress-io/github-action@v6
         env:
-          LOG_LEVEL: debug
           SESSION_DURATION: 720h
           DOMAIN: localhost
           DB_HOST: localhost
@@ -166,6 +134,7 @@ jobs:
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
           GO_APP_ENV: production
+
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
@@ -177,6 +146,8 @@ jobs:
           wait-on: 'http://localhost:3200'
           browser: chrome
 
-      - name: Migrate down
-        run: make migrate down
+      - name: Test database migrate down
+        # e2e tests require database to have the seed data. We can only down the migrations after cypress.
+        run: |
+          make migrate down
 
