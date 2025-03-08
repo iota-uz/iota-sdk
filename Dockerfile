@@ -34,9 +34,10 @@ WORKDIR /home/iota-user
 COPY --from=build /build/run_server ./run_server
 COPY --from=build /build/migrate ./migrate
 COPY --from=build /build/seed_db ./seed_db
+COPY --from=build /build/migrations ./migrations
 
 ENV PATH=/home/iota-user:$PATH
 
 USER iota-user
-CMD ["/bin/sh", "-c", "migrate redo && seed_db && run_server"]
+CMD ["/bin/sh", "-c", "migrate up && seed_db && run_server"]
 
