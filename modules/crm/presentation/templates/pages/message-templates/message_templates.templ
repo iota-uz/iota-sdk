@@ -83,7 +83,7 @@ templ TemplatesContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("MessageTemplates.List.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("MessageTemplates.List.Meta.Title")},
 	}) {
 		@TemplatesContent(props)
 	}

@@ -68,7 +68,7 @@ templ viewTable(props *ViewPageProps) {
 templ View(props *ViewPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("WarehouseOrders.View.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("WarehouseOrders.View.Meta.Title")},
 	}) {
 		<div class="flex flex-col justify-between h-full">
 			@card.Card(card.Props{WrapperClass: "m-6"}) {
