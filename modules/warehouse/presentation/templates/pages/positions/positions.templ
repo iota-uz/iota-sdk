@@ -126,7 +126,7 @@ templ PositionsContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		Title: pageCtx.T("WarehousePositions.List.Meta.Title"),
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("WarehousePositions.List.Meta.Title")},
 	}) {
 		@PositionsContent(props)
 	}

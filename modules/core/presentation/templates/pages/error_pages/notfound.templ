@@ -7,7 +7,7 @@ import (
 )
 
 templ NotFoundContent() {
-	@layouts.Base("Not found") {
+	@layouts.Base(&layouts.BaseProps{Title: "Not found", WebsocketURL: "/ws"}) {
 		<div class="flex flex-col items-center justify-center h-screen w-full">
 			<div class="flex flex-col items-center">
 				<img src="/assets/images/search.svg" class="w-32 h-32" alt="404"/>
