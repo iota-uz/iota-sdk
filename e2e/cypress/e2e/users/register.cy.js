@@ -12,6 +12,8 @@ describe("user auth and registration flow", () => {
 
 	it("creates a user and displays changes in users table", () => {
 		cy.login("test@gmail.com", "TestPass123!");
+		cy.location("pathname").should("eq", "/");
+
 		cy.visit("http://localhost:3200/users");
 		cy.get('a[href="/users/new"]').filter(":visible").click();
 		cy.get("[name=FirstName]").type("Test");
@@ -37,6 +39,8 @@ describe("user auth and registration flow", () => {
 
 	it("edits a user and displays changes in users table", () => {
 		cy.login("test1@gmail.com", "TestPass123!");
+		cy.location("pathname").should("eq", "/");
+
 		cy.visit("http://localhost:3200/users");
 
 		cy.get("tbody tr").contains("td", "Test User").parent("tr").find("td a").click();
