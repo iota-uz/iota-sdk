@@ -135,7 +135,7 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base.Combobox(base.ComboboxProps{
-			Label:       pageCtx.T("Users.Single.Role"),
+			Label:       pageCtx.T("Users.Single.RoleIDs"),
 			Placeholder: pageCtx.T("Users.Single.SelectRole"),
 			Multiple:    true,
 			Name:        props.Name,

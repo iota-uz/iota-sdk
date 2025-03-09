@@ -4,6 +4,7 @@ import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
@@ -29,26 +30,24 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	}
 }
 
-templ UserRow(props *IndexPageProps, user *viewmodels.User, isLastRow bool) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	{{ rowProps := &base.TableRowProps{} }}
-	if isLastRow && props.HasMore {
-		{{ rowProps.Attrs = mkInfiniteAttrs(props) }}
-	}
+templ UserCreatedEvent(user *viewmodels.User, rowProps *base.TableRowProps) {
+	<tbody hx-swap-oob="afterbegin:tbody">
+		@UserRow(user, rowProps)
+	</tbody>
+}
+
+templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		rowProps.Attrs["id"] = fmt.Sprintf("user-%s", user.ID)
+	}}
 	@base.TableRow(rowProps) {
 		@base.TableCell() {
 			<div class="flex items-center gap-3">
-				if user.Avatar != nil && user.Avatar.URL != "" {
-					<img
-						src={ user.Avatar.URL }
-						class="w-8 h-8 object-cover rounded-full"
-						alt="User Avatar"
-					/>
-				} else {
-					<div class="w-8 h-8 rounded-full flex items-center justify-center bg-brand-500/10 text-brand-500 font-medium text-sm">
-						{ string(user.FirstName[0]) }
-					</div>
-				}
+				@avatar.Avatar(avatar.Props{
+					Initials: user.Initials(),
+					Class:    templ.Classes("w-8 h-8 min-w-8"),
+				})
 				<span>
 					{ user.FullName() }
 				</span>
@@ -88,7 +87,16 @@ templ UserRow(props *IndexPageProps, user *viewmodels.User, isLastRow bool) {
 
 templ UserRows(props *IndexPageProps) {
 	for ix, user := range props.Users {
-		@UserRow(props, user, ix == len(props.Users)-1)
+		{{
+			isLastRow := ix == len(props.Users)-1
+			rowProps := &base.TableRowProps{
+				Attrs: templ.Attributes{},
+			}
+			if isLastRow && props.HasMore {
+				rowProps.Attrs = mkInfiniteAttrs(props)
+			}
+		}}
+		@UserRow(user, rowProps)
 	}
 }
 
@@ -113,17 +121,6 @@ templ UsersContent(props *IndexPageProps) {
 		Heading: "Filters",
 		Action:  "open-user-filters",
 	}) {
-		@base.Select(&base.SelectProps{
-			Prefix: pageCtx.T("PerPage"),
-			Attrs: templ.Attributes{
-				"name": "limit",
-			},
-		}) {
-			<option selected>15</option>
-			<option>25</option>
-			<option>50</option>
-			<option>100</option>
-		}
 		@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
 			<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
 			<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
@@ -173,17 +170,6 @@ templ UsersContent(props *IndexPageProps) {
 					})
 				</div>
 				<div class="hidden md:flex gap-3">
-					@base.Select(&base.SelectProps{
-						Prefix: pageCtx.T("PerPage"),
-						Attrs: templ.Attributes{
-							"name": "limit",
-						},
-					}) {
-						<option selected>15</option>
-						<option>25</option>
-						<option>50</option>
-						<option>100</option>
-					}
 					@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
 						<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
 						<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>

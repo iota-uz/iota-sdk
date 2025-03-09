@@ -217,7 +217,7 @@
       "UILanguage": "ru",
       "SelectLanguage": "Выбрать язык",
       "ChooseAvatar": "Выберите аватар",
-      "Role": "Роль",
+      "RoleIDs": "Роль",
       "SelectRole": "Выбрать роль",
       "EnterPassword": "Введите пароль",
       "Delete": "Удалить пользователя",

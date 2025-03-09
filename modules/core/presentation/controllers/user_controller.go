@@ -1,8 +1,12 @@
 package controllers
 
 import (
+	"bytes"
+	"context"
 	"net/http"
+	"net/url"
 
+	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
@@ -10,28 +14,157 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"golang.org/x/text/language"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 )
+
+type UserRealtimeUpdates struct {
+	app         application.Application
+	userService *services.UserService
+	basePath    string
+}
+
+func NewUserRealtimeUpdates(app application.Application, userService *services.UserService, basePath string) *UserRealtimeUpdates {
+	return &UserRealtimeUpdates{
+		app:         app,
+		userService: userService,
+		basePath:    basePath,
+	}
+}
+
+func (ru *UserRealtimeUpdates) Register() {
+	ru.app.EventPublisher().Subscribe(ru.onUserCreated)
+	ru.app.EventPublisher().Subscribe(ru.onUserUpdated)
+	ru.app.EventPublisher().Subscribe(ru.onUserDeleted)
+}
+
+func (ru *UserRealtimeUpdates) publisherContext() (context.Context, error) {
+	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
+	ctx := composables.WithLocalizer(
+		context.Background(),
+		localizer,
+	)
+	_url, err := url.Parse(ru.basePath)
+	if err != nil {
+		return nil, err
+	}
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		URL:       _url,
+		Locale:    language.English,
+		Localizer: localizer,
+	})
+	return composables.WithPool(ctx, ru.app.DB()), nil
+}
+
+func (ru *UserRealtimeUpdates) onUserCreated(event *user.CreatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	usr, err := ru.userService.GetByID(ctx, event.Result.ID())
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v | Event: onUserCreated", err)
+		return
+	}
+	component := users.UserCreatedEvent(mappers.UserToViewModel(usr), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering user row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *UserRealtimeUpdates) onUserDeleted(event *user.DeletedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
+		Attrs: templ.Attributes{
+			"hx-swap-oob": "delete",
+		},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering user row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *UserRealtimeUpdates) onUserUpdated(event *user.UpdatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	usr, err := ru.userService.GetByID(ctx, event.Result.ID())
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v", err)
+		return
+	}
+
+	component := users.UserRow(mappers.UserToViewModel(usr), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering user row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
 
 type UsersController struct {
 	app         application.Application
 	userService *services.UserService
 	roleService *services.RoleService
 	basePath    string
+	realtime    *UserRealtimeUpdates
 }
 
 func NewUsersController(app application.Application) application.Controller {
-	return &UsersController{
+	userService := app.Service(services.UserService{}).(*services.UserService)
+	basePath := "/users"
+
+	controller := &UsersController{
 		app:         app,
-		userService: app.Service(services.UserService{}).(*services.UserService),
+		userService: userService,
 		roleService: app.Service(services.RoleService{}).(*services.RoleService),
-		basePath:    "/users",
+		basePath:    basePath,
+		realtime:    NewUserRealtimeUpdates(app, userService, basePath),
 	}
+
+	return controller
 }
 
 func (c *UsersController) Key() string {
@@ -49,18 +182,17 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	}
 
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-	getRouter.HandleFunc("", c.Users).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(commonMiddleware...)
+	router.HandleFunc("", c.Users).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
+
+	c.realtime.Register()
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
