@@ -15,7 +15,7 @@ import (
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
+	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
@@ -92,7 +92,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 	}
 
 	var email sql.NullString
-	if domainEntity.Email().Value() != "" {
+	if domainEntity.Email() != nil {
 		email = mapping.ValueToSQLNullString(domainEntity.Email().Value())
 	}
 
@@ -102,7 +102,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 	}
 
 	var pin sql.NullString
-	if domainEntity.Pin().Value() != "" {
+	if domainEntity.Pin() != nil && domainEntity.Pin().Value() != "" {
 		pin = mapping.ValueToSQLNullString(domainEntity.Pin().Value())
 	}
 
