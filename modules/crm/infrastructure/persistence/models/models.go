@@ -13,7 +13,6 @@ type Client struct {
 	PhoneNumber string
 	Address     sql.NullString
 	Email       sql.NullString
-	HourlyRate  sql.NullFloat64
 	DateOfBirth sql.NullTime
 	Gender      sql.NullString
 	PassportID  sql.NullString // UUID reference to passports table

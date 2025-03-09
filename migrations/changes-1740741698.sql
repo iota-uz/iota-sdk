@@ -22,7 +22,6 @@ CREATE TABLE clients (
 	phone_number  VARCHAR(255) NOT NULL,
 	address       TEXT,
 	email         VARCHAR(255),
-	hourly_rate   FLOAT8,
 	date_of_birth DATE,
 	gender        VARCHAR(15),
 	created_at    TIMESTAMPTZ DEFAULT now(),

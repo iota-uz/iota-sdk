@@ -6,7 +6,6 @@ CREATE TABLE clients (
     phone_number varchar(255) NOT NULL,
     address text,
     email varchar(255),
-    hourly_rate float,
     date_of_birth date,
     gender varchar(15),
     passport_id uuid REFERENCES passports (id) ON DELETE SET NULL ON UPDATE CASCADE,

@@ -47,6 +47,9 @@
 				"Title": "Информация о клиенте"
 			},
 			"SendMessage": "Отправить сообщение",
+			"PersonalInfo": "Личная информация",
+			"PassportInfo": "Паспортные данные",
+			"TaxInfo": "Налоговая информация",
 			"FirstName": {
 				"Label": "Имя",
 				"Placeholder": "Введите имя"
@@ -62,7 +65,39 @@
 			"Phone": {
 				"Label": "Телефон",
 				"Placeholder": "Введите номер телефона"
-			},	
+			},
+			"Email": {
+				"Label": "Электронная почта",
+				"Placeholder": "Введите электронную почту"
+			},
+			"Address": {
+				"Label": "Адрес",
+				"Placeholder": "Введите адрес"
+			},
+			"Gender": {
+				"Label": "Пол",
+				"Placeholder": "Введите пол"
+			},
+			"DateOfBirth": {
+				"Label": "Дата рождения",
+				"Placeholder": "Введите дату рождения"
+			},
+			"PassportSeries": {
+				"Label": "Серия паспорта",
+				"Placeholder": "Введите серию паспорта"
+			},
+			"PassportNumber": {
+				"Label": "Номер паспорта",
+				"Placeholder": "Введите номер паспорта"
+			},
+			"Pin": {
+				"Label": "ИНН",
+				"Placeholder": "Введите ИНН"
+			},
+			"CountryCode": {
+				"Label": "Код страны",
+				"Placeholder": "Введите код страны"
+			},
 			"Delete": "Удалить клиента",
 			"DeleteConfirmation": "Вы уверены, что хотите удалить этого клиента?"
 		}
@@ -114,4 +149,3 @@
 		"ChatNotFound": "Чат не найден..."
 	}
 }
-
