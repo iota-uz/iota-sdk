@@ -1,0 +1,47 @@
+package selects
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type CountriesSelectProps struct {
+	Label       string
+	Placeholder string
+	Name        string
+	Selected    string
+	Error       string
+	Required    bool
+	Class       string
+	Attrs       templ.Attributes
+}
+
+templ CountriesSelect(props CountriesSelectProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		attrs := templ.Attributes{
+			"name":     props.Name,
+			"required": props.Required,
+		}
+		for k, v := range props.Attrs {
+			attrs[k] = v
+		}
+	}}
+	@base.Select(&base.SelectProps{
+		Label:       props.Label,
+		Placeholder: props.Placeholder,
+		Class:       props.Class,
+		Error:       props.Error,
+		Attrs:       attrs,
+	}) {
+		for _, c := range country.AllCountries {
+			<option
+				value={ c.String() }
+				selected?={ props.Selected == c.String() }
+			>
+				{ pageCtx.T("Countries." + c.String()) }
+			</option>
+		}
+	}
+}

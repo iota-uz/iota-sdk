@@ -4,6 +4,8 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/components/selects"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -23,47 +25,127 @@ templ CreateForm(props *CreatePageProps) {
 		hx-swap="outerHTML"
 		hx-indicator="#save-btn"
 	>
-		@card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
-			WrapperClass: "m-6",
-		}) {
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.FirstName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.FirstName,
-					"name":  "FirstName",
-				},
-				Error: props.Errors["FirstName"],
-			})
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.LastName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.LastName,
-					"name":  "LastName",
-				},
-				Error: props.Errors["LastName"],
-			})
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.MiddleName,
-					"name":  "MiddleName",
-				},
-				Error: props.Errors["MiddleName"],
-			})
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.Phone.Label"),
-				Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.Phone,
-					"name":  "Phone",
-				},
-				Error: props.Errors["Phone"],
-			})
-		}
+		<div class="m-6 flex flex-col gap-6">
+			<!-- Personal Information Card -->
+			@card.Card(card.Props{
+				Class: "grid grid-cols-3 gap-4",
+				Header: card.DefaultHeader(pageCtx.T("Clients.Single.PersonalInfo")),
+			}) {
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.FirstName.Label"),
+					Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.FirstName,
+						"name":  "FirstName",
+					},
+					Error: props.Errors["FirstName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.LastName.Label"),
+					Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.LastName,
+						"name":  "LastName",
+					},
+					Error: props.Errors["LastName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
+					Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.MiddleName,
+						"name":  "MiddleName",
+					},
+					Error: props.Errors["MiddleName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.Phone.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Phone,
+						"name":  "Phone",
+					},
+					Error: props.Errors["Phone"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.Email.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Email.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Email,
+						"name":  "Email",
+						"type":  "email",
+					},
+					Error: props.Errors["Email"],
+				})
+				@input.Date(&input.Props{
+					Label:       pageCtx.T("Clients.Single.DateOfBirth.Label"),
+					Placeholder: pageCtx.T("Clients.Single.DateOfBirth.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.DateOfBirth,
+						"name":  "DateOfBirth",
+					},
+					Error: props.Errors["DateOfBirth"],
+				})
+				@textarea.Basic(&textarea.Props{
+					Label:       pageCtx.T("Clients.Single.Address.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Address.Placeholder"),
+					Value:       props.Client.Address,
+					Attrs: templ.Attributes{
+						"name": "Address",
+						"rows": "3",
+					},
+					Error: props.Errors["Address"],
+				})
+			}
+			
+			<!-- Passport Information Card -->
+			@card.Card(card.Props{
+				Class: "grid grid-cols-2 gap-4",
+				Header: card.DefaultHeader(pageCtx.T("Clients.Single.PassportInfo")),
+			}) {
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
+					Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Passport.Series,
+						"name":  "PassportSeries",
+					},
+					Error: props.Errors["PassportSeries"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
+					Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Passport.Number,
+						"name":  "PassportNumber",
+					},
+					Error: props.Errors["PassportNumber"],
+				})
+			}
+			
+			<!-- Tax Information Card -->
+			@card.Card(card.Props{
+				Class: "grid grid-cols-2 gap-4",
+				Header: card.DefaultHeader(pageCtx.T("Clients.Single.TaxInfo")),
+			}) {
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.Pin.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Pin.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Pin,
+						"name":  "Pin",
+					},
+					Error: props.Errors["Pin"],
+				})
+				@selects.CountriesSelect(selects.CountriesSelectProps{
+					Label:       pageCtx.T("Clients.Single.CountryCode.Label"),
+					Placeholder: pageCtx.T("Clients.Single.CountryCode.Placeholder"),
+					Name:        "CountryCode",
+					Selected:    props.Client.CountryCode,
+					Error:       props.Errors["CountryCode"],
+				})
+			}
+		</div>
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Size: button.SizeMD,
