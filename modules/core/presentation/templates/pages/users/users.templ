@@ -30,6 +30,12 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	}
 }
 
+templ UserCreatedEvent(user *viewmodels.User, rowProps *base.TableRowProps) {
+	<tbody hx-swap-oob="afterbegin:tbody">
+		@UserRow(user, rowProps)
+	</tbody>
+}
+
 templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
