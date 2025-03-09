@@ -8,6 +8,8 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/components/selects"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
@@ -224,51 +226,140 @@ templ EditForm(props *EditPageProps) {
 		id="edit-content"
 		class="flex flex-col justify-between h-full bg-surface-100"
 	>
-		@card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
-			WrapperClass: "m-6",
-		}) {
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.FirstName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.FirstName,
-					"name":  "FirstName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["FirstName"],
-			})
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.LastName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.LastName,
-					"name":  "LastName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["LastName"],
-			})
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.MiddleName,
-					"name":  "MiddleName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["MiddleName"],
-			})
-			@input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.Phone.Label"),
-				Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.Phone,
-					"name":  "Phone",
-					"form":  "save-form",
-				},
-				Error: props.Errors["Phone"],
-			})
-		}
+		<div class="m-6 flex flex-col gap-6">
+			<!-- Personal Information Card -->
+			@card.Card(card.Props{
+				Class: "grid grid-cols-3 gap-4",
+				Header: card.DefaultHeader(pageCtx.T("Clients.Single.PersonalInfo")),
+			}) {
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.FirstName.Label"),
+					Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.FirstName,
+						"name":  "FirstName",
+						"form":  "save-form",
+					},
+					Error: props.Errors["FirstName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.LastName.Label"),
+					Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.LastName,
+						"name":  "LastName",
+						"form":  "save-form",
+					},
+					Error: props.Errors["LastName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
+					Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.MiddleName,
+						"name":  "MiddleName",
+						"form":  "save-form",
+					},
+					Error: props.Errors["MiddleName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.Phone.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Phone,
+						"name":  "Phone",
+						"form":  "save-form",
+					},
+					Error: props.Errors["Phone"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.Email.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Email.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Email,
+						"name":  "Email",
+						"type":  "email",
+						"form":  "save-form",
+					},
+					Error: props.Errors["Email"],
+				})
+				@input.Date(&input.Props{
+					Label:       pageCtx.T("Clients.Single.DateOfBirth.Label"),
+					Placeholder: pageCtx.T("Clients.Single.DateOfBirth.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.DateOfBirth,
+						"name":  "DateOfBirth",
+						"form":  "save-form",
+					},
+					Error: props.Errors["DateOfBirth"],
+				})
+				@textarea.Basic(&textarea.Props{
+					Label:       pageCtx.T("Clients.Single.Address.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Address.Placeholder"),
+					Value:       props.Client.Address,
+					Attrs: templ.Attributes{
+						"name": "Address",
+						"form": "save-form",
+						"rows": "3",
+					},
+					Error: props.Errors["Address"],
+				})
+			}
+			
+			<!-- Passport Information Card -->
+			@card.Card(card.Props{
+				Class: "grid grid-cols-2 gap-4",
+				Header: card.DefaultHeader(pageCtx.T("Clients.Single.PassportInfo")),
+			}) {
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
+					Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Passport.Series,
+						"name":  "PassportSeries",
+						"form":  "save-form",
+					},
+					Error: props.Errors["PassportSeries"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
+					Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Passport.Number,
+						"name":  "PassportNumber",
+						"form":  "save-form",
+					},
+					Error: props.Errors["PassportNumber"],
+				})
+			}
+			
+			<!-- Tax Information Card -->
+			@card.Card(card.Props{
+				Class: "grid grid-cols-2 gap-4",
+				Header: card.DefaultHeader(pageCtx.T("Clients.Single.TaxInfo")),
+			}) {
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Clients.Single.Pin.Label"),
+					Placeholder: pageCtx.T("Clients.Single.Pin.Placeholder"),
+					Attrs: templ.Attributes{
+						"value": props.Client.Pin,
+						"name":  "Pin",
+						"form":  "save-form",
+					},
+					Error: props.Errors["Pin"],
+				})
+				@selects.CountriesSelect(selects.CountriesSelectProps{
+					Label:       pageCtx.T("Clients.Single.CountryCode.Label"),
+					Placeholder: pageCtx.T("Clients.Single.CountryCode.Placeholder"),
+					Name:        "CountryCode",
+					Selected:    props.Client.CountryCode,
+					Attrs: templ.Attributes{
+						"form": "save-form",
+					},
+					Error: props.Errors["CountryCode"],
+				})
+			}
+		</div>
 		<div
 			x-data
 			class={

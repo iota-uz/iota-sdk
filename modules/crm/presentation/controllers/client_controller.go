@@ -154,10 +154,18 @@ func (c *ClientController) Create(w http.ResponseWriter, r *http.Request) {
 		props := &clients.CreatePageProps{
 			Errors: errorsMap,
 			Client: &viewmodels.Client{
-				FirstName:  dto.FirstName,
-				LastName:   dto.LastName,
-				MiddleName: dto.MiddleName,
-				Phone:      dto.Phone,
+				FirstName:   dto.FirstName,
+				LastName:    dto.LastName,
+				MiddleName:  dto.MiddleName,
+				Phone:       dto.Phone,
+				Email:       dto.Email,
+				Address:     dto.Address,
+				Pin:         dto.Pin,
+				CountryCode: dto.CountryCode,
+				Passport: viewmodels.Passport{
+					Series: dto.PassportSeries,
+					Number: dto.PassportNumber,
+				},
 			},
 			SaveURL: c.basePath,
 		}
