@@ -27,7 +27,6 @@ describe("user auth and registration flow", () => {
 		cy.get("ul[x-ref=list]").should("be.visible");
 		cy.get("ul[x-ref=list]").find("li").first().click();
 		cy.get("[id=save-btn]").click();
-		cy.visit("http://localhost:3200/users");
 		cy.get("tbody tr").should("have.length", 2);
 		cy.logout();
 

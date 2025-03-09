@@ -66,13 +66,14 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.repo.Create(ctx, data); err != nil {
+	created, err := s.repo.Create(ctx, data)
+	if err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	createdEvent.Result = data
+	createdEvent.Result = created
 	s.publisher.Publish(createdEvent)
 	return nil
 }

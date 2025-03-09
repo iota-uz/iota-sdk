@@ -46,11 +46,13 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 					"request-id": requestID,
 				}
 
-				ctx := context.WithValue(r.Context(), constants.LoggerKey, logger.WithFields(logFields))
+				fieldsLogger := logger.WithFields(logFields)
+
+				ctx := context.WithValue(r.Context(), constants.LoggerKey, fieldsLogger)
 				ctx = context.WithValue(ctx, constants.RequestStart, start)
 				next.ServeHTTP(w, r.WithContext(ctx))
 
-				logger.WithField("duration", time.Since(start)).Info("request completed")
+				fieldsLogger.WithField("duration", time.Since(start)).Info("request completed")
 			},
 		)
 	}

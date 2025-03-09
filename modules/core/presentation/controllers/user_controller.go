@@ -27,20 +27,144 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type UserRealtimeUpdates struct {
+	app         application.Application
+	userService *services.UserService
+	basePath    string
+}
+
+func NewUserRealtimeUpdates(app application.Application, userService *services.UserService, basePath string) *UserRealtimeUpdates {
+	return &UserRealtimeUpdates{
+		app:         app,
+		userService: userService,
+		basePath:    basePath,
+	}
+}
+
+func (ru *UserRealtimeUpdates) Register() {
+	ru.app.EventPublisher().Subscribe(ru.onUserCreated)
+	ru.app.EventPublisher().Subscribe(ru.onUserUpdated)
+	ru.app.EventPublisher().Subscribe(ru.onUserDeleted)
+}
+
+func (ru *UserRealtimeUpdates) publisherContext() (context.Context, error) {
+	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
+	ctx := composables.WithLocalizer(
+		context.Background(),
+		localizer,
+	)
+	_url, err := url.Parse(ru.basePath)
+	if err != nil {
+		return nil, err
+	}
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		URL:       _url,
+		Locale:    language.English,
+		Localizer: localizer,
+	})
+	return composables.WithPool(ctx, ru.app.DB()), nil
+}
+
+func (ru *UserRealtimeUpdates) onUserCreated(event *user.CreatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	usr, err := ru.userService.GetByID(ctx, event.Result.ID())
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v | Event: onUserCreated", err)
+		return
+	}
+	component := users.UserCreatedEvent(mappers.UserToViewModel(usr), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering user row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *UserRealtimeUpdates) onUserDeleted(event *user.DeletedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
+		Attrs: templ.Attributes{
+			"hx-swap-oob": "delete",
+		},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering user row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *UserRealtimeUpdates) onUserUpdated(event *user.UpdatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	usr, err := ru.userService.GetByID(ctx, event.Result.ID())
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v", err)
+		return
+	}
+
+	component := users.UserRow(mappers.UserToViewModel(usr), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering user row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
 type UsersController struct {
 	app         application.Application
 	userService *services.UserService
 	roleService *services.RoleService
 	basePath    string
+	realtime    *UserRealtimeUpdates
 }
 
 func NewUsersController(app application.Application) application.Controller {
-	return &UsersController{
+	userService := app.Service(services.UserService{}).(*services.UserService)
+	basePath := "/users"
+
+	controller := &UsersController{
 		app:         app,
-		userService: app.Service(services.UserService{}).(*services.UserService),
+		userService: userService,
 		roleService: app.Service(services.RoleService{}).(*services.RoleService),
-		basePath:    "/users",
+		basePath:    basePath,
+		realtime:    NewUserRealtimeUpdates(app, userService, basePath),
 	}
+
+	return controller
 }
 
 func (c *UsersController) Key() string {
@@ -68,108 +192,7 @@ func (c *UsersController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
 
-	c.app.EventPublisher().Subscribe(c.onUserCreated)
-	c.app.EventPublisher().Subscribe(c.onUserUpdated)
-	c.app.EventPublisher().Subscribe(c.onUserDeleted)
-}
-
-func (c *UsersController) publisherContext() (context.Context, error) {
-	localizer := i18n.NewLocalizer(c.app.Bundle(), "en")
-	ctx := composables.WithLocalizer(
-		context.Background(),
-		localizer,
-	)
-	_url, err := url.Parse(c.basePath)
-	if err != nil {
-		return nil, err
-	}
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-	return composables.WithPool(ctx, c.app.DB()), nil
-}
-
-func (c *UsersController) onUserCreated(event *user.CreatedEvent) {
-	logger := configuration.Use().Logger()
-	ctx, err := c.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
-
-	usr, err := c.userService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving user: %v", err)
-		return
-	}
-	component := users.UserRow(mappers.UserToViewModel(usr), &base.TableRowProps{
-		Attrs: templ.Attributes{
-			"hx-swap-oob": "afterbegin:tbody",
-		},
-	})
-
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering user row: %v", err)
-		return
-	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
-}
-
-func (c *UsersController) onUserDeleted(event *user.DeletedEvent) {
-	logger := configuration.Use().Logger()
-	ctx, err := c.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
-
-	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
-		Attrs: templ.Attributes{
-			"hx-swap-oob": "delete",
-		},
-	})
-
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering user row: %v", err)
-		return
-	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
-}
-
-func (c *UsersController) onUserUpdated(event *user.UpdatedEvent) {
-	logger := configuration.Use().Logger()
-	ctx, err := c.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
-
-	usr, err := c.userService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving user: %v", err)
-		return
-	}
-
-	component := users.UserRow(mappers.UserToViewModel(usr), &base.TableRowProps{
-		Attrs: templ.Attributes{},
-	})
-
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering user row: %v", err)
-		return
-	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
+	c.realtime.Register()
 }
 
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
