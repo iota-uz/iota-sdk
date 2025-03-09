@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -52,6 +53,11 @@ func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.Fi
 }
 
 func (s *UserService) Create(ctx context.Context, data user.User) error {
+	tx, err := composables.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 	createdEvent, err := user.NewCreatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -60,10 +66,14 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.repo.Create(ctx, data); err != nil {
+	created, err := s.repo.Create(ctx, data)
+	if err != nil {
 		return err
 	}
-	createdEvent.Result = data
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	createdEvent.Result = created
 	s.publisher.Publish(createdEvent)
 	return nil
 }
@@ -77,6 +87,11 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) error {
+	tx, err := composables.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -90,12 +105,20 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
 	updatedEvent.Result = data
 	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
+	tx, err := composables.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
 	deletedEvent, err := user.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
@@ -105,6 +128,9 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 		return nil, err
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = entity

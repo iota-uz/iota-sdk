@@ -28,7 +28,7 @@ func isRoleSelected(id string, roles []*viewmodels.Role) bool {
 templ RoleSelect(props *RoleSelectProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Combobox(base.ComboboxProps{
-		Label:       pageCtx.T("Users.Single.Role"),
+		Label:       pageCtx.T("Users.Single.RoleIDs"),
 		Placeholder: pageCtx.T("Users.Single.SelectRole"),
 		Multiple:    true,
 		Name:        props.Name,

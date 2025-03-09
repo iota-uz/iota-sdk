@@ -191,7 +191,7 @@
       "UILanguage": "en",
       "SelectLanguage": "Select language",
       "ChooseAvatar": "Choose avatar",
-      "Role": "Role",
+      "RoleIDs": "Role",
       "SelectRole": "Select role",
       "EnterPassword": "Enter password",
       "Delete": "Delete user",

@@ -3,9 +3,9 @@ package persistence
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
+	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -137,7 +137,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, e
 		return nil, err
 	}
 	if len(users) == 0 {
-		return nil, ErrUserNotFound
+		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("id: %d", id))
 	}
 	return users[0], nil
 }
@@ -148,7 +148,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (user
 		return nil, err
 	}
 	if len(users) == 0 {
-		return nil, ErrUserNotFound
+		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("email: %s", email))
 	}
 	return users[0], nil
 }
