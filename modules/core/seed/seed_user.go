@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -83,11 +84,16 @@ func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.Use
 		conf.Logger().Infof("User %s already exists", s.email)
 		return foundUser, nil
 	}
+	
+	email, err := internet.NewEmail(s.email)
+	if err != nil {
+		return nil, err
+	}
 
 	usr, err := user.New(
 		defaultFirstName,
 		defaultLastName,
-		s.email,
+		email,
 		s.uiLang,
 		user.WithMiddleName(""),
 		user.WithRoles([]role.Role{r}),

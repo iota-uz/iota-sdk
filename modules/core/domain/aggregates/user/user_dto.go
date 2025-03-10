@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -96,6 +97,11 @@ func (u *CreateDTO) ToEntity() (User, error) {
 		roles[i] = r
 	}
 	
+	email, err := internet.NewEmail(u.Email)
+	if err != nil {
+		return nil, err
+	}
+	
 	options := []Option{
 		WithMiddleName(u.MiddleName),
 		WithPassword(u.Password),
@@ -106,7 +112,7 @@ func (u *CreateDTO) ToEntity() (User, error) {
 	return New(
 		u.FirstName,
 		u.LastName,
-		u.Email,
+		email,
 		UILanguage(u.UILanguage),
 		options...,
 	), nil
@@ -122,6 +128,11 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		roles[i] = r
 	}
 	
+	email, err := internet.NewEmail(u.Email)
+	if err != nil {
+		return nil, err
+	}
+	
 	options := []Option{
 		WithID(id),
 		WithMiddleName(u.MiddleName),
@@ -133,7 +144,7 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 	return New(
 		u.FirstName,
 		u.LastName,
-		u.Email,
+		email,
 		UILanguage(u.UILanguage),
 		options...,
 	), nil

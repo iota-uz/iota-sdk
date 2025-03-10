@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -28,6 +29,11 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 	var avatar upload.Upload
 	if dbUpload != nil {
 		avatar = ToDomainUpload(dbUpload)
+	}
+	
+	email, err := internet.NewEmail(dbUser.Email)
+	if err != nil {
+		return nil, err
 	}
 	
 	options := []user.Option{
@@ -49,7 +55,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 	return user.New(
 		dbUser.FirstName,
 		dbUser.LastName,
-		dbUser.Email,
+		email,
 		user.UILanguage(dbUser.UILanguage),
 		options...,
 	), nil
@@ -66,7 +72,7 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
-		Email:      entity.Email(),
+		Email:      entity.Email().Value(),
 		UILanguage: string(entity.UILanguage()),
 		Password:   mapping.ValueToSQLNullString(entity.Password()),
 		AvatarID:   mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
