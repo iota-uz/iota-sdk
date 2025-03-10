@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -44,6 +45,9 @@ const (
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
 	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES`
+	
+	userGroupDeleteQuery = `DELETE FROM group_users WHERE user_id = $1`
+	userGroupInsertQuery = `INSERT INTO group_users (user_id, group_id) VALUES`
 
 	userRolePermissionsQuery = `
 				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
@@ -57,6 +61,13 @@ const (
 					r.created_at,
 					r.updated_at
 				FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
+			`
+			
+userGroupsQuery = `
+				SELECT
+					group_id
+				FROM group_users 
+				WHERE user_id = $1
 			`
 )
 
@@ -376,9 +387,15 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to insert user")
 	}
+	
 	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles()); err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to update roles for user ID: %d", dbUser.ID))
 	}
+	
+	if err := g.updateUserGroups(ctx, dbUser.ID, data.GroupIDs()); err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to update group IDs for user ID: %d", dbUser.ID))
+	}
+	
 	return g.GetByID(ctx, dbUser.ID)
 }
 
@@ -430,6 +447,10 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	if err := g.updateUserRoles(ctx, data.ID(), data.Roles()); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update roles for user ID: %d", data.ID()))
 	}
+	
+	if err := g.updateUserGroups(ctx, data.ID(), data.GroupIDs()); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to update group IDs for user ID: %d", data.ID()))
+	}
 
 	return nil
 }
@@ -451,6 +472,9 @@ func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error 
 func (g *PgUserRepository) Delete(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, userRoleDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete roles for user ID: %d", id))
+	}
+	if err := g.execQuery(ctx, userGroupDeleteQuery, id); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to delete groups for user ID: %d", id))
 	}
 	if err := g.execQuery(ctx, userDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete user with ID: %d", id))
@@ -504,6 +528,11 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get roles for user ID: %d", u.ID))
 		}
+		
+		groupIDs, err := g.userGroupIDs(ctx, u.ID)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get group IDs for user ID: %d", u.ID))
+		}
 
 		var avatar upload.Upload
 		if u.AvatarID.Valid {
@@ -515,9 +544,9 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 
 		var domainUser user.User
 		if avatar != nil {
-			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles)
+			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles, groupIDs)
 		} else {
-			domainUser, err = ToDomainUser(u, nil, roles)
+			domainUser, err = ToDomainUser(u, nil, roles, groupIDs)
 		}
 
 		if err != nil {
@@ -611,6 +640,40 @@ func (g *PgUserRepository) userRoles(ctx context.Context, userID uint) ([]role.R
 	return entities, nil
 }
 
+func (g *PgUserRepository) userGroupIDs(ctx context.Context, userID uint) ([]uuid.UUID, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	rows, err := tx.Query(ctx, userGroupsQuery, userID)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group IDs for user ID: %d", userID))
+	}
+	defer rows.Close()
+
+	var groupIDs []uuid.UUID
+	for rows.Next() {
+		var groupIDStr string
+		if err := rows.Scan(&groupIDStr); err != nil {
+			return nil, errors.Wrap(err, "failed to scan group ID")
+		}
+		
+		groupID, err := uuid.Parse(groupIDStr)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to parse group ID: %s", groupIDStr))
+		}
+		
+		groupIDs = append(groupIDs, groupID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "row iteration error")
+	}
+
+	return groupIDs, nil
+}
+
 func (g *PgUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -642,3 +705,24 @@ func (g *PgUserRepository) updateUserRoles(ctx context.Context, userID uint, rol
 	}
 	return nil
 }
+
+func (g *PgUserRepository) updateUserGroups(ctx context.Context, userID uint, groupIDs []uuid.UUID) error {
+	if err := g.execQuery(ctx, userGroupDeleteQuery, userID); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to delete existing groups for user ID: %d", userID))
+	}
+
+	if len(groupIDs) == 0 {
+		return nil
+	}
+
+	values := make([][]interface{}, 0, len(groupIDs))
+	for _, groupID := range groupIDs {
+		values = append(values, []interface{}{userID, groupID.String()})
+	}
+	q, args := repo.BatchInsertQueryN(userGroupInsertQuery, values)
+	if err := g.execQuery(ctx, q, args...); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to insert groups for user ID: %d", userID))
+	}
+	return nil
+}
+

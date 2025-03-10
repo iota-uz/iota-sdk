@@ -122,7 +122,7 @@ func (g *PgGroupRepository) GetPaginated(ctx context.Context, params *group.Find
 	}
 
 	baseQuery := groupFindQuery
-	
+
 	query := repo.Join(
 		baseQuery,
 		repo.JoinWhere(where...),
@@ -149,7 +149,7 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 	}
 
 	baseQuery := groupCountQuery
-	
+
 	query := repo.Join(
 		baseQuery,
 		repo.JoinWhere(where...),
@@ -181,7 +181,6 @@ func (g *PgGroupRepository) Save(ctx context.Context, group group.Group) (group.
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Check if group exists
 	var exists bool
 	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1)", dbGroup.ID).Scan(&exists)
 	if err != nil {
@@ -443,7 +442,6 @@ func (g *PgGroupRepository) groupUsers(ctx context.Context, groupID string) ([]u
 	return users, nil
 }
 
-
 func (g *PgGroupRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -495,4 +493,3 @@ func (g *PgGroupRepository) updateGroupRoles(ctx context.Context, groupID string
 	}
 	return nil
 }
-

@@ -9,6 +9,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -56,10 +57,18 @@ func main() {
 		panicWithStack(err)
 	}
 	seeder := application.NewSeeder()
+	email, err := internet.NewEmail("test@gmail.com")
+	if err != nil {
+		panicWithStack(err)
+	}
+	usr, err := user.New("Test", "User", email, user.UILanguageEN).SetPassword("TestPass123!")
+	if err != nil {
+		panicWithStack(err)
+	}
 	seeder.Register(
 		coreseed.CreateCurrencies,
 		coreseed.CreatePermissions,
-		coreseed.UserSeedFunc("test@gmail.com", "TestPass123!", user.UILanguageEN),
+		coreseed.UserSeedFunc(usr),
 	)
 	if err := seeder.Seed(composables.WithTx(ctx, tx), app); err != nil {
 		panicWithStack(err)
