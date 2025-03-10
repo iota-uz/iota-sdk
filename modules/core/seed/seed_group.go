@@ -9,18 +9,18 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-func SeederForGroup(groups []group.Group) application.SeedFunc {
+func GroupsSeedFunc(groups ...group.Group) application.SeedFunc {
 	return func(ctx context.Context, app application.Application) error {
-		conf := configuration.Use()
+		logger := configuration.Use().Logger()
 		groupRepository := persistence.NewGroupRepository(
 			persistence.NewUserRepository(persistence.NewUploadRepository()),
 			persistence.NewRoleRepository(),
 		)
 
 		for _, g := range groups {
-			conf.Logger().Infof("Saving group: %s", g.Name())
+			logger.Infof("Saving group: %s", g.Name())
 			if _, err := groupRepository.Save(ctx, g); err != nil {
-				conf.Logger().Errorf("Failed to save group %s: %v", g.Name(), err)
+				logger.Errorf("Failed to save group %s: %v", g.Name(), err)
 				return err
 			}
 		}

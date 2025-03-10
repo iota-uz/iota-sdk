@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -17,23 +16,17 @@ import (
 )
 
 const (
-	adminRoleName    = "Admin"
-	adminRoleDesc    = "Administrator"
-	defaultFirstName = "Admin"
-	defaultLastName  = "User"
+	adminRoleName = "Admin"
+	adminRoleDesc = "Administrator"
 )
 
 type userSeeder struct {
-	email  string
-	pass   string
-	uiLang user.UILanguage
+	user user.User
 }
 
-func UserSeedFunc(email, password string, uiLang user.UILanguage) application.SeedFunc {
+func UserSeedFunc(usr user.User) application.SeedFunc {
 	s := &userSeeder{
-		email:  email,
-		pass:   password,
-		uiLang: uiLang,
+		user: usr,
 	}
 	return s.CreateUser
 }
@@ -58,9 +51,9 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
+	logger := configuration.Use().Logger()
 	if len(matches) > 0 {
-		conf.Logger().Infof("Role %s already exists", adminRoleName)
+		logger.Infof("Role %s already exists", adminRoleName)
 		return matches[0], nil
 	}
 
@@ -68,48 +61,35 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	if err != nil {
 		return nil, err
 	}
-	conf.Logger().Infof("Creating role %s", adminRoleName)
+	logger.Infof("Creating role %s", adminRoleName)
 	return roleRepository.Create(ctx, newRole)
 }
 
 func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.User, error) {
 	uploadRepository := persistence.NewUploadRepository()
 	userRepository := persistence.NewUserRepository(uploadRepository)
-	foundUser, err := userRepository.GetByEmail(ctx, s.email)
+	foundUser, err := userRepository.GetByEmail(ctx, s.user.Email().Value())
 	if err != nil && !errors.Is(err, persistence.ErrUserNotFound) {
 		return nil, err
 	}
 
-	conf := configuration.Use()
+	logger := configuration.Use().Logger()
 	if foundUser != nil {
-		conf.Logger().Infof("User %s already exists", s.email)
+		logger.Infof("User %s already exists", s.user.Email().Value())
 		return foundUser, nil
 	}
-	
-	email, err := internet.NewEmail(s.email)
-	if err != nil {
-		return nil, err
-	}
 
-	usr, err := user.New(
-		defaultFirstName,
-		defaultLastName,
-		email,
-		s.uiLang,
-		user.WithMiddleName(""),
-		user.WithRoles([]role.Role{r}),
-	).SetPassword(s.pass)
-	if err != nil {
-		return nil, err
-	}
-
-	conf.Logger().Infof("Creating user %s", s.email)
-	return userRepository.Create(ctx, usr)
+	logger.Infof("Creating user %s", s.user.Email().Value())
+	return userRepository.Create(ctx, s.user.AddRole(r))
 }
 
-func (s *userSeeder) createUserTabs(ctx context.Context, usr user.User, app application.Application) error {
+func (s *userSeeder) createUserTabs(
+	ctx context.Context,
+	usr user.User,
+	app application.Application,
+) error {
 	tabsRepository := persistence.NewTabRepository()
-	localizer := i18n.NewLocalizer(app.Bundle(), string(s.uiLang))
+	localizer := i18n.NewLocalizer(app.Bundle(), string(s.user.UILanguage()))
 	tabs := buildTabsFromNavItems(app.NavItems(localizer), usr.ID())
 
 	for _, t := range tabs {

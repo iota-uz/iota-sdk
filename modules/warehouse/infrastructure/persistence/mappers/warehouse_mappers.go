@@ -1,6 +1,7 @@
 package mappers
 
 import (
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
@@ -134,13 +135,13 @@ func ToDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 		CreatedByID:  dbInventoryCheck.CreatedByID,
 	}
 	if dbInventoryCheck.CreatedBy != nil {
-		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil)
+		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil, []uuid.UUID{})
 		if err != nil {
 			return nil, err
 		}
 	}
 	if dbInventoryCheck.FinishedBy != nil {
-		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy, nil, nil)
+		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy, nil, nil, []uuid.UUID{})
 		if err != nil {
 			return nil, err
 		}

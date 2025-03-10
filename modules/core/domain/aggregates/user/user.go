@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/utils/sequence"
@@ -57,6 +58,12 @@ func WithRoles(roles []role.Role) Option {
 	}
 }
 
+func WithGroupIDs(groupIDs []uuid.UUID) Option {
+	return func(u *user) {
+		u.groupIDs = groupIDs
+	}
+}
+
 func WithLastIP(ip string) Option {
 	return func(u *user) {
 		u.lastIP = ip
@@ -101,6 +108,7 @@ type User interface {
 	LastIP() string
 	UILanguage() UILanguage
 	Roles() []role.Role
+	GroupIDs() []uuid.UUID
 	LastLogin() time.Time
 	LastAction() time.Time
 	CreatedAt() time.Time
@@ -110,6 +118,8 @@ type User interface {
 	CheckPassword(password string) bool
 
 	AddRole(r role.Role) User
+	AddGroupID(groupID uuid.UUID) User
+	RemoveGroupID(groupID uuid.UUID) User
 	SetName(firstName, lastName, middleName string) User
 	SetUILanguage(lang UILanguage) User
 	SetAvatarID(id uint) User
@@ -139,6 +149,7 @@ func New(
 		lastIP:     "",
 		uiLanguage: uiLanguage,
 		roles:      []role.Role{},
+		groupIDs:   []uuid.UUID{},
 		lastLogin:  time.Time{},
 		lastAction: time.Time{},
 		createdAt:  time.Now(),
@@ -162,6 +173,7 @@ type user struct {
 	lastIP     string
 	uiLanguage UILanguage
 	roles      []role.Role
+	groupIDs   []uuid.UUID
 	lastLogin  time.Time
 	lastAction time.Time
 	createdAt  time.Time
@@ -212,6 +224,10 @@ func (u *user) Roles() []role.Role {
 	return u.roles
 }
 
+func (u *user) GroupIDs() []uuid.UUID {
+	return u.groupIDs
+}
+
 func (u *user) FullName() string {
 	out := new(strings.Builder)
 	if u.firstName != "" {
@@ -231,6 +247,27 @@ func (u *user) FullName() string {
 func (u *user) AddRole(r role.Role) User {
 	result := *u
 	result.roles = append(result.roles, r)
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) AddGroupID(groupID uuid.UUID) User {
+	result := *u
+	result.groupIDs = append(result.groupIDs, groupID)
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) RemoveGroupID(groupID uuid.UUID) User {
+	result := *u
+	filteredGroups := make([]uuid.UUID, 0, len(result.groupIDs))
+	for _, id := range result.groupIDs {
+		if id == groupID {
+			continue
+		}
+		filteredGroups = append(filteredGroups, id)
+	}
+	result.groupIDs = filteredGroups
 	result.updatedAt = time.Now()
 	return &result
 }
