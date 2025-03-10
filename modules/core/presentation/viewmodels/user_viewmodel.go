@@ -35,11 +35,15 @@ func (u *User) RolesVerbose() string {
 }
 
 func (u *User) Initials() string {
-	firstName := []rune(u.FirstName)
-	lastName := []rune(u.LastName)
-	initials := []rune{firstName[0], lastName[0]}
-	for i, r := range initials {
-		initials[i] = unicode.ToUpper(r)
+	initials := ""
+	if u.FirstName != "" {
+		initials += string(unicode.ToUpper(rune(u.FirstName[0])))
 	}
-	return string(initials)
+	if u.LastName != "" {
+		initials += string(unicode.ToUpper(rune(u.LastName[0])))
+	}
+	if initials == "" {
+		return "NA"
+	}
+	return initials
 }
