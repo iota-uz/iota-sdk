@@ -86,7 +86,7 @@ CREATE TABLE user_roles (
 );
 
 CREATE TABLE user_groups (
-    id serial PRIMARY KEY,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     name varchar(255) UNIQUE NOT NULL,
     description text,
     created_at timestamp DEFAULT now(),
@@ -94,14 +94,14 @@ CREATE TABLE user_groups (
 );
 
 CREATE TABLE group_users (
-    group_id integer REFERENCES user_groups (id) ON DELETE CASCADE,
+    group_id uuid REFERENCES user_groups (id) ON DELETE CASCADE,
     user_id integer REFERENCES users (id) ON DELETE CASCADE,
     created_at timestamp DEFAULT now(),
     PRIMARY KEY (group_id, user_id)
 );
 
 CREATE TABLE group_roles (
-    group_id integer REFERENCES user_groups (id) ON DELETE CASCADE,
+    group_id uuid REFERENCES user_groups (id) ON DELETE CASCADE,
     role_id integer REFERENCES roles (id) ON DELETE CASCADE,
     created_at timestamp DEFAULT now(),
     PRIMARY KEY (group_id, role_id)

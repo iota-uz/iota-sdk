@@ -27,6 +27,7 @@ type FindParams struct {
 	Name         string
 	PermissionID *repo.Filter
 	RoleID       *repo.Filter
+	GroupID      *repo.Filter
 	Email        *repo.Filter
 	LastLogin    *repo.Filter
 	CreatedAt    *repo.Filter
