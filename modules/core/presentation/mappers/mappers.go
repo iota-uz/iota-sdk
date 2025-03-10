@@ -23,7 +23,7 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: entity.MiddleName(),
-		Email:      entity.Email(),
+		Email:      entity.Email().Value(),
 		Avatar:     avatar,
 		UILanguage: string(entity.UILanguage()),
 		LastAction: entity.LastAction().Format(time.RFC3339),

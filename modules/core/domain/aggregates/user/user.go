@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/utils/sequence"
 
 	"golang.org/x/crypto/bcrypt"
@@ -94,7 +95,7 @@ type User interface {
 	LastName() string
 	MiddleName() string
 	Password() string
-	Email() string
+	Email() internet.Email
 	AvatarID() uint
 	Avatar() upload.Upload
 	LastIP() string
@@ -115,13 +116,14 @@ type User interface {
 	SetLastIP(ip string) User
 	SetPassword(password string) (User, error)
 	SetPasswordUnsafe(password string) User
-	SetEmail(email string) User
+	SetEmail(email internet.Email) User
 }
 
 // ---- Implementation ----
 
 func New(
-	firstName, lastName, email string,
+	firstName, lastName string,
+	email internet.Email,
 	uiLanguage UILanguage,
 	opts ...Option,
 ) User {
@@ -154,7 +156,7 @@ type user struct {
 	lastName   string
 	middleName string
 	password   string
-	email      string
+	email      internet.Email
 	avatarID   uint
 	avatar     upload.Upload
 	lastIP     string
@@ -186,7 +188,7 @@ func (u *user) Password() string {
 	return u.password
 }
 
-func (u *user) Email() string {
+func (u *user) Email() internet.Email {
 	return u.email
 }
 
@@ -227,23 +229,10 @@ func (u *user) FullName() string {
 }
 
 func (u *user) AddRole(r role.Role) User {
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   u.password,
-		email:      u.email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		lastIP:     u.lastIP,
-		uiLanguage: u.uiLanguage,
-		roles:      append(u.roles, r),
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
+	result := *u
+	result.roles = append(result.roles, r)
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (u *user) LastLogin() time.Time {
@@ -279,103 +268,40 @@ func (u *user) CheckPassword(password string) bool {
 }
 
 func (u *user) SetName(firstName, lastName, middleName string) User {
-	return &user{
-		id:         u.id,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: middleName,
-		password:   u.password,
-		email:      u.email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		lastIP:     u.lastIP,
-		uiLanguage: u.uiLanguage,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
+	result := *u
+	result.firstName = firstName
+	result.lastName = lastName
+	result.middleName = middleName
+	result.updatedAt = time.Now()
+	return &result
 }
 
-func (u *user) SetEmail(email string) User {
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   u.password,
-		email:      email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		lastIP:     u.lastIP,
-		uiLanguage: u.uiLanguage,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
+func (u *user) SetEmail(email internet.Email) User {
+	result := *u
+	result.email = email
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (u *user) SetUILanguage(lang UILanguage) User {
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   u.password,
-		email:      u.email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		lastIP:     u.lastIP,
-		uiLanguage: lang,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
+	result := *u
+	result.uiLanguage = lang
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (u *user) SetAvatarID(id uint) User {
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   u.password,
-		email:      u.email,
-		avatarID:   id,
-		avatar:     u.avatar,
-		lastIP:     u.lastIP,
-		uiLanguage: u.uiLanguage,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
+	result := *u
+	result.avatarID = id
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (u *user) SetLastIP(ip string) User {
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   u.password,
-		email:      u.email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		lastIP:     ip,
-		uiLanguage: u.uiLanguage,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
+	result := *u
+	result.lastIP = ip
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (u *user) SetPassword(password string) (User, error) {
@@ -383,42 +309,16 @@ func (u *user) SetPassword(password string) (User, error) {
 	if err != nil {
 		return nil, err
 	}
-	newPassword := string(hash)
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   newPassword,
-		email:      u.email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		lastIP:     u.lastIP,
-		uiLanguage: u.uiLanguage,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}, nil
+
+	result := *u
+	result.password = string(hash)
+	result.updatedAt = time.Now()
+	return &result, nil
 }
 
 func (u *user) SetPasswordUnsafe(newPassword string) User {
-	return &user{
-		id:         u.id,
-		firstName:  u.firstName,
-		lastName:   u.lastName,
-		middleName: u.middleName,
-		password:   newPassword,
-		email:      u.email,
-		avatarID:   u.avatarID,
-		avatar:     u.avatar,
-		lastIP:     u.lastIP,
-		uiLanguage: u.uiLanguage,
-		roles:      u.roles,
-		lastLogin:  u.lastLogin,
-		lastAction: u.lastAction,
-		createdAt:  u.createdAt,
-		updatedAt:  time.Now(),
-	}
+	result := *u
+	result.password = newPassword
+	result.updatedAt = time.Now()
+	return &result
 }

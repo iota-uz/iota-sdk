@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -43,10 +44,16 @@ func MockUser(permissions ...*permission.Permission) user.User {
 	if err != nil {
 		panic(err)
 	}
+	
+	email, err := internet.NewEmail("test@example.com")
+	if err != nil {
+		panic(err)
+	}
+	
 	return user.New(
 		"", // firstName
 		"", // lastName
-		"", // email
+		email,
 		"", // uiLanguage
 		user.WithID(1),
 		user.WithRoles([]role.Role{r}),

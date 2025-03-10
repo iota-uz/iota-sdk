@@ -3,6 +3,7 @@ package persistence
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -77,6 +78,11 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 	if err != nil {
 		return nil, err
 	}
+	email, err := internet.NewEmail("payment@system.internal")
+	if err != nil {
+		return nil, err
+	}
+	
 	return payment.NewWithID(
 		dbPayment.ID,
 		t.Amount,
@@ -87,7 +93,7 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		user.New(
 			"", // firstName
 			"", // lastName
-			"", // email
+			email,
 			"", // uiLanguage
 		),
 		t.TransactionDate,

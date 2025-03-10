@@ -5,6 +5,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"testing"
@@ -57,10 +58,14 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 	}
 	
 	// Create first user with first role
+	email, err := internet.NewEmail("test@gmail.com")
+	if err != nil {
+		t.Fatal(err)
+	}
 	userEntity := user.New(
 		"John",
 		"Doe",
-		"test@gmail.com",
+		email,
 		user.UILanguageEN,
 		user.WithMiddleName(""),
 		user.WithRoles([]role.Role{roleEntity}),
@@ -72,10 +77,14 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 	}
 	
 	// Create second user with second role
+	secondEmail, err := internet.NewEmail("jane@gmail.com")
+	if err != nil {
+		t.Fatal(err)
+	}
 	secondUserEntity := user.New(
 		"Jane",
 		"Smith",
-		"jane@gmail.com",
+		secondEmail,
 		user.UILanguageEN,
 		user.WithMiddleName(""),
 		user.WithRoles([]role.Role{secondRoleEntity}),

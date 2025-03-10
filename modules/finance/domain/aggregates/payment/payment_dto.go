@@ -4,6 +4,7 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"time"
@@ -44,6 +45,12 @@ func (p *CreateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (p *CreateDTO) ToEntity() Payment {
+	email, err := internet.NewEmail("payment@system.internal")
+	if err != nil {
+		// This should never happen with a hardcoded valid email
+		panic(err)
+	}
+	
 	return New(
 		p.Amount,
 		0,
@@ -53,7 +60,7 @@ func (p *CreateDTO) ToEntity() Payment {
 		user.New(
 			"", // firstName
 			"", // lastName
-			"", // email
+			email,
 			"", // uiLanguage
 			user.WithID(p.UserID),
 		),
@@ -75,6 +82,12 @@ func (p *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 }
 
 func (p *UpdateDTO) ToEntity(id uint) Payment {
+	email, err := internet.NewEmail("payment@system.internal")
+	if err != nil {
+		// This should never happen with a hardcoded valid email
+		panic(err)
+	}
+	
 	return NewWithID(
 		id,
 		p.Amount,
@@ -85,7 +98,7 @@ func (p *UpdateDTO) ToEntity(id uint) Payment {
 		user.New(
 			"", // firstName
 			"", // lastName
-			"", // email
+			email,
 			"", // uiLanguage
 			user.WithID(p.UserID),
 		),

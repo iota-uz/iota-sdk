@@ -8,7 +8,7 @@ import (
 func UserToGraphModel(u user.User) *model.User {
 	return &model.User{
 		ID:         int64(u.ID()),
-		Email:      u.Email(),
+		Email:      u.Email().Value(),
 		FirstName:  u.FirstName(),
 		LastName:   u.LastName(),
 		UILanguage: string(u.UILanguage()),
