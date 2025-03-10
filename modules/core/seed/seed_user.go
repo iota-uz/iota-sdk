@@ -73,7 +73,8 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 }
 
 func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.User, error) {
-	userRepository := persistence.NewUserRepository()
+	uploadRepository := persistence.NewUploadRepository()
+	userRepository := persistence.NewUserRepository(uploadRepository)
 	foundUser, err := userRepository.GetByEmail(ctx, s.email)
 	if err != nil && !errors.Is(err, persistence.ErrUserNotFound) {
 		return nil, err

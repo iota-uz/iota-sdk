@@ -2,12 +2,12 @@ package persistence
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -32,15 +32,8 @@ const (
             u.last_ip,
             u.last_action,
             u.created_at,
-            u.updated_at,
-            up.id,
-            up.hash,
-            up.path,
-            up.size,
-            up.mimetype,
-            up.created_at,
-            up.updated_at
-        FROM users u LEFT JOIN uploads up ON u.avatar_id = up.id`
+            u.updated_at
+        FROM users u`
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
 
@@ -67,10 +60,14 @@ const (
 		`
 )
 
-type PgUserRepository struct{}
+type PgUserRepository struct{
+	uploadRepo upload.Repository
+}
 
-func NewUserRepository() user.Repository {
-	return &PgUserRepository{}
+func NewUserRepository(uploadRepo upload.Repository) user.Repository {
+	return &PgUserRepository{
+		uploadRepo: uploadRepo,
+	}
 }
 
 func BuildUserFilters(params *user.FindParams) ([]string, []interface{}, error) {
@@ -411,19 +408,8 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 	defer rows.Close()
 
 	var users []*models.User
-	var uploads []*models.Upload
 	for rows.Next() {
 		var u models.User
-
-		var (
-			avatarId        sql.NullInt32
-			avatarHash      sql.NullString
-			avatarPath      sql.NullString
-			avatarSize      sql.NullInt32
-			avatarMimetype  sql.NullString
-			avatarCreatedAt sql.NullTime
-			avatarUpdatedAt sql.NullTime
-		)
 
 		if err := rows.Scan(
 			&u.ID,
@@ -439,37 +425,14 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 			&u.LastAction,
 			&u.CreatedAt,
 			&u.UpdatedAt,
-			&avatarId,
-			&avatarHash,
-			&avatarPath,
-			&avatarSize,
-			&avatarMimetype,
-			&avatarCreatedAt,
-			&avatarUpdatedAt,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan user row")
 		}
 		users = append(users, &u)
-		if avatarId.Valid {
-			uploads = append(uploads, &models.Upload{
-				ID:        uint(avatarId.Int32),
-				Hash:      avatarHash.String,
-				Path:      avatarPath.String,
-				Size:      int(avatarSize.Int32),
-				Mimetype:  avatarMimetype.String,
-				CreatedAt: avatarCreatedAt.Time,
-				UpdatedAt: avatarUpdatedAt.Time,
-			})
-		}
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, errors.Wrap(err, "row iteration error")
-	}
-
-	uploadMap := make(map[uint]*models.Upload)
-	for _, u := range uploads {
-		uploadMap[u.ID] = u
 	}
 
 	entities := make([]user.User, 0, len(users))
@@ -478,12 +441,26 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get roles for user ID: %d", u.ID))
 		}
-		avatar, _ := uploadMap[uint(u.AvatarID.Int32)]
-		entity, err := ToDomainUser(u, avatar, roles)
+		
+		var avatar upload.Upload
+		if u.AvatarID.Valid {
+			avatar, err = g.uploadRepo.GetByID(ctx, uint(u.AvatarID.Int32))
+			if err != nil && !errors.Is(err, ErrUploadNotFound) {
+				return nil, errors.Wrap(err, fmt.Sprintf("failed to get avatar for user ID: %d", u.ID))
+			}
+		}
+		
+		var domainUser user.User
+		if avatar != nil {
+			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles)
+		} else {
+			domainUser, err = ToDomainUser(u, nil, roles)
+		}
+		
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert user ID: %d to domain entity", u.ID))
 		}
-		entities = append(entities, entity)
+		entities = append(entities, domainUser)
 	}
 
 	return entities, nil
