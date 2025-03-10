@@ -13,6 +13,79 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
+type Option func(u *user)
+
+// --- Option setters ---
+
+func WithID(id uint) Option {
+	return func(u *user) {
+		u.id = id
+	}
+}
+
+func WithMiddleName(middleName string) Option {
+	return func(u *user) {
+		u.middleName = middleName
+	}
+}
+
+func WithPassword(password string) Option {
+	return func(u *user) {
+		u.password = password
+	}
+}
+
+func WithAvatar(avatar upload.Upload) Option {
+	return func(u *user) {
+		u.avatar = avatar
+		if avatar != nil {
+			u.avatarID = avatar.ID()
+		}
+	}
+}
+
+func WithAvatarID(id uint) Option {
+	return func(u *user) {
+		u.avatarID = id
+	}
+}
+
+func WithRoles(roles []role.Role) Option {
+	return func(u *user) {
+		u.roles = roles
+	}
+}
+
+func WithLastIP(ip string) Option {
+	return func(u *user) {
+		u.lastIP = ip
+	}
+}
+
+func WithLastLogin(t time.Time) Option {
+	return func(u *user) {
+		u.lastLogin = t
+	}
+}
+
+func WithLastAction(t time.Time) Option {
+	return func(u *user) {
+		u.lastAction = t
+	}
+}
+
+func WithCreatedAt(t time.Time) Option {
+	return func(u *user) {
+		u.createdAt = t
+	}
+}
+
+func WithUpdatedAt(t time.Time) Option {
+	return func(u *user) {
+		u.updatedAt = t
+	}
+}
+
 // ---- Interfaces ----
 
 type User interface {
@@ -48,62 +121,31 @@ type User interface {
 // ---- Implementation ----
 
 func New(
-	firstName, lastName, middleName, password, email string,
-	avatar upload.Upload, uiLanguage UILanguage,
-	roles []role.Role,
+	firstName, lastName, email string,
+	uiLanguage UILanguage,
+	opts ...Option,
 ) User {
-	var avatarID uint
-	if avatar != nil {
-		avatarID = avatar.ID()
-	}
-	return &user{
+	u := &user{
 		id:         0,
 		firstName:  firstName,
 		lastName:   lastName,
-		middleName: middleName,
-		password:   password,
+		middleName: "",
+		password:   "",
 		email:      email,
-		avatarID:   avatarID,
-		avatar:     avatar,
+		avatarID:   0,
+		avatar:     nil,
 		lastIP:     "",
 		uiLanguage: uiLanguage,
-		roles:      roles,
+		roles:      []role.Role{},
 		lastLogin:  time.Time{},
 		lastAction: time.Time{},
 		createdAt:  time.Now(),
 		updatedAt:  time.Now(),
 	}
-}
-
-func NewWithID(
-	id uint,
-	firstName, lastName, middleName, password, email string,
-	avatar upload.Upload, lastIP string,
-	uiLanguage UILanguage,
-	roles []role.Role,
-	lastLogin, lastAction, createdAt, updatedAt time.Time,
-) User {
-	var avatarID uint
-	if avatar != nil {
-		avatarID = avatar.ID()
+	for _, opt := range opts {
+		opt(u)
 	}
-	return &user{
-		id:         id,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: middleName,
-		password:   password,
-		email:      email,
-		avatarID:   avatarID,
-		avatar:     avatar,
-		lastIP:     lastIP,
-		uiLanguage: uiLanguage,
-		roles:      roles,
-		lastLogin:  lastLogin,
-		lastAction: lastAction,
-		createdAt:  createdAt,
-		updatedAt:  updatedAt,
-	}
+	return u
 }
 
 type user struct {

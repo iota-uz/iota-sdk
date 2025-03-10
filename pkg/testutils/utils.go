@@ -43,21 +43,15 @@ func MockUser(permissions ...*permission.Permission) user.User {
 	if err != nil {
 		panic(err)
 	}
-	return user.NewWithID(
-		1,
-		"",
-		"",
-		"",
-		"",
-		"",
-		nil,
-		"",
-		"",
-		[]role.Role{r},
-		time.Now(),
-		time.Now(),
-		time.Now(),
-		time.Now(),
+	return user.New(
+		"", // firstName
+		"", // lastName
+		"", // email
+		"", // uiLanguage
+		user.WithID(1),
+		user.WithRoles([]role.Role{r}),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
 	)
 }
 

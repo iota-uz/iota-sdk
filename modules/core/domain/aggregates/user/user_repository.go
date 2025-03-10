@@ -24,6 +24,7 @@ type FindParams struct {
 	Limit  int
 	Offset int
 	SortBy SortBy
+	RoleID uint
 	Name   string
 }
 

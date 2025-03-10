@@ -14,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"time"
 )
 
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
@@ -85,21 +84,11 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		dbPayment.CounterpartyID,
 		t.Comment,
 		&moneyaccount.Account{ID: *t.DestinationAccountID}, //nolint:exhaustruct
-		user.NewWithID(
-			0,
-			"",
-			"",
-			"",
-			"",
-			"",
-			nil,
-			"",
-			"",
-			nil,
-			time.Now(),
-			time.Now(),
-			time.Now(),
-			time.Now(),
+		user.New(
+			"", // firstName
+			"", // lastName
+			"", // email
+			"", // uiLanguage
 		),
 		t.TransactionDate,
 		t.AccountingPeriod,

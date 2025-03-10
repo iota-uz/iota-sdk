@@ -17,6 +17,8 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
 	userRepository := persistence.NewUserRepository()
+	
+	// Create first role
 	roleData, err := role.New(
 		"test",
 		"test",
@@ -36,18 +38,50 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	
+	// Create second role for testing role filtering
+	secondRoleData, err := role.New(
+		"admin",
+		"admin role",
+		[]*permission.Permission{
+			permissions.UserRead,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	secondRoleEntity, err := roleRepository.Create(f.ctx, secondRoleData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	// Create first user with first role
 	userEntity := user.New(
 		"John",
 		"Doe",
-		"",
-		"",
 		"test@gmail.com",
-		nil,
 		user.UILanguageEN,
-		[]role.Role{roleEntity},
+		user.WithMiddleName(""),
+		user.WithRoles([]role.Role{roleEntity}),
 	)
 
 	createdUser, err := userRepository.Create(f.ctx, userEntity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	// Create second user with second role
+	secondUserEntity := user.New(
+		"Jane",
+		"Smith",
+		"jane@gmail.com",
+		user.UILanguageEN,
+		user.WithMiddleName(""),
+		user.WithRoles([]role.Role{secondRoleEntity}),
+	)
+	
+	secondCreatedUser, err := userRepository.Create(f.ctx, secondUserEntity)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,6 +171,72 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("FilterByRoleID", func(t *testing.T) {
+		// Test filtering by the first role
+		params := &user.FindParams{
+			RoleID: roleEntity.ID(),
+			SortBy: user.SortBy{
+				Fields:    []user.Field{user.FirstName},
+				Ascending: true,
+			},
+			Limit:  10,
+			Offset: 0,
+		}
+
+		// Get users with first role
+		users, err := userRepository.GetPaginated(f.ctx, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Should return only one user with the first role
+		if len(users) != 1 {
+			t.Errorf("expected 1 user, got %d", len(users))
+		}
+		
+		if len(users) > 0 && users[0].ID() != createdUser.ID() {
+			t.Errorf("expected user ID %d, got %d", createdUser.ID(), users[0].ID())
+		}
+		
+		// Test count with role filter
+		count, err := userRepository.Count(f.ctx, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		if count != 1 {
+			t.Errorf("expected count 1, got %d", count)
+		}
+		
+		// Test filtering by the second role
+		params.RoleID = secondRoleEntity.ID()
+		
+		// Get users with second role
+		users, err = userRepository.GetPaginated(f.ctx, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Should return only one user with the second role
+		if len(users) != 1 {
+			t.Errorf("expected 1 user, got %d", len(users))
+		}
+		
+		if len(users) > 0 && users[0].ID() != secondCreatedUser.ID() {
+			t.Errorf("expected user ID %d, got %d", secondCreatedUser.ID(), users[0].ID())
+		}
+		
+		// Test count with second role filter
+		count, err = userRepository.Count(f.ctx, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		if count != 1 {
+			t.Errorf("expected count 1, got %d", count)
+		}
+	})
 
 	t.Run(
 		"Delete", func(t *testing.T) {
