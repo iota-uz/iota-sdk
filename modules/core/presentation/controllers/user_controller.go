@@ -172,7 +172,8 @@ func (c *UsersController) Key() string {
 }
 
 func (c *UsersController) Register(r *mux.Router) {
-	commonMiddleware := []mux.MiddlewareFunc{
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
@@ -180,17 +181,14 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
-	}
-
-	router := r.PathPrefix(c.basePath).Subrouter()
-	router.Use(commonMiddleware...)
+	)
 	router.HandleFunc("", c.Users).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.DeleteUser).Methods(http.MethodDelete)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 
 	c.realtime.Register()
 }
@@ -253,64 +251,6 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *UsersController) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if _, err := c.userService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	shared.Redirect(w, r, c.basePath)
-}
-
-func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	dto, err := composables.UseForm(&user.UpdateDTO{}, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if errors, ok := dto.Ok(r.Context()); !ok {
-		roles, err := c.roleService.GetAll(r.Context())
-		if err != nil {
-			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
-			return
-		}
-
-		us, err := c.userService.GetByID(r.Context(), id)
-		if err != nil {
-			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
-			return
-		}
-
-		props := &users.EditFormProps{
-			User:   mappers.UserToViewModel(us),
-			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Errors: errors,
-		}
-		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		return
-	}
-	userEntity, err := dto.ToEntity(id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := c.userService.Update(r.Context(), userEntity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	shared.Redirect(w, r, c.basePath)
-}
-
 func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 	roles, err := c.roleService.GetAll(r.Context())
 	if err != nil {
@@ -364,5 +304,63 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dto, err := composables.UseForm(&user.UpdateDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if errors, ok := dto.Ok(r.Context()); !ok {
+		roles, err := c.roleService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+			return
+		}
+
+		us, err := c.userService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
+			return
+		}
+
+		props := &users.EditFormProps{
+			User:   mappers.UserToViewModel(us),
+			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors: errors,
+		}
+		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+	userEntity, err := dto.ToEntity(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.userService.Update(r.Context(), userEntity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *UsersController) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := c.userService.Delete(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	shared.Redirect(w, r, c.basePath)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -43,7 +42,7 @@ const (
             up.updated_at
         FROM users u LEFT JOIN uploads up ON u.avatar_id = up.id`
 
-	userCountQuery = `SELECT COUNT(id) FROM users`
+	userCountQuery = `SELECT COUNT(u.id) FROM users u`
 
 	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
 
@@ -68,60 +67,139 @@ const (
 		`
 )
 
-type GormUserRepository struct{}
+type PgUserRepository struct{}
 
 func NewUserRepository() user.Repository {
-	return &GormUserRepository{}
+	return &PgUserRepository{}
 }
 
-// buildFilters creates the where clauses and arguments for filtering user queries
-func (g *GormUserRepository) buildFilters(params *user.FindParams) (baseQuery string, where []string, args []interface{}) {
-	where = []string{"1 = 1"}
-	args = []interface{}{}
-	
-	// Start with the appropriate base query
-	baseQuery = userFindQuery
-	
+func BuildUserFilters(params *user.FindParams) ([]string, []interface{}, error) {
+	where := []string{"1 = 1"}
+	args := []interface{}{}
+
 	// Add join for role filter if needed
-	if params != nil && params.RoleID > 0 {
-		// For Count method we use different base query, so we need to ensure the join part is always added
-		if !strings.Contains(baseQuery, "JOIN user_roles ur") {
-			baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+	if params.RoleID != nil {
+		switch params.RoleID.Expr {
+		case repo.Eq:
+			where = append(where, fmt.Sprintf("ur.role_id = $%d", len(args)+1))
+		case repo.NotEq:
+			where = append(where, fmt.Sprintf("ur.role_id != $%d", len(args)+1))
+		case repo.In:
+			if values, ok := params.RoleID.Value.([]interface{}); ok && len(values) > 0 {
+				where = append(where, fmt.Sprintf("ur.role_id = ANY($%d)", len(args)+1))
+				args = append(args, values)
+				return where, args, nil
+			}
+			return nil, nil, errors.Wrap(fmt.Errorf("invalid value for role ID filter: %v", params.RoleID.Value), "invalid filter")
+		default:
+			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for role ID filter: %v", params.RoleID.Expr), "invalid filter")
 		}
-		where = append(where, "ur.role_id = $"+fmt.Sprintf("%d", len(args)+1))
-		args = append(args, params.RoleID)
+		args = append(args, params.RoleID.Value)
 	}
 
-	if params != nil && params.Name != "" {
-		where = append(where, "(u.first_name ILIKE $"+fmt.Sprintf("%d", len(args)+1)+" OR u.last_name ILIKE $"+fmt.Sprintf("%d", len(args)+1)+" OR u.middle_name ILIKE $"+fmt.Sprintf("%d", len(args)+1)+")")
+	if params.CreatedAt != nil {
+		switch params.CreatedAt.Expr {
+		case repo.Gt:
+			where = append(where, fmt.Sprintf("u.created_at > $%d", len(args)+1))
+		case repo.Gte:
+			where = append(where, fmt.Sprintf("u.created_at >= $%d", len(args)+1))
+		case repo.Lt:
+			where = append(where, fmt.Sprintf("u.created_at < $%d", len(args)+1))
+		case repo.Lte:
+			where = append(where, fmt.Sprintf("u.created_at <= $%d", len(args)+1))
+		default:
+			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for created at filter: %v", params.CreatedAt.Expr), "invalid filter")
+		}
+
+		args = append(args, params.CreatedAt.Value)
+	}
+
+	if params.Email != nil {
+		switch params.Email.Expr {
+		case repo.Eq:
+			where = append(where, fmt.Sprintf("u.email = $%d", len(args)+1))
+			args = append(args, params.Email.Value)
+		case repo.NotEq:
+			where = append(where, fmt.Sprintf("u.email != $%d", len(args)+1))
+			args = append(args, params.Email.Value)
+		case repo.Like:
+			where = append(where, fmt.Sprintf("u.email ILIKE $%d", len(args)+1))
+			args = append(args, params.Email.Value)
+		case repo.In:
+			if values, ok := params.Email.Value.([]interface{}); ok && len(values) > 0 {
+				where = append(where, fmt.Sprintf("u.email = ANY($%d)", len(args)+1))
+				args = append(args, values)
+			} else {
+				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for email filter: %v", params.Email.Value), "invalid filter")
+			}
+		default:
+			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for email filter: %v", params.Email.Expr), "invalid filter")
+		}
+	}
+
+	if params.LastLogin != nil {
+		switch params.LastLogin.Expr {
+		case repo.Gt:
+			where = append(where, fmt.Sprintf("u.last_login > $%d", len(args)+1))
+		case repo.Gte:
+			where = append(where, fmt.Sprintf("u.last_login >= $%d", len(args)+1))
+		case repo.Lt:
+			where = append(where, fmt.Sprintf("u.last_login < $%d", len(args)+1))
+		case repo.Lte:
+			where = append(where, fmt.Sprintf("u.last_login <= $%d", len(args)+1))
+		default:
+			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for last login filter: %v", params.LastLogin.Expr), "invalid filter")
+		}
+		args = append(args, params.LastLogin.Value)
+	}
+
+	if params.Name != "" {
+		index := len(args) + 1
+		where = append(
+			where,
+			fmt.Sprintf(
+				"(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.middle_name ILIKE $%d)",
+				index,
+				index,
+				index,
+			),
+		)
 		args = append(args, "%"+params.Name+"%")
 	}
-	
-	return baseQuery, where, args
+
+	return where, args, nil
 }
 
-func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
-	sortFields := []string{}
+func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
+	fieldMap := map[user.Field]string{
+		user.FirstName:  "u.first_name",
+		user.LastName:   "u.last_name",
+		user.MiddleName: "u.middle_name",
+		user.Email:      "u.email",
+		user.LastLogin:  "u.last_login",
+		user.CreatedAt:  "u.created_at",
+		user.UpdatedAt:  "u.updated_at",
+	}
+
+	sortFields := make([]string, 0, len(params.SortBy.Fields))
+
 	for _, f := range params.SortBy.Fields {
-		switch f {
-		case user.FirstName:
-			sortFields = append(sortFields, "u.first_name")
-		case user.LastName:
-			sortFields = append(sortFields, "u.last_name")
-		case user.MiddleName:
-			sortFields = append(sortFields, "u.middle_name")
-		case user.Email:
-			sortFields = append(sortFields, "u.email")
-		case user.LastLogin:
-			sortFields = append(sortFields, "u.last_login")
-		case user.CreatedAt:
-			sortFields = append(sortFields, "u.created_at")
-		default:
+		if field, ok := fieldMap[f]; ok {
+			sortFields = append(sortFields, field)
+		} else {
 			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid pagination parameters")
 		}
 	}
-	
-	baseQuery, where, args := g.buildFilters(params)
+
+	where, args, err := BuildUserFilters(params)
+	if err != nil {
+		return nil, err
+	}
+
+	baseQuery := userFindQuery
+	if params.RoleID != nil {
+		baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+	}
 
 	query := repo.Join(
 		baseQuery,
@@ -136,28 +214,27 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.Find
 	return users, nil
 }
 
-func (g *GormUserRepository) Count(ctx context.Context, params *user.FindParams) (int64, error) {
+func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (int64, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Define a base query for counting users
-	countBaseQuery := "SELECT COUNT(u.id) FROM users u"
-	
-	// If we need to filter by role, add the join to the base query
-	if params != nil && params.RoleID > 0 {
-		countBaseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+	where, args, err := BuildUserFilters(params)
+	if err != nil {
+		return 0, err
 	}
-	
-	// Get the where clauses and args, but ignore the baseQuery from buildFilters
-	_, where, args := g.buildFilters(params)
-	
+
+	baseQuery := userCountQuery
+	if params.RoleID != nil {
+		baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+	}
+
 	query := repo.Join(
-		countBaseQuery,
+		baseQuery,
 		repo.JoinWhere(where...),
 	)
-	
+
 	var count int64
 	err = tx.QueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
@@ -166,7 +243,7 @@ func (g *GormUserRepository) Count(ctx context.Context, params *user.FindParams)
 	return count, nil
 }
 
-func (g *GormUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
+func (g *PgUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get all users")
@@ -174,7 +251,7 @@ func (g *GormUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
 	return users, nil
 }
 
-func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
+func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
@@ -185,7 +262,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, e
 	return users[0], nil
 }
 
-func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
+func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1", email)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with email: %s", email))
@@ -196,7 +273,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (user
 	return users[0], nil
 }
 
-func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {
+func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -245,7 +322,7 @@ func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.U
 	return g.GetByID(ctx, dbUser.ID)
 }
 
-func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
+func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
@@ -297,21 +374,21 @@ func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 	return nil
 }
 
-func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
+func (g *PgUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, userUpdateLastLoginQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last login for user ID: %d", id))
 	}
 	return nil
 }
 
-func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
+func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, userUpdateLastActionQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last action for user ID: %d", id))
 	}
 	return nil
 }
 
-func (g *GormUserRepository) Delete(ctx context.Context, id uint) error {
+func (g *PgUserRepository) Delete(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, userRoleDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete roles for user ID: %d", id))
 	}
@@ -321,7 +398,7 @@ func (g *GormUserRepository) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args ...interface{}) ([]user.User, error) {
+func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ...interface{}) ([]user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -412,7 +489,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 	return entities, nil
 }
 
-func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]*models.Permission, error) {
+func (g *PgUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]*models.Permission, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -447,7 +524,7 @@ func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) (
 	return permissions, nil
 }
 
-func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role.Role, error) {
+func (g *PgUserRepository) userRoles(ctx context.Context, userID uint) ([]role.Role, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -494,7 +571,7 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 	return entities, nil
 }
 
-func (g *GormUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
+func (g *PgUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
@@ -506,7 +583,7 @@ func (g *GormUserRepository) execQuery(ctx context.Context, query string, args .
 	return nil
 }
 
-func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
+func (g *PgUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete existing roles for user ID: %d", userID))
 	}
