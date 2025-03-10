@@ -20,7 +20,7 @@ var (
 
 const (
 	groupFindQuery = `
-		SELECT
+		SELECT DISTINCT
 			g.id,
 			g.name,
 			g.description,
@@ -28,7 +28,7 @@ const (
 			g.updated_at
 		FROM user_groups g`
 
-	groupCountQuery = `SELECT COUNT(g.id) FROM user_groups g`
+	groupCountQuery = `SELECT COUNT(DISTINCT g.id) FROM user_groups g`
 
 	groupDeleteQuery     = `DELETE FROM user_groups WHERE id = $1`
 	groupUserDeleteQuery = `DELETE FROM group_users WHERE group_id = $1`
@@ -81,26 +81,6 @@ func BuildGroupFilters(params *group.FindParams) ([]string, []interface{}, error
 	where := []string{"1 = 1"}
 	args := []interface{}{}
 
-	// Add join for role filter if needed
-	if params.RoleID != nil {
-		switch params.RoleID.Expr {
-		case repo.Eq:
-			where = append(where, fmt.Sprintf("gr.role_id = $%d", len(args)+1))
-		case repo.NotEq:
-			where = append(where, fmt.Sprintf("gr.role_id != $%d", len(args)+1))
-		case repo.In:
-			if values, ok := params.RoleID.Value.([]interface{}); ok && len(values) > 0 {
-				where = append(where, fmt.Sprintf("gr.role_id = ANY($%d)", len(args)+1))
-				args = append(args, values)
-			} else {
-				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for role ID filter: %v", params.RoleID.Value), "invalid filter")
-			}
-		default:
-			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for role ID filter: %v", params.RoleID.Expr), "invalid filter")
-		}
-		args = append(args, params.RoleID.Value)
-	}
-
 	if params.CreatedAt != nil {
 		switch params.CreatedAt.Expr {
 		case repo.Gt:
@@ -142,10 +122,7 @@ func (g *PgGroupRepository) GetPaginated(ctx context.Context, params *group.Find
 	}
 
 	baseQuery := groupFindQuery
-	if params.RoleID != nil {
-		baseQuery += " JOIN group_roles gr ON g.id = gr.group_id"
-	}
-
+	
 	query := repo.Join(
 		baseQuery,
 		repo.JoinWhere(where...),
@@ -172,10 +149,7 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 	}
 
 	baseQuery := groupCountQuery
-	if params.RoleID != nil {
-		baseQuery += " JOIN group_roles gr ON g.id = gr.group_id"
-	}
-
+	
 	query := repo.Join(
 		baseQuery,
 		repo.JoinWhere(where...),
@@ -189,13 +163,13 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 	return count, nil
 }
 
-func (g *PgGroupRepository) GetByID(ctx context.Context, id group.GroupID) (group.Group, error) {
-	groups, err := g.queryGroups(ctx, groupFindQuery+" WHERE g.id = $1", uuid.UUID(id).String())
+func (g *PgGroupRepository) GetByID(ctx context.Context, id uuid.UUID) (group.Group, error) {
+	groups, err := g.queryGroups(ctx, groupFindQuery+" WHERE g.id = $1", id.String())
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group with id: %s", uuid.UUID(id).String()))
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group with id: %s", id.String()))
 	}
 	if len(groups) == 0 {
-		return nil, errors.Wrap(ErrGroupNotFound, fmt.Sprintf("id: %s", uuid.UUID(id).String()))
+		return nil, errors.Wrap(ErrGroupNotFound, fmt.Sprintf("id: %s", id.String()))
 	}
 	return groups[0], nil
 }
@@ -228,10 +202,10 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 
 	// Generate a new UUID if not provided
 	var groupID uuid.UUID
-	if uuid.UUID(entity.ID()) == uuid.Nil {
+	if entity.ID() == uuid.Nil {
 		groupID = uuid.New()
 	} else {
-		groupID = uuid.UUID(entity.ID())
+		groupID = entity.ID()
 	}
 
 	dbGroup := ToDBGroup(entity)
@@ -253,7 +227,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 		dbGroup.UpdatedAt,
 	}
 
-	_, err = tx.Exec(ctx, repo.Insert("user_groups", fields, ""), values...)
+	_, err = tx.Exec(ctx, repo.Insert("user_groups", fields), values...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to insert group")
 	}
@@ -271,7 +245,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 		return nil, errors.Wrap(err, "failed to parse UUID")
 	}
 
-	return g.GetByID(ctx, group.GroupID(id))
+	return g.GetByID(ctx, id)
 }
 
 func (g *PgGroupRepository) update(ctx context.Context, entity group.Group) (group.Group, error) {
@@ -315,11 +289,11 @@ func (g *PgGroupRepository) update(ctx context.Context, entity group.Group) (gro
 		return nil, errors.Wrap(err, "failed to parse UUID")
 	}
 
-	return g.GetByID(ctx, group.GroupID(id))
+	return g.GetByID(ctx, id)
 }
 
-func (g *PgGroupRepository) Delete(ctx context.Context, id group.GroupID) error {
-	uuidStr := uuid.UUID(id).String()
+func (g *PgGroupRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	uuidStr := id.String()
 
 	if err := g.execQuery(ctx, groupUserDeleteQuery, uuidStr); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete users for group ID: %s", uuidStr))

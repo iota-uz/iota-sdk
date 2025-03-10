@@ -10,11 +10,10 @@ import (
 
 // ---- Interface ----
 
-type GroupID uuid.UUID
 type Option func(g *group)
 
 type Group interface {
-	ID() GroupID
+	ID() uuid.UUID
 	Name() string
 	Description() string
 	Users() []user.User
@@ -32,7 +31,7 @@ type Group interface {
 
 // ---- Implementations ----
 
-func WithID(id GroupID) Option {
+func WithID(id uuid.UUID) Option {
 	return func(g *group) {
 		g.id = id
 	}
@@ -70,6 +69,7 @@ func WithUpdatedAt(t time.Time) Option {
 
 func New(name string, opts ...Option) Group {
 	g := &group{
+		id:        uuid.New(),
 		name:      name,
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
@@ -82,7 +82,7 @@ func New(name string, opts ...Option) Group {
 }
 
 type group struct {
-	id          GroupID
+	id          uuid.UUID
 	name        string
 	description string
 	roles       []role.Role
@@ -91,7 +91,7 @@ type group struct {
 	updatedAt   time.Time
 }
 
-func (g *group) ID() GroupID {
+func (g *group) ID() uuid.UUID {
 	return g.id
 }
 
@@ -170,5 +170,7 @@ func (g *group) RemoveUser(u user.User) Group {
 		}
 		filteredUsers = append(filteredUsers, v)
 	}
+	r.users = filteredUsers
+	r.updatedAt = time.Now()
 	return &r
 }

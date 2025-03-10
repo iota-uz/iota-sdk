@@ -3,6 +3,7 @@ package group
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -19,7 +20,6 @@ type FindParams struct {
 	Limit     int
 	Offset    int
 	SortBy    SortBy
-	RoleID    *repo.Filter
 	CreatedAt *repo.Filter
 	UpdateAt  *repo.Filter
 }
@@ -27,7 +27,7 @@ type FindParams struct {
 type Repository interface {
 	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Group, error)
-	GetByID(ctx context.Context, id GroupID) (Group, error)
+	GetByID(ctx context.Context, id uuid.UUID) (Group, error)
 	Save(ctx context.Context, group Group) (Group, error)
-	Delete(ctx context.Context, id GroupID) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }

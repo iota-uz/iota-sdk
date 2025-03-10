@@ -31,12 +31,12 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 	if dbUpload != nil {
 		avatar = ToDomainUpload(dbUpload)
 	}
-	
+
 	email, err := internet.NewEmail(dbUser.Email)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	options := []user.Option{
 		user.WithID(dbUser.ID),
 		user.WithMiddleName(dbUser.MiddleName.String),
@@ -48,11 +48,11 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		user.WithCreatedAt(dbUser.CreatedAt),
 		user.WithUpdatedAt(dbUser.UpdatedAt),
 	}
-	
+
 	if dbUpload != nil {
 		options = append(options, user.WithAvatar(avatar))
 	}
-	
+
 	return user.New(
 		dbUser.FirstName,
 		dbUser.LastName,
@@ -418,22 +418,22 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	opts := []group.Option{
-		group.WithID(group.GroupID(groupID)),
+		group.WithID(groupID),
 		group.WithDescription(dbGroup.Description.String),
 		group.WithUsers(users),
 		group.WithRoles(roles),
 		group.WithCreatedAt(dbGroup.CreatedAt),
 		group.WithUpdatedAt(dbGroup.UpdatedAt),
 	}
-	
+
 	return group.New(dbGroup.Name, opts...), nil
 }
 
 func ToDBGroup(g group.Group) *models.Group {
 	return &models.Group{
-		ID:          uuid.UUID(g.ID()).String(),
+		ID:          g.ID().String(),
 		Name:        g.Name(),
 		Description: mapping.ValueToSQLNullString(g.Description()),
 		CreatedAt:   g.CreatedAt(),

@@ -88,7 +88,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 	// Test group creation
 	t.Run("Create", func(t *testing.T) {
-		groupID := group.GroupID(uuid.New())
+		groupID := uuid.New()
 		// Create group with ID, name, description, users, and roles
 		groupEntity := group.New(
 			"Test Group",
@@ -109,7 +109,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.Equal(t, roleEntity.ID(), savedGroup.Roles()[0].ID())
 
 		// Create another group for testing
-		secondGroupID := group.GroupID(uuid.New())
+		secondGroupID := uuid.New()
 		secondGroupEntity := group.New(
 			"Second Group",
 			group.WithID(secondGroupID),
@@ -130,7 +130,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 	t.Run("GetByID", func(t *testing.T) {
 		// Create a new group
-		groupID := group.GroupID(uuid.New())
+		groupID := uuid.New()
 		groupEntity := group.New(
 			"Get By ID Group",
 			group.WithID(groupID),
@@ -154,7 +154,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.Equal(t, roleEntity.ID(), retrievedGroup.Roles()[0].ID())
 
 		// Test with non-existent ID
-		nonExistentID := group.GroupID(uuid.New())
+		nonExistentID := uuid.New()
 		_, err = groupRepository.GetByID(f.ctx, nonExistentID)
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, persistence.ErrGroupNotFound)
@@ -162,7 +162,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 	t.Run("Update", func(t *testing.T) {
 		// Create a new group
-		groupID := group.GroupID(uuid.New())
+		groupID := uuid.New()
 		groupEntity := group.New(
 			"Update Group",
 			group.WithID(groupID),
@@ -221,7 +221,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 	t.Run("RemoveUserAndRole", func(t *testing.T) {
 		// Create a group with both users and roles
-		groupID := group.GroupID(uuid.New())
+		groupID := uuid.New()
 		groupEntity := group.New(
 			"Remove Test Group",
 			group.WithID(groupID),
@@ -251,176 +251,8 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.Equal(t, secondRoleEntity.ID(), savedUpdatedGroup.Roles()[0].ID())
 	})
 
-	t.Run("FilterByRoleID", func(t *testing.T) {
-		// Create two groups with different roles
-		firstGroupID := group.GroupID(uuid.New())
-		firstGroupEntity := group.New(
-			"First Filter Group",
-			group.WithID(firstGroupID),
-			group.WithDescription("First group for filter test"),
-			group.WithUsers([]user.User{createdUser}),
-			group.WithRoles([]role.Role{roleEntity}),
-		)
 
-		firstSavedGroup, err := groupRepository.Save(f.ctx, firstGroupEntity)
-		assert.NoError(t, err)
 
-		secondGroupID := group.GroupID(uuid.New())
-		secondGroupEntity := group.New(
-			"Second Filter Group",
-			group.WithID(secondGroupID),
-			group.WithDescription("Second group for filter test"),
-			group.WithUsers([]user.User{secondCreatedUser}),
-			group.WithRoles([]role.Role{secondRoleEntity}),
-		)
-
-		secondSavedGroup, err := groupRepository.Save(f.ctx, secondGroupEntity)
-		assert.NoError(t, err)
-
-		// Test filtering by role ID with Eq expression
-		params := &group.FindParams{
-			RoleID: &repo.Filter{
-				Expr:  repo.Eq,
-				Value: roleEntity.ID(),
-			},
-			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
-				Ascending: true,
-			},
-			Limit:  10,
-			Offset: 0,
-		}
-
-		groups, err := groupRepository.GetPaginated(f.ctx, params)
-		assert.NoError(t, err)
-
-		// Should return only groups with the first role
-		assert.Len(t, groups, 1)
-		assert.Equal(t, firstSavedGroup.ID(), groups[0].ID())
-
-		// Test count with role filter
-		count, err := groupRepository.Count(f.ctx, params)
-		assert.NoError(t, err)
-		assert.Equal(t, int64(1), count)
-
-		// Test filtering by the second role
-		params.RoleID = &repo.Filter{
-			Expr:  repo.Eq,
-			Value: secondRoleEntity.ID(),
-		}
-
-		groups, err = groupRepository.GetPaginated(f.ctx, params)
-		assert.NoError(t, err)
-
-		// Should return only groups with the second role
-		assert.Len(t, groups, 1)
-		assert.Equal(t, secondSavedGroup.ID(), groups[0].ID())
-
-		// Test count with second role filter
-		count, err = groupRepository.Count(f.ctx, params)
-		assert.NoError(t, err)
-		assert.Equal(t, int64(1), count)
-	})
-
-	t.Run("FilterByRoleID_NotEq", func(t *testing.T) {
-		// Create a group with both roles for additional testing
-		thirdGroupID := group.GroupID(uuid.New())
-		thirdGroupEntity := group.New(
-			"Third Filter Group",
-			group.WithID(thirdGroupID),
-			group.WithDescription("Third group for filter test"),
-			group.WithUsers([]user.User{createdUser, secondCreatedUser}),
-			group.WithRoles([]role.Role{roleEntity, secondRoleEntity}),
-		)
-
-		_, err := groupRepository.Save(f.ctx, thirdGroupEntity)
-		assert.NoError(t, err)
-
-		// Test filtering with NotEq expression
-		params := &group.FindParams{
-			RoleID: &repo.Filter{
-				Expr:  repo.NotEq,
-				Value: roleEntity.ID(),
-			},
-			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
-				Ascending: true,
-			},
-			Limit:  10,
-			Offset: 0,
-		}
-
-		// Get groups without the first role
-		groups, err := groupRepository.GetPaginated(f.ctx, params)
-		assert.NoError(t, err)
-
-		// Should return groups that don't have the first role
-		for _, g := range groups {
-			hasRole := false
-			for _, r := range g.Roles() {
-				if r.ID() == roleEntity.ID() {
-					hasRole = true
-					break
-				}
-			}
-			assert.False(t, hasRole, "Group should not have the first role")
-		}
-
-		// Test count with NotEq filter
-		count, err := groupRepository.Count(f.ctx, params)
-		assert.NoError(t, err)
-		assert.Equal(t, int64(len(groups)), count)
-	})
-
-	t.Run("FilterByRoleID_In", func(t *testing.T) {
-		// Create another group with no roles for additional testing
-		fourthGroupID := group.GroupID(uuid.New())
-		fourthGroupEntity := group.New(
-			"Fourth Filter Group",
-			group.WithID(fourthGroupID),
-			group.WithDescription("Fourth group for filter test"),
-			group.WithUsers([]user.User{createdUser}),
-			group.WithRoles([]role.Role{}),
-		)
-
-		_, err := groupRepository.Save(f.ctx, fourthGroupEntity)
-		assert.NoError(t, err)
-
-		// Test filtering with In expression
-		params := &group.FindParams{
-			RoleID: &repo.Filter{
-				Expr:  repo.In,
-				Value: []interface{}{roleEntity.ID(), secondRoleEntity.ID()},
-			},
-			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
-				Ascending: true,
-			},
-			Limit:  10,
-			Offset: 0,
-		}
-
-		// Get groups with either first or second role
-		groups, err := groupRepository.GetPaginated(f.ctx, params)
-		assert.NoError(t, err)
-
-		// Should return groups with either the first or second role
-		for _, g := range groups {
-			hasRole := false
-			for _, r := range g.Roles() {
-				if r.ID() == roleEntity.ID() || r.ID() == secondRoleEntity.ID() {
-					hasRole = true
-					break
-				}
-			}
-			assert.True(t, hasRole, "Group should have either the first or second role")
-		}
-
-		// Test count with In filter
-		count, err := groupRepository.Count(f.ctx, params)
-		assert.NoError(t, err)
-		assert.Equal(t, int64(len(groups)), count)
-	})
 
 	t.Run("FilterByCreatedAt", func(t *testing.T) {
 		// Get a timestamp for comparison
@@ -428,7 +260,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		pastTime := now.Add(-24 * time.Hour)
 
 		// Create a group with custom creation time
-		customTimeGroupID := group.GroupID(uuid.New())
+		customTimeGroupID := uuid.New()
 		customTimeGroupEntity := group.New(
 			"Time Filter Group",
 			group.WithID(customTimeGroupID),
@@ -565,7 +397,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 	t.Run("Pagination", func(t *testing.T) {
 		// Create multiple additional groups to test pagination
 		for i := 0; i < 5; i++ {
-			groupID := group.GroupID(uuid.New())
+			groupID := uuid.New()
 			groupEntity := group.New(
 				"Pagination Group "+string(rune(i+65)), // A, B, C, D, E
 				group.WithID(groupID),
@@ -614,7 +446,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		// Create a group to delete
-		groupID := group.GroupID(uuid.New())
+		groupID := uuid.New()
 		groupEntity := group.New(
 			"Delete Test Group",
 			group.WithID(groupID),
