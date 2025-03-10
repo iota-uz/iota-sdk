@@ -46,21 +46,21 @@ const (
 	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES`
 
 	userRolePermissionsQuery = `
-			SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
-			FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`
+				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+				FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`
 
 	userRolesQuery = `
-			SELECT
-				r.id,
-				r.name,
-				r.description,
-				r.created_at,
-				r.updated_at
-			FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
-		`
+				SELECT
+					r.id,
+					r.name,
+					r.description,
+					r.created_at,
+					r.updated_at
+				FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
+			`
 )
 
-type PgUserRepository struct{
+type PgUserRepository struct {
 	uploadRepo upload.Repository
 }
 
@@ -79,19 +79,66 @@ func BuildUserFilters(params *user.FindParams) ([]string, []interface{}, error) 
 		switch params.RoleID.Expr {
 		case repo.Eq:
 			where = append(where, fmt.Sprintf("ur.role_id = $%d", len(args)+1))
+			args = append(args, params.RoleID.Value)
 		case repo.NotEq:
 			where = append(where, fmt.Sprintf("ur.role_id != $%d", len(args)+1))
+			args = append(args, params.RoleID.Value)
 		case repo.In:
 			if values, ok := params.RoleID.Value.([]interface{}); ok && len(values) > 0 {
 				where = append(where, fmt.Sprintf("ur.role_id = ANY($%d)", len(args)+1))
 				args = append(args, values)
-				return where, args, nil
+			} else {
+				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for role ID filter: %v", params.RoleID.Value), "invalid filter")
 			}
-			return nil, nil, errors.Wrap(fmt.Errorf("invalid value for role ID filter: %v", params.RoleID.Value), "invalid filter")
 		default:
 			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for role ID filter: %v", params.RoleID.Expr), "invalid filter")
 		}
-		args = append(args, params.RoleID.Value)
+	}
+
+	// Add join for group filter if needed
+	if params.GroupID != nil {
+		switch params.GroupID.Expr {
+		case repo.Eq:
+			where = append(where, fmt.Sprintf("gu.group_id = $%d", len(args)+1))
+			args = append(args, params.GroupID.Value)
+		case repo.NotEq:
+			where = append(where, fmt.Sprintf("gu.group_id != $%d", len(args)+1))
+			args = append(args, params.GroupID.Value)
+		case repo.In:
+			if values, ok := params.GroupID.Value.([]interface{}); ok && len(values) > 0 {
+				where = append(where, fmt.Sprintf("gu.group_id = ANY($%d)", len(args)+1))
+				args = append(args, values)
+			} else {
+				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for group ID filter: %v", params.GroupID.Value), "invalid filter")
+			}
+		default:
+			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for group ID filter: %v", params.GroupID.Expr), "invalid filter")
+		}
+	}
+
+	if params.PermissionID != nil {
+		switch params.PermissionID.Expr {
+		case repo.Eq:
+			where = append(where, fmt.Sprintf("rp.permission_id = $%d", len(args)+1))
+			args = append(args, params.PermissionID.Value)
+		case repo.NotEq:
+			where = append(where, fmt.Sprintf("rp.permission_id != $%d", len(args)+1))
+			args = append(args, params.PermissionID.Value)
+		case repo.In:
+			if values, ok := params.PermissionID.Value.([]interface{}); ok && len(values) > 0 {
+				where = append(where, fmt.Sprintf("rp.permission_id = ANY($%d)", len(args)+1))
+				args = append(args, values)
+			} else {
+				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for permission ID filter: %v", params.PermissionID.Value), "invalid filter")
+			}
+		case repo.NotIn:
+			if values, ok := params.PermissionID.Value.([]interface{}); ok && len(values) > 0 {
+				where = append(where, fmt.Sprintf("rp.permission_id != ALL($%d)", len(args)+1))
+				args = append(args, values)
+			} else {
+				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for permission ID filter: %v", params.PermissionID.Value), "invalid filter")
+			}
+		}
 	}
 
 	if params.CreatedAt != nil {
@@ -194,8 +241,16 @@ func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindPa
 	}
 
 	baseQuery := userFindQuery
-	if params.RoleID != nil {
+	if params.RoleID != nil || params.PermissionID != nil {
 		baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+	}
+
+	if params.GroupID != nil {
+		baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
+	}
+
+	if params.PermissionID != nil {
+		baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
 	}
 
 	query := repo.Join(
@@ -223,8 +278,16 @@ func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (
 	}
 
 	baseQuery := userCountQuery
-	if params.RoleID != nil {
+	if params.RoleID != nil || params.PermissionID != nil {
 		baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+	}
+
+	if params.GroupID != nil {
+		baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
+	}
+
+	if params.PermissionID != nil {
+		baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
 	}
 
 	query := repo.Join(
@@ -441,7 +504,7 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get roles for user ID: %d", u.ID))
 		}
-		
+
 		var avatar upload.Upload
 		if u.AvatarID.Valid {
 			avatar, err = g.uploadRepo.GetByID(ctx, uint(u.AvatarID.Int32))
@@ -449,14 +512,14 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 				return nil, errors.Wrap(err, fmt.Sprintf("failed to get avatar for user ID: %d", u.ID))
 			}
 		}
-		
+
 		var domainUser user.User
 		if avatar != nil {
 			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles)
 		} else {
 			domainUser, err = ToDomainUser(u, nil, roles)
 		}
-		
+
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert user ID: %d to domain entity", u.ID))
 		}

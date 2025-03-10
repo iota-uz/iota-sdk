@@ -89,12 +89,16 @@ func Insert(tableName string, fields []string, returning ...string) string {
 		args[i] = fmt.Sprintf("$%d", i+1)
 	}
 
-	return fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES (%s) RETURNING %s",
+	query := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES (%s)",
 		tableName,
-		strings.Join(fields, ", "), strings.Join(args, ", "),
-		strings.Join(returning, ", "),
-	)
+		strings.Join(fields, ", "), strings.Join(args, ", "))
+		
+	if len(returning) > 0 {
+		query += " RETURNING " + strings.Join(returning, ", ")
+	}
+	
+	return query
 }
 
 func Update(tableName string, fields []string, where ...string) string {
