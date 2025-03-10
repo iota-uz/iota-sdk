@@ -2,6 +2,8 @@ package user
 
 import (
 	"context"
+
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 type Field = int
@@ -13,19 +15,21 @@ const (
 	Email
 	LastLogin
 	CreatedAt
+	UpdatedAt
 )
 
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
-}
+type SortBy repo.SortBy[Field]
 
 type FindParams struct {
-	Limit  int
-	Offset int
-	SortBy SortBy
-	RoleID uint
-	Name   string
+	Limit     int
+	Offset    int
+	SortBy    SortBy
+	Name      string
+	RoleID    *repo.Filter
+	Email     *repo.Filter
+	LastLogin *repo.Filter
+	CreatedAt *repo.Filter
+	UpdateAt  *repo.Filter
 }
 
 type Repository interface {

@@ -10,6 +10,31 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+type Expr int
+
+const (
+	Eq Expr = iota
+	NotEq
+	Gt
+	Gte
+	Lt
+	Lte
+	In
+	NotIn
+	Like
+	NotLike
+)
+
+type SortBy[T any] struct {
+	Fields    []T
+	Ascending bool
+}
+
+type Filter struct {
+	Expr  Expr
+	Value any
+}
+
 type Tx interface {
 	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
 	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
