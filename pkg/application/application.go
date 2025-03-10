@@ -70,7 +70,6 @@ type seeder struct {
 
 func (s *seeder) Seed(ctx context.Context, app Application) error {
 	conf := configuration.Use()
-	fmt.Println(conf.LogrusLogLevel())
 	for _, seedFunc := range s.seedFuncs {
 		conf.Logger().Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
 		if err := seedFunc(ctx, app); err != nil {

@@ -88,7 +88,7 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.Find
 		case user.CreatedAt:
 			sortFields = append(sortFields, "u.created_at")
 		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
+			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid pagination parameters")
 		}
 	}
 	where, args := []string{"1 = 1"}, []interface{}{}
@@ -104,13 +104,17 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.Find
 		repo.OrderBy(sortFields, params.SortBy.Ascending),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
-	return g.queryUsers(ctx, query, args...)
+	users, err := g.queryUsers(ctx, query, args...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get paginated users")
+	}
+	return users, nil
 }
 
 func (g *GormUserRepository) Count(ctx context.Context, params *user.FindParams) (int64, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
 	query, args := userCountQuery, []interface{}{}
@@ -122,19 +126,23 @@ func (g *GormUserRepository) Count(ctx context.Context, params *user.FindParams)
 	var count int64
 	err = tx.QueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "failed to count users")
 	}
 	return count, nil
 }
 
 func (g *GormUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
-	return g.queryUsers(ctx, userFindQuery)
+	users, err := g.queryUsers(ctx, userFindQuery)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get all users")
+	}
+	return users, nil
 }
 
 func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
 	}
 	if len(users) == 0 {
 		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("id: %d", id))
@@ -145,7 +153,7 @@ func (g *GormUserRepository) GetByID(ctx context.Context, id uint) (user.User, e
 func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
 	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1", email)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with email: %s", email))
 	}
 	if len(users) == 0 {
 		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("email: %s", email))
@@ -156,7 +164,7 @@ func (g *GormUserRepository) GetByEmail(ctx context.Context, email string) (user
 func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
 	dbUser, _ := toDBUser(data)
@@ -194,10 +202,10 @@ func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.U
 
 	err = tx.QueryRow(ctx, repo.Insert("users", fields, "id"), values...).Scan(&dbUser.ID)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to insert user")
 	}
 	if err := g.updateUserRoles(ctx, dbUser.ID, data.Roles()); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to update roles for user ID: %d", dbUser.ID))
 	}
 	return g.GetByID(ctx, dbUser.ID)
 }
@@ -205,7 +213,7 @@ func (g *GormUserRepository) Create(ctx context.Context, data user.User) (user.U
 func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get transaction")
 	}
 
 	dbUser, _ := toDBUser(data)
@@ -244,36 +252,49 @@ func (g *GormUserRepository) Update(ctx context.Context, data user.User) error {
 	_, err = tx.Exec(ctx, repo.Update("users", fields, fmt.Sprintf("id = $%d", len(values))), values...)
 
 	if err != nil {
-		return err
+		return errors.Wrap(err, fmt.Sprintf("failed to update user with ID: %d", dbUser.ID))
 	}
 
-	return g.updateUserRoles(ctx, data.ID(), data.Roles())
+	if err := g.updateUserRoles(ctx, data.ID(), data.Roles()); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to update roles for user ID: %d", data.ID()))
+	}
+
+	return nil
 }
 
 func (g *GormUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
-	return g.execQuery(ctx, userUpdateLastLoginQuery, id)
+	if err := g.execQuery(ctx, userUpdateLastLoginQuery, id); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to update last login for user ID: %d", id))
+	}
+	return nil
 }
 
 func (g *GormUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
-	return g.execQuery(ctx, userUpdateLastActionQuery, id)
+	if err := g.execQuery(ctx, userUpdateLastActionQuery, id); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to update last action for user ID: %d", id))
+	}
+	return nil
 }
 
 func (g *GormUserRepository) Delete(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, userRoleDeleteQuery, id); err != nil {
-		return err
+		return errors.Wrap(err, fmt.Sprintf("failed to delete roles for user ID: %d", id))
 	}
-	return g.execQuery(ctx, userDeleteQuery, id)
+	if err := g.execQuery(ctx, userDeleteQuery, id); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to delete user with ID: %d", id))
+	}
+	return nil
 }
 
 func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args ...interface{}) ([]user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to execute query")
 	}
 	defer rows.Close()
 
@@ -314,7 +335,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 			&avatarCreatedAt,
 			&avatarUpdatedAt,
 		); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to scan user row")
 		}
 		users = append(users, &u)
 		if avatarId.Valid {
@@ -331,7 +352,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "row iteration error")
 	}
 
 	uploadMap := make(map[uint]*models.Upload)
@@ -343,12 +364,12 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 	for _, u := range users {
 		roles, err := g.userRoles(ctx, u.ID)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get roles for user ID: %d", u.ID))
 		}
 		avatar, _ := uploadMap[uint(u.AvatarID.Int32)]
 		entity, err := ToDomainUser(u, avatar, roles)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert user ID: %d to domain entity", u.ID))
 		}
 		entities = append(entities, entity)
 	}
@@ -359,7 +380,7 @@ func (g *GormUserRepository) queryUsers(ctx context.Context, query string, args 
 func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]*models.Permission, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
 	rows, err := tx.Query(
@@ -370,7 +391,7 @@ func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) (
 		roleID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query permissions for role ID: %d", roleID))
 	}
 	defer rows.Close()
 
@@ -385,13 +406,13 @@ func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) (
 			&p.Modifier,
 			&p.Description,
 		); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to scan permission row")
 		}
 		permissions = append(permissions, &p)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "row iteration error")
 	}
 
 	return permissions, nil
@@ -400,7 +421,7 @@ func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) (
 func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role.Role, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -415,7 +436,7 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 		userID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query roles for user ID: %d", userID))
 	}
 	defer rows.Close()
 
@@ -429,24 +450,24 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 			&r.CreatedAt,
 			&r.UpdatedAt,
 		); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to scan role row")
 		}
 		roles = append(roles, &r)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "row iteration error")
 	}
 
 	entities := make([]role.Role, 0, len(roles))
 	for _, r := range roles {
 		permissions, err := g.rolePermissions(ctx, r.ID)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get permissions for role ID: %d", r.ID))
 		}
 		entity, err := toDomainRole(r, permissions)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert role ID: %d to domain entity", r.ID))
 		}
 		entities = append(entities, entity)
 	}
@@ -457,16 +478,22 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 func (g *GormUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get transaction")
 	}
 	_, err = tx.Exec(ctx, query, args...)
-	return err
+	if err != nil {
+		return errors.Wrap(err, "failed to execute query")
+	}
+	return nil
 }
 
 func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
-	// Delete existing roles
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
-		return err
+		return errors.Wrap(err, fmt.Sprintf("failed to delete existing roles for user ID: %d", userID))
+	}
+
+	if len(roles) == 0 {
+		return nil
 	}
 
 	values := make([][]interface{}, 0, len(roles)*2)
@@ -475,7 +502,7 @@ func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, r
 	}
 	q, args := repo.BatchInsertQueryN(userRoleInsertQuery, values)
 	if err := g.execQuery(ctx, q, args...); err != nil {
-		return err
+		return errors.Wrap(err, fmt.Sprintf("failed to insert roles for user ID: %d", userID))
 	}
 	return nil
 }
