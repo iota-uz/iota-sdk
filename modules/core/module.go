@@ -57,8 +57,7 @@ func (m *Module) Register(app application.Application) error {
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
 		services.NewRoleService(roleRepo, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
-		// Register GroupService here if you have one, using both repositories
-		// services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
+		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
 	)
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),
