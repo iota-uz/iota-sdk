@@ -273,6 +273,7 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 		"phone_number",
 		"address",
 		"email",
+		"date_of_birth",
 		"gender",
 		"passport_id",
 		"pin",
@@ -288,6 +289,7 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 		dbRow.Address,
 		dbRow.Email,
 		dbRow.DateOfBirth,
+		dbRow.Gender,
 		dbRow.PassportID,
 		dbRow.Pin,
 		dbRow.CreatedAt,
@@ -335,6 +337,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		"email",
 		"date_of_birth",
 		"gender",
+		"passport_id",
 		"pin",
 		"updated_at",
 	}
@@ -349,6 +352,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		dbRow.DateOfBirth,
 		dbRow.Gender,
 		dbRow.PassportID,
+		dbRow.Pin,
 		dbRow.UpdatedAt,
 	}
 
