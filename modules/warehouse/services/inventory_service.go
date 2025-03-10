@@ -22,7 +22,8 @@ type InventoryService struct {
 
 func NewInventoryService(publisher eventbus.EventBus) *InventoryService {
 	positionRepo := persistence.NewPositionRepository()
-	userRepo := userpersistence.NewUserRepository()
+	uploadRepo := userpersistence.NewUploadRepository()
+	userRepo := userpersistence.NewUserRepository(uploadRepo)
 	return &InventoryService{
 		repo:         persistence.NewInventoryRepository(userRepo, positionRepo),
 		productRepo:  persistence.NewProductRepository(),

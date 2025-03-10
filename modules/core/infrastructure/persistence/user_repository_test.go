@@ -20,7 +20,8 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 
 	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
-	userRepository := persistence.NewUserRepository()
+	uploadRepository := persistence.NewUploadRepository()
+	userRepository := persistence.NewUserRepository(uploadRepository)
 
 	// Create first role
 	roleData, err := role.New(
