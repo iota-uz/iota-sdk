@@ -8,6 +8,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
@@ -410,4 +411,32 @@ func ToDBPassport(passportEntity passport.Passport) (*models.Passport, error) {
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
 	}, nil
+}
+
+func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) (group.Group, error) {
+	groupID, err := uuid.Parse(dbGroup.ID)
+	if err != nil {
+		return nil, err
+	}
+	
+	opts := []group.Option{
+		group.WithID(group.GroupID(groupID)),
+		group.WithDescription(dbGroup.Description.String),
+		group.WithUsers(users),
+		group.WithRoles(roles),
+		group.WithCreatedAt(dbGroup.CreatedAt),
+		group.WithUpdatedAt(dbGroup.UpdatedAt),
+	}
+	
+	return group.New(dbGroup.Name, opts...), nil
+}
+
+func ToDBGroup(g group.Group) *models.Group {
+	return &models.Group{
+		ID:          uuid.UUID(g.ID()).String(),
+		Name:        g.Name(),
+		Description: mapping.ValueToSQLNullString(g.Description()),
+		CreatedAt:   g.CreatedAt(),
+		UpdatedAt:   g.UpdatedAt(),
+	}
 }

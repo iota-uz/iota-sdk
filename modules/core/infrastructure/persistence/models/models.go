@@ -139,3 +139,23 @@ type Passport struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
+
+type Group struct {
+	ID          string
+	Name        string
+	Description sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type GroupUser struct {
+	GroupID   string
+	UserID    uint
+	CreatedAt time.Time
+}
+
+type GroupRole struct {
+	GroupID   string
+	RoleID    uint
+	CreatedAt time.Time
+}
