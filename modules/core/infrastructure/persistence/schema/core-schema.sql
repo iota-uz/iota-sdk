@@ -85,6 +85,28 @@ CREATE TABLE user_roles (
     PRIMARY KEY (user_id, role_id)
 );
 
+CREATE TABLE user_groups (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    name varchar(255) UNIQUE NOT NULL,
+    description text,
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now()
+);
+
+CREATE TABLE group_users (
+    group_id uuid REFERENCES user_groups (id) ON DELETE CASCADE,
+    user_id integer REFERENCES users (id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT now(),
+    PRIMARY KEY (group_id, user_id)
+);
+
+CREATE TABLE group_roles (
+    group_id uuid REFERENCES user_groups (id) ON DELETE CASCADE,
+    role_id integer REFERENCES roles (id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT now(),
+    PRIMARY KEY (group_id, role_id)
+);
+
 CREATE TABLE uploaded_images (
     id serial PRIMARY KEY,
     upload_id int NOT NULL REFERENCES uploads (id) ON DELETE CASCADE,

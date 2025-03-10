@@ -21,15 +21,17 @@ const (
 type SortBy repo.SortBy[Field]
 
 type FindParams struct {
-	Limit     int
-	Offset    int
-	SortBy    SortBy
-	Name      string
-	RoleID    *repo.Filter
-	Email     *repo.Filter
-	LastLogin *repo.Filter
-	CreatedAt *repo.Filter
-	UpdateAt  *repo.Filter
+	Limit        int
+	Offset       int
+	SortBy       SortBy
+	Name         string
+	PermissionID *repo.Filter
+	RoleID       *repo.Filter
+	GroupID      *repo.Filter
+	Email        *repo.Filter
+	LastLogin    *repo.Filter
+	CreatedAt    *repo.Filter
+	UpdateAt     *repo.Filter
 }
 
 type Repository interface {

@@ -43,16 +43,21 @@ func (m *Module) Register(app application.Application) error {
 	// Register upload repository first since user repository needs it
 	uploadRepo := persistence.NewUploadRepository()
 	
+	// Create repositories
+	userRepo := persistence.NewUserRepository(uploadRepo)
+	roleRepo := persistence.NewRoleRepository()
+	
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
-		services.NewUserService(persistence.NewUserRepository(uploadRepo), app.EventPublisher()),
+		services.NewUserService(userRepo, app.EventPublisher()),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
 	)
 	app.RegisterServices(
 		services.NewAuthService(app),
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
-		services.NewRoleService(persistence.NewRoleRepository(), app.EventPublisher()),
+		services.NewRoleService(roleRepo, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
+		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
 	)
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),
