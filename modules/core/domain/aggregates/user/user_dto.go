@@ -95,21 +95,21 @@ func (u *CreateDTO) ToEntity() (User, error) {
 		}
 		roles[i] = r
 	}
-	return &user{
-		firstName:  u.FirstName,
-		lastName:   u.LastName,
-		middleName: u.MiddleName,
-		email:      u.Email,
-		roles:      roles,
-		password:   u.Password,
-		lastLogin:  time.Now(),
-		lastAction: time.Now(),
-		lastIP:     "",
-		avatarID:   u.AvatarID,
-		uiLanguage: UILanguage(u.UILanguage),
-		createdAt:  time.Now(),
-		updatedAt:  time.Now(),
-	}, nil
+	
+	options := []Option{
+		WithMiddleName(u.MiddleName),
+		WithPassword(u.Password),
+		WithRoles(roles),
+		WithAvatarID(u.AvatarID),
+	}
+	
+	return New(
+		u.FirstName,
+		u.LastName,
+		u.Email,
+		UILanguage(u.UILanguage),
+		options...,
+	), nil
 }
 
 func (u *UpdateDTO) ToEntity(id uint) (User, error) {
@@ -121,20 +121,20 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		}
 		roles[i] = r
 	}
-	return &user{
-		id:         id,
-		firstName:  u.FirstName,
-		middleName: u.MiddleName,
-		lastName:   u.LastName,
-		email:      u.Email,
-		roles:      roles,
-		password:   u.Password,
-		lastLogin:  time.Now(),
-		lastAction: time.Now(),
-		lastIP:     "",
-		avatarID:   u.AvatarID,
-		uiLanguage: UILanguage(u.UILanguage),
-		createdAt:  time.Now(),
-		updatedAt:  time.Now(),
-	}, nil
+	
+	options := []Option{
+		WithID(id),
+		WithMiddleName(u.MiddleName),
+		WithPassword(u.Password),
+		WithRoles(roles),
+		WithAvatarID(u.AvatarID),
+	}
+	
+	return New(
+		u.FirstName,
+		u.LastName,
+		u.Email,
+		UILanguage(u.UILanguage),
+		options...,
+	), nil
 }

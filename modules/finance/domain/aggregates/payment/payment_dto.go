@@ -50,21 +50,12 @@ func (p *CreateDTO) ToEntity() Payment {
 		p.CounterpartyID,
 		p.Comment,
 		&moneyaccount.Account{ID: p.AccountID},
-		user.NewWithID(
-			p.UserID,
-			"",
-			"",
-			"",
-			"",
-			"",
-			nil,
-			"",
-			"",
-			nil,
-			time.Now(),
-			time.Now(),
-			time.Now(),
-			time.Now(),
+		user.New(
+			"", // firstName
+			"", // lastName
+			"", // email
+			"", // uiLanguage
+			user.WithID(p.UserID),
 		),
 		time.Time(p.TransactionDate),
 		time.Time(p.AccountingPeriod),
@@ -91,21 +82,12 @@ func (p *UpdateDTO) ToEntity(id uint) Payment {
 		p.CounterpartyID,
 		p.Comment,
 		&moneyaccount.Account{ID: p.AccountID},
-		user.NewWithID(
-			p.UserID,
-			"",
-			"",
-			"",
-			"",
-			"",
-			nil,
-			"",
-			"",
-			nil,
-			time.Now(),
-			time.Now(),
-			time.Now(),
-			time.Now(),
+		user.New(
+			"", // firstName
+			"", // lastName
+			"", // email
+			"", // uiLanguage
+			user.WithID(p.UserID),
 		),
 		time.Time(p.TransactionDate),
 		time.Time(p.AccountingPeriod),

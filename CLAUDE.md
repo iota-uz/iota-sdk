@@ -5,10 +5,10 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 
 ## Build/Lint/Test Commands
 - After changes to css or .templ files: `make generate && make css`
+- After changes to Go code: `go vet ./...`
 - Run all tests: `make test` or `go test -v ./...` 
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
-- Lint code: `make lint` or `golangci-lint run ./...`
 - JSON linting: `make build-iota-linter && make run-iota-linter`
 - Apply migrations: `make migrate up`
 

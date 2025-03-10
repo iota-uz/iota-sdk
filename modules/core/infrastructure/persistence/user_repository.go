@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -42,18 +43,6 @@ const (
             up.updated_at
         FROM users u LEFT JOIN uploads up ON u.avatar_id = up.id`
 
-	userUpdateQuery = `
-        UPDATE users SET
-            first_name = $1,
-            last_name = $2,
-            middle_name = $3,
-            email = $4,
-            password = COALESCE(NULLIF($5, ''), users.password),
-            ui_language = $6,
-            avatar_id = $7,
-            updated_at = $8
-        WHERE id = $9`
-
 	userCountQuery = `SELECT COUNT(id) FROM users`
 
 	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
@@ -63,12 +52,52 @@ const (
 	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
 	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES`
+
+	userRolePermissionsQuery = `
+			SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+			FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`
+
+	userRolesQuery = `
+			SELECT
+				r.id,
+				r.name,
+				r.description,
+				r.created_at,
+				r.updated_at
+			FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
+		`
 )
 
 type GormUserRepository struct{}
 
 func NewUserRepository() user.Repository {
 	return &GormUserRepository{}
+}
+
+// buildFilters creates the where clauses and arguments for filtering user queries
+func (g *GormUserRepository) buildFilters(params *user.FindParams) (baseQuery string, where []string, args []interface{}) {
+	where = []string{"1 = 1"}
+	args = []interface{}{}
+	
+	// Start with the appropriate base query
+	baseQuery = userFindQuery
+	
+	// Add join for role filter if needed
+	if params != nil && params.RoleID > 0 {
+		// For Count method we use different base query, so we need to ensure the join part is always added
+		if !strings.Contains(baseQuery, "JOIN user_roles ur") {
+			baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+		}
+		where = append(where, "ur.role_id = $"+fmt.Sprintf("%d", len(args)+1))
+		args = append(args, params.RoleID)
+	}
+
+	if params != nil && params.Name != "" {
+		where = append(where, "(u.first_name ILIKE $"+fmt.Sprintf("%d", len(args)+1)+" OR u.last_name ILIKE $"+fmt.Sprintf("%d", len(args)+1)+" OR u.middle_name ILIKE $"+fmt.Sprintf("%d", len(args)+1)+")")
+		args = append(args, "%"+params.Name+"%")
+	}
+	
+	return baseQuery, where, args
 }
 
 func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
@@ -91,15 +120,11 @@ func (g *GormUserRepository) GetPaginated(ctx context.Context, params *user.Find
 			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid pagination parameters")
 		}
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
-
-	if params.Name != "" {
-		where = append(where, "(u.first_name ILIKE $1 OR u.last_name ILIKE $1 OR u.middle_name ILIKE $1)")
-		args = append(args, "%"+params.Name+"%")
-	}
+	
+	baseQuery, where, args := g.buildFilters(params)
 
 	query := repo.Join(
-		userFindQuery,
+		baseQuery,
 		repo.JoinWhere(where...),
 		repo.OrderBy(sortFields, params.SortBy.Ascending),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
@@ -117,12 +142,22 @@ func (g *GormUserRepository) Count(ctx context.Context, params *user.FindParams)
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	query, args := userCountQuery, []interface{}{}
-	if params != nil && params.Name != "" {
-		query += " WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR middle_name ILIKE $1"
-		args = append(args, "%"+params.Name+"%")
+	// Define a base query for counting users
+	countBaseQuery := "SELECT COUNT(u.id) FROM users u"
+	
+	// If we need to filter by role, add the join to the base query
+	if params != nil && params.RoleID > 0 {
+		countBaseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
 	}
-
+	
+	// Get the where clauses and args, but ignore the baseQuery from buildFilters
+	_, where, args := g.buildFilters(params)
+	
+	query := repo.Join(
+		countBaseQuery,
+		repo.JoinWhere(where...),
+	)
+	
 	var count int64
 	err = tx.QueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
@@ -383,13 +418,7 @@ func (g *GormUserRepository) rolePermissions(ctx context.Context, roleID uint) (
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	rows, err := tx.Query(
-		ctx,
-		`
-		SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
-		FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`,
-		roleID,
-	)
+	rows, err := tx.Query(ctx, userRolePermissionsQuery, roleID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query permissions for role ID: %d", roleID))
 	}
@@ -424,17 +453,7 @@ func (g *GormUserRepository) userRoles(ctx context.Context, userID uint) ([]role
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	rows, err := tx.Query(ctx, `
-		SELECT
-			r.id,
-			r.name,
-			r.description,
-			r.created_at,
-			r.updated_at
-		FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
-	`,
-		userID,
-	)
+	rows, err := tx.Query(ctx, userRolesQuery, userID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query roles for user ID: %d", userID))
 	}

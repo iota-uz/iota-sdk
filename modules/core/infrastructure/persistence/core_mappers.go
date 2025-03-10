@@ -29,21 +29,29 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 	if dbUpload != nil {
 		avatar = ToDomainUpload(dbUpload)
 	}
-	return user.NewWithID(
-		dbUser.ID,
+	
+	options := []user.Option{
+		user.WithID(dbUser.ID),
+		user.WithMiddleName(dbUser.MiddleName.String),
+		user.WithPassword(dbUser.Password.String),
+		user.WithRoles(roles),
+		user.WithLastIP(dbUser.LastIP.String),
+		user.WithLastLogin(dbUser.LastLogin.Time),
+		user.WithLastAction(dbUser.LastAction.Time),
+		user.WithCreatedAt(dbUser.CreatedAt),
+		user.WithUpdatedAt(dbUser.UpdatedAt),
+	}
+	
+	if dbUpload != nil {
+		options = append(options, user.WithAvatar(avatar))
+	}
+	
+	return user.New(
 		dbUser.FirstName,
 		dbUser.LastName,
-		dbUser.MiddleName.String,
-		dbUser.Password.String,
 		dbUser.Email,
-		avatar,
-		dbUser.LastIP.String,
 		user.UILanguage(dbUser.UILanguage),
-		roles,
-		dbUser.LastLogin.Time,
-		dbUser.LastAction.Time,
-		dbUser.CreatedAt,
-		dbUser.UpdatedAt,
+		options...,
 	), nil
 }
 

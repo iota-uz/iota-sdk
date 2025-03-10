@@ -87,12 +87,10 @@ func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.Use
 	usr, err := user.New(
 		defaultFirstName,
 		defaultLastName,
-		"",
-		"",
 		s.email,
-		nil,
 		s.uiLang,
-		[]role.Role{r},
+		user.WithMiddleName(""),
+		user.WithRoles([]role.Role{r}),
 	).SetPassword(s.pass)
 	if err != nil {
 		return nil, err
