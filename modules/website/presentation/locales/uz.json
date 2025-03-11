@@ -1,0 +1,19 @@
+{
+	"NavigationLinks": {
+		"Website": "Veb-sayt",
+		"AIChatbot": "AI Chatbot"
+	},
+	"AIChatBot": {
+		"Meta": {
+			"Title": "AI Chatbot"
+		},
+		"Title": {
+			"Label": "Sarlavha",
+			"Placeholder": "Sarlavhani kiriting"
+		},
+		"Description": {
+			"Label": "Tavsif",
+			"Placeholder": "Tavsifni kiriting"
+		}
+	}
+}
