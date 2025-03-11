@@ -212,6 +212,7 @@
       "LastName": "Фамилия",
       "MiddleName": "Отчество",
       "Email": "Электронная почта",
+      "Phone": "Телефон",
       "Password": "Пароль",
       "Language": "Язык",
       "UILanguage": "ru",
@@ -263,6 +264,7 @@
     "LastName": "Фамилия",
     "MiddleName": "Отчество",
     "Email": "Электронная почта",
+    "Phone": "Телефон",
     "Password": "Пароль",
     "Save": "Сохранить"
   },

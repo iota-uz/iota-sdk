@@ -186,6 +186,7 @@
       "LastName": "Last name",
       "MiddleName": "Middle name",
       "Email": "Email",
+      "Phone": "Phone",
       "Password": "Password",
       "Language": "Language",
       "UILanguage": "en",
@@ -263,6 +264,7 @@
     "LastName": "Last name",
     "MiddleName": "Middle name",
     "Email": "Email",
+    "Phone": "Phone",
     "Password": "Password",
     "Save": "Save"
   },

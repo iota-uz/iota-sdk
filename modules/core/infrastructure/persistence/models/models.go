@@ -65,6 +65,7 @@ type User struct {
 	LastName   string
 	MiddleName sql.NullString
 	Email      string
+	Phone      sql.NullString
 	Password   sql.NullString
 	AvatarID   sql.NullInt32
 	LastLogin  sql.NullTime

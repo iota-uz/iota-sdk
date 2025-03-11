@@ -10,6 +10,7 @@ type User struct {
 	LastName   string
 	MiddleName string
 	Email      string
+	Phone      string
 	UILanguage string
 	LastAction string
 	CreatedAt  string

@@ -10,6 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -18,6 +19,7 @@ type CreateDTO struct {
 	LastName   string `validate:"required"`
 	MiddleName string
 	Email      string `validate:"required,email"`
+	Phone      string
 	Password   string
 	RoleIDs    []uint `validate:"required"`
 	AvatarID   uint
@@ -29,6 +31,7 @@ type UpdateDTO struct {
 	LastName   string `validate:"required"`
 	MiddleName string
 	Email      string `validate:"required,email"`
+	Phone      string
 	Password   string
 	RoleIDs    []uint
 	AvatarID   uint
@@ -109,6 +112,14 @@ func (u *CreateDTO) ToEntity() (User, error) {
 		WithAvatarID(u.AvatarID),
 	}
 	
+	if u.Phone != "" {
+		p, err := phone.NewFromE164(u.Phone)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, WithPhone(p))
+	}
+	
 	return New(
 		u.FirstName,
 		u.LastName,
@@ -139,6 +150,14 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		WithPassword(u.Password),
 		WithRoles(roles),
 		WithAvatarID(u.AvatarID),
+	}
+	
+	if u.Phone != "" {
+		p, err := phone.NewFromE164(u.Phone)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, WithPhone(p))
 	}
 	
 	return New(
