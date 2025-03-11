@@ -1,16 +1,17 @@
 package moneyaccount
 
 import (
+	"time"
+
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"time"
 )
 
 type CreateDTO struct {
 	Name          string  `validate:"required"`
-	Balance       float64 `validate:"required,gte=0"`
+	Balance       float64 `validate:"gte=0"`
 	AccountNumber string
 	CurrencyCode  string `validate:"required,len=3"`
 	Description   string
