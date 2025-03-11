@@ -29,6 +29,7 @@ describe("user realtime behavior", () => {
                     LastName: "Test",
                     MiddleName: "Mid",
                     Email: "realtime@gmail.com",
+                    Phone: "+14155551234",
                     Password: "TestPass123!",
                     UILanguage: "en",
                     RoleIDs: "1",
@@ -53,6 +54,7 @@ describe("user realtime behavior", () => {
                         LastName: "TestUpdated",
                         MiddleName: "Mid",
                         Email: "realtime@gmail.com",
+                        Phone: "+14155559876",
                         UILanguage: "en",
                         RoleIDs: "1",
                     }
