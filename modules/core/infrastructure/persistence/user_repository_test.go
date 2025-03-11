@@ -12,7 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/assert"
 )
@@ -94,7 +94,7 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		assert.Equal(t, "John", dbUser.FirstName())
 		assert.Equal(t, "Doe", dbUser.LastName())
 		assert.Equal(t, "", dbUser.MiddleName())
-		
+
 		// Check if phone is properly persisted
 		assert.NotNil(t, dbUser.Phone(), "Phone should not be nil")
 		assert.Equal(t, "12345678901", dbUser.Phone().Value(), "Phone number should match")
@@ -431,21 +431,21 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 
 		assert.Len(t, users, 2)
 	})
-	
+
 	t.Run("GetByPhone", func(t *testing.T) {
 		// Get the user that has the updated phone field from the database first
 		userWithPhone, err := userRepository.GetByID(f.ctx, createdUser.ID())
 		assert.NoError(t, err)
 		assert.NotNil(t, userWithPhone.Phone())
 		phoneValue := userWithPhone.Phone().Value()
-		
+
 		// Test fetching user by phone number
 		fetchedUser, err := userRepository.GetByPhone(f.ctx, phoneValue)
 		assert.NoError(t, err)
 		assert.NotNil(t, fetchedUser)
 		assert.Equal(t, createdUser.ID(), fetchedUser.ID())
 		assert.Equal(t, phoneValue, fetchedUser.Phone().Value())
-		
+
 		// Test fetching with non-existent phone number
 		_, err = userRepository.GetByPhone(f.ctx, "1111111111")
 		assert.Error(t, err)
@@ -618,4 +618,3 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		assert.ErrorIs(t, err, persistence.ErrUserNotFound)
 	})
 }
-
