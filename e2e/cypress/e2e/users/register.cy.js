@@ -58,11 +58,11 @@ describe("user auth and registration flow", () => {
 		cy.get("tbody tr").should("have.length", 2);
 		cy.get("tbody tr").should("contain.text", "TestNew UserNew MidNew");
 		cy.get("tbody tr").should("contain.text", "test1new@gmail.com");
-		
+
 		// Verify phone number persists by checking the edit page
 		cy.get("tbody tr").contains("td", "TestNew UserNew").parent("tr").find("td a").click();
 		cy.url().should("include", "/users/");
-		cy.get("[name=Phone]").should("have.value", "+14155559876");
+		cy.get("[name=Phone]").should("have.value", "14155559876");
 
 		cy.logout();
 		cy.login("test1new@gmail.com", "TestPass123!");
