@@ -78,7 +78,6 @@ func Permission(props SharedProps) templ.Component {
 			ID:      id,
 			Checked: props.Checked,
 			Attrs:   props.Attrs,
-			Size:    input.SizeLG,
 			Error:   props.Error,
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
