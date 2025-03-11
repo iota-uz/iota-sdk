@@ -92,7 +92,8 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 	}
 
 	var email sql.NullString
-	if domainEntity.Email().Value() != "" {
+
+	if domainEntity.Email() != nil && domainEntity.Email().Value() != "" {
 		email = mapping.ValueToSQLNullString(domainEntity.Email().Value())
 	}
 
@@ -102,7 +103,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 	}
 
 	var pin sql.NullString
-	if domainEntity.Pin().Value() != "" {
+	if domainEntity.Pin() != nil && domainEntity.Pin().Value() != "" {
 		pin = mapping.ValueToSQLNullString(domainEntity.Pin().Value())
 	}
 
