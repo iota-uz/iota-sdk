@@ -79,27 +79,28 @@ templ StdViewDrawer(props StdDrawerProps) {
 		Attrs:     props.Attrs,
 	}) {
 		<div class="bg-white w-3/4 md:w-2/3 ml-auto">
-			<form
-				method="dialog"
+			<div
 				class="flex flex-col h-full"
 			>
-				<div
-					class={
-						"flex justify-between px-4 py-3",
-						"border-b border-primary",
-					}
-				>
-					<h3 class="font-medium">
-						{ props.Title }
-					</h3>
-					<div>
-						<button class="cursor-pointer">
-							@icons.XCircle(icons.Props{Size: "20"})
-						</button>
+				<form method="dialog">
+					<div
+						class={
+							"flex justify-between px-4 py-3",
+							"border-b border-primary",
+						}
+					>
+						<h3 class="font-medium">
+							{ props.Title }
+						</h3>
+						<div>
+							<button class="cursor-pointer">
+								@icons.XCircle(icons.Props{Size: "20"})
+							</button>
+						</div>
 					</div>
-				</div>
+				</form>
 				{ children... }
-			</form>
+			</div>
 		</div>
 	}
 }
