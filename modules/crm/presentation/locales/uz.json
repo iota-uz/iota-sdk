@@ -1,0 +1,151 @@
+{
+	"NavigationLinks": {
+		"CRM": "CRM",
+		"Clients": "Mijozlar",
+		"Chats": "Chatlar"
+	},
+	"Resources": {
+		"client": "Mijozlar"
+	},
+	"Permissions": {
+		"Client": {
+			"Create": "Mijoz yaratish",
+			"Read": "Mijozni ko'rish",
+			"Update": "Mijozni tahrirlash",
+			"Delete": "Mijozni o'chirish"
+		}
+	},
+	"Clients": {
+		"List": {
+			"Meta": {
+				"Title": "Mijozlar"
+			},
+			"New": "Yangi mijoz",
+			"FullName": "To'liq ism",
+			"Phone": "Telefon"
+		},
+		"New": {
+			"Meta": {
+				"Title": "Yangi mijoz"
+			}
+		},
+		"Edit": {
+			"Meta": {
+				"Title": "Mijozni tahrirlash"
+			}
+		},
+		"Tabs": {
+			"Profile": "Umumiy",
+			"Notes": "Eslatmalar",
+			"Chat": "Xabarlar"
+		},
+		"Notes": {
+			"NoNotes": "Eslatmalar mavjud emas"
+		},
+		"Single": {
+			"ViewDrawer": {
+				"Title": "Mijoz haqida ma'lumot"
+			},
+			"SendMessage": "Xabar yuborish",
+			"PersonalInfo": "Shaxsiy ma'lumotlar",
+			"PassportInfo": "Pasport ma'lumotlari",
+			"TaxInfo": "Soliq ma'lumotlari",
+			"FirstName": {
+				"Label": "Ismi",
+				"Placeholder": "Ismni kiriting"
+			},
+			"LastName": {
+				"Label": "Familiyasi",
+				"Placeholder": "Familiyani kiriting"
+			},
+			"MiddleName": {
+				"Label": "Otasining ismi",
+				"Placeholder": "Otasining ismini kiriting"
+			},
+			"Phone": {
+				"Label": "Telefon",
+				"Placeholder": "Telefon raqamini kiriting"
+			},
+			"Email": {
+				"Label": "Elektron pochta",
+				"Placeholder": "Elektron pochtani kiriting"
+			},
+			"Address": {
+				"Label": "Manzil",
+				"Placeholder": "Manzilni kiriting"
+			},
+			"Gender": {
+				"Label": "Jinsi",
+				"Placeholder": "Jinsini kiriting"
+			},
+			"DateOfBirth": {
+				"Label": "Tug'ilgan sana",
+				"Placeholder": "Tug'ilgan sanani kiriting"
+			},
+			"PassportSeries": {
+				"Label": "Pasport seriyasi",
+				"Placeholder": "Pasport seriyasini kiriting"
+			},
+			"PassportNumber": {
+				"Label": "Pasport raqami",
+				"Placeholder": "Pasport raqamini kiriting"
+			},
+			"Pin": {
+				"Label": "JSHSHR",
+				"Placeholder": "JSSHSHRni kiriting"
+			},
+			"CountryCode": {
+				"Label": "Mamlakat kodi",
+				"Placeholder": "Mamlakat kodini kiriting"
+			},
+			"Delete": "Mijozni o'chirish",
+			"DeleteConfirmation": "Haqiqatan ham ushbu mijozni o'chirib tashlamoqchimisiz?"
+		}
+	},
+	"MessageTemplates": {
+		"List": {
+			"Meta": {
+				"Title": "Tezkor xabarlar"
+			},
+			"New": "Yangi tezkor xabar",
+			"Content": "Mazmuni"
+		},
+		"New": {
+			"Meta": {
+				"Title": "Yangi tezkor xabar"
+			}
+		},
+		"Edit": {
+			"Meta": {
+				"Title": "Tezkor xabarni tahrirlash"
+			}
+		},
+		"Single": {
+			"Template": {
+				"Label": "Shablon",
+				"Placeholder": "Shablonni kiriting"
+			},
+			"Delete": "Tezkor xabarni o'chirish",
+			"DeleteConfirmation": "Haqiqatan ham ushbu tezkor xabarni o'chirib tashlamoqchimisiz?"
+		},
+		"Dialog": {
+			"Heading": "Shablonni tanlang",
+			"Empty": "Shablonlar topilmadi...",
+			"NewTemplate": "Yangi shablon"
+		}
+	},
+	"Chats": {
+		"Meta": {
+			"Title": "Chatlar"
+		},
+		"New": {
+			"Title": "Yangi chat",
+			"Add": "Qo'shish",
+			"Cancel": "Bekor qilish"
+		},
+		"Back": "Orqaga",
+		"InstantMessages": "Tezkor xabarlar",
+		"NoSelectedChat": "Chatni tanlang...",
+		"ChatNotFound": "Chat topilmadi..."
+	}
+}
