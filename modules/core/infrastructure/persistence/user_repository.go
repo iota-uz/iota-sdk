@@ -26,6 +26,7 @@ const (
             u.last_name,
             u.middle_name,
             u.email,
+            u.phone,
             u.password,
             u.ui_language,
             u.avatar_id,
@@ -344,6 +345,17 @@ func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.U
 	return users[0], nil
 }
 
+func (g *PgUserRepository) GetByPhone(ctx context.Context, phone string) (user.User, error) {
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.phone = $1", phone)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with phone: %s", phone))
+	}
+	if len(users) == 0 {
+		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("phone: %s", phone))
+	}
+	return users[0], nil
+}
+
 func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -357,6 +369,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		"last_name",
 		"middle_name",
 		"email",
+		"phone",
 		"password",
 		"ui_language",
 		"avatar_id",
@@ -369,6 +382,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		dbUser.LastName,
 		dbUser.MiddleName,
 		dbUser.Email,
+		dbUser.Phone,
 		dbUser.Password,
 		dbUser.UILanguage,
 		dbUser.AvatarID,
@@ -412,6 +426,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		"last_name",
 		"middle_name",
 		"email",
+		"phone",
 		"password",
 		"ui_language",
 		"avatar_id",
@@ -423,6 +438,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		dbUser.LastName,
 		dbUser.MiddleName,
 		dbUser.Email,
+		dbUser.Phone,
 		dbUser.Password,
 		dbUser.UILanguage,
 		dbUser.AvatarID,
@@ -504,6 +520,7 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 			&u.LastName,
 			&u.MiddleName,
 			&u.Email,
+			&u.Phone,
 			&u.Password,
 			&u.UILanguage,
 			&u.AvatarID,

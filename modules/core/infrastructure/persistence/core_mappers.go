@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -54,6 +55,15 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		options = append(options, user.WithAvatar(avatar))
 	}
 
+	// Add phone if available
+	if dbUser.Phone.Valid && dbUser.Phone.String != "" {
+		phoneObj, err := phone.NewFromE164(dbUser.Phone.String)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, user.WithPhone(phoneObj))
+	}
+
 	return user.New(
 		dbUser.FirstName,
 		dbUser.LastName,
@@ -69,12 +79,19 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 		dbRole, _ := toDBRole(r)
 		roles[i] = dbRole
 	}
+	
+	var phoneValue sql.NullString
+	if entity.Phone() != nil {
+		phoneValue = mapping.ValueToSQLNullString(entity.Phone().Value())
+	}
+	
 	return &models.User{
 		ID:         entity.ID(),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
 		Email:      entity.Email().Value(),
+		Phone:      phoneValue,
 		UILanguage: string(entity.UILanguage()),
 		Password:   mapping.ValueToSQLNullString(entity.Password()),
 		AvatarID:   mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),

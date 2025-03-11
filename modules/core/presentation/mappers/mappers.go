@@ -18,12 +18,19 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 	if entity.Avatar() != nil {
 		avatar = UploadToViewModel(entity.Avatar())
 	}
+	
+	phone := ""
+	if entity.Phone() != nil {
+		phone = entity.Phone().Value()
+	}
+	
 	return &viewmodels.User{
 		ID:         strconv.FormatUint(uint64(entity.ID()), 10),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: entity.MiddleName(),
 		Email:      entity.Email().Value(),
+		Phone:      phone,
 		Avatar:     avatar,
 		UILanguage: string(entity.UILanguage()),
 		LastAction: entity.LastAction().Format(time.RFC3339),

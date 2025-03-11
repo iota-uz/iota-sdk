@@ -70,6 +70,14 @@ templ ProfileForm(props *ProfilePageProps) {
 				},
 				Error: props.Errors["MiddleName"],
 			})
+			@input.Text(&input.Props{
+				Placeholder: pageCtx.T("Account.Phone"),
+				Attrs: templ.Attributes{
+					"name":  "Phone",
+					"value": props.User.Phone,
+				},
+				Error: props.Errors["Phone"],
+			})
 			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       pageCtx.T("Users.Single.Language"),
 				Placeholder: pageCtx.T("Users.Single.SelectLanguage"),

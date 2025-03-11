@@ -69,6 +69,15 @@ templ EditForm(props *EditFormProps) {
 						Error: props.Errors["Email"],
 						Form:  "save-form",
 					})
+					@input.Text(&input.Props{
+						Label: pageCtx.T("Users.Single.Phone"),
+						Attrs: templ.Attributes{
+							"value": props.User.Phone,
+							"name":  "Phone",
+							"form":  "save-form",
+						},
+						Error: props.Errors["Phone"],
+					})
 				}
 				@card.Card(card.Props{
 					Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),

@@ -55,6 +55,14 @@ templ CreateForm(props *CreateFormProps) {
 						Value: props.User.Email,
 						Error: props.Errors["Email"],
 					})
+					@input.Text(&input.Props{
+						Label: pageCtx.T("Users.Single.Phone"),
+						Attrs: templ.Attributes{
+							"name":  "Phone",
+							"value": props.User.Phone,
+						},
+						Error: props.Errors["Phone"],
+					})
 				}
 				@card.Card(card.Props{
 					Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),

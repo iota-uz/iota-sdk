@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -55,6 +56,10 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 	email, err := internet.NewEmail("test@gmail.com")
 	assert.NoError(t, err)
 
+	// Create a phone object
+	phoneObj, err := phone.NewFromE164("12345678901")
+	assert.NoError(t, err)
+
 	userEntity := user.New(
 		"John",
 		"Doe",
@@ -62,6 +67,7 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		user.UILanguageEN,
 		user.WithMiddleName(""),
 		user.WithRoles([]role.Role{roleEntity}),
+		user.WithPhone(phoneObj),
 	)
 
 	createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -88,6 +94,10 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		assert.Equal(t, "John", dbUser.FirstName())
 		assert.Equal(t, "Doe", dbUser.LastName())
 		assert.Equal(t, "", dbUser.MiddleName())
+		
+		// Check if phone is properly persisted
+		assert.NotNil(t, dbUser.Phone(), "Phone should not be nil")
+		assert.Equal(t, "12345678901", dbUser.Phone().Value(), "Phone number should match")
 
 		roles := dbUser.Roles()
 		assert.Len(t, roles, 1)
@@ -115,8 +125,13 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		firstGroupID := firstGroup.ID()
 		secondGroupID := secondGroup.ID()
 
+		// Create new phone number for update
+		newPhoneObj, err := phone.NewFromE164("9876543210")
+		assert.NoError(t, err)
+
 		updatedUser := createdUser.SetName("Alice", "Karen", "Smith")
 		updatedUser = updatedUser.AddGroupID(firstGroupID)
+		updatedUser = updatedUser.SetPhone(newPhoneObj)
 
 		err = userRepository.Update(f.ctx, updatedUser)
 		assert.NoError(t, err)
@@ -126,6 +141,9 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		assert.Equal(t, "Alice", dbUser.FirstName())
 		assert.Equal(t, "Karen", dbUser.LastName())
 		assert.Equal(t, "Smith", dbUser.MiddleName())
+		// Verify phone was properly updated
+		assert.NotNil(t, dbUser.Phone(), "Phone should not be nil after update")
+		assert.Equal(t, "9876543210", dbUser.Phone().Value(), "Updated phone number should match")
 		assert.True(t, dbUser.UpdatedAt().After(createdUser.UpdatedAt()))
 
 		groupIDs := dbUser.GroupIDs()
@@ -412,6 +430,26 @@ func TestGormUserRepository_CRUD(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Len(t, users, 2)
+	})
+	
+	t.Run("GetByPhone", func(t *testing.T) {
+		// Get the user that has the updated phone field from the database first
+		userWithPhone, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		assert.NoError(t, err)
+		assert.NotNil(t, userWithPhone.Phone())
+		phoneValue := userWithPhone.Phone().Value()
+		
+		// Test fetching user by phone number
+		fetchedUser, err := userRepository.GetByPhone(f.ctx, phoneValue)
+		assert.NoError(t, err)
+		assert.NotNil(t, fetchedUser)
+		assert.Equal(t, createdUser.ID(), fetchedUser.ID())
+		assert.Equal(t, phoneValue, fetchedUser.Phone().Value())
+		
+		// Test fetching with non-existent phone number
+		_, err = userRepository.GetByPhone(f.ctx, "1111111111")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, persistence.ErrUserNotFound)
 	})
 
 	t.Run("FilterByName", func(t *testing.T) {

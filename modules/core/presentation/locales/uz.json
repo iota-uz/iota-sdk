@@ -186,6 +186,7 @@
       "LastName": "Familiya",
       "MiddleName": "Otasining ismi",
       "Email": "Email",
+      "Phone": "Telefon",
       "Password": "Parol",
       "Language": "Til",
       "UILanguage": "uz",
@@ -263,6 +264,7 @@
     "LastName": "Familiya",
     "MiddleName": "Otasining ismi",
     "Email": "Email",
+    "Phone": "Telefon",
     "Password": "Parol",
     "Save": "Saqlash"
   },

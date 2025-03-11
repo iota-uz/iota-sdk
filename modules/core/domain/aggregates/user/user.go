@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/utils/sequence"
 
 	"golang.org/x/crypto/bcrypt"
@@ -94,6 +95,12 @@ func WithUpdatedAt(t time.Time) Option {
 	}
 }
 
+func WithPhone(p phone.Phone) Option {
+	return func(u *user) {
+		u.phone = p
+	}
+}
+
 // ---- Interfaces ----
 
 type User interface {
@@ -103,6 +110,7 @@ type User interface {
 	MiddleName() string
 	Password() string
 	Email() internet.Email
+	Phone() phone.Phone
 	AvatarID() uint
 	Avatar() upload.Upload
 	LastIP() string
@@ -127,6 +135,7 @@ type User interface {
 	SetPassword(password string) (User, error)
 	SetPasswordUnsafe(password string) User
 	SetEmail(email internet.Email) User
+	SetPhone(p phone.Phone) User
 }
 
 // ---- Implementation ----
@@ -144,6 +153,7 @@ func New(
 		middleName: "",
 		password:   "",
 		email:      email,
+		phone:      nil,
 		avatarID:   0,
 		avatar:     nil,
 		lastIP:     "",
@@ -168,6 +178,7 @@ type user struct {
 	middleName string
 	password   string
 	email      internet.Email
+	phone      phone.Phone
 	avatarID   uint
 	avatar     upload.Upload
 	lastIP     string
@@ -202,6 +213,10 @@ func (u *user) Password() string {
 
 func (u *user) Email() internet.Email {
 	return u.email
+}
+
+func (u *user) Phone() phone.Phone {
+	return u.phone
 }
 
 func (u *user) AvatarID() uint {
@@ -316,6 +331,13 @@ func (u *user) SetName(firstName, lastName, middleName string) User {
 func (u *user) SetEmail(email internet.Email) User {
 	result := *u
 	result.email = email
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) SetPhone(p phone.Phone) User {
+	result := *u
+	result.phone = p
 	result.updatedAt = time.Now()
 	return &result
 }
