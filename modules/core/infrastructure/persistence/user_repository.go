@@ -464,6 +464,9 @@ func (g *GormUserRepository) execQuery(ctx context.Context, query string, args .
 }
 
 func (g *GormUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
+	if len(roles) == 0 {
+		return nil
+	}
 	// Delete existing roles
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
 		return err
