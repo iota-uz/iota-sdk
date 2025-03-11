@@ -2,8 +2,9 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/a-h/templ"
-	"github.com/gorilla/mux"
+	"net/http"
+	"sort"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
@@ -16,7 +17,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"net/http"
+
+	"github.com/a-h/templ"
+	"github.com/gorilla/mux"
 )
 
 type RolesController struct {
@@ -183,6 +186,9 @@ func (c *RolesController) permissionGroups(selected ...*permission.Permission) [
 			Children: children,
 		})
 	}
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].Label < groups[j].Label
+	})
 	return groups
 }
 
