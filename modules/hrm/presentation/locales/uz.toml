@@ -1,0 +1,85 @@
+[NavigationLinks]
+  HRM = "HRM"
+  Employees = "Xodimlar"
+
+[Resources]
+  employee = "Xodimlar"
+
+[Permissions.Employee]
+  Create = "Xodim yaratish"
+  Read = "Xodimni ko'rish"
+  Update = "Xodimni tahrirlash"
+  Delete = "Xodimni o'chirish"
+
+[Employees]
+  [Employees.Meta]
+    [Employees.Meta.List]
+      Title = "Xodimlar"
+    [Employees.Meta.Edit]
+      Title = "Xodimni tahrirlash"
+    [Employees.Meta.New]
+      Title = "Xodim qo'shish"
+
+  [Employees.List]
+    New = "Xodim qo'shish"
+    FullName = "To'liq ismi"
+    Position = "Lavozimi"
+    Email = "Elektron pochta"
+
+  [Employees.Tabs]
+    Public = "Umumiy"
+    Private = "Maxfiy"
+
+  [Employees.Cards]
+    PersonalInfo = "Shaxsiy ma'lumotlar"
+    JobInfo = "Ish ma'lumotlari"
+
+  [Employees.Single]
+    Edit = "Xodimni tahrirlash"
+    Delete = "Xodimni o'chirish"
+    DeleteConfirmation = "Haqiqatan ham ushbu xodimni o'chirib tashlamoqchimisiz?"
+
+  [Employees.Public]
+    [Employees.Public.FirstName]
+      Label = "Ismi"
+      Placeholder = "Ismni kiriting"
+    [Employees.Public.LastName]
+      Label = "Familiyasi"
+      Placeholder = "Familiyani kiriting"
+    [Employees.Public.MiddleName]
+      Label = "Otasining ismi"
+      Placeholder = "Otasining ismini kiriting"
+    [Employees.Public.Phone]
+      Label = "Telefon"
+      Placeholder = "+998 (__) ___ __ __"
+    [Employees.Public.Email]
+      Label = "Elektron pochta"
+      Placeholder = "jodoe@gmail.com"
+    [Employees.Public.BirthDate]
+      Label = "Tug'ilgan sana"
+    [Employees.Public.Position]
+      Label = "Lavozimi"
+      Placeholder = "Lavozimni tanlang"
+    [Employees.Public.HireDate]
+      Label = "Ishga kirgan sana"
+    [Employees.Public.ResignationDate]
+      Label = "Ishdan bo'shagan sana"
+    [Employees.Public.EmploymentStatus]
+      Label = "Bandlik turi"
+      Placeholder = "Bandlik turini tanlang"
+    [Employees.Public.Level]
+      Label = "Darajasi"
+      Placeholder = "Darajani tanlang"
+
+  [Employees.Private]
+    [Employees.Private.Salary]
+      Label = "Maosh"
+    [Employees.Private.PassportSN]
+      Label = "Pasport seriyasi va raqami"
+      Placeholder = "AA 123 45 67"
+    [Employees.Private.TIN]
+      Label = "STIR"
+      Placeholder = "1234567"
+    [Employees.Private.Pin]
+      Label = "JSHSHR"
+      Placeholder = "123456789192121"
