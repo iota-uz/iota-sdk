@@ -2,14 +2,6 @@ package input
 
 import "github.com/iota-uz/utils/random"
 
-type SwitchSize int
-
-const (
-	SizeSM SwitchSize = iota
-	SizeMD
-	SizeLG
-)
-
 type SwitchProps struct {
 	Label     string
 	LabelComp templ.Component
@@ -18,7 +10,6 @@ type SwitchProps struct {
 	Attrs     templ.Attributes
 	Class     string
 	ID        string
-	Size      SwitchSize
 }
 
 func newSwitch(p *SwitchProps) *SwitchProps {
@@ -29,41 +20,26 @@ func newSwitch(p *SwitchProps) *SwitchProps {
 }
 
 templ (p *SwitchProps) render() {
-	<label class="inline-flex items-center cursor-pointer">
+	<div class="inline-flex items-center cursor-pointer">
 		<input
 			type="checkbox"
 			id={ p.ID }
-			class={ "sr-only peer", p.Class }
+			class={ p.Class }
 			checked?={ p.Checked }
 			{ p.Attrs... }
 		/>
-		<div
-			class={
-				"relative bg-gray-400 peer-focus:outline-none peer-focus:ring-4",
-				"peer-focus:ring-brand-300 rounded-full peer",
-				"peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full",
-				"peer-checked:after:border-white after:content-[''] after:absolute",
-				"after:start-[4px] after:top-1/2 after:-translate-y-1/2 after:bg-white after:border-gray-300 after:border",
-				"after:rounded-full after:transition-all peer-checked:bg-brand-600",
-			
-				// Size-specific classes
-				templ.KV("w-8 h-5 after:h-4 after:w-4", p.Size == SizeSM),
-				templ.KV("w-11 h-6 after:h-5 after:w-5", p.Size == SizeMD),
-				templ.KV("w-12 h-[26px] after:h-[18px] after:w-[18px]", p.Size == SizeLG),
-			}
-		></div>
 		if len(p.Label) > 0 {
-			<span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+			<label for={ p.ID } class="ml-2 text-sm">
 				{ p.Label }
-			</span>
+			</label>
 		}
 		if p.LabelComp != nil {
-			<span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+			<label for={ p.ID } class="ml-2 text-sm">
 				@p.LabelComp
-			</span>
+			</label>
 		}
 		{ children... }
-	</label>
+	</div>
 }
 
 templ Switch(p *SwitchProps) {
