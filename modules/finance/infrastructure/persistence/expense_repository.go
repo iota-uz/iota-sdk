@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var (
@@ -148,6 +148,7 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expens
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO expenses (transaction_id, category_id)
 		VALUES ($1, $2)
+		RETURNING id
 	`, transactionRow.ID, expenseRow.CategoryID).Scan(&data.ID); err != nil {
 		return err
 	}
