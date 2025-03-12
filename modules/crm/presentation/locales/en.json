@@ -37,7 +37,9 @@
 		"Tabs": {
 			"Profile": "General",
 			"Notes": "Notes",
-			"Chat": "Messages"
+			"Chat": "Messages",
+			"Personal": "Personal",
+			"Documents": "Documents"
 		},
 		"Notes": {
 			"NoNotes": "No notes available"
@@ -95,7 +97,7 @@
 				"Placeholder": "Enter the PIN"
 			},
 			"CountryCode": {
-				"Label": "Country Code",
+				"Label": "Country",
 				"Placeholder": "Enter the country code"
 			},
 			"Delete": "Delete client",

@@ -32,12 +32,10 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		client.WithUpdatedAt(dbRow.UpdatedAt),
 	}
 
-	// Add address if it's valid
 	if dbRow.Address.Valid {
 		options = append(options, client.WithAddress(dbRow.Address.String))
 	}
 
-	// Add email if it's valid
 	if dbRow.Email.Valid && dbRow.Email.String != "" {
 		e, err := internet.NewEmail(dbRow.Email.String)
 		if err == nil {
@@ -45,7 +43,6 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		}
 	}
 
-	// Add gender if it's valid
 	if dbRow.Gender.Valid && dbRow.Gender.String != "" {
 		g, err := general.NewGender(dbRow.Gender.String)
 		if err == nil {
@@ -53,7 +50,6 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		}
 	}
 
-	// Add PIN if it's valid
 	if dbRow.Pin.Valid && dbRow.Pin.String != "" {
 		tPin, err := tax.NewPin(dbRow.Pin.String, country.Uzbekistan)
 		if err == nil {
@@ -61,12 +57,10 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		}
 	}
 
-	// Add date of birth if it's valid
 	if dbRow.DateOfBirth.Valid {
 		options = append(options, client.WithDateOfBirth(mapping.SQLNullTimeToPointer(dbRow.DateOfBirth)))
 	}
 
-	// Add passport if it's valid
 	if passportData != nil {
 		options = append(options, client.WithPassport(passportData))
 	}

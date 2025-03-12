@@ -37,7 +37,9 @@
 		"Tabs": {
 			"Profile": "Umumiy",
 			"Notes": "Eslatmalar",
-			"Chat": "Xabarlar"
+			"Chat": "Xabarlar",
+			"Personal": "Shaxsiy",
+			"Documents": "Hujjatlar"
 		},
 		"Notes": {
 			"NoNotes": "Eslatmalar mavjud emas"
@@ -95,7 +97,7 @@
 				"Placeholder": "JSSHSHRni kiriting"
 			},
 			"CountryCode": {
-				"Label": "Mamlakat kodi",
+				"Label": "Mamlakat",
 				"Placeholder": "Mamlakat kodini kiriting"
 			},
 			"Delete": "Mijozni o'chirish",

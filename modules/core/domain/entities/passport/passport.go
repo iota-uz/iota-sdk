@@ -125,6 +125,7 @@ func New(series, number string, opts ...Option) Passport {
 		id:     uuid.New(),
 		series: series,
 		number: number,
+		gender: general.NilGender,
 	}
 	for _, opt := range opts {
 		opt(p)

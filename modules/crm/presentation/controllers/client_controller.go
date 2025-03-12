@@ -2,10 +2,11 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -72,7 +73,6 @@ func (c *ClientController) Register(r *mux.Router) {
 	router.Use(commonMiddleware...)
 	router.Use(middleware.Tabs(), middleware.NavItems())
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
@@ -133,14 +133,6 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 	} else {
 		templ.Handler(clients.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
-}
-
-func (c *ClientController) GetNew(w http.ResponseWriter, r *http.Request) {
-	props := &clients.CreatePageProps{
-		Client:  &viewmodels.Client{},
-		SaveURL: c.basePath,
-	}
-	templ.Handler(clients.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) Create(w http.ResponseWriter, r *http.Request) {
