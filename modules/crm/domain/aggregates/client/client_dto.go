@@ -171,12 +171,12 @@ func (d *UpdateDTO) Apply(entity Client) (Client, error) {
 	// Update passport if both series and number provided
 	if d.PassportSeries != "" && d.PassportNumber != "" {
 		if entity.Passport() != nil && entity.Passport().ID() != uuid.Nil {
-			passportWithID := passport.NewWithID(
-				entity.Passport().ID(),
+			passport := passport.New(
 				d.PassportSeries,
 				d.PassportNumber,
+				passport.WithID(entity.Passport().ID()),
 			)
-			updated = updated.SetPassport(passportWithID)
+			updated = updated.SetPassport(passport)
 		} else {
 			passport := passport.New(d.PassportSeries, d.PassportNumber)
 			updated = updated.SetPassport(passport)
