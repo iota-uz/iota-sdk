@@ -63,7 +63,12 @@ const (
 			biometric_data,
 			signature_image,
 			remarks
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) 
+		ON CONFLICT (passport_number) DO UPDATE SET
+			first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''),
+			last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''),
+			middle_name = COALESCE(NULLIF(EXCLUDED.middle_name, '')
+		RETURNING id
 	`
 	updatePassportQuery = `
 		UPDATE passports 
@@ -306,4 +311,3 @@ func (r *PassportRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	return nil
 }
-
