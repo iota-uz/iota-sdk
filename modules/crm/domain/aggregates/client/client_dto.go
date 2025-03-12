@@ -3,17 +3,19 @@ package client
 import (
 	"context"
 	"fmt"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 
-	"github.com/go-playground/validator/v10"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type CreateDTO struct {
@@ -168,8 +170,17 @@ func (d *UpdateDTO) Apply(entity Client) (Client, error) {
 
 	// Update passport if both series and number provided
 	if d.PassportSeries != "" && d.PassportNumber != "" {
-		passport := passport.New(d.PassportSeries, d.PassportNumber)
-		updated = updated.SetPassport(passport)
+		if entity.Passport() != nil && entity.Passport().ID() != uuid.Nil {
+			passportWithID := passport.NewWithID(
+				entity.Passport().ID(),
+				d.PassportSeries,
+				d.PassportNumber,
+			)
+			updated = updated.SetPassport(passportWithID)
+		} else {
+			passport := passport.New(d.PassportSeries, d.PassportNumber)
+			updated = updated.SetPassport(passport)
+		}
 	}
 
 	// Update PIN if provided with country code
