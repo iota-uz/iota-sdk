@@ -169,12 +169,11 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	dto := category.UpdateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&category.UpdateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -183,9 +182,8 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	errorsMap, ok := dto.Ok(uniLocalizer)
-	if ok {
-		if err := c.expenseCategoryService.Update(r.Context(), id, &dto); err != nil {
+	if errorsMap, ok := dto.Ok(uniLocalizer); ok {
+		if err := c.expenseCategoryService.Update(r.Context(), id, dto); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
