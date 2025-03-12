@@ -133,6 +133,19 @@ func New(series, number string, opts ...Option) Passport {
 	return p
 }
 
+func NewWithID(id uuid.UUID, series, number string, opts ...Option) Passport {
+	p := &passport{
+		id:     id,
+		series: series,
+		number: number,
+		gender: general.NilGender,
+	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
+}
+
 type passport struct {
 	id                  uuid.UUID
 	firstName           string
