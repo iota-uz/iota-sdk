@@ -131,7 +131,7 @@ func PinInput(props SharedProps) templ.Component {
 			Error:       props.Errors["Pin"],
 			Attrs: templ.Attributes{
 				"name":  "Pin",
-				"value": "",
+				"value": props.Employee.Pin,
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
