@@ -20,7 +20,7 @@ CREATE TABLE passports (
     birth_place varchar(255),
     nationality varchar(100),
     passport_type varchar(20), -- Type of passport (e.g., personal, diplomatic).
-    passport_number varchar(20) UNIQUE,
+    passport_number varchar(20),
     series varchar(20), -- Some countries use a prefix before the passport number.
     issuing_country varchar(100),
     issued_at date,
@@ -31,7 +31,8 @@ CREATE TABLE passports (
     signature_image bytea, -- Digital signature of the passport holder.
     remarks text, -- Additional notes (e.g., travel restrictions, visa endorsements).
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE(passport_number, series)
 );
 
 CREATE TABLE companies (
