@@ -5,7 +5,8 @@
   "ValidationErrors": {
     "required": "This field is required",
     "emptySelect": "Select value",
-    "email": "Invalid email format"
+    "email": "Invalid email format",
+    "custom": "{{.Field}}: {{.Error}}"
   },
   "Filters": {
     "CreatedAt": {

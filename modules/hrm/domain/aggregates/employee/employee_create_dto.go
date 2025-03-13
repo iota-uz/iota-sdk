@@ -3,6 +3,8 @@ package employee
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
@@ -13,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"time"
 )
 
 func parseTin(v string) (tax.Tin, error) {
@@ -55,38 +56,67 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
-	if errs == nil {
-		return errorMessages, true
-	}
-	for _, err := range errs.(validator.ValidationErrors) {
-		var translatedFieldName string
-		switch err.Field() {
-		case "FirstName":
-		case "LastName":
-		case "MiddleName":
-		case "Email":
-		case "Phone":
-		case "BirthDate":
-		case "HireDate":
-		case "ResignationDate":
-		case "PrimaryLanguage":
-		case "SecondaryLanguage":
-			translatedFieldName = l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: fmt.Sprintf("Employees.Public.%s.Label", err.Field()),
-			})
-		case "Salary":
-		case "Tin":
-		case "Pin":
-			translatedFieldName = l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: fmt.Sprintf("Employees.Private.%s.Label", err.Field()),
+	if errs != nil {
+		for _, err := range errs.(validator.ValidationErrors) {
+			var translatedFieldName string
+			switch err.Field() {
+			case "FirstName":
+			case "LastName":
+			case "MiddleName":
+			case "Email":
+			case "Phone":
+			case "BirthDate":
+			case "HireDate":
+			case "ResignationDate":
+			case "PrimaryLanguage":
+			case "SecondaryLanguage":
+				translatedFieldName = l.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: fmt.Sprintf("Employees.Public.%s.Label", err.Field()),
+				})
+			case "Salary":
+			case "Tin":
+			case "Pin":
+				translatedFieldName = l.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: fmt.Sprintf("Employees.Private.%s.Label", err.Field()),
+				})
+			}
+			errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+				TemplateData: map[string]string{
+					"Field": translatedFieldName,
+				},
 			})
 		}
-		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
-			TemplateData: map[string]string{
-				"Field": translatedFieldName,
-			},
-		})
+	}
+
+	if d.Tin != "" {
+		if _, err := parseTin(d.Tin); err != nil {
+			tinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "Employees.Private.TIN.Label",
+			})
+			errorMessages["Tin"] = l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "ValidationErrors.custom",
+				TemplateData: map[string]string{
+					"Field": tinFieldName,
+					"Error": err.Error(),
+				},
+			})
+		}
+	}
+
+	if d.Pin != "" {
+		if _, err := parsePin(d.Pin); err != nil {
+			pinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "Employees.Private.Pin.Label",
+			})
+			errorMessages["Pin"] = l.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "ValidationErrors.custom",
+				TemplateData: map[string]string{
+					"Field": pinFieldName,
+					"Error": err.Error(),
+				},
+			})
+		}
 	}
 
 	return errorMessages, len(errorMessages) == 0
