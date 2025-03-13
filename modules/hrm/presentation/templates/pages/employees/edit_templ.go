@@ -252,9 +252,9 @@ func EditForm(props *EditPageProps) templ.Component {
 					Label: pageCtx.T("Employees.Public.BirthDate.Label"),
 					Error: props.Errors["BirthDate"],
 					Attrs: templ.Attributes{
-						"name": "BirthDate",
-						// "value": props.Employee.BirthDate,
-						"form": "save-form",
+						"name":  "BirthDate",
+						"value": props.Employee.BirthDate,
+						"form":  "save-form",
 					},
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
