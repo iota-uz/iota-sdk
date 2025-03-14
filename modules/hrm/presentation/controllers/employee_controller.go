@@ -9,7 +9,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
@@ -23,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -177,33 +177,26 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Check if it's a domain validation error (TIN/PIN)
-		errorsMap := map[string]string{}
+		validationErrors := make(serrors.ValidationErrors)
 		if errors.Is(err, tax.ErrInvalidTin) {
-			tinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "Employees.Private.TIN.Label",
-			})
-			errorsMap["Tin"] = l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "ValidationErrors.custom",
-				TemplateData: map[string]string{
-					"Field": tinFieldName,
-					"Error": err.Error(),
-				},
-			})
+			validationErrors["Tin"] = serrors.NewInvalidTINError(
+				"Tin",
+				"Employees.Private.TIN.Label",
+				err.Error(),
+			)
 		} else if errors.Is(err, tax.ErrInvalidPin) {
-			pinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "Employees.Private.Pin.Label",
-			})
-			errorsMap["Pin"] = l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "ValidationErrors.custom",
-				TemplateData: map[string]string{
-					"Field": pinFieldName,
-					"Error": err.Error(),
-				},
-			})
+			validationErrors["Pin"] = serrors.NewInvalidPINError(
+				"Pin",
+				"Employees.Private.Pin.Label",
+				err.Error(),
+			)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Localize validation errors
+		errorsMap := serrors.LocalizeValidationErrors(validationErrors, l)
 
 		// Re-render form with errors
 		props := &employees.CreatePageProps{
@@ -252,32 +245,26 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Check if it's a domain validation error (TIN/PIN)
+			validationErrors := make(serrors.ValidationErrors)
 			if errors.Is(err, tax.ErrInvalidTin) {
-				tinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "Employees.Private.TIN.Label",
-				})
-				errorsMap["Tin"] = l.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "ValidationErrors.custom",
-					TemplateData: map[string]string{
-						"Field": tinFieldName,
-						"Error": err.Error(),
-					},
-				})
+				validationErrors["Tin"] = serrors.NewInvalidTINError(
+					"Tin",
+					"Employees.Private.TIN.Label",
+					err.Error(),
+				)
 			} else if errors.Is(err, tax.ErrInvalidPin) {
-				pinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "Employees.Private.Pin.Label",
-				})
-				errorsMap["Pin"] = l.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "ValidationErrors.custom",
-					TemplateData: map[string]string{
-						"Field": pinFieldName,
-						"Error": err.Error(),
-					},
-				})
+				validationErrors["Pin"] = serrors.NewInvalidPINError(
+					"Pin",
+					"Employees.Private.Pin.Label",
+					err.Error(),
+				)
 			} else {
 				http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 				return
 			}
+
+			// Localize validation errors
+			errorsMap = serrors.LocalizeValidationErrors(validationErrors, l)
 
 			// Re-render form with errors
 			entity, err := c.employeeService.GetByID(r.Context(), id)

@@ -12,8 +12,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type UpdateDTO struct {
@@ -39,83 +39,68 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	if !ok {
 		panic(composables.ErrNoLocalizer)
 	}
-	errorMessages := map[string]string{}
+
+	// Create validation errors collection
+	validationErrors := make(serrors.ValidationErrors)
+
+	// Process standard validator errors
 	errs := constants.Validate.Struct(d)
 	if errs != nil {
-		for _, err := range errs.(validator.ValidationErrors) {
-			var translatedFieldName string
-			switch err.Field() {
-			case "FirstName":
-			case "LastName":
-			case "MiddleName":
-			case "Email":
-			case "Phone":
-			case "BirthDate":
-			case "HireDate":
-			case "ResignationDate":
-			case "PrimaryLanguage":
-			case "SecondaryLanguage":
-				translatedFieldName = l.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: fmt.Sprintf("Employees.Public.%s.Label", err.Field()),
-				})
-			case "Salary":
-			case "Tin":
-			case "Pin":
-				translatedFieldName = l.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: fmt.Sprintf("Employees.Private.%s.Label", err.Field()),
-				})
+		validatorErrs := errs.(validator.ValidationErrors)
+
+		// Field name mapping function
+		getFieldLocaleKey := func(field string) string {
+			switch field {
+			case "FirstName", "LastName", "MiddleName", "Email", "Phone", "BirthDate",
+				"HireDate", "ResignationDate", "PrimaryLanguage", "SecondaryLanguage":
+				return fmt.Sprintf("Employees.Public.%s.Label", field)
+			case "Salary", "Tin", "Pin":
+				return fmt.Sprintf("Employees.Private.%s.Label", field)
+			default:
+				return ""
 			}
-			errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
-				TemplateData: map[string]string{
-					"Field": translatedFieldName,
-				},
-			})
+		}
+
+		// Process validator errors to our custom format
+		for field, err := range serrors.ProcessValidatorErrors(validatorErrs, getFieldLocaleKey) {
+			validationErrors[field] = err
 		}
 	}
 
-	if _, err := internet.NewEmail(d.Email); err != nil {
-		emailFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "Employees.Public.Email.Label",
-		})
-		errorMessages["Email"] = l.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "ValidationErrors.custom",
-			TemplateData: map[string]string{
-				"Field": emailFieldName,
-				"Error": err.Error(),
-			},
-		})
+	// Custom Email validation
+	if d.Email != "" {
+		if _, err := internet.NewEmail(d.Email); err != nil {
+			validationErrors["Email"] = serrors.NewInvalidEmailError(
+				"Email",
+				"Employees.Public.Email.Label",
+			)
+		}
 	}
 
+	// Custom TIN validation
 	if d.Tin != "" {
 		if _, err := parseTin(d.Tin); err != nil {
-			tinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "Employees.Private.TIN.Label",
-			})
-			errorMessages["Tin"] = l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "ValidationErrors.custom",
-				TemplateData: map[string]string{
-					"Field": tinFieldName,
-					"Error": err.Error(),
-				},
-			})
+			validationErrors["Tin"] = serrors.NewInvalidTINError(
+				"Tin",
+				"Employees.Private.TIN.Label",
+				err.Error(),
+			)
 		}
 	}
 
+	// Custom PIN validation
 	if d.Pin != "" {
 		if _, err := parsePin(d.Pin); err != nil {
-			pinFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "Employees.Private.Pin.Label",
-			})
-			errorMessages["Pin"] = l.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "ValidationErrors.custom",
-				TemplateData: map[string]string{
-					"Field": pinFieldName,
-					"Error": err.Error(),
-				},
-			})
+			validationErrors["Pin"] = serrors.NewInvalidPINError(
+				"Pin",
+				"Employees.Private.Pin.Label",
+				err.Error(),
+			)
 		}
 	}
+
+	// Localize all validation errors
+	errorMessages := serrors.LocalizeValidationErrors(validationErrors, l)
 	return errorMessages, len(errorMessages) == 0
 }
 
