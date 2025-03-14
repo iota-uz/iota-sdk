@@ -3,12 +3,13 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"github.com/go-faster/errors"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
+
+	"github.com/go-faster/errors"
 )
 
 var (
@@ -51,6 +52,7 @@ const (
 			primary_language,
 			secondary_language,
 			tin,
+			pin,
 			notes,
 			birth_date,
 			hire_date,
@@ -155,6 +157,7 @@ func (g *GormEmployeeRepository) Create(ctx context.Context, data employee.Emplo
 		dbMeta.PrimaryLanguage,
 		dbMeta.SecondaryLanguage,
 		dbMeta.Tin,
+		dbMeta.Pin,
 		dbMeta.Notes,
 		dbMeta.BirthDate,
 		dbMeta.HireDate,

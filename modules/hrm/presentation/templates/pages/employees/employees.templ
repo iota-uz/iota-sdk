@@ -45,7 +45,7 @@ templ EmployeesTable(props *IndexPageProps) {
 						Fixed: true,
 						Size:  button.SizeSM,
 						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/operations/employees/%s", employee.ID),
+						Href:  fmt.Sprintf("/hrm/employees/%s", employee.ID),
 					}) {
 						@icons.PencilSimple(icons.Props{Size: "20"})
 					}
@@ -64,7 +64,7 @@ templ EmployeesContent(props *IndexPageProps) {
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
-				hx-get="/operations/employees"
+				hx-get="/hrm/employees"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target="table"
 				hx-swap="outerHTML"
