@@ -12,12 +12,20 @@ var AIChatLink = types.NavigationItem{
 	Children: nil,
 }
 
+var QuestionsLink = types.NavigationItem{
+	Name:     "NavigationLinks.Questions",
+	Icon:     icons.Question(icons.Props{Size: "20"}),
+	Href:     "/crm/questions",
+	Children: []types.NavigationItem{},
+}
+
 var WebsiteLink = types.NavigationItem{
 	Name: "NavigationLinks.Website",
 	Icon: icons.Globe(icons.Props{Size: "20"}),
 	Href: "/website",
 	Children: []types.NavigationItem{
 		AIChatLink,
+		QuestionsLink,
 	},
 }
 
