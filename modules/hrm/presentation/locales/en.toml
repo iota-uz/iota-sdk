@@ -11,6 +11,12 @@
   Update = "Update employee"
   Delete = "Delete employee"
 
+[ValidationErrors]
+  required = "{{.Field}} is required"
+  email = "{{.Field}} must be a valid email address"
+  invalidTIN = "Invalid TIN format: {{.Details}}"
+  invalidPIN = "Invalid PIN format: {{.Details}}"
+
 [Employees]
   [Employees.Meta]
     [Employees.Meta.List]
