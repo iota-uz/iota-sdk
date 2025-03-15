@@ -11,6 +11,12 @@
   Update = "Xodimni tahrirlash"
   Delete = "Xodimni o'chirish"
 
+[ValidationErrors]
+  required = "{{.Field}} to'ldirilishi shart"
+  email = "{{.Field}} to'g'ri elektron pochta manzili bo'lishi kerak"
+  invalidTIN = "Noto'g'ri STIR formati: {{.Details}}"
+  invalidPIN = "Noto'g'ri JSHSHR formati: {{.Details}}"
+
 [Employees]
   [Employees.Meta]
     [Employees.Meta.List]

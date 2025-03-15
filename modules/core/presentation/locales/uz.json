@@ -5,7 +5,8 @@
   "ValidationErrors": {
     "required": "Bu maydon to'ldirilishi shart",
     "emptySelect": "Qiymatni tanlang",
-    "email": "Email formati noto'g'ri"
+    "email": "Email formati noto'g'ri",
+    "custom": "{{.Field}}: {{.Error}}"
   },
   "Filters": {
     "CreatedAt": {
