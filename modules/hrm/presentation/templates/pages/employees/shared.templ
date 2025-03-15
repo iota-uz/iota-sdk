@@ -53,7 +53,7 @@ templ PinInput(props SharedProps) {
 		Error:       props.Errors["Pin"],
 		Attrs: templ.Attributes{
 			"name":  "Pin",
-			"value": "",
+			"value": props.Employee.Pin,
 		},
 	})
 }

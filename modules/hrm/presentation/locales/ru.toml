@@ -11,6 +11,12 @@ Read = "Просмотреть сотрудника"
 Update = "Редактировать сотрудника"
 Delete = "Удалить сотрудника"
 
+[ValidationErrors]
+required = "{{.Field}} обязательно для заполнения"
+email = "{{.Field}} должен быть действительным адресом электронной почты"
+invalidTIN = "Неверный формат ИНН: {{.Details}}"
+invalidPIN = "Неверный формат ПИНФЛ: {{.Details}}"
+
 [Employees]
 [Employees.Meta]
 [Employees.Meta.List]
