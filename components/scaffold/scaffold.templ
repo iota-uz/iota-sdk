@@ -1,0 +1,79 @@
+package scaffold
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+// Table renders a dynamic table based on configuration and data
+templ Table(config TableConfig, data TableData) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Table(&base.TableProps{
+		Columns: toBaseTableColumns(config.Columns, pageCtx),
+	}) {
+		for _, item := range data.Items {
+			@base.TableRow(&base.TableRowProps{}) {
+				for _, col := range config.Columns {
+					@base.TableCell() {
+						if col.Key == "actions" && col.Format != nil {
+							// Special handling for action buttons
+							@button.Secondary(button.Props{
+								Fixed: true,
+								Size:  button.SizeSM,
+								Class: "btn-fixed",
+								Href:  fmt.Sprintf("%v", item["_editUrl"]),
+							}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
+						} else if col.Format != nil && item[col.Key] != nil {
+							@templ.Raw(col.Format(item[col.Key]))
+						} else if item[col.Key] != nil {
+							{ fmt.Sprintf("%v", item[col.Key]) }
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// Content renders the complete scaffold page content with filters and table
+templ Content(config TableConfig, data TableData) {
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ config.Title }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			@Table(config, data)
+		</div>
+	</div>
+}
+
+templ Page(config TableConfig, data TableData) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: ""},
+	}) {
+		@Content(config, data)
+	}
+}
+
+// Helper function to convert our TableColumn slice to base.TableColumn slice
+func toBaseTableColumns(columns []TableColumn, pageCtx *types.PageContext) []*base.TableColumn {
+	result := make([]*base.TableColumn, len(columns))
+	for i, col := range columns {
+		// Get the translated label
+		label := pageCtx.T(col.Label)
+
+		result[i] = &base.TableColumn{
+			Key:   col.Key,
+			Label: label,
+			Class: col.Class,
+		}
+	}
+	return result
+}
