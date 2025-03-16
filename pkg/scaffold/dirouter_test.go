@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -119,14 +118,14 @@ func BenchmarkDIRouter(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/123", nil)
 	req = req.WithContext(ctx)
 
-	handler := &DIHandler{
-		value: reflect.ValueOf(diTestHandler),
-	}
+	// Create a new handler for each run to ensure setup time is not included in the benchmark
+	handler := NewDIHandler(diTestHandler)
+	handlerFunc := handler.Handler() // Pre-compute the handler function
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()
-		handler.Handler()(rr, req)
+		handlerFunc(rr, req)
 	}
 }
 
