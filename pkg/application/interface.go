@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"embed"
+	"reflect"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -45,6 +46,7 @@ type Application interface {
 	RegisterServices(services ...interface{})
 	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
 	Service(service interface{}) interface{}
+	Services() map[reflect.Type]interface{}
 	Bundle() *i18n.Bundle
 }
 

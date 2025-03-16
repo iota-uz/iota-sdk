@@ -227,6 +227,10 @@ func (app *application) Service(service interface{}) interface{} {
 	return svc
 }
 
+func (app *application) Services() map[reflect.Type]interface{} {
+	return app.services
+}
+
 func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }
