@@ -42,11 +42,11 @@ func (m *Module) Register(app application.Application) error {
 	}
 	// Register upload repository first since user repository needs it
 	uploadRepo := persistence.NewUploadRepository()
-	
+
 	// Create repositories
 	userRepo := persistence.NewUserRepository(uploadRepo)
 	roleRepo := persistence.NewRoleRepository()
-	
+
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
 		services.NewUserService(userRepo, app.EventPublisher()),
@@ -68,6 +68,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUploadController(app),
 		controllers.NewUsersController(app),
 		controllers.NewRolesController(app),
+		controllers.NewDIExampleController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
