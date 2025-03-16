@@ -15,6 +15,7 @@ import (
 )
 
 func Handler(
+	// these will be auto injected by di handler
 	r *http.Request,
 	w http.ResponseWriter,
 	localizer *i18n.Localizer,
@@ -65,7 +66,8 @@ func (c *DIEmployeeController) Key() string {
 }
 
 func (c *DIEmployeeController) Register(r *mux.Router) {
-	r.Use(
+	subRouter := r.PathPrefix("/di-example").Subrouter()
+	subRouter.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
@@ -74,5 +76,5 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	r.HandleFunc("/di-example/{id:[0-9]+}", scaffold.NewDIHandler(Handler).Handler())
+	subRouter.HandleFunc("/di-example/{id:[0-9]+}", scaffold.NewDIHandler(Handler).Handler())
 }
