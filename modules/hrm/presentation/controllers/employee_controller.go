@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/templates/pages/employees"
@@ -21,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -166,8 +168,55 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.employeeService.Create(r.Context(), dto); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	err = c.employeeService.Create(r.Context(), dto)
+	if err != nil {
+		l, ok := composables.UseLocalizer(r.Context())
+		if !ok {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Check if it's a domain validation error (TIN/PIN)
+		validationErrors := make(serrors.ValidationErrors)
+		if errors.Is(err, tax.ErrInvalidTin) {
+			validationErrors["Tin"] = serrors.NewInvalidTINError(
+				"Tin",
+				"Employees.Private.TIN.Label",
+				err.Error(),
+			)
+		} else if errors.Is(err, tax.ErrInvalidPin) {
+			validationErrors["Pin"] = serrors.NewInvalidPINError(
+				"Pin",
+				"Employees.Private.Pin.Label",
+				err.Error(),
+			)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Localize validation errors
+		errorsMap := serrors.LocalizeValidationErrors(validationErrors, l)
+
+		// Re-render form with errors
+		props := &employees.CreatePageProps{
+			Errors: errorsMap,
+			Employee: &viewmodels.Employee{
+				FirstName:       dto.FirstName,
+				LastName:        dto.LastName,
+				Email:           dto.Email,
+				Phone:           dto.Phone,
+				Salary:          strconv.FormatFloat(dto.Salary, 'f', 2, 64),
+				BirthDate:       time.Time(dto.BirthDate).Format(time.DateOnly),
+				HireDate:        time.Time(dto.HireDate).Format(time.DateOnly),
+				ResignationDate: time.Time(dto.ResignationDate).Format(time.DateOnly),
+				Tin:             dto.Tin,
+				Pin:             dto.Pin,
+				Notes:           dto.Notes,
+			},
+			PostPath: c.basePath,
+		}
+		templ.Handler(employees.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
@@ -187,14 +236,55 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	errorsMap, ok := dto.Ok(r.Context())
 	if ok {
-		if err := c.employeeService.Update(r.Context(), id, dto); err != nil {
-			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+		err := c.employeeService.Update(r.Context(), id, dto)
+		if err != nil {
+			l, ok := composables.UseLocalizer(r.Context())
+			if !ok {
+				http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+				return
+			}
+
+			// Check if it's a domain validation error (TIN/PIN)
+			validationErrors := make(serrors.ValidationErrors)
+			if errors.Is(err, tax.ErrInvalidTin) {
+				validationErrors["Tin"] = serrors.NewInvalidTINError(
+					"Tin",
+					"Employees.Private.TIN.Label",
+					err.Error(),
+				)
+			} else if errors.Is(err, tax.ErrInvalidPin) {
+				validationErrors["Pin"] = serrors.NewInvalidPINError(
+					"Pin",
+					"Employees.Private.Pin.Label",
+					err.Error(),
+				)
+			} else {
+				http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+				return
+			}
+
+			// Localize validation errors
+			errorsMap = serrors.LocalizeValidationErrors(validationErrors, l)
+
+			// Re-render form with errors
+			entity, err := c.employeeService.GetByID(r.Context(), id)
+			if err != nil {
+				http.Error(w, "Error retrieving employee", http.StatusInternalServerError)
+				return
+			}
+			props := &employees.EditPageProps{
+				Employee:  mappers.EmployeeToViewModel(entity),
+				Errors:    errorsMap,
+				SaveURL:   fmt.Sprintf("%s/%d", c.basePath, id),
+				DeleteURL: fmt.Sprintf("%s/%d", c.basePath, id),
+			}
+			templ.Handler(employees.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 	} else {
 		entity, err := c.employeeService.GetByID(r.Context(), id)
 		if err != nil {
-			http.Error(w, "Error retrieving account", http.StatusInternalServerError)
+			http.Error(w, "Error retrieving employee", http.StatusInternalServerError)
 			return
 		}
 		props := &employees.EditPageProps{
