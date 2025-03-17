@@ -35,5 +35,4 @@ func (h *NotificationHandler) onNewMessage(event *chat.MessagedAddedEvent) {
 	if err := h.tgBot.SendMessage(ctx, chatID, "Получено новое сообщение"); err != nil {
 		log.Printf("Error sending telegram message: %v", err)
 	}
-
 }
