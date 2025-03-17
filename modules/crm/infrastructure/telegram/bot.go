@@ -7,6 +7,8 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 )
 
+type SendMessageOpts gotgbot.SendMessageOpts
+
 type Bot struct {
 	client *gotgbot.Bot
 }
@@ -19,8 +21,8 @@ func NewBot(token string) (*Bot, error) {
 	return &Bot{client: client}, nil
 }
 
-func (b *Bot) SendMessage(ctx context.Context, chatID int64, text string) error {
-	_, err := b.client.SendMessage(chatID, text, nil)
+func (b *Bot) SendMessage(ctx context.Context, chatID int64, text string, options *SendMessageOpts) error {
+	_, err := b.client.SendMessage(chatID, text, (*gotgbot.SendMessageOpts)(options))
 	if err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
