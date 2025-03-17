@@ -92,6 +92,10 @@
 				"Label": "Номер паспорта",
 				"Placeholder": "Введите номер паспорта"
 			},
+			"PassportSeriesAndNumber": {
+				"Label": "Серия и номер паспорта",
+				"Placeholder": "Введите серию и номер паспорта"
+			},
 			"Pin": {
 				"Label": "ИНН",
 				"Placeholder": "Введите ИНН"
