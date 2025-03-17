@@ -32,7 +32,12 @@ func RegisterNotificationHandler(app application.Application, botToken string) *
 func (h *NotificationHandler) onNewMessage(event *chat.MessagedAddedEvent) {
 	ctx := context.Background()
 	chatID := int64(-1001979082001)
-	if err := h.tgBot.SendMessage(ctx, chatID, "Получено новое сообщение"); err != nil {
+	if err := h.tgBot.SendMessage(
+		ctx,
+		chatID,
+		"Получено новое сообщение",
+		nil,
+	); err != nil {
 		log.Printf("Error sending telegram message: %v", err)
 	}
 }
