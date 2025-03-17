@@ -22,7 +22,7 @@ type CreateDTO struct {
 	FirstName      string `validate:"required"`
 	LastName       string `validate:"required"`
 	MiddleName     string
-	Phone          string `validate:"required"`
+	Phone          string
 	Email          string `validate:"omitempty,email"`
 	Address        string
 	PassportSeries string
@@ -111,7 +111,7 @@ type UpdateDTO struct {
 	FirstName      string `validate:"required"`
 	LastName       string `validate:"required"`
 	MiddleName     string
-	Phone          string `validate:"required"`
+	Phone          string
 	Email          string `validate:"omitempty,email"`
 	Address        string
 	PassportSeries string
