@@ -3,21 +3,21 @@ package viewmodels
 import "strings"
 
 type Passport struct {
-	ID              string
-	Series          string
-	Number          string
-	FirstName       string
-	LastName        string
-	MiddleName      string
-	Gender          string
-	BirthDate       string
-	BirthPlace      string
-	Nationality     string
-	PassportType    string
-	IssuedAt        string
-	IssuedBy        string
-	IssuingCountry  string
-	ExpiresAt       string
+	ID             string
+	Series         string
+	Number         string
+	FirstName      string
+	LastName       string
+	MiddleName     string
+	Gender         string
+	BirthDate      string
+	BirthPlace     string
+	Nationality    string
+	PassportType   string
+	IssuedAt       string
+	IssuedBy       string
+	IssuingCountry string
+	ExpiresAt      string
 }
 
 type Client struct {

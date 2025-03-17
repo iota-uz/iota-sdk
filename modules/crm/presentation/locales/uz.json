@@ -92,6 +92,10 @@
 				"Label": "Pasport raqami",
 				"Placeholder": "Pasport raqamini kiriting"
 			},
+			"PassportSeriesAndNumber": {
+				"Label": "Pasport seriyasi va raqami",
+				"Placeholder": "Pasport seriyasi va raqamini kiriting"
+			},
 			"Pin": {
 				"Label": "JSHSHR",
 				"Placeholder": "JSSHSHRni kiriting"

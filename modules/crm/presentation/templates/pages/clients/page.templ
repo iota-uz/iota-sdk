@@ -7,11 +7,18 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
+
+// formatData returns "-" if the string is empty, otherwise returns the string
+func formatData(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
 
 // ---- Utility Components ----
 templ Avatar(initials string) {
@@ -101,6 +108,179 @@ templ Chats(props chatsui.SelectedChatProps) {
 	</div>
 }
 
+// ---- InfoCard Components -----
+templ CardHeader(title string, editURL string, targetID string, saveURL string) {
+	<div class="flex justify-between border-b border-gray-200 p-4">
+		<p>{ title }</p>
+		<div class="flex gap-3">
+			@button.Danger(button.Props{
+				Icon: icons.XCircle(icons.Props{Size: "20"}),
+				Attrs: templ.Attributes{
+					"x-show": "isEditing",
+					"@click": "isEditing = false",
+				},
+			})
+			@button.Primary(button.Props{
+				Icon: icons.CheckCircle(icons.Props{Size: "20"}),
+				Attrs: templ.Attributes{
+					"x-show": "isEditing",
+					"type":   "submit",
+					"form":   targetID + "-form",
+				},
+			}) {
+				{ composables.UsePageCtx(ctx).T("Save") }
+			}
+			@button.Secondary(button.Props{
+				Icon: icons.PencilSimple(icons.Props{Size: "20"}),
+				Attrs: templ.Attributes{
+					"x-show":    "!isEditing",
+					"@click":    "isEditing = true",
+					"hx-get":    editURL,
+					"hx-target": targetID,
+					"hx-swap":   "innerHTML",
+				},
+			})
+		</div>
+	</div>
+}
+
+// PersonalInfoCardProps contains data needed for the personal info card
+templ PersonalInfoCard(client *viewmodels.Client) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div x-data="{ isEditing: false }">
+		@card.Card(card.Props{
+			Header: CardHeader(
+				pageCtx.T("Clients.Single.PersonalInfo"),
+				fmt.Sprintf("/crm/clients/%s/edit/personal", client.ID),
+				"#personal-info-edit-form",
+				fmt.Sprintf("/crm/clients/%s", client.ID),
+			),
+		}) {
+			<div
+				x-show="!isEditing"
+				class="grid grid-cols-2 gap-4"
+			>
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.FirstName.Label") }
+					</div>
+					<div>{ formatData(client.FirstName) }</div>
+				</div>
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.LastName.Label") }
+					</div>
+					<div>{ formatData(client.LastName) }</div>
+				</div>
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.MiddleName.Label") }
+					</div>
+					<div>{ formatData(client.MiddleName) }</div>
+				</div>
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.Phone.Label") }
+					</div>
+					<div>{ formatData(client.Phone) }</div>
+				</div>
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.Email.Label") }
+					</div>
+					<div>{ formatData(client.Email) }</div>
+				</div>
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.DateOfBirth.Label") }
+					</div>
+					<div>{ formatData(client.DateOfBirth) }</div>
+				</div>
+				<div class="col-span-2">
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.Address.Label") }
+					</div>
+					<div>{ formatData(client.Address) }</div>
+				</div>
+			</div>
+			<div
+				x-show="isEditing"
+				id="personal-info-edit-form"
+			></div>
+		}
+	</div>
+}
+
+// PassportInfoCard shows passport information for the client
+templ PassportInfoCard(client *viewmodels.Client) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div
+		class="passport-info-section"
+		x-data="{ isEditing: false }"
+	>
+		<div x-show="!isEditing">
+			@card.Card(card.Props{
+				Class: "grid grid-cols-1 gap-4",
+				Header: CardHeader(
+					pageCtx.T("Clients.Single.PassportInfo"),
+					fmt.Sprintf("/crm/clients/%s/edit/passport", client.ID),
+					"#passport-info-edit-form",
+					fmt.Sprintf("/crm/clients/%s", client.ID),
+				),
+			}) {
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.PassportSeriesAndNumber.Label") }
+					</div>
+					<div>{ formatData(client.Passport.Series + client.Passport.Number) }</div>
+				</div>
+			}
+		</div>
+		<div
+			x-show="isEditing"
+			id="passport-info-edit-form"
+		></div>
+	</div>
+}
+
+// TaxInfoCard shows tax information for the client
+templ TaxInfoCard(client *viewmodels.Client) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div
+		class="tax-info-section"
+		x-data="{ isEditing: false }"
+	>
+		<div x-show="!isEditing">
+			@card.Card(card.Props{
+				Class: "grid grid-cols-2 gap-4",
+				Header: CardHeader(
+					pageCtx.T("Clients.Single.TaxInfo"),
+					fmt.Sprintf("/crm/clients/%s/edit/tax", client.ID),
+					"#tax-info-edit-form",
+					fmt.Sprintf("/crm/clients/%s", client.ID),
+				),
+			}) {
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.Pin.Label") }
+					</div>
+					<div>{ formatData(client.Pin) }</div>
+				</div>
+				<div>
+					<div class="text-sm text-base-600">
+						{ pageCtx.T("Clients.Single.CountryCode.Label") }
+					</div>
+					<div>{ client.CountryCode }</div>
+				</div>
+			}
+		</div>
+		<div
+			x-show="isEditing"
+			id="tax-info-edit-form"
+		></div>
+	</div>
+}
+
 // ---- Profile -----
 
 type ProfileProps struct {
@@ -136,36 +316,7 @@ templ Profile(props ProfileProps) {
 						</div>
 					</div>
 				</div>
-				<div
-					class="flex gap-3"
-					x-data="{ isEditing: false }"
-				>
-					@button.Danger(button.Props{
-						Icon: icons.XCircle(icons.Props{Size: "20"}),
-						Attrs: templ.Attributes{
-							"x-show":     "isEditing",
-							"@click":     "isEditing = false",
-							"hx-get":     pageCtx.URL.RawPath,
-							"hx-trigger": "click",
-							"hx-swap":    "innerHTML",
-							"hx-target":  "#tab-content",
-						},
-					}) {
-						{ pageCtx.T("Cancel") }
-					}
-					@button.Secondary(button.Props{
-						Icon: icons.PencilSimple(icons.Props{Size: "20"}),
-						Attrs: templ.Attributes{
-							"x-show":     "!isEditing",
-							"@click":     "isEditing = true",
-							"hx-get":     props.EditURL,
-							"hx-trigger": "click",
-							"hx-swap":    "innerHTML",
-							"hx-target":  "#profile-content",
-						},
-					}) {
-						{ pageCtx.T("Edit") }
-					}
+				<div class="flex gap-3">
 					@button.Primary(button.Props{
 						Icon: icons.PlusCircle(icons.Props{Size: "20"}),
 					}) {
@@ -178,71 +329,10 @@ templ Profile(props ProfileProps) {
 					id="profile-content"
 					class="flex flex-col gap-6 p-4"
 				>
-					<!-- Personal Information Card -->
-					@card.Card(card.Props{
-						Class:  "grid grid-cols-2 gap-4",
-						Header: card.DefaultHeader(pageCtx.T("Clients.Single.PersonalInfo")),
-					}) {
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.FirstName.Label") }</div>
-							<div>{ props.Client.FirstName }</div>
-						</div>
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.LastName.Label") }</div>
-							<div>{ props.Client.LastName }</div>
-						</div>
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.MiddleName.Label") }</div>
-							<div>{ props.Client.MiddleName }</div>
-						</div>
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.Phone.Label") }</div>
-							<div>{ props.Client.Phone }</div>
-						</div>
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.Email.Label") }</div>
-							<div>{ props.Client.Email }</div>
-						</div>
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.DateOfBirth.Label") }</div>
-							<div>{ props.Client.DateOfBirth }</div>
-						</div>
-						<div class="col-span-2">
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.Address.Label") }</div>
-							<div>{ props.Client.Address }</div>
-						</div>
-					}
-					
-					<!-- Passport Information Card -->
-					@card.Card(card.Props{
-						Class:  "grid grid-cols-2 gap-4",
-						Header: card.DefaultHeader(pageCtx.T("Clients.Single.PassportInfo")),
-					}) {
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.PassportSeries.Label") }</div>
-							<div>{ props.Client.Passport.Series }</div>
-						</div>
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.PassportNumber.Label") }</div>
-							<div>{ props.Client.Passport.Number }</div>
-						</div>
-					}
-					
-					<!-- Tax Information Card -->
-					@card.Card(card.Props{
-						Class:  "grid grid-cols-2 gap-4",
-						Header: card.DefaultHeader(pageCtx.T("Clients.Single.TaxInfo")),
-					}) {
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.Pin.Label") }</div>
-							<div>{ props.Client.Pin }</div>
-						</div>
-						<div>
-							<div class="text-sm text-base-600">{ pageCtx.T("Clients.Single.CountryCode.Label") }</div>
-							<div>{ props.Client.CountryCode }</div>
-						</div>
-					}
-					
+					<!-- Info Cards -->
+					@PersonalInfoCard(props.Client)
+					@PassportInfoCard(props.Client)
+					@TaxInfoCard(props.Client)
 					@Notes()
 				</div>
 			</div>
@@ -269,30 +359,4 @@ templ NotFound() {
 	<div>
 		{ pageCtx.T("NotFound") }
 	</div>
-}
-
-// ---- Edit Page ----
-templ Edit(props *EditPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Clients.Edit.Meta.Title")},
-	}) {
-		@EditForm(props)
-		@dialog.Confirmation(&dialog.Props{
-			CancelText:  pageCtx.T("Cancel"),
-			ConfirmText: pageCtx.T("Delete"),
-			Heading:     pageCtx.T("Clients.Single.Delete"),
-			Text:        pageCtx.T("Clients.Single.DeleteConfirmation"),
-			Icon:        icons.Trash(icons.Props{Size: "20"}),
-			Action:      "open-delete-client-confirmation",
-			Attrs: templ.Attributes{
-				"@closing": `({target}) => {
-					if (target.returnValue === "confirm") {
-						let deleteForm = document.getElementById("delete-form");
-						htmx.trigger(deleteForm, "submit");
-					}
-				}`,
-			},
-		})
-	}
 }

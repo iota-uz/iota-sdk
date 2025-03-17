@@ -92,6 +92,10 @@
 				"Label": "Passport Number",
 				"Placeholder": "Enter the passport number"
 			},
+			"PassportSeriesAndNumber": {
+				"Label": "Passport series and number",
+				"Placeholder": "Enter passport series and number"
+			},
 			"Pin": {
 				"Label": "Personal Identification Number",
 				"Placeholder": "Enter the PIN"

@@ -493,7 +493,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 	})
 }
 
-// Edit Form
+// Edit Form - Partial Forms for each section
 
 type EditPageProps struct {
 	Client    *viewmodels.Client
@@ -502,7 +502,14 @@ type EditPageProps struct {
 	DeleteURL string
 }
 
-func EditForm(props *EditPageProps) templ.Component {
+// PersonalInfoEditForm is a dedicated form for editing personal information
+type PersonalInfoEditProps struct {
+	Client  *viewmodels.Client
+	Errors  map[string]string
+	SaveURL string
+}
+
+func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -523,391 +530,266 @@ func EditForm(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Var16 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div id=\"edit-content\" class=\"flex flex-col justify-between h-full bg-surface-100\"><div class=\"m-6 flex flex-col gap-6\"><!-- Personal Information Card -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div id=\"personal-info-edit-form\" class=\"personal-info-section\" x-data=\"{ isEditing: true }\"><form id=\"personal-info-edit-form-form\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Var17 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.FirstName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.FirstName,
-					"name":  "FirstName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["FirstName"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.LastName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.LastName,
-					"name":  "LastName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["LastName"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
-				Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.MiddleName,
-					"name":  "MiddleName",
-					"form":  "save-form",
-				},
-				Error: props.Errors["MiddleName"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.Phone.Label"),
-				Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.Phone,
-					"name":  "Phone",
-					"form":  "save-form",
-				},
-				Error: props.Errors["Phone"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.Email.Label"),
-				Placeholder: pageCtx.T("Clients.Single.Email.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.Email,
-					"name":  "Email",
-					"type":  "email",
-					"form":  "save-form",
-				},
-				Error: props.Errors["Email"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = input.Date(&input.Props{
-				Label:       pageCtx.T("Clients.Single.DateOfBirth.Label"),
-				Placeholder: pageCtx.T("Clients.Single.DateOfBirth.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.DateOfBirth,
-					"name":  "DateOfBirth",
-					"form":  "save-form",
-				},
-				Error: props.Errors["DateOfBirth"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
-				Label:        pageCtx.T("Clients.Single.Address.Label"),
-				Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
-				Value:        props.Client.Address,
-				WrapperClass: "col-span-3",
-				Attrs: templ.Attributes{
-					"name": "Address",
-					"form": "save-form",
-					"rows": "3",
-				},
-				Error: props.Errors["Address"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return nil
-		})
-		templ_7745c5c3_Err = card.Card(card.Props{
-			Class:  "grid grid-cols-3 gap-4",
-			Header: card.DefaultHeader(pageCtx.T("Clients.Single.PersonalInfo")),
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
+		var templ_7745c5c3_Var17 string
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 203, Col: 26}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<!-- Passport Information Card -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" hx-swap=\"outerHTML\" hx-target=\"#personal-info-edit-form\"><input type=\"hidden\" name=\"section\" value=\"personal\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Var18 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
-				Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.Passport.Series,
-					"name":  "PassportSeries",
-					"form":  "save-form",
-				},
-				Error: props.Errors["PassportSeries"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
-				Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.Passport.Number,
-					"name":  "PassportNumber",
-					"form":  "save-form",
-				},
-				Error: props.Errors["PassportNumber"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return nil
-		})
-		templ_7745c5c3_Err = card.Card(card.Props{
-			Class:  "grid grid-cols-2 gap-4",
-			Header: card.DefaultHeader(pageCtx.T("Clients.Single.PassportInfo")),
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.FirstName.Label"),
+			Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.FirstName,
+				"name":  "FirstName",
+			},
+			Error: props.Errors["FirstName"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<!-- Tax Information Card -->")
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.LastName.Label"),
+			Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.LastName,
+				"name":  "LastName",
+			},
+			Error: props.Errors["LastName"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Var19 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Clients.Single.Pin.Label"),
-				Placeholder: pageCtx.T("Clients.Single.Pin.Placeholder"),
-				Attrs: templ.Attributes{
-					"value": props.Client.Pin,
-					"name":  "Pin",
-					"form":  "save-form",
-				},
-				Error: props.Errors["Pin"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = selects.CountriesSelect(selects.CountriesSelectProps{
-				Label:       pageCtx.T("Clients.Single.CountryCode.Label"),
-				Placeholder: pageCtx.T("Clients.Single.CountryCode.Placeholder"),
-				Name:        "CountryCode",
-				Selected:    props.Client.CountryCode,
-				Attrs: templ.Attributes{
-					"form": "save-form",
-				},
-				Error: props.Errors["CountryCode"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return nil
-		})
-		templ_7745c5c3_Err = card.Card(card.Props{
-			Class:  "grid grid-cols-2 gap-4",
-			Header: card.DefaultHeader(pageCtx.T("Clients.Single.TaxInfo")),
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
+			Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.MiddleName,
+				"name":  "MiddleName",
+			},
+			Error: props.Errors["MiddleName"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div>")
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.Phone.Label"),
+			Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.Phone,
+				"name":  "Phone",
+			},
+			Error: props.Errors["Phone"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var20 = []any{
-			"flex items-center justify-end px-8 h-20 w-full mt-auto gap-4",
-			"bg-surface-300 border-t border-t-primary shadow-t-lg",
-		}
-		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var20...)
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.Email.Label"),
+			Placeholder: pageCtx.T("Clients.Single.Email.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.Email,
+				"name":  "Email",
+				"type":  "email",
+			},
+			Error: props.Errors["Email"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div x-data class=\"")
+		templ_7745c5c3_Err = input.Date(&input.Props{
+			Label:       pageCtx.T("Clients.Single.DateOfBirth.Label"),
+			Placeholder: pageCtx.T("Clients.Single.DateOfBirth.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.DateOfBirth,
+				"name":  "DateOfBirth",
+			},
+			Error: props.Errors["DateOfBirth"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
+			Label:        pageCtx.T("Clients.Single.Address.Label"),
+			Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
+			Value:        props.Client.Address,
+			WrapperClass: "col-span-2",
+			Attrs: templ.Attributes{
+				"name": "Address",
+				"rows": "3",
+			},
+			Error: props.Errors["Address"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div></form></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// PassportInfoEditForm is a dedicated form for editing passport information
+type PassportInfoEditProps struct {
+	Client  *viewmodels.Client
+	Errors  map[string]string
+	SaveURL string
+}
+
+func PassportInfoEditForm(props *PassportInfoEditProps) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var18 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var18 == nil {
+			templ_7745c5c3_Var18 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<div id=\"passport-info-edit-form\" x-data=\"{ isEditing: true }\"><form id=\"passport-info-edit-form-form\" hx-post=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var19 string
+		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 292, Col: 26}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" hx-swap=\"outerHTML\" hx-target=\"#passport-info-edit-form\"><input type=\"hidden\" name=\"section\" value=\"passport\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
+			Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.Passport.Series,
+				"name":  "PassportSeries",
+			},
+			Error: props.Errors["PassportSeries"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
+			Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.Passport.Number,
+				"name":  "PassportNumber",
+			},
+			Error: props.Errors["PassportNumber"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div></form></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// TaxInfoEditForm is a dedicated form for editing tax information
+type TaxInfoEditProps struct {
+	Client  *viewmodels.Client
+	Errors  map[string]string
+	SaveURL string
+}
+
+func TaxInfoEditForm(props *TaxInfoEditProps) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var20 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var20 == nil {
+			templ_7745c5c3_Var20 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<div id=\"tax-info-edit-form\" class=\"tax-info-section\" x-data=\"{ isEditing: true }\"><form id=\"tax-info-edit-form-form\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var21 string
-		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var20).String())
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 1, Col: 0}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 333, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\"><form id=\"delete-form\" hx-delete=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" hx-swap=\"outerHTML\" hx-target=\"#tax-info-edit-form\"><input type=\"hidden\" name=\"section\" value=\"tax\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var22 string
-		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(props.DeleteURL)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 341, Col: 31}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" hx-trigger=\"submit\" hx-target=\"closest .content\" hx-swap=\"innerHTML\" hx-indicator=\"#delete-client-btn\" hx-disabled-elt=\"find button\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Var23 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			var templ_7745c5c3_Var24 string
-			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 358, Col: 26}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return nil
-		})
-		templ_7745c5c3_Err = button.Danger(button.Props{
-			Size: button.SizeMD,
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.Pin.Label"),
+			Placeholder: pageCtx.T("Clients.Single.Pin.Placeholder"),
 			Attrs: templ.Attributes{
-				"name":   "_action",
-				"value":  "delete",
-				"type":   "button",
-				"@click": "$dispatch('open-delete-client-confirmation')",
-				"id":     "delete-client-btn",
+				"value": props.Client.Pin,
+				"name":  "Pin",
 			},
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
+			Error: props.Errors["Pin"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</form><form id=\"save-form\" method=\"post\" hx-post=\"")
+		templ_7745c5c3_Err = selects.CountriesSelect(selects.CountriesSelectProps{
+			Label:       pageCtx.T("Clients.Single.CountryCode.Label"),
+			Placeholder: pageCtx.T("Clients.Single.CountryCode.Placeholder"),
+			Name:        "CountryCode",
+			Selected:    props.Client.CountryCode,
+			Error:       props.Errors["CountryCode"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var25 string
-		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 364, Col: 27}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" hx-indicator=\"#save-btn\" hx-target=\"#edit-content\" hx-swap=\"outerHTML\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Var26 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			var templ_7745c5c3_Var27 string
-			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 377, Col: 24}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return nil
-		})
-		templ_7745c5c3_Err = button.Primary(button.Props{
-			Size: button.SizeMD,
-			Attrs: templ.Attributes{
-				"name":  "_action",
-				"value": "save",
-				"id":    "save-btn",
-			},
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</form></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></form></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
