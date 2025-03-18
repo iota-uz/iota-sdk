@@ -2,30 +2,22 @@ package htmx
 
 import "net/http"
 
+// ================= Setters =================
+
 // Redirect sets the HX-Redirect header to redirect the client to a new URL.
-func Redirect(w http.ResponseWriter, _ *http.Request, path string) {
+func Redirect(w http.ResponseWriter, path string) {
 	w.Header().Add("HX-Redirect", path)
 	w.WriteHeader(http.StatusOK)
-}
-
-// IsHxRequest checks if the request is an HTMX request.
-func IsHxRequest(r *http.Request) bool {
-	return len(r.Header.Get("HX-Request")) > 0
-}
-
-// IsBoosted checks if the request was triggered by an element with hx-boost.
-func IsBoosted(r *http.Request) bool {
-	return len(r.Header.Get("HX-Boosted")) > 0
-}
-
-// Target returns the ID of the element that triggered the request.
-func Target(r *http.Request) string {
-	return r.Header.Get("HX-Target")
 }
 
 // Retarget sets the HX-Retarget header to specify a new target element.
 func Retarget(w http.ResponseWriter, target string) {
 	w.Header().Add("HX-Retarget", target)
+}
+
+// Reselect sets the HX-Reselect header to specify which part of the response should be swapped in.
+func Reselect(w http.ResponseWriter, selector string) {
+	w.Header().Add("HX-Reselect", selector)
 }
 
 // Location sets the HX-Location header to trigger a client-side navigation.
@@ -58,7 +50,7 @@ func Reswap(w http.ResponseWriter, swapStyle string) {
 }
 
 // Trigger sets the HX-Trigger header to trigger client-side events.
-func Trigger(w http.ResponseWriter, event, detail string) {
+func SetTrigger(w http.ResponseWriter, event, detail string) {
 	if detail == "" {
 		w.Header().Add("HX-Trigger", event)
 	} else {
@@ -66,9 +58,44 @@ func Trigger(w http.ResponseWriter, event, detail string) {
 	}
 }
 
+// TriggerAfterSettle sets the HX-Trigger-After-Settle header to trigger client-side events after the settle step.
+func TriggerAfterSettle(w http.ResponseWriter, event, detail string) {
+	if detail == "" {
+		w.Header().Add("HX-Trigger-After-Settle", event)
+	} else {
+		w.Header().Add("HX-Trigger-After-Settle", `{"`+event+`": `+detail+`}`)
+	}
+}
+
+// TriggerAfterSwap sets the HX-Trigger-After-Swap header to trigger client-side events after the swap step.
+func TriggerAfterSwap(w http.ResponseWriter, event, detail string) {
+	if detail == "" {
+		w.Header().Add("HX-Trigger-After-Swap", event)
+	} else {
+		w.Header().Add("HX-Trigger-After-Swap", `{"`+event+`": `+detail+`}`)
+	}
+}
+
+// ================= Getters =================
+
+// IsHxRequest checks if the request is an HTMX request.
+func IsHxRequest(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
+}
+
+// IsBoosted checks if the request was triggered by an element with hx-boost.
+func IsBoosted(r *http.Request) bool {
+	return r.Header.Get("HX-Boosted") == "true"
+}
+
 // IsHistoryRestoreRequest checks if the request is for history restoration after a miss in the local history cache.
 func IsHistoryRestoreRequest(r *http.Request) bool {
 	return r.Header.Get("HX-History-Restore-Request") == "true"
+}
+
+// Target returns the ID of the element that triggered the request.
+func Target(r *http.Request) string {
+	return r.Header.Get("HX-Target")
 }
 
 // CurrentUrl retrieves the current URL of the browser from the HX-Current-URL request header.
@@ -79,4 +106,14 @@ func CurrentUrl(r *http.Request) string {
 // PromptResponse retrieves the user's response to an hx-prompt from the HX-Prompt request header.
 func PromptResponse(r *http.Request) string {
 	return r.Header.Get("HX-Prompt")
+}
+
+// TriggerName retrieves the name of the triggered element from the HX-Trigger-Name request header.
+func TriggerName(r *http.Request) string {
+	return r.Header.Get("HX-Trigger-Name")
+}
+
+// Trigger retrieves the ID of the triggered element from the HX-Trigger request header.
+func Trigger(r *http.Request) string {
+	return r.Header.Get("HX-Trigger")
 }

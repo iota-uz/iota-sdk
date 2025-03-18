@@ -3,9 +3,10 @@ package shared
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"net/http"
 	"strconv"
+
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
@@ -13,7 +14,7 @@ import (
 
 func Redirect(w http.ResponseWriter, r *http.Request, path string) {
 	if htmx.IsHxRequest(r) {
-		htmx.Redirect(w, r, path)
+		htmx.Redirect(w, path)
 		return
 	}
 	http.Redirect(w, r, path, http.StatusFound)
