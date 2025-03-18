@@ -179,180 +179,163 @@ templ CreateForm(props *CreatePageProps) {
 	</form>
 }
 
-// Edit Form - Partial Forms for each section
-
-type EditPageProps struct {
-	Client    *viewmodels.Client
-	Errors    map[string]string
-	SaveURL   string
-	DeleteURL string
-}
-
 // PersonalInfoEditForm is a dedicated form for editing personal information
 type PersonalInfoEditProps struct {
-	Client  *viewmodels.Client
-	Errors  map[string]string
-	SaveURL string
+	Client *viewmodels.Client
+	Errors map[string]string
+	Form   string
 }
 
 templ PersonalInfoEditForm(props *PersonalInfoEditProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div id="personal-info-edit-form" class="personal-info-section" x-data="{ isEditing: true }">
-		<form
-			id="personal-info-edit-form-form"
-			hx-post={ props.SaveURL }
-			hx-swap="outerHTML"
-			hx-target="#personal-info-edit-form"
-		>
-			<input type="hidden" name="section" value="personal"/>
-			<div class="p-4 grid grid-cols-2 gap-4">
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.FirstName.Label"),
-					Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.FirstName,
-						"name":  "FirstName",
-					},
-					Error: props.Errors["FirstName"],
-				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.LastName.Label"),
-					Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.LastName,
-						"name":  "LastName",
-					},
-					Error: props.Errors["LastName"],
-				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
-					Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.MiddleName,
-						"name":  "MiddleName",
-					},
-					Error: props.Errors["MiddleName"],
-				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.Phone.Label"),
-					Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.Phone,
-						"name":  "Phone",
-					},
-					Error: props.Errors["Phone"],
-				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.Email.Label"),
-					Placeholder: pageCtx.T("Clients.Single.Email.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.Email,
-						"name":  "Email",
-						"type":  "email",
-					},
-					Error: props.Errors["Email"],
-				})
-				@input.Date(&input.Props{
-					Label:       pageCtx.T("Clients.Single.DateOfBirth.Label"),
-					Placeholder: pageCtx.T("Clients.Single.DateOfBirth.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.DateOfBirth,
-						"name":  "DateOfBirth",
-					},
-					Error: props.Errors["DateOfBirth"],
-				})
-				@textarea.Basic(&textarea.Props{
-					Label:        pageCtx.T("Clients.Single.Address.Label"),
-					Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
-					Value:        props.Client.Address,
-					WrapperClass: "col-span-2",
-					Attrs: templ.Attributes{
-						"name": "Address",
-						"rows": "3",
-					},
-					Error: props.Errors["Address"],
-				})
-			</div>
-		</form>
+	<div>
+		<input type="hidden" name="section" value="personal"/>
+		<div class="p-4 grid grid-cols-2 gap-4">
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.FirstName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.FirstName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.FirstName,
+					"name":  "FirstName",
+					"form":  props.Form,
+				},
+				Error: props.Errors["FirstName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.LastName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.LastName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.LastName,
+					"name":  "LastName",
+					"form":  props.Form,
+				},
+				Error: props.Errors["LastName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.MiddleName.Label"),
+				Placeholder: pageCtx.T("Clients.Single.MiddleName.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.MiddleName,
+					"name":  "MiddleName",
+					"form":  props.Form,
+				},
+				Error: props.Errors["MiddleName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.Phone.Label"),
+				Placeholder: pageCtx.T("Clients.Single.Phone.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.Phone,
+					"name":  "Phone",
+					"form":  props.Form,
+				},
+				Error: props.Errors["Phone"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.Email.Label"),
+				Placeholder: pageCtx.T("Clients.Single.Email.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.Email,
+					"name":  "Email",
+					"type":  "email",
+					"form":  props.Form,
+				},
+				Error: props.Errors["Email"],
+			})
+			@input.Date(&input.Props{
+				Label:       pageCtx.T("Clients.Single.DateOfBirth.Label"),
+				Placeholder: pageCtx.T("Clients.Single.DateOfBirth.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.DateOfBirth,
+					"name":  "DateOfBirth",
+					"form":  props.Form,
+				},
+				Error: props.Errors["DateOfBirth"],
+			})
+			@textarea.Basic(&textarea.Props{
+				Label:        pageCtx.T("Clients.Single.Address.Label"),
+				Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
+				Value:        props.Client.Address,
+				WrapperClass: "col-span-2",
+				Attrs: templ.Attributes{
+					"name": "Address",
+					"rows": "3",
+					"form": props.Form,
+				},
+				Error: props.Errors["Address"],
+			})
+		</div>
 	</div>
 }
 
 // PassportInfoEditForm is a dedicated form for editing passport information
 type PassportInfoEditProps struct {
-	Client  *viewmodels.Client
-	Errors  map[string]string
-	SaveURL string
+	Client *viewmodels.Client
+	Errors map[string]string
+	Form   string
 }
 
 templ PassportInfoEditForm(props *PassportInfoEditProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div id="passport-info-edit-form" x-data="{ isEditing: true }">
-		<form
-			id="passport-info-edit-form-form"
-			hx-post={ props.SaveURL }
-			hx-swap="outerHTML"
-			hx-target="#passport-info-edit-form"
-		>
-			<input type="hidden" name="section" value="passport"/>
-			<div class="p-4 grid grid-cols-2 gap-4">
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
-					Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.Passport.Series,
-						"name":  "PassportSeries",
-					},
-					Error: props.Errors["PassportSeries"],
-				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
-					Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.Passport.Number,
-						"name":  "PassportNumber",
-					},
-					Error: props.Errors["PassportNumber"],
-				})
-			</div>
-		</form>
+	<div>
+		<input type="hidden" name="section" value="passport"/>
+		<div class="p-4 grid grid-cols-2 gap-4">
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
+				Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.Passport.Series,
+					"name":  "PassportSeries",
+					"form":  props.Form,
+				},
+				Error: props.Errors["PassportSeries"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
+				Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.Passport.Number,
+					"name":  "PassportNumber",
+					"form":  props.Form,
+				},
+				Error: props.Errors["PassportNumber"],
+			})
+		</div>
 	</div>
 }
 
 // TaxInfoEditForm is a dedicated form for editing tax information
 type TaxInfoEditProps struct {
-	Client  *viewmodels.Client
-	Errors  map[string]string
-	SaveURL string
+	Client *viewmodels.Client
+	Errors map[string]string
+	Form   string
 }
 
 templ TaxInfoEditForm(props *TaxInfoEditProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div id="tax-info-edit-form" class="tax-info-section" x-data="{ isEditing: true }">
-		<form
-			id="tax-info-edit-form-form"
-			hx-post={ props.SaveURL }
-			hx-swap="outerHTML"
-			hx-target="#tax-info-edit-form"
-		>
-			<input type="hidden" name="section" value="tax"/>
-			<div class="p-4 grid grid-cols-2 gap-4">
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Clients.Single.Pin.Label"),
-					Placeholder: pageCtx.T("Clients.Single.Pin.Placeholder"),
-					Attrs: templ.Attributes{
-						"value": props.Client.Pin,
-						"name":  "Pin",
-					},
-					Error: props.Errors["Pin"],
-				})
-				@selects.CountriesSelect(selects.CountriesSelectProps{
-					Label:       pageCtx.T("Clients.Single.CountryCode.Label"),
-					Placeholder: pageCtx.T("Clients.Single.CountryCode.Placeholder"),
-					Name:        "CountryCode",
-					Selected:    props.Client.CountryCode,
-					Error:       props.Errors["CountryCode"],
-				})
-			</div>
-		</form>
+	<div>
+		<input type="hidden" name="section" value="tax"/>
+		<div class="p-4 grid grid-cols-2 gap-4">
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Clients.Single.Pin.Label"),
+				Placeholder: pageCtx.T("Clients.Single.Pin.Placeholder"),
+				Attrs: templ.Attributes{
+					"value": props.Client.Pin,
+					"name":  "Pin",
+					"form":  props.Form,
+				},
+				Error: props.Errors["Pin"],
+			})
+			@selects.CountriesSelect(selects.CountriesSelectProps{
+				Label:       pageCtx.T("Clients.Single.CountryCode.Label"),
+				Placeholder: pageCtx.T("Clients.Single.CountryCode.Placeholder"),
+				Name:        "CountryCode",
+				Attrs: templ.Attributes{
+					"form": props.Form,
+				},
+				Selected: props.Client.CountryCode,
+				Error:    props.Errors["CountryCode"],
+			})
+		</div>
 	</div>
 }

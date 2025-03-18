@@ -107,20 +107,16 @@ func (d *CreateDTO) ToEntity() (Client, error) {
 	)
 }
 
-type UpdateDTO struct {
-	FirstName      string `validate:"required"`
-	LastName       string `validate:"required"`
-	MiddleName     string
-	Phone          string
-	Email          string `validate:"omitempty,email"`
-	Address        string
-	PassportSeries string
-	PassportNumber string
-	Pin            string
-	CountryCode    string
+type UpdatePersonalDTO struct {
+	FirstName  string `validate:"required"`
+	LastName   string `validate:"required"`
+	MiddleName string
+	Phone      string
+	Email      string `validate:"omitempty,email"`
+	Address    string
 }
 
-func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+func (d *UpdatePersonalDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	l, ok := composables.UseLocalizer(ctx)
 	if !ok {
 		panic(composables.ErrNoLocalizer)
@@ -145,21 +141,18 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *UpdateDTO) Apply(entity Client) (Client, error) {
+func (d *UpdatePersonalDTO) Apply(entity Client) (Client, error) {
 	p, err := phone.NewFromE164(d.Phone)
 	if err != nil {
 		return nil, err
 	}
 
-	// Start with basic updates
 	updated := entity.SetName(d.FirstName, d.LastName, d.MiddleName).SetPhone(p)
 
-	// Update address if provided
 	if d.Address != "" {
 		updated = updated.SetAddress(d.Address)
 	}
 
-	// Update email if provided
 	if d.Email != "" {
 		email, err := internet.NewEmail(d.Email)
 		if err != nil {
@@ -168,7 +161,42 @@ func (d *UpdateDTO) Apply(entity Client) (Client, error) {
 		updated = updated.SetEmail(email)
 	}
 
-	// Update passport if both series and number provided
+	return updated, nil
+}
+
+type UpdatePassportDTO struct {
+	PassportSeries string
+	PassportNumber string
+}
+
+func (d *UpdatePassportDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := composables.UseLocalizer(ctx)
+	if !ok {
+		panic(composables.ErrNoLocalizer)
+	}
+	errorMessages := map[string]string{}
+	errs := constants.Validate.Struct(d)
+	if errs == nil {
+		return errorMessages, true
+	}
+	for _, err := range errs.(validator.ValidationErrors) {
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Clients.Single.%s.Label", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
+	}
+
+	return errorMessages, len(errorMessages) == 0
+}
+
+func (d *UpdatePassportDTO) Apply(entity Client) (Client, error) {
+	updated := entity
+
 	if d.PassportSeries != "" && d.PassportNumber != "" {
 		if entity.Passport() != nil && entity.Passport().ID() != uuid.Nil {
 			passport := passport.New(
@@ -183,7 +211,42 @@ func (d *UpdateDTO) Apply(entity Client) (Client, error) {
 		}
 	}
 
-	// Update PIN if provided with country code
+	return updated, nil
+}
+
+type UpdateTaxDTO struct {
+	Pin         string
+	CountryCode string
+}
+
+func (d *UpdateTaxDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := composables.UseLocalizer(ctx)
+	if !ok {
+		panic(composables.ErrNoLocalizer)
+	}
+	errorMessages := map[string]string{}
+	errs := constants.Validate.Struct(d)
+	if errs == nil {
+		return errorMessages, true
+	}
+	for _, err := range errs.(validator.ValidationErrors) {
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Clients.Single.%s.Label", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
+	}
+
+	return errorMessages, len(errorMessages) == 0
+}
+
+func (d *UpdateTaxDTO) Apply(entity Client) (Client, error) {
+	updated := entity
+
 	if d.Pin != "" && d.CountryCode != "" {
 		c, err := country.New(d.CountryCode)
 		if err != nil {

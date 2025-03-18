@@ -18,3 +18,7 @@ func IsBoosted(r *http.Request) bool {
 func Target(r *http.Request) string {
 	return r.Header.Get("Hx-Target")
 }
+
+func Retarget(w http.ResponseWriter, target string) {
+	w.Header().Add("Hx-Retarget", target)
+}

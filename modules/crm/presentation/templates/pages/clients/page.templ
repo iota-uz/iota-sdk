@@ -109,9 +109,17 @@ templ Chats(props chatsui.SelectedChatProps) {
 }
 
 // ---- InfoCard Components -----
-templ CardHeader(title string, editURL string, targetID string, saveURL string) {
+
+type CardHeaderProps struct {
+	Title   string
+	EditURL string
+	Target  string
+	FormID  string
+}
+
+templ CardHeader(props CardHeaderProps) {
 	<div class="flex justify-between border-b border-gray-200 p-4">
-		<p>{ title }</p>
+		<p>{ props.Title }</p>
 		<div class="flex gap-3">
 			@button.Danger(button.Props{
 				Icon: icons.XCircle(icons.Props{Size: "20"}),
@@ -120,23 +128,33 @@ templ CardHeader(title string, editURL string, targetID string, saveURL string) 
 					"@click": "isEditing = false",
 				},
 			})
-			@button.Primary(button.Props{
-				Icon: icons.CheckCircle(icons.Props{Size: "20"}),
-				Attrs: templ.Attributes{
-					"x-show": "isEditing",
-					"type":   "submit",
-					"form":   targetID + "-form",
-				},
-			}) {
-				{ composables.UsePageCtx(ctx).T("Save") }
-			}
+			<form
+				x-show="isEditing"
+				id={ props.FormID }
+				hx-post={ props.EditURL }
+				hx-trigger="submit"
+				hx-indicator="#save-btn"
+				hx-target={ props.Target }
+				hx-swap="innerHTML"
+			>
+				@button.Primary(button.Props{
+					Icon: icons.CheckCircle(icons.Props{Size: "20"}),
+					Attrs: templ.Attributes{
+						"id":     "save-btn",
+						"type":   "submit",
+						"@click": "isEditing = false",
+					},
+				}) {
+					{ composables.UsePageCtx(ctx).T("Save") }
+				}
+			</form>
 			@button.Secondary(button.Props{
 				Icon: icons.PencilSimple(icons.Props{Size: "20"}),
 				Attrs: templ.Attributes{
 					"x-show":    "!isEditing",
 					"@click":    "isEditing = true",
-					"hx-get":    editURL,
-					"hx-target": targetID,
+					"hx-get":    props.EditURL,
+					"hx-target": props.Target,
 					"hx-swap":   "innerHTML",
 				},
 			})
@@ -147,137 +165,136 @@ templ CardHeader(title string, editURL string, targetID string, saveURL string) 
 // PersonalInfoCardProps contains data needed for the personal info card
 templ PersonalInfoCard(client *viewmodels.Client) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div x-data="{ isEditing: false }">
-		@card.Card(card.Props{
-			Header: CardHeader(
-				pageCtx.T("Clients.Single.PersonalInfo"),
-				fmt.Sprintf("/crm/clients/%s/edit/personal", client.ID),
-				"#personal-info-edit-form",
-				fmt.Sprintf("/crm/clients/%s", client.ID),
-			),
-		}) {
-			<div
-				x-show="!isEditing"
-				class="grid grid-cols-2 gap-4"
-			>
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.FirstName.Label") }
+	<div id="personal-info-card">
+		<div x-data="{ isEditing: false }">
+			@card.Card(card.Props{
+				Header: CardHeader(CardHeaderProps{
+					Title:   pageCtx.T("Clients.Single.PersonalInfo"),
+					EditURL: fmt.Sprintf("/crm/clients/%s/edit/personal", client.ID),
+					FormID:  "personal-info-edit-form",
+					Target:  "#personal-info-edit",
+				}),
+			}) {
+				<div
+					x-show="isEditing"
+					id="personal-info-edit"
+				></div>
+				<div
+					x-show="!isEditing"
+					class="grid grid-cols-2 gap-4"
+				>
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.FirstName.Label") }
+						</div>
+						<div>{ formatData(client.FirstName) }</div>
 					</div>
-					<div>{ formatData(client.FirstName) }</div>
-				</div>
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.LastName.Label") }
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.LastName.Label") }
+						</div>
+						<div>{ formatData(client.LastName) }</div>
 					</div>
-					<div>{ formatData(client.LastName) }</div>
-				</div>
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.MiddleName.Label") }
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.MiddleName.Label") }
+						</div>
+						<div>{ formatData(client.MiddleName) }</div>
 					</div>
-					<div>{ formatData(client.MiddleName) }</div>
-				</div>
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.Phone.Label") }
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.Phone.Label") }
+						</div>
+						<div>{ formatData(client.Phone) }</div>
 					</div>
-					<div>{ formatData(client.Phone) }</div>
-				</div>
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.Email.Label") }
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.Email.Label") }
+						</div>
+						<div>{ formatData(client.Email) }</div>
 					</div>
-					<div>{ formatData(client.Email) }</div>
-				</div>
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.DateOfBirth.Label") }
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.DateOfBirth.Label") }
+						</div>
+						<div>{ formatData(client.DateOfBirth) }</div>
 					</div>
-					<div>{ formatData(client.DateOfBirth) }</div>
-				</div>
-				<div class="col-span-2">
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.Address.Label") }
+					<div class="col-span-2">
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.Address.Label") }
+						</div>
+						<div>{ formatData(client.Address) }</div>
 					</div>
-					<div>{ formatData(client.Address) }</div>
 				</div>
-			</div>
-			<div
-				x-show="isEditing"
-				id="personal-info-edit-form"
-			></div>
-		}
+			}
+		</div>
 	</div>
 }
 
 // PassportInfoCard shows passport information for the client
 templ PassportInfoCard(client *viewmodels.Client) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div
-		class="passport-info-section"
-		x-data="{ isEditing: false }"
-	>
-		<div x-show="!isEditing">
+	<div id="passport-info-card">
+		<div x-data="{ isEditing: false }">
 			@card.Card(card.Props{
-				Class: "grid grid-cols-1 gap-4",
-				Header: CardHeader(
-					pageCtx.T("Clients.Single.PassportInfo"),
-					fmt.Sprintf("/crm/clients/%s/edit/passport", client.ID),
-					"#passport-info-edit-form",
-					fmt.Sprintf("/crm/clients/%s", client.ID),
-				),
+				Header: CardHeader(CardHeaderProps{
+					Title:   pageCtx.T("Clients.Single.PassportInfo"),
+					EditURL: fmt.Sprintf("/crm/clients/%s/edit/passport", client.ID),
+					FormID:  "passport-info-edit-form",
+					Target:  "#passport-info-edit",
+				}),
 			}) {
-				<div>
+				<div x-show="!isEditing">
 					<div class="text-sm text-base-600">
 						{ pageCtx.T("Clients.Single.PassportSeriesAndNumber.Label") }
 					</div>
 					<div>{ formatData(client.Passport.Series + client.Passport.Number) }</div>
 				</div>
+				<div
+					x-show="isEditing"
+					id="passport-info-edit"
+				></div>
 			}
 		</div>
-		<div
-			x-show="isEditing"
-			id="passport-info-edit-form"
-		></div>
 	</div>
 }
 
 // TaxInfoCard shows tax information for the client
 templ TaxInfoCard(client *viewmodels.Client) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div
-		class="tax-info-section"
-		x-data="{ isEditing: false }"
-	>
-		<div x-show="!isEditing">
+	<div id="tax-info-card">
+		<div x-data="{ isEditing: false }">
 			@card.Card(card.Props{
-				Class: "grid grid-cols-2 gap-4",
-				Header: CardHeader(
-					pageCtx.T("Clients.Single.TaxInfo"),
-					fmt.Sprintf("/crm/clients/%s/edit/tax", client.ID),
-					"#tax-info-edit-form",
-					fmt.Sprintf("/crm/clients/%s", client.ID),
-				),
+				Header: CardHeader(CardHeaderProps{
+					Title:   pageCtx.T("Clients.Single.TaxInfo"),
+					EditURL: fmt.Sprintf("/crm/clients/%s/edit/tax", client.ID),
+					FormID:  "tax-info-edit-form",
+					Target:  "#tax-info-edit",
+				}),
 			}) {
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.Pin.Label") }
+				<div
+					x-show="!isEditing"
+					class="grid grid-cols-2 gap-4"
+				>
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.Pin.Label") }
+						</div>
+						<div>{ formatData(client.Pin) }</div>
 					</div>
-					<div>{ formatData(client.Pin) }</div>
-				</div>
-				<div>
-					<div class="text-sm text-base-600">
-						{ pageCtx.T("Clients.Single.CountryCode.Label") }
+					<div>
+						<div class="text-sm text-base-600">
+							{ pageCtx.T("Clients.Single.CountryCode.Label") }
+						</div>
+						<div>{ client.CountryCode }</div>
 					</div>
-					<div>{ client.CountryCode }</div>
 				</div>
+				<div
+					x-show="isEditing"
+					id="tax-info-edit"
+				></div>
 			}
 		</div>
-		<div
-			x-show="isEditing"
-			id="tax-info-edit-form"
-		></div>
 	</div>
 }
 
