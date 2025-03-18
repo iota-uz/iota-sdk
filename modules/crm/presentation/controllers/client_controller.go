@@ -74,7 +74,6 @@ func (c *ClientController) Register(r *mux.Router) {
 	router.Use(middleware.Tabs(), middleware.NavItems())
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 
 	hxRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -83,6 +82,10 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", c.GetPersonalEdit).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", c.GetPassportEdit).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", c.GetTaxEdit).Methods(http.MethodGet)
+
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", c.UpdatePersonal).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", c.UpdatePassport).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", c.UpdateTax).Methods(http.MethodPost)
 }
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
@@ -114,6 +117,7 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
+
 func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 	paginated, err := c.viewModelClients(r)
 	if err != nil {
@@ -286,14 +290,14 @@ func (c *ClientController) GetPersonalEdit(w http.ResponseWriter, r *http.Reques
 
 	entity, err := c.clientService.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error retrieving client: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
 	props := &clients.PersonalInfoEditProps{
-		Client:  mappers.ClientToViewModel(entity),
-		Errors:  map[string]string{},
-		SaveURL: fmt.Sprintf("%s/%d", c.basePath, id),
+		Client: mappers.ClientToViewModel(entity),
+		Errors: map[string]string{},
+		Form:   "personal-info-edit-form",
 	}
 	templ.Handler(clients.PersonalInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -312,9 +316,9 @@ func (c *ClientController) GetPassportEdit(w http.ResponseWriter, r *http.Reques
 	}
 
 	props := &clients.PassportInfoEditProps{
-		Client:  mappers.ClientToViewModel(entity),
-		Errors:  map[string]string{},
-		SaveURL: fmt.Sprintf("%s/%d", c.basePath, id),
+		Client: mappers.ClientToViewModel(entity),
+		Errors: map[string]string{},
+		Form:   "passport-info-edit-form",
 	}
 	templ.Handler(clients.PassportInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -333,22 +337,26 @@ func (c *ClientController) GetTaxEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := &clients.TaxInfoEditProps{
-		Client:  mappers.ClientToViewModel(entity),
-		Errors:  map[string]string{},
-		SaveURL: fmt.Sprintf("%s/%d", c.basePath, id),
+		Client: mappers.ClientToViewModel(entity),
+		Errors: map[string]string{},
+		Form:   "tax-info-edit-form",
 	}
 	templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) UpdatePersonal(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
-	section := r.FormValue("section")
-	dto, err := composables.UseForm(&client.UpdateDTO{}, r)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	dto, err := composables.UseForm(&client.UpdatePersonalDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -362,44 +370,62 @@ func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 
 		clientVM := mappers.ClientToViewModel(entity)
-		saveURL := fmt.Sprintf("%s/%d", c.basePath, id)
-
-		// Handle errors based on which section is being edited
-		switch section {
-		case "personal":
-			props := &clients.PersonalInfoEditProps{
-				Client:  clientVM,
-				Errors:  errorsMap,
-				SaveURL: saveURL,
-			}
-			templ.Handler(clients.PersonalInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		case "passport":
-			props := &clients.PassportInfoEditProps{
-				Client:  clientVM,
-				Errors:  errorsMap,
-				SaveURL: saveURL,
-			}
-			templ.Handler(clients.PassportInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		case "tax":
-			props := &clients.TaxInfoEditProps{
-				Client:  clientVM,
-				Errors:  errorsMap,
-				SaveURL: saveURL,
-			}
-			templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		default:
-			http.Error(w, "Error updating client", http.StatusInternalServerError)
+		props := &clients.PersonalInfoEditProps{
+			Client: clientVM,
+			Errors: errorsMap,
+			Form:   "personal-info-edit-form",
 		}
+		templ.Handler(clients.PersonalInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	if err := c.clientService.Update(r.Context(), id, dto); err != nil {
+	entity, err := c.clientService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+
+	updated, err := dto.Apply(entity)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// If it's a sectional update, return the updated component
-	if section != "" {
+	if err := c.clientService.Save(r.Context(), updated); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	entity, err = c.clientService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
+		return
+	}
+
+	clientVM := mappers.ClientToViewModel(entity)
+	htmx.Retarget(w, "#personal-info-card")
+	templ.Handler(clients.PersonalInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ClientController) UpdatePassport(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	dto, err := composables.UseForm(&client.UpdatePassportDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		entity, err := c.clientService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -407,21 +433,104 @@ func (c *ClientController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 
 		clientVM := mappers.ClientToViewModel(entity)
-
-		switch section {
-		case "personal":
-			templ.Handler(clients.PersonalInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
-		case "passport":
-			templ.Handler(clients.PassportInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
-		case "tax":
-			templ.Handler(clients.TaxInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
-		default:
-			shared.Redirect(w, r, c.basePath)
+		props := &clients.PassportInfoEditProps{
+			Client: clientVM,
+			Errors: errorsMap,
+			Form:   "passport-info-edit-form",
 		}
+		templ.Handler(clients.PassportInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	shared.Redirect(w, r, c.basePath)
+	entity, err := c.clientService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+
+	updated, err := dto.Apply(entity)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.clientService.Save(r.Context(), updated); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	entity, err = c.clientService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
+		return
+	}
+
+	clientVM := mappers.ClientToViewModel(entity)
+	htmx.Retarget(w, "#passport-info-card")
+	templ.Handler(clients.PassportInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ClientController) UpdateTax(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	dto, err := composables.UseForm(&client.UpdateTaxDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		entity, err := c.clientService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+			return
+		}
+
+		clientVM := mappers.ClientToViewModel(entity)
+		props := &clients.TaxInfoEditProps{
+			Client: clientVM,
+			Errors: errorsMap,
+			Form:   "tax-info-edit-form",
+		}
+		templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	entity, err := c.clientService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+
+	updated, err := dto.Apply(entity)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.clientService.Save(r.Context(), updated); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	entity, err = c.clientService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
+		return
+	}
+
+	clientVM := mappers.ClientToViewModel(entity)
+	htmx.Retarget(w, "#tax-info-card")
+	templ.Handler(clients.TaxInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) Delete(w http.ResponseWriter, r *http.Request) {

@@ -70,24 +70,18 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 	return createdEntity, nil
 }
 
-func (s *ClientService) Update(ctx context.Context, id uint, data *client.UpdateDTO) error {
+func (s *ClientService) Save(ctx context.Context, entity client.Client) error {
 	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 	ctx = composables.WithTx(ctx, tx)
-	entity, err := s.repo.GetByID(ctx, id)
-	if err != nil {
+	
+	if _, err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	modified, err := data.Apply(entity)
-	if err != nil {
-		return err
-	}
-	if _, err := s.repo.Update(ctx, modified); err != nil {
-		return err
-	}
+	
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}

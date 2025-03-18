@@ -493,20 +493,11 @@ func CreateForm(props *CreatePageProps) templ.Component {
 	})
 }
 
-// Edit Form - Partial Forms for each section
-
-type EditPageProps struct {
-	Client    *viewmodels.Client
-	Errors    map[string]string
-	SaveURL   string
-	DeleteURL string
-}
-
 // PersonalInfoEditForm is a dedicated form for editing personal information
 type PersonalInfoEditProps struct {
-	Client  *viewmodels.Client
-	Errors  map[string]string
-	SaveURL string
+	Client *viewmodels.Client
+	Errors map[string]string
+	Form   string
 }
 
 func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
@@ -531,20 +522,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div id=\"personal-info-edit-form\" class=\"personal-info-section\" x-data=\"{ isEditing: true }\"><form id=\"personal-info-edit-form-form\" hx-post=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var17 string
-		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 203, Col: 26}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" hx-swap=\"outerHTML\" hx-target=\"#personal-info-edit-form\"><input type=\"hidden\" name=\"section\" value=\"personal\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div><input type=\"hidden\" name=\"section\" value=\"personal\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -554,6 +532,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 			Attrs: templ.Attributes{
 				"value": props.Client.FirstName,
 				"name":  "FirstName",
+				"form":  props.Form,
 			},
 			Error: props.Errors["FirstName"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -566,6 +545,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 			Attrs: templ.Attributes{
 				"value": props.Client.LastName,
 				"name":  "LastName",
+				"form":  props.Form,
 			},
 			Error: props.Errors["LastName"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -578,6 +558,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 			Attrs: templ.Attributes{
 				"value": props.Client.MiddleName,
 				"name":  "MiddleName",
+				"form":  props.Form,
 			},
 			Error: props.Errors["MiddleName"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -590,6 +571,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 			Attrs: templ.Attributes{
 				"value": props.Client.Phone,
 				"name":  "Phone",
+				"form":  props.Form,
 			},
 			Error: props.Errors["Phone"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -603,6 +585,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 				"value": props.Client.Email,
 				"name":  "Email",
 				"type":  "email",
+				"form":  props.Form,
 			},
 			Error: props.Errors["Email"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -615,6 +598,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 			Attrs: templ.Attributes{
 				"value": props.Client.DateOfBirth,
 				"name":  "DateOfBirth",
+				"form":  props.Form,
 			},
 			Error: props.Errors["DateOfBirth"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -629,13 +613,14 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 			Attrs: templ.Attributes{
 				"name": "Address",
 				"rows": "3",
+				"form": props.Form,
 			},
 			Error: props.Errors["Address"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div></form></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -645,12 +630,79 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 
 // PassportInfoEditForm is a dedicated form for editing passport information
 type PassportInfoEditProps struct {
-	Client  *viewmodels.Client
-	Errors  map[string]string
-	SaveURL string
+	Client *viewmodels.Client
+	Errors map[string]string
+	Form   string
 }
 
 func PassportInfoEditForm(props *PassportInfoEditProps) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var17 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var17 == nil {
+			templ_7745c5c3_Var17 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div><input type=\"hidden\" name=\"section\" value=\"passport\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
+			Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.Passport.Series,
+				"name":  "PassportSeries",
+				"form":  props.Form,
+			},
+			Error: props.Errors["PassportSeries"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = input.Text(&input.Props{
+			Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
+			Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
+			Attrs: templ.Attributes{
+				"value": props.Client.Passport.Number,
+				"name":  "PassportNumber",
+				"form":  props.Form,
+			},
+			Error: props.Errors["PassportNumber"],
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// TaxInfoEditForm is a dedicated form for editing tax information
+type TaxInfoEditProps struct {
+	Client *viewmodels.Client
+	Errors map[string]string
+	Form   string
+}
+
+func TaxInfoEditForm(props *TaxInfoEditProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -672,98 +724,7 @@ func PassportInfoEditForm(props *PassportInfoEditProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<div id=\"passport-info-edit-form\" x-data=\"{ isEditing: true }\"><form id=\"passport-info-edit-form-form\" hx-post=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var19 string
-		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 292, Col: 26}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" hx-swap=\"outerHTML\" hx-target=\"#passport-info-edit-form\"><input type=\"hidden\" name=\"section\" value=\"passport\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = input.Text(&input.Props{
-			Label:       pageCtx.T("Clients.Single.PassportSeries.Label"),
-			Placeholder: pageCtx.T("Clients.Single.PassportSeries.Placeholder"),
-			Attrs: templ.Attributes{
-				"value": props.Client.Passport.Series,
-				"name":  "PassportSeries",
-			},
-			Error: props.Errors["PassportSeries"],
-		}).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = input.Text(&input.Props{
-			Label:       pageCtx.T("Clients.Single.PassportNumber.Label"),
-			Placeholder: pageCtx.T("Clients.Single.PassportNumber.Placeholder"),
-			Attrs: templ.Attributes{
-				"value": props.Client.Passport.Number,
-				"name":  "PassportNumber",
-			},
-			Error: props.Errors["PassportNumber"],
-		}).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div></form></div>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		return nil
-	})
-}
-
-// TaxInfoEditForm is a dedicated form for editing tax information
-type TaxInfoEditProps struct {
-	Client  *viewmodels.Client
-	Errors  map[string]string
-	SaveURL string
-}
-
-func TaxInfoEditForm(props *TaxInfoEditProps) templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
-		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
-		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var20 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var20 == nil {
-			templ_7745c5c3_Var20 = templ.NopComponent
-		}
-		ctx = templ.ClearChildren(ctx)
-		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<div id=\"tax-info-edit-form\" class=\"tax-info-section\" x-data=\"{ isEditing: true }\"><form id=\"tax-info-edit-form-form\" hx-post=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var21 string
-		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 333, Col: 26}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" hx-swap=\"outerHTML\" hx-target=\"#tax-info-edit-form\"><input type=\"hidden\" name=\"section\" value=\"tax\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div><input type=\"hidden\" name=\"section\" value=\"tax\"><div class=\"p-4 grid grid-cols-2 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -773,6 +734,7 @@ func TaxInfoEditForm(props *TaxInfoEditProps) templ.Component {
 			Attrs: templ.Attributes{
 				"value": props.Client.Pin,
 				"name":  "Pin",
+				"form":  props.Form,
 			},
 			Error: props.Errors["Pin"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
@@ -783,13 +745,16 @@ func TaxInfoEditForm(props *TaxInfoEditProps) templ.Component {
 			Label:       pageCtx.T("Clients.Single.CountryCode.Label"),
 			Placeholder: pageCtx.T("Clients.Single.CountryCode.Placeholder"),
 			Name:        "CountryCode",
-			Selected:    props.Client.CountryCode,
-			Error:       props.Errors["CountryCode"],
+			Attrs: templ.Attributes{
+				"form": props.Form,
+			},
+			Selected: props.Client.CountryCode,
+			Error:    props.Errors["CountryCode"],
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></form></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
