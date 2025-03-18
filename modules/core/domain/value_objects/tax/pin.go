@@ -2,9 +2,10 @@ package tax
 
 import (
 	"errors"
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/utils/sequence"
-	"strings"
 )
 
 var (
@@ -47,5 +48,5 @@ func IsValidPin(v string, c country.Country) bool {
 	case country.Kazakhstan:
 		return len(v) == 12 && sequence.IsNumeric(v)
 	}
-	return false
+	return true
 }

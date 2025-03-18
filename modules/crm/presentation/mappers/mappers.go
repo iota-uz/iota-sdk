@@ -17,27 +17,27 @@ func ClientToViewModel(entity client.Client) *viewmodels.Client {
 	if entity.DateOfBirth() != nil {
 		dateOfBirth = entity.DateOfBirth().Format(time.RFC3339)
 	}
-	
+
 	var passport viewmodels.Passport
 	if entity.Passport() != nil {
 		passport = PassportToViewModel(entity.Passport())
 	}
-	
+
 	var pin string
 	if entity.Pin() != nil {
 		pin = entity.Pin().Value()
 	}
-	
+
 	var gender string
 	if entity.Gender() != nil {
 		gender = entity.Gender().String()
 	}
-	
+
 	var email string
 	if entity.Email() != nil {
 		email = entity.Email().Value()
 	}
-	
+
 	var phone string
 	if entity.Phone() != nil {
 		phone = entity.Phone().Value()
@@ -63,21 +63,21 @@ func ClientToViewModel(entity client.Client) *viewmodels.Client {
 
 func PassportToViewModel(p passport.Passport) viewmodels.Passport {
 	return viewmodels.Passport{
-		ID:              p.ID().String(),
-		Series:          p.Series(),
-		Number:          p.Number(),
-		FirstName:       p.FirstName(),
-		LastName:        p.LastName(),
-		MiddleName:      p.MiddleName(),
-		Gender:          p.Gender().String(),
-		BirthDate:       p.BirthDate().Format(time.RFC3339),
-		BirthPlace:      p.BirthPlace(),
-		Nationality:     p.Nationality(),
-		PassportType:    p.PassportType(),
-		IssuedAt:        p.IssuedAt().Format(time.RFC3339),
-		IssuedBy:        p.IssuedBy(),
-		IssuingCountry:  p.IssuingCountry(),
-		ExpiresAt:       p.ExpiresAt().Format(time.RFC3339),
+		ID:             p.ID().String(),
+		Series:         p.Series(),
+		Number:         p.Number(),
+		FirstName:      p.FirstName(),
+		LastName:       p.LastName(),
+		MiddleName:     p.MiddleName(),
+		Gender:         p.Gender().String(),
+		BirthDate:      p.BirthDate().Format(time.RFC3339),
+		BirthPlace:     p.BirthPlace(),
+		Nationality:    p.Nationality(),
+		PassportType:   p.PassportType(),
+		IssuedAt:       p.IssuedAt().Format(time.RFC3339),
+		IssuedBy:       p.IssuedBy(),
+		IssuingCountry: p.IssuingCountry(),
+		ExpiresAt:      p.ExpiresAt().Format(time.RFC3339),
 	}
 }
 

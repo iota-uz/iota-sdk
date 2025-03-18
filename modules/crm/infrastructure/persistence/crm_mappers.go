@@ -51,7 +51,7 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 	}
 
 	if dbRow.Pin.Valid && dbRow.Pin.String != "" {
-		tPin, err := tax.NewPin(dbRow.Pin.String, country.Uzbekistan)
+		tPin, err := tax.NewPin(dbRow.Pin.String, country.Afghanistan)
 		if err == nil {
 			options = append(options, client.WithPin(tPin))
 		}
