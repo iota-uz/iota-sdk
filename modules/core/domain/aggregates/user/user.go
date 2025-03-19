@@ -65,6 +65,12 @@ func WithGroupIDs(groupIDs []uuid.UUID) Option {
 	}
 }
 
+func WithPermissions(permissions []*permission.Permission) Option {
+	return func(u *user) {
+		u.permissions = permissions
+	}
+}
+
 func WithLastIP(ip string) Option {
 	return func(u *user) {
 		u.lastIP = ip
@@ -117,6 +123,7 @@ type User interface {
 	UILanguage() UILanguage
 	Roles() []role.Role
 	GroupIDs() []uuid.UUID
+	Permissions() []*permission.Permission
 	LastLogin() time.Time
 	LastAction() time.Time
 	CreatedAt() time.Time
@@ -128,6 +135,9 @@ type User interface {
 	AddRole(r role.Role) User
 	AddGroupID(groupID uuid.UUID) User
 	RemoveGroupID(groupID uuid.UUID) User
+	AddPermission(perm *permission.Permission) User
+	RemovePermission(permID uuid.UUID) User
+	SetPermissions(perms []*permission.Permission) User
 	SetName(firstName, lastName, middleName string) User
 	SetUILanguage(lang UILanguage) User
 	SetAvatarID(id uint) User
@@ -147,23 +157,24 @@ func New(
 	opts ...Option,
 ) User {
 	u := &user{
-		id:         0,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: "",
-		password:   "",
-		email:      email,
-		phone:      nil,
-		avatarID:   0,
-		avatar:     nil,
-		lastIP:     "",
-		uiLanguage: uiLanguage,
-		roles:      []role.Role{},
-		groupIDs:   []uuid.UUID{},
-		lastLogin:  time.Time{},
-		lastAction: time.Time{},
-		createdAt:  time.Now(),
-		updatedAt:  time.Now(),
+		id:          0,
+		firstName:   firstName,
+		lastName:    lastName,
+		middleName:  "",
+		password:    "",
+		email:       email,
+		phone:       nil,
+		avatarID:    0,
+		avatar:      nil,
+		lastIP:      "",
+		uiLanguage:  uiLanguage,
+		roles:       []role.Role{},
+		groupIDs:    []uuid.UUID{},
+		permissions: []*permission.Permission{},
+		lastLogin:   time.Time{},
+		lastAction:  time.Time{},
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
 	}
 	for _, opt := range opts {
 		opt(u)
@@ -172,24 +183,27 @@ func New(
 }
 
 type user struct {
-	id         uint
-	firstName  string
-	lastName   string
-	middleName string
-	password   string
-	email      internet.Email
-	phone      phone.Phone
-	avatarID   uint
-	avatar     upload.Upload
-	lastIP     string
-	uiLanguage UILanguage
-	roles      []role.Role
-	groupIDs   []uuid.UUID
-	lastLogin  time.Time
-	lastAction time.Time
-	createdAt  time.Time
-	updatedAt  time.Time
+	id          uint
+	firstName   string
+	lastName    string
+	middleName  string
+	password    string
+	email       internet.Email
+	phone       phone.Phone
+	avatarID    uint
+	avatar      upload.Upload
+	lastIP      string
+	uiLanguage  UILanguage
+	roles       []role.Role
+	groupIDs    []uuid.UUID
+	permissions []*permission.Permission
+	lastLogin   time.Time
+	lastAction  time.Time
+	createdAt   time.Time
+	updatedAt   time.Time
 }
+
+var _ User = (*user)(nil)
 
 func (u *user) ID() uint {
 	return u.id
@@ -243,6 +257,10 @@ func (u *user) GroupIDs() []uuid.UUID {
 	return u.groupIDs
 }
 
+func (u *user) Permissions() []*permission.Permission {
+	return u.permissions
+}
+
 func (u *user) FullName() string {
 	out := new(strings.Builder)
 	if u.firstName != "" {
@@ -287,6 +305,34 @@ func (u *user) RemoveGroupID(groupID uuid.UUID) User {
 	return &result
 }
 
+func (u *user) AddPermission(perm *permission.Permission) User {
+	result := *u
+	result.permissions = append(result.permissions, perm)
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) RemovePermission(permID uuid.UUID) User {
+	result := *u
+	filteredPermissions := make([]*permission.Permission, 0, len(result.permissions))
+	for _, p := range result.permissions {
+		if p.ID == permID {
+			continue
+		}
+		filteredPermissions = append(filteredPermissions, p)
+	}
+	result.permissions = filteredPermissions
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) SetPermissions(perms []*permission.Permission) User {
+	result := *u
+	result.permissions = perms
+	result.updatedAt = time.Now()
+	return &result
+}
+
 func (u *user) LastLogin() time.Time {
 	return u.lastLogin
 }
@@ -304,6 +350,13 @@ func (u *user) UpdatedAt() time.Time {
 }
 
 func (u *user) Can(perm *permission.Permission) bool {
+	for _, p := range u.permissions {
+		if p.ID == perm.ID || (p.Resource == perm.Resource && p.Action == perm.Action &&
+			(p.Modifier == permission.ModifierAll || p.Modifier == perm.Modifier)) {
+			return true
+		}
+	}
+
 	for _, r := range u.roles {
 		if r.Can(perm) {
 			return true
