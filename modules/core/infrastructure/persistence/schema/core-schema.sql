@@ -134,6 +134,12 @@ CREATE TABLE role_permissions (
     PRIMARY KEY (role_id, permission_id)
 );
 
+CREATE TABLE user_permissions (
+    user_id int NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    permission_id uuid NOT NULL REFERENCES permissions (id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, permission_id)
+);
+
 CREATE TABLE sessions (
     token varchar(255) NOT NULL PRIMARY KEY,
     user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
