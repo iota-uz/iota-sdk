@@ -29,5 +29,6 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]Group, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Group, error)
 	Save(ctx context.Context, group Group) (Group, error)
+	Exists(ctx context.Context, id uuid.UUID) (bool, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }

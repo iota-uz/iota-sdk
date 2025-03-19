@@ -18,11 +18,17 @@ func GroupsSeedFunc(groups ...group.Group) application.SeedFunc {
 		)
 
 		for _, g := range groups {
-			logger.Infof("Saving group: %s", g.Name())
+			if exists, err := groupRepository.Exists(ctx, g.ID()); err != nil {
+				logger.Errorf("Failed to check if group %s exists: %v", g.Name(), err)
+			} else if exists {
+				logger.Infof("Group %s already exists", g.Name())
+				continue
+			}
 			if _, err := groupRepository.Save(ctx, g); err != nil {
 				logger.Errorf("Failed to save group %s: %v", g.Name(), err)
 				return err
 			}
+			logger.Infof("Group %s saved", g.Name())
 		}
 		return nil
 	}
