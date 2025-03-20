@@ -1,8 +1,16 @@
 package rbac
 
 import (
+	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+
+	"github.com/google/uuid"
+)
+
+var (
+	ErrPermissionNotFound = errors.New("permission not found")
 )
 
 type Permission interface {
@@ -59,4 +67,39 @@ func And(perms ...Permission) Permission {
 
 func Perm(p *permission.Permission) Permission {
 	return rbacPermission{Permission: p}
+}
+
+type RBAC interface {
+	Register(permissions ...*permission.Permission)
+	Get(id uuid.UUID) (*permission.Permission, error)
+	Permissions() []*permission.Permission
+}
+
+type rbac struct {
+	permissions []*permission.Permission
+}
+
+var _ RBAC = (*rbac)(nil)
+
+func NewRbac() RBAC {
+	return &rbac{
+		permissions: []*permission.Permission{},
+	}
+}
+
+func (r *rbac) Register(permissions ...*permission.Permission) {
+	r.permissions = append(r.permissions, permissions...)
+}
+
+func (r *rbac) Get(id uuid.UUID) (*permission.Permission, error) {
+	for _, p := range r.permissions {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return nil, ErrPermissionNotFound
+}
+
+func (r *rbac) Permissions() []*permission.Permission {
+	return r.permissions
 }
