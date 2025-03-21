@@ -1,4 +1,4 @@
-package scaffold
+package di
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"reflect"
 )
 
-func NewDIHandler(handler interface{}, customProviders ...Provider) *DIHandler {
+func NewHandler(handler interface{}, customProviders ...Provider) *DIHandler {
 	return &DIHandler{
 		value:           reflect.ValueOf(handler),
 		customProviders: customProviders,
