@@ -1,4 +1,4 @@
-package scaffold
+package di
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 type Provider interface {
 	// Ok checks if this provider can handle the requested type
 	Ok(t reflect.Type) bool
-	
+
 	// Provide returns the value for the given type
 	// Should only be called if Ok returns true
 	Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error)
