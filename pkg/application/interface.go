@@ -5,16 +5,16 @@ import (
 	"embed"
 	"reflect"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
@@ -32,7 +32,7 @@ type Application interface {
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
-	RBAC() permission.RBAC
+	RBAC() rbac.RBAC
 	Spotlight() spotlight.Spotlight
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem

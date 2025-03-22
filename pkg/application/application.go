@@ -16,9 +16,9 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -93,7 +93,7 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
-		rbac:           permission.NewRbac(),
+		rbac:           rbac.NewRbac(),
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
 		spotlight:      spotlight.New(),
@@ -106,7 +106,7 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 type application struct {
 	pool           *pgxpool.Pool
 	eventPublisher eventbus.EventBus
-	rbac           permission.RBAC
+	rbac           rbac.RBAC
 	services       map[reflect.Type]interface{}
 	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
@@ -131,7 +131,7 @@ func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
 }
 
-func (app *application) RBAC() permission.RBAC {
+func (app *application) RBAC() rbac.RBAC {
 	return app.rbac
 }
 
