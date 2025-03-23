@@ -1,3 +1,7 @@
+// Package scaffold provides utilities for generating dynamic UI components.
+//
+// It simplifies the creation of consistent data tables and other UI elements
+// based on configuration and data, reducing boilerplate code.
 package scaffold
 
 import (
@@ -54,6 +58,7 @@ templ Content(config TableConfig, data TableData) {
 	</div>
 }
 
+// Page renders a complete authenticated page with the scaffolded content
 templ Page(config TableConfig, data TableData) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: ""},
