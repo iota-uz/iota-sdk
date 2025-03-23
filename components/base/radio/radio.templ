@@ -1,0 +1,140 @@
+// Package radio provides radio button components for forms.
+//
+// Example usage:
+//
+//	@radio.RadioGroup(&radio.RadioGroupProps{
+//		Name: "fruit",
+//		Label: "Select a fruit",
+//		Orientation: "horizontal",
+//	}) {
+//		@radio.RadioItem(&radio.RadioItemProps{
+//			Value: "apple",
+//			Label: "Apple",
+//			GroupName: "fruit",
+//			Checked: true,
+//		})
+//		@radio.RadioItem(&radio.RadioItemProps{
+//			Value: "orange",
+//			Label: "Orange",
+//			GroupName: "fruit",
+//		})
+//		@radio.RadioItem(&radio.RadioItemProps{
+//			Value: "banana",
+//			Label: "Banana",
+//			GroupName: "fruit",
+//			Disabled: true,
+//		})
+//	}
+package radio
+
+import "github.com/iota-uz/utils/random"
+
+// RadioGroupProps defines properties for the RadioGroup component.
+type RadioGroupProps struct {
+	Name         string           // Input name attribute for all radio items in the group
+	Label        string           // Group label text
+	Error        string           // Error message for the group
+	Class        string           // Additional CSS classes for the group container
+	Attrs        templ.Attributes // Additional HTML attributes for the group
+	WrapperProps templ.Attributes // Additional HTML attributes for the outer wrapper
+	Orientation  string           // Layout orientation: "vertical" (default) or "horizontal"
+}
+
+// RadioItemProps defines properties for individual RadioItem components.
+type RadioItemProps struct {
+	Value     string           // Value attribute for the radio input
+	Label     string           // Text label for the radio item
+	LabelComp templ.Component  // Component to use as label instead of text
+	Checked   bool             // Whether the radio is selected
+	Disabled  bool             // Whether the radio is disabled
+	Class     string           // Additional CSS classes for the radio element
+	Attrs     templ.Attributes // Additional HTML attributes for the input
+	GroupName string           // Name attribute linking this item to its group
+	ID        string           // HTML ID for the input (auto-generated if empty)
+}
+
+func newRadioItem(props RadioItemProps) RadioItemProps {
+	if props.ID == "" {
+		props.ID = random.String(12, random.LowerCharSet)
+	}
+	return props
+}
+
+templ (p RadioGroupProps) render() {
+	<div class="w-full" { p.WrapperProps... }>
+		if len(p.Label) > 0 {
+			<h2 class="text-base font-normal text-gray-700 mb-2">{ p.Label }</h2>
+		}
+		<div class={ "flex w-full gap-2", getOrientationClass(p.Orientation), p.Class } { p.Attrs... }>
+			{ children... }
+		</div>
+		if p.Error != "" {
+			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+		}
+	</div>
+}
+
+// RadioGroup wraps multiple RadioItem components as a form control.
+templ RadioGroup(props RadioGroupProps) {
+	@props.render() {
+		{ children... }
+	}
+}
+
+templ (p RadioItemProps) render() {
+	{{
+		dataState := ""
+		if p.Checked {
+			dataState = "checked"
+		}
+	}}
+	<label
+		for={ p.ID }
+		class={ "flex items-center space-x-2 rounded-lg border border-gray-100 p-3 cursor-pointer transition-colors flex-1 hover:bg-gray-50", 
+		"data-[state=checked]:bg-violet-50 data-[state=checked]:border-violet-100",
+		getDisabledClass(p.Disabled), p.Class }
+		data-state={ dataState }
+	>
+		<div class="flex items-center justify-center w-5 h-5">
+			<input
+				type="radio"
+				id={ p.ID }
+				name={ p.GroupName }
+				value={ p.Value }
+				class="sr-only peer"
+				checked?={ p.Checked }
+				disabled?={ p.Disabled }
+				{ p.Attrs... }
+			/>
+			<div class="h-5 w-5 rounded-full border border-gray-300 flex items-center justify-center peer-checked:border-violet-600">
+				<div class="h-2.5 w-2.5 rounded-full bg-violet-600 scale-0 peer-checked:scale-100"></div>
+			</div>
+		</div>
+		if len(p.Label) > 0 {
+			<span class="text-base font-normal">{ p.Label }</span>
+		} else if p.LabelComp != nil {
+			<span class="text-base font-normal">
+				@p.LabelComp
+			</span>
+		}
+	</label>
+}
+
+// RadioItem renders a single radio button with its label.
+templ RadioItem(props RadioItemProps) {
+	@newRadioItem(props).render()
+}
+
+func getOrientationClass(orientation string) string {
+	if orientation == "horizontal" {
+		return "grid-flow-col"
+	}
+	return ""
+}
+
+func getDisabledClass(disabled bool) string {
+	if disabled {
+		return "cursor-not-allowed opacity-50"
+	}
+	return "cursor-pointer"
+}
