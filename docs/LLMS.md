@@ -304,6 +304,40 @@ templ: version: v0.3.819
 
 ---
 
+## Package `radio` (components/base/radio)
+
+### Types
+
+#### type `RadioGroupProps`
+
+RadioGroupProps defines properties for the RadioGroup component.
+
+
+##### Methods
+
+#### type `RadioItemProps`
+
+RadioItemProps defines properties for individual RadioItem components.
+
+
+##### Methods
+
+### Functions
+
+#### `func RadioGroup`
+
+RadioGroup wraps multiple RadioItem components as a form control.
+
+
+#### `func RadioItem`
+
+RadioItem renders a single radio button with its label.
+
+
+### Variables and Constants
+
+---
+
 ## Package `selects` (components/base/selects)
 
 templ: version: v0.3.819
