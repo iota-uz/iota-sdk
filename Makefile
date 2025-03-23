@@ -10,6 +10,10 @@ deps:
 seed:
 	go run cmd/seed/main.go
 
+# Generate code documentation
+docs:
+	go run cmd/document/main.go -dir . -output DOCUMENTATION.md -recursive -exclude "vendor,node_modules,tmp,e2e,py-embed"
+
 generate:
 	go generate ./... && templ generate
 
@@ -99,4 +103,4 @@ build-docker-prod:
 %:
 	@:
 
-.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations
+.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations docs seed
