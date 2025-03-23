@@ -1,3 +1,7 @@
+// Package selects provides specialized select components for common use cases.
+//
+// It includes pre-configured select components for country selection
+// and other common dropdown use cases.
 package selects
 
 import (
@@ -6,17 +10,20 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
+// CountriesSelectProps defines the properties for the CountriesSelect component.
 type CountriesSelectProps struct {
-	Label       string
-	Placeholder string
-	Name        string
-	Selected    string
-	Error       string
-	Required    bool
-	Class       string
-	Attrs       templ.Attributes
+	Label       string            // Label text for the select
+	Placeholder string            // Placeholder text when no option is selected
+	Name        string            // Name attribute for form submission
+	Selected    string            // Pre-selected country code
+	Error       string            // Error message to display
+	Required    bool              // Whether the field is required
+	Class       string            // Additional CSS classes
+	Attrs       templ.Attributes  // Additional HTML attributes
 }
 
+// CountriesSelect renders a select dropdown with a list of countries.
+// Countries are translated according to the current locale.
 templ CountriesSelect(props CountriesSelectProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)

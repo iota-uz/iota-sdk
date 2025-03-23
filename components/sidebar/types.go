@@ -1,3 +1,7 @@
+// Package sidebar provides navigation components for application layout.
+//
+// It implements a sidebar with support for nested navigation groups,
+// active state highlighting, and collapsible sections.
 package sidebar
 
 import (
@@ -9,6 +13,7 @@ import (
 	"github.com/iota-uz/utils/random"
 )
 
+// Link represents a navigation link in the sidebar.
 type Link interface {
 	IsLink() bool
 	Position() int
@@ -19,6 +24,7 @@ type Link interface {
 	SetPosition(position int) Link
 }
 
+// Group represents a collection of navigation items that can be expanded/collapsed.
 type Group interface {
 	ID() string
 	IsLink() bool
@@ -30,6 +36,7 @@ type Group interface {
 	SetPosition(position int) Group
 }
 
+// Item is the base interface for navigation elements in the sidebar.
 type Item interface {
 	IsLink() bool
 	Position() int
@@ -45,6 +52,7 @@ func asGroup(i Item) Group {
 	return i.(Group)
 }
 
+// NewGroup creates a new navigation group with the given text, icon, and child items.
 func NewGroup(text string, icon templ.Component, children []Item) Group {
 	return &group{
 		id:       random.String(8, random.AlphaNumericSet),
@@ -106,6 +114,7 @@ func (g *group) Children() []Item {
 	return g.children
 }
 
+// NewLink creates a new navigation link with the given URL, text, and icon.
 func NewLink(href, text string, icon templ.Component) Link {
 	return &link{
 		href:     href,
