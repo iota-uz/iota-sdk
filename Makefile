@@ -12,7 +12,7 @@ seed:
 
 # Generate code documentation
 docs:
-	go run cmd/document/main.go -dir . -output docs/LLMS.md -recursive -exclude "vendor,node_modules,tmp,e2e,py-embed,cmd"
+	go run cmd/document/main.go -dir . -output docs/LLMS.md -recursive -exclude "vendor,node_modules,tmp,e2e,py-embed,cmd,modules"
 
 generate:
 	go generate ./... && templ generate

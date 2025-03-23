@@ -16,7 +16,7 @@ import (
 func main() {
 	// Parse command-line flags
 	sourceDir := flag.String("dir", ".", "Directory path to parse for documentation")
-	outputPath := flag.String("output", "DOCUMENTATION.md", "Output file path")
+	outputPath := flag.String("output", "docs/LLMS.md", "Output file path")
 	recursive := flag.Bool("recursive", false, "Whether to process subdirectories recursively")
 	excludeDirs := flag.String("exclude", "vendor,node_modules,tmp", "Comma-separated list of directories to exclude")
 	flag.Parse()
@@ -29,7 +29,7 @@ func main() {
 	defer outputFile.Close()
 
 	// Write documentation header
-	fmt.Fprintf(outputFile, "# IOTA SDK Documentation\n\n")
+	fmt.Fprintf(outputFile, "# IOTA SDK Documentation (github.com/iota-uz/iota-sdk)\n\n")
 	fmt.Fprintf(outputFile, "Generated automatically from source code.\n\n")
 
 	// Get list of directories to process
@@ -131,7 +131,7 @@ func processDirectory(dir string, outputFile *os.File) {
 				if !isExported(t.Name) {
 					continue
 				}
-				
+
 				fmt.Fprintf(outputFile, "#### type `%s`\n\n", t.Name)
 				if t.Doc != "" {
 					fmt.Fprintf(outputFile, "%s\n\n", t.Doc)
@@ -145,7 +145,7 @@ func processDirectory(dir string, outputFile *os.File) {
 						if !isExported(m.Name) {
 							continue
 						}
-						
+
 						fmt.Fprintf(outputFile, "- `func (%s) %s`\n", t.Name, m.Name)
 						if m.Doc != "" {
 							fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(m.Doc, "\n", "\n  ", -1))
@@ -165,7 +165,7 @@ func processDirectory(dir string, outputFile *os.File) {
 				if !isExported(f.Name) {
 					continue
 				}
-				
+
 				fmt.Fprintf(outputFile, "#### `func %s`\n\n", f.Name)
 				if f.Doc != "" {
 					fmt.Fprintf(outputFile, "%s\n\n", f.Doc)
@@ -176,13 +176,13 @@ func processDirectory(dir string, outputFile *os.File) {
 		// Document variables and constants (only exported ones)
 		if len(docPkg.Vars) > 0 || len(docPkg.Consts) > 0 {
 			fmt.Fprintf(outputFile, "### Variables and Constants\n\n")
-			
+
 			for _, v := range docPkg.Vars {
 				// Check if any of the variable names are exported
 				if !hasExportedName(v.Names) {
 					continue
 				}
-				
+
 				fmt.Fprintf(outputFile, "- Var: `%s`\n", v.Names)
 				if v.Doc != "" {
 					fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(v.Doc, "\n", "\n  ", -1))
@@ -190,13 +190,13 @@ func processDirectory(dir string, outputFile *os.File) {
 					fmt.Fprintf(outputFile, "\n")
 				}
 			}
-			
+
 			for _, c := range docPkg.Consts {
 				// Check if any of the constant names are exported
 				if !hasExportedName(c.Names) {
 					continue
 				}
-				
+
 				fmt.Fprintf(outputFile, "- Const: `%s`\n", c.Names)
 				if c.Doc != "" {
 					fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(c.Doc, "\n", "\n  ", -1))
@@ -209,3 +209,4 @@ func processDirectory(dir string, outputFile *os.File) {
 		fmt.Fprintf(outputFile, "---\n\n")
 	}
 }
+
