@@ -169,6 +169,9 @@
       },
       "New": {
         "Title": "Yangi foydalanuvchi"
+      },
+      "Permissions": {
+        "Title": "Foydalanuvchi ruxsatlari"
       }
     },
     "List": {
@@ -197,7 +200,8 @@
       "SelectRole": "Rolni tanlang",
       "EnterPassword": "Parolni kiriting",
       "Delete": "Foydalanuvchini o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?"
+      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
+      "Permissions": "Foydalanuvchi ruxsatlari"
     }
   },
   "Roles": {
