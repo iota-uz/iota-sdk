@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"reflect"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // MapViewModels maps entities to view models
@@ -130,5 +132,12 @@ func PointerToSQLNullTime(t *time.Time) sql.NullTime {
 	return sql.NullTime{
 		Time:  time.Time{},
 		Valid: false,
+	}
+}
+
+func UUIDToSQLNullString(id uuid.UUID) sql.NullString {
+	return sql.NullString{
+		String: id.String(),
+		Valid:  id != uuid.Nil,
 	}
 }
