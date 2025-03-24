@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 )
 
 var (
@@ -41,11 +42,21 @@ func MustUseUser(ctx context.Context) user.User {
 func CanUser(ctx context.Context, permission *permission.Permission) error {
 	u, err := UseUser(ctx)
 	if err != nil {
-		return err
+		return nil
 	}
 	if !u.Can(permission) {
-		return nil
-		// return service.ErrForbidden
+		return ErrForbidden
+	}
+	return nil
+}
+
+func CanUserAll(ctx context.Context, perms ...rbac.Permission) error {
+	u, err := UseUser(ctx)
+	if err != nil || len(perms) == 0 {
+		return nil // don't check if the user isn't in the context
+	}
+	if !rbac.And(perms...).Can(u) {
+		return ErrForbidden
 	}
 	return nil
 }
