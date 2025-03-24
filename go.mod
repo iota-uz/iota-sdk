@@ -132,5 +132,3 @@ require (
 	nhooyr.io/websocket v1.8.17 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
-
-tool github.com/a-h/templ/cmd/templ
