@@ -98,7 +98,7 @@ func processDirectory(dir string, outputFile *os.File) {
 					continue
 				}
 
-				fmt.Fprintf(outputFile, "#### type `%s`\n\n", t.Name)
+				fmt.Fprintf(outputFile, "#### %s\n\n", t.Name)
 				if t.Doc != "" {
 					fmt.Fprintf(outputFile, "%s\n\n", t.Doc)
 				}
@@ -109,11 +109,11 @@ func processDirectory(dir string, outputFile *os.File) {
 						case *ast.StructType:
 							fields := extractStructFields(underlying)
 							if len(fields) > 0 {
-								fmt.Fprintf(outputFile, "##### Properties\n\n")
+								fmt.Fprintf(outputFile, "```go\ntype %s struct {\n", t.Name)
 								for _, field := range fields {
-									fmt.Fprintf(outputFile, "- `%s`\n", field)
+									fmt.Fprintf(outputFile, "    %s\n", field)
 								}
-								fmt.Fprintf(outputFile, "\n")
+								fmt.Fprintf(outputFile, "}\n```\n\n")
 							}
 						case *ast.InterfaceType:
 							methods := extractInterfaceMethods(underlying)
