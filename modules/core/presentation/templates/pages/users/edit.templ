@@ -15,9 +15,10 @@ import (
 )
 
 type EditFormProps struct {
-	User   *viewmodels.User
-	Roles  []*viewmodels.Role
-	Errors map[string]string
+	User        *viewmodels.User
+	Roles       []*viewmodels.Role
+	Permissions []*viewmodels.Permission
+	Errors      map[string]string
 }
 
 func useUploads(u *viewmodels.User) []*viewmodels.Upload {
