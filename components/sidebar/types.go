@@ -1,13 +1,11 @@
 // Package sidebar provides navigation components for application layout.
-//
-// It implements a sidebar with support for nested navigation groups,
-// active state highlighting, and collapsible sections.
 package sidebar
 
 import (
 	"context"
-	"github.com/a-h/templ"
 	"strings"
+
+	"github.com/a-h/templ"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/utils/random"
@@ -164,3 +162,4 @@ func (l *link) Text() string {
 func (l *link) Href() string {
 	return l.href
 }
+

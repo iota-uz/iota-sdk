@@ -26,17 +26,30 @@ UploadInputProps defines the properties for the UploadInput component.
 It provides configuration options for the file upload interface.
 
 
+##### Properties
+
+- `ID string`
+- `Label string`
+- `Placeholder string`
+- `Uploads []*viewmodels.Upload`
+- `Error string`
+- `Accept string`
+- `Name string`
+- `Form string`
+- `Class string`
+- `Multiple bool`
+
 ##### Methods
 
 ### Functions
 
-#### `func UploadInput`
+#### `func UploadInput(props *UploadInputProps) templ.Component`
 
 UploadInput renders a file upload input with preview capability.
 It displays existing uploads and allows selecting new files.
 
 
-#### `func UploadPreview`
+#### `func UploadPreview(p *UploadInputProps) templ.Component`
 
 ### Variables and Constants
 
@@ -59,53 +72,122 @@ templ: version: v0.3.819
 
 #### type `BaseLabelProps`
 
+##### Properties
+
+- `Text string`
+
 #### type `ComboboxOption`
+
+##### Properties
+
+- `Value string`
+- `Label string`
 
 #### type `ComboboxProps`
 
+##### Properties
+
+- `Multiple bool`
+- `Placeholder string`
+- `Class string`
+- `ListClass string`
+- `Name string`
+- `Form string`
+- `Label string`
+- `Endpoint string`
+- `Searchable bool`
+- `NotFoundText string`
+- `Trigger *Trigger`
+
 #### type `DetailsDropdownProps`
+
+##### Properties
+
+- `Summary templ.Component`
+- `Classes templ.CSSClasses`
 
 ##### Methods
 
 #### type `DropdownItemProps`
 
+##### Properties
+
+- `Href string`
+
 #### type `SelectProps`
+
+##### Properties
+
+- `Label string`
+- `Class string`
+- `Placeholder string`
+- `Attrs templ.Attributes`
+- `Prefix string`
+- `Error string`
 
 ##### Methods
 
 #### type `TableColumn`
 
+##### Properties
+
+- `Label string`
+- `Key string`
+- `Width int`
+- `Class string`
+- `DateFormat string`
+- `Duration bool`
+- `Sortable bool`
+
 #### type `TableProps`
+
+##### Properties
+
+- `Columns []*TableColumn`
 
 #### type `TableRowProps`
 
+##### Properties
+
+- `Attrs templ.Attributes`
+
 #### type `Trigger`
+
+##### Properties
+
+- `Render func(props *TriggerProps) templ.Component`
+- `Component templ.Component`
 
 #### type `TriggerProps`
 
+##### Properties
+
+- `InputAttrs templ.Attributes`
+- `ButtonAttrs templ.Attributes`
+
 ### Functions
 
-#### `func BaseLabel`
+#### `func BaseLabel(props BaseLabelProps) templ.Component`
 
-#### `func Combobox`
+#### `func Combobox(props ComboboxProps) templ.Component`
 
-#### `func ComboboxOptions`
+#### `func ComboboxOptions(options []*ComboboxOption) templ.Component`
 
-#### `func DetailsDropdown`
+#### `func DetailsDropdown(props *DetailsDropdownProps) templ.Component`
 
-#### `func DropdownIndicator`
+#### `func DropdownIndicator() templ.Component`
 
-#### `func DropdownItem`
+#### `func DropdownItem(props DropdownItemProps) templ.Component`
 
-#### `func Select`
+#### `func Select(p *SelectProps) templ.Component`
 
-#### `func SelectedValues`
+#### `func SelectedValues() templ.Component`
 
-#### `func Table`
+#### `func Table(props *TableProps) templ.Component`
 
-#### `func TableCell`
+#### `func TableCell() templ.Component`
 
-#### `func TableRow`
+#### `func TableRow(props *TableRowProps) templ.Component`
 
 ### Variables and Constants
 
@@ -118,7 +200,7 @@ templ: version: v0.3.819
 
 ### Functions
 
-#### `func Error`
+#### `func Error() templ.Component`
 
 ### Variables and Constants
 
@@ -133,9 +215,18 @@ templ: version: v0.3.819
 
 #### type `Props`
 
+##### Properties
+
+- `Class templ.CSSClasses`
+- `ImageURL string`
+- `Initials string`
+- `Variant Variant`
+
+#### type `Variant`
+
 ### Functions
 
-#### `func Avatar`
+#### `func Avatar(props Props) templ.Component`
 
 ### Variables and Constants
 
@@ -150,23 +241,34 @@ templ: version: v0.3.819
 
 #### type `Props`
 
+##### Properties
+
+- `Size Size`
+- `Fixed bool`
+- `Href string`
+- `Rounded bool`
+- `Loading bool`
+- `Class any`
+- `Icon templ.Component`
+- `Attrs templ.Attributes`
+
 #### type `Size`
 
 #### type `Variant`
 
 ### Functions
 
-#### `func Danger`
+#### `func Danger(props Props) templ.Component`
 
-#### `func Ghost`
+#### `func Ghost(props Props) templ.Component`
 
-#### `func Primary`
+#### `func Primary(props Props) templ.Component`
 
-#### `func PrimaryOutline`
+#### `func PrimaryOutline(props Props) templ.Component`
 
-#### `func Secondary`
+#### `func Secondary(props Props) templ.Component`
 
-#### `func Sidebar`
+#### `func Sidebar(props Props) templ.Component`
 
 ### Variables and Constants
 
@@ -185,11 +287,18 @@ templ: version: v0.3.819
 
 #### type `Props`
 
+##### Properties
+
+- `Class string`
+- `WrapperClass string`
+- `Header templ.Component`
+- `Attrs templ.Attributes`
+
 ### Functions
 
-#### `func Card`
+#### `func Card(props Props) templ.Component`
 
-#### `func DefaultHeader`
+#### `func DefaultHeader(text string) templ.Component`
 
 ### Variables and Constants
 
@@ -208,17 +317,44 @@ templ: version: v0.3.819
 
 #### type `DrawerProps`
 
+##### Properties
+
+- `ID string`
+- `Open bool`
+- `Direction Direction`
+- `Action string`
+- `Attrs templ.Attributes`
+- `Classes templ.CSSClasses`
+
 #### type `Props`
+
+##### Properties
+
+- `Icon templ.Component`
+- `Heading string`
+- `Text string`
+- `Action string`
+- `Attrs templ.Attributes`
+- `CancelText string`
+- `ConfirmText string`
 
 #### type `StdDrawerProps`
 
+##### Properties
+
+- `ID string`
+- `Title string`
+- `Action string`
+- `Open bool`
+- `Attrs templ.Attributes`
+
 ### Functions
 
-#### `func Confirmation`
+#### `func Confirmation(p *Props) templ.Component`
 
-#### `func Drawer`
+#### `func Drawer(props DrawerProps) templ.Component`
 
-#### `func StdViewDrawer`
+#### `func StdViewDrawer(props StdDrawerProps) templ.Component`
 
 ### Variables and Constants
 
@@ -235,33 +371,71 @@ templ: version: v0.3.819
 
 #### type `Addon`
 
+##### Properties
+
+- `Render func(props *Props) templ.Component`
+- `Component templ.Component`
+- `Class string`
+- `Attrs templ.Attributes`
+
 #### type `CheckboxProps`
+
+##### Properties
+
+- `Label string`
+- `LabelComp templ.Component`
+- `Error string`
+- `Checked bool`
+- `Attrs templ.Attributes`
+- `Class string`
+- `ID string`
 
 ##### Methods
 
 #### type `Props`
 
+##### Properties
+
+- `Placeholder string`
+- `Label string`
+- `Class string`
+- `Attrs templ.Attributes`
+- `WrapperProps templ.Attributes`
+- `AddonRight *Addon`
+- `AddonLeft *Addon`
+- `Error string`
+
 ##### Methods
 
 #### type `SwitchProps`
+
+##### Properties
+
+- `Label string`
+- `LabelComp templ.Component`
+- `Error string`
+- `Checked bool`
+- `Attrs templ.Attributes`
+- `Class string`
+- `ID string`
 
 ##### Methods
 
 ### Functions
 
-#### `func Checkbox`
+#### `func Checkbox(p *CheckboxProps) templ.Component`
 
-#### `func Date`
+#### `func Date(props *Props) templ.Component`
 
-#### `func Email`
+#### `func Email(props *Props) templ.Component`
 
-#### `func Number`
+#### `func Number(props *Props) templ.Component`
 
-#### `func Password`
+#### `func Password(props *Props) templ.Component`
 
-#### `func Switch`
+#### `func Switch(p *SwitchProps) templ.Component`
 
-#### `func Text`
+#### `func Text(props *Props) templ.Component`
 
 ### Variables and Constants
 
@@ -276,29 +450,41 @@ templ: version: v0.3.819
 
 #### type `Page`
 
+##### Properties
+
+- `Num int`
+- `Link string`
+- `Filler bool`
+- `Active bool`
+
 ##### Methods
 
-- `func (Page) Classes`
+- `func (Page) Classes() string`
 
 #### type `State`
 
+##### Properties
+
+- `Total int`
+- `Current int`
+
 ##### Methods
 
-- `func (State) NextLink`
+- `func (State) NextLink() string`
 
-- `func (State) NextLinkClasses`
+- `func (State) NextLinkClasses() string`
 
-- `func (State) Pages`
+- `func (State) Pages() []Page`
 
-- `func (State) PrevLink`
+- `func (State) PrevLink() string`
 
-- `func (State) PrevLinkClasses`
+- `func (State) PrevLinkClasses() string`
 
-- `func (State) TotalStr`
+- `func (State) TotalStr() string`
 
 ### Functions
 
-#### `func Pagination`
+#### `func Pagination(state *State) templ.Component`
 
 ### Variables and Constants
 
@@ -313,6 +499,16 @@ templ: version: v0.3.819
 RadioGroupProps defines properties for the RadioGroup component.
 
 
+##### Properties
+
+- `Name string`
+- `Label string`
+- `Error string`
+- `Class string`
+- `Attrs templ.Attributes`
+- `WrapperProps templ.Attributes`
+- `Orientation string`
+
 ##### Methods
 
 #### type `RadioItemProps`
@@ -320,16 +516,28 @@ RadioGroupProps defines properties for the RadioGroup component.
 RadioItemProps defines properties for individual RadioItem components.
 
 
+##### Properties
+
+- `Value string`
+- `Label string`
+- `LabelComp templ.Component`
+- `Checked bool`
+- `Disabled bool`
+- `Class string`
+- `Attrs templ.Attributes`
+- `GroupName string`
+- `ID string`
+
 ##### Methods
 
 ### Functions
 
-#### `func RadioGroup`
+#### `func RadioGroup(props RadioGroupProps) templ.Component`
 
 RadioGroup wraps multiple RadioItem components as a form control.
 
 
-#### `func RadioItem`
+#### `func RadioItem(props RadioItemProps) templ.Component`
 
 RadioItem renders a single radio button with its label.
 
@@ -347,15 +555,33 @@ templ: version: v0.3.819
 
 #### type `SearchOptionsProps`
 
+##### Properties
+
+- `Options []*Value`
+- `NothingFoundText string`
+
 #### type `SearchSelectProps`
+
+##### Properties
+
+- `Label string`
+- `Placeholder string`
+- `Value string`
+- `Endpoint string`
+- `Attrs templ.Attributes`
 
 #### type `Value`
 
+##### Properties
+
+- `Value string`
+- `Label string`
+
 ### Functions
 
-#### `func SearchOptions`
+#### `func SearchOptions(props *SearchOptionsProps) templ.Component`
 
-#### `func SearchSelect`
+#### `func SearchSelect(props *SearchSelectProps) templ.Component`
 
 ### Variables and Constants
 
@@ -370,28 +596,42 @@ templ: version: v0.3.819
 
 #### type `BoostLinkProps`
 
+##### Properties
+
+- `Href string`
+- `Push bool`
+
 #### type `ListProps`
+
+##### Properties
+
+- `Class string`
 
 #### type `Props`
 
+##### Properties
+
+- `DefaultValue string`
+- `Class string`
+
 ### Functions
 
-#### `func BoostedContent`
+#### `func BoostedContent(class templ.CSSClasses) templ.Component`
 
-#### `func BoostedLink`
+#### `func BoostedLink(props BoostLinkProps) templ.Component`
 
-#### `func Button`
+#### `func Button(value string) templ.Component`
 
-#### `func Content`
+#### `func Content(value string) templ.Component`
 
-#### `func Link`
+#### `func Link(href string, active bool) templ.Component`
 
 --- Pure Tabs ---
 
 
-#### `func List`
+#### `func List(props ListProps) templ.Component`
 
-#### `func Root`
+#### `func Root(props Props) templ.Component`
 
 ### Variables and Constants
 
@@ -406,11 +646,21 @@ templ: version: v0.3.819
 
 #### type `Props`
 
+##### Properties
+
+- `Placeholder string`
+- `Label string`
+- `Class string`
+- `WrapperClass string`
+- `Attrs templ.Attributes`
+- `Error string`
+- `Value string`
+
 ##### Methods
 
 ### Functions
 
-#### `func Basic`
+#### `func Basic(props *Props) templ.Component`
 
 ### Variables and Constants
 
@@ -427,9 +677,22 @@ templ: version: v0.3.819
 
 #### type `ToggleOption`
 
+##### Properties
+
+- `Value string`
+- `Label string`
+
 ##### Methods
 
 #### type `ToggleProps`
+
+##### Properties
+
+- `InitialActive string`
+- `Options []ToggleOption`
+- `Size ToggleSize`
+- `Rounded ToggleRounded`
+- `Alignment ToggleAlignment`
 
 ##### Methods
 
@@ -439,7 +702,7 @@ templ: version: v0.3.819
 
 ### Functions
 
-#### `func Toggle`
+#### `func Toggle(props ToggleProps) templ.Component`
 
 ### Variables and Constants
 
@@ -451,42 +714,132 @@ templ: version: v0.3.819
 
 #### type `BarConfig`
 
+##### Properties
+
+- `BorderRadius int `json:"borderRadius"``
+- `ColumnWidth string `json:"columnWidth"``
+- `DataLabels BarLabels `json:"dataLabels"``
+
 #### type `BarLabels`
+
+##### Properties
+
+- `Position string `json:"position"``
 
 #### type `ChartConfig`
 
+##### Properties
+
+- `Type string `json:"type"``
+- `Height string `json:"height"``
+- `Toolbar Toolbar `json:"toolbar"``
+
 #### type `ChartOptions`
+
+##### Properties
+
+- `Chart ChartConfig `json:"chart"``
+- `Series []Series `json:"series"``
+- `XAxis XAxisConfig `json:"xaxis"``
+- `YAxis YAxisConfig `json:"yaxis"``
+- `Colors []string `json:"colors"``
+- `DataLabels DataLabels `json:"dataLabels"``
+- `Grid GridConfig `json:"grid"``
+- `PlotOptions PlotOptions `json:"plotOptions"``
 
 #### type `DataLabelStyle`
 
+##### Properties
+
+- `Colors []string `json:"colors"``
+- `FontSize string `json:"fontSize"``
+- `FontWeight string `json:"fontWeight"``
+
 #### type `DataLabels`
+
+##### Properties
+
+- `Enabled bool `json:"enabled"``
+- `Formatter templ.JSExpression `json:"formatter,omitempty"``
+- `Style DataLabelStyle `json:"style"``
+- `OffsetY int `json:"offsetY"``
+- `DropShadow DropShadow `json:"dropShadow"``
 
 #### type `DropShadow`
 
+##### Properties
+
+- `Enabled bool `json:"enabled"``
+- `Top int `json:"top"``
+- `Left int `json:"left"``
+- `Blur int `json:"blur"``
+- `Color string `json:"color"``
+- `Opacity float64 `json:"opacity"``
+
 #### type `GridConfig`
+
+##### Properties
+
+- `BorderColor string `json:"borderColor"``
 
 #### type `LabelFormatter`
 
+##### Properties
+
+- `Style LabelStyle `json:"style"``
+
 #### type `LabelStyle`
 
+##### Properties
+
+- `Colors string `json:"colors"``
+- `FontSize string `json:"fontSize"``
+
 #### type `PlotOptions`
+
+##### Properties
+
+- `Bar BarConfig `json:"bar"``
 
 #### type `Props`
 
 Props defines the configuration options for a Chart component.
 
 
+##### Properties
+
+- `Class string`
+- `Options ChartOptions`
+
 #### type `Series`
+
+##### Properties
+
+- `Name string `json:"name"``
+- `Data []float64 `json:"data"``
 
 #### type `Toolbar`
 
+##### Properties
+
+- `Show bool `json:"show"``
+
 #### type `XAxisConfig`
+
+##### Properties
+
+- `Categories []string `json:"categories"``
+- `Labels LabelFormatter `json:"labels"``
 
 #### type `YAxisConfig`
 
+##### Properties
+
+- `Labels LabelFormatter `json:"labels"``
+
 ### Functions
 
-#### `func Chart`
+#### `func Chart(props Props) templ.Component`
 
 Chart renders a chart with the specified options.
 It generates a random ID for the chart container and initializes
@@ -506,51 +859,65 @@ templ: version: v0.3.819
 
 #### type `DrawerProps`
 
+##### Properties
+
+- `Heading string`
+- `Action string`
+
 #### type `Props`
 
 Props defines configuration options for the Default filter component.
 
+
+##### Properties
+
+- `Fields []SearchField`
 
 #### type `SearchField`
 
 SearchField represents a field that can be searched on.
 
 
+##### Properties
+
+- `Label string`
+- `Key string`
+
 ### Functions
 
-#### `func CreatedAt`
+#### `func CreatedAt() templ.Component`
 
 CreatedAt renders a date range filter for filtering by creation date.
 It provides common options like today, yesterday, this week, etc.
 
 
-#### `func Default`
+#### `func Default(props *Props) templ.Component`
 
 Default renders a complete filter bar with search, page size, and date filters.
 It combines multiple filter components into a single interface.
 
 
-#### `func Drawer`
+#### `func Drawer(props DrawerProps) templ.Component`
 
-#### `func PageSize`
+#### `func PageSize() templ.Component`
 
 PageSize renders a select dropdown for choosing the number of items per page.
 
 
-#### `func Search`
+#### `func Search(fields []SearchField) templ.Component`
 
 Search renders a search input with field selection.
 It includes a search icon and allows selecting which field to search on.
 
 
-#### `func SearchFields`
+#### `func SearchFields(fields []SearchField) templ.Component`
 
 SearchFields renders a dropdown list of available search fields.
 For a single field, it creates a hidden select. For multiple fields,
 it creates a combobox for selecting which field to search on.
 
 
-#### `func SearchFieldsTrigger`
+#### `func SearchFieldsTrigger(trigger *base.TriggerProps) templ.Component`
 
 ### Variables and Constants
 
@@ -560,7 +927,7 @@ it creates a combobox for selecting which field to search on.
 
 ### Functions
 
-#### `func Hand`
+#### `func Hand() templ.Component`
 
 Hand renders a hand-shaped loading animation.
 It's a stylized animation for use during loading states, providing
@@ -586,22 +953,35 @@ based on configuration and data, reducing boilerplate code.
 TableColumn defines a column in a dynamic table.
 
 
+##### Properties
+
+- `Key string`
+- `Label string`
+- `Class string`
+- `Width string`
+- `Format func(any) string`
+
 #### type `TableConfig`
 
 TableConfig holds the configuration for a dynamic table.
 
 
+##### Properties
+
+- `Columns []TableColumn`
+- `Title string`
+
 ##### Methods
 
-- `func (TableConfig) AddActionsColumn`
+- `func (TableConfig) AddActionsColumn() *TableConfig`
   AddActionsColumn adds an actions column with edit button
   
 
-- `func (TableConfig) AddColumn`
+- `func (TableConfig) AddColumn(key, label, class string) *TableConfig`
   AddColumn adds a column to the table configuration
   
 
-- `func (TableConfig) AddDateColumn`
+- `func (TableConfig) AddDateColumn(key, label string) *TableConfig`
   AddDateColumn adds a date column with automatic formatting
   
 
@@ -610,25 +990,29 @@ TableConfig holds the configuration for a dynamic table.
 TableData contains the data to be displayed in the table.
 
 
+##### Properties
+
+- `Items []map[string]any`
+
 ##### Methods
 
-- `func (TableData) AddItem`
+- `func (TableData) AddItem(item map[string]any) *TableData`
   AddItem adds an item to the table data
   
 
 ### Functions
 
-#### `func Content`
+#### `func Content(config TableConfig, data TableData) templ.Component`
 
 Content renders the complete scaffold page content with filters and table
 
 
-#### `func Page`
+#### `func Page(config TableConfig, data TableData) templ.Component`
 
 Page renders a complete authenticated page with the scaffolded content
 
 
-#### `func Table`
+#### `func Table(config TableConfig, data TableData) templ.Component`
 
 Table renders a dynamic table based on configuration and data
 
@@ -646,9 +1030,20 @@ Table renders a dynamic table based on configuration and data
 CountriesSelectProps defines the properties for the CountriesSelect component.
 
 
+##### Properties
+
+- `Label string`
+- `Placeholder string`
+- `Name string`
+- `Selected string`
+- `Error string`
+- `Required bool`
+- `Class string`
+- `Attrs templ.Attributes`
+
 ### Functions
 
-#### `func CountriesSelect`
+#### `func CountriesSelect(props CountriesSelectProps) templ.Component`
 
 CountriesSelect renders a select dropdown with a list of countries.
 Countries are translated according to the current locale.
@@ -664,9 +1059,6 @@ templ: version: v0.3.819
 
 Package sidebar provides navigation components for application layout.
 
-It implements a sidebar with support for nested navigation groups,
-active state highlighting, and collapsible sections.
-
 
 ### Types
 
@@ -675,25 +1067,59 @@ active state highlighting, and collapsible sections.
 Group represents a collection of navigation items that can be expanded/collapsed.
 
 
+##### Interface Methods
+
+- `ID() string`
+- `IsLink() bool`
+- `Position() int`
+- `Text() string`
+- `Icon() templ.Component`
+- `Children() []Item`
+- `IsActive(ctx context.Context) bool`
+- `SetPosition(position int) Group`
+
 #### type `Item`
 
 Item is the base interface for navigation elements in the sidebar.
 
+
+##### Interface Methods
+
+- `IsLink() bool`
+- `Position() int`
+- `Icon() templ.Component`
+- `IsActive(ctx context.Context) bool`
 
 #### type `Link`
 
 Link represents a navigation link in the sidebar.
 
 
+##### Interface Methods
+
+- `IsLink() bool`
+- `Position() int`
+- `Href() string`
+- `Text() string`
+- `Icon() templ.Component`
+- `IsActive(ctx context.Context) bool`
+- `SetPosition(position int) Link`
+
 #### type `Props`
+
+##### Properties
+
+- `Header templ.Component`
+- `Items []Item`
+- `Footer templ.Component`
 
 ### Functions
 
-#### `func AccordionGroup`
+#### `func AccordionGroup(group Group) templ.Component`
 
-#### `func AccordionLink`
+#### `func AccordionLink(link Link) templ.Component`
 
-#### `func Sidebar`
+#### `func Sidebar(props Props) templ.Component`
 
 ### Variables and Constants
 
@@ -708,15 +1134,21 @@ Link represents a navigation link in the sidebar.
 Item represents a search result in the Spotlight component.
 
 
+##### Properties
+
+- `Title string`
+- `Icon templ.Component`
+- `Link string`
+
 ### Functions
 
-#### `func Spotlight`
+#### `func Spotlight() templ.Component`
 
 Spotlight renders a search dialog component that can be triggered
 with a button click or keyboard shortcut.
 
 
-#### `func SpotlightItems`
+#### `func SpotlightItems(items []*Item) templ.Component`
 
 SpotlightItems renders a list of search results in the Spotlight component.
 If no items are found, it displays a "nothing found" message.
@@ -735,9 +1167,17 @@ If no items are found, it displays a "nothing found" message.
 LanguageSelectProps defines the properties for the LanguageSelect component.
 
 
+##### Properties
+
+- `Label string`
+- `Placeholder string`
+- `Value string`
+- `Error string`
+- `Attrs templ.Attributes`
+
 ### Functions
 
-#### `func LanguageSelect`
+#### `func LanguageSelect(props *LanguageSelectProps) templ.Component`
 
 LanguageSelect renders a dropdown for selecting the application language.
 It displays all supported languages with their verbose names.
@@ -763,9 +1203,16 @@ It displays all supported languages with their verbose names.
 
 #### type `DefaultOptions`
 
+##### Properties
+
+- `Logger *logrus.Logger`
+- `Configuration *configuration.Configuration`
+- `Application application.Application`
+- `Pool *pgxpool.Pool`
+
 ### Functions
 
-#### `func Default`
+#### `func Default(options *DefaultOptions) (*server.HTTPServer, error)`
 
 ---
 
@@ -778,20 +1225,74 @@ It displays all supported languages with their verbose names.
 Application with a dynamically extendable service registry
 
 
+##### Interface Methods
+
+- `DB() *pgxpool.Pool`
+- `EventPublisher() eventbus.EventBus`
+- `Controllers() []Controller`
+- `Middleware() []mux.MiddlewareFunc`
+- `Assets() []*embed.FS`
+- `HashFsAssets() []*hashfs.FS`
+- `RBAC() rbac.RBAC`
+- `Spotlight() spotlight.Spotlight`
+- `Migrations() MigrationManager`
+- `NavItems(localizer *i18n.Localizer) []types.NavigationItem`
+- `RegisterNavItems(items ...types.NavigationItem)`
+- `RegisterControllers(controllers ...Controller)`
+- `RegisterHashFsAssets(fs ...*hashfs.FS)`
+- `RegisterAssets(fs ...*embed.FS)`
+- `RegisterLocaleFiles(fs ...*embed.FS)`
+- `RegisterGraphSchema(schema GraphSchema)`
+- `GraphSchemas() []GraphSchema`
+- `RegisterServices(services ...interface{})`
+- `RegisterMiddleware(middleware ...mux.MiddlewareFunc)`
+- `Service(service interface{}) interface{}`
+- `Services() map[reflect.Type]interface{}`
+- `Bundle() *i18n.Bundle`
+
 #### type `Controller`
 
+##### Interface Methods
+
+- `Register(r *mux.Router)`
+- `Key() string`
+
 #### type `GraphSchema`
+
+##### Properties
+
+- `Value graphql.ExecutableSchema`
+- `BasePath string`
+- `ExecutorCb func(*executor.Executor)`
 
 #### type `MigrationManager`
 
 MigrationManager is an interface for handling database migrations
 
 
+##### Interface Methods
+
+- `CollectSchema(ctx context.Context) error`
+- `Run() error`
+- `Rollback() error`
+- `RegisterSchema(fs ...*embed.FS)`
+- `SchemaFSs() []*embed.FS`
+
 #### type `Module`
+
+##### Interface Methods
+
+- `Name() string`
+- `Register(app Application) error`
 
 #### type `SeedFunc`
 
 #### type `Seeder`
+
+##### Interface Methods
+
+- `Seed(ctx context.Context, app Application) error`
+- `Register(funcs ...SeedFunc)`
 
 ### Functions
 
@@ -805,7 +1306,7 @@ MigrationManager is an interface for handling database migrations
 
 ### Functions
 
-#### `func Migrate`
+#### `func Migrate(mods ...application.Module) error`
 
 ### Variables and Constants
 
@@ -819,164 +1320,180 @@ MigrationManager is an interface for handling database migrations
 
 #### type `PaginationParams`
 
+##### Properties
+
+- `Limit int`
+- `Offset int`
+- `Page int`
+
 #### type `Params`
+
+##### Properties
+
+- `IP string`
+- `UserAgent string`
+- `Authenticated bool`
+- `Request *http.Request`
+- `Writer http.ResponseWriter`
 
 ### Functions
 
-#### `func BeginTx`
+#### `func BeginTx(ctx context.Context) (pgx.Tx, error)`
 
-#### `func CanUser`
+#### `func CanUser(ctx context.Context, permission *permission.Permission) error`
 
-#### `func MustT`
+#### `func CanUserAll(ctx context.Context, perms ...rbac.Permission) error`
+
+#### `func MustT(ctx context.Context, msgID string) string`
 
 MustT returns the translation for the given message ID.
 If the translation is not found, it will panic.
 
 
-#### `func MustUseHead`
+#### `func MustUseHead(ctx context.Context) templ.Component`
 
 MustUseHead returns the head component from the context or panics
 
 
-#### `func MustUseLocalizer`
+#### `func MustUseLocalizer(ctx context.Context) *i18n.Localizer`
 
 MustUseLocalizer returns the localizer from the context.
 If the localizer is not found, it will panic.
 
 
-#### `func MustUseLogo`
+#### `func MustUseLogo(ctx context.Context) templ.Component`
 
 MustUseLogo returns the logo component from the context or panics
 
 
-#### `func MustUseUser`
+#### `func MustUseUser(ctx context.Context) user.User`
 
 MustUseUser returns the user from the context. If no user is found, it panics.
 
 
-#### `func UseAllNavItems`
+#### `func UseAllNavItems(ctx context.Context) ([]types.NavigationItem, error)`
 
-#### `func UseApp`
+#### `func UseApp(ctx context.Context) (application.Application, error)`
 
 UseApp returns the application from the context.
 
 
-#### `func UseAuthenticated`
+#### `func UseAuthenticated(ctx context.Context) bool`
 
 UseAuthenticated returns whether the user is authenticated and the second return value is true.
 If the user is not authenticated, the second return value is false.
 
 
-#### `func UseFlash`
+#### `func UseFlash(w http.ResponseWriter, r *http.Request, name string) (val []byte, err error)`
 
-#### `func UseFlashMap`
+#### `func UseFlashMap(w http.ResponseWriter, r *http.Request, name string) (map[K]V, error)`
 
-#### `func UseForm`
+#### `func UseForm(v T, r *http.Request) (T, error)`
 
-#### `func UseHead`
+#### `func UseHead(ctx context.Context) (templ.Component, error)`
 
 UseHead returns the head component from the context
 
 
-#### `func UseIP`
+#### `func UseIP(ctx context.Context) (string, bool)`
 
 UseIP returns the IP address from the context.
 If the IP address is not found, the second return value will be false.
 
 
-#### `func UseLocale`
+#### `func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag`
 
 UseLocale returns the locale from the context.
 If the locale is not found, the second return value will be false.
 
 
-#### `func UseLocalizedOrFallback`
+#### `func UseLocalizedOrFallback(ctx context.Context, key string, fallback string) string`
 
-#### `func UseLocalizer`
+#### `func UseLocalizer(ctx context.Context) (*i18n.Localizer, bool)`
 
 UseLocalizer returns the localizer from the context.
 If the localizer is not found, the second return value will be false.
 
 
-#### `func UseLogger`
+#### `func UseLogger(ctx context.Context) (*logrus.Entry, error)`
 
 UseLogger returns the logger from the context.
 If the logger is not found, the second return value will be false.
 
 
-#### `func UseLogo`
+#### `func UseLogo(ctx context.Context) (templ.Component, error)`
 
 UseLogo returns the logo component from the context
 
 
-#### `func UseNavItems`
+#### `func UseNavItems(ctx context.Context) []types.NavigationItem`
 
-#### `func UsePageCtx`
+#### `func UsePageCtx(ctx context.Context) *types.PageContext`
 
 UsePageCtx returns the page context from the context.
 If the page context is not found, function will panic.
 
 
-#### `func UsePool`
+#### `func UsePool(ctx context.Context) (*pgxpool.Pool, error)`
 
-#### `func UseQuery`
+#### `func UseQuery(v T, r *http.Request) (T, error)`
 
-#### `func UseRequest`
+#### `func UseRequest(ctx context.Context) (*http.Request, bool)`
 
 UseRequest returns the request from the context.
 If the request is not found, the second return value will be false.
 
 
-#### `func UseSession`
+#### `func UseSession(ctx context.Context) (*session.Session, error)`
 
 UseSession returns the session from the context.
 
 
-#### `func UseTabs`
+#### `func UseTabs(ctx context.Context) ([]*tab.Tab, error)`
 
-#### `func UseTx`
+#### `func UseTx(ctx context.Context) (repo.Tx, error)`
 
-#### `func UseUniLocalizer`
+#### `func UseUniLocalizer(ctx context.Context) (ut.Translator, error)`
 
-#### `func UseUser`
+#### `func UseUser(ctx context.Context) (user.User, error)`
 
 UseUser returns the user from the context.
 
 
-#### `func UseUserAgent`
+#### `func UseUserAgent(ctx context.Context) (string, bool)`
 
 UseUserAgent returns the user agent from the context.
 If the user agent is not found, the second return value will be false.
 
 
-#### `func UseWriter`
+#### `func UseWriter(ctx context.Context) (http.ResponseWriter, bool)`
 
 UseWriter returns the response writer from the context.
 If the response writer is not found, the second return value will be false.
 
 
-#### `func WithLocalizer`
+#### `func WithLocalizer(ctx context.Context, l *i18n.Localizer) context.Context`
 
-#### `func WithPageCtx`
+#### `func WithPageCtx(ctx context.Context, pageCtx *types.PageContext) context.Context`
 
 WithPageCtx returns a new context with the page context.
 
 
-#### `func WithParams`
+#### `func WithParams(ctx context.Context, params *Params) context.Context`
 
 WithParams returns a new context with the request parameters.
 
 
-#### `func WithPool`
+#### `func WithPool(ctx context.Context, pool *pgxpool.Pool) context.Context`
 
-#### `func WithSession`
+#### `func WithSession(ctx context.Context, sess *session.Session) context.Context`
 
 WithSession returns a new context with the session.
 
 
-#### `func WithTx`
+#### `func WithTx(ctx context.Context, tx pgx.Tx) context.Context`
 
-#### `func WithUser`
+#### `func WithUser(ctx context.Context, u user.User) context.Context`
 
 WithUser returns a new context with the user.
 
@@ -1005,33 +1522,76 @@ WithUser returns a new context with the user.
 
 #### type `Configuration`
 
+##### Properties
+
+- `Database DatabaseOptions`
+- `Google GoogleOptions`
+- `Twilio TwilioOptions`
+- `MigrationsDir string `env:"MIGRATIONS_DIR" envDefault:"migrations"``
+- `ServerPort int `env:"PORT" envDefault:"3200"``
+- `SessionDuration time.Duration `env:"SESSION_DURATION" envDefault:"720h"``
+- `GoAppEnvironment string `env:"GO_APP_ENV" envDefault:"development"``
+- `SocketAddress string `env:"-"``
+- `OpenAIKey string `env:"OPENAI_KEY"``
+- `UploadsPath string `env:"UPLOADS_PATH" envDefault:"static"``
+- `Domain string `env:"DOMAIN" envDefault:"localhost"``
+- `Origin string `env:"ORIGIN" envDefault:"http://localhost:3200"``
+- `PageSize int `env:"PAGE_SIZE" envDefault:"25"``
+- `MaxPageSize int `env:"MAX_PAGE_SIZE" envDefault:"100"``
+- `LogLevel string `env:"LOG_LEVEL" envDefault:"error"``
+- `SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"``
+- `OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"``
+- `TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"``
+
 ##### Methods
 
-- `func (Configuration) Address`
+- `func (Configuration) Address() string`
 
-- `func (Configuration) Logger`
+- `func (Configuration) Logger() *logrus.Logger`
 
-- `func (Configuration) LogrusLogLevel`
+- `func (Configuration) LogrusLogLevel() logrus.Level`
 
-- `func (Configuration) Scheme`
+- `func (Configuration) Scheme() string`
 
-- `func (Configuration) Unload`
+- `func (Configuration) Unload()`
   unload handles a graceful shutdown.
   
 
 #### type `DatabaseOptions`
 
+##### Properties
+
+- `Opts string `env:"-"``
+- `Name string `env:"DB_NAME" envDefault:"iota_erp"``
+- `Host string `env:"DB_HOST" envDefault:"localhost"``
+- `Port string `env:"DB_PORT" envDefault:"5432"``
+- `User string `env:"DB_USER" envDefault:"postgres"``
+- `Password string `env:"DB_PASSWORD" envDefault:"postgres"``
+
 ##### Methods
 
-- `func (DatabaseOptions) ConnectionString`
+- `func (DatabaseOptions) ConnectionString() string`
 
 #### type `GoogleOptions`
 
+##### Properties
+
+- `RedirectURL string `env:"GOOGLE_REDIRECT_URL"``
+- `ClientID string `env:"GOOGLE_CLIENT_ID"``
+- `ClientSecret string `env:"GOOGLE_CLIENT_SECRET"``
+
 #### type `TwilioOptions`
+
+##### Properties
+
+- `WebhookURL string `env:"TWILIO_WEBHOOK_URL"``
+- `AccountSID string `env:"TWILIO_ACCOUNT_SID"``
+- `AuthToken string `env:"TWILIO_AUTH_TOKEN"``
+- `PhoneNumber string `env:"TWILIO_PHONE_NUMBER"``
 
 ### Functions
 
-#### `func LoadEnv`
+#### `func LoadEnv(envFiles []string) (int, error)`
 
 ### Variables and Constants
 
@@ -1062,12 +1622,36 @@ DIHandler is a handler that uses dependency injection to resolve its arguments
 
 ##### Methods
 
-- `func (DIHandler) Handler`
+- `func (DIHandler) Handler() http.HandlerFunc`
 
 #### type `Provider`
 
 Provider is an interface that can provide a value for a given type
 
+
+##### Interface Methods
+
+- `Ok(t reflect.Type) bool`
+- `Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error)`
+
+---
+
+## Package `document` (pkg/document)
+
+### Types
+
+#### type `Config`
+
+##### Properties
+
+- `SourceDir string`
+- `OutputPath string`
+- `Recursive bool`
+- `ExcludeDirs []string`
+
+### Functions
+
+#### `func Generate(config Config) error`
 
 ---
 
@@ -1077,11 +1661,23 @@ Provider is an interface that can provide a value for a given type
 
 #### type `EventBus`
 
+##### Interface Methods
+
+- `Publish(args ...interface{})`
+- `Subscribe(handler interface{})`
+- `Unsubscribe(handler interface{})`
+- `Clear()`
+- `SubscribersCount() int`
+
 #### type `Subscriber`
+
+##### Properties
+
+- `Handler interface{}`
 
 ### Functions
 
-#### `func MatchSignature`
+#### `func MatchSignature(handler interface{}, args []interface{}) bool`
 
 ---
 
@@ -1101,322 +1697,322 @@ Callback function that takes an argument and return a value of the same type
 
 ### Functions
 
-#### `func Compose10`
+#### `func Compose10(fn10 func(T10) R, fn9 func(T9) T10, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 10 functions
 
 
-#### `func Compose11`
+#### `func Compose11(fn11 func(T11) R, fn10 func(T10) T11, fn9 func(T9) T10, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 11 functions
 
 
-#### `func Compose12`
+#### `func Compose12(fn12 func(T12) R, fn11 func(T11) T12, fn10 func(T10) T11, fn9 func(T9) T10, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 12 functions
 
 
-#### `func Compose13`
+#### `func Compose13(fn13 func(T13) R, fn12 func(T12) T13, fn11 func(T11) T12, fn10 func(T10) T11, fn9 func(T9) T10, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 13 functions
 
 
-#### `func Compose14`
+#### `func Compose14(fn14 func(T14) R, fn13 func(T13) T14, fn12 func(T12) T13, fn11 func(T11) T12, fn10 func(T10) T11, fn9 func(T9) T10, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 14 functions
 
 
-#### `func Compose15`
+#### `func Compose15(fn15 func(T15) R, fn14 func(T14) T15, fn13 func(T13) T14, fn12 func(T12) T13, fn11 func(T11) T12, fn10 func(T10) T11, fn9 func(T9) T10, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 15 functions
 
 
-#### `func Compose16`
+#### `func Compose16(fn16 func(T16) R, fn15 func(T15) T16, fn14 func(T14) T15, fn13 func(T13) T14, fn12 func(T12) T13, fn11 func(T11) T12, fn10 func(T10) T11, fn9 func(T9) T10, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 16 functions
 
 
-#### `func Compose2`
+#### `func Compose2(fn2 func(T2) R, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of two functions
 
 
-#### `func Compose3`
+#### `func Compose3(fn3 func(T3) R, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of three functions
 
 
-#### `func Compose4`
+#### `func Compose4(fn4 func(T4) R, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of four functions
 
 
-#### `func Compose5`
+#### `func Compose5(fn5 func(T5) R, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 5 functions
 
 
-#### `func Compose6`
+#### `func Compose6(fn6 func(T6) R, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 6 functions
 
 
-#### `func Compose7`
+#### `func Compose7(fn7 func(T7) R, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 7 functions
 
 
-#### `func Compose8`
+#### `func Compose8(fn8 func(T8) R, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 8 functions
 
 
-#### `func Compose9`
+#### `func Compose9(fn9 func(T9) R, fn8 func(T8) T9, fn7 func(T7) T8, fn6 func(T6) T7, fn5 func(T5) T6, fn4 func(T4) T5, fn3 func(T3) T4, fn2 func(T2) T3, fn1 func(T1) T2) (func(T1) R)`
 
 Performs right-to-left function composition of 9 functions
 
 
-#### `func Curry10`
+#### `func Curry10(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) (func(T10) R))))))))))`
 
 Allow to transform a function that receives 10 params in a sequence of unary functions
 
 
-#### `func Curry11`
+#### `func Curry11(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) (func(T10) (func(T11) R)))))))))))`
 
 Allow to transform a function that receives 11 params in a sequence of unary functions
 
 
-#### `func Curry12`
+#### `func Curry12(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) (func(T10) (func(T11) (func(T12) R))))))))))))`
 
 Allow to transform a function that receives 12 params in a sequence of unary functions
 
 
-#### `func Curry13`
+#### `func Curry13(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) (func(T10) (func(T11) (func(T12) (func(T13) R)))))))))))))`
 
 Allow to transform a function that receives 13 params in a sequence of unary functions
 
 
-#### `func Curry14`
+#### `func Curry14(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) (func(T10) (func(T11) (func(T12) (func(T13) (func(T14) R))))))))))))))`
 
 Allow to transform a function that receives 14 params in a sequence of unary functions
 
 
-#### `func Curry15`
+#### `func Curry15(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) (func(T10) (func(T11) (func(T12) (func(T13) (func(T14) (func(T15) R)))))))))))))))`
 
 Allow to transform a function that receives 15 params in a sequence of unary functions
 
 
-#### `func Curry16`
+#### `func Curry16(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) (func(T10) (func(T11) (func(T12) (func(T13) (func(T14) (func(T15) (func(T16) R))))))))))))))))`
 
 Allow to transform a function that receives 16 params in a sequence of unary functions
 
 
-#### `func Curry2`
+#### `func Curry2(fn func(T1, T2) R) (func(T1) (func(T2) R))`
 
 Allow to transform a function that receives 2 params in a sequence of unary functions
 
 
-#### `func Curry3`
+#### `func Curry3(fn func(T1, T2, T3) R) (func(T1) (func(T2) (func(T3) R)))`
 
 Allow to transform a function that receives 3 params in a sequence of unary functions
 
 
-#### `func Curry4`
+#### `func Curry4(fn func(T1, T2, T3, T4) R) (func(T1) (func(T2) (func(T3) (func(T4) R))))`
 
 Allow to transform a function that receives 4 params in a sequence of unary functions
 
 
-#### `func Curry5`
+#### `func Curry5(fn func(T1, T2, T3, T4, T5) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) R)))))`
 
 Allow to transform a function that receives 5 params in a sequence of unary functions
 
 
-#### `func Curry6`
+#### `func Curry6(fn func(T1, T2, T3, T4, T5, T6) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) R))))))`
 
 Allow to transform a function that receives 6 params in a sequence of unary functions
 
 
-#### `func Curry7`
+#### `func Curry7(fn func(T1, T2, T3, T4, T5, T6, T7) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) R)))))))`
 
 Allow to transform a function that receives 7 params in a sequence of unary functions
 
 
-#### `func Curry8`
+#### `func Curry8(fn func(T1, T2, T3, T4, T5, T6, T7, T8) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) R))))))))`
 
 Allow to transform a function that receives 8 params in a sequence of unary functions
 
 
-#### `func Curry9`
+#### `func Curry9(fn func(T1, T2, T3, T4, T5, T6, T7, T8, T9) R) (func(T1) (func(T2) (func(T3) (func(T4) (func(T5) (func(T6) (func(T7) (func(T8) (func(T9) R)))))))))`
 
 Allow to transform a function that receives 9 params in a sequence of unary functions
 
 
-#### `func Every`
+#### `func Every(predicate func(T) bool) (func([]T) bool)`
 
 Determines whether all the members of an array satisfy the specified test.
 
 
-#### `func EveryWithIndex`
+#### `func EveryWithIndex(predicate func(T, int) bool) (func([]T) bool)`
 
 See Every but callback receives index of element.
 
 
-#### `func EveryWithSlice`
+#### `func EveryWithSlice(predicate func(T, int, []T) bool) (func([]T) bool)`
 
 Like Every but callback receives index of element and the whole array.
 
 
-#### `func Filter`
+#### `func Filter(predicate func(T) bool) (func([]T) []T)`
 
 Filter Returns the elements of an array that meet the condition specified in a callback function.
 
 
-#### `func FilterWithIndex`
+#### `func FilterWithIndex(predicate func(T, int) bool) (func([]T) []T)`
 
 FilterWithIndex See Filter but callback receives index of element.
 
 
-#### `func FilterWithSlice`
+#### `func FilterWithSlice(predicate func(T, int, []T) bool) (func([]T) []T)`
 
 FilterWithSlice Like Filter but callback receives index of element and the whole array.
 
 
-#### `func Flat`
+#### `func Flat(xs [][]T) []T`
 
 Returns a new array with all sub-array elements concatenated into it recursively up to the specified depth.
 
 
-#### `func FlatMap`
+#### `func FlatMap(callback func(T) []R) (func([]T) []R)`
 
 Calls a defined callback function on each element of an array. Then, flattens the result into a new array. This is identical to a map followed by flat with depth 1.
 
 
-#### `func FlatMapWithIndex`
+#### `func FlatMapWithIndex(callback func(T, int) []R) (func([]T) []R)`
 
 See FlatMap but callback receives index of element.
 
 
-#### `func FlatMapWithSlice`
+#### `func FlatMapWithSlice(callback func(T, int, []T) []R) (func([]T) []R)`
 
 Like FlatMap but callback receives index of element and the whole array.
 
 
-#### `func Map`
+#### `func Map(callback func(T) R) (func([]T) []R)`
 
 Calls a defined callback function on each element of an array, and returns an array that contains the results.
 
 
-#### `func MapWithIndex`
+#### `func MapWithIndex(callback func(T, int) R) (func([]T) []R)`
 
 See Map but callback receives index of element.
 
 
-#### `func MapWithSlice`
+#### `func MapWithSlice(callback func(T, int, []T) R) (func([]T) []R)`
 
 Like Map but callback receives index of element and the whole array.
 
 
-#### `func Pipe10`
+#### `func Pipe10(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) T10, fn10 func(T10) R) (func(T1) R)`
 
 Performs left-to-right function composition of 10 functions
 
 
-#### `func Pipe11`
+#### `func Pipe11(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) T10, fn10 func(T10) T11, fn11 func(T11) R) (func(T1) R)`
 
 Performs left-to-right function composition of 11 functions
 
 
-#### `func Pipe12`
+#### `func Pipe12(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) T10, fn10 func(T10) T11, fn11 func(T11) T12, fn12 func(T12) R) (func(T1) R)`
 
 Performs left-to-right function composition of 12 functions
 
 
-#### `func Pipe13`
+#### `func Pipe13(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) T10, fn10 func(T10) T11, fn11 func(T11) T12, fn12 func(T12) T13, fn13 func(T13) R) (func(T1) R)`
 
 Performs left-to-right function composition of 13 functions
 
 
-#### `func Pipe14`
+#### `func Pipe14(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) T10, fn10 func(T10) T11, fn11 func(T11) T12, fn12 func(T12) T13, fn13 func(T13) T14, fn14 func(T14) R) (func(T1) R)`
 
 Performs left-to-right function composition of 14 functions
 
 
-#### `func Pipe15`
+#### `func Pipe15(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) T10, fn10 func(T10) T11, fn11 func(T11) T12, fn12 func(T12) T13, fn13 func(T13) T14, fn14 func(T14) T15, fn15 func(T15) R) (func(T1) R)`
 
 Performs left-to-right function composition of 15 functions
 
 
-#### `func Pipe16`
+#### `func Pipe16(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) T10, fn10 func(T10) T11, fn11 func(T11) T12, fn12 func(T12) T13, fn13 func(T13) T14, fn14 func(T14) T15, fn15 func(T15) T16, fn16 func(T16) R) (func(T1) R)`
 
 Performs left-to-right function composition of 16 functions
 
 
-#### `func Pipe2`
+#### `func Pipe2(fn1 func(T1) T2, fn2 func(T2) R) (func(T1) R)`
 
 Performs left-to-right function composition of two functions
 
 
-#### `func Pipe3`
+#### `func Pipe3(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) R) (func(T1) R)`
 
 Performs left-to-right function composition of three functions
 
 
-#### `func Pipe4`
+#### `func Pipe4(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) R) (func(T1) R)`
 
 Performs left-to-right function composition of four functions
 
 
-#### `func Pipe5`
+#### `func Pipe5(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) R) (func(T1) R)`
 
 Performs left-to-right function composition of five functions
 
 
-#### `func Pipe6`
+#### `func Pipe6(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) R) (func(T1) R)`
 
 Performs left-to-right function composition of 6 functions
 
 
-#### `func Pipe7`
+#### `func Pipe7(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) R) (func(T1) R)`
 
 Performs left-to-right function composition of 7 functions
 
 
-#### `func Pipe8`
+#### `func Pipe8(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) R) (func(T1) R)`
 
 Performs left-to-right function composition of 8 functions
 
 
-#### `func Pipe9`
+#### `func Pipe9(fn1 func(T1) T2, fn2 func(T2) T3, fn3 func(T3) T4, fn4 func(T4) T5, fn5 func(T5) T6, fn6 func(T6) T7, fn7 func(T7) T8, fn8 func(T8) T9, fn9 func(T9) R) (func(T1) R)`
 
 Performs left-to-right function composition of 9 functions
 
 
-#### `func Reduce`
+#### `func Reduce(callback func(R, T) R, acc R) (func([]T) R)`
 
 Reduce Calls the specified callback function for all the elements in an array. The return value of the callback function is the accumulated result, and is provided as an argument in the next call to the callback function.
 
 
-#### `func ReduceWithIndex`
+#### `func ReduceWithIndex(callback func(R, T, int) R, acc R) (func([]T) R)`
 
 ReduceWithIndex See Reduce but callback receives index of element.
 
 
-#### `func ReduceWithSlice`
+#### `func ReduceWithSlice(callback func(R, T, int, []T) R, acc R) (func([]T) R)`
 
 ReduceWithSlice Like Reduce but callback receives index of element and the whole array.
 
 
-#### `func Some`
+#### `func Some(predicate func(T) bool) (func([]T) bool)`
 
 Determines whether the specified callback function returns true for any element of an array.
 
 
-#### `func SomeWithIndex`
+#### `func SomeWithIndex(predicate func(T, int) bool) (func([]T) bool)`
 
 See Some but callback receives index of element.
 
 
-#### `func SomeWithSlice`
+#### `func SomeWithSlice(predicate func(T, int, []T) bool) (func([]T) bool)`
 
 Like Some but callback receives index of element and the whole array.
 
@@ -1434,51 +2030,51 @@ BaseError struct
 
 ### Functions
 
-#### `func Exists`
+#### `func Exists(predicate func(right R) bool) (func(<?>) bool)`
 
 Returns `false` if `Left` or returns the boolean result of the application of the given predicate to the `Right` value
 
 
-#### `func FromOption`
+#### `func FromOption(onNone func() L) (func(o <?>) <?>)`
 
 Constructor of Either from an Option.
 Returns a Left in case of None storing the callback return value as the error argument
 Returns a Right in case of Some with the option value.
 
 
-#### `func FromPredicate`
+#### `func FromPredicate(predicate func(value R) bool, onLeft func() L) (func(R) <?>)`
 
 Constructor of Either from a predicate.
 Returns a Left if the predicate function over the value return false.
 Returns a Right if the predicate function over the value return true.
 
 
-#### `func GetOrElse`
+#### `func GetOrElse(onLeft func(left L) R) (func(<?>) R)`
 
 Extracts the value out of the Either, if it exists. Otherwise returns the result of the callback function that takes the error as argument.
 
 
-#### `func IsLeft`
+#### `func IsLeft(e <?>) bool`
 
 Helper to check if the Either has an error
 
 
-#### `func IsRight`
+#### `func IsRight(e <?>) bool`
 
 Helper to check if the Either has a value
 
 
-#### `func Map`
+#### `func Map(onRight func(right R) T) (func(<?>) <?>)`
 
 Map over the Either value if it exists. Otherwise return the Either itself
 
 
-#### `func MapLeft`
+#### `func MapLeft(fn func(left L) T) (func(<?>) <?>)`
 
 Map over the Either error if it exists. Otherwise return the Either with the new error type
 
 
-#### `func Match`
+#### `func Match(onLeft func(left L) T, onRight func(right R) T) (func(<?>) T)`
 
 Extracts the value out of the Either.
 Returns a new type running the succes or error callbacks which are taking respectively the error or value as an argument.
@@ -1495,46 +2091,50 @@ Returns a new type running the succes or error callbacks which are taking respec
 BaseError struct
 
 
+##### Properties
+
+- `Value T`
+
 ### Functions
 
-#### `func Chain`
+#### `func Chain(fn func(a A) <?>) (func(<?>) <?>)`
 
 Execute a function that returns an Option on the Option value if it exists. Otherwise return the empty Option itself
 
 
-#### `func Exists`
+#### `func Exists(predicate func(value T) bool) (func(<?>) bool)`
 
 Returns `false` if `None` or returns the boolean result of the application of the given predicate to the `Some` value
 
 
-#### `func FromPredicate`
+#### `func FromPredicate(predicate func(value T) bool) (func(T) <?>)`
 
 Constructor of Option from a predicate.
 Returns a None if the predicate function over the value return false.
 Returns a Some if the predicate function over the value return true.
 
 
-#### `func GetOrElse`
+#### `func GetOrElse(onNone <?>) (func(<?>) T)`
 
 Extracts the value out of the Option, if it exists. Otherwise returns the function with a default value
 
 
-#### `func IsNone`
+#### `func IsNone(o <?>) bool`
 
 Helper to check if the Option is missing the value
 
 
-#### `func IsSome`
+#### `func IsSome(o <?>) bool`
 
 Helper to check if the Option has a value
 
 
-#### `func Map`
+#### `func Map(fn func(value T) R) (func(o <?>) <?>)`
 
 Execute the function on the Option value if it exists. Otherwise return the empty Option itself
 
 
-#### `func Match`
+#### `func Match(onNone <?>, onSome func(value T) R) (func(<?>) R)`
 
 Extracts the value out of the Option, if it exists, with a function. Otherwise returns the function with a default value
 
@@ -1549,67 +2149,71 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 ##### Methods
 
-- `func (FieldFunc) ExtensionName`
+- `func (FieldFunc) ExtensionName() string`
 
-- `func (FieldFunc) InterceptField`
+- `func (FieldFunc) InterceptField(ctx context.Context, next graphql.Resolver) (any, error)`
 
-- `func (FieldFunc) Validate`
+- `func (FieldFunc) Validate(schema graphql.ExecutableSchema) error`
 
 #### type `Handler`
 
 ##### Methods
 
-- `func (Handler) AddExecutor`
+- `func (Handler) AddExecutor(execs ...*executor.Executor)`
 
-- `func (Handler) AddTransport`
+- `func (Handler) AddTransport(transport graphql.Transport)`
 
-- `func (Handler) AroundFields`
+- `func (Handler) AroundFields(funcs map[*executor.Executor]graphql.FieldMiddleware)`
   AroundFields is a convenience method for creating an extension that only implements field middleware
   
 
-- `func (Handler) AroundOperations`
+- `func (Handler) AroundOperations(funcs map[*executor.Executor]graphql.OperationMiddleware)`
   AroundOperations is a convenience method for creating an extension that only implements operation middleware
   
 
-- `func (Handler) AroundResponses`
+- `func (Handler) AroundResponses(funcs map[*executor.Executor]graphql.ResponseMiddleware)`
   AroundResponses is a convenience method for creating an extension that only implements response middleware
   
 
-- `func (Handler) AroundRootFields`
+- `func (Handler) AroundRootFields(funcs map[*executor.Executor]graphql.RootFieldMiddleware)`
   AroundRootFields is a convenience method for creating an extension that only implements field middleware
   
 
-- `func (Handler) ServeHTTP`
+- `func (Handler) ServeHTTP(w http.ResponseWriter, r *http.Request)`
 
-- `func (Handler) SetDisableSuggestion`
+- `func (Handler) SetDisableSuggestion(values map[*executor.Executor]bool)`
 
-- `func (Handler) SetErrorPresenter`
+- `func (Handler) SetErrorPresenter(funcs map[*executor.Executor]graphql.ErrorPresenterFunc)`
 
-- `func (Handler) SetParserTokenLimit`
+- `func (Handler) SetParserTokenLimit(limits map[*executor.Executor]int)`
 
-- `func (Handler) SetQueryCache`
+- `func (Handler) SetQueryCache(caches map[*executor.Executor]<?>)`
 
-- `func (Handler) SetRecoverFunc`
+- `func (Handler) SetRecoverFunc(funcs map[*executor.Executor]graphql.RecoverFunc)`
 
-- `func (Handler) Use`
+- `func (Handler) Use(extensions map[*executor.Executor]graphql.HandlerExtension)`
 
 #### type `MyPOST`
 
+##### Properties
+
+- `ResponseHeaders map[string][]string`
+
 ##### Methods
 
-- `func (MyPOST) Do`
+- `func (MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor)`
 
-- `func (MyPOST) Supports`
+- `func (MyPOST) Supports(r *http.Request) bool`
 
 #### type `OperationFunc`
 
 ##### Methods
 
-- `func (OperationFunc) ExtensionName`
+- `func (OperationFunc) ExtensionName() string`
 
-- `func (OperationFunc) InterceptOperation`
+- `func (OperationFunc) InterceptOperation(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler`
 
-- `func (OperationFunc) Validate`
+- `func (OperationFunc) Validate(schema graphql.ExecutableSchema) error`
 
 #### type `Resolver`
 
@@ -1617,11 +2221,11 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 ##### Methods
 
-- `func (ResponseFunc) ExtensionName`
+- `func (ResponseFunc) ExtensionName() string`
 
-- `func (ResponseFunc) InterceptResponse`
+- `func (ResponseFunc) InterceptResponse(ctx context.Context, next graphql.ResponseHandler) *graphql.Response`
 
-- `func (ResponseFunc) Validate`
+- `func (ResponseFunc) Validate(schema graphql.ExecutableSchema) error`
 
 ### Functions
 
@@ -1633,97 +2237,97 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 ### Functions
 
-#### `func CurrentUrl`
+#### `func CurrentUrl(r *http.Request) string`
 
 CurrentUrl retrieves the current URL of the browser from the HX-Current-URL request header.
 
 
-#### `func IsBoosted`
+#### `func IsBoosted(r *http.Request) bool`
 
 IsBoosted checks if the request was triggered by an element with hx-boost.
 
 
-#### `func IsHistoryRestoreRequest`
+#### `func IsHistoryRestoreRequest(r *http.Request) bool`
 
 IsHistoryRestoreRequest checks if the request is for history restoration after a miss in the local history cache.
 
 
-#### `func IsHxRequest`
+#### `func IsHxRequest(r *http.Request) bool`
 
 IsHxRequest checks if the request is an HTMX request.
 
 
-#### `func Location`
+#### `func Location(w http.ResponseWriter, path, target string)`
 
 Location sets the HX-Location header to trigger a client-side navigation.
 
 
-#### `func PromptResponse`
+#### `func PromptResponse(r *http.Request) string`
 
 PromptResponse retrieves the user's response to an hx-prompt from the HX-Prompt request header.
 
 
-#### `func PushUrl`
+#### `func PushUrl(w http.ResponseWriter, url string)`
 
 PushUrl sets the HX-Push-Url header to push a new URL into the browser history stack.
 
 
-#### `func Redirect`
+#### `func Redirect(w http.ResponseWriter, path string)`
 
 Redirect sets the HX-Redirect header to redirect the client to a new URL.
 
 
-#### `func Refresh`
+#### `func Refresh(w http.ResponseWriter)`
 
 Refresh sets the HX-Refresh header to true, instructing the client to perform a full page refresh.
 
 
-#### `func ReplaceUrl`
+#### `func ReplaceUrl(w http.ResponseWriter, url string)`
 
 ReplaceUrl sets the HX-Replace-Url header to replace the current URL in the browser location bar.
 
 
-#### `func Reselect`
+#### `func Reselect(w http.ResponseWriter, selector string)`
 
 Reselect sets the HX-Reselect header to specify which part of the response should be swapped in.
 
 
-#### `func Reswap`
+#### `func Reswap(w http.ResponseWriter, swapStyle string)`
 
 Reswap sets the HX-Reswap header to specify how the response will be swapped.
 
 
-#### `func Retarget`
+#### `func Retarget(w http.ResponseWriter, target string)`
 
 Retarget sets the HX-Retarget header to specify a new target element.
 
 
-#### `func SetTrigger`
+#### `func SetTrigger(w http.ResponseWriter, event, detail string)`
 
 Trigger sets the HX-Trigger header to trigger client-side events.
 
 
-#### `func Target`
+#### `func Target(r *http.Request) string`
 
 Target returns the ID of the element that triggered the request.
 
 
-#### `func Trigger`
+#### `func Trigger(r *http.Request) string`
 
 Trigger retrieves the ID of the triggered element from the HX-Trigger request header.
 
 
-#### `func TriggerAfterSettle`
+#### `func TriggerAfterSettle(w http.ResponseWriter, event, detail string)`
 
 TriggerAfterSettle sets the HX-Trigger-After-Settle header to trigger client-side events after the settle step.
 
 
-#### `func TriggerAfterSwap`
+#### `func TriggerAfterSwap(w http.ResponseWriter, event, detail string)`
 
 TriggerAfterSwap sets the HX-Trigger-After-Swap header to trigger client-side events after the swap step.
 
 
-#### `func TriggerName`
+#### `func TriggerName(r *http.Request) string`
 
 TriggerName retrieves the name of the triggered element from the HX-Trigger-Name request header.
 
@@ -1738,11 +2342,21 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 ##### Methods
 
-- `func (Client) GetOdataServices`
+- `func (Client) GetOdataServices(infoBase string) (*OdataServices, error)`
 
 #### type `OdataService`
 
+##### Properties
+
+- `Name string `json:"name"``
+- `URL string `json:"url"``
+
 #### type `OdataServices`
+
+##### Properties
+
+- `OdataMetadata string `json:"odata.metadata"``
+- `Value []OdataService `json:"value"``
 
 ---
 
@@ -1751,6 +2365,12 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 ### Types
 
 #### type `SupportedLanguage`
+
+##### Properties
+
+- `Code string`
+- `VerboseName string`
+- `Tag language.Tag`
 
 ### Variables and Constants
 
@@ -1768,35 +2388,76 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 #### type `ChatFunctionDefinition`
 
+##### Interface Methods
+
+- `Name() string`
+- `Description() string`
+- `Arguments() map[string]interface{}`
+- `Execute(args map[string]interface{}) (string, error)`
+
 #### type `ChatTools`
+
+##### Properties
+
+- `Definitions []ChatFunctionDefinition`
 
 ##### Methods
 
-- `func (ChatTools) Add`
+- `func (ChatTools) Add(def ChatFunctionDefinition)`
 
-- `func (ChatTools) Call`
+- `func (ChatTools) Call(name string, args string) (string, error)`
 
-- `func (ChatTools) Funcs`
+- `func (ChatTools) Funcs() map[string]CompletionFunc`
 
-- `func (ChatTools) OpenAiTools`
+- `func (ChatTools) OpenAiTools() []llm.Tool`
 
 #### type `Column`
+
+##### Properties
+
+- `Type string `json:"type"``
+- `Nullable bool `json:"nullable"``
+- `Enums []string `json:"enums"``
+- `Ref *Ref `json:"ref"``
 
 #### type `CompletionFunc`
 
 #### type `DBColumn`
 
+##### Properties
+
+- `ColumnName string `db:"column_name"``
+- `DataType string `db:"data_type"``
+- `UdtName string `db:"udt_name"``
+- `IsNullable string `db:"is_nullable"``
+
 #### type `Enum`
+
+##### Properties
+
+- `EnumLabel string `db:"enumlabel"``
+- `TypName string `db:"typname"``
 
 #### type `Ref`
 
+##### Properties
+
+- `To string `json:"to"``
+- `Column string `json:"column"``
+
 #### type `Table`
+
+##### Properties
+
+- `Name string `json:"name"``
+- `Description string `json:"description"``
+- `Columns map[string]Column `json:"columns"``
 
 ### Functions
 
-#### `func GetFkRelations`
+#### `func GetFkRelations(db *gorm.DB, tn string) ([]struct{...}, error)`
 
-#### `func GetTables`
+#### `func GetTables(db *gorm.DB) ([]string, error)`
 
 ---
 
@@ -1804,9 +2465,9 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 ### Functions
 
-#### `func ConsoleLogger`
+#### `func ConsoleLogger(level logrus.Level) *logrus.Logger`
 
-#### `func FileLogger`
+#### `func FileLogger(level logrus.Level) (*os.File, *logrus.Logger, error)`
 
 ---
 
@@ -1814,51 +2475,53 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 ### Functions
 
-#### `func MapDBModels`
+#### `func MapDBModels(entities []T, mapFunc func(T) (V, error)) ([]V, error)`
 
 MapDBModels maps entities to db models
 
 
-#### `func MapViewModels`
+#### `func MapViewModels(entities []T, mapFunc func(T) V) []V`
 
 MapViewModels maps entities to view models
 
 
-#### `func Pointer`
+#### `func Pointer(v T) *T`
 
 Pointer is a utility function that returns a pointer to the given value.
 
 
-#### `func PointerSlice`
+#### `func PointerSlice(v []T) []*T`
 
 PointerSlice is a utility function that returns a slice of pointers from a slice of values.
 
 
-#### `func PointerToSQLNullString`
+#### `func PointerToSQLNullString(s *string) sql.NullString`
 
-#### `func PointerToSQLNullTime`
+#### `func PointerToSQLNullTime(t *time.Time) sql.NullTime`
 
-#### `func SQLNullTimeToPointer`
+#### `func SQLNullTimeToPointer(v sql.NullTime) *time.Time`
 
-#### `func Value`
+#### `func UUIDToSQLNullString(id uuid.UUID) sql.NullString`
+
+#### `func Value(v *T) T`
 
 Value is a utility function that returns the value of the given pointer.
 
 
-#### `func ValueSlice`
+#### `func ValueSlice(v []*T) []T`
 
 ValueSlice is a utility function that returns a slice of values from a slice of pointers.
 
 
-#### `func ValueToSQLNullFloat64`
+#### `func ValueToSQLNullFloat64(f float64) sql.NullFloat64`
 
-#### `func ValueToSQLNullInt32`
+#### `func ValueToSQLNullInt32(i int32) sql.NullInt32`
 
-#### `func ValueToSQLNullInt64`
+#### `func ValueToSQLNullInt64(i int64) sql.NullInt64`
 
-#### `func ValueToSQLNullString`
+#### `func ValueToSQLNullString(s string) sql.NullString`
 
-#### `func ValueToSQLNullTime`
+#### `func ValueToSQLNullTime(t time.Time) sql.NullTime`
 
 ---
 
@@ -1870,33 +2533,33 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 
 ### Functions
 
-#### `func Authorize`
+#### `func Authorize() mux.MiddlewareFunc`
 
-#### `func ContextKeyValue`
+#### `func ContextKeyValue(key interface{}, constructor GenericConstructor) mux.MiddlewareFunc`
 
-#### `func Cors`
+#### `func Cors(allowOrigins ...string) mux.MiddlewareFunc`
 
-#### `func NavItems`
+#### `func NavItems() mux.MiddlewareFunc`
 
-#### `func Provide`
+#### `func Provide(k constants.ContextKey, v any) mux.MiddlewareFunc`
 
-#### `func ProvideUser`
+#### `func ProvideUser() mux.MiddlewareFunc`
 
-#### `func RedirectNotAuthenticated`
+#### `func RedirectNotAuthenticated() mux.MiddlewareFunc`
 
-#### `func RequestParams`
+#### `func RequestParams() mux.MiddlewareFunc`
 
-#### `func RequireAuthorization`
+#### `func RequireAuthorization() mux.MiddlewareFunc`
 
-#### `func Tabs`
+#### `func Tabs() mux.MiddlewareFunc`
 
-#### `func WithLocalizer`
+#### `func WithLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc`
 
-#### `func WithLogger`
+#### `func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc`
 
-#### `func WithPageContext`
+#### `func WithPageContext() mux.MiddlewareFunc`
 
-#### `func WithTransaction`
+#### `func WithTransaction() mux.MiddlewareFunc`
 
 ### Variables and Constants
 
@@ -1915,9 +2578,33 @@ Package multifs MultiHashFS combines multiple hashfs instances to serve files fr
 
 ##### Methods
 
-- `func (MultiHashFS) Open`
+- `func (MultiHashFS) Open(name string) (http.File, error)`
   Open attempts to open a file from any of the hashfs instances.
   
+
+---
+
+## Package `rbac` (pkg/rbac)
+
+### Types
+
+#### type `Permission`
+
+##### Interface Methods
+
+- `Can(u user.User) bool`
+
+#### type `RBAC`
+
+##### Interface Methods
+
+- `Register(permissions ...*permission.Permission)`
+- `Get(id uuid.UUID) (*permission.Permission, error)`
+- `Permissions() []*permission.Permission`
+
+### Variables and Constants
+
+- Var: `[ErrPermissionNotFound]`
 
 ---
 
@@ -1939,11 +2626,21 @@ ExtendedFieldSet is an interface that must be implemented to persist custom fiel
 It allows repositories to work with custom field sets by providing field names and values.
 
 
+##### Interface Methods
+
+- `Fields() []string`
+- `Value(k string) interface{}`
+
 #### type `Filter`
 
 Filter defines a filter condition for queries.
 Combines an expression type with a value to be used in WHERE clauses.
 
+
+##### Properties
+
+- `Expr Expr`
+- `Value any`
 
 #### type `SortBy`
 
@@ -1951,15 +2648,28 @@ SortBy defines sorting criteria for queries with generic field type support.
 Use with OrderBy function to generate ORDER BY clauses.
 
 
+##### Properties
+
+- `Fields []T`
+- `Ascending bool`
+
 #### type `Tx`
 
 Tx is an interface that abstracts database transaction operations.
 It provides a subset of pgx.Tx functionality needed for common database operations.
 
 
+##### Interface Methods
+
+- `CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)`
+- `SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults`
+- `Exec(ctx context.Context, sql string, arguments ...any) (commandTag pgconn.CommandTag, err error)`
+- `Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)`
+- `QueryRow(ctx context.Context, sql string, args ...any) pgx.Row`
+
 ### Functions
 
-#### `func BatchInsertQueryN`
+#### `func BatchInsertQueryN(baseQuery string, rows [][]interface{}) (string, []interface{})`
 
 BatchInsertQueryN creates a parameterized SQL query for batch inserting multiple rows.
 It takes a base query like "INSERT INTO users (name, email) VALUES" and appends
@@ -1981,7 +2691,7 @@ If rows is empty, it returns the baseQuery unchanged and nil for args.
 Panics if rows have inconsistent lengths.
 
 
-#### `func FormatLimitOffset`
+#### `func FormatLimitOffset(limit, offset int) string`
 
 FormatLimitOffset generates SQL LIMIT and OFFSET clauses based on the provided values.
 
@@ -1996,7 +2706,7 @@ Example usage:
 	// Returns: "SELECT * FROM users LIMIT 10 OFFSET 20"
 
 
-#### `func Insert`
+#### `func Insert(tableName string, fields []string, returning ...string) string`
 
 Insert creates a parameterized SQL query for inserting a single row.
 Optionally returns specified columns with the RETURNING clause.
@@ -2007,7 +2717,7 @@ Example usage:
 	// Returns: "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, created_at"
 
 
-#### `func Join`
+#### `func Join(expressions ...string) string`
 
 Join combines multiple SQL expressions with spaces between them.
 
@@ -2017,7 +2727,7 @@ Example usage:
 	// Returns: "SELECT * FROM users WHERE active = true"
 
 
-#### `func JoinWhere`
+#### `func JoinWhere(expressions ...string) string`
 
 JoinWhere creates an SQL WHERE clause by joining multiple conditions with AND.
 
@@ -2028,7 +2738,7 @@ Example usage:
 	// Returns: "SELECT * FROM orders WHERE status = $1 AND created_at > $2"
 
 
-#### `func OrderBy`
+#### `func OrderBy(fields []string, ascending bool) string`
 
 OrderBy generates an SQL ORDER BY clause for the given fields and sort direction.
 Returns an empty string if no fields are provided.
@@ -2039,7 +2749,7 @@ Example usage:
 	// Returns: "SELECT * FROM users ORDER BY created_at, name DESC"
 
 
-#### `func Update`
+#### `func Update(tableName string, fields []string, where ...string) string`
 
 Update creates a parameterized SQL query for updating rows in a table.
 The where parameters are optional conditions that will be ANDed together.
@@ -2069,9 +2779,18 @@ Example usage:
 ContentAdapter adapts scaffold.Content to support search and pagination
 
 
+##### Properties
+
+- `Config *scaffold.TableConfig`
+- `Data scaffold.TableData`
+- `Search string`
+- `Page int`
+- `TotalPages int`
+- `PageCtx *types.PageContext`
+
 ##### Methods
 
-- `func (ContentAdapter) Render`
+- `func (ContentAdapter) Render(ctx context.Context, w io.Writer) error`
   Render implements templ.Component interface
   
 
@@ -2080,9 +2799,14 @@ ContentAdapter adapts scaffold.Content to support search and pagination
 LayoutAdapter adapts a content component with a layout
 
 
+##### Properties
+
+- `Content templ.Component`
+- `PageCtx *types.PageContext`
+
 ##### Methods
 
-- `func (LayoutAdapter) Render`
+- `func (LayoutAdapter) Render(ctx context.Context, w io.Writer) error`
   Render implements templ.Component interface
   
 
@@ -2091,9 +2815,17 @@ LayoutAdapter adapts a content component with a layout
 TableAdapter adapts scaffold.Table to support pagination
 
 
+##### Properties
+
+- `Config *scaffold.TableConfig`
+- `Data scaffold.TableData`
+- `Page int`
+- `TotalPages int`
+- `PageCtx *types.PageContext`
+
 ##### Methods
 
-- `func (TableAdapter) Render`
+- `func (TableAdapter) Render(ctx context.Context, w io.Writer) error`
   Render implements templ.Component interface
   
 
@@ -2104,17 +2836,17 @@ TableControllerBuilder helps to quickly build controllers for displaying tables
 
 ##### Methods
 
-- `func (TableControllerBuilder) Key`
+- `func (TableControllerBuilder) Key() string`
 
-- `func (TableControllerBuilder) List`
+- `func (TableControllerBuilder) List(w http.ResponseWriter, r *http.Request)`
   List handles listing entities in a table
   
 
-- `func (TableControllerBuilder) Register`
+- `func (TableControllerBuilder) Register(r *mux.Router)`
   Register registers the table route
   
 
-- `func (TableControllerBuilder) WithFindParamsFunc`
+- `func (TableControllerBuilder) WithFindParamsFunc(fn func(r *http.Request) interface{}) *<?>`
   WithFindParamsFunc sets a custom function for creating find parameters
   
 
@@ -2123,24 +2855,33 @@ TableControllerBuilder helps to quickly build controllers for displaying tables
 TableService defines the minimal interface for table data services
 
 
+##### Interface Methods
+
+- `GetPaginated(ctx context.Context, params interface{}) ([]T, error)`
+- `Count(ctx context.Context, params interface{}) (int64, error)`
+
 #### type `TableViewModel`
 
 TableViewModel defines the interface for mapping entity to view model
 
 
+##### Interface Methods
+
+- `MapToViewModel(entity T) map[string]interface{}`
+
 ### Functions
 
-#### `func ExtendedContent`
+#### `func ExtendedContent(config *scaffold.TableConfig, data scaffold.TableData, search string, page int, totalPages int, pageCtx *types.PageContext) templ.Component`
 
 ExtendedContent creates a content component with search and pagination
 
 
-#### `func ExtendedTable`
+#### `func ExtendedTable(config *scaffold.TableConfig, data scaffold.TableData, page int, totalPages int, pageCtx *types.PageContext) templ.Component`
 
 ExtendedTable creates a table with pagination support
 
 
-#### `func PageWithLayout`
+#### `func PageWithLayout(content templ.Component, pageCtx *types.PageContext) templ.Component`
 
 PageWithLayout wraps content with a layout
 
@@ -2155,32 +2896,50 @@ PageWithLayout wraps content with a layout
 
 ##### Methods
 
-- `func (Collector) CollectMigrations`
+- `func (Collector) CollectMigrations(ctx context.Context) (*common.ChangeSet, *common.ChangeSet, error)`
 
-- `func (Collector) StoreMigrations`
+- `func (Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) error`
 
 #### type `Config`
+
+##### Properties
+
+- `MigrationsPath string`
+- `Logger *logrus.Logger`
+- `LogLevel logrus.Level`
+- `EmbedFSs []*embed.FS`
 
 #### type `FileLoader`
 
 ##### Methods
 
-- `func (FileLoader) LoadExistingSchema`
+- `func (FileLoader) LoadExistingSchema(ctx context.Context) (*common.Schema, error)`
 
-- `func (FileLoader) LoadModuleSchema`
+- `func (FileLoader) LoadModuleSchema(ctx context.Context) (*common.Schema, error)`
 
 #### type `LoaderConfig`
 
+##### Properties
+
+- `BaseDir string`
+- `EmbedFSs []*embed.FS`
+- `Logger logrus.FieldLogger`
+
 #### type `SchemaLoader`
+
+##### Interface Methods
+
+- `LoadExistingSchema(ctx context.Context) (*common.Schema, error)`
+- `LoadModuleSchema(ctx context.Context) (*common.Schema, error)`
 
 ### Functions
 
-#### `func CollectSchemaChanges`
+#### `func CollectSchemaChanges(oldSchema, newSchema *common.Schema) (*common.ChangeSet, *common.ChangeSet, error)`
 
 CollectSchemaChanges compares two schemas and generates both up and down change sets
 
 
-#### `func CompareTables`
+#### `func CompareTables(oldTable, newTable *tree.CreateTable) ([]interface{}, []interface{}, error)`
 
 ---
 
@@ -2193,10 +2952,23 @@ CollectSchemaChanges compares two schemas and generates both up and down change 
 ChangeSet represents a collection of related schema changes
 
 
+##### Properties
+
+- `Changes []interface{}`
+- `Timestamp int64`
+- `Version string`
+- `Hash string`
+
 #### type `Schema`
 
 Schema represents a database schema containing all objects
 
+
+##### Properties
+
+- `Tables map[string]*tree.CreateTable`
+- `Indexes map[string]*tree.CreateIndex`
+- `Columns map[string]map[string]*tree.ColumnTableDef`
 
 #### type `SchemaObject`
 
@@ -2206,11 +2978,11 @@ from the postgresql-parser tree package
 
 ### Functions
 
-#### `func AllReferencesSatisfied`
+#### `func AllReferencesSatisfied(t *tree.CreateTable, tables []*tree.CreateTable) bool`
 
-#### `func HasReferences`
+#### `func HasReferences(table *tree.CreateTable) bool`
 
-#### `func SortTableDefs`
+#### `func SortTableDefs(tables []*tree.CreateTable) []*tree.CreateTable`
 
 ---
 
@@ -2220,15 +2992,27 @@ from the postgresql-parser tree package
 
 #### type `Base`
 
+##### Interface Methods
+
+- `Error() string`
+- `Localize(l *i18n.Localizer) string`
+
 #### type `BaseError`
+
+##### Properties
+
+- `Code string `json:"code"``
+- `Message string `json:"message"``
+- `LocaleKey string `json:"locale_key,omitempty"``
+- `TemplateData map[string]string `json:"-"``
 
 ##### Methods
 
-- `func (BaseError) Error`
+- `func (BaseError) Error() string`
 
-- `func (BaseError) Localize`
+- `func (BaseError) Localize(l *i18n.Localizer) string`
 
-- `func (BaseError) WithTemplateData`
+- `func (BaseError) WithTemplateData(data map[string]string) *BaseError`
   WithTemplateData adds template data to the error for localization
   
 
@@ -2237,13 +3021,17 @@ from the postgresql-parser tree package
 ValidationError represents a field validation error
 
 
+##### Properties
+
+- `Field string `json:"field"``
+
 ##### Methods
 
-- `func (ValidationError) WithDetails`
+- `func (ValidationError) WithDetails(details string) *ValidationError`
   WithDetails adds error details to the template data
   
 
-- `func (ValidationError) WithFieldName`
+- `func (ValidationError) WithFieldName(fieldLocaleKey string) *ValidationError`
   WithFieldName adds the field name to the template data
   
 
@@ -2254,14 +3042,14 @@ ValidationErrors is a map of field names to validation errors
 
 ### Functions
 
-#### `func LocalizeValidationErrors`
+#### `func LocalizeValidationErrors(errs ValidationErrors, l *i18n.Localizer) map[string]string`
 
 LocalizeValidationErrors localizes all validation errors in the map
 
 
-#### `func UnauthorizedGQLError`
+#### `func UnauthorizedGQLError(path ast.Path) *gqlerror.Error`
 
-#### `func Unmarshal`
+#### `func Unmarshal(body []byte, errInstance map[string]interface{}) error`
 
 ---
 
@@ -2271,13 +3059,20 @@ LocalizeValidationErrors localizes all validation errors in the map
 
 #### type `HTTPServer`
 
+##### Properties
+
+- `Controllers []application.Controller`
+- `Middlewares []mux.MiddlewareFunc`
+- `NotFoundHandler http.Handler`
+- `MethodNotAllowedHandler http.Handler`
+
 ##### Methods
 
-- `func (HTTPServer) Start`
+- `func (HTTPServer) Start(socketAddress string) error`
 
 ### Functions
 
-#### `func WsHub`
+#### `func WsHub() *ws.Hub`
 
 ### Variables and Constants
 
@@ -2295,17 +3090,17 @@ LocalizeValidationErrors localizes all validation errors in the map
 
 ##### Methods
 
-- `func (FormAction) IsValid`
+- `func (FormAction) IsValid() bool`
 
 ### Functions
 
-#### `func ParseID`
+#### `func ParseID(r *http.Request) (uint, error)`
 
-#### `func Redirect`
+#### `func Redirect(w http.ResponseWriter, r *http.Request, path string)`
 
-#### `func SetFlash`
+#### `func SetFlash(w http.ResponseWriter, name string, value []byte)`
 
-#### `func SetFlashMap`
+#### `func SetFlashMap(w http.ResponseWriter, name string, value map[K]V)`
 
 ### Variables and Constants
 
@@ -2324,7 +3119,18 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 #### type `Item`
 
+##### Interface Methods
+
+- `Icon() templ.Component`
+- `Localized(localizer *i18n.Localizer) string`
+- `Link() string`
+
 #### type `Spotlight`
+
+##### Interface Methods
+
+- `Find(localizer *i18n.Localizer, q string) []Item`
+- `Register(...Item)`
 
 ---
 
@@ -2334,21 +3140,29 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 #### type `TestFixtures`
 
+##### Properties
+
+- `SQLDB *sql.DB`
+- `Pool *pgxpool.Pool`
+- `Context context.Context`
+- `Tx pgx.Tx`
+- `App application.Application`
+
 ### Functions
 
-#### `func CreateDB`
+#### `func CreateDB(name string)`
 
-#### `func DbOpts`
+#### `func DbOpts(name string) string`
 
-#### `func DefaultParams`
+#### `func DefaultParams() *composables.Params`
 
-#### `func MockSession`
+#### `func MockSession() *session.Session`
 
-#### `func MockUser`
+#### `func MockUser(permissions ...*permission.Permission) user.User`
 
-#### `func NewPool`
+#### `func NewPool(dbOpts string) *pgxpool.Pool`
 
-#### `func SetupApplication`
+#### `func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error)`
 
 ---
 
@@ -2360,19 +3174,23 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ##### Methods
 
-- `func (DBSession) LoadSession`
+- `func (DBSession) LoadSession(context.Context) ([]byte, error)`
   LoadSession loads session from memory.
   
 
-- `func (DBSession) StoreSession`
+- `func (DBSession) StoreSession(_ context.Context, data []byte) error`
   StoreSession stores session to memory.
   
 
 #### type `Server`
 
+##### Properties
+
+- `DB *sqlx.DB`
+
 ##### Methods
 
-- `func (Server) Start`
+- `func (Server) Start()`
 
 ---
 
@@ -2382,17 +3200,36 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 #### type `NavigationItem`
 
+##### Properties
+
+- `Name string`
+- `Href string`
+- `Children []NavigationItem`
+- `Icon templ.Component`
+- `Permissions []*permission.Permission`
+
 ##### Methods
 
-- `func (NavigationItem) HasPermission`
+- `func (NavigationItem) HasPermission(user user.User) bool`
 
 #### type `PageContext`
 
+##### Properties
+
+- `Locale language.Tag`
+- `URL *url.URL`
+- `Localizer *i18n.Localizer`
+
 ##### Methods
 
-- `func (PageContext) T`
+- `func (PageContext) T(k string, args ...map[string]interface{}) string`
 
 #### type `PageData`
+
+##### Properties
+
+- `Title string`
+- `Description string`
 
 ---
 
@@ -2404,47 +3241,71 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ##### Methods
 
-- `func (Connection) Channels`
+- `func (Connection) Channels() <?>`
 
-- `func (Connection) Close`
+- `func (Connection) Close() error`
 
-- `func (Connection) GetContext`
+- `func (Connection) GetContext(key string) (any, bool)`
 
-- `func (Connection) SendMessage`
+- `func (Connection) SendMessage(message []byte) error`
 
-- `func (Connection) Session`
+- `func (Connection) Session() *session.Session`
 
-- `func (Connection) SetContext`
+- `func (Connection) SetContext(key string, value any)`
 
-- `func (Connection) Subscribe`
+- `func (Connection) Subscribe(channel string)`
 
-- `func (Connection) Unsubscribe`
+- `func (Connection) Unsubscribe(channel string)`
 
-- `func (Connection) UserID`
+- `func (Connection) UserID() uint`
 
 #### type `Connectioner`
+
+##### Interface Methods
+
+- `UserID() uint`
+- `Session() *session.Session`
+- `Channels() <?>`
+- `SendMessage(message []byte) error`
+- `Subscribe(channel string)`
+- `Unsubscribe(channel string)`
+- `SetContext(key string, value any)`
+- `GetContext(key string) (any, bool)`
 
 #### type `Hub`
 
 ##### Methods
 
-- `func (Hub) BroadcastToAll`
+- `func (Hub) BroadcastToAll(message []byte)`
 
-- `func (Hub) BroadcastToChannel`
+- `func (Hub) BroadcastToChannel(channel string, message []byte)`
 
-- `func (Hub) BroadcastToUser`
+- `func (Hub) BroadcastToUser(userID uint, message []byte)`
 
-- `func (Hub) ConnectionsAll`
+- `func (Hub) ConnectionsAll() []*Connection`
 
-- `func (Hub) ConnectionsInChannel`
+- `func (Hub) ConnectionsInChannel(channel string) []*Connection`
 
-- `func (Hub) ServeHTTP`
+- `func (Hub) ServeHTTP(w http.ResponseWriter, r *http.Request)`
 
 #### type `Huber`
+
+##### Interface Methods
+
+- `BroadcastToAll(message []byte)`
+- `BroadcastToUser(userID uint, message []byte)`
+- `BroadcastToChannel(channel string, message []byte)`
+- `ConnectionsInChannel(channel string) []*Connection`
+- `ConnectionsAll() []*Connection`
 
 #### type `Set`
 
 #### type `SubscriptionMessage`
+
+##### Properties
+
+- `Subscribe string `json:"subscribe,omitempty"``
+- `Unsubscribe string `json:"unsubscribe,omitempty"``
 
 ### Variables and Constants
 
@@ -2456,7 +3317,17 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 #### type `Config`
 
+##### Properties
+
+- `ExcludeDirs []string `yaml:"exclude-dirs"``
+- `CheckZeroByteFiles bool `yaml:"check-zero-byte-files"``
+
 #### type `JSONKeys`
+
+##### Properties
+
+- `Keys map[string]bool`
+- `Path string`
 
 #### type `KeyStore`
 
@@ -2465,11 +3336,21 @@ Add a mutex to protect our key operations
 
 #### type `LintError`
 
+##### Properties
+
+- `File string`
+- `Line int`
+- `Message string`
+
 ##### Methods
 
-- `func (LintError) Error`
+- `func (LintError) Error() string`
 
 #### type `LinterConfig`
+
+##### Properties
+
+- `LintersSettings struct{...} `yaml:"linters-settings"``
 
 ### Functions
 
