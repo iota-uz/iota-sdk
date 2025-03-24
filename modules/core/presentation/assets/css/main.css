@@ -77,6 +77,8 @@
     --red-100: var(--red-500) / 10%;
     --red-200: var(--red-500) / 20%;
     --red-300: var(--red-500) / 30%;
+    
+    --green-500: 78.02% 0.1534 168.27;
 
     /* Sizes */
     --size-00: 0.25rem;
@@ -186,6 +188,9 @@
     /* Theme switcher */
     --clr-theme-switcher-bg: var(--gray-100);
     --clr-theme-switcher-text: var(--black);
+
+    --clr-success: var(--green-500);
+    --clr-on-sucess: var(--white);
 
     /* Easing */
     --ease-1: cubic-bezier(.25, 0, .5, 1);
