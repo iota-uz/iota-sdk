@@ -2,26 +2,42 @@ package avatar
 
 import twmerge "github.com/Oudwins/tailwind-merge-go"
 
+type Variant string
+
+const (
+	Round  Variant = "Round"
+	Square Variant = "Square"
+)
+
 type Props struct {
 	Class    templ.CSSClasses
 	ImageURL string
 	Initials string
+	Variant  Variant
 }
 
 templ Avatar(props Props) {
 	<div
 		class={
 			twmerge.Merge(
-				"w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar",
+				"w-9 h-9 font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar",
 				props.Class.String(),
 			),
+			templ.KV("rounded-full", props.Variant != Square),
+			templ.KV("rounded-lg", props.Variant == Square),
 		}
 	>
 		if props.ImageURL != "" {
 			<img
 				src={ props.ImageURL }
 				alt="Avatar"
-				class="w-9 h-9 object-cover rounded-full"
+				class={
+					twmerge.Merge(
+						"w-9 h-9 object-cover",
+					),
+					templ.KV("rounded-full", props.Variant != Square),
+					templ.KV("rounded-lg", props.Variant == Square),
+				}
 			/>
 		} else {
 			{ props.Initials }
