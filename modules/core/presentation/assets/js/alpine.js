@@ -19,7 +19,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -139,12 +139,12 @@ let dialog = (initialState) => ({
       });
     });
   }),
-  lightDismiss({ target: dialog }) {
+  lightDismiss({target: dialog}) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({ target: dialog }) {
+  async close({target: dialog}) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -363,6 +363,57 @@ let spotlight = () => ({
   }
 });
 
+let datePicker = ({
+  locale = 'ru',
+  mode = 'single',
+  dateFormat = 'Y-m-d',
+  labelFormat = 'F j, Y',
+  minDate = '',
+  maxDate = '',
+  selected = [],
+} = {}) => ({
+  selected: [],
+  localeMap: {
+    ru: {
+      path: '/ru.js',
+      key: 'ru'
+    },
+    uz: {
+      path: '/uz.js',
+      key: 'uz_latn'
+    },
+  },
+  async init() {
+    let {default: flatpickr} = await import("./lib/flatpickr/index.js");
+    let found = this.localeMap[locale];
+    if (found) {
+      let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
+      flatpickr.localize(localeData[found.key]);
+    }
+    mode = mode || 'single';
+    flatpickr(this.$refs.input, {
+      altInput: true,
+      altFormat: labelFormat || 'F j, Y',
+      dateFormat: dateFormat || 'z',
+      mode,
+      minDate: minDate || null,
+      maxDate: maxDate || null,
+      defaultDate: selected,
+      onChange: (selected = []) => {
+        let isoDates = selected.map((s) => s.toISOString());
+        if (!isoDates.length) return;
+        if (mode === 'single') {
+          this.selected = [isoDates[0]];
+        } else if (mode === 'range') {
+          if (isoDates.length === 2) this.selected = isoDates;
+        } else {
+          this.selected = isoDates;
+        }
+      }
+    });
+  }
+})
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -371,4 +422,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("checkboxes", checkboxes);
   Alpine.data("spotlight", spotlight);
   Alpine.data("dateFns", dateFns);
+  Alpine.data("datePicker", datePicker);
 });
