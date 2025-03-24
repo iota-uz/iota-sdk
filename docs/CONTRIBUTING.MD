@@ -2,177 +2,150 @@
 
 ## ⚙️ Prerequisites
 
-Before starting, ensure the following tools are installed on your system:
+Ensure these tools are installed before you begin:
 
 - [Go v1.23.2](https://golang.org/doc/install)
-- [Air v1.61.5](https://github.com/cosmtrek/air#Installation) for hot-reloading
-- [Docker v27.2.0](https://docs.docker.com/get-docker/) for containerized services
-- [Templ v0.3.819](https://templ.guide/) for templating
-- [TailwindCSS v3.4.13](https://tailwindcss.com/docs/installation) for styling
-- [golangci-lint v1.61.0](https://golangci-lint.run/welcome/install/) for linting
+- [Air v1.61.5](https://github.com/cosmtrek/air#Installation) - Hot-reloading
+- [Docker v27.2.0](https://docs.docker.com/get-docker/) - Containerization
+- [Templ v0.3.819](https://templ.guide/) - Templating
+- [TailwindCSS v3.4.13](https://tailwindcss.com/docs/installation) - Styling
+- [golangci-lint v1.61.0](https://golangci-lint.run/welcome/install/) - Linting
 
-### Windows-Specific Setup
+### Windows Setup
 
-#### Required Tools Installation
+1. **Go**: Download from [golang.org](https://golang.org/doc/install), install, and verify with `go version`
 
-1. **Install Go**:
-   - Download the Windows MSI installer from [golang.org](https://golang.org/doc/install)
-   - Run the installer and follow the prompts
-   - Verify installation by opening Command Prompt and running:
-     ```cmd
-     go version
-     ```
-
-2. **Install Air**:
+2. **Air**:
    ```cmd
    go install github.com/cosmtrek/air@v1.61.5
    ```
-   Add `%USERPROFILE%\go\bin` to your system's PATH if not already included.
+   Add `%USERPROFILE%\go\bin` to your PATH
 
-3. **Install Docker Desktop**:
-   - Download Docker Desktop for Windows from [docker.com](https://docs.docker.com/desktop/install/windows-install/)
-   - Enable WSL 2 when prompted during installation
-   - Start Docker Desktop after installation
+3. **Docker Desktop**: Download from [docker.com](https://docs.docker.com/desktop/install/windows-install/), enable WSL 2 during installation
 
-4. **Install Templ**:
+4. **Templ**:
    ```cmd
    go install github.com/a-h/templ/cmd/templ@v0.3.819
    ```
 
-5. **Install TailwindCSS**:
-   Using npm (requires Node.js):
+5. **TailwindCSS**: Using npm (requires Node.js):
    ```cmd
    npm install -g tailwindcss
    ```
-   Or download the standalone executable:
+   Or with standalone executable:
    ```cmd
    curl.exe -sLO https://github.com/tailwindlabs/tailwindcss/releases/v3.4.15/download/tailwindcss-windows-x64.exe
    rename tailwindcss-windows-x64.exe tailwindcss.exe
    ```
 
-6. **Install golangci-lint**:
+6. **golangci-lint**:
    ```cmd
    curl.exe -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.ps1 | powershell -Command -
    ```
 
----
-
 ## 🛠️ Development Setup
 
 1. **Clone the repository**:
-   ```cmd
+   ```bash
    git clone https://github.com/iota-uz/iota-sdk.git
    cd iota-sdk
    ```
 
-2. **Make env file**:
-   ```cmd
-   copy .env.example .env
+2. **Create env file**:
+   ```bash
+   cp .env.example .env
    ```
+   Windows: `copy .env.example .env`
 
 3. **Install dependencies**:
-   ```cmd
+   ```bash
    make deps
    ```
-   Note: If `make` is not available, install it via [GnuWin32](http://gnuwin32.sourceforge.net/packages/make.htm) or use [Git Bash](https://gitforwindows.org/).
+   Windows: If `make` is unavailable, install via [GnuWin32](http://gnuwin32.sourceforge.net/packages/make.htm) or use [Git Bash](https://gitforwindows.org/)
 
-4. **Set up TailwindCSS**:
-   ```cmd
-   npm install -g tailwindcss
-   ```
-   Or if using the standalone executable:
-   ```cmd
-   mkdir %USERPROFILE%\bin
-   move tailwindcss.exe %USERPROFILE%\bin
-   ```
-   Add `%USERPROFILE%\bin` to your system's PATH.
-
-5. **Run PostgreSQL**:
-   ```cmd
+4. **Run PostgreSQL**:
+   ```bash
    make localdb
    ```
-   Note: Ensure Docker Desktop is running before executing this command.
+   Ensure Docker is running before executing this command
 
-6. **Apply database migrations**:
-   ```cmd
+5. **Apply migrations**:
+   ```bash
    make migrate up && make seed
    ```
 
-7. **Run TailwindCSS in watch mode**:
-   Open a new Command Prompt window and run:
-   ```cmd
+6. **Run TailwindCSS in watch mode** (new terminal):
+   ```bash
    make css-watch
    ```
 
-8. **Start dev server with Air hot reloading**:
-   ```cmd
+7. **Start development server**:
+   ```bash
    air
    ```
 
-9. **Access the web app**:
+8. **Access the application**:
+   - Web app: [http://localhost:8080](http://localhost:8080)
+   - Login credentials:
+     - Email: `test@gmail.com`
+     - Password: `TestPass123!`
+   - GraphQL: [http://localhost:3200/query](http://localhost:3200/query)
 
-   Open your browser and navigate to:
-   [http://localhost:8080](http://localhost:8080)
+## 🧪 Running Tests
 
-   Use the following credentials to log in:
-
-   **Email:**
-   ```text
-   test@gmail.com
+To run end-to-end Cypress tests:
+1. Ensure you have a migrated and seeded database with a running backend
+2. Set environment variables (`DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`) or use default local settings
+3. Run the tests:
+   ```bash
+   cd e2e/
+   pnpm cypress run --headed
    ```
-   **Password:**
-   ```text
-   TestPass123!
-   ```
 
-10. **Access the GraphQL Schema**:
-    Open Postman and connect to:
-    [http://localhost:3200/query](http://localhost:3200/query)
+## 📚 Documentation
 
-### Running tests
-
-To run end-to-end Cypress tests you need to have a working, migrated and seeded database and a running back-end on the background. Tests require these environment variables to be able to truncate the database before each test suite:
-
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-
-If they are not provided the tests will assume sensible defaults for a local database. To run the tests:
+Generate code documentation:
 
 ```bash
-cd e2e/
-pnpm cypress run --headed
+# For entire project
+make docs
+
+# With specific options
+go run cmd/document/main.go -dir [directory] -out [output file] [-recursive] [-exclude "dir1,dir2"]
 ```
 
-### Troubleshooting Windows Setup
+Options:
+- `-dir`: Target directory (default: current directory)
+- `-out`: Output file path (default: DOCUMENTATION.md)
+- `-recursive`: Process subdirectories
+- `-exclude`: Skip specified directories (comma-separated)
 
-1. **If `make` commands fail**:
-   - Install Make for Windows via [GnuWin32](http://gnuwin32.sourceforge.net/packages/make.htm)
-   - Add the installation directory to your system's PATH
-   - Alternatively, use Git Bash which includes Make
+This documentation provides context for LLMs working on the IOTA-SDK project.
 
-2. **If Docker fails to start**:
-   - Ensure WSL 2 is properly installed and configured
-   - Run `wsl --update` in Command Prompt as administrator
+## ❓ Troubleshooting Windows Setup
+
+1. **Make commands fail**:
+   - Install via [GnuWin32](http://gnuwin32.sourceforge.net/packages/make.htm)
+   - Add installation directory to PATH
+   - Or use Git Bash which includes Make
+
+2. **Docker issues**:
+   - Ensure WSL 2 is properly configured
+   - Run `wsl --update` as administrator
    - Restart Docker Desktop
 
-3. **If Air hot-reloading isn't working**:
+3. **Air hot-reloading problems**:
    - Verify Air is in your PATH
-   - Check if the `.air.toml` configuration file exists
-   - Try running `air init` to create a new configuration
+   - Check for `.air.toml` configuration
+   - Try `air init` to create new configuration
 
 4. **PostgreSQL connection issues**:
    - Ensure Docker is running
-   - Check if the PostgreSQL container is running:
-     ```cmd
-     docker ps
-     ```
-   - Verify the database credentials in your `.env` file
+   - Check container status: `docker ps`
+   - Verify database credentials in `.env`
 
-### Communication rules
+## 🤝 Communication Guidelines
 
-1. The contributer should close the conversation if he considers it's done. It can be reopened by the reviewer if needed.
+Contributors should close conversations when complete. Reviewers may reopen if needed.
 
-For additional help, please check our [FAQ](./FAQ.md) or open an issue on GitHub.
+For additional help, see our [FAQ](./FAQ.md) or open a GitHub issue.
