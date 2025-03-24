@@ -4,21 +4,14 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type UserService struct {
-	repo       user.Repository
-	publisher  eventbus.EventBus
-	app        application.Application
-	tabService *TabService
+	repo      user.Repository
+	publisher eventbus.EventBus
 }
 
 func NewUserService(repo user.Repository, publisher eventbus.EventBus) *UserService {
@@ -26,58 +19,6 @@ func NewUserService(repo user.Repository, publisher eventbus.EventBus) *UserServ
 		repo:      repo,
 		publisher: publisher,
 	}
-}
-
-func (s *UserService) SetTabService(tabService *TabService) {
-	s.tabService = tabService
-}
-
-func (s *UserService) SetApplication(app application.Application) {
-	s.app = app
-}
-
-func (s *UserService) getAccessibleNavItems(items []types.NavigationItem, user user.User) []string {
-	var result []string
-
-	for _, item := range items {
-		if item.HasPermission(user) {
-			if item.Href != "" {
-				result = append(result, item.Href)
-			}
-
-			if len(item.Children) > 0 {
-				childItems := s.getAccessibleNavItems(item.Children, user)
-				result = append(result, childItems...)
-			}
-		}
-	}
-
-	return result
-}
-
-func (s *UserService) createUserTabs(ctx context.Context, user user.User) error {
-	if s.app == nil || s.tabService == nil {
-		return nil
-	}
-
-	items := s.app.NavItems(i18n.NewLocalizer(s.app.Bundle(), string(user.UILanguage())))
-	hrefs := s.getAccessibleNavItems(items, user)
-
-	tabs := make([]*tab.CreateDTO, 0, len(hrefs))
-	for i, href := range hrefs {
-		tabs = append(tabs, &tab.CreateDTO{
-			Href:     href,
-			UserID:   user.ID(),
-			Position: uint(i),
-		})
-	}
-
-	if len(tabs) > 0 {
-		ctxWithUser := context.WithValue(ctx, constants.UserKey, user)
-		_, err := s.tabService.CreateManyUserTabs(ctxWithUser, user.ID(), tabs)
-		return err
-	}
-	return nil
 }
 
 func (s *UserService) GetByEmail(ctx context.Context, email string) (user.User, error) {
@@ -140,10 +81,6 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 	}
 	created, err := s.repo.Create(ctx, data)
 	if err != nil {
-		return err
-	}
-
-	if err := s.createUserTabs(ctx, created); err != nil {
 		return err
 	}
 
