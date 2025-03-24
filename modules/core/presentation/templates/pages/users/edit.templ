@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/components/base"
 )
 
 type EditFormProps struct {
@@ -38,12 +37,6 @@ templ EditForm(props *EditFormProps) {
 					Header: card.DefaultHeader(pageCtx.T("Users.Cards.PersonalInfo")),
 					Class:  "grid grid-cols-2 gap-4",
 				}) {
-					@base.Progress(base.ProgressProps{
-						Value: 2400,
-						Target: 5000,
-						ValueLabel: "2400 $",
-						TargetLabel: "5000 $",
-					})
 					@input.Text(&input.Props{
 						Label: pageCtx.T("Users.Single.FirstName"),
 						Attrs: templ.Attributes{
