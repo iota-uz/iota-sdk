@@ -20,24 +20,26 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `UploadInputProps`
+#### UploadInputProps
 
 UploadInputProps defines the properties for the UploadInput component.
 It provides configuration options for the file upload interface.
 
 
-##### Properties
-
-- `ID string`
-- `Label string`
-- `Placeholder string`
-- `Uploads []*viewmodels.Upload`
-- `Error string`
-- `Accept string`
-- `Name string`
-- `Form string`
-- `Class string`
-- `Multiple bool`
+```go
+type UploadInputProps struct {
+    ID string
+    Label string
+    Placeholder string
+    Uploads []*viewmodels.Upload
+    Error string
+    Accept string
+    Name string
+    Form string
+    Class string
+    Multiple bool
+}
+```
 
 ##### Methods
 
@@ -70,100 +72,122 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `BaseLabelProps`
+#### BaseLabelProps
 
-##### Properties
+```go
+type BaseLabelProps struct {
+    Text string
+}
+```
 
-- `Text string`
+#### ComboboxOption
 
-#### type `ComboboxOption`
+```go
+type ComboboxOption struct {
+    Value string
+    Label string
+}
+```
 
-##### Properties
+#### ComboboxProps
 
-- `Value string`
-- `Label string`
+```go
+type ComboboxProps struct {
+    Multiple bool
+    Placeholder string
+    Class string
+    ListClass string
+    Name string
+    Form string
+    Label string
+    Endpoint string
+    Searchable bool
+    NotFoundText string
+    Trigger *Trigger
+}
+```
 
-#### type `ComboboxProps`
+#### DetailsDropdownProps
 
-##### Properties
-
-- `Multiple bool`
-- `Placeholder string`
-- `Class string`
-- `ListClass string`
-- `Name string`
-- `Form string`
-- `Label string`
-- `Endpoint string`
-- `Searchable bool`
-- `NotFoundText string`
-- `Trigger *Trigger`
-
-#### type `DetailsDropdownProps`
-
-##### Properties
-
-- `Summary templ.Component`
-- `Classes templ.CSSClasses`
-
-##### Methods
-
-#### type `DropdownItemProps`
-
-##### Properties
-
-- `Href string`
-
-#### type `SelectProps`
-
-##### Properties
-
-- `Label string`
-- `Class string`
-- `Placeholder string`
-- `Attrs templ.Attributes`
-- `Prefix string`
-- `Error string`
+```go
+type DetailsDropdownProps struct {
+    Summary templ.Component
+    Classes templ.CSSClasses
+}
+```
 
 ##### Methods
 
-#### type `TableColumn`
+#### DropdownItemProps
 
-##### Properties
+```go
+type DropdownItemProps struct {
+    Href string
+}
+```
 
-- `Label string`
-- `Key string`
-- `Width int`
-- `Class string`
-- `DateFormat string`
-- `Duration bool`
-- `Sortable bool`
+#### SelectProps
 
-#### type `TableProps`
+```go
+type SelectProps struct {
+    Label string
+    Class string
+    Placeholder string
+    Attrs templ.Attributes
+    Prefix string
+    Error string
+}
+```
 
-##### Properties
+##### Methods
 
-- `Columns []*TableColumn`
+#### TableColumn
 
-#### type `TableRowProps`
+```go
+type TableColumn struct {
+    Label string
+    Key string
+    Width int
+    Class string
+    DateFormat string
+    Duration bool
+    Sortable bool
+}
+```
 
-##### Properties
+#### TableProps
 
-- `Attrs templ.Attributes`
+```go
+type TableProps struct {
+    Columns []*TableColumn
+}
+```
 
-#### type `Trigger`
+#### TableRowProps
 
-##### Properties
+```go
+type TableRowProps struct {
+    Attrs templ.Attributes
+}
+```
 
-- `Render func(props *TriggerProps) templ.Component`
-- `Component templ.Component`
+#### Trigger
 
-#### type `TriggerProps`
+```go
+type Trigger struct {
+    Render func(props *TriggerProps) templ.Component
+    Component templ.Component
+}
+```
 
-##### Properties
+#### TriggerProps
 
-- `InputAttrs templ.Attributes`
-- `ButtonAttrs templ.Attributes`
+```go
+type TriggerProps struct {
+    InputAttrs templ.Attributes
+    ButtonAttrs templ.Attributes
+}
+```
 
 ### Functions
 
@@ -213,16 +237,18 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `Props`
+#### Props
 
-##### Properties
+```go
+type Props struct {
+    Class templ.CSSClasses
+    ImageURL string
+    Initials string
+    Variant Variant
+}
+```
 
-- `Class templ.CSSClasses`
-- `ImageURL string`
-- `Initials string`
-- `Variant Variant`
-
-#### type `Variant`
+#### Variant
 
 ### Functions
 
@@ -239,22 +265,24 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `Props`
+#### Props
 
-##### Properties
+```go
+type Props struct {
+    Size Size
+    Fixed bool
+    Href string
+    Rounded bool
+    Loading bool
+    Class any
+    Icon templ.Component
+    Attrs templ.Attributes
+}
+```
 
-- `Size Size`
-- `Fixed bool`
-- `Href string`
-- `Rounded bool`
-- `Loading bool`
-- `Class any`
-- `Icon templ.Component`
-- `Attrs templ.Attributes`
+#### Size
 
-#### type `Size`
-
-#### type `Variant`
+#### Variant
 
 ### Functions
 
@@ -285,14 +313,16 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `Props`
+#### Props
 
-##### Properties
-
-- `Class string`
-- `WrapperClass string`
-- `Header templ.Component`
-- `Attrs templ.Attributes`
+```go
+type Props struct {
+    Class string
+    WrapperClass string
+    Header templ.Component
+    Attrs templ.Attributes
+}
+```
 
 ### Functions
 
@@ -313,40 +343,46 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `Direction`
+#### Direction
 
-#### type `DrawerProps`
+#### DrawerProps
 
-##### Properties
+```go
+type DrawerProps struct {
+    ID string
+    Open bool
+    Direction Direction
+    Action string
+    Attrs templ.Attributes
+    Classes templ.CSSClasses
+}
+```
 
-- `ID string`
-- `Open bool`
-- `Direction Direction`
-- `Action string`
-- `Attrs templ.Attributes`
-- `Classes templ.CSSClasses`
+#### Props
 
-#### type `Props`
+```go
+type Props struct {
+    Icon templ.Component
+    Heading string
+    Text string
+    Action string
+    Attrs templ.Attributes
+    CancelText string
+    ConfirmText string
+}
+```
 
-##### Properties
+#### StdDrawerProps
 
-- `Icon templ.Component`
-- `Heading string`
-- `Text string`
-- `Action string`
-- `Attrs templ.Attributes`
-- `CancelText string`
-- `ConfirmText string`
-
-#### type `StdDrawerProps`
-
-##### Properties
-
-- `ID string`
-- `Title string`
-- `Action string`
-- `Open bool`
-- `Attrs templ.Attributes`
+```go
+type StdDrawerProps struct {
+    ID string
+    Title string
+    Action string
+    Open bool
+    Attrs templ.Attributes
+}
+```
 
 ### Functions
 
@@ -369,55 +405,63 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `Addon`
+#### Addon
 
-##### Properties
+```go
+type Addon struct {
+    Render func(props *Props) templ.Component
+    Component templ.Component
+    Class string
+    Attrs templ.Attributes
+}
+```
 
-- `Render func(props *Props) templ.Component`
-- `Component templ.Component`
-- `Class string`
-- `Attrs templ.Attributes`
+#### CheckboxProps
 
-#### type `CheckboxProps`
-
-##### Properties
-
-- `Label string`
-- `LabelComp templ.Component`
-- `Error string`
-- `Checked bool`
-- `Attrs templ.Attributes`
-- `Class string`
-- `ID string`
-
-##### Methods
-
-#### type `Props`
-
-##### Properties
-
-- `Placeholder string`
-- `Label string`
-- `Class string`
-- `Attrs templ.Attributes`
-- `WrapperProps templ.Attributes`
-- `AddonRight *Addon`
-- `AddonLeft *Addon`
-- `Error string`
+```go
+type CheckboxProps struct {
+    Label string
+    LabelComp templ.Component
+    Error string
+    Checked bool
+    Attrs templ.Attributes
+    Class string
+    ID string
+}
+```
 
 ##### Methods
 
-#### type `SwitchProps`
+#### Props
 
-##### Properties
+```go
+type Props struct {
+    Placeholder string
+    Label string
+    Class string
+    Attrs templ.Attributes
+    WrapperProps templ.Attributes
+    AddonRight *Addon
+    AddonLeft *Addon
+    Error string
+}
+```
 
-- `Label string`
-- `LabelComp templ.Component`
-- `Error string`
-- `Checked bool`
-- `Attrs templ.Attributes`
-- `Class string`
-- `ID string`
+##### Methods
+
+#### SwitchProps
+
+```go
+type SwitchProps struct {
+    Label string
+    LabelComp templ.Component
+    Error string
+    Checked bool
+    Attrs templ.Attributes
+    Class string
+    ID string
+}
+```
 
 ##### Methods
 
@@ -448,25 +492,29 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `Page`
+#### Page
 
-##### Properties
-
-- `Num int`
-- `Link string`
-- `Filler bool`
-- `Active bool`
+```go
+type Page struct {
+    Num int
+    Link string
+    Filler bool
+    Active bool
+}
+```
 
 ##### Methods
 
 - `func (Page) Classes() string`
 
-#### type `State`
+#### State
 
-##### Properties
-
-- `Total int`
-- `Current int`
+```go
+type State struct {
+    Total int
+    Current int
+}
+```
 
 ##### Methods
 
@@ -494,39 +542,43 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `RadioGroupProps`
+#### RadioGroupProps
 
 RadioGroupProps defines properties for the RadioGroup component.
 
 
-##### Properties
-
-- `Name string`
-- `Label string`
-- `Error string`
-- `Class string`
-- `Attrs templ.Attributes`
-- `WrapperProps templ.Attributes`
-- `Orientation string`
+```go
+type RadioGroupProps struct {
+    Name string
+    Label string
+    Error string
+    Class string
+    Attrs templ.Attributes
+    WrapperProps templ.Attributes
+    Orientation string
+}
+```
 
 ##### Methods
 
-#### type `RadioItemProps`
+#### RadioItemProps
 
 RadioItemProps defines properties for individual RadioItem components.
 
 
-##### Properties
-
-- `Value string`
-- `Label string`
-- `LabelComp templ.Component`
-- `Checked bool`
-- `Disabled bool`
-- `Class string`
-- `Attrs templ.Attributes`
-- `GroupName string`
-- `ID string`
+```go
+type RadioItemProps struct {
+    Value string
+    Label string
+    LabelComp templ.Component
+    Checked bool
+    Disabled bool
+    Class string
+    Attrs templ.Attributes
+    GroupName string
+    ID string
+}
+```
 
 ##### Methods
 
@@ -553,29 +605,35 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `SearchOptionsProps`
+#### SearchOptionsProps
 
-##### Properties
+```go
+type SearchOptionsProps struct {
+    Options []*Value
+    NothingFoundText string
+}
+```
 
-- `Options []*Value`
-- `NothingFoundText string`
+#### SearchSelectProps
 
-#### type `SearchSelectProps`
+```go
+type SearchSelectProps struct {
+    Label string
+    Placeholder string
+    Value string
+    Endpoint string
+    Attrs templ.Attributes
+}
+```
 
-##### Properties
+#### Value
 
-- `Label string`
-- `Placeholder string`
-- `Value string`
-- `Endpoint string`
-- `Attrs templ.Attributes`
-
-#### type `Value`
-
-##### Properties
-
-- `Value string`
-- `Label string`
+```go
+type Value struct {
+    Value string
+    Label string
+}
+```
 
 ### Functions
 
@@ -594,25 +652,31 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `BoostLinkProps`
+#### BoostLinkProps
 
-##### Properties
+```go
+type BoostLinkProps struct {
+    Href string
+    Push bool
+}
+```
 
-- `Href string`
-- `Push bool`
+#### ListProps
 
-#### type `ListProps`
+```go
+type ListProps struct {
+    Class string
+}
+```
 
-##### Properties
+#### Props
 
-- `Class string`
-
-#### type `Props`
-
-##### Properties
-
-- `DefaultValue string`
-- `Class string`
+```go
+type Props struct {
+    DefaultValue string
+    Class string
+}
+```
 
 ### Functions
 
@@ -644,17 +708,19 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `Props`
+#### Props
 
-##### Properties
-
-- `Placeholder string`
-- `Label string`
-- `Class string`
-- `WrapperClass string`
-- `Attrs templ.Attributes`
-- `Error string`
-- `Value string`
+```go
+type Props struct {
+    Placeholder string
+    Label string
+    Class string
+    WrapperClass string
+    Attrs templ.Attributes
+    Error string
+    Value string
+}
+```
 
 ##### Methods
 
@@ -673,32 +739,36 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `ToggleAlignment`
+#### ToggleAlignment
 
-#### type `ToggleOption`
+#### ToggleOption
 
-##### Properties
-
-- `Value string`
-- `Label string`
-
-##### Methods
-
-#### type `ToggleProps`
-
-##### Properties
-
-- `InitialActive string`
-- `Options []ToggleOption`
-- `Size ToggleSize`
-- `Rounded ToggleRounded`
-- `Alignment ToggleAlignment`
+```go
+type ToggleOption struct {
+    Value string
+    Label string
+}
+```
 
 ##### Methods
 
-#### type `ToggleRounded`
+#### ToggleProps
 
-#### type `ToggleSize`
+```go
+type ToggleProps struct {
+    InitialActive string
+    Options []ToggleOption
+    Size ToggleSize
+    Rounded ToggleRounded
+    Alignment ToggleAlignment
+}
+```
+
+##### Methods
+
+#### ToggleRounded
+
+#### ToggleSize
 
 ### Functions
 
@@ -712,130 +782,162 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `BarConfig`
+#### BarConfig
 
-##### Properties
+```go
+type BarConfig struct {
+    BorderRadius int `json:"borderRadius"`
+    ColumnWidth string `json:"columnWidth"`
+    DataLabels BarLabels `json:"dataLabels"`
+}
+```
 
-- `BorderRadius int `json:"borderRadius"``
-- `ColumnWidth string `json:"columnWidth"``
-- `DataLabels BarLabels `json:"dataLabels"``
+#### BarLabels
 
-#### type `BarLabels`
+```go
+type BarLabels struct {
+    Position string `json:"position"`
+}
+```
 
-##### Properties
+#### ChartConfig
 
-- `Position string `json:"position"``
+```go
+type ChartConfig struct {
+    Type string `json:"type"`
+    Height string `json:"height"`
+    Toolbar Toolbar `json:"toolbar"`
+}
+```
 
-#### type `ChartConfig`
+#### ChartOptions
 
-##### Properties
+```go
+type ChartOptions struct {
+    Chart ChartConfig `json:"chart"`
+    Series []Series `json:"series"`
+    XAxis XAxisConfig `json:"xaxis"`
+    YAxis YAxisConfig `json:"yaxis"`
+    Colors []string `json:"colors"`
+    DataLabels DataLabels `json:"dataLabels"`
+    Grid GridConfig `json:"grid"`
+    PlotOptions PlotOptions `json:"plotOptions"`
+}
+```
 
-- `Type string `json:"type"``
-- `Height string `json:"height"``
-- `Toolbar Toolbar `json:"toolbar"``
+#### DataLabelStyle
 
-#### type `ChartOptions`
+```go
+type DataLabelStyle struct {
+    Colors []string `json:"colors"`
+    FontSize string `json:"fontSize"`
+    FontWeight string `json:"fontWeight"`
+}
+```
 
-##### Properties
+#### DataLabels
 
-- `Chart ChartConfig `json:"chart"``
-- `Series []Series `json:"series"``
-- `XAxis XAxisConfig `json:"xaxis"``
-- `YAxis YAxisConfig `json:"yaxis"``
-- `Colors []string `json:"colors"``
-- `DataLabels DataLabels `json:"dataLabels"``
-- `Grid GridConfig `json:"grid"``
-- `PlotOptions PlotOptions `json:"plotOptions"``
+```go
+type DataLabels struct {
+    Enabled bool `json:"enabled"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+    Style DataLabelStyle `json:"style"`
+    OffsetY int `json:"offsetY"`
+    DropShadow DropShadow `json:"dropShadow"`
+}
+```
 
-#### type `DataLabelStyle`
+#### DropShadow
 
-##### Properties
+```go
+type DropShadow struct {
+    Enabled bool `json:"enabled"`
+    Top int `json:"top"`
+    Left int `json:"left"`
+    Blur int `json:"blur"`
+    Color string `json:"color"`
+    Opacity float64 `json:"opacity"`
+}
+```
 
-- `Colors []string `json:"colors"``
-- `FontSize string `json:"fontSize"``
-- `FontWeight string `json:"fontWeight"``
+#### GridConfig
 
-#### type `DataLabels`
+```go
+type GridConfig struct {
+    BorderColor string `json:"borderColor"`
+}
+```
 
-##### Properties
+#### LabelFormatter
 
-- `Enabled bool `json:"enabled"``
-- `Formatter templ.JSExpression `json:"formatter,omitempty"``
-- `Style DataLabelStyle `json:"style"``
-- `OffsetY int `json:"offsetY"``
-- `DropShadow DropShadow `json:"dropShadow"``
+```go
+type LabelFormatter struct {
+    Style LabelStyle `json:"style"`
+}
+```
 
-#### type `DropShadow`
+#### LabelStyle
 
-##### Properties
+```go
+type LabelStyle struct {
+    Colors string `json:"colors"`
+    FontSize string `json:"fontSize"`
+}
+```
 
-- `Enabled bool `json:"enabled"``
-- `Top int `json:"top"``
-- `Left int `json:"left"``
-- `Blur int `json:"blur"``
-- `Color string `json:"color"``
-- `Opacity float64 `json:"opacity"``
+#### PlotOptions
 
-#### type `GridConfig`
+```go
+type PlotOptions struct {
+    Bar BarConfig `json:"bar"`
+}
+```
 
-##### Properties
-
-- `BorderColor string `json:"borderColor"``
-
-#### type `LabelFormatter`
-
-##### Properties
-
-- `Style LabelStyle `json:"style"``
-
-#### type `LabelStyle`
-
-##### Properties
-
-- `Colors string `json:"colors"``
-- `FontSize string `json:"fontSize"``
-
-#### type `PlotOptions`
-
-##### Properties
-
-- `Bar BarConfig `json:"bar"``
-
-#### type `Props`
+#### Props
 
 Props defines the configuration options for a Chart component.
 
 
-##### Properties
+```go
+type Props struct {
+    Class string
+    Options ChartOptions
+}
+```
 
-- `Class string`
-- `Options ChartOptions`
+#### Series
 
-#### type `Series`
+```go
+type Series struct {
+    Name string `json:"name"`
+    Data []float64 `json:"data"`
+}
+```
 
-##### Properties
+#### Toolbar
 
-- `Name string `json:"name"``
-- `Data []float64 `json:"data"``
+```go
+type Toolbar struct {
+    Show bool `json:"show"`
+}
+```
 
-#### type `Toolbar`
+#### XAxisConfig
 
-##### Properties
+```go
+type XAxisConfig struct {
+    Categories []string `json:"categories"`
+    Labels LabelFormatter `json:"labels"`
+}
+```
 
-- `Show bool `json:"show"``
+#### YAxisConfig
 
-#### type `XAxisConfig`
-
-##### Properties
-
-- `Categories []string `json:"categories"``
-- `Labels LabelFormatter `json:"labels"``
-
-#### type `YAxisConfig`
-
-##### Properties
-
-- `Labels LabelFormatter `json:"labels"``
+```go
+type YAxisConfig struct {
+    Labels LabelFormatter `json:"labels"`
+}
+```
 
 ### Functions
 
@@ -857,31 +959,37 @@ templ: version: v0.3.819
 
 ### Types
 
-#### type `DrawerProps`
+#### DrawerProps
 
-##### Properties
+```go
+type DrawerProps struct {
+    Heading string
+    Action string
+}
+```
 
-- `Heading string`
-- `Action string`
-
-#### type `Props`
+#### Props
 
 Props defines configuration options for the Default filter component.
 
 
-##### Properties
+```go
+type Props struct {
+    Fields []SearchField
+}
+```
 
-- `Fields []SearchField`
-
-#### type `SearchField`
+#### SearchField
 
 SearchField represents a field that can be searched on.
 
 
-##### Properties
-
-- `Label string`
-- `Key string`
+```go
+type SearchField struct {
+    Label string
+    Key string
+}
+```
 
 ### Functions
 
@@ -948,28 +1056,32 @@ based on configuration and data, reducing boilerplate code.
 
 ### Types
 
-#### type `TableColumn`
+#### TableColumn
 
 TableColumn defines a column in a dynamic table.
 
 
-##### Properties
+```go
+type TableColumn struct {
+    Key string
+    Label string
+    Class string
+    Width string
+    Format func(any) string
+}
+```
 
-- `Key string`
-- `Label string`
-- `Class string`
-- `Width string`
-- `Format func(any) string`
-
-#### type `TableConfig`
+#### TableConfig
 
 TableConfig holds the configuration for a dynamic table.
 
 
-##### Properties
-
-- `Columns []TableColumn`
-- `Title string`
+```go
+type TableConfig struct {
+    Columns []TableColumn
+    Title string
+}
+```
 
 ##### Methods
 
@@ -985,14 +1097,16 @@ TableConfig holds the configuration for a dynamic table.
   AddDateColumn adds a date column with automatic formatting
   
 
-#### type `TableData`
+#### TableData
 
 TableData contains the data to be displayed in the table.
 
 
-##### Properties
-
-- `Items []map[string]any`
+```go
+type TableData struct {
+    Items []map[string]any
+}
+```
 
 ##### Methods
 
@@ -1025,21 +1139,23 @@ Table renders a dynamic table based on configuration and data
 
 ### Types
 
-#### type `CountriesSelectProps`
+#### CountriesSelectProps
 
 CountriesSelectProps defines the properties for the CountriesSelect component.
 
 
-##### Properties
-
-- `Label string`
-- `Placeholder string`
-- `Name string`
-- `Selected string`
-- `Error string`
-- `Required bool`
-- `Class string`
-- `Attrs templ.Attributes`
+```go
+type CountriesSelectProps struct {
+    Label string
+    Placeholder string
+    Name string
+    Selected string
+    Error string
+    Required bool
+    Class string
+    Attrs templ.Attributes
+}
+```
 
 ### Functions
 
@@ -1062,7 +1178,7 @@ Package sidebar provides navigation components for application layout.
 
 ### Types
 
-#### type `Group`
+#### Group
 
 Group represents a collection of navigation items that can be expanded/collapsed.
 
@@ -1078,7 +1194,7 @@ Group represents a collection of navigation items that can be expanded/collapsed
 - `IsActive(ctx context.Context) bool`
 - `SetPosition(position int) Group`
 
-#### type `Item`
+#### Item
 
 Item is the base interface for navigation elements in the sidebar.
 
@@ -1090,7 +1206,7 @@ Item is the base interface for navigation elements in the sidebar.
 - `Icon() templ.Component`
 - `IsActive(ctx context.Context) bool`
 
-#### type `Link`
+#### Link
 
 Link represents a navigation link in the sidebar.
 
@@ -1105,13 +1221,15 @@ Link represents a navigation link in the sidebar.
 - `IsActive(ctx context.Context) bool`
 - `SetPosition(position int) Link`
 
-#### type `Props`
+#### Props
 
-##### Properties
-
-- `Header templ.Component`
-- `Items []Item`
-- `Footer templ.Component`
+```go
+type Props struct {
+    Header templ.Component
+    Items []Item
+    Footer templ.Component
+}
+```
 
 ### Functions
 
@@ -1129,16 +1247,18 @@ Link represents a navigation link in the sidebar.
 
 ### Types
 
-#### type `Item`
+#### Item
 
 Item represents a search result in the Spotlight component.
 
 
-##### Properties
-
-- `Title string`
-- `Icon templ.Component`
-- `Link string`
+```go
+type Item struct {
+    Title string
+    Icon templ.Component
+    Link string
+}
+```
 
 ### Functions
 
@@ -1162,18 +1282,20 @@ If no items are found, it displays a "nothing found" message.
 
 ### Types
 
-#### type `LanguageSelectProps`
+#### LanguageSelectProps
 
 LanguageSelectProps defines the properties for the LanguageSelect component.
 
 
-##### Properties
-
-- `Label string`
-- `Placeholder string`
-- `Value string`
-- `Error string`
-- `Attrs templ.Attributes`
+```go
+type LanguageSelectProps struct {
+    Label string
+    Placeholder string
+    Value string
+    Error string
+    Attrs templ.Attributes
+}
+```
 
 ### Functions
 
@@ -1201,14 +1323,16 @@ It displays all supported languages with their verbose names.
 
 ### Types
 
-#### type `DefaultOptions`
+#### DefaultOptions
 
-##### Properties
-
-- `Logger *logrus.Logger`
-- `Configuration *configuration.Configuration`
-- `Application application.Application`
-- `Pool *pgxpool.Pool`
+```go
+type DefaultOptions struct {
+    Logger *logrus.Logger
+    Configuration *configuration.Configuration
+    Application application.Application
+    Pool *pgxpool.Pool
+}
+```
 
 ### Functions
 
@@ -1220,7 +1344,7 @@ It displays all supported languages with their verbose names.
 
 ### Types
 
-#### type `Application`
+#### Application
 
 Application with a dynamically extendable service registry
 
@@ -1250,22 +1374,24 @@ Application with a dynamically extendable service registry
 - `Services() map[reflect.Type]interface{}`
 - `Bundle() *i18n.Bundle`
 
-#### type `Controller`
+#### Controller
 
 ##### Interface Methods
 
 - `Register(r *mux.Router)`
 - `Key() string`
 
-#### type `GraphSchema`
+#### GraphSchema
 
-##### Properties
+```go
+type GraphSchema struct {
+    Value graphql.ExecutableSchema
+    BasePath string
+    ExecutorCb func(*executor.Executor)
+}
+```
 
-- `Value graphql.ExecutableSchema`
-- `BasePath string`
-- `ExecutorCb func(*executor.Executor)`
-
-#### type `MigrationManager`
+#### MigrationManager
 
 MigrationManager is an interface for handling database migrations
 
@@ -1278,16 +1404,16 @@ MigrationManager is an interface for handling database migrations
 - `RegisterSchema(fs ...*embed.FS)`
 - `SchemaFSs() []*embed.FS`
 
-#### type `Module`
+#### Module
 
 ##### Interface Methods
 
 - `Name() string`
 - `Register(app Application) error`
 
-#### type `SeedFunc`
+#### SeedFunc
 
-#### type `Seeder`
+#### Seeder
 
 ##### Interface Methods
 
@@ -1318,23 +1444,27 @@ MigrationManager is an interface for handling database migrations
 
 ### Types
 
-#### type `PaginationParams`
+#### PaginationParams
 
-##### Properties
+```go
+type PaginationParams struct {
+    Limit int
+    Offset int
+    Page int
+}
+```
 
-- `Limit int`
-- `Offset int`
-- `Page int`
+#### Params
 
-#### type `Params`
-
-##### Properties
-
-- `IP string`
-- `UserAgent string`
-- `Authenticated bool`
-- `Request *http.Request`
-- `Writer http.ResponseWriter`
+```go
+type Params struct {
+    IP string
+    UserAgent string
+    Authenticated bool
+    Request *http.Request
+    Writer http.ResponseWriter
+}
+```
 
 ### Functions
 
@@ -1520,28 +1650,30 @@ WithUser returns a new context with the user.
 
 ### Types
 
-#### type `Configuration`
+#### Configuration
 
-##### Properties
-
-- `Database DatabaseOptions`
-- `Google GoogleOptions`
-- `Twilio TwilioOptions`
-- `MigrationsDir string `env:"MIGRATIONS_DIR" envDefault:"migrations"``
-- `ServerPort int `env:"PORT" envDefault:"3200"``
-- `SessionDuration time.Duration `env:"SESSION_DURATION" envDefault:"720h"``
-- `GoAppEnvironment string `env:"GO_APP_ENV" envDefault:"development"``
-- `SocketAddress string `env:"-"``
-- `OpenAIKey string `env:"OPENAI_KEY"``
-- `UploadsPath string `env:"UPLOADS_PATH" envDefault:"static"``
-- `Domain string `env:"DOMAIN" envDefault:"localhost"``
-- `Origin string `env:"ORIGIN" envDefault:"http://localhost:3200"``
-- `PageSize int `env:"PAGE_SIZE" envDefault:"25"``
-- `MaxPageSize int `env:"MAX_PAGE_SIZE" envDefault:"100"``
-- `LogLevel string `env:"LOG_LEVEL" envDefault:"error"``
-- `SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"``
-- `OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"``
-- `TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"``
+```go
+type Configuration struct {
+    Database DatabaseOptions
+    Google GoogleOptions
+    Twilio TwilioOptions
+    MigrationsDir string `env:"MIGRATIONS_DIR" envDefault:"migrations"`
+    ServerPort int `env:"PORT" envDefault:"3200"`
+    SessionDuration time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
+    GoAppEnvironment string `env:"GO_APP_ENV" envDefault:"development"`
+    SocketAddress string `env:"-"`
+    OpenAIKey string `env:"OPENAI_KEY"`
+    UploadsPath string `env:"UPLOADS_PATH" envDefault:"static"`
+    Domain string `env:"DOMAIN" envDefault:"localhost"`
+    Origin string `env:"ORIGIN" envDefault:"http://localhost:3200"`
+    PageSize int `env:"PAGE_SIZE" envDefault:"25"`
+    MaxPageSize int `env:"MAX_PAGE_SIZE" envDefault:"100"`
+    LogLevel string `env:"LOG_LEVEL" envDefault:"error"`
+    SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"`
+    OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
+    TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
+}
+```
 
 ##### Methods
 
@@ -1557,37 +1689,43 @@ WithUser returns a new context with the user.
   unload handles a graceful shutdown.
   
 
-#### type `DatabaseOptions`
+#### DatabaseOptions
 
-##### Properties
-
-- `Opts string `env:"-"``
-- `Name string `env:"DB_NAME" envDefault:"iota_erp"``
-- `Host string `env:"DB_HOST" envDefault:"localhost"``
-- `Port string `env:"DB_PORT" envDefault:"5432"``
-- `User string `env:"DB_USER" envDefault:"postgres"``
-- `Password string `env:"DB_PASSWORD" envDefault:"postgres"``
+```go
+type DatabaseOptions struct {
+    Opts string `env:"-"`
+    Name string `env:"DB_NAME" envDefault:"iota_erp"`
+    Host string `env:"DB_HOST" envDefault:"localhost"`
+    Port string `env:"DB_PORT" envDefault:"5432"`
+    User string `env:"DB_USER" envDefault:"postgres"`
+    Password string `env:"DB_PASSWORD" envDefault:"postgres"`
+}
+```
 
 ##### Methods
 
 - `func (DatabaseOptions) ConnectionString() string`
 
-#### type `GoogleOptions`
+#### GoogleOptions
 
-##### Properties
+```go
+type GoogleOptions struct {
+    RedirectURL string `env:"GOOGLE_REDIRECT_URL"`
+    ClientID string `env:"GOOGLE_CLIENT_ID"`
+    ClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
+}
+```
 
-- `RedirectURL string `env:"GOOGLE_REDIRECT_URL"``
-- `ClientID string `env:"GOOGLE_CLIENT_ID"``
-- `ClientSecret string `env:"GOOGLE_CLIENT_SECRET"``
+#### TwilioOptions
 
-#### type `TwilioOptions`
-
-##### Properties
-
-- `WebhookURL string `env:"TWILIO_WEBHOOK_URL"``
-- `AccountSID string `env:"TWILIO_ACCOUNT_SID"``
-- `AuthToken string `env:"TWILIO_AUTH_TOKEN"``
-- `PhoneNumber string `env:"TWILIO_PHONE_NUMBER"``
+```go
+type TwilioOptions struct {
+    WebhookURL string `env:"TWILIO_WEBHOOK_URL"`
+    AccountSID string `env:"TWILIO_ACCOUNT_SID"`
+    AuthToken string `env:"TWILIO_AUTH_TOKEN"`
+    PhoneNumber string `env:"TWILIO_PHONE_NUMBER"`
+}
+```
 
 ### Functions
 
@@ -1603,7 +1741,7 @@ WithUser returns a new context with the user.
 
 ### Types
 
-#### type `ContextKey`
+#### ContextKey
 
 ### Variables and Constants
 
@@ -1615,7 +1753,7 @@ WithUser returns a new context with the user.
 
 ### Types
 
-#### type `DIHandler`
+#### DIHandler
 
 DIHandler is a handler that uses dependency injection to resolve its arguments
 
@@ -1624,7 +1762,7 @@ DIHandler is a handler that uses dependency injection to resolve its arguments
 
 - `func (DIHandler) Handler() http.HandlerFunc`
 
-#### type `Provider`
+#### Provider
 
 Provider is an interface that can provide a value for a given type
 
@@ -1640,14 +1778,16 @@ Provider is an interface that can provide a value for a given type
 
 ### Types
 
-#### type `Config`
+#### Config
 
-##### Properties
-
-- `SourceDir string`
-- `OutputPath string`
-- `Recursive bool`
-- `ExcludeDirs []string`
+```go
+type Config struct {
+    SourceDir string
+    OutputPath string
+    Recursive bool
+    ExcludeDirs []string
+}
+```
 
 ### Functions
 
@@ -1659,7 +1799,7 @@ Provider is an interface that can provide a value for a given type
 
 ### Types
 
-#### type `EventBus`
+#### EventBus
 
 ##### Interface Methods
 
@@ -1669,11 +1809,13 @@ Provider is an interface that can provide a value for a given type
 - `Clear()`
 - `SubscribersCount() int`
 
-#### type `Subscriber`
+#### Subscriber
 
-##### Properties
-
-- `Handler interface{}`
+```go
+type Subscriber struct {
+    Handler interface{}
+}
+```
 
 ### Functions
 
@@ -1685,12 +1827,12 @@ Provider is an interface that can provide a value for a given type
 
 ### Types
 
-#### type `Lazy`
+#### Lazy
 
 Callback function that returns a specific value type
 
 
-#### type `LazyVal`
+#### LazyVal
 
 Callback function that takes an argument and return a value of the same type
 
@@ -2023,7 +2165,7 @@ Like Some but callback receives index of element and the whole array.
 
 ### Types
 
-#### type `Either`
+#### Either
 
 BaseError struct
 
@@ -2086,14 +2228,16 @@ Returns a new type running the succes or error callbacks which are taking respec
 
 ### Types
 
-#### type `Option`
+#### Option
 
 BaseError struct
 
 
-##### Properties
-
-- `Value T`
+```go
+type Option struct {
+    Value T
+}
+```
 
 ### Functions
 
@@ -2145,7 +2289,7 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 ### Types
 
-#### type `FieldFunc`
+#### FieldFunc
 
 ##### Methods
 
@@ -2155,7 +2299,7 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 - `func (FieldFunc) Validate(schema graphql.ExecutableSchema) error`
 
-#### type `Handler`
+#### Handler
 
 ##### Methods
 
@@ -2193,11 +2337,13 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 - `func (Handler) Use(extensions map[*executor.Executor]graphql.HandlerExtension)`
 
-#### type `MyPOST`
+#### MyPOST
 
-##### Properties
-
-- `ResponseHeaders map[string][]string`
+```go
+type MyPOST struct {
+    ResponseHeaders map[string][]string
+}
+```
 
 ##### Methods
 
@@ -2205,7 +2351,7 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 - `func (MyPOST) Supports(r *http.Request) bool`
 
-#### type `OperationFunc`
+#### OperationFunc
 
 ##### Methods
 
@@ -2215,9 +2361,9 @@ Extracts the value out of the Option, if it exists, with a function. Otherwise r
 
 - `func (OperationFunc) Validate(schema graphql.ExecutableSchema) error`
 
-#### type `Resolver`
+#### Resolver
 
-#### type `ResponseFunc`
+#### ResponseFunc
 
 ##### Methods
 
@@ -2338,25 +2484,29 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 ### Types
 
-#### type `Client`
+#### Client
 
 ##### Methods
 
 - `func (Client) GetOdataServices(infoBase string) (*OdataServices, error)`
 
-#### type `OdataService`
+#### OdataService
 
-##### Properties
+```go
+type OdataService struct {
+    Name string `json:"name"`
+    URL string `json:"url"`
+}
+```
 
-- `Name string `json:"name"``
-- `URL string `json:"url"``
+#### OdataServices
 
-#### type `OdataServices`
-
-##### Properties
-
-- `OdataMetadata string `json:"odata.metadata"``
-- `Value []OdataService `json:"value"``
+```go
+type OdataServices struct {
+    OdataMetadata string `json:"odata.metadata"`
+    Value []OdataService `json:"value"`
+}
+```
 
 ---
 
@@ -2364,13 +2514,15 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 ### Types
 
-#### type `SupportedLanguage`
+#### SupportedLanguage
 
-##### Properties
-
-- `Code string`
-- `VerboseName string`
-- `Tag language.Tag`
+```go
+type SupportedLanguage struct {
+    Code string
+    VerboseName string
+    Tag language.Tag
+}
+```
 
 ### Variables and Constants
 
@@ -2386,7 +2538,7 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 ### Types
 
-#### type `ChatFunctionDefinition`
+#### ChatFunctionDefinition
 
 ##### Interface Methods
 
@@ -2395,11 +2547,13 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 - `Arguments() map[string]interface{}`
 - `Execute(args map[string]interface{}) (string, error)`
 
-#### type `ChatTools`
+#### ChatTools
 
-##### Properties
-
-- `Definitions []ChatFunctionDefinition`
+```go
+type ChatTools struct {
+    Definitions []ChatFunctionDefinition
+}
+```
 
 ##### Methods
 
@@ -2411,47 +2565,57 @@ TriggerName retrieves the name of the triggered element from the HX-Trigger-Name
 
 - `func (ChatTools) OpenAiTools() []llm.Tool`
 
-#### type `Column`
+#### Column
 
-##### Properties
+```go
+type Column struct {
+    Type string `json:"type"`
+    Nullable bool `json:"nullable"`
+    Enums []string `json:"enums"`
+    Ref *Ref `json:"ref"`
+}
+```
 
-- `Type string `json:"type"``
-- `Nullable bool `json:"nullable"``
-- `Enums []string `json:"enums"``
-- `Ref *Ref `json:"ref"``
+#### CompletionFunc
 
-#### type `CompletionFunc`
+#### DBColumn
 
-#### type `DBColumn`
+```go
+type DBColumn struct {
+    ColumnName string `db:"column_name"`
+    DataType string `db:"data_type"`
+    UdtName string `db:"udt_name"`
+    IsNullable string `db:"is_nullable"`
+}
+```
 
-##### Properties
+#### Enum
 
-- `ColumnName string `db:"column_name"``
-- `DataType string `db:"data_type"``
-- `UdtName string `db:"udt_name"``
-- `IsNullable string `db:"is_nullable"``
+```go
+type Enum struct {
+    EnumLabel string `db:"enumlabel"`
+    TypName string `db:"typname"`
+}
+```
 
-#### type `Enum`
+#### Ref
 
-##### Properties
+```go
+type Ref struct {
+    To string `json:"to"`
+    Column string `json:"column"`
+}
+```
 
-- `EnumLabel string `db:"enumlabel"``
-- `TypName string `db:"typname"``
+#### Table
 
-#### type `Ref`
-
-##### Properties
-
-- `To string `json:"to"``
-- `Column string `json:"column"``
-
-#### type `Table`
-
-##### Properties
-
-- `Name string `json:"name"``
-- `Description string `json:"description"``
-- `Columns map[string]Column `json:"columns"``
+```go
+type Table struct {
+    Name string `json:"name"`
+    Description string `json:"description"`
+    Columns map[string]Column `json:"columns"`
+}
+```
 
 ### Functions
 
@@ -2529,7 +2693,7 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 
 ### Types
 
-#### type `GenericConstructor`
+#### GenericConstructor
 
 ### Functions
 
@@ -2574,7 +2738,7 @@ Package multifs MultiHashFS combines multiple hashfs instances to serve files fr
 
 ### Types
 
-#### type `MultiHashFS`
+#### MultiHashFS
 
 ##### Methods
 
@@ -2588,13 +2752,13 @@ Package multifs MultiHashFS combines multiple hashfs instances to serve files fr
 
 ### Types
 
-#### type `Permission`
+#### Permission
 
 ##### Interface Methods
 
 - `Can(u user.User) bool`
 
-#### type `RBAC`
+#### RBAC
 
 ##### Interface Methods
 
@@ -2615,12 +2779,12 @@ Package repo provides database utility functions and interfaces for working with
 
 ### Types
 
-#### type `Expr`
+#### Expr
 
 Expr represents a comparison expression type for filtering queries.
 
 
-#### type `ExtendedFieldSet`
+#### ExtendedFieldSet
 
 ExtendedFieldSet is an interface that must be implemented to persist custom fields with a repository.
 It allows repositories to work with custom field sets by providing field names and values.
@@ -2631,29 +2795,33 @@ It allows repositories to work with custom field sets by providing field names a
 - `Fields() []string`
 - `Value(k string) interface{}`
 
-#### type `Filter`
+#### Filter
 
 Filter defines a filter condition for queries.
 Combines an expression type with a value to be used in WHERE clauses.
 
 
-##### Properties
+```go
+type Filter struct {
+    Expr Expr
+    Value any
+}
+```
 
-- `Expr Expr`
-- `Value any`
-
-#### type `SortBy`
+#### SortBy
 
 SortBy defines sorting criteria for queries with generic field type support.
 Use with OrderBy function to generate ORDER BY clauses.
 
 
-##### Properties
+```go
+type SortBy struct {
+    Fields []T
+    Ascending bool
+}
+```
 
-- `Fields []T`
-- `Ascending bool`
-
-#### type `Tx`
+#### Tx
 
 Tx is an interface that abstracts database transaction operations.
 It provides a subset of pgx.Tx functionality needed for common database operations.
@@ -2774,19 +2942,21 @@ Example usage:
 
 ### Types
 
-#### type `ContentAdapter`
+#### ContentAdapter
 
 ContentAdapter adapts scaffold.Content to support search and pagination
 
 
-##### Properties
-
-- `Config *scaffold.TableConfig`
-- `Data scaffold.TableData`
-- `Search string`
-- `Page int`
-- `TotalPages int`
-- `PageCtx *types.PageContext`
+```go
+type ContentAdapter struct {
+    Config *scaffold.TableConfig
+    Data scaffold.TableData
+    Search string
+    Page int
+    TotalPages int
+    PageCtx *types.PageContext
+}
+```
 
 ##### Methods
 
@@ -2794,15 +2964,17 @@ ContentAdapter adapts scaffold.Content to support search and pagination
   Render implements templ.Component interface
   
 
-#### type `LayoutAdapter`
+#### LayoutAdapter
 
 LayoutAdapter adapts a content component with a layout
 
 
-##### Properties
-
-- `Content templ.Component`
-- `PageCtx *types.PageContext`
+```go
+type LayoutAdapter struct {
+    Content templ.Component
+    PageCtx *types.PageContext
+}
+```
 
 ##### Methods
 
@@ -2810,18 +2982,20 @@ LayoutAdapter adapts a content component with a layout
   Render implements templ.Component interface
   
 
-#### type `TableAdapter`
+#### TableAdapter
 
 TableAdapter adapts scaffold.Table to support pagination
 
 
-##### Properties
-
-- `Config *scaffold.TableConfig`
-- `Data scaffold.TableData`
-- `Page int`
-- `TotalPages int`
-- `PageCtx *types.PageContext`
+```go
+type TableAdapter struct {
+    Config *scaffold.TableConfig
+    Data scaffold.TableData
+    Page int
+    TotalPages int
+    PageCtx *types.PageContext
+}
+```
 
 ##### Methods
 
@@ -2829,7 +3003,7 @@ TableAdapter adapts scaffold.Table to support pagination
   Render implements templ.Component interface
   
 
-#### type `TableControllerBuilder`
+#### TableControllerBuilder
 
 TableControllerBuilder helps to quickly build controllers for displaying tables
 
@@ -2850,7 +3024,7 @@ TableControllerBuilder helps to quickly build controllers for displaying tables
   WithFindParamsFunc sets a custom function for creating find parameters
   
 
-#### type `TableService`
+#### TableService
 
 TableService defines the minimal interface for table data services
 
@@ -2860,7 +3034,7 @@ TableService defines the minimal interface for table data services
 - `GetPaginated(ctx context.Context, params interface{}) ([]T, error)`
 - `Count(ctx context.Context, params interface{}) (int64, error)`
 
-#### type `TableViewModel`
+#### TableViewModel
 
 TableViewModel defines the interface for mapping entity to view model
 
@@ -2892,7 +3066,7 @@ PageWithLayout wraps content with a layout
 
 ### Types
 
-#### type `Collector`
+#### Collector
 
 ##### Methods
 
@@ -2900,16 +3074,18 @@ PageWithLayout wraps content with a layout
 
 - `func (Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) error`
 
-#### type `Config`
+#### Config
 
-##### Properties
+```go
+type Config struct {
+    MigrationsPath string
+    Logger *logrus.Logger
+    LogLevel logrus.Level
+    EmbedFSs []*embed.FS
+}
+```
 
-- `MigrationsPath string`
-- `Logger *logrus.Logger`
-- `LogLevel logrus.Level`
-- `EmbedFSs []*embed.FS`
-
-#### type `FileLoader`
+#### FileLoader
 
 ##### Methods
 
@@ -2917,15 +3093,17 @@ PageWithLayout wraps content with a layout
 
 - `func (FileLoader) LoadModuleSchema(ctx context.Context) (*common.Schema, error)`
 
-#### type `LoaderConfig`
+#### LoaderConfig
 
-##### Properties
+```go
+type LoaderConfig struct {
+    BaseDir string
+    EmbedFSs []*embed.FS
+    Logger logrus.FieldLogger
+}
+```
 
-- `BaseDir string`
-- `EmbedFSs []*embed.FS`
-- `Logger logrus.FieldLogger`
-
-#### type `SchemaLoader`
+#### SchemaLoader
 
 ##### Interface Methods
 
@@ -2947,30 +3125,34 @@ CollectSchemaChanges compares two schemas and generates both up and down change 
 
 ### Types
 
-#### type `ChangeSet`
+#### ChangeSet
 
 ChangeSet represents a collection of related schema changes
 
 
-##### Properties
+```go
+type ChangeSet struct {
+    Changes []interface{}
+    Timestamp int64
+    Version string
+    Hash string
+}
+```
 
-- `Changes []interface{}`
-- `Timestamp int64`
-- `Version string`
-- `Hash string`
-
-#### type `Schema`
+#### Schema
 
 Schema represents a database schema containing all objects
 
 
-##### Properties
+```go
+type Schema struct {
+    Tables map[string]*tree.CreateTable
+    Indexes map[string]*tree.CreateIndex
+    Columns map[string]map[string]*tree.ColumnTableDef
+}
+```
 
-- `Tables map[string]*tree.CreateTable`
-- `Indexes map[string]*tree.CreateIndex`
-- `Columns map[string]map[string]*tree.ColumnTableDef`
-
-#### type `SchemaObject`
+#### SchemaObject
 
 SchemaObject represents a generic schema object that can be different types
 from the postgresql-parser tree package
@@ -2990,21 +3172,23 @@ from the postgresql-parser tree package
 
 ### Types
 
-#### type `Base`
+#### Base
 
 ##### Interface Methods
 
 - `Error() string`
 - `Localize(l *i18n.Localizer) string`
 
-#### type `BaseError`
+#### BaseError
 
-##### Properties
-
-- `Code string `json:"code"``
-- `Message string `json:"message"``
-- `LocaleKey string `json:"locale_key,omitempty"``
-- `TemplateData map[string]string `json:"-"``
+```go
+type BaseError struct {
+    Code string `json:"code"`
+    Message string `json:"message"`
+    LocaleKey string `json:"locale_key,omitempty"`
+    TemplateData map[string]string `json:"-"`
+}
+```
 
 ##### Methods
 
@@ -3016,14 +3200,16 @@ from the postgresql-parser tree package
   WithTemplateData adds template data to the error for localization
   
 
-#### type `ValidationError`
+#### ValidationError
 
 ValidationError represents a field validation error
 
 
-##### Properties
-
-- `Field string `json:"field"``
+```go
+type ValidationError struct {
+    Field string `json:"field"`
+}
+```
 
 ##### Methods
 
@@ -3035,7 +3221,7 @@ ValidationError represents a field validation error
   WithFieldName adds the field name to the template data
   
 
-#### type `ValidationErrors`
+#### ValidationErrors
 
 ValidationErrors is a map of field names to validation errors
 
@@ -3057,14 +3243,16 @@ LocalizeValidationErrors localizes all validation errors in the map
 
 ### Types
 
-#### type `HTTPServer`
+#### HTTPServer
 
-##### Properties
-
-- `Controllers []application.Controller`
-- `Middlewares []mux.MiddlewareFunc`
-- `NotFoundHandler http.Handler`
-- `MethodNotAllowedHandler http.Handler`
+```go
+type HTTPServer struct {
+    Controllers []application.Controller
+    Middlewares []mux.MiddlewareFunc
+    NotFoundHandler http.Handler
+    MethodNotAllowedHandler http.Handler
+}
+```
 
 ##### Methods
 
@@ -3084,9 +3272,9 @@ LocalizeValidationErrors localizes all validation errors in the map
 
 ### Types
 
-#### type `DateOnly`
+#### DateOnly
 
-#### type `FormAction`
+#### FormAction
 
 ##### Methods
 
@@ -3117,7 +3305,7 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ### Types
 
-#### type `Item`
+#### Item
 
 ##### Interface Methods
 
@@ -3125,7 +3313,7 @@ Package spotlight is a package that provides a way to show a list of items in a 
 - `Localized(localizer *i18n.Localizer) string`
 - `Link() string`
 
-#### type `Spotlight`
+#### Spotlight
 
 ##### Interface Methods
 
@@ -3138,15 +3326,17 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ### Types
 
-#### type `TestFixtures`
+#### TestFixtures
 
-##### Properties
-
-- `SQLDB *sql.DB`
-- `Pool *pgxpool.Pool`
-- `Context context.Context`
-- `Tx pgx.Tx`
-- `App application.Application`
+```go
+type TestFixtures struct {
+    SQLDB *sql.DB
+    Pool *pgxpool.Pool
+    Context context.Context
+    Tx pgx.Tx
+    App application.Application
+}
+```
 
 ### Functions
 
@@ -3170,7 +3360,7 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ### Types
 
-#### type `DBSession`
+#### DBSession
 
 ##### Methods
 
@@ -3182,11 +3372,13 @@ Package spotlight is a package that provides a way to show a list of items in a 
   StoreSession stores session to memory.
   
 
-#### type `Server`
+#### Server
 
-##### Properties
-
-- `DB *sqlx.DB`
+```go
+type Server struct {
+    DB *sqlx.DB
+}
+```
 
 ##### Methods
 
@@ -3198,38 +3390,44 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ### Types
 
-#### type `NavigationItem`
+#### NavigationItem
 
-##### Properties
-
-- `Name string`
-- `Href string`
-- `Children []NavigationItem`
-- `Icon templ.Component`
-- `Permissions []*permission.Permission`
+```go
+type NavigationItem struct {
+    Name string
+    Href string
+    Children []NavigationItem
+    Icon templ.Component
+    Permissions []*permission.Permission
+}
+```
 
 ##### Methods
 
 - `func (NavigationItem) HasPermission(user user.User) bool`
 
-#### type `PageContext`
+#### PageContext
 
-##### Properties
-
-- `Locale language.Tag`
-- `URL *url.URL`
-- `Localizer *i18n.Localizer`
+```go
+type PageContext struct {
+    Locale language.Tag
+    URL *url.URL
+    Localizer *i18n.Localizer
+}
+```
 
 ##### Methods
 
 - `func (PageContext) T(k string, args ...map[string]interface{}) string`
 
-#### type `PageData`
+#### PageData
 
-##### Properties
-
-- `Title string`
-- `Description string`
+```go
+type PageData struct {
+    Title string
+    Description string
+}
+```
 
 ---
 
@@ -3237,7 +3435,7 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ### Types
 
-#### type `Connection`
+#### Connection
 
 ##### Methods
 
@@ -3259,7 +3457,7 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 - `func (Connection) UserID() uint`
 
-#### type `Connectioner`
+#### Connectioner
 
 ##### Interface Methods
 
@@ -3272,7 +3470,7 @@ Package spotlight is a package that provides a way to show a list of items in a 
 - `SetContext(key string, value any)`
 - `GetContext(key string) (any, bool)`
 
-#### type `Hub`
+#### Hub
 
 ##### Methods
 
@@ -3288,7 +3486,7 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 - `func (Hub) ServeHTTP(w http.ResponseWriter, r *http.Request)`
 
-#### type `Huber`
+#### Huber
 
 ##### Interface Methods
 
@@ -3298,14 +3496,16 @@ Package spotlight is a package that provides a way to show a list of items in a 
 - `ConnectionsInChannel(channel string) []*Connection`
 - `ConnectionsAll() []*Connection`
 
-#### type `Set`
+#### Set
 
-#### type `SubscriptionMessage`
+#### SubscriptionMessage
 
-##### Properties
-
-- `Subscribe string `json:"subscribe,omitempty"``
-- `Unsubscribe string `json:"unsubscribe,omitempty"``
+```go
+type SubscriptionMessage struct {
+    Subscribe string `json:"subscribe,omitempty"`
+    Unsubscribe string `json:"unsubscribe,omitempty"`
+}
+```
 
 ### Variables and Constants
 
@@ -3315,42 +3515,50 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ### Types
 
-#### type `Config`
+#### Config
 
-##### Properties
+```go
+type Config struct {
+    ExcludeDirs []string `yaml:"exclude-dirs"`
+    CheckZeroByteFiles bool `yaml:"check-zero-byte-files"`
+}
+```
 
-- `ExcludeDirs []string `yaml:"exclude-dirs"``
-- `CheckZeroByteFiles bool `yaml:"check-zero-byte-files"``
+#### JSONKeys
 
-#### type `JSONKeys`
+```go
+type JSONKeys struct {
+    Keys map[string]bool
+    Path string
+}
+```
 
-##### Properties
-
-- `Keys map[string]bool`
-- `Path string`
-
-#### type `KeyStore`
+#### KeyStore
 
 Add a mutex to protect our key operations
 
 
-#### type `LintError`
+#### LintError
 
-##### Properties
-
-- `File string`
-- `Line int`
-- `Message string`
+```go
+type LintError struct {
+    File string
+    Line int
+    Message string
+}
+```
 
 ##### Methods
 
 - `func (LintError) Error() string`
 
-#### type `LinterConfig`
+#### LinterConfig
 
-##### Properties
-
-- `LintersSettings struct{...} `yaml:"linters-settings"``
+```go
+type LinterConfig struct {
+    LintersSettings struct{...} `yaml:"linters-settings"`
+}
+```
 
 ### Functions
 

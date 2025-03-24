@@ -155,8 +155,7 @@ func extractStructFields(structType *ast.StructType) []string {
 
 		if field.Tag != nil {
 			tag := field.Tag.Value
-			tag = strings.Trim(tag, "`")
-			fieldStr += fmt.Sprintf(" `%s`", tag)
+			fieldStr += fmt.Sprintf(" %s", tag)
 		}
 
 		fields = append(fields, fieldStr)
