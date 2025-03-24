@@ -59,6 +59,8 @@
     /* #4A42B2 */
 
     /* Gray */
+    --gray-50: 99.73% 0.0013 286.38;
+    /* #FEFEFF */
     --gray-100: 98.03% 0.005 286.3;
     /* #F8F8FC */
     --gray-200: 96.04% 0.011 286.2;
@@ -77,7 +79,7 @@
     --red-100: var(--red-500) / 10%;
     --red-200: var(--red-500) / 20%;
     --red-300: var(--red-500) / 30%;
-    
+
     --green-500: 78.02% 0.1534 168.27;
 
     /* Sizes */
@@ -162,6 +164,7 @@
     --form-control-size-y: calc(var(--size-2) - var(--form-control-border-size) * 2);
 
     /* Surface */
+    --clr-surface-50: var(--gray-50);
     --clr-surface-100: var(--gray-100);
     --clr-surface-200: var(--black);
     --clr-surface-300: var(--white);
@@ -184,6 +187,10 @@
 
     /* Table */
     --table-radius: 0.5rem;
+
+    /* Shadows */
+    --shadow-100: 0px 4px 8px 0px rgba(0, 0, 0, 0.16);
+    --shadow-200: 0px 8px 8px 0px rgba(0, 0, 0, 0.08);
 
     /* Theme switcher */
     --clr-theme-switcher-bg: var(--gray-100);
@@ -228,7 +235,9 @@
   }
 
   html.dark {
+    color-scheme: dark;
     /* Surface */
+    --clr-surface-50: var(--black-950);
     --clr-surface-100: var(--black-950);
     --clr-surface-300: var(--black);
     --clr-surface-400: var(--black-950);
@@ -640,7 +649,7 @@
   .dialog-rtl[open] {
     animation: var(--animation-slide-in-right);
   }
-  
+
   .dialog-ltr[open] {
     animation: var(--animation-slide-in-left);
   }
