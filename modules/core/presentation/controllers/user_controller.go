@@ -193,6 +193,7 @@ func (c *UsersController) Register(r *mux.Router) {
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("/{id:[0-9]+}/permissions", c.UpdateUserPermissions).Methods(http.MethodPost)
 
 	c.realtime.Register()
 }
@@ -397,4 +398,78 @@ func (c *UsersController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *UsersController) GetUserPermissions(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	usr, err := c.userService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
+		return
+	}
+	permissions, err := c.permissionService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
+		return
+	}
+	props := &users.UserPermissionsProps{
+		User:        mappers.UserToViewModel(usr),
+		Permissions: mapping.MapViewModels(permissions, mappers.PermissionToViewModel),
+		Errors:      map[string]string{},
+	}
+	templ.Handler(users.UserPermissions(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *UsersController) UpdateUserPermissions(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+	permissionIDs := r.Form["PermissionIDs"]
+	usr, err := c.userService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
+		return
+	}
+	permissions := []*permission.Permission{}
+	for _, permID := range permissionIDs {
+		if permID == "" {
+			continue
+		}
+		perm, err := c.permissionService.GetByID(r.Context(), permID)
+		if err != nil {
+			continue
+		}
+		permissions = append(permissions, perm)
+	}
+	updatedUser := usr.SetPermissions(permissions)
+	if err := c.userService.Update(r.Context(), updatedUser); err != nil {
+		http.Error(w, "Error updating user permissions", http.StatusInternalServerError)
+		return
+	}
+	refreshedUser, err := c.userService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving updated user", http.StatusInternalServerError)
+		return
+	}
+	allPermissions, err := c.permissionService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
+		return
+	}
+	props := &users.UserPermissionsProps{
+		User:        mappers.UserToViewModel(refreshedUser),
+		Permissions: mapping.MapViewModels(allPermissions, mappers.PermissionToViewModel),
+		Errors:      map[string]string{},
+	}
+	templ.Handler(users.UserPermissions(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
