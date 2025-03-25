@@ -39,7 +39,7 @@ jobs:
 
       - name: Install templ
         run: |
-          go install github.com/a-h/templ/cmd/templ@v0.3.856
+          go install github.com/a-h/templ/cmd/templ@v0.3.857
           templ --help
 
       - name: Install TailwindCSS

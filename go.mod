@@ -8,7 +8,7 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
-	github.com/a-h/templ v0.3.856
+	github.com/a-h/templ v0.3.857
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/gabriel-vasile/mimetype v1.4.7
