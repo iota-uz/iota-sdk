@@ -21,15 +21,19 @@ import (
 )
 
 func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
-	p, err := phone.NewFromE164(dbRow.PhoneNumber)
-	if err != nil {
-		return nil, err
-	}
 
 	options := []client.Option{
 		client.WithID(dbRow.ID),
 		client.WithCreatedAt(dbRow.CreatedAt),
 		client.WithUpdatedAt(dbRow.UpdatedAt),
+	}
+
+	if dbRow.PhoneNumber != "" {
+		p, err := phone.NewFromE164(dbRow.PhoneNumber)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, client.WithPhone(p))
 	}
 
 	if dbRow.Address.Valid {
@@ -69,7 +73,6 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		dbRow.FirstName,
 		dbRow.LastName.String,
 		dbRow.MiddleName.String,
-		p,
 		options...,
 	)
 }
