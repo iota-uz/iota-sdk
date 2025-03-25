@@ -404,6 +404,9 @@ let datePicker = ({
         dateFormat: dateFormat,
         shortHand: true,
       }))
+    } else if (selectorType === 'week') {
+      let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
+      plugins.push(weekSelect())
     }
     flatpickr(this.$refs.input, {
       altInput: true,
