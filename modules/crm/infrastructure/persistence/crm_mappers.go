@@ -28,8 +28,8 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		client.WithUpdatedAt(dbRow.UpdatedAt),
 	}
 
-	if dbRow.PhoneNumber != "" {
-		p, err := phone.NewFromE164(dbRow.PhoneNumber)
+	if dbRow.PhoneNumber.Valid {
+		p, err := phone.NewFromE164(dbRow.PhoneNumber.String)
 		if err != nil {
 			return nil, err
 		}
@@ -104,12 +104,17 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		pin = mapping.ValueToSQLNullString(domainEntity.Pin().Value())
 	}
 
+	var phone sql.NullString
+	if domainEntity.Phone() != nil && domainEntity.Phone().Value() != "" {
+		phone = mapping.ValueToSQLNullString(domainEntity.Phone().Value())
+	}
+
 	return &models.Client{
 		ID:          domainEntity.ID(),
 		FirstName:   domainEntity.FirstName(),
 		LastName:    mapping.ValueToSQLNullString(domainEntity.LastName()),
 		MiddleName:  mapping.ValueToSQLNullString(domainEntity.MiddleName()),
-		PhoneNumber: domainEntity.Phone().Value(),
+		PhoneNumber: phone,
 		Address:     mapping.ValueToSQLNullString(domainEntity.Address()),
 		Email:       email,
 		DateOfBirth: mapping.PointerToSQLNullTime(domainEntity.DateOfBirth()),
