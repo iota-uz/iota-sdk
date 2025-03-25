@@ -277,7 +277,8 @@
     "Password": "Parol",
     "Login": "Kirish",
     "WelcomeBack": "Xush kelibsiz",
-    "EnterEmailAndPassword": "Tizimga kirish uchun email va parolni kiriting",
+    "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
+    "LoginWithGoogle": "Google orqali kirish",
     "OrSignInWith": "Yoki quyidagi orqali kiring",
     "Errors": {
       "PasswordInvalid": "Email yoki parol noto'g'ri",
