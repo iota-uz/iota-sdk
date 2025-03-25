@@ -676,11 +676,7 @@ span.flatpickr-weekday {
 .flatpickr-day.inRange {
   border-radius: 0;
   border-color: transparent;
-  box-shadow: -5px 0 0 var(--clr-calendar-day-bg-hover);
-}
-
-.flatpickr-day.inRange:last-of-type {
-  background-color: red;
+  box-shadow: -5px 0 0 var(--clr-calendar-day-bg-hover), 5px 0 0 var(--clr-calendar-day-bg-hover);
 }
 
 .flatpickr-day.flatpickr-disabled,
