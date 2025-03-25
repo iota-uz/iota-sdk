@@ -20,26 +20,34 @@ const (
 )
 
 type DatePickerProps struct {
-	Label        string
-	Placeholder  string
-	Mode         DatePickerMode
-	SelectorType DateSelectorType
+	Label        string           `json:"-"`
+	Placeholder  string           `json:"-"`
+	Mode         DatePickerMode   `json:"mode"`
+	SelectorType DateSelectorType `json:"selectorType"`
 	Attrs        templ.Attributes
-	DateFormat   string
-	LabelFormat  string
-	MinDate      string
-	MaxDate      string
-	Selected     []string
-	Name         string
-	EndName      string
-	StartName    string
-	Form         string
+	DateFormat   string   `json:"dateFormat"`
+	LabelFormat  string   `json:"labelFormat"`
+	MinDate      string   `json:"minDate"`
+	MaxDate      string   `json:"maxDate"`
+	Selected     []string `json:"selected"`
+	Locale       string   `json:"locale"`
+	Name         string   `json:"-"`
+	EndName      string   `json:"-"`
+	StartName    string   `json:"-"`
+	Form         string   `json:"-"`
+}
+
+func (p DatePickerProps) json(locale string) (string, error) {
+	if p.Locale == "" {
+		p.Locale = locale
+	}
+	return templ.JSONString(p)
 }
 
 templ DatePicker(props DatePickerProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	{{ selected, _ := templ.JSONString(props.Selected) }}
-	<div x-data={ fmt.Sprintf("datePicker({locale: '%s', mode: '%s', dateFormat: '%s', labelFormat: '%s', minDate: '%s', maxDate: '%s', selectorType: '%s', selected: %s})", pageCtx.Locale.String(), props.Mode, props.DateFormat, props.LabelFormat, props.MinDate, props.MaxDate, props.SelectorType, selected) }>
+	{{ args, _ := props.json(pageCtx.Locale.String()) }}
+	<div x-data={ fmt.Sprintf("datePicker(%s)", args) }>
 		@Text(&Props{
 			Label:       props.Label,
 			Placeholder: props.Placeholder,
