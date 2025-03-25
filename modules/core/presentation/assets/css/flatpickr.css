@@ -28,11 +28,11 @@
   animation: none;
   direction: ltr;
   border: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
+  min-width: 12rem;
   line-height: 24px;
   border-radius: 0.5rem;
   position: absolute;
-  width: 307.875px;
   -webkit-box-sizing: border-box;
   box-sizing: border-box;
   -ms-touch-action: manipulation;
