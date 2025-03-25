@@ -57,6 +57,7 @@ func createTestClient(t *testing.T, withPassport bool) client.Client {
 		client.WithDateOfBirth(&birthDate),
 		client.WithGender(general.Male),
 		client.WithPin(pin),
+		client.WithPhone(p),
 	}
 	if withPassport {
 		opts = append(opts, client.WithPassport(createTestPassport()))
@@ -65,7 +66,6 @@ func createTestClient(t *testing.T, withPassport bool) client.Client {
 		"John",
 		"Doe",
 		"Smith",
-		p,
 		opts...,
 	)
 	if err != nil {
@@ -198,17 +198,17 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	pin, err := tax.NewPin("98765432109876", country.Uzbekistan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	uniquePhoneClient, err := client.New(
 		"Jane",
 		"Smith",
 		"Doe",
-		p,
+		client.WithPhone(p),
 		client.WithID(0),
 		client.WithAddress("456 Oak St"),
 		client.WithEmail(email),
@@ -270,7 +270,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		
+
 		// Create a valid 14-digit PIN for Uzbekistan
 		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
 		if err != nil {
@@ -281,7 +281,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			"Client",
 			string([]byte{'A' + byte(i)}), // Client A, Client B, ...
 			"Test",
-			p,
+			client.WithPhone(p),
 			client.WithID(0),
 			client.WithAddress("Address Test"),
 			client.WithEmail(email),
@@ -373,7 +373,7 @@ func TestClientRepository_Count(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		
+
 		// Create a valid 14-digit PIN for Uzbekistan
 		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
 		if err != nil {
@@ -384,7 +384,7 @@ func TestClientRepository_Count(t *testing.T) {
 			"Count",
 			"Test",
 			string([]byte{'X' + byte(i)}),
-			p,
+			client.WithPhone(p),
 			client.WithID(0),
 			client.WithAddress("Count Test Address"),
 			client.WithEmail(email),
@@ -435,7 +435,7 @@ func TestClientRepository_GetAll(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		
+
 		// Create a valid 14-digit PIN for Uzbekistan
 		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
 		if err != nil {
@@ -446,7 +446,7 @@ func TestClientRepository_GetAll(t *testing.T) {
 			"All",
 			"Test",
 			string([]byte{'Y' + byte(i)}),
-			p,
+			client.WithPhone(p),
 			client.WithID(0),
 			client.WithAddress("GetAll Test Address"),
 			client.WithEmail(email),
@@ -533,7 +533,7 @@ func TestClientRepository_Update(t *testing.T) {
 		"John",
 		"Doe",
 		"Smith",
-		p,
+		client.WithPhone(p),
 		client.WithEmail(email),
 		client.WithAddress("123 Main St"),
 		client.WithDateOfBirth(&birthDate),
@@ -589,7 +589,7 @@ func TestClientRepository_Update(t *testing.T) {
 			"Alice",
 			"Wonder",
 			"",
-			p,
+			client.WithPhone(p),
 			client.WithEmail(email),
 			client.WithPin(pin),
 			client.WithGender(general.Female),
@@ -625,3 +625,4 @@ func TestClientRepository_Update(t *testing.T) {
 		}
 	})
 }
+
