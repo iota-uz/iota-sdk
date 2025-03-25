@@ -52,18 +52,26 @@ templ DatePicker(props DatePickerProps) {
 				<div class="contents">
 					<input
 						type="hidden"
-						name={ props.StartName }
 						x-model="selected[0]"
 						if props.Form != "" {
 							form={ props.Form }
 						}
+						if props.StartName != "" {
+							name={ props.StartName }
+						} else {
+							name={ props.Name }
+						}
 					/>
 					<input
 						type="hidden"
-						name={ props.EndName }
 						x-model="selected[1]"
 						if props.Form != "" {
 							form={ props.Form }
+						}
+						if props.EndName != "" {
+							name={ props.EndName }
+						} else {
+							name={ props.Name }
 						}
 					/>
 				</div>
