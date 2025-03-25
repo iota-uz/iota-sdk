@@ -1046,6 +1046,11 @@ span.flatpickr-weekday {
   border-color: transparent;
 }
 
+
+.flatpickr-yearSelect-year.inRange {
+  border-radius: 0;
+}
+
 .flatpickr-yearSelect-year.inRange,
 .flatpickr-yearSelect-year:hover,
 .flatpickr-yearSelect-year:focus {
@@ -1073,11 +1078,11 @@ span.flatpickr-weekday {
 }
 
 .flatpickr-yearSelect-year.startRange {
-  border-radius: 0.25rem 0 0 0.25rem;
+  border-radius: 0 0 0.25rem 0.25rem;
 }
 
-.flatpickr-yearSelect-year.endRange {
-  border-radius: 0.25rem 0 0 0.25rem;
+.flatpickr-yearSelect-year.selected:not(.startRange) {
+  border-radius: 0.25rem 0.25rem 0 0;
 }
 
 .flatpickr-yearSelect-year.startRange.endRange {
