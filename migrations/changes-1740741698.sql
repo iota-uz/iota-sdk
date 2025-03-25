@@ -19,7 +19,7 @@ CREATE TABLE clients (
 	first_name    VARCHAR(255) NOT NULL,
 	last_name     VARCHAR(255),
 	middle_name   VARCHAR(255),
-	phone_number  VARCHAR(255) NOT NULL,
+	phone_number  VARCHAR(255),
 	address       TEXT,
 	email         VARCHAR(255),
 	date_of_birth DATE,
