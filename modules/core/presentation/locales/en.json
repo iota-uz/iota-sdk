@@ -277,7 +277,8 @@
     "Password": "Password",
     "Login": "Log in",
     "WelcomeBack": "Welcome back",
-    "EnterEmailAndPassword": "Enter email and password to sign in",
+    "LoginToUse": "Log in to use IOTA ERP",
+    "LoginWithGoogle": "Log in with Google",
     "OrSignInWith": "Or sign in with...",
     "Errors": {
       "PasswordInvalid": "Email or password is invalid",
