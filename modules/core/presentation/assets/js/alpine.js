@@ -51,7 +51,6 @@ let dateFns = () => ({
   startOfWeek(factor = 0) {
     let date = new Date();
     let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
-    console.log("FIRST DAY: ", firstDay, "FACTOR: ", factor)
     date.setDate(firstDay)
     date.setHours(0, 0, 0, 0);
     return new Date(date).toISOString();
@@ -407,7 +406,11 @@ let datePicker = ({
     } else if (selectorType === 'week') {
       let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
       plugins.push(weekSelect())
+    } else if (selectorType === 'year') {
+      let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
+      plugins.push(yearSelect())
     }
+    let self = this;
     flatpickr(this.$refs.input, {
       altInput: true,
       altFormat: labelFormat,
@@ -417,17 +420,17 @@ let datePicker = ({
       maxDate: maxDate || null,
       defaultDate: selected,
       plugins,
-      onChange: (selected = []) => {
+      onChange(selected = []) {
         let isoDates = selected.map((s) => s.toISOString());
         if (!isoDates.length) return;
         if (mode === 'single') {
-          this.selected = [isoDates[0]];
+          self.selected = [isoDates[0]];
         } else if (mode === 'range') {
-          if (isoDates.length === 2) this.selected = isoDates;
+          if (isoDates.length === 2) self.selected = isoDates;
         } else {
-          this.selected = isoDates;
+          self.selected = isoDates;
         }
-      }
+      },
     });
   }
 })
