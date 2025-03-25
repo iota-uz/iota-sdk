@@ -68,6 +68,12 @@ func WithUpdatedAt(t time.Time) Option {
 	}
 }
 
+func WithPhone(phone phone.Phone) Option {
+	return func(c *client) {
+		c.phone = phone
+	}
+}
+
 // --- Interface ---
 
 type Client interface {
@@ -96,16 +102,12 @@ type Client interface {
 }
 
 func New(
-	firstName, lastName, middleName string,
-	phoneNumber phone.Phone,
-	opts ...Option,
-) (Client, error) {
+	firstName, lastName, middleName string, opts ...Option) (Client, error) {
 	c := &client{
 		id:         0,
 		firstName:  firstName,
 		lastName:   lastName,
 		middleName: middleName,
-		phone:      phoneNumber,
 		createdAt:  time.Now(),
 		updatedAt:  time.Now(),
 	}
