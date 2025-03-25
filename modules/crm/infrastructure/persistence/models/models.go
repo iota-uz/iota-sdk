@@ -10,7 +10,7 @@ type Client struct {
 	FirstName   string
 	LastName    sql.NullString
 	MiddleName  sql.NullString
-	PhoneNumber string
+	PhoneNumber sql.NullString
 	Address     sql.NullString
 	Email       sql.NullString
 	DateOfBirth sql.NullTime
