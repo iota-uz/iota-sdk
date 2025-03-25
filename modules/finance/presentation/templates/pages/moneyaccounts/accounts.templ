@@ -20,7 +20,7 @@ type IndexPageProps struct {
 templ AccountsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("Accounts.List.Name"), Key: "name"},
 				{Label: pageCtx.T("Accounts.List.Balance"), Key: "balance"},
@@ -29,19 +29,19 @@ templ AccountsTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, account := range props.Accounts {
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						{ account.Name }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ account.BalanceWithCurrency }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", account.UpdatedAt) }></span>
 						</div>
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						@button.Secondary(button.Props{
 							Fixed: true,
 							Size:  button.SizeSM,

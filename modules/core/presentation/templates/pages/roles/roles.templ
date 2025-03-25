@@ -17,7 +17,7 @@ type IndexPageProps struct {
 
 templ RolesTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Table(&base.TableProps{
+	@base.Table(base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: pageCtx.T("Roles.List.Name"), Key: "name"},
 			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
@@ -25,16 +25,16 @@ templ RolesTable(props *IndexPageProps) {
 		},
 	}) {
 		for _, role := range props.Roles {
-			@base.TableRow(&base.TableRowProps{}) {
-				@base.TableCell() {
+			@base.TableRow(base.TableRowProps{}) {
+				@base.TableCell(base.TableCellProps{}) {
 					{ role.Name }
 				}
-				@base.TableCell() {
+				@base.TableCell(base.TableCellProps{}) {
 					<div x-data="relativeformat">
 						<span x-text={ fmt.Sprintf("format('%s')", role.UpdatedAt) }></span>
 					</div>
 				}
-				@base.TableCell() {
+				@base.TableCell(base.TableCellProps{}) {
 					@button.Secondary(button.Props{
 						Fixed: true,
 						Size:  button.SizeSM,

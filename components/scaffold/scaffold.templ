@@ -17,13 +17,13 @@ import (
 // Table renders a dynamic table based on configuration and data
 templ Table(config TableConfig, data TableData) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Table(&base.TableProps{
+	@base.Table(base.TableProps{
 		Columns: toBaseTableColumns(config.Columns, pageCtx),
 	}) {
 		for _, item := range data.Items {
-			@base.TableRow(&base.TableRowProps{}) {
+			@base.TableRow(base.TableRowProps{}) {
 				for _, col := range config.Columns {
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						if col.Key == "actions" && col.Format != nil {
 							// Special handling for action buttons
 							@button.Secondary(button.Props{

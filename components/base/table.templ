@@ -14,14 +14,18 @@ type TableRowProps struct {
 	Attrs templ.Attributes
 }
 
-templ TableRow(props *TableRowProps) {
+type TableCellProps struct {
+	Attrs templ.Attributes
+}
+
+templ TableRow(props TableRowProps) {
 	<tr { props.Attrs... }>
 		{ children... }
 	</tr>
 }
 
-templ TableCell() {
-	<td class="p-4">
+templ TableCell(props TableCellProps) {
+	<td class="p-4" { props.Attrs... }>
 		{ children... }
 	</td>
 }
@@ -30,7 +34,7 @@ type TableProps struct {
 	Columns []*TableColumn
 }
 
-templ Table(props *TableProps) {
+templ Table(props TableProps) {
 	<div class="overflow-x-auto relative">
 		<table class="min-w-full rounded-b-lg table bg-surface-600 text-sm">
 			<thead>

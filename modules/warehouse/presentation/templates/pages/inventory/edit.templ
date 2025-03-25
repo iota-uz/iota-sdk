@@ -60,7 +60,7 @@ templ EditForm(props *EditPageProps) {
 				}
 			}
 			<div class="flex flex-col gap-4 table-selected">
-				@base.Table(&base.TableProps{
+				@base.Table(base.TableProps{
 					Columns: []*base.TableColumn{
 						{Label: pageCtx.T("WarehousePositions.List.Position"), Key: "title"},
 						{Label: pageCtx.T("WarehousePositions.List.Barcode"), Key: "barcode"},
@@ -69,17 +69,17 @@ templ EditForm(props *EditPageProps) {
 					},
 				}) {
 					for _, result := range props.Check.Results {
-						@base.TableRow(&base.TableRowProps{}) {
-							@base.TableCell() {
+						@base.TableRow(base.TableRowProps{}) {
+							@base.TableCell(base.TableCellProps{}) {
 								{ result.Position.Title }
 							}
-							@base.TableCell() {
+							@base.TableCell(base.TableCellProps{}) {
 								{ result.Position.Barcode }
 							}
-							@base.TableCell() {
+							@base.TableCell(base.TableCellProps{}) {
 								{ result.Position.Unit.ShortTitle }
 							}
-							@base.TableCell() {
+							@base.TableCell(base.TableCellProps{}) {
 								<span class={ templ.KV("text-red-500", result.ActualQuantity != result.ExpectedQuantity), templ.KV("text-green-600", result.ActualQuantity == result.ExpectedQuantity) }>
 									{ result.ActualQuantity } / { result.ExpectedQuantity }
 								</span>
