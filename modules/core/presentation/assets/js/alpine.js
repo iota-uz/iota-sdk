@@ -370,6 +370,7 @@ let datePicker = ({
   labelFormat = 'F j, Y',
   minDate = '',
   maxDate = '',
+  selectorType = 'day',
   selected = [],
 } = {}) => ({
   selected: [],
@@ -384,21 +385,35 @@ let datePicker = ({
     },
   },
   async init() {
+    mode = mode || 'single';
+    selectorType = selectorType || 'day';
+    labelFormat = labelFormat || 'F j, Y';
+    dateFormat = dateFormat || 'z';
+
     let {default: flatpickr} = await import("./lib/flatpickr/index.js");
     let found = this.localeMap[locale];
     if (found) {
       let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
       flatpickr.localize(localeData[found.key]);
     }
-    mode = mode || 'single';
+    let plugins = [];
+    if (selectorType === 'month') {
+      let {default: monthSelect} = await import('./lib/flatpickr/plugins/month-select.js');
+      plugins.push(monthSelect({
+        altFormat: labelFormat,
+        dateFormat: dateFormat,
+        shortHand: true,
+      }))
+    }
     flatpickr(this.$refs.input, {
       altInput: true,
-      altFormat: labelFormat || 'F j, Y',
-      dateFormat: dateFormat || 'z',
+      altFormat: labelFormat,
+      dateFormat: dateFormat,
       mode,
       minDate: minDate || null,
       maxDate: maxDate || null,
       defaultDate: selected,
+      plugins,
       onChange: (selected = []) => {
         let isoDates = selected.map((s) => s.toISOString());
         if (!isoDates.length) return;

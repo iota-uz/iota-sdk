@@ -4,6 +4,7 @@ import "fmt"
 import "github.com/iota-uz/iota-sdk/pkg/composables"
 
 type DatePickerMode string
+type DateSelectorType string
 
 const (
 	DatePickerModeSingle   = DatePickerMode("single")
@@ -11,26 +12,33 @@ const (
 	DatePickerModeRange    = DatePickerMode("range")
 )
 
+const (
+	DateSelectorTypeDay   = DateSelectorType("day")
+	DateSelectorTypeMonth = DateSelectorType("month")
+	DateSelectorTypeWeek  = DateSelectorType("week")
+)
+
 type DatePickerProps struct {
-	Label       string
-	Placeholder string
-	Mode        DatePickerMode
-	Attrs       templ.Attributes
-	DateFormat  string
-	LabelFormat string
-	MinDate     string
-	MaxDate     string
-	Selected    []string
-	Name        string
-	EndName     string
-	StartName   string
-	Form        string
+	Label        string
+	Placeholder  string
+	Mode         DatePickerMode
+	SelectorType DateSelectorType
+	Attrs        templ.Attributes
+	DateFormat   string
+	LabelFormat  string
+	MinDate      string
+	MaxDate      string
+	Selected     []string
+	Name         string
+	EndName      string
+	StartName    string
+	Form         string
 }
 
 templ DatePicker(props DatePickerProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ selected, _ := templ.JSONString(props.Selected) }}
-	<div x-data={ fmt.Sprintf("datePicker({locale: '%s', mode: '%s', dateFormat: '%s', labelFormat: '%s', minDate: '%s', maxDate: '%s', selected: %s})", pageCtx.Locale.String(), props.Mode, props.DateFormat, props.LabelFormat, props.MinDate, props.MaxDate, selected) }>
+	<div x-data={ fmt.Sprintf("datePicker({locale: '%s', mode: '%s', dateFormat: '%s', labelFormat: '%s', minDate: '%s', maxDate: '%s', selectorType: '%s', selected: %s})", pageCtx.Locale.String(), props.Mode, props.DateFormat, props.LabelFormat, props.MinDate, props.MaxDate, props.SelectorType, selected) }>
 		@Text(&Props{
 			Label:       props.Label,
 			Placeholder: props.Placeholder,
