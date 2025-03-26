@@ -20,7 +20,7 @@ type IndexPageProps struct {
 templ OrdersTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("WarehouseOrders.List.Type"), Key: "title"},
 				{Label: pageCtx.T("WarehouseOrders.List.Status"), Key: "shortTitle"},
@@ -31,25 +31,25 @@ templ OrdersTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, order := range props.Orders {
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						{ order.LocalizedType(pageCtx.Localizer) }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ order.LocalizedStatus(pageCtx.Localizer) }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ order.DistinctPositions() }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ order.TotalProducts() }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", order.CreatedAt) }></span>
 						</div>
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						@button.Secondary(button.Props{
 							Fixed: true,
 							Size:  button.SizeSM,

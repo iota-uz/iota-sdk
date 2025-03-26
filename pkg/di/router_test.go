@@ -1,4 +1,4 @@
-package scaffold
+package di
 
 import (
 	"context"
@@ -119,7 +119,7 @@ func BenchmarkDIRouter(b *testing.B) {
 	req = req.WithContext(ctx)
 
 	// Create a new handler for each run to ensure setup time is not included in the benchmark
-	handler := NewDIHandler(diTestHandler)
+	handler := NewHandler(diTestHandler)
 	handlerFunc := handler.Handler() // Pre-compute the handler function
 
 	b.ResetTimer()
@@ -140,4 +140,3 @@ func BenchmarkNonDIRouter(b *testing.B) {
 		NonDIHandler(rr, req)
 	}
 }
-

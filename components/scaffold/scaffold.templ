@@ -1,3 +1,7 @@
+// Package scaffold provides utilities for generating dynamic UI components.
+//
+// It simplifies the creation of consistent data tables and other UI elements
+// based on configuration and data, reducing boilerplate code.
 package scaffold
 
 import (
@@ -13,13 +17,13 @@ import (
 // Table renders a dynamic table based on configuration and data
 templ Table(config TableConfig, data TableData) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Table(&base.TableProps{
+	@base.Table(base.TableProps{
 		Columns: toBaseTableColumns(config.Columns, pageCtx),
 	}) {
 		for _, item := range data.Items {
-			@base.TableRow(&base.TableRowProps{}) {
+			@base.TableRow(base.TableRowProps{}) {
 				for _, col := range config.Columns {
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						if col.Key == "actions" && col.Format != nil {
 							// Special handling for action buttons
 							@button.Secondary(button.Props{
@@ -54,6 +58,7 @@ templ Content(config TableConfig, data TableData) {
 	</div>
 }
 
+// Page renders a complete authenticated page with the scaffolded content
 templ Page(config TableConfig, data TableData) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: ""},

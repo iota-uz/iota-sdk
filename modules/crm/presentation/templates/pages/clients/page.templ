@@ -3,6 +3,7 @@ package clients
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
@@ -21,13 +22,6 @@ func formatData(s string) string {
 }
 
 // ---- Utility Components ----
-templ Avatar(initials string) {
-	<div
-		class={ "w-10 h-10 rounded-lg font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar" }
-	>
-		{ initials }
-	</div>
-}
 
 //
 
@@ -318,7 +312,11 @@ templ Profile(props ProfileProps) {
 				}
 			>
 				<div class="flex items-center gap-2">
-					@Avatar(props.Client.Initials())
+					@avatar.Avatar(avatar.Props{
+						Initials: props.Client.Initials(),
+						Variant:  avatar.Square,
+						Class:    templ.Classes("w-10 h-10"),
+					})
 					<div>
 						<h3 class="font-medium">
 							{ props.Client.FullName() }

@@ -281,7 +281,8 @@
     "Password": "Пароль",
     "Login": "Войти",
     "WelcomeBack": "Добро пожаловать",
-    "EnterEmailAndPassword": "Введите адрес электронной почты и пароль для входа",
+    "LoginToUse": "Войдите, чтобы использовать IOTA ERP",
+    "LoginWithGoogle": "Войти через Google",
     "OrSignInWith": "Или войдите через...",
     "Errors": {
       "PasswordInvalid": "Неверный пароль или электронная почта",
