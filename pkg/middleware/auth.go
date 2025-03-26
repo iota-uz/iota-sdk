@@ -90,12 +90,13 @@ func ProvideUser() mux.MiddlewareFunc {
 				}
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 
-				if u.TenantID() != 0 {
-					tenant := &composables.Tenant{
-						ID: u.TenantID(),
-					}
-					ctx = composables.WithTenant(ctx, tenant)
+				tenantService := app.Service(services.TenantService{}).(*services.TenantService)
+				t, err := tenantService.GetByID(ctx, u.TenantID())
+				if err != nil {
+					next.ServeHTTP(w, r)
+					return
 				}
+				ctx = context.WithValue(ctx, constants.TenantKey, t)
 
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
