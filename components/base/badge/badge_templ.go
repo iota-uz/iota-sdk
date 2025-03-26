@@ -22,7 +22,7 @@ const (
 
 const (
 	SizeNormal = Size(iota)
-	SizeMD
+	SizeLG
 )
 
 var variants = map[variant]string{
