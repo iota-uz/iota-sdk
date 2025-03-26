@@ -26,6 +26,12 @@ func WithID(id uint) Option {
 	}
 }
 
+func WithTenantID(id uint) Option {
+	return func(u *user) {
+		u.tenantID = id
+	}
+}
+
 func WithMiddleName(middleName string) Option {
 	return func(u *user) {
 		u.middleName = middleName
@@ -105,6 +111,7 @@ func WithPhone(p phone.Phone) Option {
 
 type User interface {
 	ID() uint
+	TenantID() uint
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -147,23 +154,25 @@ func New(
 	opts ...Option,
 ) User {
 	u := &user{
-		id:         0,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: "",
-		password:   "",
-		email:      email,
-		phone:      nil,
-		avatarID:   0,
-		avatar:     nil,
-		lastIP:     "",
-		uiLanguage: uiLanguage,
-		roles:      []role.Role{},
-		groupIDs:   []uuid.UUID{},
-		lastLogin:  time.Time{},
-		lastAction: time.Time{},
-		createdAt:  time.Now(),
-		updatedAt:  time.Now(),
+		id:          0,
+		tenantID:    0,
+		firstName:   firstName,
+		lastName:    lastName,
+		middleName:  "",
+		password:    "",
+		email:       email,
+		phone:       nil,
+		avatarID:    0,
+		avatar:      nil,
+		lastIP:      "",
+		uiLanguage:  uiLanguage,
+		roles:       []role.Role{},
+		groupIDs:    []uuid.UUID{},
+		permissions: []*permission.Permission{},
+		lastLogin:   time.Time{},
+		lastAction:  time.Time{},
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
 	}
 	for _, opt := range opts {
 		opt(u)
@@ -172,27 +181,33 @@ func New(
 }
 
 type user struct {
-	id         uint
-	firstName  string
-	lastName   string
-	middleName string
-	password   string
-	email      internet.Email
-	phone      phone.Phone
-	avatarID   uint
-	avatar     upload.Upload
-	lastIP     string
-	uiLanguage UILanguage
-	roles      []role.Role
-	groupIDs   []uuid.UUID
-	lastLogin  time.Time
-	lastAction time.Time
-	createdAt  time.Time
-	updatedAt  time.Time
+	id          uint
+	tenantID    uint
+	firstName   string
+	lastName    string
+	middleName  string
+	password    string
+	email       internet.Email
+	phone       phone.Phone
+	avatarID    uint
+	avatar      upload.Upload
+	lastIP      string
+	uiLanguage  UILanguage
+	roles       []role.Role
+	groupIDs    []uuid.UUID
+	permissions []*permission.Permission
+	lastLogin   time.Time
+	lastAction  time.Time
+	createdAt   time.Time
+	updatedAt   time.Time
 }
 
 func (u *user) ID() uint {
 	return u.id
+}
+
+func (u *user) TenantID() uint {
+	return u.tenantID
 }
 
 func (u *user) FirstName() string {

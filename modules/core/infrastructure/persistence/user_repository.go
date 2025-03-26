@@ -22,6 +22,7 @@ const (
 	userFindQuery = `
         SELECT
             u.id,
+            u.tenant_id,
             u.first_name,
             u.last_name,
             u.middle_name,
@@ -67,7 +68,7 @@ const (
 	userGroupsQuery = `
 				SELECT
 					group_id
-				FROM group_users 
+				FROM group_users
 				WHERE user_id = $1
 			`
 )
@@ -365,6 +366,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	dbUser, _ := toDBUser(data)
 
 	fields := []string{
+		"tenant_id",
 		"first_name",
 		"last_name",
 		"middle_name",
@@ -378,6 +380,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	}
 
 	values := []interface{}{
+		dbUser.TenantID,
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -422,6 +425,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	dbUser, _ := toDBUser(data)
 
 	fields := []string{
+		"tenant_id",
 		"first_name",
 		"last_name",
 		"middle_name",
@@ -434,6 +438,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	}
 
 	values := []interface{}{
+		dbUser.TenantID,
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -516,6 +521,7 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 
 		if err := rows.Scan(
 			&u.ID,
+			&u.TenantID,
 			&u.FirstName,
 			&u.LastName,
 			&u.MiddleName,
