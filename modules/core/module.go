@@ -52,7 +52,7 @@ func (m *Module) Register(app application.Application) error {
 
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
-		userService,
+		services.NewUserService(userRepo, app.EventPublisher()),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
 	)
 	app.RegisterServices(
