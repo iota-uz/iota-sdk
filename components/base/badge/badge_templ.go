@@ -36,7 +36,7 @@ var variants = map[variant]string{
 
 var sizes = map[Size]string{
 	SizeNormal: "h-8",
-	SizeMD:     "h-9",
+	SizeLG:     "h-9",
 }
 
 type Props struct {
