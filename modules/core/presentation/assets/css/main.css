@@ -69,10 +69,14 @@
     /* #E5E5EC */
     --gray-400: 71.07% 0.035 256.79;
     /* #94A3B8 */
+    --gray-450: 61.4% 0.0127 252.15;
+    /* #7F858C */
     --gray-500: 89.71% 0.015 251.17;
     /* #D6DEE7 */
     --gray-600: 43.03% 0.032 234.82;
     /* #3f535f */
+    --gray-700: 29.31% 0 0;
+    /* #2c2c2c */
 
     /* Red */
     --red-500: 59.16% 0.218 0.58;
@@ -80,7 +84,23 @@
     --red-200: var(--red-500) / 20%;
     --red-300: var(--red-500) / 30%;
 
+    /* Green */
     --green-500: 78.02% 0.1534 168.27;
+    --green-600: 64.33% 0.1128 171.09;
+
+    /* Pink */
+    --pink-500: 59.16% 0.218 0.58;
+    --pink-600: 58.93% 0.2129 359.93;
+
+    /* Yellow */
+    --yellow-500: 80.13% 0.1458 73.41;
+
+    /* Blue */
+    --blue-500: 82.1% 0.099263 240.9782;
+    --blue-600: 64.12% 0.0638 240.72;
+
+    /* Purple */
+    --purple-500: 52.06% 0.2042 305.37;
 
     /* Sizes */
     --size-00: 0.25rem;
@@ -176,6 +196,11 @@
     --clr-text-100: var(--black);
     --clr-text-200: var(--gray-600);
     --clr-text-300: var(--gray-400);
+    --clr-text-green: var(--green-500);
+    --clr-text-pink: var(--pink-500);
+    --clr-text-yellow: var(--yellow-500);
+    --clr-text-blue: var(--blue-500);
+    --clr-text-purple: var(--purple-500);
 
     /* Avatar */
     --clr-avatar-bg: var(--primary-500) / 15%;
@@ -184,6 +209,11 @@
     /* Border */
     --clr-border-primary: var(--gray-500);
     --clr-border-secondary: var(--gray-100);
+    --clr-border-green: var(--green-500);
+    --clr-border-pink: var(--pink-500);
+    --clr-border-yellow: var(--yellow-500);
+    --clr-border-blue: var(--blue-500);
+    --clr-border-purple: var(--purple-500);
 
     /* Table */
     --table-radius: 0.5rem;
@@ -198,6 +228,14 @@
 
     --clr-success: var(--green-500);
     --clr-on-sucess: var(--white);
+
+    /* Badges */
+    --clr-badge-pink: var(--pink-500) / 8%;
+    --clr-badge-yellow: var(--yellow-500) / 8%;
+    --clr-badge-green: var(--green-500) / 8%;
+    --clr-badge-blue: var(--blue-500) / 8%;
+    --clr-badge-purple: var(--purple-500) / 8%;
+    --clr-badge-gray: var(--gray-100);
 
     /* Easing */
     --ease-1: cubic-bezier(.25, 0, .5, 1);
@@ -244,10 +282,19 @@
     --clr-surface-500: var(--black);
     --clr-surface-600: var(--black-950);
 
+    /* Badges */
+    --clr-badge-pink: var(--pink-600) / 8%;
+    --clr-badge-green: var(--green-600) / 8%;
+    --clr-badge-blue: var(--blue-600) / 8%;
+    --clr-badge-gray: var(--gray-700);
+
     /* Text */
     --clr-text-100: var(--white);
     --clr-text-200: var(--gray-100);
     --clr-text-300: var(--gray-300);
+    --clr-text-green: var(--green-600);
+    --clr-text-pink: var(--pink-600);
+    --clr-text-blue: var(--blue-600);
 
     /* Avatar */
     --clr-avatar-text: var(--primary-400);
@@ -255,6 +302,9 @@
     /* Border */
     --clr-border-primary: var(--black-800);
     --clr-border-secondary: var(--black-950);
+    --clr-border-green: var(--green-600);
+    --clr-border-pink: var(--pink-600);
+    --clr-border-blue: var(--blue-600);
 
     /* Secondary btn */
     --clr-secondary-btn-bg: var(--black-950);
