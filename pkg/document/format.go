@@ -1,9 +1,11 @@
 package document
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/doc"
+	"go/printer"
 	"go/token"
 	"strings"
 	"unicode"
