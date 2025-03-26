@@ -5,7 +5,7 @@
 Ensure these tools are installed before you begin:
 
 - [Go v1.23.2](https://golang.org/doc/install)
-- [Air v1.61.5](https://github.com/cosmtrek/air#Installation) - Hot-reloading
+- [Air v1.61.5](https://github.com/air-verse/air#Installation) - Hot-reloading
 - [Docker v27.2.0](https://docs.docker.com/get-docker/) - Containerization
 - [Templ v0.3.819](https://templ.guide/) - Templating
 - [TailwindCSS v3.4.13](https://tailwindcss.com/docs/installation) - Styling
@@ -17,7 +17,7 @@ Ensure these tools are installed before you begin:
 
 2. **Air**:
    ```cmd
-   go install github.com/cosmtrek/air@v1.61.5
+   go install github.com/air-verse/air@v1.61.5
    ```
    Add `%USERPROFILE%\go\bin` to your PATH
 
