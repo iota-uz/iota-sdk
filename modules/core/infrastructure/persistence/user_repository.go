@@ -589,7 +589,6 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 		} else {
 			domainUser, err = ToDomainUser(u, nil, roles, groupIDs, userPermissions)
 		}
-
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert user ID: %d to domain entity", u.ID))
 		}

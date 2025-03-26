@@ -197,7 +197,7 @@ func (c *ClientController) tabToComponent(
 			Client:    mappers.ClientToViewModel(clientEntity),
 		}), nil
 	case "chat":
-		chatEntity, err := c.chatService.GetByClientID(r.Context(), clientID)
+		chatEntity, err := c.chatService.GetByClientIDOrCreate(r.Context(), clientID)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error retrieving chat")
 		}

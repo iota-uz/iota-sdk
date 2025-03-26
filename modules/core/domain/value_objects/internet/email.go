@@ -16,6 +16,14 @@ func NewEmail(v string) (Email, error) {
 	return email(v), nil
 }
 
+func MustParseEmail(v string) Email {
+	e, err := NewEmail(v)
+	if err != nil {
+		panic(err)
+	}
+	return e
+}
+
 type email string
 
 func (e email) Value() string {

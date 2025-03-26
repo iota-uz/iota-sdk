@@ -69,7 +69,7 @@ templ CreateForm(props *CreatePageProps) {
 templ AllPositionsTable(props *CreatePageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-all">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("WarehousePositions.List.Position"), Key: "title"},
 				{Label: pageCtx.T("WarehousePositions.List.Barcode"), Key: "barcode"},
@@ -78,17 +78,17 @@ templ AllPositionsTable(props *CreatePageProps) {
 			},
 		}) {
 			for _, position := range props.Positions {
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						{ position.Title }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ position.Barcode }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ position.Unit.ShortTitle }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						@button.Secondary(
 							button.Props{
 								Size: button.SizeSM,
