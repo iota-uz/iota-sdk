@@ -174,15 +174,22 @@ func (g *PgGroupRepository) GetByID(ctx context.Context, id uuid.UUID) (group.Gr
 	return groups[0], nil
 }
 
-func (g *PgGroupRepository) Save(ctx context.Context, group group.Group) (group.Group, error) {
-	dbGroup := ToDBGroup(group)
+func (g *PgGroupRepository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return false, errors.Wrap(err, "failed to get transaction")
 	}
 
 	var exists bool
-	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1)", dbGroup.ID).Scan(&exists)
+	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1)", id.String()).Scan(&exists)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to check if group exists")
+	}
+	return exists, nil
+}
+
+func (g *PgGroupRepository) Save(ctx context.Context, group group.Group) (group.Group, error) {
+	exists, err := g.Exists(ctx, group.ID())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to check if group exists")
 	}

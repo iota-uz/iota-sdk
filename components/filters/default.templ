@@ -1,3 +1,7 @@
+// Package filters provides components for filtering and searching data.
+//
+// It includes search fields, date range filters, and pagination controls
+// that integrate with the application's form submission and data fetching.
 package filters
 
 import (
@@ -17,15 +21,20 @@ templ SearchFieldsTrigger(trigger *base.TriggerProps) {
 	</button>
 }
 
+// SearchField represents a field that can be searched on.
 type SearchField struct {
-	Label string
-	Key   string
+	Label string // Display name of the search field
+	Key   string // Field key used in the search query
 }
 
+// Props defines configuration options for the Default filter component.
 type Props struct {
-	Fields []SearchField
+	Fields []SearchField // List of fields available for searching
 }
 
+// SearchFields renders a dropdown list of available search fields.
+// For a single field, it creates a hidden select. For multiple fields,
+// it creates a combobox for selecting which field to search on.
 templ SearchFields(fields []SearchField) {
 	if len(fields) == 1 {
 		<select name="Field" class="hidden">
@@ -45,6 +54,8 @@ templ SearchFields(fields []SearchField) {
 	}
 }
 
+// Search renders a search input with field selection.
+// It includes a search icon and allows selecting which field to search on.
 templ Search(fields []SearchField) {
 	{{ 	pageCtx := composables.UsePageCtx(ctx) }}
 	@input.Text(&input.Props{
@@ -61,6 +72,7 @@ templ Search(fields []SearchField) {
 	})
 }
 
+// PageSize renders a select dropdown for choosing the number of items per page.
 templ PageSize() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Select(&base.SelectProps{
@@ -76,6 +88,8 @@ templ PageSize() {
 	}
 }
 
+// CreatedAt renders a date range filter for filtering by creation date.
+// It provides common options like today, yesterday, this week, etc.
 templ CreatedAt() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div x-data="dateFns" class="contents">
@@ -100,6 +114,8 @@ templ CreatedAt() {
 	</div>
 }
 
+// Default renders a complete filter bar with search, page size, and date filters.
+// It combines multiple filter components into a single interface.
 templ Default(props *Props) {
 	<div class="contents" x-data="dateFns">
 		@Search(props.Fields)

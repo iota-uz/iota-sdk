@@ -8,8 +8,9 @@ import (
 var (
 	favicon = "/assets/" + assets.HashFS.HashName("images/favicon.ico")
 
-	apexCss = "/assets/" + assets.HashFS.HashName("css/apexcharts.css")
-	mainCss = "/assets/" + assets.HashFS.HashName("css/main.min.css")
+	apexCss      = "/assets/" + assets.HashFS.HashName("css/apexcharts.css")
+	flatpickrCss = "/assets/" + assets.HashFS.HashName("css/flatpickr.css")
+	mainCss      = "/assets/" + assets.HashFS.HashName("css/main.min.css")
 
 	alpine      = "/assets/" + assets.HashFS.HashName("js/alpine.js")
 	htmx        = "/assets/" + assets.HashFS.HashName("js/lib/htmx.min.js")
@@ -20,8 +21,9 @@ var (
 
 templ DefaultHead() {
 	<link rel="icon" type="image/x-icon" href={ favicon }/>
-	<link rel="stylesheet" href={ mainCss }/>
 	<link rel="stylesheet" href={ apexCss }/>
+	<link rel="stylesheet" href={ flatpickrCss }/>
+	<link rel="stylesheet" href={ mainCss }/>
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Regular.woff2" as="font" type="font/woff2" crossorigin/>
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Medium.woff2" as="font" type="font/woff2" crossorigin/>
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Semibold.woff2" as="font" type="font/woff2" crossorigin/>

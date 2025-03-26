@@ -1,0 +1,100 @@
+package input
+
+import "fmt"
+import "github.com/iota-uz/iota-sdk/pkg/composables"
+
+type DatePickerMode string
+type DateSelectorType string
+
+const (
+	DatePickerModeSingle   = DatePickerMode("single")
+	DatePickerModeMultiple = DatePickerMode("multiple")
+	DatePickerModeRange    = DatePickerMode("range")
+)
+
+const (
+	DateSelectorTypeDay   = DateSelectorType("day")
+	DateSelectorTypeMonth = DateSelectorType("month")
+	DateSelectorTypeWeek  = DateSelectorType("week")
+	DateSelectorTypeYear  = DateSelectorType("year")
+)
+
+type DatePickerProps struct {
+	Label        string           `json:"-"`
+	Placeholder  string           `json:"-"`
+	Mode         DatePickerMode   `json:"mode"`
+	SelectorType DateSelectorType `json:"selectorType"`
+	Attrs        templ.Attributes
+	DateFormat   string   `json:"dateFormat"`
+	LabelFormat  string   `json:"labelFormat"`
+	MinDate      string   `json:"minDate"`
+	MaxDate      string   `json:"maxDate"`
+	Selected     []string `json:"selected"`
+	Locale       string   `json:"locale"`
+	Name         string   `json:"-"`
+	EndName      string   `json:"-"`
+	StartName    string   `json:"-"`
+	Form         string   `json:"-"`
+}
+
+func (p DatePickerProps) json(locale string) (string, error) {
+	if p.Locale == "" {
+		p.Locale = locale
+	}
+	return templ.JSONString(p)
+}
+
+templ DatePicker(props DatePickerProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ args, _ := props.json(pageCtx.Locale.String()) }}
+	<div x-data={ fmt.Sprintf("datePicker(%s)", args) }>
+		@Text(&Props{
+			Label:       props.Label,
+			Placeholder: props.Placeholder,
+			Attrs: templ.Attributes{
+				"x-ref": "input",
+			},
+		})
+		if props.Mode == DatePickerModeRange {
+			<template x-if="selected.length === 2">
+				<div class="contents">
+					<input
+						type="hidden"
+						x-model="selected[0]"
+						if props.Form != "" {
+							form={ props.Form }
+						}
+						if props.StartName != "" {
+							name={ props.StartName }
+						} else {
+							name={ props.Name }
+						}
+					/>
+					<input
+						type="hidden"
+						x-model="selected[1]"
+						if props.Form != "" {
+							form={ props.Form }
+						}
+						if props.EndName != "" {
+							name={ props.EndName }
+						} else {
+							name={ props.Name }
+						}
+					/>
+				</div>
+			</template>
+		} else {
+			<template x-for="date in selected">
+				<input
+					type="hidden"
+					name={ props.Name }
+					x-model="date"
+					if props.Form != "" {
+						form={ props.Form }
+					}
+				/>
+			</template>
+		}
+	</div>
+}

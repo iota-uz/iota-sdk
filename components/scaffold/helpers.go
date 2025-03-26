@@ -1,3 +1,7 @@
+// Package scaffold provides utilities for generating dynamic UI components.
+//
+// It simplifies the creation of consistent data tables and other UI elements
+// based on configuration and data, reducing boilerplate code.
 package scaffold
 
 import (
@@ -6,23 +10,27 @@ import (
 	"time"
 )
 
+// TableColumn defines a column in a dynamic table.
 type TableColumn struct {
-	Key    string
-	Label  string
-	Class  string
-	Width  string
-	Format func(any) string
+	Key    string            // Field key in the data source
+	Label  string            // Display label for the column header
+	Class  string            // CSS classes for the column
+	Width  string            // Width specification (e.g., "100px" or "20%")
+	Format func(any) string  // Optional formatter for cell values
 }
 
+// TableConfig holds the configuration for a dynamic table.
 type TableConfig struct {
-	Columns []TableColumn
-	Title   string
+	Columns []TableColumn  // Column definitions
+	Title   string         // Table title displayed at the top
 }
 
+// TableData contains the data to be displayed in the table.
 type TableData struct {
-	Items []map[string]any
+	Items []map[string]any  // Row items with key-value pairs
 }
 
+// NewTableConfig creates a new empty table configuration.
 func NewTableConfig() *TableConfig {
 	return &TableConfig{
 		Columns: []TableColumn{},

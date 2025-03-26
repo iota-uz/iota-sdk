@@ -41,8 +41,8 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 		pageCtx := composables.UsePageCtx(ctx)
 		rowProps.Attrs["id"] = fmt.Sprintf("user-%s", user.ID)
 	}}
-	@base.TableRow(rowProps) {
-		@base.TableCell() {
+	@base.TableRow(*rowProps) {
+		@base.TableCell(base.TableCellProps{}) {
 			<div class="flex items-center gap-3">
 				@avatar.Avatar(avatar.Props{
 					Initials: user.Initials(),
@@ -53,7 +53,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 				</span>
 			</div>
 		}
-		@base.TableCell() {
+		@base.TableCell(base.TableCellProps{}) {
 			if user.LastAction != "" {
 				<div>
 					{ user.RolesVerbose() }
@@ -62,17 +62,17 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 				{ pageCtx.T("Unknown") }
 			}
 		}
-		@base.TableCell() {
+		@base.TableCell(base.TableCellProps{}) {
 			<div>
 				{ user.Email }
 			</div>
 		}
-		@base.TableCell() {
+		@base.TableCell(base.TableCellProps{}) {
 			<div x-data="relativeformat">
 				<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt) }></span>
 			</div>
 		}
-		@base.TableCell() {
+		@base.TableCell(base.TableCellProps{}) {
 			@button.Secondary(button.Props{
 				Fixed: true,
 				Size:  button.SizeSM,
@@ -102,7 +102,7 @@ templ UserRows(props *IndexPageProps) {
 
 templ UsersTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Table(&base.TableProps{
+	@base.Table(base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: pageCtx.T("Users.List.FullName"), Key: "fullName"},
 			{Label: pageCtx.T("Users.List.Roles"), Key: "roles"},

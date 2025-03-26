@@ -20,7 +20,7 @@ type IndexPageProps struct {
 templ UnitsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("WarehouseUnits.List.Title"), Key: "title"},
 				{Label: pageCtx.T("WarehouseUnits.List.ShortTitle"), Key: "shortTitle"},
@@ -29,19 +29,19 @@ templ UnitsTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, unit := range props.Units {
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						{ unit.Title }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ unit.ShortTitle }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", unit.UpdatedAt) }></span>
 						</div>
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/units/%s", unit.ID)}) {
 							@icons.PencilSimple(icons.Props{Size: "20"})
 						}

@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/modules/core/handlers"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -50,7 +52,7 @@ func (m *Module) Register(app application.Application) error {
 
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
-		services.NewUserService(userRepo, app.EventPublisher()),
+		userService,
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
 	)
 	app.RegisterServices(
@@ -59,8 +61,17 @@ func (m *Module) Register(app application.Application) error {
 		services.NewRoleService(roleRepo, app.EventPublisher()),
 		services.NewPermissionService(permRepo, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
+		services.NewTabService(persistence.NewTabRepository()),
 		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
 	)
+
+	tabHandler := handlers.NewTabHandler(
+		app,
+		persistence.NewTabRepository(),
+		configuration.Use().Logger(),
+	)
+	tabHandler.Register(app.EventPublisher())
+
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),
 		controllers.NewLoginController(app),
