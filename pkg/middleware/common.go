@@ -44,6 +44,7 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 					"ip":         r.RemoteAddr,
 					"user-agent": r.UserAgent(),
 					"request-id": requestID,
+					"headers":    r.Header,
 				}
 
 				fieldsLogger := logger.WithFields(logFields)
