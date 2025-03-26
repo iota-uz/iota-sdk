@@ -25,10 +25,6 @@ func UseTenant(ctx context.Context) (*Tenant, error) {
 	return t, nil
 }
 
-func WithTenant(ctx context.Context, tenant *Tenant) context.Context {
-	return context.WithValue(ctx, constants.TenantKey, tenant)
-}
-
 func MustUseTenant(ctx context.Context) *Tenant {
 	t, err := UseTenant(ctx)
 	if err != nil {
