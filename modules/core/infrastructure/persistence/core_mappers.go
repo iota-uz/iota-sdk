@@ -40,6 +40,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 
 	options := []user.Option{
 		user.WithID(dbUser.ID),
+		user.WithTenantID(dbUser.TenantID),
 		user.WithMiddleName(dbUser.MiddleName.String),
 		user.WithPassword(dbUser.Password.String),
 		user.WithRoles(roles),
@@ -79,14 +80,15 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 		dbRole, _ := toDBRole(r)
 		roles[i] = dbRole
 	}
-	
+
 	var phoneValue sql.NullString
 	if entity.Phone() != nil {
 		phoneValue = mapping.ValueToSQLNullString(entity.Phone().Value())
 	}
-	
+
 	return &models.User{
 		ID:         entity.ID(),
+		TenantID:   entity.TenantID(),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
