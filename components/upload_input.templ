@@ -7,17 +7,19 @@ import (
 	"github.com/iota-uz/utils/random"
 )
 
+// UploadInputProps defines the properties for the UploadInput component.
+// It provides configuration options for the file upload interface.
 type UploadInputProps struct {
-	ID          string
-	Label       string
-	Placeholder string
-	Uploads     []*viewmodels.Upload
-	Error       string
-	Accept      string
-	Name        string
-	Form        string
-	Class       string
-	Multiple    bool
+	ID          string                // Unique identifier for the input
+	Label       string                // Text label for the upload button
+	Placeholder string                // Placeholder text shown below the button
+	Uploads     []*viewmodels.Upload  // List of already uploaded files
+	Error       string                // Error message to display
+	Accept      string                // File types to accept (e.g., "image/*")
+	Name        string                // Name attribute for the form field
+	Form        string                // ID of the form this input belongs to
+	Class       string                // Additional CSS classes
+	Multiple    bool                  // Whether multiple file uploads are allowed
 }
 
 func newUploadInput(props *UploadInputProps) *UploadInputProps {
@@ -92,6 +94,8 @@ templ (p *UploadInputProps) render() {
 	</div>
 }
 
+// UploadInput renders a file upload input with preview capability.
+// It displays existing uploads and allows selecting new files.
 templ UploadInput(props *UploadInputProps) {
 	@newUploadInput(props).render()
 }

@@ -1,3 +1,7 @@
+// Package spotlight provides a search dialog for quickly finding content.
+//
+// It implements a keyboard-accessible search interface similar to Spotlight on macOS
+// or Command Palette in VS Code, allowing users to quickly find and navigate to content.
 package spotlight
 
 import (
@@ -6,6 +10,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
+// Spotlight renders a search dialog component that can be triggered
+// with a button click or keyboard shortcut.
 templ Spotlight() {
 	<div
 		x-data="spotlight"
@@ -58,12 +64,15 @@ templ Spotlight() {
 	</div>
 }
 
+// Item represents a search result in the Spotlight component.
 type Item struct {
-	Title string
-	Icon  templ.Component
-	Link  string
+	Title string            // Title to display in the search results
+	Icon  templ.Component   // Icon to display next to the title 
+	Link  string            // URL to navigate to when the item is selected
 }
 
+// SpotlightItems renders a list of search results in the Spotlight component.
+// If no items are found, it displays a "nothing found" message.
 templ SpotlightItems(items []*Item) {
 	if len(items) > 0 {
 		for i, item := range items {

@@ -20,18 +20,18 @@ type IndexPageProps struct {
 templ TemplatesTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("MessageTemplates.List.Content"), Key: "content"},
 				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			for _, template := range props.Templates {
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						{ template.Template }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						@button.Secondary(button.Props{
 							Fixed: true,
 							Size:  button.SizeSM,

@@ -1,3 +1,7 @@
+// Package charts provides charting components for data visualization.
+//
+// It uses ApexCharts.js for client-side rendering and offers Go structures
+// to configure various chart types like line, bar, and area charts.
 package charts
 
 import "github.com/iota-uz/utils/random"
@@ -95,11 +99,15 @@ script graph(id string, options ChartOptions) {
   });
 }
 
+// Props defines the configuration options for a Chart component.
 type Props struct {
-	Class   string
-	Options ChartOptions
+	Class   string       // Additional CSS classes to apply
+	Options ChartOptions // Chart configuration options
 }
 
+// Chart renders a chart with the specified options.
+// It generates a random ID for the chart container and initializes
+// the ApexCharts library to render the chart on the client side.
 templ Chart(props Props) {
 	{{
 	id := random.String(10, random.AlphaNumericSet)

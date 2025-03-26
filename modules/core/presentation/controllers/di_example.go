@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -9,7 +10,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/scaffold"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -76,5 +76,5 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	subRouter.HandleFunc("/di-example/{id:[0-9]+}", scaffold.NewDIHandler(Handler).Handler())
+	subRouter.HandleFunc("/di-example/{id:[0-9]+}", di.NewHandler(Handler).Handler())
 }

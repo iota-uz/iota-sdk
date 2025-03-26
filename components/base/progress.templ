@@ -1,0 +1,38 @@
+package base
+
+import "fmt"
+import "math"
+
+type ProgressProps struct {
+	Value           uint
+	Target          uint
+	TargetLabel     string
+	ValueLabel      string
+	TargetLabelComp templ.Component
+	ValueLabelComp  templ.Component
+}
+
+templ Progress(p ProgressProps) {
+	<div class="flex gap-2 items-center text-sm font-medium">
+		<div class="bg-surface-100 flex-1 relative rounded-md">
+			<div class="bg-success text-on-success text-right rounded-md p-1" style={ templ.SafeCSS(fmt.Sprintf("width: %f%%", math.Min(float64(p.Value)/float64(p.Target)*100, 100))) }>
+				if p.ValueLabelComp != nil {
+					@p.ValueLabelComp
+				} else if p.ValueLabel != "" {
+					{ p.ValueLabel }
+				} else {
+					{ fmt.Sprintf("%d", p.Value) }
+				}
+			</div>
+		</div>
+		<span class="shrink-0">
+			if p.TargetLabelComp != nil {
+				@p.TargetLabelComp
+			} else if p.TargetLabel != "" {
+				{ p.TargetLabel }
+			} else {
+				{ fmt.Sprintf("%d", p.Target) }
+			}
+		</span>
+	</div>
+}

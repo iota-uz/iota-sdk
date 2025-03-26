@@ -22,7 +22,7 @@ templ ClientsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@NewClientDrawer()
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("Clients.List.FullName"), Key: "client"},
 				{Label: pageCtx.T("Clients.List.Phone"), Key: "status"},
@@ -33,8 +33,8 @@ templ ClientsTable(props *IndexPageProps) {
 				{{
 					url := fmt.Sprintf("/crm/clients?tab=profile&view=%s", client.ID)
 				}}
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						<button
 							type="button"
 							x-data
@@ -60,10 +60,10 @@ templ ClientsTable(props *IndexPageProps) {
 							</div>
 						</button>
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ client.Phone }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
 						</div>
