@@ -203,8 +203,6 @@ type user struct {
 	updatedAt   time.Time
 }
 
-var _ User = (*user)(nil)
-
 func (u *user) ID() uint {
 	return u.id
 }
