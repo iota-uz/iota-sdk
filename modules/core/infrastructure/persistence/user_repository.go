@@ -455,7 +455,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		dbUser.UpdatedAt,
 	}
 
-	if data.Password() != "" {
+	if dbUser.Password.Valid && dbUser.Password.String != "" {
 		fields = append(fields, "password")
 		values = append(values, dbUser.Password)
 	}
