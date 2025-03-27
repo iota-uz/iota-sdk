@@ -51,9 +51,6 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 	updated := u.
 		SetName(d.FirstName, d.LastName, d.MiddleName).
 		SetAvatarID(d.AvatarID).
-		SetUILanguage(lang).
-		// set to empty without hashing because an account cannot change its password and empty
-		// password is ignored by UserService.Update
-		SetPasswordUnsafe("")
+		SetUILanguage(lang)
 	return updated, nil
 }
