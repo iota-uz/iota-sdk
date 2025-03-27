@@ -135,13 +135,13 @@ func ToDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 		CreatedByID:  dbInventoryCheck.CreatedByID,
 	}
 	if dbInventoryCheck.CreatedBy != nil {
-		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil, []uuid.UUID{})
+		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil, []uuid.UUID{}, nil)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if dbInventoryCheck.FinishedBy != nil {
-		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy, nil, nil, []uuid.UUID{})
+		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy, nil, nil, []uuid.UUID{}, nil)
 		if err != nil {
 			return nil, err
 		}
