@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -51,9 +52,16 @@ const (
 	userGroupDeleteQuery = `DELETE FROM group_users WHERE user_id = $1`
 	userGroupInsertQuery = `INSERT INTO group_users (user_id, group_id) VALUES`
 
+	userPermissionDeleteQuery = `DELETE FROM user_permissions WHERE user_id = $1`
+	userPermissionInsertQuery = `INSERT INTO user_permissions (user_id, permission_id) VALUES`
+
 	userRolePermissionsQuery = `
 				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
 				FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`
+
+	userPermissionsQuery = `
+				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+				FROM user_permissions up LEFT JOIN permissions p ON up.permission_id = p.id WHERE up.user_id = $1`
 
 	userRolesQuery = `
 				SELECT
@@ -413,6 +421,10 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to update group IDs for user ID: %d", dbUser.ID))
 	}
 
+	if err := g.updateUserPermissions(ctx, dbUser.ID, data.Permissions()); err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to update permissions for user ID: %d", dbUser.ID))
+	}
+
 	return g.GetByID(ctx, dbUser.ID)
 }
 
@@ -473,6 +485,10 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		return errors.Wrap(err, fmt.Sprintf("failed to update group IDs for user ID: %d", data.ID()))
 	}
 
+	if err := g.updateUserPermissions(ctx, data.ID(), data.Permissions()); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to update permissions for user ID: %d", data.ID()))
+	}
+
 	return nil
 }
 
@@ -496,6 +512,9 @@ func (g *PgUserRepository) Delete(ctx context.Context, id uint) error {
 	}
 	if err := g.execQuery(ctx, userGroupDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete groups for user ID: %d", id))
+	}
+	if err := g.execQuery(ctx, userPermissionDeleteQuery, id); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to delete permissions for user ID: %d", id))
 	}
 	if err := g.execQuery(ctx, userDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete user with ID: %d", id))
@@ -557,6 +576,11 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get group IDs for user ID: %d", u.ID))
 		}
 
+		userPermissions, err := g.userPermissions(ctx, u.ID)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get permissions for user ID: %d", u.ID))
+		}
+
 		var avatar upload.Upload
 		if u.AvatarID.Valid {
 			avatar, err = g.uploadRepo.GetByID(ctx, uint(u.AvatarID.Int32))
@@ -567,9 +591,9 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 
 		var domainUser user.User
 		if avatar != nil {
-			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles, groupIDs)
+			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles, groupIDs, userPermissions)
 		} else {
-			domainUser, err = ToDomainUser(u, nil, roles, groupIDs)
+			domainUser, err = ToDomainUser(u, nil, roles, groupIDs, userPermissions)
 		}
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert user ID: %d to domain entity", u.ID))
@@ -696,6 +720,48 @@ func (g *PgUserRepository) userGroupIDs(ctx context.Context, userID uint) ([]uui
 	return groupIDs, nil
 }
 
+func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]*permission.Permission, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	rows, err := tx.Query(ctx, userPermissionsQuery, userID)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query permissions for user ID: %d", userID))
+	}
+	defer rows.Close()
+
+	var permissions []*models.Permission
+	for rows.Next() {
+		var p models.Permission
+		if err := rows.Scan(
+			&p.ID,
+			&p.Name,
+			&p.Resource,
+			&p.Action,
+			&p.Modifier,
+			&p.Description,
+		); err != nil {
+			return nil, errors.Wrap(err, "failed to scan permission row")
+		}
+		permissions = append(permissions, &p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "row iteration error")
+	}
+
+	domainPermissions := make([]*permission.Permission, 0, len(permissions))
+	for _, p := range permissions {
+		domainPerm, err := toDomainPermission(p)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert permission ID: %s to domain entity", p.ID))
+		}
+		domainPermissions = append(domainPermissions, domainPerm)
+	}
+	return domainPermissions, nil
+}
+
 func (g *PgUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -748,6 +814,24 @@ func (g *PgUserRepository) updateUserGroups(ctx context.Context, userID uint, gr
 	q, args := repo.BatchInsertQueryN(userGroupInsertQuery, values)
 	if err := g.execQuery(ctx, q, args...); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to insert groups for user ID: %d", userID))
+	}
+	return nil
+}
+
+func (g *PgUserRepository) updateUserPermissions(ctx context.Context, userID uint, permissions []*permission.Permission) error {
+	if err := g.execQuery(ctx, userPermissionDeleteQuery, userID); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to delete existing permissions for user ID: %d", userID))
+	}
+	if len(permissions) == 0 {
+		return nil
+	}
+	values := make([][]interface{}, 0, len(permissions))
+	for _, perm := range permissions {
+		values = append(values, []interface{}{userID, perm.ID})
+	}
+	q, args := repo.BatchInsertQueryN(userPermissionInsertQuery, values)
+	if err := g.execQuery(ctx, q, args...); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to insert permissions for user ID: %d", userID))
 	}
 	return nil
 }
