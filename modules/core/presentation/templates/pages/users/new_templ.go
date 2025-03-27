@@ -20,9 +20,10 @@ import (
 )
 
 type CreateFormProps struct {
-	User   viewmodels.User
-	Roles  []*viewmodels.Role
-	Errors map[string]string
+	User        viewmodels.User
+	Roles       []*viewmodels.Role
+	Permissions []*viewmodels.Permission
+	Errors      map[string]string
 }
 
 func CreateForm(props *CreateFormProps) templ.Component {
@@ -244,7 +245,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 110, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 111, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

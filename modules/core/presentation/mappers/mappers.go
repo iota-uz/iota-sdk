@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -18,26 +19,27 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 	if entity.Avatar() != nil {
 		avatar = UploadToViewModel(entity.Avatar())
 	}
-	
+
 	phone := ""
 	if entity.Phone() != nil {
 		phone = entity.Phone().Value()
 	}
-	
+
 	return &viewmodels.User{
-		ID:         strconv.FormatUint(uint64(entity.ID()), 10),
-		FirstName:  entity.FirstName(),
-		LastName:   entity.LastName(),
-		MiddleName: entity.MiddleName(),
-		Email:      entity.Email().Value(),
-		Phone:      phone,
-		Avatar:     avatar,
-		UILanguage: string(entity.UILanguage()),
-		LastAction: entity.LastAction().Format(time.RFC3339),
-		CreatedAt:  entity.CreatedAt().Format(time.RFC3339),
-		UpdatedAt:  entity.UpdatedAt().Format(time.RFC3339),
-		Roles:      mapping.MapViewModels(entity.Roles(), RoleToViewModel),
-		AvatarID:   strconv.Itoa(int(entity.AvatarID())),
+		ID:          strconv.FormatUint(uint64(entity.ID()), 10),
+		FirstName:   entity.FirstName(),
+		LastName:    entity.LastName(),
+		MiddleName:  entity.MiddleName(),
+		Email:       entity.Email().Value(),
+		Phone:       phone,
+		Avatar:      avatar,
+		UILanguage:  string(entity.UILanguage()),
+		LastAction:  entity.LastAction().Format(time.RFC3339),
+		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+		Roles:       mapping.MapViewModels(entity.Roles(), RoleToViewModel),
+		Permissions: mapping.MapViewModels(entity.Permissions(), PermissionToViewModel),
+		AvatarID:    strconv.Itoa(int(entity.AvatarID())),
 	}
 }
 
@@ -75,5 +77,15 @@ func RoleToViewModel(entity role.Role) *viewmodels.Role {
 		Description: entity.Description(),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+	}
+}
+
+func PermissionToViewModel(entity *permission.Permission) *viewmodels.Permission {
+	return &viewmodels.Permission{
+		ID:       entity.ID.String(),
+		Name:     entity.Name,
+		Resource: string(entity.Resource),
+		Action:   string(entity.Action),
+		Modifier: string(entity.Modifier),
 	}
 }

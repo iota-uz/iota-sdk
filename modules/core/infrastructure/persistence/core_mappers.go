@@ -27,7 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID) (user.User, error) {
+func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []*permission.Permission) (user.User, error) {
 	var avatar upload.Upload
 	if dbUpload != nil {
 		avatar = ToDomainUpload(dbUpload)
@@ -50,6 +50,10 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		user.WithLastAction(dbUser.LastAction.Time),
 		user.WithCreatedAt(dbUser.CreatedAt),
 		user.WithUpdatedAt(dbUser.UpdatedAt),
+	}
+
+	if permissions != nil {
+		options = append(options, user.WithPermissions(permissions))
 	}
 
 	if dbUpload != nil {
