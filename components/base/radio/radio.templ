@@ -53,6 +53,16 @@ type RadioItemProps struct {
 	ID        string           // HTML ID for the input (auto-generated if empty)
 }
 
+type CardProps struct {
+	Class    string
+	Name     string
+	Checked  bool
+	Disabled bool
+	Attrs    templ.Attributes
+	Value    string
+	Form     string
+}
+
 func newRadioItem(props RadioItemProps) RadioItemProps {
 	if props.ID == "" {
 		props.ID = random.String(12, random.LowerCharSet)
@@ -63,7 +73,7 @@ func newRadioItem(props RadioItemProps) RadioItemProps {
 templ (p RadioGroupProps) render() {
 	<div class="w-full" { p.WrapperProps... }>
 		if len(p.Label) > 0 {
-			<h2 class="text-base font-normal text-gray-700 mb-2">{ p.Label }</h2>
+			<h2 class="form-control-label mb-2">{ p.Label }</h2>
 		}
 		<div class={ "flex w-full gap-2", getOrientationClass(p.Orientation), p.Class } { p.Attrs... }>
 			{ children... }
@@ -79,6 +89,24 @@ templ RadioGroup(props RadioGroupProps) {
 	@props.render() {
 		{ children... }
 	}
+}
+
+templ Card(props CardProps) {
+	<label class="flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg border border-primary duration-300 has-[input:checked]:border-brand-500">
+		<input
+			type="radio"
+			name={ props.Name }
+			class="sr-only peer"
+			value={ props.Value }
+			disabled?={ props.Disabled }
+			checked?={ props.Checked }
+			{ props.Attrs... }
+		/>
+		<div class="w-5 h-5 border border-primary rounded-full druation-300 peer-checked:border-brand-500 relative after:absolute after:duration-300 after:w-3 after:h-3 after:rounded-full after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 peer-checked:after:bg-brand-500"></div>
+		<span class="text-300 peer-checked:text-100 font-medium text-sm">
+			{ children... }
+		</span>
+	</label>
 }
 
 templ (p RadioItemProps) render() {

@@ -3,7 +3,7 @@ FROM golang:1.23.2
 WORKDIR /build
 
 COPY scripts/install.sh .
-RUN chmod +x install.sh && ./install.sh && go install github.com/a-h/templ/cmd/templ@v0.3.819
+RUN chmod +x install.sh && ./install.sh && go install github.com/a-h/templ/cmd/templ@v0.3.856
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
 

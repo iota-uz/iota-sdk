@@ -19,7 +19,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -51,7 +51,6 @@ let dateFns = () => ({
   startOfWeek(factor = 0) {
     let date = new Date();
     let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
-    console.log("FIRST DAY: ", firstDay, "FACTOR: ", factor)
     date.setDate(firstDay)
     date.setHours(0, 0, 0, 0);
     return new Date(date).toISOString();
@@ -139,12 +138,12 @@ let dialog = (initialState) => ({
       });
     });
   }),
-  lightDismiss({ target: dialog }) {
+  lightDismiss({target: dialog}) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({ target: dialog }) {
+  async close({target: dialog}) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -363,6 +362,79 @@ let spotlight = () => ({
   }
 });
 
+let datePicker = ({
+  locale = 'ru',
+  mode = 'single',
+  dateFormat = 'Y-m-d',
+  labelFormat = 'F j, Y',
+  minDate = '',
+  maxDate = '',
+  selectorType = 'day',
+  selected = [],
+} = {}) => ({
+  selected: [],
+  localeMap: {
+    ru: {
+      path: '/ru.js',
+      key: 'ru'
+    },
+    uz: {
+      path: '/uz.js',
+      key: 'uz_latn'
+    },
+  },
+  async init() {
+    mode = mode || 'single';
+    selectorType = selectorType || 'day';
+    labelFormat = labelFormat || 'F j, Y';
+    dateFormat = dateFormat || 'z';
+
+    let {default: flatpickr} = await import("./lib/flatpickr/index.js");
+    let found = this.localeMap[locale];
+    if (found) {
+      let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
+      flatpickr.localize(localeData[found.key]);
+    }
+    let plugins = [];
+    if (selectorType === 'month') {
+      let {default: monthSelect} = await import('./lib/flatpickr/plugins/month-select.js');
+      plugins.push(monthSelect({
+        altFormat: labelFormat,
+        dateFormat: dateFormat,
+        shortHand: true,
+      }))
+    } else if (selectorType === 'week') {
+      let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
+      plugins.push(weekSelect())
+    } else if (selectorType === 'year') {
+      let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
+      plugins.push(yearSelect())
+    }
+    let self = this;
+    flatpickr(this.$refs.input, {
+      altInput: true,
+      altFormat: labelFormat,
+      dateFormat: dateFormat,
+      mode,
+      minDate: minDate || null,
+      maxDate: maxDate || null,
+      defaultDate: selected,
+      plugins,
+      onChange(selected = []) {
+        let isoDates = selected.map((s) => s.toISOString());
+        if (!isoDates.length) return;
+        if (mode === 'single') {
+          self.selected = [isoDates[0]];
+        } else if (mode === 'range') {
+          if (isoDates.length === 2) self.selected = isoDates;
+        } else {
+          self.selected = isoDates;
+        }
+      },
+    });
+  }
+})
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -371,4 +443,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("checkboxes", checkboxes);
   Alpine.data("spotlight", spotlight);
   Alpine.data("dateFns", dateFns);
+  Alpine.data("datePicker", datePicker);
 });

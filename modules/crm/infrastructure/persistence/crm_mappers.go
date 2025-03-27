@@ -21,15 +21,19 @@ import (
 )
 
 func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
-	p, err := phone.NewFromE164(dbRow.PhoneNumber)
-	if err != nil {
-		return nil, err
-	}
 
 	options := []client.Option{
 		client.WithID(dbRow.ID),
 		client.WithCreatedAt(dbRow.CreatedAt),
 		client.WithUpdatedAt(dbRow.UpdatedAt),
+	}
+
+	if dbRow.PhoneNumber.Valid {
+		p, err := phone.NewFromE164(dbRow.PhoneNumber.String)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, client.WithPhone(p))
 	}
 
 	if dbRow.Address.Valid {
@@ -69,7 +73,6 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		dbRow.FirstName,
 		dbRow.LastName.String,
 		dbRow.MiddleName.String,
-		p,
 		options...,
 	)
 }
@@ -101,12 +104,17 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		pin = mapping.ValueToSQLNullString(domainEntity.Pin().Value())
 	}
 
+	var phone sql.NullString
+	if domainEntity.Phone() != nil && domainEntity.Phone().Value() != "" {
+		phone = mapping.ValueToSQLNullString(domainEntity.Phone().Value())
+	}
+
 	return &models.Client{
 		ID:          domainEntity.ID(),
 		FirstName:   domainEntity.FirstName(),
 		LastName:    mapping.ValueToSQLNullString(domainEntity.LastName()),
 		MiddleName:  mapping.ValueToSQLNullString(domainEntity.MiddleName()),
-		PhoneNumber: domainEntity.Phone().Value(),
+		PhoneNumber: phone,
 		Address:     mapping.ValueToSQLNullString(domainEntity.Address()),
 		Email:       email,
 		DateOfBirth: mapping.PointerToSQLNullTime(domainEntity.DateOfBirth()),

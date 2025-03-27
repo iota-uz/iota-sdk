@@ -21,7 +21,7 @@ type IndexPageProps struct {
 templ PositionsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: "", Key: "title"},
 				{Label: pageCtx.T("WarehousePositions.List.Position"), Key: "title"},
@@ -32,27 +32,27 @@ templ PositionsTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, position := range props.Positions {
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						if len(position.Images) > 0 {
 							<img src={ position.Images[0].URL } class="w-12 h-12"/>
 						}
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ position.Title }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ position.Barcode }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ position.Unit.Title }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", position.UpdatedAt) }></span>
 						</div>
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/positions/%s", position.ID)}) {
 							@icons.PencilSimple(icons.Props{Size: "20"})
 						}

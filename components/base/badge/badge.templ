@@ -1,0 +1,97 @@
+package badge
+
+type variant int
+type Size int
+
+const (
+	variantPink = variant(iota)
+	variantYellow
+	variantGreen
+	variantBlue
+	variantPurple
+	variantGray
+)
+
+const (
+	SizeNormal = Size(iota)
+	SizeLG
+)
+
+var variants = map[variant]string{
+	variantPink:   "border-pink bg-badge-pink text-pink",
+	variantYellow: "border-yellow bg-badge-yellow text-yellow",
+	variantGreen:  "border-green bg-badge-green text-green",
+	variantBlue:   "border-blue bg-badge-blue text-blue",
+	variantPurple: "border-purple bg-badge-purple text-purple",
+	variantGray:   "border-primary bg-badge-gray text-200",
+}
+
+var sizes = map[Size]string{
+	SizeNormal: "h-8",
+	SizeLG:     "h-9",
+}
+
+type Props struct {
+	Size    Size
+	variant variant
+}
+
+templ Pink(props Props) {
+	@base(Props{
+		variant: variantPink,
+		Size:    props.Size,
+	}) {
+		{ children... }
+	}
+}
+
+templ Yellow(props Props) {
+	@base(Props{
+		variant: variantYellow,
+		Size:    props.Size,
+	}) {
+		{ children... }
+	}
+}
+
+templ Green(props Props) {
+	@base(Props{
+		variant: variantGreen,
+		Size:    props.Size,
+	}) {
+		{ children... }
+	}
+}
+
+templ Blue(props Props) {
+	@base(Props{
+		variant: variantBlue,
+		Size:    props.Size,
+	}) {
+		{ children... }
+	}
+}
+
+templ Purple(props Props) {
+	@base(Props{
+		variant: variantPurple,
+		Size:    props.Size,
+	}) {
+		{ children... }
+	}
+}
+
+templ Gray(props Props) {
+	@base(Props{
+		variant: variantGray,
+		Size:    props.Size,
+	}) {
+		{ children... }
+	}
+}
+
+templ base(props Props) {
+	<div class={ "flex items-center justify-center rounded-lg text-sm font-medium border", variants[props.variant], sizes[props.Size] }>
+		{ children... }
+	</div>
+}

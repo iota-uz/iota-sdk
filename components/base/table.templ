@@ -1,5 +1,7 @@
 package base
 
+import twmerge "github.com/Oudwins/tailwind-merge-go"
+
 type TableColumn struct {
 	Label      string
 	Key        string
@@ -14,14 +16,22 @@ type TableRowProps struct {
 	Attrs templ.Attributes
 }
 
-templ TableRow(props *TableRowProps) {
+type TableCellProps struct {
+	Classes templ.CSSClasses
+	Attrs   templ.Attributes
+}
+
+templ TableRow(props TableRowProps) {
 	<tr { props.Attrs... }>
 		{ children... }
 	</tr>
 }
 
-templ TableCell() {
-	<td class="p-4">
+templ TableCell(props TableCellProps) {
+	<td
+		class={ twmerge.Merge(templ.CSSClasses([]any{props.Classes, "p-4"}).String()) }
+		{ props.Attrs... }
+	>
 		{ children... }
 	</td>
 }
@@ -30,7 +40,7 @@ type TableProps struct {
 	Columns []*TableColumn
 }
 
-templ Table(props *TableProps) {
+templ Table(props TableProps) {
 	<div class="overflow-x-auto relative">
 		<table class="min-w-full rounded-b-lg table bg-surface-600 text-sm">
 			<thead>

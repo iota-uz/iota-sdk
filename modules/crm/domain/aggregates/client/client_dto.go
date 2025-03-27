@@ -57,17 +57,20 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (Client, error) {
-	p, err := phone.NewFromE164(d.Phone)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create options slice
 	opts := []Option{}
 
 	// Add address if provided
 	if d.Address != "" {
 		opts = append(opts, WithAddress(d.Address))
+	}
+
+	if d.Phone != "" {
+		phone, err := phone.NewFromE164(d.Phone)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, WithPhone(phone))
 	}
 
 	// Add email if provided
@@ -102,7 +105,6 @@ func (d *CreateDTO) ToEntity() (Client, error) {
 		d.FirstName,
 		d.LastName,
 		d.MiddleName,
-		p,
 		opts...,
 	)
 }
