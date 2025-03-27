@@ -18,7 +18,7 @@ type IndexPageProps struct {
 
 templ EmployeesTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Table(&base.TableProps{
+	@base.Table(base.TableProps{
 		Columns: []*base.TableColumn{
 			{Label: pageCtx.T("Employees.List.FullName"), Key: "fullname"},
 			{Label: pageCtx.T("Employees.List.Email"), Key: "email"},
@@ -27,20 +27,20 @@ templ EmployeesTable(props *IndexPageProps) {
 		},
 	}) {
 		for _, employee := range props.Employees {
-			@base.TableRow(&base.TableRowProps{}) {
-				@base.TableCell() {
+			@base.TableRow(base.TableRowProps{}) {
+				@base.TableCell(base.TableCellProps{}) {
 					{ employee.FirstName }
 					{ employee.LastName }
 				}
-				@base.TableCell() {
+				@base.TableCell(base.TableCellProps{}) {
 					{ employee.Email }
 				}
-				@base.TableCell() {
+				@base.TableCell(base.TableCellProps{}) {
 					<div x-data="relativeformat">
 						<span x-text={ fmt.Sprintf("format('%s')", employee.UpdatedAt) }></span>
 					</div>
 				}
-				@base.TableCell() {
+				@base.TableCell(base.TableCellProps{}) {
 					@button.Secondary(button.Props{
 						Fixed: true,
 						Size:  button.SizeSM,

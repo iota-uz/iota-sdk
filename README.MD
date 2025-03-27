@@ -19,26 +19,6 @@
 - [Alpine.js](https://alpinejs.dev): A lightweight JavaScript framework for reactive components.
 - [Templ](https://templ.sh): A powerful templating system for building server-rendered web applications.
 
-## 📚 Documentation
-
-You can generate code documentation for the entire project or specific directories using our document tool:
-
-```bash
-# Generate documentation for the entire project
-make docs
-
-# Or manually run with more options
-go run cmd/document/main.go -dir [directory] -output [output file] [-recursive] [-exclude "dir1,dir2"]
-```
-
-Options:
-- `-dir`: Directory to parse (defaults to current directory)
-- `-output`: Output file path (defaults to DOCUMENTATION.md)
-- `-recursive`: Process subdirectories recursively
-- `-exclude`: Comma-separated list of directories to exclude from processing
-
-This documentation is primarily intended as context for LLMs working on the IOTA-SDK project, providing structured information about the codebase's organization, types, and functions.
-
 ---  
 
 ## A Modular and Configurable ERP Solution

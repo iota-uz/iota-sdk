@@ -20,7 +20,7 @@ type IndexPageProps struct {
 templ ExpensesTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(&base.TableProps{
+		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("Expenses.List.Category"), Key: "name"},
 				{Label: pageCtx.T("Expenses.List.Amount"), Key: "amount"},
@@ -29,19 +29,19 @@ templ ExpensesTable(props *IndexPageProps) {
 			},
 		}) {
 			for _, expense := range props.Expenses {
-				@base.TableRow(&base.TableRowProps{}) {
-					@base.TableCell() {
+				@base.TableRow(base.TableRowProps{}) {
+					@base.TableCell(base.TableCellProps{}) {
 						{ expense.Category.Name }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						{ expense.AmountWithCurrency }
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						<div x-data="relativeformat">
 							<span x-text={ fmt.Sprintf("format('%s')", expense.UpdatedAt) }></span>
 						</div>
 					}
-					@base.TableCell() {
+					@base.TableCell(base.TableCellProps{}) {
 						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expenses/%s", expense.ID)}) {
 							@icons.PencilSimple(icons.Props{Size: "20"})
 						}
