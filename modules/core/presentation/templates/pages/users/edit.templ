@@ -15,9 +15,10 @@ import (
 )
 
 type EditFormProps struct {
-	User   *viewmodels.User
-	Roles  []*viewmodels.Role
-	Errors map[string]string
+	User        *viewmodels.User
+	Roles       []*viewmodels.Role
+	Permissions []*viewmodels.Permission
+	Errors      map[string]string
 }
 
 func useUploads(u *viewmodels.User) []*viewmodels.Upload {
@@ -124,6 +125,13 @@ templ EditForm(props *EditFormProps) {
 			x-data
 			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
+			<a href={ templ.SafeURL(fmt.Sprintf("/users/%s/permissions", props.User.ID)) }>
+				@button.Secondary(button.Props{
+					Size: button.SizeMD,
+				}) {
+					{ pageCtx.T("Users.Single.Permissions") }
+				}
+			</a>
 			<form
 				id="delete-form"
 				hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }

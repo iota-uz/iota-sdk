@@ -12,9 +12,10 @@ import (
 )
 
 type CreateFormProps struct {
-	User   viewmodels.User
-	Roles  []*viewmodels.Role
-	Errors map[string]string
+	User        viewmodels.User
+	Roles       []*viewmodels.Role
+	Permissions []*viewmodels.Permission
+	Errors      map[string]string
 }
 
 templ CreateForm(props *CreateFormProps) {
