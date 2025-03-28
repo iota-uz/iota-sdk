@@ -60,11 +60,6 @@ func NewLokiHook(url, appName string, cfg *LokiConfig) (*LokiHook, error) {
 
 // Fire is called when a log event is fired
 func (h *LokiHook) Fire(entry *logrus.Entry) error {
-	// Skip sending to Loki if URL is empty
-	if h.URL == "" {
-		return nil
-	}
-
 	stream := map[string]string{
 		"app": h.AppName,
 	}
@@ -130,3 +125,4 @@ func (h *LokiHook) Fire(entry *logrus.Entry) error {
 func (h *LokiHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
+
