@@ -78,10 +78,16 @@ type TwilioOptions struct {
 	PhoneNumber string `env:"TWILIO_PHONE_NUMBER"`
 }
 
+type LokiOptions struct {
+	URL     string `env:"LOKI_URL"`
+	AppName string `env:"LOKI_APP_NAME"`
+}
+
 type Configuration struct {
 	Database DatabaseOptions
 	Google   GoogleOptions
 	Twilio   TwilioOptions
+	Loki     LokiOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
@@ -162,6 +168,15 @@ func (c *Configuration) load(envFiles []string) error {
 	}
 	c.logFile = f
 	c.logger = logger
+	
+	// Add Loki hook if URL is provided
+	if c.Loki.URL != "" {
+		if err := logging.AddLokiHook(c.logger, c.Loki.URL, c.Loki.AppName); err != nil {
+			c.logger.Warnf("Failed to create Loki hook: %v", err)
+		} else {
+			c.logger.Info("Loki logging enabled")
+		}
+	}
 	c.Database.Opts = c.Database.ConnectionString()
 	if c.GoAppEnvironment == Production {
 		c.SocketAddress = fmt.Sprintf(":%d", c.ServerPort)
