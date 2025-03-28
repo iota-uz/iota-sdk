@@ -831,6 +831,10 @@
   .tabs-three-slots .tab-slider-item:nth-child(3).tab-active~.tab-slider-naver {
     @apply ms-[66.6%];
   }
+
+  .accent-color-card {
+    --color: oklch(var(--primary-500));
+  }
 }
 
 @layer utilities {
