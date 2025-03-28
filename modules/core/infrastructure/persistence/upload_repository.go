@@ -16,12 +16,12 @@ var (
 )
 
 const (
-	selectUploadQuery = `SELECT id, hash, path, name, size, type, mimetype, created_at, updated_at FROM uploads`
+	selectUploadQuery = `SELECT id, hash, path, name, size, type, mimetype, created_at, updated_at, tenant_id FROM uploads`
 
 	countUploadsQuery = `SELECT COUNT(*) FROM uploads`
 
-	insertUploadQuery = `INSERT INTO uploads (hash, path, name, size, type, mimetype, created_at, updated_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	insertUploadQuery = `INSERT INTO uploads (hash, path, name, size, type, mimetype, created_at, updated_at, tenant_id)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                          RETURNING id`
 
 	updatedUploadQuery = `UPDATE uploads
@@ -32,9 +32,9 @@ const (
                               type = $5,
                               mimetype = $6,
                               updated_at = $7
-                          WHERE id = $8`
+                          WHERE id = $8 AND tenant_id = $9`
 
-	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1`
+	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1 AND tenant_id = $2`
 )
 
 type GormUploadRepository struct{}
@@ -70,6 +70,7 @@ func (g *GormUploadRepository) queryUploads(
 			&dbUpload.Mimetype,
 			&dbUpload.CreatedAt,
 			&dbUpload.UpdatedAt,
+			&dbUpload.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -109,6 +110,12 @@ func (g *GormUploadRepository) GetPaginated(
 		where, args = append(where, fmt.Sprintf("mimetype = $%d", len(args)+1)), append(args, params.Mimetype.String())
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	where, args = append(where, fmt.Sprintf("tenant_id = $%d", len(args)+1)), append(args, tenant.ID)
+
 	return g.queryUploads(
 		ctx,
 		repo.Join(
@@ -126,8 +133,14 @@ func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	var count int64
-	if err := pool.QueryRow(ctx, countUploadsQuery).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countUploadsQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -170,7 +183,15 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 	if err != nil {
 		return nil, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	dbUpload := ToDBUpload(data)
+	dbUpload.TenantID = tenant.ID
+
 	if err := tx.QueryRow(
 		ctx,
 		insertUploadQuery,
@@ -182,6 +203,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 		dbUpload.Mimetype,
 		dbUpload.CreatedAt,
 		dbUpload.UpdatedAt,
+		dbUpload.TenantID,
 	).Scan(&dbUpload.ID); err != nil {
 		return nil, err
 	}
@@ -193,7 +215,15 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
 	dbUpload := ToDBUpload(data)
+	dbUpload.TenantID = tenant.ID
+
 	if _, err := tx.Exec(
 		ctx,
 		updatedUploadQuery,
@@ -205,6 +235,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 		dbUpload.Mimetype,
 		dbUpload.UpdatedAt,
 		dbUpload.ID,
+		dbUpload.TenantID,
 	); err != nil {
 		return err
 	}
@@ -216,7 +247,13 @@ func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, deleteUploadQuery, id); err != nil {
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, deleteUploadQuery, id, tenant.ID); err != nil {
 		return err
 	}
 	return nil
