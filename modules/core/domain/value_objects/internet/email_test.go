@@ -142,3 +142,57 @@ func TestIsValidEmail(t *testing.T) {
 		})
 	}
 }
+
+func TestEmailDomain(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "gmail.com domain from email",
+			value: "test@gmail.com",
+			want:  "gmail.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			email, err := internet.NewEmail(tt.value)
+			if err != nil {
+				t.Errorf("NewEmail() unexpected error = %v", err)
+				return
+			}
+			if got := email.Domain(); got != tt.want {
+				t.Errorf("Email.Domain() = %v, want = %v", email.Domain(), tt.want)
+			}
+		})
+	}
+}
+
+func TestEmailUsername(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "test@gmail.com username equals to test",
+			value: "test@gmail.com",
+			want:  "test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			email, err := internet.NewEmail(tt.value)
+			if err != nil {
+				t.Errorf("NewEmail() unexpected error = %v", err)
+				return
+			}
+			if got := email.Username(); got != tt.want {
+				t.Errorf("Email.Username() = %v, want = %v", email.Username(), tt.want)
+			}
+		})
+	}
+}
