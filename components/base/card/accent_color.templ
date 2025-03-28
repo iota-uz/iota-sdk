@@ -1,0 +1,34 @@
+package card
+
+import "fmt"
+
+type AccentColorProps struct {
+	Name    string
+	Value   string
+	Color   string
+	Form    string
+	Checked bool
+}
+
+templ AccentColor(props AccentColorProps) {
+	<label class="accent-color-card cursor-pointer rounded-xl border border-primary max-w-xs flex flex-col items-center gap-3 p-3 pb-4 duration-300 has-[input:checked]:border-[var(--color)]" style={ templ.SafeCSS(fmt.Sprintf("--color: %s", props.Color)) }>
+		<input
+			type="radio"
+			name={ props.Name }
+			class="peer appearance-none absolute"
+			value={ props.Name }
+			checked?={ props.Checked }
+			if props.Form != "" {
+				form={ props.Form }
+			}
+		/>
+		<div class="rounded-xl border-2 border-primary flex items-center justify-center p-4 bg-surface-100 w-full duration-300 text-300 peer-checked:text-[var(--color)]">
+			@icon()
+		</div>
+		<div class="w-4 h-4 rounded-full bg-[var(--color)] relative outline outline-offset-2 outline-border-primary duration-300 peer-checked:outline-[var(--color)]"></div>
+	</label>
+}
+
+templ icon() {
+	<svg xmlns="http://www.w3.org/2000/svg" width="68" height="60" fill="none"><rect width="8" height="44" y="16" fill="currentColor" rx="4"></rect><rect width="8" height="60" x="20" fill="currentColor" rx="4"></rect><rect width="8" height="44" x="40" y="16" fill="currentColor" rx="4"></rect><rect width="8" height="60" x="60" fill="currentColor" rx="4"></rect></svg>
+}
