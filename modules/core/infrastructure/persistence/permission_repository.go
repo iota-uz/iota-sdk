@@ -18,12 +18,12 @@ var (
 )
 
 const (
-	permissionsSelectQuery = `SELECT id, name, resource, action, modifier, description FROM permissions`
+	permissionsSelectQuery = `SELECT id, name, resource, action, modifier, description, tenant_id FROM permissions`
 	permissionsCountQuery  = `SELECT COUNT(*) FROM permissions`
 	permissionsInsertQuery = `
-		INSERT INTO permissions (id, name, resource, action, modifier, description)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (name) DO UPDATE SET resource = permissions.resource
+		INSERT INTO permissions (id, name, resource, action, modifier, description, tenant_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (tenant_id, name) DO UPDATE SET resource = permissions.resource
 		RETURNING id`
 	permissionsUpdateQuery = `
 		UPDATE permissions
@@ -118,6 +118,7 @@ func (g *GormPermissionRepository) Save(ctx context.Context, data *permission.Pe
 		dbPerm.Action,
 		dbPerm.Modifier,
 		dbPerm.Description,
+		dbPerm.TenantID,
 	).Scan(&data.ID); err != nil {
 		return err
 	}
@@ -159,6 +160,7 @@ func (g *GormPermissionRepository) queryPermissions(
 			&p.Action,
 			&p.Modifier,
 			&p.Description,
+			&p.TenantID,
 		); err != nil {
 			return nil, err
 		}

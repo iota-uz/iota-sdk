@@ -16,9 +16,9 @@ var (
 )
 
 const (
-	selectTabsQuery     = `SELECT id, href, user_id, position FROM tabs`
+	selectTabsQuery     = `SELECT id, href, user_id, position, tenant_id FROM tabs`
 	countTabsQuery      = `SELECT COUNT(*) as count FROM tabs`
-	insertTabsQuery     = `INSERT INTO tabs (href, user_id, position) VALUES ($1, $2, $3) RETURNING id`
+	insertTabsQuery     = `INSERT INTO tabs (href, user_id, position, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
 	updateTabsQuery     = `UPDATE tabs SET href = $1, position = $2 WHERE id = $3`
 	deleteTabsQuery     = `DELETE FROM tabs WHERE id = $1`
 	deleteUserTabsQuery = `DELETE FROM tabs WHERE user_id = $1`
@@ -50,6 +50,7 @@ func (g *tabRepository) queryTabs(ctx context.Context, query string, args ...int
 			&tab.Href,
 			&tab.UserID,
 			&tab.Position,
+			&tab.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -123,6 +124,7 @@ func (g *tabRepository) Create(ctx context.Context, data *tab.Tab) error {
 		tab.Href,
 		tab.UserID,
 		tab.Position,
+		tab.TenantID,
 	).Scan(&data.ID); err != nil {
 		return err
 	}
@@ -142,6 +144,7 @@ func (g *tabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) error {
 			tab.Href,
 			tab.UserID,
 			tab.Position,
+			tab.TenantID,
 		).Scan(&data.ID); err != nil {
 			return err
 		}
