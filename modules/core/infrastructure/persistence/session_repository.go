@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+
+	"github.com/go-faster/errors"
 )
 
 var (
@@ -16,7 +17,7 @@ var (
 )
 
 const (
-	sessionFindQuery   = `SELECT token, user_id, expires_at, ip, user_agent, created_at FROM sessions`
+	sessionFindQuery   = `SELECT token, user_id, expires_at, ip, user_agent, created_at, tenant_id FROM sessions`
 	sessionCountQuery  = `SELECT COUNT(*) as count FROM sessions`
 	sessionInsertQuery = `
         INSERT INTO sessions (
@@ -25,16 +26,17 @@ const (
             expires_at,
             ip,
             user_agent,
-            created_at
+            created_at,
+            tenant_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6)`
+        VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	sessionUpdateQuery = `
         UPDATE sessions
         SET expires_at = $1,
             ip = $2,
             user_agent = $3
-        WHERE token = $4`
-	sessionDeleteQuery = `DELETE FROM sessions WHERE token = $1`
+        WHERE token = $4 AND tenant_id = $5`
+	sessionDeleteQuery = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
 )
 
 type GormSessionRepository struct{}
@@ -64,6 +66,13 @@ func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *sessio
 		args = append(args, params.Token)
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	where = append(where, fmt.Sprintf("tenant_id = $%d", len(args)+1))
+	args = append(args, tenant.ID)
+
 	return g.querySessions(
 		ctx,
 		repo.Join(
@@ -81,19 +90,35 @@ func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	var count int64
-	if err := tx.QueryRow(ctx, sessionCountQuery).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, sessionCountQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
-	return g.querySessions(ctx, sessionFindQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return g.querySessions(ctx, sessionFindQuery+" WHERE tenant_id = $1", tenant.ID)
 }
 
 func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
-	sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1"), token)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1 AND tenant_id = $2"), token, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get session by token")
 	}
@@ -104,7 +129,14 @@ func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*
 }
 
 func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
 	dbSession := toDBSession(data)
+	dbSession.TenantID = tenant.ID
+
 	return g.execQuery(
 		ctx,
 		sessionInsertQuery,
@@ -114,11 +146,19 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 		dbSession.IP,
 		dbSession.UserAgent,
 		dbSession.CreatedAt,
+		dbSession.TenantID,
 	)
 }
 
 func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
 	dbSession := toDBSession(data)
+	dbSession.TenantID = tenant.ID
+
 	return g.execQuery(
 		ctx,
 		sessionUpdateQuery,
@@ -126,11 +166,16 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 		dbSession.IP,
 		dbSession.UserAgent,
 		dbSession.Token,
+		dbSession.TenantID,
 	)
 }
 
 func (g *GormSessionRepository) Delete(ctx context.Context, token string) error {
-	return g.execQuery(ctx, sessionDeleteQuery, token)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+	return g.execQuery(ctx, sessionDeleteQuery, token, tenant.ID)
 }
 
 func (g *GormSessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]*session.Session, error) {
@@ -155,6 +200,7 @@ func (g *GormSessionRepository) querySessions(ctx context.Context, query string,
 			&sessionRow.IP,
 			&sessionRow.UserAgent,
 			&sessionRow.CreatedAt,
+			&sessionRow.TenantID,
 		); err != nil {
 			return nil, err
 		}
