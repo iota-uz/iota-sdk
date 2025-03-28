@@ -22,7 +22,8 @@ const (
 			r.name,
 			r.description,
 			r.created_at,
-			r.updated_at
+			r.updated_at,
+			r.tenant_id
 		FROM roles r`
 	rolePermissionsQuery = `
 		SELECT
@@ -35,7 +36,7 @@ const (
 			rp.role_id
 		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
 	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles`
-	roleInsertQuery            = `INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id`
+	roleInsertQuery            = `INSERT INTO roles (name, description, tenant_id) VALUES ($1, $2, $3) RETURNING id`
 	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4`
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
@@ -122,6 +123,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 		roleInsertQuery,
 		entity.Name,
 		entity.Description,
+		entity.TenantID,
 	).Scan(&id); err != nil {
 		return nil, err
 	}
@@ -231,6 +233,7 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 			&r.Description,
 			&r.CreatedAt,
 			&r.UpdatedAt,
+			&r.TenantID,
 		); err != nil {
 			return nil, err
 		}
