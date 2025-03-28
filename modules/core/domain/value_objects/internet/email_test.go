@@ -158,7 +158,7 @@ func TestEmailDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			email, err := internet.NewEmail(tt.name)
+			email, err := internet.NewEmail(tt.value)
 			if err != nil {
 				t.Errorf("NewEmail() unexpected error = %v", err)
 				return
@@ -185,7 +185,7 @@ func TestEmailUsername(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			email, err := internet.NewEmail(tt.name)
+			email, err := internet.NewEmail(tt.value)
 			if err != nil {
 				t.Errorf("NewEmail() unexpected error = %v", err)
 				return
