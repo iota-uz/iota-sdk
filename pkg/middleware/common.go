@@ -36,6 +36,14 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 				start := time.Now()
 				requestID := uuid.New().String()
 
+				// Convert headers to single values instead of arrays
+				headers := make(map[string]string)
+				for key, values := range r.Header {
+					if len(values) > 0 {
+						headers[key] = values[0]
+					}
+				}
+
 				logFields := logrus.Fields{
 					"timestamp":  start.Format(time.RFC3339),
 					"path":       r.RequestURI,
@@ -44,7 +52,7 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 					"ip":         r.RemoteAddr,
 					"user-agent": r.UserAgent(),
 					"request-id": requestID,
-					"headers":    r.Header,
+					"headers":    headers,
 				}
 
 				fieldsLogger := logger.WithFields(logFields)
