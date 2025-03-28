@@ -18,7 +18,7 @@ var (
 
 const (
 	selectPassportQuery = `
-		SELECT 
+		SELECT
 			id,
 			first_name,
 			last_name,
@@ -39,7 +39,8 @@ const (
 			signature_image,
 			remarks,
 			created_at,
-			updated_at
+			updated_at,
+			tenant_id
 		FROM passports
 	`
 	insertPassportQuery = `
@@ -62,19 +63,20 @@ const (
 			machine_readable_zone,
 			biometric_data,
 			signature_image,
-			remarks
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) 
-		ON CONFLICT (passport_number, series) DO UPDATE SET
+			remarks,
+			tenant_id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		ON CONFLICT (tenant_id, passport_number, series) DO UPDATE SET
 			first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), passports.first_name),
 			last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), passports.last_name),
 			middle_name = COALESCE(NULLIF(EXCLUDED.middle_name, ''), passports.middle_name)
 		RETURNING id
 	`
 	updatePassportQuery = `
-		UPDATE passports 
+		UPDATE passports
 		SET first_name = $1,
-			last_name = $2, 
-			middle_name = $3, 
+			last_name = $2,
+			middle_name = $3,
 			gender = $4,
 			birth_date = $5,
 			birth_place = $6,
@@ -140,6 +142,7 @@ func (r *PassportRepository) queryPassports(ctx context.Context, query string, a
 			&p.Remarks,
 			&p.CreatedAt,
 			&p.UpdatedAt,
+			&p.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -169,8 +172,14 @@ func (r *PassportRepository) exists(ctx context.Context, id string) (bool, error
 		return false, err
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return false, err
+	}
+
 	var exists bool
-	err = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM passports WHERE id = $1)", id).Scan(&exists)
+	err = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM passports WHERE id = $1 AND tenant_id = $2)",
+		id, tenant.ID).Scan(&exists)
 	if err != nil {
 		return false, err
 	}
@@ -198,10 +207,17 @@ func (r *PassportRepository) Create(ctx context.Context, data passport.Passport)
 		return nil, err
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	dbRow, err := ToDBPassport(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert passport to db model: %w", err)
 	}
+
+	dbRow.TenantID = tenant.ID
 
 	var id string
 	err = pool.QueryRow(
@@ -226,6 +242,7 @@ func (r *PassportRepository) Create(ctx context.Context, data passport.Passport)
 		dbRow.BiometricData,
 		dbRow.SignatureImage,
 		dbRow.Remarks,
+		dbRow.TenantID,
 	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create passport: %w", err)
@@ -235,7 +252,13 @@ func (r *PassportRepository) Create(ctx context.Context, data passport.Passport)
 }
 
 func (r *PassportRepository) GetByID(ctx context.Context, id uuid.UUID) (passport.Passport, error) {
-	passports, err := r.queryPassports(ctx, selectPassportQuery+" WHERE id = $1", id.String())
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	passports, err := r.queryPassports(ctx, selectPassportQuery+" WHERE id = $1 AND tenant_id = $2",
+		id.String(), tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +269,13 @@ func (r *PassportRepository) GetByID(ctx context.Context, id uuid.UUID) (passpor
 }
 
 func (r *PassportRepository) GetByPassportNumber(ctx context.Context, series, number string) (passport.Passport, error) {
-	passports, err := r.queryPassports(ctx, selectPassportQuery+" WHERE series = $1 AND passport_number = $2", series, number)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	passports, err := r.queryPassports(ctx, selectPassportQuery+" WHERE series = $1 AND passport_number = $2 AND tenant_id = $3",
+		series, number, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +333,12 @@ func (r *PassportRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	_, err = pool.Exec(ctx, deletePassportQuery, id.String())
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = pool.Exec(ctx, deletePassportQuery+" AND tenant_id = $2", id.String(), tenant.ID)
 	if err != nil {
 		return fmt.Errorf("failed to delete passport: %w", err)
 	}
