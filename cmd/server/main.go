@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/logging"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
@@ -31,6 +32,18 @@ func main() {
 
 	conf := configuration.Use()
 	logger := conf.Logger()
+
+	// Set up OpenTelemetry if enabled
+	var tracingCleanup func()
+	if conf.OpenTelemetry.Enabled {
+		tracingCleanup = logging.SetupTracing(
+			context.Background(),
+			conf.OpenTelemetry.ServiceName,
+			conf.OpenTelemetry.TempoEndpoint,
+		)
+		defer tracingCleanup()
+		logger.Info("OpenTelemetry tracing enabled, exporting to Tempo at " + conf.OpenTelemetry.TempoEndpoint)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
