@@ -80,7 +80,7 @@ type TwilioOptions struct {
 
 type LokiOptions struct {
 	URL     string `env:"LOKI_URL"`
-	AppName string `env:"LOKI_APP_NAME"`
+	AppName string `env:"LOKI_APP_NAME" envDefault:"sdk"`
 	LogPath string `env:"LOG_PATH" envDefault:"./logs/app.log"`
 }
 

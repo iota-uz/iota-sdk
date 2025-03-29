@@ -61,7 +61,7 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 			func(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
 				logFields := logrus.Fields{
-					"timestamp":  start.Unix(),
+					"timestamp":  start.UnixNano(),
 					"path":       r.RequestURI,
 					"method":     r.Method,
 					"host":       r.Host,

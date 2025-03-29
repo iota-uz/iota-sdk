@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -183,27 +184,38 @@ func processLogFile(lokiURL, appName, logPath string) {
 }
 
 func sendBatchToLoki(client *http.Client, lokiURL, appName string, batch []map[string]interface{}) error {
-	stream := LokiStream{
-		Stream: map[string]string{
-			"app": appName,
-		},
-		Values: make([][2]string, 0, len(batch)),
-	}
+	streamsByLabels := make(map[string]*LokiStream)
+	fmt.Println("appName", appName)
 
 	for _, logEntry := range batch {
-		var timestamp int64
-		if ts, ok := logEntry["timestamp"].(int64); ok {
-			timestamp = ts
-		} else {
-			timestamp = time.Now().UnixNano()
+		labels := map[string]string{
+			"app": appName,
 		}
 
 		if level, ok := logEntry["level"].(string); ok {
-			stream.Stream["level"] = level
+			labels["level"] = level
 		}
 
 		if requestID, ok := logEntry["request-id"].(string); ok {
-			stream.Stream["request_id"] = requestID
+			labels["request_id"] = requestID
+		}
+
+		labelKey := createLabelKey(labels)
+
+		stream, ok := streamsByLabels[labelKey]
+		if !ok {
+			stream = &LokiStream{
+				Stream: labels,
+				Values: make([][2]string, 0),
+			}
+			streamsByLabels[labelKey] = stream
+		}
+
+		var timestamp int64
+		if ts, ok := logEntry["timestamp"].(float64); ok {
+			timestamp = int64(ts)
+		} else {
+			timestamp = time.Now().UnixNano()
 		}
 
 		jsonData, err := json.Marshal(logEntry)
@@ -218,8 +230,13 @@ func sendBatchToLoki(client *http.Client, lokiURL, appName string, batch []map[s
 		})
 	}
 
+	streams := make([]LokiStream, 0, len(streamsByLabels))
+	for _, stream := range streamsByLabels {
+		streams = append(streams, *stream)
+	}
+
 	push := LokiPush{
-		Streams: []LokiStream{stream},
+		Streams: streams,
 	}
 
 	buf, err := json.Marshal(push)
@@ -251,3 +268,22 @@ func sendBatchToLoki(client *http.Client, lokiURL, appName string, batch []map[s
 	return nil
 }
 
+func createLabelKey(labels map[string]string) string {
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString(k)
+		b.WriteString("=")
+		b.WriteString(labels[k])
+	}
+
+	return b.String()
+}
