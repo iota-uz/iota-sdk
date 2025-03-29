@@ -30,35 +30,45 @@ type (
 	GenericConstructor func(r *http.Request, w http.ResponseWriter) interface{}
 )
 
+func getRealIP(r *http.Request, conf *configuration.Configuration) string {
+	if len(r.Header.Get(conf.RealIPHeader)) > 0 {
+		return r.Header.Get(conf.RealIPHeader)
+	}
+	return r.RemoteAddr
+}
+
+func getRequestID(r *http.Request, conf *configuration.Configuration) string {
+	if len(r.Header.Get(conf.RequestIDHeader)) > 0 {
+		return r.Header.Get(conf.RequestIDHeader)
+	}
+	return uuid.New().String()
+}
+
+func getHeaders(r *http.Request) map[string]string {
+	headers := make(map[string]string)
+	for key, values := range r.Header {
+		if len(values) > 0 {
+			headers[key] = values[0]
+		}
+	}
+	return headers
+}
+
 func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 	conf := configuration.Use()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
-				var requestID string
-				if len(r.Header.Get(conf.RequestIDHeader)) > 0 {
-					requestID = r.Header.Get(conf.RequestIDHeader)
-				} else {
-					requestID = uuid.New().String()
-				}
-
-				headers := make(map[string]string)
-				for key, values := range r.Header {
-					if len(values) > 0 {
-						headers[key] = values[0]
-					}
-				}
-
 				logFields := logrus.Fields{
-					"timestamp":  start.Format(time.RFC3339),
+					"timestamp":  start.Unix(),
 					"path":       r.RequestURI,
 					"method":     r.Method,
 					"host":       r.Host,
-					"ip":         r.RemoteAddr,
+					"ip":         getRealIP(r, conf),
 					"user-agent": r.UserAgent(),
-					"request-id": requestID,
-					"headers":    headers,
+					"request-id": getRequestID(r, conf),
+					"headers":    getHeaders(r),
 				}
 
 				fieldsLogger := logger.WithFields(logFields)

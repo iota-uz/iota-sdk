@@ -104,6 +104,8 @@ type Configuration struct {
 	LogLevel         string        `env:"LOG_LEVEL" envDefault:"error"`
 	// SDK will look for this header in the request, if it's not present, it will generate a random uuidv4
 	RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
+	// SDK will look for this header in the request, if it's not present, it will use request.RemoteAddr
+	RealIPHeader string `env:"REAL_IP_HEADER" envDefault:"X-Real-IP"`
 	// Session ID cookie key
 	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
