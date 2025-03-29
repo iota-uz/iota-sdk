@@ -102,6 +102,8 @@ type Configuration struct {
 	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
 	LogLevel         string        `env:"LOG_LEVEL" envDefault:"error"`
+	// SDK will look for this header in the request, if it's not present, it will generate a random uuidv4
+	RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
 	// Session ID cookie key
 	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`

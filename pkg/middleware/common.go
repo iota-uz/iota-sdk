@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -30,13 +31,18 @@ type (
 )
 
 func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
+	conf := configuration.Use()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
-				requestID := uuid.New().String()
+				var requestID string
+				if len(r.Header.Get(conf.RequestIDHeader)) > 0 {
+					requestID = r.Header.Get(conf.RequestIDHeader)
+				} else {
+					requestID = uuid.New().String()
+				}
 
-				// Convert headers to single values instead of arrays
 				headers := make(map[string]string)
 				for key, values := range r.Header {
 					if len(values) > 0 {
@@ -100,3 +106,4 @@ func RequestParams() mux.MiddlewareFunc {
 		},
 	)
 }
+
