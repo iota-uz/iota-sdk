@@ -34,16 +34,16 @@ const (
 			p.modifier,
 			p.description,
 			rp.role_id
-		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
-	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles`
+		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1) AND p.tenant_id = $2`
+	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
 	roleInsertQuery            = `INSERT INTO roles (name, description, tenant_id) VALUES ($1, $2, $3) RETURNING id`
-	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4`
+	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
 		INSERT INTO role_permissions (role_id, permission_id)
 		VALUES ($1, $2)
 		ON CONFLICT (role_id, permission_id) DO NOTHING`
-	roleDeleteQuery = `DELETE FROM roles WHERE id = $1`
+	roleDeleteQuery = `DELETE FROM roles WHERE id = $1 AND tenant_id = $2`
 )
 
 type GormRoleRepository struct{}
@@ -53,6 +53,11 @@ func NewRoleRepository() role.Repository {
 }
 
 func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.FindParams) ([]role.Role, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	sortFields := []string{}
 	for _, f := range params.SortBy.Fields {
 		switch f {
@@ -67,7 +72,7 @@ func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.Find
 		}
 	}
 
-	where, args := []string{"1 = 1"}, []interface{}{}
+	where, args := []string{"r.tenant_id = $1"}, []interface{}{tenant.ID}
 	if params.Name != "" {
 		where = append(where, fmt.Sprintf("r.name = $%d", len(args)+1))
 		args = append(args, params.Name)
@@ -87,20 +92,37 @@ func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	var count int64
-	if err := tx.QueryRow(ctx, roleCountQuery).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, roleCountQuery, tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormRoleRepository) GetAll(ctx context.Context) ([]role.Role, error) {
-	return g.queryRoles(ctx, roleFindQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	query := roleFindQuery + " WHERE r.tenant_id = $1"
+	return g.queryRoles(ctx, query, tenant.ID)
 }
 
 func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, error) {
-	query := roleFindQuery + " WHERE r.id = $1"
-	roles, err := g.queryRoles(ctx, query, id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	query := roleFindQuery + " WHERE r.id = $1 AND r.tenant_id = $2"
+	roles, err := g.queryRoles(ctx, query, id, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +138,14 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 		return nil, err
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	entity, permissions := toDBRole(data)
+	entity.TenantID = tenant.ID
+
 	var id uint
 	if err := tx.QueryRow(
 		ctx,
@@ -142,6 +171,13 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.Role, error) {
 	dbRole, dbPermissions := toDBRole(data)
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	dbRole.TenantID = tenant.ID
+
 	if err := g.execQuery(
 		ctx,
 		roleUpdateQuery,
@@ -149,6 +185,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		dbRole.Description,
 		dbRole.UpdatedAt,
 		dbRole.ID,
+		dbRole.TenantID,
 	); err != nil {
 		return nil, err
 	}
@@ -169,10 +206,15 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id); err != nil {
 		return err
 	}
-	return g.execQuery(ctx, roleDeleteQuery, id)
+	return g.execQuery(ctx, roleDeleteQuery, id, tenant.ID)
 }
 
 func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uint) (map[uint][]*models.Permission, error) {
@@ -181,7 +223,12 @@ func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uin
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, rolePermissionsQuery, roleIDs)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	rows, err := tx.Query(ctx, rolePermissionsQuery, roleIDs, tenant.ID)
 	if err != nil {
 		return nil, err
 	}

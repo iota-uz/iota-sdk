@@ -244,6 +244,7 @@ func ToDBTab(tab *tab.Tab) *models.Tab {
 		Href:     tab.Href,
 		Position: tab.Position,
 		UserID:   tab.UserID,
+		TenantID: tab.TenantID,
 	}
 }
 
@@ -253,6 +254,7 @@ func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
 		Href:     dbTab.Href,
 		Position: dbTab.Position,
 		UserID:   dbTab.UserID,
+		TenantID: dbTab.TenantID,
 	}, nil
 }
 

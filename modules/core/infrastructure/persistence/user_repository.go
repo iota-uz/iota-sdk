@@ -41,11 +41,11 @@ const (
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
 
-	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
+	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1 AND tenant_id = $2`
 
-	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1`
+	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1 AND tenant_id = $2`
 
-	userDeleteQuery     = `DELETE FROM users WHERE id = $1`
+	userDeleteQuery     = `DELETE FROM users WHERE id = $1 AND tenant_id = $2`
 	userRoleDeleteQuery = `DELETE FROM user_roles WHERE user_id = $1`
 	userRoleInsertQuery = `INSERT INTO user_roles (user_id, role_id) VALUES`
 
@@ -236,6 +236,11 @@ func BuildUserFilters(params *user.FindParams) ([]string, []interface{}, error) 
 }
 
 func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	fieldMap := map[user.Field]string{
 		user.FirstName:  "u.first_name",
 		user.LastName:   "u.last_name",
@@ -260,6 +265,9 @@ func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindPa
 	if err != nil {
 		return nil, err
 	}
+
+	where = append(where, fmt.Sprintf("u.tenant_id = $%d", len(args)+1))
+	args = append(args, tenant.ID)
 
 	baseQuery := userFindQuery
 	if params.RoleID != nil || params.PermissionID != nil {
@@ -288,6 +296,11 @@ func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindPa
 }
 
 func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (int64, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
@@ -297,6 +310,9 @@ func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (
 	if err != nil {
 		return 0, err
 	}
+
+	where = append(where, fmt.Sprintf("u.tenant_id = $%d", len(args)+1))
+	args = append(args, tenant.ID)
 
 	baseQuery := userCountQuery
 	if params.RoleID != nil || params.PermissionID != nil {
@@ -325,7 +341,12 @@ func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (
 }
 
 func (g *PgUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
-	users, err := g.queryUsers(ctx, userFindQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.tenant_id = $1", tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get all users")
 	}
@@ -333,7 +354,12 @@ func (g *PgUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
 }
 
 func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
-	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1 AND u.tenant_id = $2", id, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
 	}
@@ -344,7 +370,12 @@ func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, err
 }
 
 func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
-	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1", email)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1 AND u.tenant_id = $2", email, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with email: %s", email))
 	}
@@ -355,7 +386,12 @@ func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.U
 }
 
 func (g *PgUserRepository) GetByPhone(ctx context.Context, phone string) (user.User, error) {
-	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.phone = $1", phone)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.phone = $1 AND u.tenant_id = $2", phone, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with phone: %s", phone))
 	}
@@ -493,20 +529,35 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 }
 
 func (g *PgUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
-	if err := g.execQuery(ctx, userUpdateLastLoginQuery, id); err != nil {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	if err := g.execQuery(ctx, userUpdateLastLoginQuery, id, tenant.ID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last login for user ID: %d", id))
 	}
 	return nil
 }
 
 func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
-	if err := g.execQuery(ctx, userUpdateLastActionQuery, id); err != nil {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	if err := g.execQuery(ctx, userUpdateLastActionQuery, id, tenant.ID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last action for user ID: %d", id))
 	}
 	return nil
 }
 
 func (g *PgUserRepository) Delete(ctx context.Context, id uint) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	if err := g.execQuery(ctx, userRoleDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete roles for user ID: %d", id))
 	}
@@ -516,7 +567,7 @@ func (g *PgUserRepository) Delete(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, userPermissionDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete permissions for user ID: %d", id))
 	}
-	if err := g.execQuery(ctx, userDeleteQuery, id); err != nil {
+	if err := g.execQuery(ctx, userDeleteQuery, id, tenant.ID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete user with ID: %d", id))
 	}
 	return nil
