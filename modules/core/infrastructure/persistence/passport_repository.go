@@ -291,6 +291,11 @@ func (r *PassportRepository) Update(ctx context.Context, id uuid.UUID, data pass
 		return nil, err
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	dbRow, err := ToDBPassport(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert passport to db model: %w", err)
@@ -298,7 +303,7 @@ func (r *PassportRepository) Update(ctx context.Context, id uuid.UUID, data pass
 
 	_, err = pool.Exec(
 		ctx,
-		updatePassportQuery,
+		updatePassportQuery+" AND tenant_id = $21",
 		dbRow.FirstName,
 		dbRow.LastName,
 		dbRow.MiddleName,
@@ -319,6 +324,7 @@ func (r *PassportRepository) Update(ctx context.Context, id uuid.UUID, data pass
 		dbRow.Remarks,
 		time.Now(),
 		id.String(),
+		tenant.ID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update passport: %w", err)

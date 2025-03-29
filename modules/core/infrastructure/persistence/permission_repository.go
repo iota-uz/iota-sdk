@@ -41,6 +41,11 @@ func NewPermissionRepository() permission.Repository {
 func (g *GormPermissionRepository) GetPaginated(
 	ctx context.Context, params *permission.FindParams,
 ) ([]*permission.Permission, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	sortFields := []string{}
 	for _, f := range params.SortBy.Fields {
 		switch f {
@@ -56,16 +61,21 @@ func (g *GormPermissionRepository) GetPaginated(
 			return nil, fmt.Errorf("unknown sort field: %v", f)
 		}
 	}
-	joins, args := []string{}, []interface{}{}
+
+	joins, args := []string{}, []interface{}{tenant.ID}
+	where := []string{"permissions.tenant_id = $1"}
+
 	if params.RoleID != 0 {
 		joins = append(joins, fmt.Sprintf("INNER JOIN role_permissions rp ON rp.permission_id = permissions.id and rp.role_id = $%d", len(args)+1))
 		args = append(args, params.RoleID)
 	}
+
 	return g.queryPermissions(
 		ctx,
 		repo.Join(
 			permissionsSelectQuery,
 			repo.Join(joins...),
+			repo.JoinWhere(where...),
 			repo.OrderBy(sortFields, params.SortBy.Ascending),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
@@ -78,10 +88,17 @@ func (g *GormPermissionRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	var count int64
 	if err := pool.QueryRow(
 		ctx,
-		permissionsCountQuery,
+		permissionsCountQuery+" WHERE tenant_id = $1",
+		tenant.ID,
 	).Scan(&count); err != nil {
 		return 0, err
 	}
@@ -89,11 +106,21 @@ func (g *GormPermissionRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *GormPermissionRepository) GetAll(ctx context.Context) ([]*permission.Permission, error) {
-	return g.queryPermissions(ctx, permissionsSelectQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	return g.queryPermissions(ctx, permissionsSelectQuery+" WHERE tenant_id = $1", tenant.ID)
 }
 
 func (g *GormPermissionRepository) GetByID(ctx context.Context, id string) (*permission.Permission, error) {
-	permissions, err := g.queryPermissions(ctx, permissionsSelectQuery+" WHERE id = $1", id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	permissions, err := g.queryPermissions(ctx, permissionsSelectQuery+" WHERE id = $1 AND tenant_id = $2", id, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +135,15 @@ func (g *GormPermissionRepository) Save(ctx context.Context, data *permission.Pe
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	dbPerm := toDBPermission(data)
+	dbPerm.TenantID = tenant.ID
+
 	if err := tx.QueryRow(
 		ctx,
 		permissionsInsertQuery,
@@ -129,7 +164,13 @@ func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error 
 	if err := uuid.Validate(id); err != nil {
 		return err
 	}
-	return g.execQuery(ctx, permissionsDeleteQuery, id)
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	return g.execQuery(ctx, permissionsDeleteQuery+" AND tenant_id = $2", id, tenant.ID)
 }
 
 func (g *GormPermissionRepository) queryPermissions(

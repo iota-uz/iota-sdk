@@ -5,4 +5,5 @@ type Tab struct {
 	Href     string
 	UserID   uint
 	Position uint
+	TenantID uint
 }
