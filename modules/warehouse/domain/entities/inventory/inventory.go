@@ -1,14 +1,16 @@
 package inventory
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 )
 
 type Check struct {
 	ID           uint
+	TenantID     uint
 	Status       Status
 	Name         string
 	Results      []*CheckResult
@@ -23,6 +25,7 @@ type Check struct {
 func (c *Check) AddResult(positionID uint, expected, actual int) {
 	c.Results = append(c.Results, &CheckResult{
 		PositionID:       positionID,
+		TenantID:         c.TenantID,
 		ExpectedQuantity: expected,
 		ActualQuantity:   actual,
 		Difference:       expected - actual,
@@ -39,6 +42,7 @@ type Position struct {
 
 type CheckResult struct {
 	ID               uint
+	TenantID         uint
 	PositionID       uint
 	Position         *position.Position
 	ExpectedQuantity int

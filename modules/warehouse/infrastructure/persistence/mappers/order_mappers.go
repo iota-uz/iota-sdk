@@ -19,6 +19,7 @@ func ToDBOrder(entity order.Order) (*models.WarehouseOrder, []*models.WarehouseP
 
 	dbOrder := &models.WarehouseOrder{
 		ID:        entity.ID(),
+		TenantID:  entity.TenantID(),
 		Status:    string(entity.Status()),
 		Type:      string(entity.Type()),
 		CreatedAt: entity.CreatedAt(),
@@ -35,5 +36,7 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	return order.NewWithID(dbOrder.ID, orderType, status, dbOrder.CreatedAt), nil
+	orderEntity := order.NewWithID(dbOrder.ID, orderType, status, dbOrder.CreatedAt)
+	orderEntity.SetTenantID(dbOrder.TenantID)
+	return orderEntity, nil
 }
