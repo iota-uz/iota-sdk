@@ -28,18 +28,20 @@ const (
 		wp.unit_id,
 		wp.created_at,
 		wp.updated_at,
+		wp.tenant_id,
 		wu.id,
 		wu.title,
 		wu.short_title,
 		wu.created_at,
-		wu.updated_at
+		wu.updated_at,
+		wu.tenant_id
 	FROM warehouse_positions wp JOIN warehouse_units wu ON wp.unit_id = wu.id`
 	selectPositionIdQuery     = `SELECT id FROM warehouse_positions`
 	countPositionQuery        = `SELECT COUNT(*) FROM warehouse_positions`
-	insertPositionQuery       = `INSERT INTO warehouse_positions (title, barcode, unit_id, created_at) VALUES ($1, $2, $3, $4) RETURNING id`
+	insertPositionQuery       = `INSERT INTO warehouse_positions (title, barcode, unit_id, created_at, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	insertPositionImageQuery  = `INSERT INTO warehouse_position_images (warehouse_position_id, upload_id) VALUES`
-	updatePositionQuery       = `UPDATE warehouse_positions SET title = $1, barcode = $2, unit_id = $3 WHERE id = $4`
-	deletePositionQuery       = `DELETE FROM warehouse_positions WHERE id = $1`
+	updatePositionQuery       = `UPDATE warehouse_positions SET title = $1, barcode = $2, unit_id = $3 WHERE id = $4 AND tenant_id = $5`
+	deletePositionQuery       = `DELETE FROM warehouse_positions WHERE id = $1 AND tenant_id = $2`
 	deletePositionImagesQuery = `DELETE FROM warehouse_position_images WHERE warehouse_position_id = $1`
 )
 
@@ -74,11 +76,13 @@ func (g *GormPositionRepository) queryPositions(ctx context.Context, query strin
 			&p.UnitID,
 			&p.CreatedAt,
 			&p.UpdatedAt,
+			&p.TenantID,
 			&u.ID,
 			&u.Title,
 			&u.ShortTitle,
 			&u.CreatedAt,
 			&u.UpdatedAt,
+			&u.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -261,7 +265,16 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	positionRow, junctionRows := mappers.ToDBPosition(data)
+	positionRow.TenantID = tenant.ID
+	data.TenantID = tenant.ID
+
 	if err := tx.QueryRow(
 		ctx,
 		insertPositionQuery,
@@ -269,6 +282,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 		positionRow.Barcode,
 		positionRow.UnitID,
 		positionRow.CreatedAt,
+		positionRow.TenantID,
 	).Scan(&data.ID); err != nil {
 		return err
 	}
@@ -291,7 +305,16 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	positionRow, junctionRows := mappers.ToDBPosition(data)
+	positionRow.TenantID = tenant.ID
+	data.TenantID = tenant.ID
+
 	if _, err := tx.Exec(
 		ctx,
 		updatePositionQuery,
@@ -299,6 +322,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 		positionRow.Barcode,
 		positionRow.UnitID,
 		positionRow.ID,
+		positionRow.TenantID,
 	); err != nil {
 		return err
 	}
@@ -324,7 +348,13 @@ func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, deletePositionQuery, id); err != nil {
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	if _, err := tx.Exec(ctx, deletePositionQuery, id, tenant.ID); err != nil {
 		return err
 	}
 	return nil

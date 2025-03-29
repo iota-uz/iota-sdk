@@ -15,6 +15,7 @@ import (
 func ToDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 	return &models.WarehouseUnit{
 		ID:         unit.ID,
+		TenantID:   unit.TenantID,
 		Title:      unit.Title,
 		ShortTitle: unit.ShortTitle,
 		CreatedAt:  unit.CreatedAt,
@@ -25,6 +26,7 @@ func ToDBUnit(unit *unit.Unit) *models.WarehouseUnit {
 func ToDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 	return &unit.Unit{
 		ID:         dbUnit.ID,
+		TenantID:   dbUnit.TenantID,
 		Title:      dbUnit.Title,
 		ShortTitle: dbUnit.ShortTitle,
 		CreatedAt:  dbUnit.CreatedAt,
@@ -75,6 +77,7 @@ func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.Wareh
 	}
 	return &position.Position{
 		ID:        dbPosition.ID,
+		TenantID:  dbPosition.TenantID,
 		Title:     dbPosition.Title,
 		Barcode:   dbPosition.Barcode,
 		UnitID:    uint(dbPosition.UnitID.Int32),
@@ -97,6 +100,7 @@ func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*mode
 	}
 	dbPosition := &models.WarehousePosition{
 		ID:        entity.ID,
+		TenantID:  entity.TenantID,
 		Title:     entity.Title,
 		Barcode:   entity.Barcode,
 		UnitID:    mapping.ValueToSQLNullInt32(int32(entity.UnitID)),
