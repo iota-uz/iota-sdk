@@ -1,9 +1,10 @@
 package moneyaccount
 
 import (
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
-	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -12,6 +13,7 @@ import (
 
 type Account struct {
 	ID            uint
+	TenantID      uint
 	Name          string
 	AccountNumber string
 	Description   string
@@ -63,6 +65,7 @@ func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
 	}
 	return &Account{
 		ID:            id,
+		TenantID:      0,
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,

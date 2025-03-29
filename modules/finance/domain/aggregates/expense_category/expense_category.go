@@ -1,12 +1,14 @@
 package category
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 )
 
 type ExpenseCategory interface {
 	ID() uint
+	TenantID() uint
 	Name() string
 	Description() string
 

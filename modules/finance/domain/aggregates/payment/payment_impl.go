@@ -1,13 +1,15 @@
 package payment
 
 import (
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
-	"time"
 )
 
 func NewWithID(
 	id uint,
+	tenantID uint,
 	amount float64,
 	transactionID, counterpartyID uint,
 	comment string,
@@ -17,6 +19,7 @@ func NewWithID(
 ) Payment {
 	return &payment{
 		id:               id,
+		tenantID:         tenantID,
 		amount:           amount,
 		account:          account,
 		transactionID:    transactionID,
@@ -40,6 +43,7 @@ func New(
 ) Payment {
 	return NewWithID(
 		0,
+		0,
 		amount,
 		transactionID,
 		counterpartyID,
@@ -55,6 +59,7 @@ func New(
 
 type payment struct {
 	id               uint
+	tenantID         uint
 	amount           float64
 	transactionID    uint
 	counterpartyID   uint
@@ -138,4 +143,12 @@ func (p *payment) CreatedAt() time.Time {
 
 func (p *payment) UpdatedAt() time.Time {
 	return p.updatedAt
+}
+
+func (p *payment) TenantID() uint {
+	return p.tenantID
+}
+
+func (p *payment) SetTenantID(id uint) {
+	p.tenantID = id
 }
