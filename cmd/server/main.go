@@ -39,10 +39,10 @@ func main() {
 		tracingCleanup = logging.SetupTracing(
 			context.Background(),
 			conf.OpenTelemetry.ServiceName,
-			conf.OpenTelemetry.TempoEndpoint,
+			conf.OpenTelemetry.TempoURL,
 		)
 		defer tracingCleanup()
-		logger.Info("OpenTelemetry tracing enabled, exporting to Tempo at " + conf.OpenTelemetry.TempoEndpoint)
+		logger.Info("OpenTelemetry tracing enabled, exporting to Tempo at " + conf.OpenTelemetry.TempoURL)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)

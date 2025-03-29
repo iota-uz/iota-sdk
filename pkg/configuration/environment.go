@@ -85,17 +85,17 @@ type LokiOptions struct {
 }
 
 type OpenTelemetryOptions struct {
-	Enabled       bool   `env:"OTEL_ENABLED" envDefault:"false"`
-	TempoEndpoint string `env:"OTEL_TEMPO_ENDPOINT" envDefault:"localhost:4318"`
-	ServiceName   string `env:"OTEL_SERVICE_NAME" envDefault:"iota-sdk"`
+	Enabled     bool   `env:"OTEL_ENABLED" envDefault:"false"`
+	TempoURL    string `env:"OTEL_TEMPO_URL" envDefault:"localhost:4318"`
+	ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
 }
 
 type Configuration struct {
-	Database       DatabaseOptions
-	Google         GoogleOptions
-	Twilio         TwilioOptions
-	Loki           LokiOptions
-	OpenTelemetry  OpenTelemetryOptions
+	Database      DatabaseOptions
+	Google        GoogleOptions
+	Twilio        TwilioOptions
+	Loki          LokiOptions
+	OpenTelemetry OpenTelemetryOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`

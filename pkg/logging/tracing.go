@@ -11,10 +11,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-func SetupTracing(ctx context.Context, serviceName string, tempoEndpoint string) func() {
+func SetupTracing(ctx context.Context, serviceName string, tempoURL string) func() {
 	exporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint(tempoEndpoint),
-		otlptracehttp.WithInsecure(),
+		otlptracehttp.WithEndpointURL(tempoURL),
 	)
 	if err != nil {
 		log.Fatalf("failed to create OTLP exporter: %v", err)
@@ -41,3 +40,4 @@ func SetupTracing(ctx context.Context, serviceName string, tempoEndpoint string)
 		}
 	}
 }
+
