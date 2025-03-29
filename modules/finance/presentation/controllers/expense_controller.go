@@ -245,7 +245,7 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Categories: categories,
 		Errors:     map[string]string{},
 		Expense: mappers.ExpenseToViewModel(&expense.Expense{
-			Category: category.New("", "", 0, &currency.USD),
+			Category: category.New(0, "", "", 0, &currency.USD),
 		}),
 	}
 	templ.Handler(expenses2.New(props), templ.WithStreaming()).ServeHTTP(w, r)

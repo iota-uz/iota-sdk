@@ -37,6 +37,7 @@ func ToDomainUnit(dbUnit *models.WarehouseUnit) *unit.Unit {
 func ToDBProduct(entity *product.Product) (*models.WarehouseProduct, error) {
 	return &models.WarehouseProduct{
 		ID:         entity.ID,
+		TenantID:   entity.TenantID,
 		PositionID: entity.PositionID,
 		Rfid:       mapping.ValueToSQLNullString(entity.Rfid),
 		Status:     string(entity.Status),
@@ -60,6 +61,7 @@ func ToDomainProduct(
 	}
 	return &product.Product{
 		ID:         dbProduct.ID,
+		TenantID:   dbProduct.TenantID,
 		PositionID: dbProduct.PositionID,
 		Rfid:       dbProduct.Rfid.String,
 		Position:   pos,
@@ -130,6 +132,7 @@ func ToDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 	}
 	check := &inventory.Check{
 		ID:           dbInventoryCheck.ID,
+		TenantID:     dbInventoryCheck.TenantID,
 		Status:       status,
 		Name:         dbInventoryCheck.Name,
 		Results:      results,
@@ -156,6 +159,7 @@ func ToDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 func ToDBInventoryCheckResult(result *inventory.CheckResult) (*models.InventoryCheckResult, error) {
 	return &models.InventoryCheckResult{
 		ID:               result.ID,
+		TenantID:         result.TenantID,
 		PositionID:       result.PositionID,
 		ExpectedQuantity: result.ExpectedQuantity,
 		ActualQuantity:   result.ActualQuantity,
@@ -171,6 +175,7 @@ func ToDomainInventoryCheckResult(result *models.InventoryCheckResult) (*invento
 	// }
 	return &inventory.CheckResult{
 		ID:         result.ID,
+		TenantID:   result.TenantID,
 		PositionID: result.PositionID,
 		// Position:         pos,
 		ExpectedQuantity: result.ExpectedQuantity,
@@ -187,6 +192,7 @@ func ToDBInventoryCheck(check *inventory.Check) (*models.InventoryCheck, error) 
 	}
 	return &models.InventoryCheck{
 		ID:           check.ID,
+		TenantID:     check.TenantID,
 		Status:       string(check.Status),
 		Name:         check.Name,
 		Results:      results,
