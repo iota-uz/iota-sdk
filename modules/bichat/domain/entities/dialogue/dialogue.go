@@ -10,6 +10,7 @@ type Messages []llm.ChatCompletionMessage
 
 type Dialogue interface {
 	ID() uint
+	TenantID() uint
 	UserID() uint
 	Label() string
 	Messages() Messages
