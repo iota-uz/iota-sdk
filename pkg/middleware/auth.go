@@ -93,6 +93,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				tenantService := app.Service(services.TenantService{}).(*services.TenantService)
 				t, err := tenantService.GetByID(ctx, u.TenantID())
 				if err != nil {
+					log.Printf("Error retrieving tenant: %v", err)
 					next.ServeHTTP(w, r)
 					return
 				}
