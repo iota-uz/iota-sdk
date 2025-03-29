@@ -1,19 +1,24 @@
 CREATE TABLE warehouse_units (
     id serial PRIMARY KEY,
+    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     title varchar(255) NOT NULL, -- Kilogram, Piece, etc.
     short_title varchar(255) NOT NULL, -- kg, pcs, etc.
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE (tenant_id, title),
+    UNIQUE (tenant_id, short_title)
 );
 
 CREATE TABLE warehouse_positions (
     id serial PRIMARY KEY,
+    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     title varchar(255) NOT NULL,
-    barcode varchar(255) NOT NULL UNIQUE,
+    barcode varchar(255) NOT NULL,
     description text,
     unit_id int REFERENCES warehouse_units (id) ON DELETE SET NULL,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE (tenant_id, barcode)
 );
 
 CREATE TABLE warehouse_position_images (
@@ -24,15 +29,18 @@ CREATE TABLE warehouse_position_images (
 
 CREATE TABLE warehouse_products (
     id serial PRIMARY KEY,
+    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     position_id int NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-    rfid varchar(255) NULL UNIQUE,
+    rfid varchar(255) NULL,
     status varchar(255) NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE (tenant_id, rfid)
 );
 
 CREATE TABLE warehouse_orders (
     id serial PRIMARY KEY,
+    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     type VARCHAR(255) NOT NULL,
     status varchar(255) NOT NULL,
     created_at timestamp with time zone DEFAULT now()
@@ -46,6 +54,7 @@ CREATE TABLE warehouse_order_items (
 
 CREATE TABLE inventory_checks (
     id serial PRIMARY KEY,
+    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     status varchar(255) NOT NULL,
     name varchar(255) NOT NULL,
     type VARCHAR(255) NOT NULL,
@@ -57,6 +66,7 @@ CREATE TABLE inventory_checks (
 
 CREATE TABLE inventory_check_results (
     id serial PRIMARY KEY,
+    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     inventory_check_id int NOT NULL REFERENCES inventory_checks (id) ON DELETE CASCADE,
     position_id int NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
     expected_quantity int NOT NULL,
@@ -64,4 +74,11 @@ CREATE TABLE inventory_check_results (
     difference int NOT NULL,
     created_at timestamp with time zone DEFAULT now()
 );
+
+CREATE INDEX warehouse_units_tenant_id_idx ON warehouse_units (tenant_id);
+CREATE INDEX warehouse_positions_tenant_id_idx ON warehouse_positions (tenant_id);
+CREATE INDEX warehouse_products_tenant_id_idx ON warehouse_products (tenant_id);
+CREATE INDEX warehouse_orders_tenant_id_idx ON warehouse_orders (tenant_id);
+CREATE INDEX inventory_checks_tenant_id_idx ON inventory_checks (tenant_id);
+CREATE INDEX inventory_check_results_tenant_id_idx ON inventory_check_results (tenant_id);
 

@@ -83,6 +83,16 @@ func ProvideUser() mux.MiddlewareFunc {
 					return
 				}
 				ctx = context.WithValue(ctx, constants.UserKey, u)
+
+				tenantService := app.Service(services.TenantService{}).(*services.TenantService)
+				t, err := tenantService.GetByID(ctx, u.TenantID())
+				if err != nil {
+					log.Printf("Error retrieving tenant: %v", err)
+					next.ServeHTTP(w, r)
+					return
+				}
+				ctx = context.WithValue(ctx, constants.TenantKey, t)
+
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)

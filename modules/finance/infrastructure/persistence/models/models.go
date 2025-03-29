@@ -2,12 +2,14 @@ package models
 
 import (
 	"database/sql"
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
+
+	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 )
 
 type ExpenseCategory struct {
 	ID               uint
+	TenantID         uint
 	Name             string
 	Description      sql.NullString
 	Amount           float64
@@ -18,6 +20,7 @@ type ExpenseCategory struct {
 
 type MoneyAccount struct {
 	ID                uint
+	TenantID          uint
 	Name              string
 	AccountNumber     string
 	Description       string
@@ -30,6 +33,7 @@ type MoneyAccount struct {
 
 type Transaction struct {
 	ID                   uint
+	TenantID             uint
 	Amount               float64
 	OriginAccountID      *uint
 	DestinationAccountID *uint
@@ -58,6 +62,7 @@ type Payment struct {
 
 type Counterparty struct {
 	ID           uint
+	TenantID     uint
 	Tin          string
 	Name         string
 	Type         string

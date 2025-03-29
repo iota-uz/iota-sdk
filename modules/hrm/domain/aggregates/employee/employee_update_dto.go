@@ -119,6 +119,7 @@ func (d *UpdateDTO) ToEntity(id uint) (Employee, error) {
 	}
 	return NewWithID(
 		id,
+		0,
 		d.FirstName,
 		d.LastName,
 		d.MiddleName,

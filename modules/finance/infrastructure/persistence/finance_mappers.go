@@ -20,6 +20,7 @@ import (
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
 	return &models.Transaction{
 		ID:                   entity.ID,
+		TenantID:             entity.TenantID,
 		Amount:               entity.Amount,
 		Comment:              entity.Comment,
 		AccountingPeriod:     entity.AccountingPeriod,
@@ -39,6 +40,7 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 
 	return &transaction.Transaction{
 		ID:                   dbTransaction.ID,
+		TenantID:             dbTransaction.TenantID,
 		Amount:               dbTransaction.Amount,
 		TransactionType:      _type,
 		Comment:              dbTransaction.Comment,
@@ -53,6 +55,7 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) {
 	dbTransaction := &models.Transaction{
 		ID:                   entity.TransactionID(),
+		TenantID:             entity.TenantID(),
 		Amount:               entity.Amount(),
 		Comment:              entity.Comment(),
 		AccountingPeriod:     entity.AccountingPeriod(),
@@ -82,9 +85,10 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return payment.NewWithID(
 		dbPayment.ID,
+		dbTransaction.TenantID,
 		t.Amount,
 		t.ID,
 		dbPayment.CounterpartyID,
@@ -106,6 +110,7 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 func toDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
 		ID:               entity.ID(),
+		TenantID:         entity.TenantID(),
 		Name:             entity.Name(),
 		Description:      mapping.ValueToSQLNullString(entity.Description()),
 		Amount:           entity.Amount(),
@@ -122,6 +127,7 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *cor
 	}
 	return category.NewWithID(
 		dbCategory.ID,
+		dbCategory.TenantID,
 		dbCategory.Name,
 		dbCategory.Description.String,
 		dbCategory.Amount,
@@ -138,6 +144,7 @@ func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyaccount.Account
 	}
 	return &moneyaccount.Account{
 		ID:            dbAccount.ID,
+		TenantID:      dbAccount.TenantID,
 		Name:          dbAccount.Name,
 		AccountNumber: dbAccount.AccountNumber,
 		Balance:       dbAccount.Balance,
@@ -151,6 +158,7 @@ func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyaccount.Account
 func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 	return &models.MoneyAccount{
 		ID:                entity.ID,
+		TenantID:          entity.TenantID,
 		Name:              entity.Name,
 		AccountNumber:     entity.AccountNumber,
 		Balance:           entity.Balance,
@@ -169,6 +177,7 @@ func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 		Account: moneyaccount.Account{ID: *dbTransaction.OriginAccountID}, //nolint:exhaustruct
 		Category: category.NewWithID(
 			dbExpense.CategoryID,
+			dbTransaction.TenantID,
 			"",
 			"",
 			0,

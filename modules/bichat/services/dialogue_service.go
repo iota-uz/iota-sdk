@@ -147,7 +147,7 @@ func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error
 	ch := make(chan openai.ChatCompletionMessage)
 	msg := "Hello, how can I help you?"
 	go func() {
-		for i, _ := range msg {
+		for i := range msg {
 			ch <- openai.ChatCompletionMessage{
 				Role:    openai.ChatMessageRoleAssistant,
 				Content: msg[:i+1],
@@ -248,7 +248,12 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err != nil {
 		return nil, err
 	}
+	tenant, err := localComposables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
 	data := dialogue.New(
+		tenant.ID,
 		u.ID(),
 		"Новый чат",
 	).AddMessages(

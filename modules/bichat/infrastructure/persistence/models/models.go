@@ -14,6 +14,7 @@ type Prompt struct {
 
 type Dialogue struct {
 	ID        uint
+	TenantID  uint
 	UserID    uint
 	Label     string
 	Messages  string
