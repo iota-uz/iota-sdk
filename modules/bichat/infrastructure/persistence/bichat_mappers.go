@@ -31,6 +31,7 @@ func toDBDialogue(entity dialogue.Dialogue) (*models.Dialogue, error) {
 	}
 	return &models.Dialogue{
 		ID:        entity.ID(),
+		TenantID:  entity.TenantID(),
 		UserID:    entity.UserID(),
 		Label:     entity.Label(),
 		Messages:  dbMessages,
@@ -46,6 +47,7 @@ func toDomainDialogue(dbDialogue *models.Dialogue) (dialogue.Dialogue, error) {
 	}
 	return dialogue.NewWithID(
 		dbDialogue.ID,
+		dbDialogue.TenantID,
 		dbDialogue.UserID,
 		dbDialogue.Label,
 		messages,

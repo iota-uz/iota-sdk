@@ -6,8 +6,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
 )
 
-func New(userID uint, label string) Dialogue {
+func New(tenantID uint, userID uint, label string) Dialogue {
 	return &dialogue{
+		tenantID:  tenantID,
 		userID:    userID,
 		label:     label,
 		messages:  Messages{},
@@ -16,9 +17,10 @@ func New(userID uint, label string) Dialogue {
 	}
 }
 
-func NewWithID(id uint, userID uint, label string, messages Messages, createdAt, updatedAt time.Time) Dialogue {
+func NewWithID(id uint, tenantID uint, userID uint, label string, messages Messages, createdAt, updatedAt time.Time) Dialogue {
 	return &dialogue{
 		id:        id,
+		tenantID:  tenantID,
 		userID:    userID,
 		label:     label,
 		messages:  messages,
@@ -29,6 +31,7 @@ func NewWithID(id uint, userID uint, label string, messages Messages, createdAt,
 
 type dialogue struct {
 	id        uint
+	tenantID  uint
 	userID    uint
 	label     string
 	messages  Messages
@@ -38,6 +41,10 @@ type dialogue struct {
 
 func (d *dialogue) ID() uint {
 	return d.id
+}
+
+func (d *dialogue) TenantID() uint {
+	return d.tenantID
 }
 
 func (d *dialogue) UserID() uint {
@@ -71,6 +78,7 @@ func (d *dialogue) UpdatedAt() time.Time {
 func (d *dialogue) AddMessages(messages ...llm.ChatCompletionMessage) Dialogue {
 	return &dialogue{
 		id:        d.id,
+		tenantID:  d.tenantID,
 		userID:    d.userID,
 		label:     d.label,
 		messages:  append(d.messages, messages...),
@@ -82,6 +90,7 @@ func (d *dialogue) AddMessages(messages ...llm.ChatCompletionMessage) Dialogue {
 func (d *dialogue) SetMessages(messages Messages) Dialogue {
 	return &dialogue{
 		id:        d.id,
+		tenantID:  d.tenantID,
 		userID:    d.userID,
 		label:     d.label,
 		messages:  messages,
@@ -95,6 +104,7 @@ func (d *dialogue) SetLastMessage(msg llm.ChatCompletionMessage) Dialogue {
 	messages[len(messages)-1] = msg
 	return &dialogue{
 		id:        d.id,
+		tenantID:  d.tenantID,
 		userID:    d.userID,
 		label:     d.label,
 		messages:  messages,
