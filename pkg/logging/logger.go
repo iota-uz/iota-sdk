@@ -15,15 +15,14 @@ import (
 
 func FileLogger(level logrus.Level, logPath string) (*os.File, *logrus.Logger, error) {
 	logger := logrus.New()
-	
-	// Create logs directory if it doesn't exist
+
 	logDir := filepath.Dir(logPath)
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
 			return nil, nil, err
 		}
 	}
-	
+
 	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, nil, err
@@ -44,7 +43,6 @@ func ConsoleLogger(level logrus.Level) *logrus.Logger {
 	return logger
 }
 
-// LokiConfig represents the configuration for LokiHook
 type LokiConfig struct {
 	Labels map[string]string
 	Client *http.Client
@@ -92,29 +90,24 @@ func NewLokiHook(url, appName string, cfg *LokiConfig) (*LokiHook, error) {
 	}, nil
 }
 
-// Fire is called when a log event is fired
 func (h *LokiHook) Fire(entry *logrus.Entry) error {
 	stream := map[string]string{
 		"app": h.AppName,
 	}
 
-	// Add custom labels if provided
 	if h.Config != nil && h.Config.Labels != nil {
 		for k, v := range h.Config.Labels {
 			stream[k] = v
 		}
 	}
 
-	// Add level as a label
 	stream["level"] = entry.Level.String()
 
-	// Format the log entry as JSON
-	data, err := entry.WithField("timestamp", entry.Time.UnixNano()).String()
+	data, err := entry.String()
 	if err != nil {
 		return err
 	}
 
-	// Create the Loki payload
 	push := LokiPush{
 		Streams: []LokiStream{
 			{
@@ -129,13 +122,11 @@ func (h *LokiHook) Fire(entry *logrus.Entry) error {
 		},
 	}
 
-	// Marshal the payload to JSON
 	buf, err := json.Marshal(push)
 	if err != nil {
 		return err
 	}
 
-	// Send the data to Loki
 	req, err := http.NewRequest("POST", h.URL, bytes.NewBuffer(buf))
 	if err != nil {
 		return err
@@ -155,18 +146,16 @@ func (h *LokiHook) Fire(entry *logrus.Entry) error {
 	return nil
 }
 
-// Levels returns the available logging levels
 func (h *LokiHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
-// AddLokiHook adds a Loki hook to the logger
 func AddLokiHook(logger *logrus.Logger, url, appName string) error {
 	hook, err := NewLokiHook(url, appName, nil)
 	if err != nil {
 		return err
 	}
-	
+
 	logger.AddHook(hook)
 	return nil
 }
