@@ -44,6 +44,7 @@ func (p *CreateDTO) ToEntity() (*Account, error) {
 	}
 	return &Account{
 		ID:            0,
+		TenantID:      0,
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,
