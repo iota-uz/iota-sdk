@@ -35,6 +35,7 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 	}
 	return employee.NewWithID(
 		dbEmployee.ID,
+		dbEmployee.TenantID,
 		dbEmployee.FirstName,
 		dbEmployee.LastName,
 		dbEmployee.MiddleName.String,
@@ -57,6 +58,7 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 	salary := entity.Salary()
 	dbEmployee := &models.Employee{
 		ID:               entity.ID(),
+		TenantID:         entity.TenantID(),
 		FirstName:        entity.FirstName(),
 		LastName:         entity.LastName(),
 		MiddleName:       mapping.ValueToSQLNullString(entity.MiddleName()),
@@ -84,6 +86,7 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 func toDomainPosition(dbPosition *models.Position) (*position.Position, error) {
 	return &position.Position{
 		ID:          dbPosition.ID,
+		TenantID:    dbPosition.TenantID,
 		Name:        dbPosition.Name,
 		Description: dbPosition.Description.String,
 		CreatedAt:   dbPosition.CreatedAt,
@@ -94,6 +97,7 @@ func toDomainPosition(dbPosition *models.Position) (*position.Position, error) {
 func toDBPosition(position *position.Position) *models.Position {
 	return &models.Position{
 		ID:          position.ID,
+		TenantID:    position.TenantID,
 		Name:        position.Name,
 		Description: mapping.ValueToSQLNullString(position.Description),
 		CreatedAt:   position.CreatedAt,

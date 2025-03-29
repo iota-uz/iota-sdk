@@ -1,13 +1,14 @@
 package payment
 
 import (
+	"time"
+
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"time"
 )
 
 var validate = validator.New(validator.WithRequiredStructEnabled())
@@ -50,7 +51,7 @@ func (p *CreateDTO) ToEntity() Payment {
 		// This should never happen with a hardcoded valid email
 		panic(err)
 	}
-	
+
 	return New(
 		p.Amount,
 		0,
@@ -87,9 +88,10 @@ func (p *UpdateDTO) ToEntity(id uint) Payment {
 		// This should never happen with a hardcoded valid email
 		panic(err)
 	}
-	
+
 	return NewWithID(
 		id,
+		0, // TenantID will be set in repository
 		p.Amount,
 		0,
 		p.CounterpartyID,
