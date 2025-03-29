@@ -26,6 +26,15 @@ type LokiPush struct {
 	Streams []LokiStream `json:"streams"`
 }
 
+type LogCollector struct {
+	LokiURL   string
+	AppName   string
+	LogPath   string
+	BatchSize int
+	Timeout   time.Duration
+	Labels    []string
+}
+
 func main() {
 	config := configuration.Use()
 
@@ -42,24 +51,45 @@ func main() {
 		log.Fatal("Log path is not configured")
 	}
 
-	log.Printf("Starting continuous log collector, watching %s", logPath)
+	defaultLabels := []string{
+		"level",
+		"request-id",
+		"path",
+		"method",
+		"host",
+		"ip",
+		"completed",
+		"user-agent",
+		"trace-id",
+		"span-id",
+	}
 
-	processLogFile(config.Loki.URL, config.Loki.AppName, logPath)
+	collector := &LogCollector{
+		LokiURL:   config.Loki.URL,
+		AppName:   config.Loki.AppName,
+		LogPath:   logPath,
+		BatchSize: 100,
+		Timeout:   5 * time.Second,
+		Labels:    defaultLabels,
+	}
+
+	log.Printf("Starting continuous log collector, watching %s", logPath)
+	collector.Process()
 }
 
-func processLogFile(lokiURL, appName, logPath string) {
+func (c *LogCollector) Process() {
 	for {
-		if _, err := os.Stat(logPath); os.IsNotExist(err) {
-			log.Printf("Log file does not exist: %s. Waiting for it to be created...", logPath)
+		if _, err := os.Stat(c.LogPath); os.IsNotExist(err) {
+			log.Printf("Log file does not exist: %s. Waiting for it to be created...", c.LogPath)
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
 		client := &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout: c.Timeout,
 		}
 
-		file, err := os.Open(logPath)
+		file, err := os.Open(c.LogPath)
 		if err != nil {
 			log.Printf("Failed to open log file: %v. Retrying in 5 seconds...", err)
 			time.Sleep(5 * time.Second)
@@ -85,15 +115,14 @@ func processLogFile(lokiURL, appName, logPath string) {
 		scanner := bufio.NewScanner(file)
 
 		var batch []map[string]interface{}
-		batchSize := 100
-		batchTimeout := 5 * time.Second
+		batchTimeout := c.Timeout
 		lastBatchTime := time.Now()
 
 		var lineCount int
 
 		processBatch := func() {
 			if len(batch) > 0 {
-				if err := sendBatchToLoki(client, lokiURL, appName, batch); err != nil {
+				if err := c.SendBatch(client, batch); err != nil {
 					log.Printf("Failed to send batch to Loki: %v", err)
 				} else {
 					log.Printf("Sent %d log entries to Loki", len(batch))
@@ -118,7 +147,7 @@ func processLogFile(lokiURL, appName, logPath string) {
 
 				time.Sleep(1 * time.Second)
 
-				newFileInfo, err := os.Stat(logPath)
+				newFileInfo, err := os.Stat(c.LogPath)
 				if err != nil {
 					if os.IsNotExist(err) {
 						log.Printf("Log file has been removed, waiting for it to be recreated")
@@ -169,7 +198,7 @@ func processLogFile(lokiURL, appName, logPath string) {
 
 			batch = append(batch, logEntry)
 
-			if len(batch) >= batchSize || time.Since(lastBatchTime) >= batchTimeout {
+			if len(batch) >= c.BatchSize || time.Since(lastBatchTime) >= batchTimeout {
 				processBatch()
 			}
 		}
@@ -183,21 +212,35 @@ func processLogFile(lokiURL, appName, logPath string) {
 	}
 }
 
-func sendBatchToLoki(client *http.Client, lokiURL, appName string, batch []map[string]interface{}) error {
+func (c *LogCollector) SendBatch(client *http.Client, batch []map[string]interface{}) error {
 	streamsByLabels := make(map[string]*LokiStream)
-	fmt.Println("appName", appName)
 
 	for _, logEntry := range batch {
 		labels := map[string]string{
-			"app": appName,
+			"app": c.AppName,
 		}
 
-		if level, ok := logEntry["level"].(string); ok {
-			labels["level"] = level
-		}
+		for _, label := range c.Labels {
+			labelKey := strings.ReplaceAll(label, "-", "_")
 
-		if requestID, ok := logEntry["request-id"].(string); ok {
-			labels["request_id"] = requestID
+			if value, ok := logEntry[label]; ok {
+				switch v := value.(type) {
+				case string:
+					labels[labelKey] = v
+				case bool:
+					labels[labelKey] = strconv.FormatBool(v)
+				case float64:
+					labels[labelKey] = strconv.FormatFloat(v, 'f', -1, 64)
+				case int:
+					labels[labelKey] = strconv.Itoa(v)
+				case int64:
+					labels[labelKey] = strconv.FormatInt(v, 10)
+				case map[string]interface{}, []interface{}:
+					continue
+				default:
+					labels[labelKey] = fmt.Sprintf("%v", v)
+				}
+			}
 		}
 
 		labelKey := createLabelKey(labels)
@@ -244,7 +287,7 @@ func sendBatchToLoki(client *http.Client, lokiURL, appName string, batch []map[s
 		return fmt.Errorf("failed to marshal Loki payload: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", lokiURL, bytes.NewBuffer(buf))
+	req, err := http.NewRequest("POST", c.LokiURL, bytes.NewBuffer(buf))
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
