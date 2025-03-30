@@ -1,13 +1,15 @@
 package session
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 type Session struct {
 	Token     string `gorm:"primaryKey"`
 	UserID    uint
+	TenantID  uint
 	IP        string
 	UserAgent string
 	ExpiresAt time.Time
@@ -25,6 +27,7 @@ func (d *CreateDTO) ToEntity() *Session {
 	return &Session{
 		Token:     d.Token,
 		UserID:    d.UserID,
+		TenantID:  0, // Will be set in repository
 		IP:        d.IP,
 		UserAgent: d.UserAgent,
 		ExpiresAt: time.Now().Add(configuration.Use().SessionDuration),
