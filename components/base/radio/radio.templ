@@ -84,7 +84,8 @@ templ CardItem(props CardItemProps) {
 	<label
 		class={
 			twmerge.Merge(
-				"flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg border border-primary duration-300 has-[input:checked]:border-brand-500",
+				"flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg",
+				"border border-primary duration-300 has-[input:checked]:border-brand-500 cursor-pointer",
 				props.WrapperClass.String(),
 			),
 		}

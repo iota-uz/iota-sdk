@@ -235,7 +235,8 @@ func CardItem(props CardItemProps) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		var templ_7745c5c3_Var7 = []any{
 			twmerge.Merge(
-				"flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg border border-primary duration-300 has-[input:checked]:border-brand-500",
+				"flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg",
+				"border border-primary duration-300 has-[input:checked]:border-brand-500 cursor-pointer",
 				props.WrapperClass.String(),
 			),
 		}
@@ -263,7 +264,7 @@ func CardItem(props CardItemProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/radio/radio.templ`, Line: 94, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/radio/radio.templ`, Line: 95, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -276,7 +277,7 @@ func CardItem(props CardItemProps) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(props.Value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/radio/radio.templ`, Line: 96, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/radio/radio.templ`, Line: 97, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
