@@ -1,12 +1,14 @@
 package role
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
 
 type Role interface {
 	ID() uint
+	TenantID() uint
 	Name() string
 	Description() string
 	Permissions() []*permission.Permission
@@ -15,6 +17,7 @@ type Role interface {
 
 	SetName(name string) Role
 	SetDescription(description string) Role
+	SetTenantID(tenantID uint) Role
 
 	AddPermission(p *permission.Permission) Role
 	SetPermissions(permissions []*permission.Permission) Role
