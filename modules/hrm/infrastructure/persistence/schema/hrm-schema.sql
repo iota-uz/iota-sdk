@@ -55,9 +55,13 @@ CREATE TABLE employee_contacts (
 );
 
 CREATE INDEX positions_tenant_id_idx ON positions (tenant_id);
-CREATE INDEX employees_tenant_id_idx ON employees (tenant_id);
-CREATE INDEX employees_first_name_idx ON employees (first_name);
-CREATE INDEX employees_last_name_idx ON employees (last_name);
-CREATE INDEX employees_email_idx ON employees (email);
-CREATE INDEX employees_phone_idx ON employees (phone);
 
+CREATE INDEX employees_tenant_id_idx ON employees (tenant_id);
+
+CREATE INDEX employees_first_name_idx ON employees (first_name);
+
+CREATE INDEX employees_last_name_idx ON employees (last_name);
+
+CREATE INDEX employees_email_idx ON employees (email);
+
+CREATE INDEX employees_phone_idx ON employees (phone);
