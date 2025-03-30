@@ -81,4 +81,3 @@ CREATE INDEX warehouse_products_tenant_id_idx ON warehouse_products (tenant_id);
 CREATE INDEX warehouse_orders_tenant_id_idx ON warehouse_orders (tenant_id);
 CREATE INDEX inventory_checks_tenant_id_idx ON inventory_checks (tenant_id);
 CREATE INDEX inventory_check_results_tenant_id_idx ON inventory_check_results (tenant_id);
-
