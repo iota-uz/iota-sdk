@@ -373,8 +373,22 @@ type Props struct {
 
 templ: version: v0.3.857
 
+templ: version: v0.3.857
+
 
 ### Types
+
+#### AccentColorProps
+
+```go
+type AccentColorProps struct {
+    Name string
+    Value string
+    Color string
+    Form string
+    Checked bool
+}
+```
 
 #### Props
 
@@ -388,6 +402,8 @@ type Props struct {
 ```
 
 ### Functions
+
+#### `func AccentColor(props AccentColorProps) templ.Component`
 
 #### `func Card(props Props) templ.Component`
 
@@ -641,11 +657,15 @@ type State struct {
 
 ### Types
 
-#### CardProps
+#### CardItemProps
+
+CardItemProps configures an individual radio input styled as a card.
+
 
 ```go
-type CardProps struct {
-    Class string
+type CardItemProps struct {
+    WrapperClass templ.CSSClasses
+    Class templ.CSSClasses
     Name string
     Checked bool
     Disabled bool
@@ -655,58 +675,39 @@ type CardProps struct {
 }
 ```
 
+#### Orientation
+
+Orientation defines the layout direction of radio items
+
+
 #### RadioGroupProps
 
-RadioGroupProps defines properties for the RadioGroup component.
+RadioGroupProps configures the RadioGroup component's behavior and appearance.
 
 
 ```go
 type RadioGroupProps struct {
-    Name string
     Label string
     Error string
     Class string
     Attrs templ.Attributes
     WrapperProps templ.Attributes
-    Orientation string
+    Orientation Orientation
 }
 ```
-
-##### Methods
-
-#### RadioItemProps
-
-RadioItemProps defines properties for individual RadioItem components.
-
-
-```go
-type RadioItemProps struct {
-    Value string
-    Label string
-    LabelComp templ.Component
-    Checked bool
-    Disabled bool
-    Class string
-    Attrs templ.Attributes
-    GroupName string
-    ID string
-}
-```
-
-##### Methods
 
 ### Functions
 
-#### `func Card(props CardProps) templ.Component`
+#### `func CardItem(props CardItemProps) templ.Component`
+
+CardItem renders a styled radio input as a card-like UI element.
+Children are rendered as the label content next to the radio indicator.
+
 
 #### `func RadioGroup(props RadioGroupProps) templ.Component`
 
-RadioGroup wraps multiple RadioItem components as a form control.
-
-
-#### `func RadioItem(props RadioItemProps) templ.Component`
-
-RadioItem renders a single radio button with its label.
+RadioGroup creates a container for radio inputs with optional label and error message.
+Child components (typically CardItem elements) are rendered within the group.
 
 
 ### Variables and Constants
@@ -1773,6 +1774,7 @@ type Configuration struct {
     Google GoogleOptions
     Twilio TwilioOptions
     Loki LokiOptions
+    OpenTelemetry OpenTelemetryOptions
     MigrationsDir string `env:"MIGRATIONS_DIR" envDefault:"migrations"`
     ServerPort int `env:"PORT" envDefault:"3200"`
     SessionDuration time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
@@ -1785,6 +1787,8 @@ type Configuration struct {
     PageSize int `env:"PAGE_SIZE" envDefault:"25"`
     MaxPageSize int `env:"MAX_PAGE_SIZE" envDefault:"100"`
     LogLevel string `env:"LOG_LEVEL" envDefault:"error"`
+    RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
+    RealIPHeader string `env:"REAL_IP_HEADER" envDefault:"X-Real-IP"`
     SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"`
     OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
     TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
@@ -1837,7 +1841,18 @@ type GoogleOptions struct {
 ```go
 type LokiOptions struct {
     URL string `env:"LOKI_URL"`
-    AppName string `env:"LOKI_APP_NAME"`
+    AppName string `env:"LOKI_APP_NAME" envDefault:"sdk"`
+    LogPath string `env:"LOG_PATH" envDefault:"./logs/app.log"`
+}
+```
+
+#### OpenTelemetryOptions
+
+```go
+type OpenTelemetryOptions struct {
+    Enabled bool `env:"OTEL_ENABLED" envDefault:"false"`
+    TempoURL string `env:"OTEL_TEMPO_URL" envDefault:"localhost:4318"`
+    ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
 }
 ```
 
@@ -2756,9 +2771,6 @@ type Table struct {
 
 #### LokiConfig
 
-Config represents the configuration for LokiHook
-
-
 ```go
 type LokiConfig struct {
     Labels map[string]string
@@ -2782,12 +2794,8 @@ type LokiHook struct {
 ##### Methods
 
 - `func (LokiHook) Fire(entry *logrus.Entry) error`
-  Fire is called when a log event is fired
-  
 
 - `func (LokiHook) Levels() []logrus.Level`
-  Levels returns the available logging levels
-  
 
 #### LokiPush
 
@@ -2814,14 +2822,13 @@ type LokiStream struct {
 
 ### Functions
 
-#### `func AddLokiHook(logger *logrus.Logger, lokiURL, appName string) error`
-
-AddLokiHook adds a Loki hook to an existing logger
-
+#### `func AddLokiHook(logger *logrus.Logger, url, appName string) error`
 
 #### `func ConsoleLogger(level logrus.Level) *logrus.Logger`
 
-#### `func FileLogger(level logrus.Level) (*os.File, *logrus.Logger, error)`
+#### `func FileLogger(level logrus.Level, logPath string) (*os.File, *logrus.Logger, error)`
+
+#### `func SetupTracing(ctx context.Context, serviceName string, tempoURL string) func()`
 
 ---
 
@@ -2906,6 +2913,8 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 #### `func RequireAuthorization() mux.MiddlewareFunc`
 
 #### `func Tabs() mux.MiddlewareFunc`
+
+#### `func TracedMiddleware(name string) mux.MiddlewareFunc`
 
 #### `func WithLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc`
 
