@@ -183,7 +183,71 @@
     "Meta": {
       "Title": "Панель управления"
     },
-    "Welcome": "Добро пожаловать на панель управления"
+    "Welcome": "Добро пожаловать на панель управления",
+    "Header": "Панель управления",
+    "Charts": {
+      "ProjectDuration": {
+        "Title": "Средняя длительность проекта",
+        "Average": "В среднем: 60-70 дней",
+        "Days": "дней",
+        "Phases": {
+          "Requirements": "Написание ТЗ",
+          "Design": "Разработка дизайна",
+          "Frontend": "Фронтенд",
+          "Backend": "Бекенд",
+          "Testing": "Тестирование"
+        }
+      },
+      "MonthlyIncome": {
+        "Title": "Доход за месяц",
+        "Average": "В среднем: 42,500$",
+        "Year": "2024"
+      },
+      "DailyRevenue": {
+        "Title": "Средняя выручка в день",
+        "Average": "В среднем: 4,365$",
+        "Month": "Июнь"
+      },
+      "LifetimeRevenue": {
+        "Title": "Пожизненный доход"
+      },
+      "OperationalMargin": {
+        "Title": "Операционная маржинальность",
+        "Year": "2024",
+        "Total": "Выручка:",
+        "Categories": {
+          "OperationalExpenses": "Операционные расходы:",
+          "OperationalProfit": "Операционная прибыль:"
+        }
+      },
+      "EBITDA": {
+        "Title": "EBITDA",
+        "Year": "2024",
+        "Total": "Общий:",
+        "Categories": {
+          "Revenue": "Выручка:",
+          "COGS": "Себестоимость:",
+          "InterestExpenses": "Проценты по кредитам:",
+          "Taxes": "Налоги:",
+          "Depreciation": "Амортизация:",
+          "EBITDA": "EBITDA:"
+        }
+      }
+    },
+    "Months": {
+      "Jan": "Янв",
+      "Feb": "Фев",
+      "Mar": "Мар",
+      "Apr": "Апр",
+      "May": "Май",
+      "Jun": "Июн",
+      "Jul": "Июл",
+      "Aug": "Авг",
+      "Sep": "Сен",
+      "Oct": "Окт",
+      "Nov": "Ноя",
+      "Dec": "Дек"
+    }
   },
   "Users": {
     "Meta": {

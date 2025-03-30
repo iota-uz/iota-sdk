@@ -19,14 +19,20 @@ import templruntime "github.com/a-h/templ/runtime"
 import "github.com/iota-uz/utils/random"
 
 type ChartOptions struct {
-	Chart       ChartConfig `json:"chart"`
-	Series      []Series    `json:"series"`
-	XAxis       XAxisConfig `json:"xaxis"`
-	YAxis       YAxisConfig `json:"yaxis"`
-	Colors      []string    `json:"colors"`
-	DataLabels  DataLabels  `json:"dataLabels"`
-	Grid        GridConfig  `json:"grid"`
-	PlotOptions PlotOptions `json:"plotOptions"`
+	Chart       ChartConfig   `json:"chart"`
+	Series      []Series      `json:"series"`
+	XAxis       XAxisConfig   `json:"xaxis"`
+	YAxis       YAxisConfig   `json:"yaxis"`
+	Colors      []string      `json:"colors"`
+	DataLabels  DataLabels    `json:"dataLabels"`
+	Grid        GridConfig    `json:"grid"`
+	PlotOptions PlotOptions   `json:"plotOptions"`
+	Legend      LegendConfig  `json:"legend"`
+	Tooltip     TooltipConfig `json:"tooltip"`
+	Stroke      StrokeConfig  `json:"stroke,omitempty"`
+	Fill        FillConfig    `json:"fill,omitempty"`
+	Markers     MarkersConfig `json:"markers,omitempty"`
+	States      StatesConfig  `json:"states,omitempty"`
 }
 
 type ChartConfig struct {
@@ -47,14 +53,38 @@ type Series struct {
 type XAxisConfig struct {
 	Categories []string       `json:"categories"`
 	Labels     LabelFormatter `json:"labels"`
+	AxisBorder AxisBorder     `json:"axisBorder,omitempty"`
+	AxisTicks  AxisTicks      `json:"axisTicks,omitempty"`
+	Crosshairs Crosshairs     `json:"crosshairs,omitempty"`
+}
+
+type AxisBorder struct {
+	Show bool `json:"show"`
+}
+
+type AxisTicks struct {
+	Show bool `json:"show"`
+}
+
+type Crosshairs struct {
+	Show     bool        `json:"show"`
+	Width    int         `json:"width,omitempty"`
+	Position string      `json:"position,omitempty"`
+	Opacity  float64     `json:"opacity,omitempty"`
+	Stroke   StrokeStyle `json:"stroke,omitempty"`
 }
 
 type YAxisConfig struct {
 	Labels LabelFormatter `json:"labels"`
+	Show   bool           `json:"show,omitempty"`
+	Min    float64        `json:"min,omitempty"`
+	Max    float64        `json:"max,omitempty"`
 }
 
 type LabelFormatter struct {
-	Style LabelStyle `json:"style"`
+	Style     LabelStyle         `json:"style"`
+	Show      bool               `json:"show,omitempty"`
+	Formatter templ.JSExpression `json:"formatter,omitempty"`
 }
 
 type LabelStyle struct {
@@ -71,9 +101,10 @@ type DataLabelStyle struct {
 type DataLabels struct {
 	Enabled    bool               `json:"enabled"`
 	Formatter  templ.JSExpression `json:"formatter,omitempty"`
-	Style      DataLabelStyle     `json:"style"`
-	OffsetY    int                `json:"offsetY"`
-	DropShadow DropShadow         `json:"dropShadow"`
+	Style      DataLabelStyle     `json:"style,omitempty"`
+	OffsetY    int                `json:"offsetY,omitempty"`
+	OffsetX    int                `json:"offsetX,omitempty"`
+	DropShadow DropShadow         `json:"dropShadow,omitempty"`
 }
 
 type DropShadow struct {
@@ -86,17 +117,136 @@ type DropShadow struct {
 }
 
 type GridConfig struct {
-	BorderColor string `json:"borderColor"`
+	BorderColor     string   `json:"borderColor,omitempty"`
+	Show            bool     `json:"show,omitempty"`
+	StrokeDashArray int      `json:"strokeDashArray,omitempty"`
+	Position        string   `json:"position,omitempty"`
+	Padding         Padding  `json:"padding,omitempty"`
+	XAxis           GridAxis `json:"xaxis,omitempty"`
+	YAxis           GridAxis `json:"yaxis,omitempty"`
+}
+
+type GridAxis struct {
+	Lines GridLines `json:"lines,omitempty"`
+}
+
+type GridLines struct {
+	Show bool `json:"show,omitempty"`
+}
+
+type Padding struct {
+	Top    int `json:"top,omitempty"`
+	Right  int `json:"right,omitempty"`
+	Bottom int `json:"bottom,omitempty"`
+	Left   int `json:"left,omitempty"`
+}
+
+type LegendConfig struct {
+	Show bool `json:"show"`
+}
+
+type TooltipConfig struct {
+	Enabled        bool               `json:"enabled"`
+	Shared         bool               `json:"shared,omitempty"`
+	Intersect      bool               `json:"intersect,omitempty"`
+	Custom         templ.JSExpression `json:"custom,omitempty"`
+	OnDatasetHover OnDatasetHover     `json:"onDatasetHover,omitempty"`
+	Fixed          Fixed              `json:"fixed,omitempty"`
+}
+
+type OnDatasetHover struct {
+	HighlightDataSeries bool `json:"highlightDataSeries"`
+}
+
+type Fixed struct {
+	Enabled bool `json:"enabled"`
+}
+
+type StrokeConfig struct {
+	Curve     string   `json:"curve,omitempty"`
+	Width     int      `json:"width,omitempty"`
+	Colors    []string `json:"colors,omitempty"`
+	DashArray int      `json:"dashArray,omitempty"`
+}
+
+type StrokeStyle struct {
+	Color     string `json:"color,omitempty"`
+	Width     int    `json:"width,omitempty"`
+	DashArray int    `json:"dashArray,omitempty"`
+}
+
+type FillConfig struct {
+	Type     string         `json:"type,omitempty"`
+	Gradient GradientConfig `json:"gradient,omitempty"`
+}
+
+type GradientConfig struct {
+	ShadeIntensity float64     `json:"shadeIntensity,omitempty"`
+	OpacityFrom    float64     `json:"opacityFrom,omitempty"`
+	OpacityTo      float64     `json:"opacityTo,omitempty"`
+	Stops          []int       `json:"stops,omitempty"`
+	ColorStops     []ColorStop `json:"colorStops,omitempty"`
+}
+
+type ColorStop struct {
+	Offset  int     `json:"offset"`
+	Color   string  `json:"color"`
+	Opacity float64 `json:"opacity"`
+}
+
+type MarkersConfig struct {
+	Size         int         `json:"size,omitempty"`
+	Colors       []string    `json:"colors,omitempty"`
+	StrokeColors string      `json:"strokeColors,omitempty"`
+	StrokeWidth  int         `json:"strokeWidth,omitempty"`
+	Hover        HoverConfig `json:"hover,omitempty"`
+}
+
+type HoverConfig struct {
+	Size int `json:"size,omitempty"`
+}
+
+type StatesConfig struct {
+	Hover  StateFilterConfig `json:"hover,omitempty"`
+	Active StateFilterConfig `json:"active,omitempty"`
+}
+
+type StateFilterConfig struct {
+	Filter FilterConfig `json:"filter,omitempty"`
+}
+
+type FilterConfig struct {
+	Type string `json:"type,omitempty"`
 }
 
 type PlotOptions struct {
-	Bar BarConfig `json:"bar"`
+	Bar BarConfig `json:"bar,omitempty"`
+	Pie PieConfig `json:"pie,omitempty"`
+}
+
+type PieConfig struct {
+	Donut DonutConfig `json:"donut,omitempty"`
+}
+
+type DonutConfig struct {
+	Size       string      `json:"size,omitempty"`
+	Background string      `json:"background,omitempty"`
+	Labels     DonutLabels `json:"labels,omitempty"`
+}
+
+type DonutLabels struct {
+	Show bool `json:"show,omitempty"`
 }
 
 type BarConfig struct {
-	BorderRadius int       `json:"borderRadius"`
-	ColumnWidth  string    `json:"columnWidth"`
-	DataLabels   BarLabels `json:"dataLabels"`
+	BorderRadius            int       `json:"borderRadius"`
+	ColumnWidth             string    `json:"columnWidth"`
+	DataLabels              BarLabels `json:"dataLabels"`
+	Distributed             bool      `json:"distributed,omitempty"`
+	EndingShape             string    `json:"endingShape,omitempty"`
+	BorderRadiusApplication string    `json:"borderRadiusApplication,omitempty"`
+	Horizontal              bool      `json:"horizontal,omitempty"`
+	BarHeight               string    `json:"barHeight,omitempty"`
 }
 
 type BarLabels struct {
@@ -161,7 +311,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 116, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 266, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

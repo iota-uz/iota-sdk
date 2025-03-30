@@ -1,0 +1,123 @@
+package dashboard
+
+import (
+	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// Project Duration Chart
+templ ProjectDurationCard() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+	chartOptions := charts.ChartOptions{
+		Chart: charts.ChartConfig{
+			Type:    "bar",
+			Height:  "200",
+			Toolbar: charts.Toolbar{Show: false},
+		},
+		Series: []charts.Series{
+			{Name: "Длительность", Data: []float64{15, 55, 47, 98, 78}},
+		},
+		XAxis: charts.XAxisConfig{
+			Categories: []string{"", "", "", "", ""},
+			Labels: charts.LabelFormatter{
+				Style: charts.LabelStyle{
+					Colors:   "#CBD5E1",
+					FontSize: "10px",
+				},
+				Show: false,
+			},
+		},
+		YAxis: charts.YAxisConfig{
+			Labels: charts.LabelFormatter{
+				Style: charts.LabelStyle{
+					Colors:   "#CBD5E1",
+					FontSize: "10px",
+				},
+			},
+			Show: false,
+			Min:  0,
+			Max:  100,
+		},
+		Colors: []string{"#6366F1", "#EF4444", "#EC4899", "#F97316", "#64748B"},
+		DataLabels: charts.DataLabels{
+			Enabled: true,
+			Formatter: templ.JSExpression(`function(val) { return val + " " + "` + pageCtx.T("Dashboard.Charts.ProjectDuration.Days") + `"; }`),
+			Style: charts.DataLabelStyle{
+				Colors:     []string{"#FFFFFF"},
+				FontSize:   "9px",
+				FontWeight: "bold",
+			},
+			OffsetY: 0,
+		},
+		PlotOptions: charts.PlotOptions{
+			Bar: charts.BarConfig{
+				BorderRadius: 4,
+				ColumnWidth:  "60%",
+				DataLabels: charts.BarLabels{
+					Position: "center",
+				},
+				Distributed: true,
+				EndingShape: "rounded",
+				BorderRadiusApplication: "end",
+			},
+		},
+		Grid: charts.GridConfig{
+			Show: false,
+			Padding: charts.Padding{
+				Top:    20,
+				Right:  0,
+				Bottom: 0,
+				Left:   0,
+			},
+		},
+		Legend: charts.LegendConfig{
+			Show: false,
+		},
+		Tooltip: charts.TooltipConfig{
+			Enabled: false,
+		},
+	}
+	}}
+	<div class="md:col-span-1">
+		<div class="bg-white shadow rounded-lg">
+			<div class="p-4 pb-2">
+				<div class="flex justify-between items-center">
+					<div>
+						<h3 class="text-sm font-medium text-gray-700">{ pageCtx.T("Dashboard.Charts.ProjectDuration.Title") }</h3>
+						<p class="text-xs text-gray-500">{ pageCtx.T("Dashboard.Charts.ProjectDuration.Average") }</p>
+					</div>
+				</div>
+			</div>
+			<div class="px-4 pt-0 pb-4">
+				<div class="flex gap-2 mt-2">
+					<div class="flex items-center gap-1">
+						<div class="w-3 h-3 rounded-full bg-indigo-500"></div>
+						<span class="text-xs text-gray-700">{ pageCtx.T("Dashboard.Charts.ProjectDuration.Phases.Requirements") }</span>
+					</div>
+					<div class="flex items-center gap-1">
+						<div class="w-3 h-3 rounded-full bg-red-500"></div>
+						<span class="text-xs text-gray-700">{ pageCtx.T("Dashboard.Charts.ProjectDuration.Phases.Design") }</span>
+					</div>
+				</div>
+				<div class="flex gap-2 mt-1">
+					<div class="flex items-center gap-1">
+						<div class="w-3 h-3 rounded-full bg-pink-500"></div>
+						<span class="text-xs text-gray-700">{ pageCtx.T("Dashboard.Charts.ProjectDuration.Phases.Frontend") }</span>
+					</div>
+					<div class="flex items-center gap-1">
+						<div class="w-3 h-3 rounded-full bg-orange-500"></div>
+						<span class="text-xs text-gray-700">{ pageCtx.T("Dashboard.Charts.ProjectDuration.Phases.Backend") }</span>
+					</div>
+					<div class="flex items-center gap-1">
+						<div class="w-3 h-3 rounded-full bg-gray-500"></div>
+						<span class="text-xs text-gray-700">{ pageCtx.T("Dashboard.Charts.ProjectDuration.Phases.Testing") }</span>
+					</div>
+				</div>
+				<div class="h-[220px] mt-4">
+					@charts.Chart(charts.Props{Class: "w-full h-[200px]", Options: chartOptions})
+				</div>
+			</div>
+		</div>
+	</div>
+}

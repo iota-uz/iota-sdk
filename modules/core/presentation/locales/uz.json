@@ -157,7 +157,71 @@
     "Meta": {
       "Title": "Boshqaruv paneli"
     },
-    "Welcome": "Boshqaruv paneliga xush kelibsiz"
+    "Welcome": "Boshqaruv paneliga xush kelibsiz",
+    "Header": "Boshqaruv paneli",
+    "Charts": {
+      "ProjectDuration": {
+        "Title": "O'rtacha loyiha davomiyligi",
+        "Average": "O'rtacha: 60-70 kun",
+        "Days": "kun",
+        "Phases": {
+          "Requirements": "Texnik topshiriq",
+          "Design": "Dizayn ishlanmasi",
+          "Frontend": "Frontend",
+          "Backend": "Backend",
+          "Testing": "Testlash"
+        }
+      },
+      "MonthlyIncome": {
+        "Title": "Oylik daromad",
+        "Average": "O'rtacha: 42,500$",
+        "Year": "2024"
+      },
+      "DailyRevenue": {
+        "Title": "Kunlik o'rtacha daromad",
+        "Average": "O'rtacha: 4,365$",
+        "Month": "Iyun"
+      },
+      "LifetimeRevenue": {
+        "Title": "Umrbod daromad"
+      },
+      "OperationalMargin": {
+        "Title": "Operatsion rentabellik",
+        "Year": "2024",
+        "Total": "Jami:",
+        "Categories": {
+          "OperationalExpenses": "Operatsion xarajatlar:",
+          "OperationalProfit": "Operatsion foyda:"
+        }
+      },
+      "EBITDA": {
+        "Title": "EBITDA",
+        "Year": "2024",
+        "Total": "Jami:",
+        "Categories": {
+          "Revenue": "Daromad:",
+          "COGS": "Mahsulot tannarxi:",
+          "InterestExpenses": "Kredit foizlari:",
+          "Taxes": "Soliqlar:",
+          "Depreciation": "Amortizatsiya:",
+          "EBITDA": "EBITDA:"
+        }
+      }
+    },
+    "Months": {
+      "Jan": "Yan",
+      "Feb": "Fev",
+      "Mar": "Mar",
+      "Apr": "Apr",
+      "May": "May",
+      "Jun": "Iyn",
+      "Jul": "Iyl",
+      "Aug": "Avg",
+      "Sep": "Sen",
+      "Oct": "Okt",
+      "Nov": "Noy",
+      "Dec": "Dek"
+    }
   },
   "Users": {
     "Meta": {

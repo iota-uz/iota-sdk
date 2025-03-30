@@ -1,0 +1,119 @@
+package dashboard
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// Operational Margin Chart
+templ OperationalMarginCard() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+	months := []string{
+		pageCtx.T("Dashboard.Months.Jan"),
+		pageCtx.T("Dashboard.Months.Feb"),
+		pageCtx.T("Dashboard.Months.Mar"),
+		pageCtx.T("Dashboard.Months.Apr"),
+		pageCtx.T("Dashboard.Months.May"),
+		pageCtx.T("Dashboard.Months.Jun"),
+		pageCtx.T("Dashboard.Months.Jul"),
+		pageCtx.T("Dashboard.Months.Aug"),
+		pageCtx.T("Dashboard.Months.Sep"),
+		pageCtx.T("Dashboard.Months.Oct"),
+		pageCtx.T("Dashboard.Months.Nov"),
+		pageCtx.T("Dashboard.Months.Dec"),
+	}
+	chartOptions := charts.ChartOptions{
+		Chart: charts.ChartConfig{
+			Type:    "donut",
+			Height:  "380",
+			Toolbar: charts.Toolbar{Show: false},
+		},
+		Series: []charts.Series{
+			{Name: "Доля", Data: []float64{60, 40}},
+		},
+		Colors: []string{"#6366F1", "#10B981"},
+		PlotOptions: charts.PlotOptions{
+			Pie: charts.PieConfig{
+				Donut: charts.DonutConfig{
+					Size:      "65%",
+					Background: "transparent",
+					Labels: charts.DonutLabels{
+						Show: false,
+					},
+				},
+			},
+		},
+		DataLabels: charts.DataLabels{
+			Enabled: false,
+		},
+		Stroke: charts.StrokeConfig{
+			Width: 0,
+		},
+		Legend: charts.LegendConfig{
+			Show: false,
+		},
+		Tooltip: charts.TooltipConfig{
+			Enabled: false,
+		},
+	}
+	}}
+	<div class="md:col-span-1">
+		<div class="bg-white shadow rounded-lg">
+			<div class="p-4 pb-2">
+				<div class="flex justify-between items-center">
+					<div>
+						<h3 class="text-xl font-medium">{ pageCtx.T("Dashboard.Charts.OperationalMargin.Title") }</h3>
+					</div>
+					@base.Select(&base.SelectProps{
+						Class: "w-auto text-lg",
+						Placeholder: pageCtx.T("Dashboard.Charts.OperationalMargin.Year"),
+					}) {
+						<option>2024</option>
+						<option>2023</option>
+						<option>2022</option>
+					}
+				</div>
+			</div>
+			<div class="px-4 pt-0 pb-4">
+				<div class="border-t my-2"></div>
+
+				<!-- Month Tabs -->
+				<div class="flex space-x-8 mt-4 mb-6 overflow-x-auto">
+					for i, month := range months {
+						<div class={ "pb-2 px-1 cursor-pointer", templ.KV("text-indigo-600 border-b-2 border-indigo-600 font-medium", i == 0), templ.KV("text-gray-400", i != 0) }>
+							{ month }
+						</div>
+					}
+				</div>
+
+				<div class="flex flex-col md:flex-row">
+					<!-- Donut Chart -->
+					<div class="w-full md:w-1/2 flex justify-center items-center relative">
+						<div class="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
+							<span class="text-gray-500 text-lg">{ pageCtx.T("Dashboard.Charts.OperationalMargin.Total") }</span>
+							<span class="text-3xl font-bold">950.000$</span>
+						</div>
+						@charts.Chart(charts.Props{Class: "w-[380px]", Options: chartOptions})
+					</div>
+
+					<!-- Legend -->
+					<div class="w-full md:w-1/2 space-y-6 mt-4 md:mt-0 flex flex-col justify-center">
+						<div class="flex items-center">
+							<div class="w-4 h-4 bg-indigo-500 mr-3"></div>
+							<span class="text-gray-700 flex-1">{ pageCtx.T("Dashboard.Charts.OperationalMargin.Categories.OperationalExpenses") }</span>
+							<span class="font-semibold">570 000$ (60%.)</span>
+						</div>
+
+						<div class="flex items-center">
+							<div class="w-4 h-4 bg-emerald-500 mr-3"></div>
+							<span class="text-gray-700 flex-1">{ pageCtx.T("Dashboard.Charts.OperationalMargin.Categories.OperationalProfit") }</span>
+							<span class="font-semibold">380 000$ (40%.)</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}

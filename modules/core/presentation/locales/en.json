@@ -157,7 +157,71 @@
     "Meta": {
       "Title": "Dashboard"
     },
-    "Welcome": "Welcome to the dashboard"
+    "Welcome": "Welcome to the dashboard",
+    "Header": "Dashboard",
+    "Charts": {
+      "ProjectDuration": {
+        "Title": "Average Project Duration",
+        "Average": "Average: 60-70 days",
+        "Days": "days",
+        "Phases": {
+          "Requirements": "Requirements Doc",
+          "Design": "Design Development",
+          "Frontend": "Frontend",
+          "Backend": "Backend",
+          "Testing": "Testing"
+        }
+      },
+      "MonthlyIncome": {
+        "Title": "Monthly Income",
+        "Average": "Average: $42,500",
+        "Year": "2024"
+      },
+      "DailyRevenue": {
+        "Title": "Average Daily Revenue",
+        "Average": "Average: $4,365",
+        "Month": "June"
+      },
+      "LifetimeRevenue": {
+        "Title": "Lifetime Revenue"
+      },
+      "OperationalMargin": {
+        "Title": "Operational Margin",
+        "Year": "2024",
+        "Total": "Total:",
+        "Categories": {
+          "OperationalExpenses": "Operational Expenses:",
+          "OperationalProfit": "Operational Profit:"
+        }
+      },
+      "EBITDA": {
+        "Title": "EBITDA",
+        "Year": "2024",
+        "Total": "Total:",
+        "Categories": {
+          "Revenue": "Revenue:",
+          "COGS": "Cost of Goods Sold:",
+          "InterestExpenses": "Interest Expenses:",
+          "Taxes": "Taxes:",
+          "Depreciation": "Depreciation:",
+          "EBITDA": "EBITDA:"
+        }
+      }
+    },
+    "Months": {
+      "Jan": "Jan",
+      "Feb": "Feb",
+      "Mar": "Mar",
+      "Apr": "Apr",
+      "May": "May",
+      "Jun": "Jun",
+      "Jul": "Jul",
+      "Aug": "Aug",
+      "Sep": "Sep",
+      "Oct": "Oct",
+      "Nov": "Nov",
+      "Dec": "Dec"
+    }
   },
   "Users": {
     "Meta": {

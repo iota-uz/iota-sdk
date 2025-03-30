@@ -1,0 +1,128 @@
+package dashboard
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// Lifetime Revenue Chart
+templ LifetimeRevenueCard() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+	chartOptions := charts.ChartOptions{
+		Chart: charts.ChartConfig{
+			Type:    "bar",
+			Height:  "200",
+			Toolbar: charts.Toolbar{Show: false},
+		},
+		Series: []charts.Series{
+			{Name: "Доход", Data: []float64{200, 190, 140, 170, 180, 160}},
+		},
+		XAxis: charts.XAxisConfig{
+			Categories: []string{
+				"ПО для компании Impex",
+				"ПО для компании Impex",
+				"Платформа Saas",
+				"Платформа Saas",
+				"Платформа Saas",
+				"ПО для компании Impex",
+			},
+			Labels: charts.LabelFormatter{
+				Style: charts.LabelStyle{
+					Colors:   "#CBD5E1",
+					FontSize: "10px",
+				},
+				Show: false,
+			},
+			AxisBorder: charts.AxisBorder{
+				Show: false,
+			},
+			AxisTicks: charts.AxisTicks{
+				Show: false,
+			},
+		},
+		YAxis: charts.YAxisConfig{
+			Labels: charts.LabelFormatter{
+				Style: charts.LabelStyle{
+					Colors:   "#CBD5E1",
+					FontSize: "10px",
+				},
+				Show: false,
+			},
+		},
+		Colors: []string{"#6366F1"},
+		PlotOptions: charts.PlotOptions{
+			Bar: charts.BarConfig{
+				BorderRadius: 4,
+				Horizontal:   true,
+				BarHeight:    "70%",
+				DataLabels: charts.BarLabels{
+					Position: "right",
+				},
+			},
+		},
+		DataLabels: charts.DataLabels{
+			Enabled:    true,
+			OffsetX:    -5,
+			Style: charts.DataLabelStyle{
+				Colors:     []string{"#FFFFFF"},
+				FontSize:   "12px",
+				FontWeight: "500",
+			},
+			Formatter: templ.JSExpression(`function(val, opt) { if (opt && opt.w && opt.w.globals && opt.w.globals.labels && opt.dataPointIndex !== undefined) { return opt.w.globals.labels[opt.dataPointIndex]; } return val; }`),
+
+		},
+		Stroke: charts.StrokeConfig{
+			Width: 0,
+		},
+		Grid: charts.GridConfig{
+			Show: false,
+			Padding: charts.Padding{
+				Top:    0,
+				Right:  0,
+				Bottom: 20,
+				Left:   0,
+			},
+		},
+		Legend: charts.LegendConfig{
+			Show: false,
+		},
+		Tooltip: charts.TooltipConfig{
+			Enabled: false,
+		},
+	}
+	}}
+	<div class="md:col-span-1">
+		<div class="bg-white shadow rounded-lg">
+			<div class="p-4 pb-2">
+				<div class="flex justify-between items-center">
+					<div>
+						<h3 class="text-sm font-medium text-gray-700">{ pageCtx.T("Dashboard.Charts.LifetimeRevenue.Title") }</h3>
+					</div>
+					@base.Select(&base.SelectProps{
+						Class: "w-auto text-sm",
+						Placeholder: pageCtx.T("Dashboard.Charts.MonthlyIncome.Year"),
+					}) {
+						<option>2024</option>
+						<option>2023</option>
+						<option>2022</option>
+					}
+				</div>
+			</div>
+			<div class="p-4">
+				<div class="h-[200px]">
+					@charts.Chart(charts.Props{Class: "w-full h-[200px]", Options: chartOptions})
+				</div>
+				<div class="flex justify-between text-xs text-gray-500 mt-2 px-2">
+					<span>10k</span>
+					<span>25k</span>
+					<span>50k</span>
+					<span>100k</span>
+					<span>150k</span>
+					<span>200k</span>
+				</div>
+			</div>
+		</div>
+	</div>
+}

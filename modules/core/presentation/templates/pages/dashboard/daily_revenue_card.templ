@@ -1,0 +1,153 @@
+package dashboard
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// Daily Revenue Chart
+templ DailyRevenueCard() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+	chartOptions := charts.ChartOptions{
+		Chart: charts.ChartConfig{
+			Type:    "area",
+			Height:  "200",
+			Toolbar: charts.Toolbar{Show: false},
+		},
+		Series: []charts.Series{
+			{Name: "Выручка", Data: []float64{30, 40, 50, 45, 40, 45, 50, 55, 60}},
+		},
+		XAxis: charts.XAxisConfig{
+			Categories: []string{"", "", "", "", "", "", "", "", ""},
+			Labels: charts.LabelFormatter{
+				Style: charts.LabelStyle{
+					Colors:   "#CBD5E1",
+					FontSize: "10px",
+				},
+				Show: false,
+			},
+			AxisBorder: charts.AxisBorder{
+				Show: false,
+			},
+			AxisTicks: charts.AxisTicks{
+				Show: false,
+			},
+			Crosshairs: charts.Crosshairs{
+				Show:     true,
+				Width:    1,
+				Position: "back",
+				Opacity:  0.5,
+				Stroke: charts.StrokeStyle{
+					Color:     "#EC4899",
+					Width:     1,
+					DashArray: 5,
+				},
+			},
+		},
+		YAxis: charts.YAxisConfig{
+			Show: false,
+		},
+		Colors: []string{"#EC4899"},
+		Stroke: charts.StrokeConfig{
+			Curve:  "smooth",
+			Width:  3,
+			Colors: []string{"#EC4899"},
+		},
+		Fill: charts.FillConfig{
+			Type: "gradient",
+			Gradient: charts.GradientConfig{
+				ShadeIntensity: 0.8,
+				OpacityFrom:    0.2,
+				OpacityTo:      0.0,
+				Stops:          []int{0, 100},
+				ColorStops: []charts.ColorStop{
+					{
+						Offset:  0,
+						Color:   "#EC4899",
+						Opacity: 0.2,
+					},
+					{
+						Offset:  100,
+						Color:   "#EC4899",
+						Opacity: 0.0,
+					},
+				},
+			},
+		},
+		DataLabels: charts.DataLabels{
+			Enabled: false,
+		},
+		Markers: charts.MarkersConfig{
+			Size:         5,
+			Colors:       []string{"#EC4899"},
+			StrokeColors: "#fff",
+			StrokeWidth:  2,
+			Hover: charts.HoverConfig{
+				Size: 7,
+			},
+		},
+		Tooltip: charts.TooltipConfig{
+			Enabled:   true,
+			Shared:    true,
+			Intersect: false,
+			Custom: templ.JSExpression(`function({ series, seriesIndex, dataPointIndex, w }) {
+				const value = series[seriesIndex][dataPointIndex];
+				return '<div class="bg-black text-white px-2 py-1 rounded text-xs font-bold">' + value.toLocaleString() + '$</div>';
+			}`),
+			Fixed: charts.Fixed{
+				Enabled: false,
+			},
+			OnDatasetHover: charts.OnDatasetHover{
+				HighlightDataSeries: false,
+			},
+		},
+		Grid: charts.GridConfig{
+			Show:           true,
+			BorderColor:    "#f1f1f1",
+			StrokeDashArray: 5,
+			Position:       "back",
+			XAxis: charts.GridAxis{
+				Lines: charts.GridLines{
+					Show: true,
+				},
+			},
+			YAxis: charts.GridAxis{
+				Lines: charts.GridLines{
+					Show: true,
+				},
+			},
+		},
+		Legend: charts.LegendConfig{
+			Show: false,
+		},
+	}
+	}}
+	<div class="md:col-span-2">
+		<div class="bg-white shadow rounded-lg">
+			<div class="p-4 pb-2">
+				<div class="flex justify-between items-center">
+					<div>
+						<h3 class="text-sm font-medium text-gray-700">{ pageCtx.T("Dashboard.Charts.DailyRevenue.Title") }</h3>
+						<p class="text-xs text-gray-500">{ pageCtx.T("Dashboard.Charts.DailyRevenue.Average") }</p>
+					</div>
+					@base.Select(&base.SelectProps{
+						Class: "w-auto text-sm",
+						Placeholder: pageCtx.T("Dashboard.Charts.DailyRevenue.Month"),
+					}) {
+						<option>{ pageCtx.T("Dashboard.Months.Jan") }</option>
+						<option>{ pageCtx.T("Dashboard.Months.Feb") }</option>
+						<option>{ pageCtx.T("Dashboard.Months.Mar") }</option>
+						<option>{ pageCtx.T("Dashboard.Months.Apr") }</option>
+					}
+				</div>
+			</div>
+			<div class="p-4">
+				<div class="h-[200px] relative">
+					@charts.Chart(charts.Props{Class: "w-full h-[200px]", Options: chartOptions})
+				</div>
+			</div>
+		</div>
+	</div>
+}
