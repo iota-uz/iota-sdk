@@ -21,47 +21,54 @@ type IndexPageProps struct {
 templ PositionsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(base.TableProps{
-			Columns: []*base.TableColumn{
-				{Label: "", Key: "title"},
-				{Label: pageCtx.T("WarehousePositions.List.Position"), Key: "title"},
-				{Label: pageCtx.T("WarehousePositions.List.Barcode"), Key: "barcode"},
-				{Label: pageCtx.T("WarehousePositions.List.Unit"), Key: "unit"},
-				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
-			},
-		}) {
-			for _, position := range props.Positions {
-				@base.TableRow(base.TableRowProps{}) {
-					@base.TableCell(base.TableCellProps{}) {
-						if len(position.Images) > 0 {
-							<img src={ position.Images[0].URL } class="w-12 h-12"/>
+		if len(props.Positions) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("WarehousePositions.List.NoPositions.Title"),
+				Description: pageCtx.T("WarehousePositions.List.NoPositions.Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: "", Key: "title"},
+					{Label: pageCtx.T("WarehousePositions.List.Position"), Key: "title"},
+					{Label: pageCtx.T("WarehousePositions.List.Barcode"), Key: "barcode"},
+					{Label: pageCtx.T("WarehousePositions.List.Unit"), Key: "unit"},
+					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, position := range props.Positions {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							if len(position.Images) > 0 {
+								<img src={ position.Images[0].URL } class="w-12 h-12"/>
+							}
 						}
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						{ position.Title }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						{ position.Barcode }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						{ position.Unit.Title }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", position.UpdatedAt) }></span>
-						</div>
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/positions/%s", position.ID)}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
+						@base.TableCell(base.TableCellProps{}) {
+							{ position.Title }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ position.Barcode }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ position.Unit.Title }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", position.UpdatedAt) }></span>
+							</div>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/positions/%s", position.ID)}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
 						}
 					}
 				}
 			}
-		}
-		if len(props.PaginationState.Pages()) > 1 {
-			@pagination.Pagination(props.PaginationState)
+			if len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
 		}
 	</div>
 }
