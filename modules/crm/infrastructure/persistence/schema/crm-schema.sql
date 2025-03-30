@@ -74,10 +74,11 @@ CREATE INDEX idx_clients_last_name ON clients (last_name);
 CREATE INDEX idx_clients_phone_number ON clients (phone_number);
 
 CREATE INDEX idx_clients_email ON clients (email);
+
 CREATE INDEX idx_clients_tenant_id ON clients (tenant_id);
 
 CREATE INDEX idx_client_contacts_client_id ON client_contacts (client_id);
 
 CREATE INDEX idx_chats_tenant_id ON chats (tenant_id);
-CREATE INDEX idx_message_templates_tenant_id ON message_templates (tenant_id);
 
+CREATE INDEX idx_message_templates_tenant_id ON message_templates (tenant_id);
