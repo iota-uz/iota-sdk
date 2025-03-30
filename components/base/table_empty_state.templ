@@ -23,15 +23,13 @@ templ TableEmptyState(props TableEmptyStateProps) {
 		{ props.Attrs... }
 	>
 		<div class="flex flex-col items-center max-w-md text-center">
-			<div class="mb-8">
-				@illustrations.EmptyTable(illustrations.EmptyTableProps{
-					Width:  100,
-					Height: 114,
-				})
-			</div>
+			@illustrations.EmptyTable(illustrations.EmptyTableProps{
+				Width:  100,
+				Height: 114,
+			})
 			<!-- Text content -->
-			<h2 class="text-foreground-900 text-xl font-medium mb-2">{ props.Title }</h2>
-			<p class="text-foreground-700 text-base">{ props.Description }</p>
+			<h2 class="text-foreground-900 font-medium my-2">{ props.Title }</h2>
+			<p class="text-foreground-700">{ props.Description }</p>
 		</div>
 	</div>
 }

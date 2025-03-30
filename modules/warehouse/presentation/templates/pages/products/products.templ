@@ -20,37 +20,44 @@ type IndexPageProps struct {
 templ ProductsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(base.TableProps{
-			Columns: []*base.TableColumn{
-				{Label: pageCtx.T("Products.List.Position"), Key: "position"},
-				{Label: pageCtx.T("Products.List.Status"), Key: "status"},
-				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
-			},
-		}) {
-			for _, product := range props.Products {
-				@base.TableRow(base.TableRowProps{}) {
-					@base.TableCell(base.TableCellProps{}) {
-						{ product.Position.Title }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						{ product.LocalizedStatus(pageCtx.Localizer) }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", product.UpdatedAt) }></span>
-						</div>
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/products/%s", product.ID)}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
+		if len(props.Products) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("Products.List.NoProducts.Title"),
+				Description: pageCtx.T("Products.List.NoProducts.Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("Products.List.Position"), Key: "position"},
+					{Label: pageCtx.T("Products.List.Status"), Key: "status"},
+					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, product := range props.Products {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							{ product.Position.Title }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ product.LocalizedStatus(pageCtx.Localizer) }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", product.UpdatedAt) }></span>
+							</div>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/warehouse/products/%s", product.ID)}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
 						}
 					}
 				}
 			}
-		}
-		if len(props.PaginationState.Pages()) > 1 {
-			@pagination.Pagination(props.PaginationState)
+			if len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
 		}
 	</div>
 }
