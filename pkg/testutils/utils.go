@@ -40,16 +40,17 @@ func MockUser(permissions ...*permission.Permission) user.User {
 		permissions,
 		time.Now(),
 		time.Now(),
+		0, // tenant_id will be set correctly in repository
 	)
 	if err != nil {
 		panic(err)
 	}
-	
+
 	email, err := internet.NewEmail("test@example.com")
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return user.New(
 		"", // firstName
 		"", // lastName
