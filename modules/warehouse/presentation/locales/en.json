@@ -23,7 +23,11 @@
       },
       "New": "New product",
       "Position": "Position",
-      "Status": "Status"
+      "Status": "Status",
+      "NoProducts": {
+        "Title": "No products found",
+        "Description": "There are no products yet. Click 'New product' to create one."
+      }
     },
     "New": {
       "Meta": {
@@ -62,7 +66,11 @@
       "Upload": "Upload .xlsx",
       "Position": "Position",
       "Barcode": "Barcode",
-      "Unit": "Unit"
+      "Unit": "Unit",
+      "NoPositions": {
+        "Title": "No positions found",
+        "Description": "There are no positions yet. Click 'New position' to create one."
+      }
     },
     "New": {
       "Meta": {
@@ -115,7 +123,11 @@
       },
       "New": "New unit",
       "Title": "Title",
-      "ShortTitle": "Short title"
+      "ShortTitle": "Short title",
+      "NoUnits": {
+        "Title": "No units found",
+        "Description": "There are no units yet. Click 'New unit' to create one."
+      }
     },
     "New": {
       "Meta": {
@@ -151,7 +163,11 @@
       "Type": "Type",
       "Status": "Status",
       "Products": "PCS.",
-      "Positions": "Positions"
+      "Positions": "Positions",
+      "NoOrders": {
+        "Title": "No orders found",
+        "Description": "There are no orders yet. Click 'New order' to create one."
+      }
     },
     "New": {
       "Meta": {
@@ -219,7 +235,11 @@
       "CreatedBy": "Created by",
       "FinishedBy": "Finished by",
       "SelectStatus": "Select status",
-      "SelectType": "Select type"
+      "SelectType": "Select type",
+      "NoInventory": {
+        "Title": "No inventory checks found",
+        "Description": "There are no inventory checks yet. Click 'New inventory' to create one."
+      }
     },
     "New": {
       "Meta": {
