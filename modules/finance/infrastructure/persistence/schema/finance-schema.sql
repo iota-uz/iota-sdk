@@ -91,24 +91,32 @@ CREATE TABLE payments (
 );
 
 CREATE INDEX expenses_category_id_idx ON expenses (category_id);
+
 CREATE INDEX expenses_transaction_id_idx ON expenses (transaction_id);
 
 CREATE INDEX payments_counterparty_id_idx ON payments (counterparty_id);
+
 CREATE INDEX payments_transaction_id_idx ON payments (transaction_id);
 
 CREATE INDEX transactions_tenant_id_idx ON transactions (tenant_id);
+
 CREATE INDEX transactions_destination_account_id_idx ON transactions (destination_account_id);
+
 CREATE INDEX transactions_origin_account_id_idx ON transactions (origin_account_id);
 
 CREATE INDEX counterparty_tenant_id_idx ON counterparty (tenant_id);
+
 CREATE INDEX counterparty_contacts_counterparty_id_idx ON counterparty_contacts (counterparty_id);
+
 CREATE INDEX counterparty_tin_idx ON counterparty (tin);
 
 CREATE INDEX inventory_tenant_id_idx ON inventory (tenant_id);
+
 CREATE INDEX inventory_currency_id_idx ON inventory (currency_id);
 
 CREATE INDEX expense_categories_tenant_id_idx ON expense_categories (tenant_id);
 
 CREATE INDEX money_accounts_tenant_id_idx ON money_accounts (tenant_id);
+
 CREATE INDEX money_accounts_balance_currency_id_idx ON money_accounts (balance_currency_id);
 

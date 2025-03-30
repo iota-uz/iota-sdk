@@ -29,3 +29,4 @@ CREATE INDEX authentication_logs_tenant_id_idx ON authentication_logs (tenant_id
 CREATE INDEX authentication_logs_user_id_idx ON authentication_logs (user_id);
 
 CREATE INDEX authentication_logs_created_at_idx ON authentication_logs (created_at);
+

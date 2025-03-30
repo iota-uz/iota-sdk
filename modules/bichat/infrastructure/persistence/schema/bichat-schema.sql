@@ -18,5 +18,8 @@ CREATE TABLE dialogues (
 );
 
 CREATE INDEX dialogues_user_id_idx ON dialogues (user_id);
+
 CREATE INDEX dialogues_tenant_id_idx ON dialogues (tenant_id);
+
 CREATE INDEX prompts_tenant_id_idx ON prompts (tenant_id);
+
