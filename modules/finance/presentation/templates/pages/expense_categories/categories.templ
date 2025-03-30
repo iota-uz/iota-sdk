@@ -20,42 +20,49 @@ type IndexPageProps struct {
 templ CategoriesTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(base.TableProps{
-			Columns: []*base.TableColumn{
-				{Label: pageCtx.T("ExpenseCategories.List.Name"), Key: "name"},
-				{Label: pageCtx.T("ExpenseCategories.List.Amount"), Key: "amount"},
-				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
-			},
-		}) {
-			for _, category := range props.Categories {
-				@base.TableRow(base.TableRowProps{}) {
-					@base.TableCell(base.TableCellProps{}) {
-						{ category.Name }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						{ category.AmountWithCurrency }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", category.UpdatedAt) }></span>
-						</div>
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						@button.Secondary(button.Props{
-							Fixed: true,
-							Size:  button.SizeSM,
-							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/finance/expense-categories/%s", category.ID),
-						}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
+		if len(props.Categories) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("ExpenseCategories.List.NoCategories.Title"),
+				Description: pageCtx.T("ExpenseCategories.List.NoCategories.Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("ExpenseCategories.List.Name"), Key: "name"},
+					{Label: pageCtx.T("ExpenseCategories.List.Amount"), Key: "amount"},
+					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, category := range props.Categories {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							{ category.Name }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ category.AmountWithCurrency }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", category.UpdatedAt) }></span>
+							</div>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@button.Secondary(button.Props{
+								Fixed: true,
+								Size:  button.SizeSM,
+								Class: "btn-fixed",
+								Href:  fmt.Sprintf("/finance/expense-categories/%s", category.ID),
+							}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
 						}
 					}
 				}
 			}
-		}
-		if len(props.PaginationState.Pages()) > 1 {
-			@pagination.Pagination(props.PaginationState)
+			if len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
 		}
 	</div>
 }
