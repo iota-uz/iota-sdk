@@ -2,7 +2,7 @@ CREATE TABLE tenants (
     id serial PRIMARY KEY,
     name varchar(255) NOT NULL UNIQUE,
     domain varchar(255),
-    is_active boolean NOT NULL DEFAULT true,
+    is_active boolean NOT NULL DEFAULT TRUE,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
@@ -183,21 +183,30 @@ CREATE TABLE tabs (
 );
 
 CREATE INDEX users_tenant_id_idx ON users (tenant_id);
+
 CREATE INDEX users_first_name_idx ON users (first_name);
+
 CREATE INDEX users_last_name_idx ON users (last_name);
 
 CREATE INDEX sessions_tenant_id_idx ON sessions (tenant_id);
+
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
+
 CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 
 CREATE INDEX role_permissions_role_id_idx ON role_permissions (role_id);
+
 CREATE INDEX role_permissions_permission_id_idx ON role_permissions (permission_id);
 
 CREATE INDEX uploaded_images_upload_id_idx ON uploaded_images (upload_id);
 
 CREATE INDEX uploads_tenant_id_idx ON uploads (tenant_id);
+
 CREATE INDEX roles_tenant_id_idx ON roles (tenant_id);
+
 CREATE INDEX user_groups_tenant_id_idx ON user_groups (tenant_id);
+
 CREATE INDEX permissions_tenant_id_idx ON permissions (tenant_id);
+
 CREATE INDEX tabs_tenant_id_idx ON tabs (tenant_id);
 
