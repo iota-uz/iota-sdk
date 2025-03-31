@@ -264,7 +264,7 @@ func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
 	}, nil
 }
 
-func toDBSession(session *session.Session) *models.Session {
+func ToDBSession(session *session.Session) *models.Session {
 	return &models.Session{
 		UserID:    session.UserID,
 		TenantID:  session.TenantID,
@@ -276,7 +276,7 @@ func toDBSession(session *session.Session) *models.Session {
 	}
 }
 
-func toDomainSession(dbSession *models.Session) *session.Session {
+func ToDomainSession(dbSession *models.Session) *session.Session {
 	return &session.Session{
 		UserID:    dbSession.UserID,
 		TenantID:  dbSession.TenantID,

@@ -19,6 +19,7 @@ type Session struct {
 type CreateDTO struct {
 	Token     string
 	UserID    uint
+	TenantID  uint
 	IP        string
 	UserAgent string
 }
@@ -27,7 +28,7 @@ func (d *CreateDTO) ToEntity() *Session {
 	return &Session{
 		Token:     d.Token,
 		UserID:    d.UserID,
-		TenantID:  0, // Will be set in repository
+		TenantID:  d.TenantID,
 		IP:        d.IP,
 		UserAgent: d.UserAgent,
 		ExpiresAt: time.Now().Add(configuration.Use().SessionDuration),

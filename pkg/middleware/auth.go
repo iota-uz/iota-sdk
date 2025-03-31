@@ -54,6 +54,35 @@ func Authorize() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
+
+				// Now that we have the session, let's ensure we have the tenant in the context
+				// First check if we already have a tenant
+				_, tenantErr := composables.UseTenant(ctx)
+				if tenantErr != nil {
+					// Since this is in middleware, avoid UserService to prevent circular dependencies
+					// Use direct database query to get the tenant ID for the user
+					tx, txErr := composables.UseTx(ctx)
+					if txErr == nil {
+						var tenantID uint
+						err := tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1 LIMIT 1", sess.UserID).Scan(&tenantID)
+						if err == nil && tenantID > 0 {
+							// Now query for the tenant info
+							var name string
+							var domain string
+							err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", tenantID).Scan(&name, &domain)
+							if err == nil {
+								// Add tenant to context
+								t := &composables.Tenant{
+									ID:     tenantID,
+									Name:   name,
+									Domain: domain,
+								}
+								ctx = context.WithValue(ctx, constants.TenantKey, t)
+							}
+						}
+					}
+				}
+
 				params, ok := composables.UseParams(ctx)
 				if !ok {
 					panic("params not found. Add RequestParams middleware up the chain")
