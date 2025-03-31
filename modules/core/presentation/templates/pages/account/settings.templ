@@ -5,6 +5,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -102,15 +103,27 @@ templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, 
 	</ul>
 }
 
-templ SettingsForm(props *SettingsPageProps) {
+templ SidebarSettingsForm(props *SettingsPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<form class="flex flex-col justify-between h-full" method="post">
-		@card.Card(card.Props{
-			Class:        "p-0",
-			WrapperClass: "m-6",
-		}) {
-			@NavItems(props.AllNavItems, props.Tabs, 0, "")
-		}
+	<form
+		class="flex flex-col justify-between h-full"
+		method="post"
+	>
+		<div class="flex flex-col gap-5 p-6">
+			@tab.Root(tab.Props{}) {
+				@tab.Link("/account", false) {
+					{ pageCtx.T("Account.Tabs.Profile") }
+				}
+				@tab.Link("/account/sidebar", true) {
+					{ pageCtx.T("Account.Tabs.Sidebar") }
+				}
+			}
+			@card.Card(card.Props{
+				Class: "p-0",
+			}) {
+				@NavItems(props.AllNavItems, props.Tabs, 0, "")
+			}
+		</div>
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Attrs: templ.Attributes{
@@ -123,11 +136,11 @@ templ SettingsForm(props *SettingsPageProps) {
 	</form>
 }
 
-templ Settings(props *SettingsPageProps) {
+templ SidebarSettings(props *SettingsPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Settings.Title")},
 	}) {
-		@SettingsForm(props)
+		@SidebarSettingsForm(props)
 	}
 }

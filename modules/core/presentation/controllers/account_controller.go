@@ -51,13 +51,13 @@ func (c *AccountController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.Get).Methods(http.MethodGet)
-	getRouter.HandleFunc("/settings", c.GetSettings).Methods(http.MethodGet)
+	getRouter.HandleFunc("/sidebar", c.GetSettings).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/settings", c.PostSettings).Methods(http.MethodPost)
+	setRouter.HandleFunc("/sidebar", c.PostSettings).Methods(http.MethodPost)
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {
@@ -138,7 +138,7 @@ func (c *AccountController) GetSettings(w http.ResponseWriter, r *http.Request) 
 		AllNavItems: allNavItems,
 		Tabs:        tabViewModels,
 	}
-	templ.Handler(account.Settings(props)).ServeHTTP(w, r)
+	templ.Handler(account.SidebarSettings(props)).ServeHTTP(w, r)
 }
 
 func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request) {

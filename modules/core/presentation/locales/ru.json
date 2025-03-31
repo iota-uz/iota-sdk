@@ -149,7 +149,6 @@
     "Reports": "Отчеты",
     "Navbar": {
       "Profile": "Профиль",
-      "Settings": "Настройки",
       "Logout": "Выйти"
     }
   },
@@ -269,13 +268,32 @@
       }
     },
     "BrowseFilesystem": "Выбрать изображение",
-    "FirstName": "Имя",
-    "LastName": "Фамилия",
-    "MiddleName": "Отчество",
-    "Email": "Электронная почта",
-    "Phone": "Телефон",
+    "FirstName": {
+      "Label": "Имя",
+      "Placeholder": "Введите имя"
+    },
+    "LastName": {
+      "Label": "Фамилия",
+      "Placeholder": "Введите фамилию"
+    },
+    "MiddleName": {
+      "Label": "Отчество",
+      "Placeholder": "Введите отчество"
+    },
+    "Email": {
+      "Label": "Электронная почта",
+      "Placeholder": "Введите электронную почту"
+    },
+    "Phone": {
+      "Label": "Телефон",
+      "Placeholder": "Введите номер телефона"
+    },
     "Password": "Пароль",
-    "Save": "Сохранить"
+    "Save": "Сохранить",
+    "Tabs": {
+      "Profile": "Настройки профиля",
+      "Sidebar": "Настройки боковой панели"
+    }
   },
   "Login": {
     "Meta": {
