@@ -14,7 +14,7 @@ import (
 
 type EditFormProps struct {
 	Role             *viewmodels.Role
-	PermissionGroups []*Group
+	PermissionGroups []*viewmodels.PermissionGroup
 	Errors           map[string]string
 }
 
@@ -37,17 +37,17 @@ templ EditForm(props *EditFormProps) {
 			for _, group := range props.PermissionGroups {
 				@card.Card(card.Props{
 					Class:  "space-y-3",
-					Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Label))),
+					Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Resource))),
 				}) {
-					for _, child := range group.Children {
+					for _, perm := range group.Permissions {
 						@Permission(SharedProps{
-							Label: pageCtx.T(fmt.Sprintf("Permissions.%s", child.Label)),
+							Label: pageCtx.T(fmt.Sprintf("Permissions.%s", perm.Name)),
 							Attrs: templ.Attributes{
-								"name": child.Name,
+								"name": fmt.Sprintf("Permissions[%s]", perm.ID),
 								"form": "save-form",
 							},
-							Error:   props.Errors[child.Name],
-							Checked: child.Checked,
+							Error:   props.Errors[fmt.Sprintf("Permissions[%s]", perm.ID)],
+							Checked: perm.Checked,
 						})
 					}
 				}

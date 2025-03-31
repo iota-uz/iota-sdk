@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"sort"
 
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -188,12 +189,10 @@ func (c *UsersController) Register(r *mux.Router) {
 	router.HandleFunc("", c.Users).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}/permissions", c.GetUserPermissions).Methods(http.MethodGet)
 
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-	router.HandleFunc("/{id:[0-9]+}/permissions", c.UpdateUserPermissions).Methods(http.MethodPost)
 
 	c.realtime.Register()
 }
@@ -231,6 +230,40 @@ func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c *UsersController) permissionGroups(selected ...*permission.Permission) []*viewmodels.PermissionGroup {
+	isSelected := func(p2 *permission.Permission) bool {
+		for _, p1 := range selected {
+			if p1.ID == p2.ID {
+				return true
+			}
+		}
+		return false
+	}
+	
+	// Use the PermissionsByResource method from RBAC interface
+	groupedByResource := c.app.RBAC().PermissionsByResource()
+	
+	groups := make([]*viewmodels.PermissionGroup, 0, len(groupedByResource))
+	for resource, permissions := range groupedByResource {
+		var permList []*viewmodels.PermissionItem
+		for _, perm := range permissions {
+			permList = append(permList, &viewmodels.PermissionItem{
+				ID:      perm.ID.String(),
+				Name:    perm.Name,
+				Checked: isSelected(perm),
+			})
+		}
+		groups = append(groups, &viewmodels.PermissionGroup{
+			Resource:    resource,
+			Permissions: permList,
+		})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].Resource < groups[j].Resource
+	})
+	return groups
+}
+
 func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
@@ -243,22 +276,16 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permissions, err := c.permissionService.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
-		return
-	}
-
 	us, err := c.userService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 	props := &users.EditFormProps{
-		User:        mappers.UserToViewModel(us),
-		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Permissions: mapping.MapViewModels(permissions, mappers.PermissionToViewModel),
-		Errors:      map[string]string{},
+		User:             mappers.UserToViewModel(us),
+		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		PermissionGroups: c.permissionGroups(us.Permissions()...),
+		Errors:           map[string]string{},
 	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -270,17 +297,11 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permissions, err := c.permissionService.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
-		return
-	}
-
 	props := &users.CreateFormProps{
-		User:        viewmodels.User{},
-		Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Permissions: mapping.MapViewModels(permissions, mappers.PermissionToViewModel),
-		Errors:      map[string]string{},
+		User:             viewmodels.User{},
+		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		PermissionGroups: c.permissionGroups(),
+		Errors:           map[string]string{},
 	}
 	templ.Handler(users.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -299,22 +320,16 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		permissions, err := c.permissionService.GetAll(r.Context())
-		if err != nil {
-			http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
-			return
-		}
-
 		userEntity, err := dto.ToEntity()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		props := &users.CreateFormProps{
-			User:        *mappers.UserToViewModel(userEntity),
-			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Permissions: mapping.MapViewModels(permissions, mappers.PermissionToViewModel),
-			Errors:      errors,
+			User:             *mappers.UserToViewModel(userEntity),
+			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			PermissionGroups: c.permissionGroups(),
+			Errors:           errors,
 		}
 		templ.Handler(
 			users.CreateForm(props), templ.WithStreaming(),
@@ -341,21 +356,22 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+	
 	dto, err := composables.UseForm(&user.UpdateDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		roles, err := c.roleService.GetAll(r.Context())
 		if err != nil {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
-			return
-		}
-
-		permissions, err := c.permissionService.GetAll(r.Context())
-		if err != nil {
-			http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
 			return
 		}
 
@@ -366,23 +382,43 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 
 		props := &users.EditFormProps{
-			User:        mappers.UserToViewModel(us),
-			Roles:       mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Permissions: mapping.MapViewModels(permissions, mappers.PermissionToViewModel),
-			Errors:      errors,
+			User:             mappers.UserToViewModel(us),
+			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			PermissionGroups: c.permissionGroups(us.Permissions()...),
+			Errors:           errors,
 		}
 		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
+	
 	userEntity, err := dto.ToEntity(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	
+	// Handle permissions
+	permissionIDs := r.Form["PermissionIDs"]
+	permissions := []*permission.Permission{}
+	for _, permID := range permissionIDs {
+		if permID == "" {
+			continue
+		}
+		perm, err := c.permissionService.GetByID(r.Context(), permID)
+		if err != nil {
+			continue
+		}
+		permissions = append(permissions, perm)
+	}
+	
+	// Set permissions on the user entity
+	userEntity = userEntity.SetPermissions(permissions)
+	
 	if err := c.userService.Update(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	
 	shared.Redirect(w, r, c.basePath)
 }
 
@@ -398,78 +434,4 @@ func (c *UsersController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
-}
-
-func (c *UsersController) GetUserPermissions(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	usr, err := c.userService.GetByID(r.Context(), id)
-	if err != nil {
-		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
-		return
-	}
-	permissions, err := c.permissionService.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
-		return
-	}
-	props := &users.UserPermissionsProps{
-		User:        mappers.UserToViewModel(usr),
-		Permissions: mapping.MapViewModels(permissions, mappers.PermissionToViewModel),
-		Errors:      map[string]string{},
-	}
-	templ.Handler(users.UserPermissions(props), templ.WithStreaming()).ServeHTTP(w, r)
-}
-
-func (c *UsersController) UpdateUserPermissions(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Error parsing form", http.StatusBadRequest)
-		return
-	}
-	permissionIDs := r.Form["PermissionIDs"]
-	usr, err := c.userService.GetByID(r.Context(), id)
-	if err != nil {
-		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
-		return
-	}
-	permissions := []*permission.Permission{}
-	for _, permID := range permissionIDs {
-		if permID == "" {
-			continue
-		}
-		perm, err := c.permissionService.GetByID(r.Context(), permID)
-		if err != nil {
-			continue
-		}
-		permissions = append(permissions, perm)
-	}
-	updatedUser := usr.SetPermissions(permissions)
-	if err := c.userService.Update(r.Context(), updatedUser); err != nil {
-		http.Error(w, "Error updating user permissions", http.StatusInternalServerError)
-		return
-	}
-	refreshedUser, err := c.userService.GetByID(r.Context(), id)
-	if err != nil {
-		http.Error(w, "Error retrieving updated user", http.StatusInternalServerError)
-		return
-	}
-	allPermissions, err := c.permissionService.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, "Error retrieving permissions", http.StatusInternalServerError)
-		return
-	}
-	props := &users.UserPermissionsProps{
-		User:        mappers.UserToViewModel(refreshedUser),
-		Permissions: mapping.MapViewModels(allPermissions, mappers.PermissionToViewModel),
-		Errors:      map[string]string{},
-	}
-	templ.Handler(users.UserPermissions(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

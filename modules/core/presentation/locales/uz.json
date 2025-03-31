@@ -184,6 +184,10 @@
       "PersonalInfo": "Shaxsiy ma'lumotlar",
       "UserInfo": "Foydalanuvchi ma'lumotlari"
     },
+    "Tabs": {
+      "UserInfo": "Ma'lumotlar",
+      "Permissions": "Ruxsatlar"
+    },
     "Single": {
       "EditUser": "Foydalanuvchini tahrirlash",
       "FirstName": "Ism",

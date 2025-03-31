@@ -184,6 +184,10 @@
       "PersonalInfo": "Personal information",
       "UserInfo": "User information"
     },
+    "Tabs": {
+      "UserInfo": "User Info",
+      "Permissions": "Permissions"
+    },
     "Single": {
       "EditUser": "Edit user",
       "FirstName": "First name",

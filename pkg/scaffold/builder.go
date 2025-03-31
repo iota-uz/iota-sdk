@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/scaffold"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -150,7 +151,7 @@ func (b *TableControllerBuilder[T]) List(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check if this is an HTMX request
-	isHxRequest := len(r.Header.Get("HX-Request")) > 0
+	isHxRequest := htmx.IsHxRequest(r)
 
 	if isHxRequest {
 		// Render just the table component
@@ -189,4 +190,3 @@ type simpleTableViewModel[T any] struct {
 func (v *simpleTableViewModel[T]) MapToViewModel(entity T) map[string]interface{} {
 	return v.mapFn(entity)
 }
-
