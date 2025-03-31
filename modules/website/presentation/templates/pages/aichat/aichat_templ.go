@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -121,7 +120,7 @@ func Chat(props Props) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 161, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 160, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -134,7 +133,7 @@ func Chat(props Props) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.Description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 164, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 163, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -223,7 +222,7 @@ func Configure(props Props) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
+				templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
 					Label:       pageCtx.T("AIChatBot.Description.Label"),
 					Placeholder: pageCtx.T("AIChatBot.Description.Placeholder"),
 				}).Render(ctx, templ_7745c5c3_Buffer)
@@ -249,7 +248,7 @@ func Configure(props Props) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 226, Col: 25}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/website/presentation/templates/pages/aichat/aichat.templ`, Line: 225, Col: 25}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
