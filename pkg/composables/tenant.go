@@ -32,3 +32,7 @@ func MustUseTenant(ctx context.Context) *Tenant {
 	}
 	return t
 }
+
+func WithTenant(ctx context.Context, tenant *Tenant) context.Context {
+	return context.WithValue(ctx, constants.TenantKey, tenant)
+}

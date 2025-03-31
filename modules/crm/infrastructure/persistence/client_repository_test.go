@@ -37,13 +37,24 @@ func createTestPassport() passport.Passport {
 
 func createTestClient(t *testing.T, withPassport bool) client.Client {
 	t.Helper()
-	p, err := phone.NewFromE164("12345678901")
+	// Use a different phone number to avoid duplication
+	phoneNumber := "12345678901"
+	if withPassport {
+		phoneNumber = "98765432109"
+	}
+	p, err := phone.NewFromE164(phoneNumber)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	birthDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
-	email, err := internet.NewEmail("john.doe@example.com")
+
+	// Use a different email to avoid duplication
+	emailStr := "john.doe@example.com"
+	if withPassport {
+		emailStr = "john.smith@example.com"
+	}
+	email, err := internet.NewEmail(emailStr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,8 +524,8 @@ func TestClientRepository_Update(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create a client without passport
-	p, err := phone.NewFromE164("12345678901")
+	// Create a client without passport - use a unique phone number
+	p, err := phone.NewFromE164("55555555555")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -584,12 +595,18 @@ func TestClientRepository_Update(t *testing.T) {
 
 	// Create another client specifically for testing passport updates
 	t.Run("Update with passport", func(t *testing.T) {
+		// Create a new client without passport with a unique phone number
+		newPhone, err := phone.NewFromE164("77777777777")
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		// Create a new client without passport
 		noPassportClient, err := client.New(
 			"Alice",
 			"Wonder",
 			"",
-			client.WithPhone(p),
+			client.WithPhone(newPhone),
 			client.WithEmail(email),
 			client.WithPin(pin),
 			client.WithGender(general.Female),
@@ -625,4 +642,3 @@ func TestClientRepository_Update(t *testing.T) {
 		}
 	})
 }
-
