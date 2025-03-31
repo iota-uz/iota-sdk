@@ -1,0 +1,59 @@
+package filters
+
+import "github.com/iota-uz/iota-sdk/components/base"
+
+type TableFilter struct {
+	Name        string
+	formatter   func(o OptionItem) string
+	placeholder string
+	options     []OptionItem
+	multiple    bool
+}
+
+func NewFilter(name string, opts ...Option) *TableFilter {
+	f := &TableFilter{
+		Name: name,
+	}
+	for _, opt := range opts {
+		opt(f)
+	}
+	return f
+}
+
+func (t *TableFilter) AddOpt(key, label string) *TableFilter {
+	t.options = append(t.options, OptionItem{
+		Value: key,
+		Label: label,
+	})
+	return t
+}
+
+templ (t *TableFilter) Component() {
+	if t.multiple {
+		@base.Combobox(base.ComboboxProps{
+			Label:       "",
+			Placeholder: t.placeholder,
+			Name:        t.Name,
+			Multiple:    true,
+		}) {
+			for _, opt := range t.options {
+				<option value={ opt.Value }>
+					{ opt.Label }
+				</option>
+			}
+		}
+	} else {
+		@base.Select(&base.SelectProps{
+			Placeholder: t.placeholder,
+			Attrs: templ.Attributes{
+				"name": t.Name,
+			},
+		}) {
+			for _, opt := range t.options {
+				<option value={ opt.Value }>
+					{ opt.Label }
+				</option>
+			}
+		}
+	}
+}

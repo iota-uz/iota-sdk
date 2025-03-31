@@ -210,6 +210,10 @@
       "PersonalInfo": "Персональные данные",
       "UserInfo": "Данные аккаунта"
     },
+    "Tabs": {
+      "UserInfo": "Информация",
+      "Permissions": "Разрешения"
+    },
     "Single": {
       "EditUser": "Редактировать пользователя",
       "FirstName": "Имя",

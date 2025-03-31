@@ -17,19 +17,15 @@ type SharedProps struct {
 templ Permission(props SharedProps) {
 	{{ id := random.String(12, random.LowerCharSet) }}
 	<div
-		class="flex justify-between items-center border border-gray-400 bg-gray-200 rounded-md py-2 px-3"
+		class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3"
 	>
-		<label
-			class="form-control-label"
-			for={ id }
-		>
-			{ props.Label }
-		</label>
 		@input.Switch(&input.SwitchProps{
-			ID:      id,
-			Checked: props.Checked,
-			Attrs:   props.Attrs,
-			Error:   props.Error,
+			ID:           id,
+			Label:        props.Label,
+			LabelClasses: templ.Classes("flex-row-reverse justify-between w-full"),
+			Checked:      props.Checked,
+			Attrs:        props.Attrs,
+			Error:        props.Error,
 		})
 	</div>
 }

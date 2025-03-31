@@ -7,14 +7,14 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/iota-uz/iota-sdk/components/scaffold"
+	cscaffold "github.com/iota-uz/iota-sdk/components/scaffold"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 // TableAdapter adapts scaffold.Table to support pagination
 type TableAdapter struct {
-	Config     *scaffold.TableConfig
-	Data       scaffold.TableData
+	Config     *cscaffold.TableConfig
+	Data       cscaffold.TableData
 	Page       int
 	TotalPages int
 	PageCtx    *types.PageContext
@@ -23,7 +23,7 @@ type TableAdapter struct {
 // Render implements templ.Component interface
 func (t *TableAdapter) Render(ctx context.Context, w io.Writer) error {
 	// First render the main table
-	err := scaffold.Table(*t.Config, t.Data).Render(ctx, w)
+	err := cscaffold.Table(t.Config, t.Data).Render(ctx, w)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func (t *TableAdapter) Render(ctx context.Context, w io.Writer) error {
 }
 
 // ExtendedTable creates a table with pagination support
-func ExtendedTable(config *scaffold.TableConfig, data scaffold.TableData, page int, totalPages int, pageCtx *types.PageContext) templ.Component {
+func ExtendedTable(config *cscaffold.TableConfig, data cscaffold.TableData, page int, totalPages int, pageCtx *types.PageContext) templ.Component {
 	return &TableAdapter{
 		Config:     config,
 		Data:       data,
@@ -51,8 +51,8 @@ func ExtendedTable(config *scaffold.TableConfig, data scaffold.TableData, page i
 
 // ContentAdapter adapts scaffold.Content to support search and pagination
 type ContentAdapter struct {
-	Config     *scaffold.TableConfig
-	Data       scaffold.TableData
+	Config     *cscaffold.TableConfig
+	Data       cscaffold.TableData
 	Search     string
 	Page       int
 	TotalPages int
@@ -63,11 +63,11 @@ type ContentAdapter struct {
 func (c *ContentAdapter) Render(ctx context.Context, w io.Writer) error {
 	// For now, just use the base Content - in a real implementation
 	// you might want to customize this with search and pagination
-	return scaffold.Page(*c.Config, c.Data).Render(ctx, w)
+	return cscaffold.Page(c.Config, c.Data).Render(ctx, w)
 }
 
 // ExtendedContent creates a content component with search and pagination
-func ExtendedContent(config *scaffold.TableConfig, data scaffold.TableData, search string, page int, totalPages int, pageCtx *types.PageContext) templ.Component {
+func ExtendedContent(config *cscaffold.TableConfig, data cscaffold.TableData, search string, page int, totalPages int, pageCtx *types.PageContext) templ.Component {
 	return &ContentAdapter{
 		Config:     config,
 		Data:       data,

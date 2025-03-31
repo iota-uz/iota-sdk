@@ -21,11 +21,13 @@ templ Drawer(props DrawerProps) {
 			<div class="flex justify-between">
 				<h3 class="text-2xl font-medium">{ props.Heading }</h3>
 				<div>
-					@button.Secondary(button.Props{
-						Size:  button.SizeSM,
-						Fixed: true,
-						Icon:  icons.XCircle(icons.Props{Size: "18"}),
-					})
+					<form method="dialog">
+						@button.Secondary(button.Props{
+							Size:  button.SizeSM,
+							Fixed: true,
+							Icon:  icons.XCircle(icons.Props{Size: "18"}),
+						})
+					</form>
 				</div>
 			</div>
 			{ children... }

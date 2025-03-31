@@ -22,7 +22,7 @@ import (
 
 type EditFormProps struct {
 	Role             *viewmodels.Role
-	PermissionGroups []*Group
+	PermissionGroups []*viewmodels.PermissionGroup
 	Errors           map[string]string
 }
 
@@ -96,15 +96,15 @@ func EditForm(props *EditFormProps) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				for _, child := range group.Children {
+				for _, perm := range group.Permissions {
 					templ_7745c5c3_Err = Permission(SharedProps{
-						Label: pageCtx.T(fmt.Sprintf("Permissions.%s", child.Label)),
+						Label: pageCtx.T(fmt.Sprintf("Permissions.%s", perm.Name)),
 						Attrs: templ.Attributes{
-							"name": child.Name,
+							"name": fmt.Sprintf("Permissions[%s]", perm.ID),
 							"form": "save-form",
 						},
-						Error:   props.Errors[child.Name],
-						Checked: child.Checked,
+						Error:   props.Errors[fmt.Sprintf("Permissions[%s]", perm.ID)],
+						Checked: perm.Checked,
 					}).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -114,7 +114,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			})
 			templ_7745c5c3_Err = card.Card(card.Props{
 				Class:  "space-y-3",
-				Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Label))),
+				Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Resource))),
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
