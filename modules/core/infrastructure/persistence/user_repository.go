@@ -354,18 +354,29 @@ func (g *PgUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
 }
 
 func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
+	// First check if we have a tenant in context
 	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+
+	var users []user.User
+	if err == nil {
+		// If we have a tenant, use it to filter
+		users, err = g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1 AND u.tenant_id = $2", id, tenant.ID)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
+		}
+	} else {
+		// If no tenant in context, get user by ID without tenant filter
+		// This is less secure but needed for some operations
+		users, err = g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
+		}
 	}
 
-	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1 AND u.tenant_id = $2", id, tenant.ID)
-	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
-	}
 	if len(users) == 0 {
 		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("id: %d", id))
 	}
+
 	return users[0], nil
 }
 

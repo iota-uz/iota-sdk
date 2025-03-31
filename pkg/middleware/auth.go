@@ -111,7 +111,10 @@ func Authorize() mux.MiddlewareFunc {
 				if err == nil {
 					logger.WithField("duration", time.Since(start)).Info("middleware.Authorize")
 				}
-				next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, constants.SessionKey, sess)))
+
+				// Make sure we set the session in the context and use the updated context with the tenant
+				ctx = context.WithValue(ctx, constants.SessionKey, sess)
+				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)
 	}
@@ -137,16 +140,23 @@ func ProvideUser() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
+				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 
-				tenantService := app.Service(services.TenantService{}).(*services.TenantService)
-				t, err := tenantService.GetByID(ctx, u.TenantID())
-				if err != nil {
-					log.Printf("Error retrieving tenant: %v", err)
-					next.ServeHTTP(w, r)
-					return
+				// Check if we already have a tenant in context
+				_, tenantErr := composables.UseTenant(ctx)
+				if tenantErr != nil {
+					// If not, get it from the user's tenant ID
+					tenantService := app.Service(services.TenantService{}).(*services.TenantService)
+					t, err := tenantService.GetByID(ctx, u.TenantID())
+					if err != nil {
+						log.Printf("Error retrieving tenant: %v", err)
+						// Don't add tenant to context if we couldn't get it
+					} else {
+						// Add tenant to context
+						ctx = context.WithValue(ctx, constants.TenantKey, t)
+					}
 				}
-				ctx = context.WithValue(ctx, constants.TenantKey, t)
 
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
