@@ -2,13 +2,14 @@ package persistence_test
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"os"
-	"testing"
 )
 
 func TestMain(m *testing.M) {
@@ -46,10 +47,24 @@ func setupTest(t *testing.T) *testFixtures {
 	})
 
 	ctx = composables.WithTx(ctx, tx)
+
+	// Setup application and run migrations
 	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Run migrations first to create all tables including tenants
+	if err := app.Migrations().Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test tenant and add it to the context
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = composables.WithTenant(ctx, tenant)
 
 	return &testFixtures{
 		ctx:  ctx,

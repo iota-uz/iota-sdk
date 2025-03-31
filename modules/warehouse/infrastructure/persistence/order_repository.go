@@ -390,6 +390,7 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 		var o models.WarehouseOrder
 		if err := rows.Scan(
 			&o.ID,
+			&o.TenantID,
 			&o.Type,
 			&o.Status,
 			&o.CreatedAt,
