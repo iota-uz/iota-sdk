@@ -171,5 +171,5 @@ func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/account/settings", http.StatusFound)
+	http.Redirect(w, r, "/account/sidebar", http.StatusFound)
 }
