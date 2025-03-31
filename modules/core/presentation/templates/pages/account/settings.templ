@@ -2,10 +2,10 @@ package account
 
 import (
 	"fmt"
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -42,49 +42,88 @@ templ NavItems(items []types.NavigationItem, tabs []*viewmodels.Tab, depth int, 
 				if len(item.Children) > 0 {
 					<details class="group">
 						<summary class="cursor-pointer flex items-center justify-between">
-							@input.Checkbox(&input.CheckboxProps{
-								Class: "parent",
-								Attrs: templ.Attributes{
-									"x-ref":   "parent",
-									"value":   item.Href,
-									"@change": "onParentChange",
-								},
-							}) {
+							<div class="flex-1 flex items-center py-3 px-4 border-b">
 								if item.Icon != nil {
-									@item.Icon
+									<div class="mr-2 text-gray-600/70">
+										@item.Icon
+									</div>
 								}
-								{ item.Name }
-							}
-							@icons.CaretDown(icons.Props{Size: "16", Class: "duration-200 group-open:rotate-180"})
+								<span class="text-sm flex-grow cursor-pointer">{ item.Name }</span>
+								@input.Switch(&input.SwitchProps{
+									ID:      "switch-" + item.Href,
+									Checked: isChecked(item.Href, tabs),
+									Attrs: templ.Attributes{
+										"name":    "Hrefs",
+										"value":   item.Href,
+										"@change": "onParentChange",
+										"x-ref":   "parent",
+										"class":   "parent",
+									},
+								})
+							</div>
 						</summary>
 						@NavItems(item.Children, tabs, depth+1, "mt-2")
 					</details>
+				} else if depth == 0 {
+					<!-- For top-level items without children, treat as parent -->
+					<div class="flex-1 flex items-center justify-between py-3 px-4 border-b">
+						if item.Icon != nil {
+							<div class="mr-2 text-gray-600/70">
+								@item.Icon
+							</div>
+						}
+						<span class="text-sm flex-grow">{ item.Name }</span>
+						@input.Switch(&input.SwitchProps{
+							ID:      "switch-" + item.Href,
+							Checked: isChecked(item.Href, tabs),
+							Attrs: templ.Attributes{
+								"name":  "Hrefs",
+								"value": item.Href,
+								"class": "parent",
+							},
+						})
+					</div>
 				} else {
-					@input.Checkbox(&input.CheckboxProps{
-						Attrs: templ.Attributes{
-							"value":   item.Href,
-							"@change": "onChange",
-							"name":    "Hrefs",
-						},
-						ID:      item.Href,
-						Checked: isChecked(item.Href, tabs),
-					}) {
-						<label for={ item.Href }>
-							{ item.Name }
-						</label>
-					}
+					<!-- For child items, use regular checkboxes -->
+					<div class="flex justify-between items-center py-2 px-4">
+						<span class="text-sm">{ item.Name }</span>
+						@input.Checkbox(&input.CheckboxProps{
+							ID:      "checkbox-" + item.Href,
+							Checked: isChecked(item.Href, tabs),
+							Attrs: templ.Attributes{
+								"name":    "Hrefs",
+								"value":   item.Href,
+								"@change": "onChange",
+							},
+						})
+					</div>
 				}
 			</li>
 		}
 	</ul>
 }
 
-templ SettingsForm(props *SettingsPageProps) {
+templ SidebarSettingsForm(props *SettingsPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<form class="flex flex-col justify-between h-full" method="post">
-		@card.Card(card.Props{WrapperClass: "m-6"}) {
-			@NavItems(props.AllNavItems, props.Tabs, 0, "")
-		}
+	<form
+		class="flex flex-col justify-between h-full"
+		method="post"
+	>
+		<div class="flex flex-col gap-5 p-6">
+			@tab.Root(tab.Props{}) {
+				@tab.Link("/account", false) {
+					{ pageCtx.T("Account.Tabs.Profile") }
+				}
+				@tab.Link("/account/sidebar", true) {
+					{ pageCtx.T("Account.Tabs.Sidebar") }
+				}
+			}
+			@card.Card(card.Props{
+				Class: "p-0",
+			}) {
+				@NavItems(props.AllNavItems, props.Tabs, 0, "")
+			}
+		</div>
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Attrs: templ.Attributes{
@@ -97,11 +136,11 @@ templ SettingsForm(props *SettingsPageProps) {
 	</form>
 }
 
-templ Settings(props *SettingsPageProps) {
+templ SidebarSettings(props *SettingsPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Settings.Title")},
 	}) {
-		@SettingsForm(props)
+		@SidebarSettingsForm(props)
 	}
 }

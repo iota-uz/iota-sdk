@@ -78,10 +78,24 @@ type TwilioOptions struct {
 	PhoneNumber string `env:"TWILIO_PHONE_NUMBER"`
 }
 
+type LokiOptions struct {
+	URL     string `env:"LOKI_URL"`
+	AppName string `env:"LOKI_APP_NAME" envDefault:"sdk"`
+	LogPath string `env:"LOG_PATH" envDefault:"./logs/app.log"`
+}
+
+type OpenTelemetryOptions struct {
+	Enabled     bool   `env:"OTEL_ENABLED" envDefault:"false"`
+	TempoURL    string `env:"OTEL_TEMPO_URL" envDefault:"localhost:4318"`
+	ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
+}
+
 type Configuration struct {
-	Database DatabaseOptions
-	Google   GoogleOptions
-	Twilio   TwilioOptions
+	Database      DatabaseOptions
+	Google        GoogleOptions
+	Twilio        TwilioOptions
+	Loki          LokiOptions
+	OpenTelemetry OpenTelemetryOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
@@ -95,6 +109,10 @@ type Configuration struct {
 	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
 	LogLevel         string        `env:"LOG_LEVEL" envDefault:"error"`
+	// SDK will look for this header in the request, if it's not present, it will generate a random uuidv4
+	RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
+	// SDK will look for this header in the request, if it's not present, it will use request.RemoteAddr
+	RealIPHeader string `env:"REAL_IP_HEADER" envDefault:"X-Real-IP"`
 	// Session ID cookie key
 	SidCookieKey        string `env:"SID_COOKIE_KEY" envDefault:"sid"`
 	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
@@ -156,12 +174,13 @@ func (c *Configuration) load(envFiles []string) error {
 	if err := env.Parse(c); err != nil {
 		return err
 	}
-	f, logger, err := logging.FileLogger(c.LogrusLogLevel())
+	f, logger, err := logging.FileLogger(c.LogrusLogLevel(), c.Loki.LogPath)
 	if err != nil {
 		return err
 	}
 	c.logFile = f
 	c.logger = logger
+
 	c.Database.Opts = c.Database.ConnectionString()
 	if c.GoAppEnvironment == Production {
 		c.SocketAddress = fmt.Sprintf(":%d", c.ServerPort)

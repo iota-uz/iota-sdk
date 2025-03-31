@@ -149,7 +149,6 @@
     "Reports": "Hisobotlar",
     "Navbar": {
       "Profile": "Profil",
-      "Settings": "Sozlamalar",
       "Logout": "Chiqish"
     }
   },
@@ -169,6 +168,9 @@
       },
       "New": {
         "Title": "Yangi foydalanuvchi"
+      },
+      "Permissions": {
+        "Title": "Foydalanuvchi ruxsatlari"
       }
     },
     "List": {
@@ -180,6 +182,10 @@
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",
       "UserInfo": "Foydalanuvchi ma'lumotlari"
+    },
+    "Tabs": {
+      "UserInfo": "Ma'lumotlar",
+      "Permissions": "Ruxsatlar"
     },
     "Single": {
       "EditUser": "Foydalanuvchini tahrirlash",
@@ -197,7 +203,8 @@
       "SelectRole": "Rolni tanlang",
       "EnterPassword": "Parolni kiriting",
       "Delete": "Foydalanuvchini o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?"
+      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
+      "Permissions": "Foydalanuvchi ruxsatlari"
     }
   },
   "Roles": {
@@ -261,13 +268,32 @@
       }
     },
     "BrowseFilesystem": "Fayllarni ko'rish",
-    "FirstName": "Ism",
-    "LastName": "Familiya",
-    "MiddleName": "Otasining ismi",
-    "Email": "Email",
-    "Phone": "Telefon",
+    "FirstName": {
+      "Label": "Ism",
+      "Placeholder": "Ismingizni kiriting"
+    },
+    "LastName": {
+      "Label": "Familiya",
+      "Placeholder": "Familiyangizni kiriting"
+    },
+    "MiddleName": {
+      "Label": "Otasining ismi",
+      "Placeholder": "Otangizning ismini kiriting"
+    },
+    "Email": {
+      "Label": "Email",
+      "Placeholder": "Email manzilingizni kiriting"
+    },
+    "Phone": {
+      "Label": "Telefon",
+      "Placeholder": "Telefon raqamingizni kiriting"
+    },
     "Password": "Parol",
-    "Save": "Saqlash"
+    "Save": "Saqlash",
+    "Tabs": {
+      "Profile": "Profil sozlamalari",
+      "Sidebar": "Yon panel sozlamalari"
+    }
   },
   "Login": {
     "Meta": {

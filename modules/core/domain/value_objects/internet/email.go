@@ -30,6 +30,22 @@ func (e email) Value() string {
 	return string(e)
 }
 
+func (e email) Domain() string {
+	parts := strings.Split(e.Value(), "@")
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[1]
+}
+
+func (e email) Username() string {
+	parts := strings.Split(e.Value(), "@")
+	if len(parts) < 1 {
+		return ""
+	}
+	return parts[0]
+}
+
 func IsValidEmail(v string) bool {
 	// Empty check
 	if len(v) == 0 {

@@ -149,7 +149,6 @@
     "Reports": "Отчеты",
     "Navbar": {
       "Profile": "Профиль",
-      "Settings": "Настройки",
       "Logout": "Выйти"
     }
   },
@@ -195,6 +194,9 @@
       },
       "New": {
         "Title": "Новый пользователь"
+      },
+      "Permissions": {
+        "Title": "Разрешения пользователя"
       }
     },
     "List": {
@@ -206,6 +208,10 @@
     "Cards": {
       "PersonalInfo": "Персональные данные",
       "UserInfo": "Данные аккаунта"
+    },
+    "Tabs": {
+      "UserInfo": "Информация",
+      "Permissions": "Разрешения"
     },
     "Single": {
       "EditUser": "Редактировать пользователя",
@@ -223,7 +229,8 @@
       "SelectRole": "Выбрать роль",
       "EnterPassword": "Введите пароль",
       "Delete": "Удалить пользователя",
-      "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?"
+      "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?",
+      "Permissions": "Разрешения пользователя"
     }
   },
   "Projects": {
@@ -261,13 +268,32 @@
       }
     },
     "BrowseFilesystem": "Выбрать изображение",
-    "FirstName": "Имя",
-    "LastName": "Фамилия",
-    "MiddleName": "Отчество",
-    "Email": "Электронная почта",
-    "Phone": "Телефон",
+    "FirstName": {
+      "Label": "Имя",
+      "Placeholder": "Введите имя"
+    },
+    "LastName": {
+      "Label": "Фамилия",
+      "Placeholder": "Введите фамилию"
+    },
+    "MiddleName": {
+      "Label": "Отчество",
+      "Placeholder": "Введите отчество"
+    },
+    "Email": {
+      "Label": "Электронная почта",
+      "Placeholder": "Введите электронную почту"
+    },
+    "Phone": {
+      "Label": "Телефон",
+      "Placeholder": "Введите номер телефона"
+    },
     "Password": "Пароль",
-    "Save": "Сохранить"
+    "Save": "Сохранить",
+    "Tabs": {
+      "Profile": "Настройки профиля",
+      "Sidebar": "Настройки боковой панели"
+    }
   },
   "Login": {
     "Meta": {

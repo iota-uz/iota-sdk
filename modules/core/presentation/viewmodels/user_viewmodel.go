@@ -5,19 +5,20 @@ import (
 )
 
 type User struct {
-	ID         string
-	FirstName  string
-	LastName   string
-	MiddleName string
-	Email      string
-	Phone      string
-	UILanguage string
-	LastAction string
-	CreatedAt  string
-	UpdatedAt  string
-	AvatarID   string
-	Roles      []*Role
-	Avatar     *Upload
+	ID          string
+	FirstName   string
+	LastName    string
+	MiddleName  string
+	Email       string
+	Phone       string
+	UILanguage  string
+	LastAction  string
+	CreatedAt   string
+	UpdatedAt   string
+	AvatarID    string
+	Roles       []*Role
+	Permissions []*Permission
+	Avatar      *Upload
 }
 
 func (u *User) FullName() string {

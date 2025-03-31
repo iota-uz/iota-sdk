@@ -5,7 +5,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/components/selects"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -101,7 +100,7 @@ templ CreateForm(props *CreatePageProps) {
 							},
 							Error: props.Errors["DateOfBirth"],
 						})
-						@textarea.Basic(&textarea.Props{
+						@input.TextArea(&input.TextAreaProps{
 							Label:        pageCtx.T("Clients.Single.Address.Label"),
 							Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 							Value:        props.Client.Address,
@@ -252,7 +251,7 @@ templ PersonalInfoEditForm(props *PersonalInfoEditProps) {
 				},
 				Error: props.Errors["DateOfBirth"],
 			})
-			@textarea.Basic(&textarea.Props{
+			@input.TextArea(&input.TextAreaProps{
 				Label:        pageCtx.T("Clients.Single.Address.Label"),
 				Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 				Value:        props.Client.Address,
