@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 
@@ -37,7 +36,6 @@ func Authorize() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				start := time.Now()
 				token, err := getToken(r)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -107,14 +105,7 @@ func Authorize() mux.MiddlewareFunc {
 					panic("params not found. Add RequestParams middleware up the chain")
 				}
 				params.Authenticated = true
-				logger, err := composables.UseLogger(r.Context())
-				if err == nil {
-					logger.WithField("duration", time.Since(start)).Info("middleware.Authorize")
-				}
-
-				// Make sure we set the session in the context and use the updated context with the tenant
-				ctx = context.WithValue(ctx, constants.SessionKey, sess)
-				next.ServeHTTP(w, r.WithContext(ctx))
+				next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, constants.SessionKey, sess)))
 			},
 		)
 	}
