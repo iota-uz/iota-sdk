@@ -113,11 +113,29 @@ func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session.Session,
 }
 
 func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
+	// First try with tenant from context
 	tenant, err := composables.UseTenant(ctx)
+
+	// If tenant is not in context (like during login), get the session regardless of tenant
 	if err != nil {
-		return nil, err
+		// Ensure we have a transaction context
+		_, err := composables.UseTx(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Query without tenant filter during login
+		sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1"), token)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get session by token")
+		}
+		if len(sessions) == 0 {
+			return nil, ErrSessionNotFound
+		}
+		return sessions[0], nil
 	}
 
+	// Normal flow with tenant from context
 	sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1 AND tenant_id = $2"), token, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get session by token")
@@ -134,7 +152,7 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 		return err
 	}
 
-	dbSession := toDBSession(data)
+	dbSession := ToDBSession(data)
 	dbSession.TenantID = tenant.ID
 
 	return g.execQuery(
@@ -156,7 +174,7 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 		return err
 	}
 
-	dbSession := toDBSession(data)
+	dbSession := ToDBSession(data)
 	dbSession.TenantID = tenant.ID
 
 	return g.execQuery(
@@ -204,7 +222,7 @@ func (g *GormSessionRepository) querySessions(ctx context.Context, query string,
 		); err != nil {
 			return nil, err
 		}
-		sessions = append(sessions, toDomainSession(&sessionRow))
+		sessions = append(sessions, ToDomainSession(&sessionRow))
 	}
 
 	if err := rows.Err(); err != nil {
