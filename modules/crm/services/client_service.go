@@ -67,6 +67,16 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+	clientEntity, err := data.ToEntity()
+	if err != nil {
+		return nil, err
+	}
+	createdEvent, err := client.NewCreatedEvent(ctx, clientEntity)
+	if err != nil {
+		return nil, err
+	}
+	createdEvent.Result = createdEntity
+	s.publisher.Publish(createdEvent)
 	return createdEntity, nil
 }
 
@@ -77,14 +87,20 @@ func (s *ClientService) Save(ctx context.Context, entity client.Client) error {
 	}
 	defer tx.Rollback(ctx)
 	ctx = composables.WithTx(ctx, tx)
-	
+
 	if _, err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	
+
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	updatedEvent, err := client.NewUpdatedEvent(ctx, entity)
+	if err != nil {
+		return err
+	}
+	updatedEvent.Result = entity
+	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
@@ -105,5 +121,12 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+
+	deletedEvent, err := client.NewDeletedEvent(ctx, entity)
+	if err != nil {
+		return nil, err
+	}
+	deletedEvent.Result = entity
+	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }
