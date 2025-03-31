@@ -102,6 +102,7 @@
       "Meta": {
         "Title": "Upload .xlsx"
       },
+      "Title": "Upload Positions",
       "Example": {
         "Title": "Excel Upload",
         "Description": "The sequence of cells in Excel should be as follows:",
