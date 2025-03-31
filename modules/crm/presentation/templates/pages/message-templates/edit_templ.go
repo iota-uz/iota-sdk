@@ -13,7 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -64,7 +64,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
+			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
 				Label:       pageCtx.T("MessageTemplates.Single.Template.Label"),
 				Placeholder: pageCtx.T("MessageTemplates.Single.Template.Placeholder"),
 				Value:       props.Template.Template,

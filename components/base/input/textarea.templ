@@ -1,0 +1,55 @@
+package input
+
+import (
+	"github.com/iota-uz/utils/random"
+	"github.com/iota-uz/utils/sequence"
+	"strings"
+)
+
+type TextAreaProps struct {
+	Placeholder  string
+	Label        string
+	Class        string
+	WrapperClass string
+	Attrs        templ.Attributes
+	Error        string
+	Value        string
+	id           string
+}
+
+func newTextArea(props *TextAreaProps) *TextAreaProps {
+	id := random.String(12, random.LowerCharSet)
+	class := new(strings.Builder)
+	sequence.Pad(class, " ")
+	class.WriteString(props.Class)
+	return &TextAreaProps{
+		id:           id,
+		Label:        props.Label,
+		Class:        class.String(),
+		Attrs:        props.Attrs,
+		WrapperClass: props.WrapperClass,
+		Placeholder:  props.Placeholder,
+		Error:        props.Error,
+		Value:        props.Value,
+	}
+}
+
+templ (p *TextAreaProps) render() {
+	<div class={ "flex flex-col w-full", p.WrapperClass }>
+		if len(p.Label) > 0 {
+			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
+		}
+		<div class="w-full relative">
+			<textarea id={ p.id } class={ "form-control form-control-input w-full", p.Class } placeholder={ p.Placeholder } { p.Attrs... }>
+				{ p.Value }
+			</textarea>
+		</div>
+		if p.Error != "" {
+			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+		}
+	</div>
+}
+
+templ TextArea(props *TextAreaProps) {
+	@newTextArea(props).render()
+}

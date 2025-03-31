@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/components/selects"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -56,7 +55,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 26, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 25, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -105,7 +104,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Clients.Tabs.Personal"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 36, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 35, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -136,7 +135,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Clients.Tabs.Documents"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 39, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 38, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -283,7 +282,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
+					templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
 						Label:        pageCtx.T("Clients.Single.Address.Label"),
 						Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 						Value:        props.Client.Address,
@@ -468,7 +467,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 176, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/crm/presentation/templates/pages/clients/forms.templ`, Line: 175, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -605,7 +604,7 @@ func PersonalInfoEditForm(props *PersonalInfoEditProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = textarea.Basic(&textarea.Props{
+		templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
 			Label:        pageCtx.T("Clients.Single.Address.Label"),
 			Placeholder:  pageCtx.T("Clients.Single.Address.Placeholder"),
 			Value:        props.Client.Address,
