@@ -59,25 +59,44 @@ func Authorize() mux.MiddlewareFunc {
 				// First check if we already have a tenant
 				_, tenantErr := composables.UseTenant(ctx)
 				if tenantErr != nil {
-					// Since this is in middleware, avoid UserService to prevent circular dependencies
-					// Use direct database query to get the tenant ID for the user
-					tx, txErr := composables.UseTx(ctx)
-					if txErr == nil {
-						var tenantID uint
-						err := tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1 LIMIT 1", sess.UserID).Scan(&tenantID)
-						if err == nil && tenantID > 0 {
-							// Now query for the tenant info
+					// First try to get tenant from session (already loaded from DB)
+					if sess.TenantID > 0 {
+						// Get tenant info directly
+						tx, txErr := composables.UseTx(ctx)
+						if txErr == nil {
 							var name string
 							var domain string
-							err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", tenantID).Scan(&name, &domain)
+							err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", sess.TenantID).Scan(&name, &domain)
 							if err == nil {
-								// Add tenant to context
+								// Add tenant to context from session
 								t := &composables.Tenant{
-									ID:     tenantID,
+									ID:     sess.TenantID,
 									Name:   name,
 									Domain: domain,
 								}
 								ctx = context.WithValue(ctx, constants.TenantKey, t)
+							}
+						}
+					} else {
+						// Fallback: use direct database query to get the tenant ID for the user
+						tx, txErr := composables.UseTx(ctx)
+						if txErr == nil {
+							var tenantID uint
+							err := tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1 LIMIT 1", sess.UserID).Scan(&tenantID)
+							if err == nil && tenantID > 0 {
+								// Now query for the tenant info
+								var name string
+								var domain string
+								err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", tenantID).Scan(&name, &domain)
+								if err == nil {
+									// Add tenant to context
+									t := &composables.Tenant{
+										ID:     tenantID,
+										Name:   name,
+										Domain: domain,
+									}
+									ctx = context.WithValue(ctx, constants.TenantKey, t)
+								}
 							}
 						}
 					}
