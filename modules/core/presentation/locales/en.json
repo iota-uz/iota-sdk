@@ -149,7 +149,6 @@
     "Reports": "Reports",
     "Navbar": {
       "Profile": "Profile",
-      "Settings": "Settings",
       "Logout": "Logout"
     }
   },
@@ -269,13 +268,32 @@
       }
     },
     "BrowseFilesystem": "Browse filesystem",
-    "FirstName": "First name",
-    "LastName": "Last name",
-    "MiddleName": "Middle name",
-    "Email": "Email",
-    "Phone": "Phone",
+    "FirstName": {
+      "Label": "First name",
+      "Placeholder": "Enter first name"
+    },
+    "LastName": {
+      "Label": "Last name",
+      "Placeholder": "Enter last name"
+    },
+    "MiddleName": {
+      "Label": "Middle name",
+      "Placeholder": "Enter middle name"
+    },
+    "Email": {
+      "Label": "Email",
+      "Placeholder": "Enter email"
+    },
+    "Phone": {
+      "Label": "Phone",
+      "Placeholder": "Enter phone number"
+    },
     "Password": "Password",
-    "Save": "Save"
+    "Save": "Save",
+    "Tabs": {
+      "Profile": "Profile settings",
+      "Sidebar": "Sidebar settings"
+    }
   },
   "Login": {
     "Meta": {

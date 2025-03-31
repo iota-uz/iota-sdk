@@ -149,7 +149,6 @@
     "Reports": "Hisobotlar",
     "Navbar": {
       "Profile": "Profil",
-      "Settings": "Sozlamalar",
       "Logout": "Chiqish"
     }
   },
@@ -269,13 +268,32 @@
       }
     },
     "BrowseFilesystem": "Fayllarni ko'rish",
-    "FirstName": "Ism",
-    "LastName": "Familiya",
-    "MiddleName": "Otasining ismi",
-    "Email": "Email",
-    "Phone": "Telefon",
+    "FirstName": {
+      "Label": "Ism",
+      "Placeholder": "Ismingizni kiriting"
+    },
+    "LastName": {
+      "Label": "Familiya",
+      "Placeholder": "Familiyangizni kiriting"
+    },
+    "MiddleName": {
+      "Label": "Otasining ismi",
+      "Placeholder": "Otangizning ismini kiriting"
+    },
+    "Email": {
+      "Label": "Email",
+      "Placeholder": "Email manzilingizni kiriting"
+    },
+    "Phone": {
+      "Label": "Telefon",
+      "Placeholder": "Telefon raqamingizni kiriting"
+    },
     "Password": "Parol",
-    "Save": "Saqlash"
+    "Save": "Saqlash",
+    "Tabs": {
+      "Profile": "Profil sozlamalari",
+      "Sidebar": "Yon panel sozlamalari"
+    }
   },
   "Login": {
     "Meta": {
