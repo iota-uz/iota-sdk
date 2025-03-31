@@ -102,6 +102,7 @@
       "Meta": {
         "Title": ".xlsx yuklash"
       },
+      "Title": "Nomlarni yuklash",
       "Example": {
         "Title": "Excel yuklash",
         "Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
