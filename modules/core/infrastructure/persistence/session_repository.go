@@ -147,13 +147,14 @@ func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*
 }
 
 func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return err
-	}
-
 	dbSession := ToDBSession(data)
-	dbSession.TenantID = tenant.ID
+
+	// First try to get tenant from context
+	tenant, err := composables.UseTenant(ctx)
+	if err == nil {
+		dbSession.TenantID = tenant.ID
+	}
+	// If tenant is not in context but session has TenantID set (from session.CreateDTO), use that
 
 	return g.execQuery(
 		ctx,
@@ -169,13 +170,20 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 }
 
 func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return err
-	}
-
 	dbSession := ToDBSession(data)
-	dbSession.TenantID = tenant.ID
+
+	// First try to get tenant from context
+	tenant, err := composables.UseTenant(ctx)
+	if err == nil {
+		dbSession.TenantID = tenant.ID
+	} else if dbSession.TenantID == 0 {
+		// If tenant is not in context and session has no TenantID, get the current session's tenant ID
+		existingSession, err := g.GetByToken(ctx, dbSession.Token)
+		if err != nil {
+			return err
+		}
+		dbSession.TenantID = existingSession.TenantID
+	}
 
 	return g.execQuery(
 		ctx,
@@ -189,11 +197,12 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 }
 
 func (g *GormSessionRepository) Delete(ctx context.Context, token string) error {
-	tenant, err := composables.UseTenant(ctx)
+	// First get the session to know its tenant ID
+	session, err := g.GetByToken(ctx, token)
 	if err != nil {
 		return err
 	}
-	return g.execQuery(ctx, sessionDeleteQuery, token, tenant.ID)
+	return g.execQuery(ctx, sessionDeleteQuery, token, session.TenantID)
 }
 
 func (g *GormSessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]*session.Session, error) {

@@ -370,18 +370,28 @@ func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, err
 }
 
 func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
+	// First check if we have a tenant in context
 	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+
+	var users []user.User
+	if err == nil {
+		// If we have a tenant, use it to filter
+		users, err = g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1 AND u.tenant_id = $2", email, tenant.ID)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with email: %s", email))
+		}
+	} else {
+		// If no tenant in context (like during login), get user by email across all tenants
+		users, err = g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1", email)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with email: %s", email))
+		}
 	}
 
-	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.email = $1 AND u.tenant_id = $2", email, tenant.ID)
-	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with email: %s", email))
-	}
 	if len(users) == 0 {
 		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("email: %s", email))
 	}
+
 	return users[0], nil
 }
 
@@ -557,24 +567,60 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 }
 
 func (g *PgUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
+	// First check if we have a tenant in context
 	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get tenant from context")
+
+	// If tenant exists in context, use it
+	if err == nil {
+		if err := g.execQuery(ctx, userUpdateLastLoginQuery, id, tenant.ID); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("failed to update last login for user ID: %d", id))
+		}
+		return nil
 	}
 
-	if err := g.execQuery(ctx, userUpdateLastLoginQuery, id, tenant.ID); err != nil {
+	// If no tenant in context, get the user's tenant from DB and use that
+	tx, txErr := composables.UseTx(ctx)
+	if txErr != nil {
+		return errors.Wrap(txErr, "failed to get transaction")
+	}
+
+	var tenantID uint
+	err = tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1", id).Scan(&tenantID)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to get tenant ID for user ID: %d", id))
+	}
+
+	if err := g.execQuery(ctx, userUpdateLastLoginQuery, id, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last login for user ID: %d", id))
 	}
 	return nil
 }
 
 func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error {
+	// First check if we have a tenant in context
 	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get tenant from context")
+
+	// If tenant exists in context, use it
+	if err == nil {
+		if err := g.execQuery(ctx, userUpdateLastActionQuery, id, tenant.ID); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("failed to update last action for user ID: %d", id))
+		}
+		return nil
 	}
 
-	if err := g.execQuery(ctx, userUpdateLastActionQuery, id, tenant.ID); err != nil {
+	// If no tenant in context, get the user's tenant from DB and use that
+	tx, txErr := composables.UseTx(ctx)
+	if txErr != nil {
+		return errors.Wrap(txErr, "failed to get transaction")
+	}
+
+	var tenantID uint
+	err = tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1", id).Scan(&tenantID)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to get tenant ID for user ID: %d", id))
+	}
+
+	if err := g.execQuery(ctx, userUpdateLastActionQuery, id, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update last action for user ID: %d", id))
 	}
 	return nil
