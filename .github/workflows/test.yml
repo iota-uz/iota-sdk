@@ -114,6 +114,30 @@ jobs:
             fi
           done
           echo "All SQL files are properly formatted"
+          
+      - name: Check templ files formatting
+        run: |
+          # Run templ fmt on the whole project
+          templ fmt .
+          # Check if any files were changed
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Error: Some templ files are not properly formatted"
+            git diff
+            exit 1
+          fi
+          echo "All templ files are properly formatted"
+          
+      - name: Check Go files formatting
+        run: |
+          # Run go fmt on the whole project
+          go fmt ./...
+          # Check if any files were changed
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Error: Some Go files are not properly formatted"
+            git diff
+            exit 1
+          fi
+          echo "All Go files are properly formatted"
 
       - name: Run go vet && tests
         run: |
