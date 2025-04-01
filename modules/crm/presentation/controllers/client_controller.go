@@ -99,6 +99,14 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 		},
 	}
 
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		params.CreatedAt.From = v
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		params.CreatedAt.To = v
+	}
+
 	if q := r.URL.Query().Get("Query"); q != "" {
 		params.Search = q
 	}
