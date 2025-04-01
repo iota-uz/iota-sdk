@@ -314,7 +314,7 @@ func ClientsContent(props *IndexPageProps) templ.Component {
 		templ_7745c5c3_Err = filters.Search([]filters.SearchField{
 			{
 				Label: pageCtx.T("Clients.List.FullName"),
-				Key:   "firstName",
+				Key:   "full_name",
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
