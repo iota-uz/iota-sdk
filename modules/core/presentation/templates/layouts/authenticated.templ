@@ -176,6 +176,7 @@ templ SidebarFooter(pageCtx *types.PageContext) {
 		})
 		{ pageCtx.T("SignOut") }
 	}
+	{ children... }
 }
 
 templ MobileSidebar(props sidebar.Props) {
