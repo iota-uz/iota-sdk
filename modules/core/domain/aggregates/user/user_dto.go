@@ -99,19 +99,19 @@ func (u *CreateDTO) ToEntity() (User, error) {
 		}
 		roles[i] = r
 	}
-	
+
 	email, err := internet.NewEmail(u.Email)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	options := []Option{
 		WithMiddleName(u.MiddleName),
 		WithPassword(u.Password),
 		WithRoles(roles),
 		WithAvatarID(u.AvatarID),
 	}
-	
+
 	if u.Phone != "" {
 		p, err := phone.NewFromE164(u.Phone)
 		if err != nil {
@@ -119,7 +119,7 @@ func (u *CreateDTO) ToEntity() (User, error) {
 		}
 		options = append(options, WithPhone(p))
 	}
-	
+
 	return New(
 		u.FirstName,
 		u.LastName,
@@ -138,12 +138,12 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		}
 		roles[i] = r
 	}
-	
+
 	email, err := internet.NewEmail(u.Email)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	options := []Option{
 		WithID(id),
 		WithMiddleName(u.MiddleName),
@@ -151,7 +151,7 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		WithRoles(roles),
 		WithAvatarID(u.AvatarID),
 	}
-	
+
 	if u.Phone != "" {
 		p, err := phone.NewFromE164(u.Phone)
 		if err != nil {
@@ -159,7 +159,7 @@ func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 		}
 		options = append(options, WithPhone(p))
 	}
-	
+
 	return New(
 		u.FirstName,
 		u.LastName,

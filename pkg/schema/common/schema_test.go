@@ -252,4 +252,3 @@ func TestSortTableDefs(t *testing.T) {
 		})
 	}
 }
-

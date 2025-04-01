@@ -239,10 +239,10 @@ func (c *UsersController) permissionGroups(selected ...*permission.Permission) [
 		}
 		return false
 	}
-	
+
 	// Use the PermissionsByResource method from RBAC interface
 	groupedByResource := c.app.RBAC().PermissionsByResource()
-	
+
 	groups := make([]*viewmodels.PermissionGroup, 0, len(groupedByResource))
 	for resource, permissions := range groupedByResource {
 		var permList []*viewmodels.PermissionItem
@@ -356,18 +356,18 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Error parsing form", http.StatusBadRequest)
 		return
 	}
-	
+
 	dto, err := composables.UseForm(&user.UpdateDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		roles, err := c.roleService.GetAll(r.Context())
 		if err != nil {
@@ -390,13 +390,13 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-	
+
 	userEntity, err := dto.ToEntity(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	// Handle permissions
 	permissionIDs := r.Form["PermissionIDs"]
 	permissions := []*permission.Permission{}
@@ -410,15 +410,15 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		permissions = append(permissions, perm)
 	}
-	
+
 	// Set permissions on the user entity
 	userEntity = userEntity.SetPermissions(permissions)
-	
+
 	if err := c.userService.Update(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	shared.Redirect(w, r, c.basePath)
 }
 

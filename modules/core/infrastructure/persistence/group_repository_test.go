@@ -107,11 +107,11 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.Len(t, savedGroup.Roles(), 1)
 		assert.Equal(t, createdUser.ID(), savedGroup.Users()[0].ID())
 		assert.Equal(t, roleEntity.ID(), savedGroup.Roles()[0].ID())
-		
+
 		// Get the user again to check if the group ID was added to user
 		updatedUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
 		assert.NoError(t, err)
-		
+
 		// Verify that the user has this group ID
 		groupIDs := updatedUser.GroupIDs()
 		hasGroupID := false
@@ -249,13 +249,13 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, savedGroup.Users(), 2)
 		assert.Len(t, savedGroup.Roles(), 2)
-		
+
 		// Verify that both users have this group ID
 		firstUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
 		assert.NoError(t, err)
 		secondUser, err := userRepository.GetByID(f.ctx, secondCreatedUser.ID())
 		assert.NoError(t, err)
-		
+
 		// Check if both users have the group ID
 		hasGroupID := false
 		for _, id := range firstUser.GroupIDs() {
@@ -265,7 +265,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			}
 		}
 		assert.True(t, hasGroupID, "First user should have the group ID")
-		
+
 		hasGroupID = false
 		for _, id := range secondUser.GroupIDs() {
 			if id == groupID {
@@ -289,11 +289,11 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.Len(t, savedUpdatedGroup.Roles(), 1)
 		assert.Equal(t, secondCreatedUser.ID(), savedUpdatedGroup.Users()[0].ID())
 		assert.Equal(t, secondRoleEntity.ID(), savedUpdatedGroup.Roles()[0].ID())
-		
+
 		// Check if the removed user no longer has this group ID
 		firstUserAfterRemoval, err := userRepository.GetByID(f.ctx, createdUser.ID())
 		assert.NoError(t, err)
-		
+
 		hasGroupID = false
 		for _, id := range firstUserAfterRemoval.GroupIDs() {
 			if id == groupID {
@@ -302,11 +302,11 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			}
 		}
 		assert.False(t, hasGroupID, "First user should no longer have the group ID after removal")
-		
+
 		// Check if the second user still has the group ID
 		secondUserAfterUpdate, err := userRepository.GetByID(f.ctx, secondCreatedUser.ID())
 		assert.NoError(t, err)
-		
+
 		hasGroupID = false
 		for _, id := range secondUserAfterUpdate.GroupIDs() {
 			if id == groupID {
@@ -316,9 +316,6 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 		assert.True(t, hasGroupID, "Second user should still have the group ID")
 	})
-
-
-
 
 	t.Run("FilterByCreatedAt", func(t *testing.T) {
 		// Get a timestamp for comparison
@@ -534,4 +531,3 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.ErrorIs(t, err, persistence.ErrGroupNotFound)
 	})
 }
-

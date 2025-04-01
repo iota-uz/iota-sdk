@@ -81,4 +81,3 @@ func NewUserRemovedEvent(group Group, removedUser user.User, actor user.User) *U
 		Actor:       actor,
 	}
 }
-

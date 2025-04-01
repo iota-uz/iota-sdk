@@ -107,11 +107,11 @@ func (r *rbac) Permissions() []*permission.Permission {
 
 func (r *rbac) PermissionsByResource() map[string][]*permission.Permission {
 	result := make(map[string][]*permission.Permission)
-	
+
 	for _, p := range r.permissions {
 		resource := string(p.Resource)
 		result[resource] = append(result[resource], p)
 	}
-	
+
 	return result
 }
