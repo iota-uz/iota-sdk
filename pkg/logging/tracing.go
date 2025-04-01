@@ -40,4 +40,3 @@ func SetupTracing(ctx context.Context, serviceName string, tempoURL string) func
 		}
 	}
 }
-

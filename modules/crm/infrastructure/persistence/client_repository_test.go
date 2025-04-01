@@ -625,4 +625,3 @@ func TestClientRepository_Update(t *testing.T) {
 		}
 	})
 }
-

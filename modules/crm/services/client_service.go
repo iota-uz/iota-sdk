@@ -77,11 +77,11 @@ func (s *ClientService) Save(ctx context.Context, entity client.Client) error {
 	}
 	defer tx.Rollback(ctx)
 	ctx = composables.WithTx(ctx, tx)
-	
+
 	if _, err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	
+
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}

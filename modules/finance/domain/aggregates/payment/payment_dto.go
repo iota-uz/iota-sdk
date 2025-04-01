@@ -50,7 +50,7 @@ func (p *CreateDTO) ToEntity() Payment {
 		// This should never happen with a hardcoded valid email
 		panic(err)
 	}
-	
+
 	return New(
 		p.Amount,
 		0,
@@ -87,7 +87,7 @@ func (p *UpdateDTO) ToEntity(id uint) Payment {
 		// This should never happen with a hardcoded valid email
 		panic(err)
 	}
-	
+
 	return NewWithID(
 		id,
 		p.Amount,
