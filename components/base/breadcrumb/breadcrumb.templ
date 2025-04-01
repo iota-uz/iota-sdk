@@ -1,0 +1,46 @@
+// Package breadcrumb implements breadcrumb components
+//
+// Example usage:
+//	  @breadcrumb.List() {
+//		@breadcrumb.Item() {
+//			@breadcrumb.Link("/drivers") {
+//				Drivers
+//			}
+//		}
+//		@breadcrumb.SlashSeparator()
+//		@breadcrumb.Item() {
+//			Add driver
+//		}
+//	  }
+
+package breadcrumb
+
+templ List() {
+	<ol class="flex items-center gap-1 text-sm">
+		{ children... }
+	</ol>
+}
+
+templ Item() {
+	<li class="text-100">
+		{ children... }
+	</li>
+}
+
+templ Link(href string) {
+	<a class="text-300" href={ templ.SafeURL(href) }>
+		{ children... }
+	</a>
+}
+
+templ Separator() {
+	<li class="text-300">
+		{ children... }
+	</li>
+}
+
+templ SlashSeparator() {
+	@Separator() {
+		/
+	}
+}
