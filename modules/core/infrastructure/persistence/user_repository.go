@@ -514,12 +514,20 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 }
 
 func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
 	dbUser, _ := toDBUser(data)
+	if dbUser.TenantID == 0 {
+		dbUser.TenantID = tenant.ID
+	}
 
 	fields := []string{
 		"tenant_id",
