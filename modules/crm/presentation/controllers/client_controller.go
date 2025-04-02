@@ -1,18 +1,25 @@
 package controllers
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/server"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"golang.org/x/text/language"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
+	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
@@ -36,11 +43,76 @@ func clientIDFromQ(u *url.URL) (uint, error) {
 	return uint(v), nil
 }
 
+type ClientRealtimeUpdates struct {
+	app           application.Application
+	clientService *services.ClientService
+	basePath      string
+}
+
+func NewClientRealtimeUpdates(app application.Application, clientService *services.ClientService, basePath string) *ClientRealtimeUpdates {
+	return &ClientRealtimeUpdates{
+		app:           app,
+		clientService: clientService,
+		basePath:      basePath,
+	}
+}
+
+func (ru *ClientRealtimeUpdates) Register() {
+	ru.app.EventPublisher().Subscribe(ru.onClientCreated)
+}
+
+func (ru *ClientRealtimeUpdates) publisherContext() (context.Context, error) {
+	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
+	ctx := composables.WithLocalizer(
+		context.Background(),
+		localizer,
+	)
+	_url, err := url.Parse(ru.basePath)
+	if err != nil {
+		return nil, err
+	}
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		URL:       _url,
+		Locale:    language.English,
+		Localizer: localizer,
+	})
+	return composables.WithPool(ctx, ru.app.DB()), nil
+}
+
+func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	clientEntity, err := ru.clientService.GetByID(ctx, event.Result.ID())
+	if err != nil {
+		logger.Errorf("Error retrieving client: %v | Event: onClientCreated", err)
+		return
+	}
+
+	component := clients.ClientCreatedEvent(mappers.ClientToViewModel(clientEntity), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering client row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
 type ClientController struct {
 	app           application.Application
 	clientService *services.ClientService
 	chatService   *services.ChatService
 	basePath      string
+	realtime      *ClientRealtimeUpdates
 }
 
 type ClientsPaginatedResponse struct {
@@ -54,6 +126,7 @@ func NewClientController(app application.Application, basePath string) applicati
 		clientService: app.Service(services.ClientService{}).(*services.ClientService),
 		chatService:   app.Service(services.ChatService{}).(*services.ChatService),
 		basePath:      basePath,
+		realtime:      NewClientRealtimeUpdates(app, app.Service(services.ClientService{}).(*services.ClientService), basePath),
 	}
 }
 
@@ -86,6 +159,8 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", c.UpdatePersonal).Methods(http.MethodPost)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", c.UpdatePassport).Methods(http.MethodPost)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", c.UpdateTax).Methods(http.MethodPost)
+
+	c.realtime.Register()
 }
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
@@ -180,12 +255,13 @@ func (c *ClientController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.clientService.Create(r.Context(), dto); err != nil {
+	if _, err = c.clientService.Create(r.Context(), dto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	shared.Redirect(w, r, c.basePath)
+
 }
 
 func (c *ClientController) tabToComponent(
