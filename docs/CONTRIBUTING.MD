@@ -7,7 +7,7 @@ Ensure these tools are installed before you begin:
 - [Go v1.23.2](https://golang.org/doc/install)
 - [Air v1.61.5](https://github.com/air-verse/air#Installation) - Hot-reloading
 - [Docker v27.2.0](https://docs.docker.com/get-docker/) - Containerization
-- [Templ v0.3.819](https://templ.guide/) - Templating
+- [Templ v0.3.857](https://templ.guide/) - Templating
 - [TailwindCSS v3.4.13](https://tailwindcss.com/docs/installation) - Styling
 - [golangci-lint v1.61.0](https://golangci-lint.run/welcome/install/) - Linting
 
@@ -42,7 +42,6 @@ Ensure these tools are installed before you begin:
    ```cmd
    curl.exe -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.ps1 | powershell -Command -
    ```
-
 ## 🛠️ Development Setup
 
 1. **Clone the repository**:
