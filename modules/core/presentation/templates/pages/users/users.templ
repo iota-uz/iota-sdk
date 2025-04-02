@@ -31,7 +31,7 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 }
 
 templ UserCreatedEvent(user *viewmodels.User, rowProps *base.TableRowProps) {
-	<tbody hx-swap-oob="afterbegin:tbody">
+	<tbody hx-swap-oob="afterbegin:#users-table-body">
 		@UserRow(user, rowProps)
 	</tbody>
 }
@@ -111,7 +111,9 @@ templ UsersTable(props *IndexPageProps) {
 			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
-		@UserRows(props)
+		<tbody id="users-table-body">
+			@UserRows(props)
+		</tbody>
 	}
 }
 
