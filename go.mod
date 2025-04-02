@@ -3,7 +3,7 @@ module github.com/iota-uz/iota-sdk
 go 1.23.2
 
 require (
-	github.com/99designs/gqlgen v0.17.70
+	github.com/99designs/gqlgen v0.17.57
 	github.com/BurntSushi/toml v1.4.0
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/Oudwins/tailwind-merge-go v0.2.1
@@ -37,7 +37,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
 	github.com/twilio/twilio-go v1.23.11
-	github.com/vektah/gqlparser/v2 v2.5.23
+	github.com/vektah/gqlparser/v2 v2.5.20
 	github.com/xuri/excelize/v2 v2.9.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0
@@ -47,7 +47,7 @@ require (
 	golang.org/x/net v0.37.0
 	golang.org/x/oauth2 v0.26.0
 	golang.org/x/text v0.23.0
-	golang.org/x/tools v0.31.0
+	golang.org/x/tools v0.26.0
 	google.golang.org/api v0.209.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.12
