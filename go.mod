@@ -1,6 +1,6 @@
 module github.com/iota-uz/iota-sdk
 
-go 1.24
+go 1.23.2
 
 require (
 	github.com/99designs/gqlgen v0.17.70
