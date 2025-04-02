@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
@@ -38,8 +39,14 @@ func (g *GormAuthLogRepository) GetPaginated(
 		where, args = append(where, fmt.Sprintf("user_id = $%d", len(args)+1)), append(args, params.UserID)
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	where, args = append(where, fmt.Sprintf("tenant_id = $%d", len(args)+1)), append(args, tenant.ID)
+
 	rows, err := pool.Query(ctx, `
-		SELECT id, user_id, ip, user_agent, created_at
+		SELECT id, user_id, ip, user_agent, created_at, tenant_id
 		FROM authentication_logs
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY id DESC
@@ -59,6 +66,7 @@ func (g *GormAuthLogRepository) GetPaginated(
 			&log.IP,
 			&log.UserAgent,
 			&log.CreatedAt,
+			&log.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -75,10 +83,16 @@ func (g *GormAuthLogRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	var count int64
 	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM authentication_logs
-	`).Scan(&count); err != nil {
+		SELECT COUNT(*) as count FROM authentication_logs WHERE tenant_id = $1
+	`, tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -108,10 +122,18 @@ func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.Authen
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
 	dbRow := toDBAuthenticationLog(data)
+	dbRow.TenantID = tenant.ID
+
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO authentication_logs (user_id, ip, user_agent) VALUES ($1, $2, $3)
-	`, dbRow.UserID, dbRow.IP, dbRow.UserAgent).Scan(&data.ID); err != nil {
+		INSERT INTO authentication_logs (user_id, ip, user_agent, tenant_id) VALUES ($1, $2, $3, $4)
+	`, dbRow.UserID, dbRow.IP, dbRow.UserAgent, dbRow.TenantID).Scan(&data.ID); err != nil {
 		return err
 	}
 	return nil

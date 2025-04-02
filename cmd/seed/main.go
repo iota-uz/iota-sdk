@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -67,14 +68,28 @@ func main() {
 		panicWithStack(err)
 	}
 	seeder.Register(
+		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
 		coreseed.CreatePermissions,
 		coreseed.UserSeedFunc(usr),
 	)
-	if err := seeder.Seed(composables.WithTx(ctx, tx), app); err != nil {
+
+	// Add default tenant to context
+	defaultTenant := &composables.Tenant{
+		ID:     1,
+		Name:   "Default",
+		Domain: "default.localhost",
+	}
+	ctxWithTenant := context.WithValue(
+		composables.WithTx(ctx, tx),
+		constants.TenantKey,
+		defaultTenant,
+	)
+
+	if err := seeder.Seed(ctxWithTenant, app); err != nil {
 		panicWithStack(err)
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(ctxWithTenant); err != nil {
 		panicWithStack(err)
 	}
 }

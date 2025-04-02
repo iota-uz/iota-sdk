@@ -38,6 +38,7 @@ type Size interface {
 
 type Upload interface {
 	ID() uint
+	TenantID() uint
 	Type() UploadType
 	Hash() string
 	Path() string
@@ -66,6 +67,7 @@ func New(
 	}
 	return &upload{
 		id:        0,
+		tenantID:  0,
 		hash:      hash,
 		path:      path,
 		name:      name,
@@ -79,6 +81,7 @@ func New(
 
 func NewWithID(
 	id uint,
+	tenantID uint,
 	hash, path, name string,
 	size int,
 	mimetype *mimetype.MIME,
@@ -87,6 +90,7 @@ func NewWithID(
 ) Upload {
 	return &upload{
 		id:        id,
+		tenantID:  tenantID,
 		hash:      hash,
 		path:      path,
 		name:      name,
@@ -100,6 +104,7 @@ func NewWithID(
 
 type upload struct {
 	id        uint
+	tenantID  uint
 	hash      string
 	path      string
 	name      string
@@ -112,6 +117,10 @@ type upload struct {
 
 func (u *upload) ID() uint {
 	return u.id
+}
+
+func (u *upload) TenantID() uint {
+	return u.tenantID
 }
 
 func (u *upload) Type() UploadType {

@@ -1,11 +1,13 @@
 package category
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 )
 
 func New(
+	tenantID uint,
 	name string,
 	description string,
 	amount float64,
@@ -13,6 +15,7 @@ func New(
 ) ExpenseCategory {
 	return &expenseCategory{
 		id:          0,
+		tenantID:    tenantID,
 		name:        name,
 		description: description,
 		amount:      amount,
@@ -24,6 +27,7 @@ func New(
 
 func NewWithID(
 	id uint,
+	tenantID uint,
 	name string,
 	description string,
 	amount float64,
@@ -33,6 +37,7 @@ func NewWithID(
 ) ExpenseCategory {
 	return &expenseCategory{
 		id:          id,
+		tenantID:    tenantID,
 		name:        name,
 		description: description,
 		amount:      amount,
@@ -44,6 +49,7 @@ func NewWithID(
 
 type expenseCategory struct {
 	id          uint
+	tenantID    uint
 	name        string
 	description string
 	amount      float64
@@ -54,6 +60,10 @@ type expenseCategory struct {
 
 func (e *expenseCategory) ID() uint {
 	return e.id
+}
+
+func (e *expenseCategory) TenantID() uint {
+	return e.tenantID
 }
 
 func (e *expenseCategory) Name() string {

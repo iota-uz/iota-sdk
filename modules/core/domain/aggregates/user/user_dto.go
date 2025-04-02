@@ -93,7 +93,7 @@ func (u *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 func (u *CreateDTO) ToEntity() (User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, id := range u.RoleIDs {
-		r, err := role.NewWithID(id, "", "", nil, time.Now(), time.Now())
+		r, err := role.NewWithID(id, "", "", nil, time.Now(), time.Now(), 0) // tenant_id will be set correctly in repository
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +132,7 @@ func (u *CreateDTO) ToEntity() (User, error) {
 func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, rID := range u.RoleIDs {
-		r, err := role.NewWithID(rID, "", "", nil, time.Now(), time.Now())
+		r, err := role.NewWithID(rID, "", "", nil, time.Now(), time.Now(), 0) // tenant_id will be set correctly in repository
 		if err != nil {
 			return nil, err
 		}

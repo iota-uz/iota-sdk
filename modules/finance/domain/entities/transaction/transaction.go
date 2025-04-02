@@ -6,6 +6,7 @@ import (
 
 type Transaction struct {
 	ID                   uint
+	TenantID             uint
 	Amount               float64
 	OriginAccountID      *uint
 	DestinationAccountID *uint
@@ -34,6 +35,7 @@ func NewDeposit(
 	}
 	return &Transaction{
 		ID:                   0,
+		TenantID:             0,
 		Amount:               amount,
 		OriginAccountID:      origAccID,
 		DestinationAccountID: destAccID,
@@ -63,6 +65,7 @@ func NewWithdrawal(
 	}
 	return &Transaction{
 		ID:                   0,
+		TenantID:             0,
 		Amount:               amount,
 		OriginAccountID:      origAccID,
 		DestinationAccountID: destAccID,

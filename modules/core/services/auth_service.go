@@ -120,27 +120,58 @@ func (s *AuthService) newSessionToken() (string, error) {
 }
 
 func (s *AuthService) authenticate(ctx context.Context, u user.User) (*session.Session, error) {
-	ip, _ := composables.UseIP(ctx)
-	userAgent, _ := composables.UseUserAgent(ctx)
+	logger := configuration.Use().Logger()
+	logger.Infof("Creating session for user ID: %d, tenant ID: %d", u.ID(), u.TenantID())
+
+	// Get IP and user agent
+	ip, ok := composables.UseIP(ctx)
+	if !ok {
+		logger.Warnf("Could not get IP, using default")
+		ip = "0.0.0.0"
+	}
+
+	userAgent, ok := composables.UseUserAgent(ctx)
+	if !ok {
+		logger.Warnf("Could not get User-Agent, using default")
+		userAgent = "Unknown"
+	}
+
+	// Generate session token
 	token, err := s.newSessionToken()
 	if err != nil {
+		logger.Errorf("Failed to generate session token: %v", err)
 		return nil, err
 	}
+
+	// Create session DTO
 	sess := &session.CreateDTO{
 		Token:     token,
 		UserID:    u.ID(),
 		IP:        ip,
 		UserAgent: userAgent,
+		TenantID:  u.TenantID(), // Ensure tenant ID is set in the session
 	}
+
+	// Update user last login
 	if err := s.usersService.UpdateLastLogin(ctx, u.ID()); err != nil {
+		logger.Errorf("Failed to update last login: %v", err)
 		return nil, err
 	}
+
+	// Update user last action
 	if err := s.usersService.UpdateLastAction(ctx, u.ID()); err != nil {
+		logger.Errorf("Failed to update last action: %v", err)
 		return nil, err
 	}
+
+	// Create the session
+	logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), token[:5])
 	if err := s.sessionService.Create(ctx, sess); err != nil {
+		logger.Errorf("Failed to create session in DB: %v", err)
 		return nil, err
 	}
+
+	logger.Infof("Session created successfully")
 	return sess.ToEntity(), nil
 }
 
@@ -178,17 +209,28 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 }
 
 func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, *session.Session, error) {
+	logger := configuration.Use().Logger()
+	logger.Infof("Authentication attempt for email: %s", email)
+
 	u, err := s.usersService.GetByEmail(ctx, email)
 	if err != nil {
+		logger.Errorf("Failed to get user by email: %v", err)
 		return nil, nil, err
 	}
+
 	if !u.CheckPassword(password) {
+		logger.Errorf("Invalid password for user: %s", email)
 		return nil, nil, composables.ErrInvalidPassword
 	}
+
+	logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
 	sess, err := s.authenticate(ctx, u)
 	if err != nil {
+		logger.Errorf("Failed to create session: %v", err)
 		return nil, nil, err
 	}
+
+	logger.Infof("Session created successfully with token: %s (partial)", sess.Token[:5])
 	return u, sess, nil
 }
 

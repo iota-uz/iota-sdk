@@ -40,6 +40,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 
 	options := []user.Option{
 		user.WithID(dbUser.ID),
+		user.WithTenantID(dbUser.TenantID),
 		user.WithMiddleName(dbUser.MiddleName.String),
 		user.WithPassword(dbUser.Password.String),
 		user.WithRoles(roles),
@@ -91,6 +92,7 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 
 	return &models.User{
 		ID:         entity.ID(),
+		TenantID:   entity.TenantID(),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
@@ -123,6 +125,7 @@ func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.R
 		domainPermissions,
 		dbRole.CreatedAt,
 		dbRole.UpdatedAt,
+		dbRole.TenantID,
 	)
 }
 
@@ -133,6 +136,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 	}
 	return &models.Role{
 		ID:          entity.ID(),
+		TenantID:    entity.TenantID(),
 		Name:        entity.Name(),
 		Description: mapping.ValueToSQLNullString(entity.Description()),
 		CreatedAt:   entity.CreatedAt(),
@@ -143,6 +147,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 func toDBPermission(entity *permission.Permission) *models.Permission {
 	return &models.Permission{
 		ID:       entity.ID.String(),
+		TenantID: entity.TenantID,
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
 		Action:   string(entity.Action),
@@ -157,6 +162,7 @@ func toDomainPermission(dbPermission *models.Permission) (*permission.Permission
 	}
 	return &permission.Permission{
 		ID:       id,
+		TenantID: dbPermission.TenantID,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),
 		Action:   permission.Action(dbPermission.Action),
@@ -181,6 +187,7 @@ func ToDomainTin(s sql.NullString, c country.Country) (tax.Tin, error) {
 func ToDBUpload(upload upload.Upload) *models.Upload {
 	return &models.Upload{
 		ID:        upload.ID(),
+		TenantID:  upload.TenantID(),
 		Path:      upload.Path(),
 		Hash:      upload.Hash(),
 		Name:      upload.Name(),
@@ -199,6 +206,7 @@ func ToDomainUpload(dbUpload *models.Upload) upload.Upload {
 	}
 	return upload.NewWithID(
 		dbUpload.ID,
+		dbUpload.TenantID,
 		dbUpload.Hash,
 		dbUpload.Path,
 		dbUpload.Name,
@@ -242,6 +250,7 @@ func ToDBTab(tab *tab.Tab) *models.Tab {
 		Href:     tab.Href,
 		Position: tab.Position,
 		UserID:   tab.UserID,
+		TenantID: tab.TenantID,
 	}
 }
 
@@ -251,12 +260,14 @@ func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
 		Href:     dbTab.Href,
 		Position: dbTab.Position,
 		UserID:   dbTab.UserID,
+		TenantID: dbTab.TenantID,
 	}, nil
 }
 
-func toDBSession(session *session.Session) *models.Session {
+func ToDBSession(session *session.Session) *models.Session {
 	return &models.Session{
 		UserID:    session.UserID,
+		TenantID:  session.TenantID,
 		Token:     session.Token,
 		IP:        session.IP,
 		UserAgent: session.UserAgent,
@@ -265,9 +276,10 @@ func toDBSession(session *session.Session) *models.Session {
 	}
 }
 
-func toDomainSession(dbSession *models.Session) *session.Session {
+func ToDomainSession(dbSession *models.Session) *session.Session {
 	return &session.Session{
 		UserID:    dbSession.UserID,
+		TenantID:  dbSession.TenantID,
 		Token:     dbSession.Token,
 		IP:        dbSession.IP,
 		UserAgent: dbSession.UserAgent,
@@ -304,6 +316,7 @@ func ToDomainPassport(dbPassport *models.Passport) (passport.Passport, error) {
 	}
 	opts := []passport.Option{
 		passport.WithID(id),
+		passport.WithTenantID(dbPassport.TenantID),
 	}
 
 	if dbPassport.FirstName.Valid || dbPassport.LastName.Valid || dbPassport.MiddleName.Valid {
@@ -443,6 +456,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 
 	opts := []group.Option{
 		group.WithID(groupID),
+		group.WithTenantID(dbGroup.TenantID),
 		group.WithDescription(dbGroup.Description.String),
 		group.WithUsers(users),
 		group.WithRoles(roles),
@@ -456,6 +470,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 func ToDBGroup(g group.Group) *models.Group {
 	return &models.Group{
 		ID:          g.ID().String(),
+		TenantID:    g.TenantID(),
 		Name:        g.Name(),
 		Description: mapping.ValueToSQLNullString(g.Description()),
 		CreatedAt:   g.CreatedAt(),

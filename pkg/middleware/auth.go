@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -51,6 +52,54 @@ func Authorize() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
+
+				// Now that we have the session, let's ensure we have the tenant in the context
+				// First check if we already have a tenant
+				_, tenantErr := composables.UseTenant(ctx)
+				if tenantErr != nil {
+					// First try to get tenant from session (already loaded from DB)
+					if sess.TenantID > 0 {
+						// Get tenant info directly
+						tx, txErr := composables.UseTx(ctx)
+						if txErr == nil {
+							var name string
+							var domain string
+							err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", sess.TenantID).Scan(&name, &domain)
+							if err == nil {
+								// Add tenant to context from session
+								t := &composables.Tenant{
+									ID:     sess.TenantID,
+									Name:   name,
+									Domain: domain,
+								}
+								ctx = context.WithValue(ctx, constants.TenantKey, t)
+							}
+						}
+					} else {
+						// Fallback: use direct database query to get the tenant ID for the user
+						tx, txErr := composables.UseTx(ctx)
+						if txErr == nil {
+							var tenantID uint
+							err := tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1 LIMIT 1", sess.UserID).Scan(&tenantID)
+							if err == nil && tenantID > 0 {
+								// Now query for the tenant info
+								var name string
+								var domain string
+								err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", tenantID).Scan(&name, &domain)
+								if err == nil {
+									// Add tenant to context
+									t := &composables.Tenant{
+										ID:     tenantID,
+										Name:   name,
+										Domain: domain,
+									}
+									ctx = context.WithValue(ctx, constants.TenantKey, t)
+								}
+							}
+						}
+					}
+				}
+
 				params, ok := composables.UseParams(ctx)
 				if !ok {
 					panic("params not found. Add RequestParams middleware up the chain")
@@ -82,7 +131,24 @@ func ProvideUser() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
+				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
+
+				// Check if we already have a tenant in context
+				_, tenantErr := composables.UseTenant(ctx)
+				if tenantErr != nil {
+					// If not, get it from the user's tenant ID
+					tenantService := app.Service(services.TenantService{}).(*services.TenantService)
+					t, err := tenantService.GetByID(ctx, u.TenantID())
+					if err != nil {
+						log.Printf("Error retrieving tenant: %v", err)
+						// Don't add tenant to context if we couldn't get it
+					} else {
+						// Add tenant to context
+						ctx = context.WithValue(ctx, constants.TenantKey, t)
+					}
+				}
+
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)

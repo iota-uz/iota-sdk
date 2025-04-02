@@ -16,6 +16,7 @@ type Language interface {
 
 type Employee interface {
 	ID() uint
+	TenantID() uint
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -45,6 +46,7 @@ type Employee interface {
 
 func NewWithID(
 	id uint,
+	tenantID uint,
 	firstName, lastName, middleName, phone string,
 	email internet.Email,
 	salary money.Amount,
@@ -59,6 +61,7 @@ func NewWithID(
 ) Employee {
 	return &employee{
 		id:              id,
+		tenantID:        tenantID,
 		firstName:       firstName,
 		lastName:        lastName,
 		middleName:      middleName,
@@ -91,6 +94,7 @@ func New(
 ) (Employee, error) {
 	return &employee{
 		id:              0,
+		tenantID:        0, // Will be set in repository
 		firstName:       firstName,
 		lastName:        lastName,
 		middleName:      middleName,
@@ -111,6 +115,7 @@ func New(
 
 type employee struct {
 	id              uint
+	tenantID        uint
 	firstName       string
 	lastName        string
 	middleName      string
@@ -132,6 +137,10 @@ type employee struct {
 
 func (e *employee) ID() uint {
 	return e.id
+}
+
+func (e *employee) TenantID() uint {
+	return e.tenantID
 }
 
 func (e *employee) FirstName() string {

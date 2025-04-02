@@ -6,6 +6,7 @@ import (
 
 type Unit struct {
 	ID         uint
+	TenantID   uint
 	Title      string
 	ShortTitle string
 	CreatedAt  time.Time
