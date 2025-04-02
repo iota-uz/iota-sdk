@@ -87,12 +87,6 @@ func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 		return
 	}
 
-	_, err = ru.clientService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v | Event: onClientCreated", err)
-		return
-	}
-
 	clientEntity, err := ru.clientService.GetByID(ctx, event.Result.ID())
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v | Event: onClientCreated", err)
