@@ -238,7 +238,8 @@ func TestSortTableDefs(t *testing.T) {
 			tables := tt.tables()
 			expected := tt.expected()
 
-			result := SortTableDefs(tables)
+			result, err := SortTableDefs(tables)
+			assert.NoError(t, err)
 
 			// We need to verify the order is correct for dependency resolution
 			assert.Equal(t, len(expected), len(result), "Result should have the same number of tables")

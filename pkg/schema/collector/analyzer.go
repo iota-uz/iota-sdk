@@ -169,7 +169,11 @@ func CollectSchemaChanges(oldSchema, newSchema *common.Schema) (*common.ChangeSe
 	for _, t := range newSchema.Tables {
 		newSchemaTables = append(newSchemaTables, t)
 	}
-	newSchemaTables = common.SortTableDefs(newSchemaTables)
+	var err error
+	newSchemaTables, err = common.SortTableDefs(newSchemaTables)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// Check for tables in new schema
 	for _, newTable := range newSchemaTables {

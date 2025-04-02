@@ -1,6 +1,8 @@
 package common
 
 import (
+	"fmt"
+
 	"github.com/iota-uz/psql-parser/sql/sem/tree"
 )
 
@@ -78,7 +80,7 @@ func AllReferencesSatisfied(t *tree.CreateTable, tables []*tree.CreateTable) boo
 	return true
 }
 
-func SortTableDefs(tables []*tree.CreateTable) []*tree.CreateTable {
+func SortTableDefs(tables []*tree.CreateTable) ([]*tree.CreateTable, error) {
 	var result []*tree.CreateTable
 	processed := make(map[string]bool)
 
@@ -94,6 +96,8 @@ func SortTableDefs(tables []*tree.CreateTable) []*tree.CreateTable {
 			break
 		}
 
+		progress := false
+
 		for _, refTable := range tables {
 			if processed[refTable.Table.String()] {
 				continue
@@ -101,9 +105,37 @@ func SortTableDefs(tables []*tree.CreateTable) []*tree.CreateTable {
 			if AllReferencesSatisfied(refTable, result) {
 				result = append(result, refTable)
 				processed[refTable.Table.String()] = true
+				progress = true
 			}
 		}
 
+		if !progress {
+			// Collect missing dependencies
+			var missing []string
+			knownTables := make(map[string]bool)
+			for _, t := range tables {
+				knownTables[t.Table.String()] = true
+			}
+
+			for _, t := range tables {
+				if processed[t.Table.String()] {
+					continue
+				}
+				for _, def := range t.Defs {
+					colDef, ok := def.(*tree.ColumnTableDef)
+					if !ok || colDef.References.Table == nil {
+						continue
+					}
+					refName := colDef.References.Table.String()
+					if !knownTables[refName] {
+						missing = append(missing, refName)
+					}
+				}
+			}
+
+			return nil, fmt.Errorf("unsatisfied table references detected: %v", missing)
+		}
 	}
-	return result
+
+	return result, nil
 }
