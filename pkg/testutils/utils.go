@@ -44,12 +44,12 @@ func MockUser(permissions ...*permission.Permission) user.User {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	email, err := internet.NewEmail("test@example.com")
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return user.New(
 		"", // firstName
 		"", // lastName

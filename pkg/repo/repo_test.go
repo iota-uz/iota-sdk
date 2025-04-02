@@ -143,4 +143,3 @@ func TestBatchInsertQueryN(t *testing.T) {
 		})
 	}
 }
-

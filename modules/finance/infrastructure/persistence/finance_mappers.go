@@ -82,7 +82,7 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return payment.NewWithID(
 		dbPayment.ID,
 		t.Amount,

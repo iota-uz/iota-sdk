@@ -54,7 +54,7 @@ func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, 
 	defer tx.Rollback(ctx)
 
 	txCtx := composables.WithTx(ctx, tx)
-	
+
 	savedGroup, err := s.repo.Save(txCtx, g)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, 
 	defer tx.Rollback(ctx)
 
 	txCtx := composables.WithTx(ctx, tx)
-	
+
 	oldGroup, err := s.repo.GetByID(txCtx, g.ID())
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
 	defer tx.Rollback(ctx)
 
 	txCtx := composables.WithTx(ctx, tx)
-	
+
 	g, err := s.repo.GetByID(txCtx, id)
 	if err != nil {
 		return err
@@ -153,14 +153,14 @@ func (s *GroupService) AddUser(ctx context.Context, groupID uuid.UUID, userToAdd
 	defer tx.Rollback(ctx)
 
 	txCtx := composables.WithTx(ctx, tx)
-	
+
 	g, err := s.repo.GetByID(txCtx, groupID)
 	if err != nil {
 		return nil, err
 	}
 
 	updatedGroup := g.AddUser(userToAdd)
-	
+
 	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
 	if err != nil {
 		return nil, err
@@ -190,14 +190,14 @@ func (s *GroupService) RemoveUser(ctx context.Context, groupID uuid.UUID, userTo
 	defer tx.Rollback(ctx)
 
 	txCtx := composables.WithTx(ctx, tx)
-	
+
 	g, err := s.repo.GetByID(txCtx, groupID)
 	if err != nil {
 		return nil, err
 	}
 
 	updatedGroup := g.RemoveUser(userToRemove)
-	
+
 	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
 	if err != nil {
 		return nil, err
@@ -227,14 +227,14 @@ func (s *GroupService) AssignRole(ctx context.Context, groupID uuid.UUID, roleTo
 	defer tx.Rollback(ctx)
 
 	txCtx := composables.WithTx(ctx, tx)
-	
+
 	g, err := s.repo.GetByID(txCtx, groupID)
 	if err != nil {
 		return nil, err
 	}
 
 	updatedGroup := g.AssignRole(roleToAssign)
-	
+
 	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
 	if err != nil {
 		return nil, err
@@ -264,14 +264,14 @@ func (s *GroupService) RemoveRole(ctx context.Context, groupID uuid.UUID, roleTo
 	defer tx.Rollback(ctx)
 
 	txCtx := composables.WithTx(ctx, tx)
-	
+
 	g, err := s.repo.GetByID(txCtx, groupID)
 	if err != nil {
 		return nil, err
 	}
 
 	updatedGroup := g.RemoveRole(roleToRemove)
-	
+
 	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
 	if err != nil {
 		return nil, err

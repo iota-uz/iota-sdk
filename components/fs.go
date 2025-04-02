@@ -5,4 +5,3 @@
 // All components follow the project's design system and are built
 // with accessability in mind.
 package components
-

@@ -98,4 +98,3 @@ func PageWithLayout(content templ.Component, pageCtx *types.PageContext) templ.C
 		PageCtx: pageCtx,
 	}
 }
-

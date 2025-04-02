@@ -171,16 +171,25 @@ func (c *ClientController) Register(r *mux.Router) {
 
 func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
 	paginationParams := composables.UsePaginated(r)
-	params, err := composables.UseQuery(&client.FindParams{
+	params := &client.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
 		SortBy: client.SortBy{
 			Fields:    []client.Field{client.CreatedAt},
 			Ascending: false,
 		},
-	}, r)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error using query")
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		params.CreatedAt.From = v
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		params.CreatedAt.To = v
+	}
+
+	if q := r.URL.Query().Get("Query"); q != "" {
+		params.Search = q
 	}
 
 	clientEntities, err := c.clientService.GetPaginated(r.Context(), params)

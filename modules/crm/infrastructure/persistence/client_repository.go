@@ -179,6 +179,12 @@ func (g *ClientRepository) GetPaginated(
 	if params.Query != "" && params.Field != "" {
 		where, args = append(where, fmt.Sprintf("c.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
 	}
+
+	if params.Search != "" {
+		where = append(where, "c.first_name ILIKE $1 OR c.last_name ILIKE $1 OR c.middle_name ILIKE $1 OR c.phone_number ILIKE $1")
+		args = append(args, "%"+params.Search+"%")
+	}
+
 	sortFields := make([]string, 0, len(params.SortBy.Fields))
 	for _, f := range params.SortBy.Fields {
 		switch f {

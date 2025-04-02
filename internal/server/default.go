@@ -21,25 +21,25 @@ type DefaultOptions struct {
 
 func Default(options *DefaultOptions) (*server.HTTPServer, error) {
 	app := options.Application
-	
+
 	// Core middleware stack with tracing capabilities
 	app.RegisterMiddleware(
 		middleware.WithLogger(options.Logger), // This now creates the root span for each request
-		
+
 		// Add traced middleware for each of your key middleware functions
 		middleware.TracedMiddleware("database"),
 		middleware.Provide(constants.AppKey, app),
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
 		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, options.Pool),
-		
+
 		middleware.TracedMiddleware("cors"),
 		middleware.Cors("http://localhost:3000", "ws://localhost:3000"),
-		
+
 		middleware.TracedMiddleware("requestParams"),
 		middleware.RequestParams(),
 	)
-	
+
 	serverInstance := server.NewHTTPServer(
 		app,
 		controllers.NotFound(options.Application),

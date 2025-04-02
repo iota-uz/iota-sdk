@@ -140,7 +140,7 @@ templ ClientsContent(props *IndexPageProps) {
 				@filters.Search([]filters.SearchField{
 					{
 						Label: pageCtx.T("Clients.List.FullName"),
-						Key:   "firstName",
+						Key:   "full_name",
 					},
 				})
 				@filters.PageSize()

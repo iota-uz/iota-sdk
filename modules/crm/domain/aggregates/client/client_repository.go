@@ -28,6 +28,7 @@ type FindParams struct {
 	Offset    int
 	Query     string
 	Field     string
+	Search    string
 	SortBy    SortBy
 	CreatedAt DateRange
 }
