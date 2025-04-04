@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -31,6 +32,7 @@ type localizerProvider struct{}
 type userProvider struct{}
 type appProvider struct{}
 type serviceProvider struct{}
+type loggerProvider struct{}
 
 func (p *pageContextProvider) Ok(t reflect.Type) bool {
 	pageCtxType := reflect.TypeOf((*types.PageContext)(nil))
@@ -117,9 +119,20 @@ func (p *serviceProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http
 	return reflect.Value{}, fmt.Errorf("service not found for type: %v", t)
 }
 
+func (p *loggerProvider) Ok(t reflect.Type) bool {
+	loggerType := reflect.TypeOf((*logrus.Entry)(nil))
+	return t == loggerType
+}
+
+func (p *loggerProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+	logger := composables.UseLogger(r.Context())
+	return reflect.ValueOf(logger), nil
+}
+
 // BuiltinProviders returns the list of built-in providers
 func BuiltinProviders() []Provider {
 	return []Provider{
+		&loggerProvider{},
 		&pageContextProvider{},
 		&httpWriterProvider{},
 		&httpRequestProvider{},
