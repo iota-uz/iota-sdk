@@ -3,6 +3,7 @@ package role
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
 
@@ -13,7 +14,7 @@ func NewWithID(
 	permissions []*permission.Permission,
 	createdAt time.Time,
 	updatedAt time.Time,
-	tenantID uint,
+	tenantID uuid.UUID,
 ) (Role, error) {
 	return &role{
 		id:          id,
@@ -33,7 +34,7 @@ func New(
 ) (Role, error) {
 	return &role{
 		id:          0,
-		tenantID:    0,
+		tenantID:    uuid.Nil,
 		name:        name,
 		description: description,
 		permissions: permissions,
@@ -44,7 +45,7 @@ func New(
 
 type role struct {
 	id          uint
-	tenantID    uint
+	tenantID    uuid.UUID
 	name        string
 	description string
 	permissions []*permission.Permission
@@ -56,7 +57,7 @@ func (r *role) ID() uint {
 	return r.id
 }
 
-func (r *role) TenantID() uint {
+func (r *role) TenantID() uuid.UUID {
 	return r.tenantID
 }
 
@@ -104,7 +105,7 @@ func (r *role) SetDescription(description string) Role {
 	}
 }
 
-func (r *role) SetTenantID(tenantID uint) Role {
+func (r *role) SetTenantID(tenantID uuid.UUID) Role {
 	return &role{
 		id:          r.id,
 		tenantID:    tenantID,

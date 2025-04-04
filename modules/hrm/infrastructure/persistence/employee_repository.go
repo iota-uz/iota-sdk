@@ -153,7 +153,7 @@ func (g *GormEmployeeRepository) Create(ctx context.Context, data employee.Emplo
 	}
 
 	dbEmployee, dbMeta := toDBEmployee(data)
-	dbEmployee.TenantID = tenant.ID // Set tenant ID from context
+	dbEmployee.TenantID = tenant.ID.String() // Set tenant ID from context
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {

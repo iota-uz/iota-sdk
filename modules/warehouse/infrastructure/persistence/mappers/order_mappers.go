@@ -1,6 +1,7 @@
 package mappers
 
 import (
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
 )
@@ -19,7 +20,7 @@ func ToDBOrder(entity order.Order) (*models.WarehouseOrder, []*models.WarehouseP
 
 	dbOrder := &models.WarehouseOrder{
 		ID:        entity.ID(),
-		TenantID:  entity.TenantID(),
+		TenantID:  entity.TenantID().String(),
 		Status:    string(entity.Status()),
 		Type:      string(entity.Type()),
 		CreatedAt: entity.CreatedAt(),
@@ -36,7 +37,11 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := uuid.Parse(dbOrder.TenantID)
+	if err != nil {
+		return nil, err
+	}
 	orderEntity := order.NewWithID(dbOrder.ID, orderType, status, dbOrder.CreatedAt)
-	orderEntity.SetTenantID(dbOrder.TenantID)
+	orderEntity.SetTenantID(tenantID)
 	return orderEntity, nil
 }

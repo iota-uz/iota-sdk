@@ -5,6 +5,7 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -60,7 +61,7 @@ func (d *CreateDTO) ToEntity() (*Expense, error) {
 		Amount:  d.Amount,
 		Category: category.NewWithID(
 			d.CategoryID,
-			0,
+			uuid.Nil,
 			"",
 			"",
 			0,
@@ -84,7 +85,7 @@ func (d *UpdateDTO) ToEntity(id uint) (*Expense, error) {
 		Amount:  d.Amount,
 		Category: category.NewWithID(
 			d.CategoryID,
-			0, // TenantID will be set in repository
+			uuid.Nil, // TenantID will be set in repository
 			"",
 			"",
 			0,

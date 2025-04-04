@@ -3,12 +3,13 @@ package category
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 )
 
 type ExpenseCategory interface {
 	ID() uint
-	TenantID() uint
+	TenantID() uuid.UUID
 	Name() string
 	Description() string
 

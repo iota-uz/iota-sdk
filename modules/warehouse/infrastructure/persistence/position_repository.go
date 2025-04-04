@@ -272,7 +272,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	}
 
 	positionRow, junctionRows := mappers.ToDBPosition(data)
-	positionRow.TenantID = tenant.ID
+	positionRow.TenantID = tenant.ID.String()
 	data.TenantID = tenant.ID
 
 	if err := tx.QueryRow(
@@ -312,7 +312,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	}
 
 	positionRow, junctionRows := mappers.ToDBPosition(data)
-	positionRow.TenantID = tenant.ID
+	positionRow.TenantID = tenant.ID.String()
 	data.TenantID = tenant.ID
 
 	if _, err := tx.Exec(

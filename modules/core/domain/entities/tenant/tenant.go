@@ -1,9 +1,13 @@
 package tenant
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Tenant struct {
-	id        uint
+	id        uuid.UUID
 	name      string
 	domain    string
 	isActive  bool
@@ -13,7 +17,7 @@ type Tenant struct {
 
 type Option func(*Tenant)
 
-func WithID(id uint) Option {
+func WithID(id uuid.UUID) Option {
 	return func(t *Tenant) {
 		t.id = id
 	}
@@ -45,6 +49,7 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 
 func New(name string, opts ...Option) *Tenant {
 	t := &Tenant{
+		id:        uuid.New(),
 		name:      name,
 		isActive:  true,
 		createdAt: time.Now(),
@@ -56,7 +61,7 @@ func New(name string, opts ...Option) *Tenant {
 	return t
 }
 
-func (t *Tenant) ID() uint {
+func (t *Tenant) ID() uuid.UUID {
 	return t.id
 }
 

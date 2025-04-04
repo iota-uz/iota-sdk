@@ -14,7 +14,7 @@ type Option func(g *group)
 
 type Group interface {
 	ID() uuid.UUID
-	TenantID() uint
+	TenantID() uuid.UUID
 	Name() string
 	Description() string
 	Users() []user.User
@@ -28,7 +28,7 @@ type Group interface {
 	RemoveRole(r role.Role) Group
 	SetName(name string) Group
 	SetDescription(desc string) Group
-	SetTenantID(tenantID uint) Group
+	SetTenantID(tenantID uuid.UUID) Group
 }
 
 // ---- Implementations ----
@@ -39,7 +39,7 @@ func WithID(id uuid.UUID) Option {
 	}
 }
 
-func WithTenantID(tenantID uint) Option {
+func WithTenantID(tenantID uuid.UUID) Option {
 	return func(g *group) {
 		g.tenantID = tenantID
 	}
@@ -78,7 +78,7 @@ func WithUpdatedAt(t time.Time) Option {
 func New(name string, opts ...Option) Group {
 	g := &group{
 		id:        uuid.New(),
-		tenantID:  0,
+		tenantID:  uuid.Nil,
 		name:      name,
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
@@ -92,7 +92,7 @@ func New(name string, opts ...Option) Group {
 
 type group struct {
 	id          uuid.UUID
-	tenantID    uint
+	tenantID    uuid.UUID
 	name        string
 	description string
 	roles       []role.Role
@@ -105,7 +105,7 @@ func (g *group) ID() uuid.UUID {
 	return g.id
 }
 
-func (g *group) TenantID() uint {
+func (g *group) TenantID() uuid.UUID {
 	return g.tenantID
 }
 
@@ -147,7 +147,7 @@ func (g *group) SetDescription(desc string) Group {
 	return &r
 }
 
-func (g *group) SetTenantID(tenantID uint) Group {
+func (g *group) SetTenantID(tenantID uuid.UUID) Group {
 	r := *g
 	r.tenantID = tenantID
 	r.updatedAt = time.Now()

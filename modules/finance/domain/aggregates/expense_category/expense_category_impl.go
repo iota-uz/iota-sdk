@@ -3,11 +3,12 @@ package category
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 )
 
 func New(
-	tenantID uint,
+	tenantID uuid.UUID,
 	name string,
 	description string,
 	amount float64,
@@ -27,7 +28,7 @@ func New(
 
 func NewWithID(
 	id uint,
-	tenantID uint,
+	tenantID uuid.UUID,
 	name string,
 	description string,
 	amount float64,
@@ -49,7 +50,7 @@ func NewWithID(
 
 type expenseCategory struct {
 	id          uint
-	tenantID    uint
+	tenantID    uuid.UUID
 	name        string
 	description string
 	amount      float64
@@ -62,7 +63,7 @@ func (e *expenseCategory) ID() uint {
 	return e.id
 }
 
-func (e *expenseCategory) TenantID() uint {
+func (e *expenseCategory) TenantID() uuid.UUID {
 	return e.tenantID
 }
 

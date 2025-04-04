@@ -182,7 +182,7 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data categor
 	}
 
 	dbRow := toDBExpenseCategory(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(
 		ctx,
@@ -210,7 +210,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data categor
 	}
 
 	dbRow := toDBExpenseCategory(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if _, err := tx.Exec(
 		ctx,

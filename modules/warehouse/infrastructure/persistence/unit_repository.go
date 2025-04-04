@@ -125,7 +125,7 @@ func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error 
 	}
 
 	dbRow := mappers.ToDBUnit(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(
 		ctx,
@@ -169,7 +169,7 @@ func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error 
 	}
 
 	dbRow := mappers.ToDBUnit(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if _, err := tx.Exec(
 		ctx,
@@ -227,7 +227,10 @@ func (g *GormUnitRepository) queryUnits(ctx context.Context, query string, args 
 			return nil, err
 		}
 
-		domainUnit := mappers.ToDomainUnit(&u)
+		domainUnit, err := mappers.ToDomainUnit(&u)
+		if err != nil {
+			return nil, err
+		}
 		units = append(units, domainUnit)
 	}
 

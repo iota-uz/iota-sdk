@@ -74,7 +74,11 @@ func (g *GormUploadRepository) queryUploads(
 		); err != nil {
 			return nil, err
 		}
-		uploads = append(uploads, ToDomainUpload(&dbUpload))
+		domainUpload, err := ToDomainUpload(&dbUpload)
+			if err != nil {
+				return nil, err
+			}
+			uploads = append(uploads, domainUpload)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -114,7 +118,7 @@ func (g *GormUploadRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	where, args = append(where, fmt.Sprintf("tenant_id = $%d", len(args)+1)), append(args, tenant.ID)
+	where, args = append(where, fmt.Sprintf("tenant_id = $%d", len(args)+1)), append(args, tenant.ID.String())
 
 	return g.queryUploads(
 		ctx,
@@ -140,7 +144,7 @@ func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 	}
 
 	var count int64
-	if err := pool.QueryRow(ctx, countUploadsQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countUploadsQuery+" WHERE tenant_id = $1", tenant.ID.String()).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -190,7 +194,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 	}
 
 	dbUpload := ToDBUpload(data)
-	dbUpload.TenantID = tenant.ID
+	dbUpload.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(
 		ctx,
@@ -222,7 +226,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 	}
 
 	dbUpload := ToDBUpload(data)
-	dbUpload.TenantID = tenant.ID
+	dbUpload.TenantID = tenant.ID.String()
 
 	if _, err := tx.Exec(
 		ctx,
@@ -253,7 +257,7 @@ func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, deleteUploadQuery, id, tenant.ID); err != nil {
+	if _, err := tx.Exec(ctx, deleteUploadQuery, id, tenant.ID.String()); err != nil {
 		return err
 	}
 	return nil

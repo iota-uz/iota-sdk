@@ -9,7 +9,7 @@ import (
 
 type Passport interface {
 	ID() uuid.UUID
-	TenantID() uint
+	TenantID() uuid.UUID
 	Series() string
 	Number() string
 	Identifier() string // Series + Number
@@ -40,7 +40,7 @@ func WithID(id uuid.UUID) Option {
 	}
 }
 
-func WithTenantID(tenantID uint) Option {
+func WithTenantID(tenantID uuid.UUID) Option {
 	return func(p *passport) {
 		p.tenantID = tenantID
 	}
@@ -142,7 +142,7 @@ func New(series, number string, opts ...Option) Passport {
 
 type passport struct {
 	id                  uuid.UUID
-	tenantID            uint
+	tenantID            uuid.UUID
 	firstName           string
 	lastName            string
 	middleName          string
@@ -167,7 +167,7 @@ func (p *passport) ID() uuid.UUID {
 	return p.id
 }
 
-func (p *passport) TenantID() uint {
+func (p *passport) TenantID() uuid.UUID {
 	return p.tenantID
 }
 

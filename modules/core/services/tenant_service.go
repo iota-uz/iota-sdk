@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 )
 
@@ -16,7 +17,7 @@ func NewTenantService(repo tenant.Repository) *TenantService {
 	}
 }
 
-func (s *TenantService) GetByID(ctx context.Context, id uint) (*tenant.Tenant, error) {
+func (s *TenantService) GetByID(ctx context.Context, id uuid.UUID) (*tenant.Tenant, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -33,7 +34,7 @@ func (s *TenantService) Update(ctx context.Context, t *tenant.Tenant) (*tenant.T
 	return s.repo.Update(ctx, t)
 }
 
-func (s *TenantService) Delete(ctx context.Context, id uint) error {
+func (s *TenantService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
 

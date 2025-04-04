@@ -18,7 +18,7 @@ const (
 
 type Permission struct {
 	ID       uuid.UUID
-	TenantID uint
+	TenantID uuid.UUID
 	Name     string
 	Resource Resource
 	Action   Action

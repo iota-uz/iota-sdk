@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -12,7 +13,7 @@ var (
 )
 
 type Tenant struct {
-	ID     uint
+	ID     uuid.UUID
 	Name   string
 	Domain string
 }

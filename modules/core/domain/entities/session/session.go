@@ -3,13 +3,14 @@ package session
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 type Session struct {
 	Token     string `gorm:"primaryKey"`
 	UserID    uint
-	TenantID  uint
+	TenantID  uuid.UUID
 	IP        string
 	UserAgent string
 	ExpiresAt time.Time
@@ -19,7 +20,7 @@ type Session struct {
 type CreateDTO struct {
 	Token     string
 	UserID    uint
-	TenantID  uint
+	TenantID  uuid.UUID
 	IP        string
 	UserAgent string
 }

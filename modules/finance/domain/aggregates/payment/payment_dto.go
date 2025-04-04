@@ -5,6 +5,7 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -91,7 +92,7 @@ func (p *UpdateDTO) ToEntity(id uint) Payment {
 
 	return NewWithID(
 		id,
-		0, // TenantID will be set in repository
+		uuid.Nil, // TenantID will be set in repository
 		p.Amount,
 		0,
 		p.CounterpartyID,

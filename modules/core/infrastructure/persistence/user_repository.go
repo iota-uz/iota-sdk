@@ -56,16 +56,17 @@ const (
 	userPermissionInsertQuery = `INSERT INTO user_permissions (user_id, permission_id) VALUES`
 
 	userRolePermissionsQuery = `
-				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+				SELECT p.id, p.tenant_id, p.name, p.resource, p.action, p.modifier, p.description
 				FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`
 
 	userPermissionsQuery = `
-				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+				SELECT p.id, p.tenant_id, p.name, p.resource, p.action, p.modifier, p.description
 				FROM user_permissions up LEFT JOIN permissions p ON up.permission_id = p.id WHERE up.user_id = $1`
 
 	userRolesQuery = `
 				SELECT
 					r.id,
+					r.tenant_id,
 					r.name,
 					r.description,
 					r.created_at,
@@ -435,7 +436,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 
 	// Create a copy of the user with the tenant ID from context
 	updatedData := data
-	if data.TenantID() == 0 {
+	if data.TenantID() == uuid.Nil {
 		updatedData = user.New(
 			data.FirstName(),
 			data.LastName(),
@@ -523,10 +524,10 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
-
+	fmt.Printf("TENANT: %v\n", tenant)
 	dbUser, _ := toDBUser(data)
-	if dbUser.TenantID == 0 {
-		dbUser.TenantID = tenant.ID
+	if dbUser.TenantID == uuid.Nil.String() {
+		dbUser.TenantID = tenant.ID.String()
 	}
 
 	fields := []string{
@@ -542,6 +543,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		"updated_at",
 	}
 
+	fmt.Printf("DB_USER tenant_id: %s\n", dbUser.TenantID)
 	values := []interface{}{
 		dbUser.TenantID,
 		dbUser.FirstName,
@@ -603,7 +605,7 @@ func (g *PgUserRepository) UpdateLastLogin(ctx context.Context, id uint) error {
 		return errors.Wrap(txErr, "failed to get transaction")
 	}
 
-	var tenantID uint
+	var tenantID string
 	err = tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1", id).Scan(&tenantID)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to get tenant ID for user ID: %d", id))
@@ -633,7 +635,7 @@ func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error 
 		return errors.Wrap(txErr, "failed to get transaction")
 	}
 
-	var tenantID uint
+	var tenantID string
 	err = tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1", id).Scan(&tenantID)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to get tenant ID for user ID: %d", id))
@@ -765,6 +767,7 @@ func (g *PgUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]
 		var p models.Permission
 		if err := rows.Scan(
 			&p.ID,
+			&p.TenantID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,
@@ -800,6 +803,7 @@ func (g *PgUserRepository) userRoles(ctx context.Context, userID uint) ([]role.R
 		var r models.Role
 		if err := rows.Scan(
 			&r.ID,
+			&r.TenantID,
 			&r.Name,
 			&r.Description,
 			&r.CreatedAt,
@@ -881,6 +885,7 @@ func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]
 		var p models.Permission
 		if err := rows.Scan(
 			&p.ID,
+			&p.TenantID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,

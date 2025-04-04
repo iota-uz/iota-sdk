@@ -142,7 +142,7 @@ func (g *GormPermissionRepository) Save(ctx context.Context, data *permission.Pe
 	}
 
 	dbPerm := toDBPermission(data)
-	dbPerm.TenantID = tenant.ID
+	dbPerm.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(
 		ctx,

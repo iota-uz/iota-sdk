@@ -3,6 +3,7 @@ package payment
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 )
@@ -11,8 +12,8 @@ type Payment interface {
 	ID() uint
 	SetID(id uint)
 
-	TenantID() uint
-	SetTenantID(id uint)
+	TenantID() uuid.UUID
+	SetTenantID(id uuid.UUID)
 
 	Amount() float64
 	SetAmount(amount float64)

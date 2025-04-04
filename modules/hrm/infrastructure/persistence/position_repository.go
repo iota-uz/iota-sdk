@@ -126,14 +126,14 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	}
 
 	dbRow := toDBPosition(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO positions (tenant_id, name, description) VALUES ($1, $2, $3) RETURNING id
 	`, dbRow.TenantID, dbRow.Name, dbRow.Description).Scan(&data.ID); err != nil {
 		return err
 	}
-	data.TenantID = tenant.ID
+	data.TenantID = tenant.ID.String()
 	return nil
 }
 

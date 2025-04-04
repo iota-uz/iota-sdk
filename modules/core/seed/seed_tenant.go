@@ -3,6 +3,7 @@ package seed
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -13,8 +14,10 @@ func CreateDefaultTenant(ctx context.Context, app application.Application) error
 	conf := configuration.Use()
 	logger := conf.Logger()
 	tenantRepository := persistence.NewTenantRepository()
+	// Create a new tenant with a fixed UUID for the default tenant
 	defaultTenant := tenant.New(
 		"Default",
+		tenant.WithID(uuid.MustParse("00000000-0000-0000-0000-000000000001")), // Use a fixed UUID for default tenant
 		tenant.WithDomain("default.localhost"),
 	)
 	existingTenants, err := tenantRepository.List(ctx)

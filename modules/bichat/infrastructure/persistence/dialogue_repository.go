@@ -145,7 +145,7 @@ func (g *GormDialogueRepository) Create(ctx context.Context, d dialogue.Dialogue
 	if err != nil {
 		return nil, err
 	}
-	dbDialogue.TenantID = tenant.ID
+	dbDialogue.TenantID = tenant.ID.String()
 
 	row := tx.QueryRow(
 		ctx,
@@ -176,7 +176,7 @@ func (g *GormDialogueRepository) Update(ctx context.Context, d dialogue.Dialogue
 	if err != nil {
 		return err
 	}
-	dbDialogue.TenantID = tenant.ID
+	dbDialogue.TenantID = tenant.ID.String()
 
 	return g.execQuery(
 		ctx,

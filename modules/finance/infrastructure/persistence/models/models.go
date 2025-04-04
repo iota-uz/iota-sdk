@@ -9,7 +9,7 @@ import (
 
 type ExpenseCategory struct {
 	ID               uint
-	TenantID         uint
+	TenantID         string
 	Name             string
 	Description      sql.NullString
 	Amount           float64
@@ -20,7 +20,7 @@ type ExpenseCategory struct {
 
 type MoneyAccount struct {
 	ID                uint
-	TenantID          uint
+	TenantID          string
 	Name              string
 	AccountNumber     string
 	Description       string
@@ -33,7 +33,7 @@ type MoneyAccount struct {
 
 type Transaction struct {
 	ID                   uint
-	TenantID             uint
+	TenantID             string
 	Amount               float64
 	OriginAccountID      *uint
 	DestinationAccountID *uint

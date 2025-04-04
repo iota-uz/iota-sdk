@@ -7,7 +7,7 @@ import (
 
 type Position struct {
 	ID          uint
-	TenantID    uint
+	TenantID    string
 	Name        string
 	Description sql.NullString
 	CreatedAt   time.Time
@@ -16,7 +16,7 @@ type Position struct {
 
 type Employee struct {
 	ID               uint
-	TenantID         uint
+	TenantID         string
 	FirstName        string
 	LastName         string
 	MiddleName       sql.NullString

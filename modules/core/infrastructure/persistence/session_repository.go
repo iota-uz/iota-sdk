@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/psql-parser/util/uuid"
 
 	"github.com/go-faster/errors"
 )
@@ -152,7 +153,7 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 	// First try to get tenant from context
 	tenant, err := composables.UseTenant(ctx)
 	if err == nil {
-		dbSession.TenantID = tenant.ID
+		dbSession.TenantID = tenant.ID.String()
 	}
 	// If tenant is not in context but session has TenantID set (from session.CreateDTO), use that
 
@@ -175,14 +176,14 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 	// First try to get tenant from context
 	tenant, err := composables.UseTenant(ctx)
 	if err == nil {
-		dbSession.TenantID = tenant.ID
-	} else if dbSession.TenantID == 0 {
+		dbSession.TenantID = tenant.ID.String()
+	} else if dbSession.TenantID == uuid.Nil.String() {
 		// If tenant is not in context and session has no TenantID, get the current session's tenant ID
 		existingSession, err := g.GetByToken(ctx, dbSession.Token)
 		if err != nil {
 			return err
 		}
-		dbSession.TenantID = existingSession.TenantID
+		dbSession.TenantID = existingSession.TenantID.String()
 	}
 
 	return g.execQuery(

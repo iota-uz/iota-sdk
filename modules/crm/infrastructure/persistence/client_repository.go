@@ -293,7 +293,7 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 	}
 
 	dbRow := ToDBClient(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if data.Passport() != nil {
 		p, err := g.passportRepo.Save(ctx, data.Passport())
@@ -364,7 +364,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 	}
 
 	dbRow := ToDBClient(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if data.Passport() != nil {
 		p, err := g.passportRepo.Save(ctx, data.Passport())

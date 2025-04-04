@@ -2,7 +2,7 @@
 
 -- Change CREATE_TABLE: tenants
 CREATE TABLE tenants (
-	id         SERIAL8 PRIMARY KEY,
+	id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
 	name       VARCHAR(255) NOT NULL UNIQUE,
 	domain     VARCHAR(255),
 	is_active  BOOL DEFAULT true NOT NULL,
@@ -11,91 +11,91 @@ CREATE TABLE tenants (
 );
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE user_groups ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE user_groups ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE warehouse_units ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE warehouse_units ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE expense_categories ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE expense_categories ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE roles ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE roles ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE warehouse_orders ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE warehouse_orders ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE uploads ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE uploads ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE positions ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE positions ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE inventory ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE inventory ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE passports ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE passports ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE counterparty ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE counterparty ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE permissions ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE permissions ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE users ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE users ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE money_accounts ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE money_accounts ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE transactions ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE transactions ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE prompts ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE prompts ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE sessions ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE sessions ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE message_templates ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE message_templates ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE tabs ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE tabs ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE warehouse_positions ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE warehouse_positions ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE employees ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE employees ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE authentication_logs ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE authentication_logs ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE companies ADD COLUMN tenant_id INT8 REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE companies ADD COLUMN tenant_id TEXT REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE clients ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE clients ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE action_logs ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE action_logs ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE warehouse_products ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE warehouse_products ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE inventory_checks ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE inventory_checks ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE chats ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE chats ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE dialogues ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE dialogues ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change ADD_COLUMN: tenant_id
-ALTER TABLE inventory_check_results ADD COLUMN tenant_id INT8 NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+ALTER TABLE inventory_check_results ADD COLUMN tenant_id TEXT NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
 
 -- Change CREATE_INDEX: employees_tenant_id_idx
 CREATE INDEX employees_tenant_id_idx ON employees (tenant_id);

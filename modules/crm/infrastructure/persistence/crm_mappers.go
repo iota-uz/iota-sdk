@@ -158,7 +158,11 @@ func ToDomainMessage(
 ) (chat.Message, error) {
 	uploads := make([]upload.Upload, 0, len(dbUploads))
 	for _, u := range dbUploads {
-		uploads = append(uploads, corepersistence.ToDomainUpload(u))
+		domainUpload, err := corepersistence.ToDomainUpload(u)
+		if err != nil {
+			return nil, err
+		}
+		uploads = append(uploads, domainUpload)
 	}
 	return chat.NewMessageWithID(
 		dbRow.ID,

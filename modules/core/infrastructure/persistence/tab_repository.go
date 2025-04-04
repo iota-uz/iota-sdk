@@ -140,7 +140,7 @@ func (g *tabRepository) Create(ctx context.Context, data *tab.Tab) error {
 	}
 
 	tab := ToDBTab(data)
-	tab.TenantID = tenant.ID
+	tab.TenantID = tenant.ID.String()
 	data.TenantID = tenant.ID
 
 	if err := tx.QueryRow(
@@ -169,7 +169,7 @@ func (g *tabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) error {
 
 	for _, data := range tabs {
 		tab := ToDBTab(data)
-		tab.TenantID = tenant.ID
+		tab.TenantID = tenant.ID.String()
 		data.TenantID = tenant.ID
 
 		if err := tx.QueryRow(

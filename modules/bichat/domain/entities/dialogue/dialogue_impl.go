@@ -3,10 +3,11 @@ package dialogue
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
 )
 
-func New(tenantID uint, userID uint, label string) Dialogue {
+func New(tenantID uuid.UUID, userID uint, label string) Dialogue {
 	return &dialogue{
 		tenantID:  tenantID,
 		userID:    userID,
@@ -17,7 +18,7 @@ func New(tenantID uint, userID uint, label string) Dialogue {
 	}
 }
 
-func NewWithID(id uint, tenantID uint, userID uint, label string, messages Messages, createdAt, updatedAt time.Time) Dialogue {
+func NewWithID(id uint, tenantID uuid.UUID, userID uint, label string, messages Messages, createdAt, updatedAt time.Time) Dialogue {
 	return &dialogue{
 		id:        id,
 		tenantID:  tenantID,
@@ -31,7 +32,7 @@ func NewWithID(id uint, tenantID uint, userID uint, label string, messages Messa
 
 type dialogue struct {
 	id        uint
-	tenantID  uint
+	tenantID  uuid.UUID
 	userID    uint
 	label     string
 	messages  Messages
@@ -43,7 +44,7 @@ func (d *dialogue) ID() uint {
 	return d.id
 }
 
-func (d *dialogue) TenantID() uint {
+func (d *dialogue) TenantID() uuid.UUID {
 	return d.tenantID
 }
 
