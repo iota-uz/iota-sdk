@@ -74,12 +74,12 @@ func UseRequest(ctx context.Context) (*http.Request, bool) {
 
 // UseLogger returns the logger from the context.
 // If the logger is not found, the second return value will be false.
-func UseLogger(ctx context.Context) (*logrus.Entry, error) {
+func UseLogger(ctx context.Context) *logrus.Entry {
 	logger := ctx.Value(constants.LoggerKey)
 	if logger == nil {
-		return nil, ErrNoLogger
+		panic("logger not found")
 	}
-	return logger.(*logrus.Entry), nil
+	return logger.(*logrus.Entry)
 }
 
 // UseAuthenticated returns whether the user is authenticated and the second return value is true.
