@@ -1,8 +1,10 @@
 package employee
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
@@ -16,7 +18,7 @@ type Language interface {
 
 type Employee interface {
 	ID() uint
-	TenantID() uint
+	TenantID() uuid.UUID
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -46,7 +48,7 @@ type Employee interface {
 
 func NewWithID(
 	id uint,
-	tenantID uint,
+	tenantID uuid.UUID,
 	firstName, lastName, middleName, phone string,
 	email internet.Email,
 	salary money.Amount,
@@ -94,7 +96,7 @@ func New(
 ) (Employee, error) {
 	return &employee{
 		id:              0,
-		tenantID:        0, // Will be set in repository
+		tenantID:        uuid.Nil, // Will be set in repository
 		firstName:       firstName,
 		lastName:        lastName,
 		middleName:      middleName,
@@ -115,7 +117,7 @@ func New(
 
 type employee struct {
 	id              uint
-	tenantID        uint
+	tenantID        uuid.UUID
 	firstName       string
 	lastName        string
 	middleName      string
@@ -139,7 +141,7 @@ func (e *employee) ID() uint {
 	return e.id
 }
 
-func (e *employee) TenantID() uint {
+func (e *employee) TenantID() uuid.UUID {
 	return e.tenantID
 }
 

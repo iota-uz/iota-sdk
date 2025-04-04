@@ -2,11 +2,13 @@ package transaction
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Transaction struct {
 	ID                   uint
-	TenantID             uint
+	TenantID             uuid.UUID
 	Amount               float64
 	OriginAccountID      *uint
 	DestinationAccountID *uint
@@ -35,7 +37,7 @@ func NewDeposit(
 	}
 	return &Transaction{
 		ID:                   0,
-		TenantID:             0,
+		TenantID:             uuid.Nil,
 		Amount:               amount,
 		OriginAccountID:      origAccID,
 		DestinationAccountID: destAccID,
@@ -65,7 +67,7 @@ func NewWithdrawal(
 	}
 	return &Transaction{
 		ID:                   0,
-		TenantID:             0,
+		TenantID:             uuid.Nil,
 		Amount:               amount,
 		OriginAccountID:      origAccID,
 		DestinationAccountID: destAccID,

@@ -8,6 +8,7 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
@@ -93,7 +94,7 @@ func (u *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 func (u *CreateDTO) ToEntity() (User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, id := range u.RoleIDs {
-		r, err := role.NewWithID(id, "", "", nil, time.Now(), time.Now(), 0) // tenant_id will be set correctly in repository
+		r, err := role.NewWithID(id, "", "", nil, time.Now(), time.Now(), uuid.Nil) // tenant_id will be set correctly in repository
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +133,7 @@ func (u *CreateDTO) ToEntity() (User, error) {
 func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, rID := range u.RoleIDs {
-		r, err := role.NewWithID(rID, "", "", nil, time.Now(), time.Now(), 0) // tenant_id will be set correctly in repository
+		r, err := role.NewWithID(rID, "", "", nil, time.Now(), time.Now(), uuid.Nil) // tenant_id will be set correctly in repository
 		if err != nil {
 			return nil, err
 		}

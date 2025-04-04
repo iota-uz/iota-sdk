@@ -129,7 +129,7 @@ func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.Authen
 	}
 
 	dbRow := toDBAuthenticationLog(data)
-	dbRow.TenantID = tenant.ID
+	dbRow.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO authentication_logs (user_id, ip, user_agent, tenant_id) VALUES ($1, $2, $3, $4)

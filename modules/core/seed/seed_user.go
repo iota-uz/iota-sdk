@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -78,7 +79,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	return roleRepository.Create(ctx, newRole)
 }
 
-func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role, tenantID uint) (user.User, error) {
+func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role, tenantID uuid.UUID) (user.User, error) {
 	uploadRepository := persistence.NewUploadRepository()
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	foundUser, err := userRepository.GetByEmail(ctx, s.user.Email().Value())
@@ -130,7 +131,7 @@ func (s *userSeeder) createUserTabs(
 	return nil
 }
 
-func buildTabsFromNavItems(navItems []types.NavigationItem, userID, tenantID uint) []*tab.Tab {
+func buildTabsFromNavItems(navItems []types.NavigationItem, userID uint, tenantID uuid.UUID) []*tab.Tab {
 	tabs := make([]*tab.Tab, 0, len(navItems)*4)
 	var position uint = 1
 

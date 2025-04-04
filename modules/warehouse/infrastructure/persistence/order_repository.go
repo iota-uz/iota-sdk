@@ -187,7 +187,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 	}
 
 	// Make sure tenant ID is set in DB model
-	dbOrder.TenantID = tenant.ID
+	dbOrder.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(
 		ctx,
@@ -202,7 +202,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 
 	for _, p := range dbProducts {
 		// Set tenant ID in product
-		p.TenantID = tenant.ID
+		p.TenantID = tenant.ID.String()
 
 		if err := tx.QueryRow(
 			ctx,
@@ -251,7 +251,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 	}
 
 	// Make sure tenant ID is set in DB model
-	dbOrder.TenantID = tenant.ID
+	dbOrder.TenantID = tenant.ID.String()
 
 	if _, err := tx.Exec(
 		ctx,
@@ -281,7 +281,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 
 	for _, product := range dbProducts {
 		// Set tenant ID
-		product.TenantID = tenant.ID
+		product.TenantID = tenant.ID.String()
 
 		if _, err := tx.Exec(
 			ctx,

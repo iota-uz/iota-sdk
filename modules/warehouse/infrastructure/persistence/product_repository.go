@@ -241,7 +241,7 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 		return err
 	}
 
-	dbProduct.TenantID = tenant.ID
+	dbProduct.TenantID = tenant.ID.String()
 	data.TenantID = tenant.ID
 
 	if err := tx.QueryRow(
@@ -289,7 +289,7 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 		return err
 	}
 
-	dbProduct.TenantID = tenant.ID
+	dbProduct.TenantID = tenant.ID.String()
 	data.TenantID = tenant.ID
 
 	return g.execQuery(

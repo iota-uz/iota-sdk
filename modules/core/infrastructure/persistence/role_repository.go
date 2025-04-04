@@ -28,6 +28,7 @@ const (
 	rolePermissionsQuery = `
 		SELECT
 			p.id,
+			p.tenant_id,
 			p.name,
 			p.resource,
 			p.action,
@@ -122,9 +123,9 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, e
 	}
 
 	query := roleFindQuery + " WHERE r.id = $1 AND r.tenant_id = $2"
-	roles, err := g.queryRoles(ctx, query, id, tenant.ID)
+	roles, err := g.queryRoles(ctx, query, id, tenant.ID.String())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to query roles")
 	}
 	if len(roles) == 0 {
 		return nil, ErrRoleNotFound
@@ -135,7 +136,7 @@ func (g *GormRoleRepository) GetByID(ctx context.Context, id uint) (role.Role, e
 func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.Role, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get tx from ctx")
 	}
 
 	tenant, err := composables.UseTenant(ctx)
@@ -144,7 +145,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 	}
 
 	entity, permissions := toDBRole(data)
-	entity.TenantID = tenant.ID
+	entity.TenantID = tenant.ID.String()
 
 	var id uint
 	if err := tx.QueryRow(
@@ -154,7 +155,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 		entity.Description,
 		entity.TenantID,
 	).Scan(&id); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to insert role")
 	}
 
 	for _, permission := range permissions {
@@ -176,7 +177,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	dbRole.TenantID = tenant.ID
+	dbRole.TenantID = tenant.ID.String()
 
 	if err := g.execQuery(
 		ctx,
@@ -228,7 +229,7 @@ func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uin
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	rows, err := tx.Query(ctx, rolePermissionsQuery, roleIDs, tenant.ID)
+	rows, err := tx.Query(ctx, rolePermissionsQuery, roleIDs, tenant.ID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +241,7 @@ func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uin
 		var p models.Permission
 		if err := rows.Scan(
 			&p.ID,
+			&p.TenantID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,
@@ -303,7 +305,7 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 	for _, dbRole := range dbRoles {
 		entity, err := toDomainRole(dbRole, permissionsMap[dbRole.ID])
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to cast to domain role")
 		}
 		roles = append(roles, entity)
 	}

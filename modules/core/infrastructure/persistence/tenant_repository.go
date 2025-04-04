@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -24,9 +25,9 @@ func NewTenantRepository() tenant.Repository {
 	return &TenantRepository{}
 }
 
-func (r *TenantRepository) GetByID(ctx context.Context, id uint) (*tenant.Tenant, error) {
+func (r *TenantRepository) GetByID(ctx context.Context, id uuid.UUID) (*tenant.Tenant, error) {
 	query := tenantFindQuery + " WHERE id = $1"
-	tenants, err := r.queryTenants(ctx, query, id)
+	tenants, err := r.queryTenants(ctx, query, id.String())
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +55,8 @@ func (r *TenantRepository) GetByDomain(ctx context.Context, domain string) (*ten
 
 func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) (*tenant.Tenant, error) {
 	query := `
-		INSERT INTO tenants (name, domain, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO tenants (id, name, domain, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
 	`
 	tx, err := composables.UseTx(ctx)
@@ -63,16 +64,22 @@ func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) (*tenan
 		return nil, err
 	}
 
-	var id uint
+	var idStr string
 	if err := tx.QueryRow(
 		ctx,
 		query,
+		t.ID().String(),
 		t.Name(),
 		t.Domain(),
 		t.IsActive(),
 		t.CreatedAt(),
 		t.UpdatedAt(),
-	).Scan(&id); err != nil {
+	).Scan(&idStr); err != nil {
+		return nil, err
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
 		return nil, err
 	}
 
@@ -91,7 +98,7 @@ func (r *TenantRepository) Update(ctx context.Context, t *tenant.Tenant) (*tenan
 		return nil, err
 	}
 
-	var id uint
+	var idStr string
 	if err := tx.QueryRow(
 		ctx,
 		query,
@@ -99,22 +106,27 @@ func (r *TenantRepository) Update(ctx context.Context, t *tenant.Tenant) (*tenan
 		t.Domain(),
 		t.IsActive(),
 		t.UpdatedAt(),
-		t.ID(),
-	).Scan(&id); err != nil {
+		t.ID().String(),
+	).Scan(&idStr); err != nil {
+		return nil, err
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
 		return nil, err
 	}
 
 	return r.GetByID(ctx, id)
 }
 
-func (r *TenantRepository) Delete(ctx context.Context, id uint) error {
+func (r *TenantRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM tenants WHERE id = $1`
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(ctx, query, id)
+	_, err = tx.Exec(ctx, query, id.String())
 	return err
 }
 
@@ -158,9 +170,15 @@ func (r *TenantRepository) queryTenants(ctx context.Context, query string, args 
 }
 
 func toDomainTenant(t *models.Tenant) *tenant.Tenant {
+	id, err := uuid.Parse(t.ID)
+	if err != nil {
+		// Log error or handle it appropriately
+		id = uuid.Nil
+	}
+	
 	return tenant.New(
 		t.Name,
-		tenant.WithID(t.ID),
+		tenant.WithID(id),
 		tenant.WithDomain(t.Domain.String),
 		tenant.WithIsActive(t.IsActive),
 		tenant.WithCreatedAt(t.CreatedAt),

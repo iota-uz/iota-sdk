@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -76,7 +77,7 @@ func main() {
 
 	// Add default tenant to context
 	defaultTenant := &composables.Tenant{
-		ID:     1,
+		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		Name:   "Default",
 		Domain: "default.localhost",
 	}

@@ -3,6 +3,7 @@ package persistence_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
@@ -20,7 +21,7 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	createdCategory, err := categoryRepository.Create(
 		f.ctx,
 		category.New(
-			0,
+			uuid.Nil,
 			"test",
 			"test",
 			100,

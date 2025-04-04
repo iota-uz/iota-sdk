@@ -7,7 +7,7 @@ import (
 
 type Client struct {
 	ID          uint
-	TenantID    uint
+	TenantID    string
 	FirstName   string
 	LastName    sql.NullString
 	MiddleName  sql.NullString

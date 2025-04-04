@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -20,7 +21,7 @@ import (
 func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
 	return &models.Transaction{
 		ID:                   entity.ID,
-		TenantID:             entity.TenantID,
+		TenantID:             entity.TenantID.String(),
 		Amount:               entity.Amount,
 		Comment:              entity.Comment,
 		AccountingPeriod:     entity.AccountingPeriod,
@@ -37,10 +38,14 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := uuid.Parse(dbTransaction.TenantID)
+	if err != nil {
+		return nil, err
+	}
 
 	return &transaction.Transaction{
 		ID:                   dbTransaction.ID,
-		TenantID:             dbTransaction.TenantID,
+		TenantID:             tenantID,
 		Amount:               dbTransaction.Amount,
 		TransactionType:      _type,
 		Comment:              dbTransaction.Comment,
@@ -55,7 +60,7 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) {
 	dbTransaction := &models.Transaction{
 		ID:                   entity.TransactionID(),
-		TenantID:             entity.TenantID(),
+		TenantID:             entity.TenantID().String(),
 		Amount:               entity.Amount(),
 		Comment:              entity.Comment(),
 		AccountingPeriod:     entity.AccountingPeriod(),
@@ -85,10 +90,14 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := uuid.Parse(dbTransaction.TenantID)
+	if err != nil {
+		return nil, err
+	}
 
 	return payment.NewWithID(
 		dbPayment.ID,
-		dbTransaction.TenantID,
+		tenantID,
 		t.Amount,
 		t.ID,
 		dbPayment.CounterpartyID,
@@ -110,7 +119,7 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 func toDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
 		ID:               entity.ID(),
-		TenantID:         entity.TenantID(),
+		TenantID:         entity.TenantID().String(),
 		Name:             entity.Name(),
 		Description:      mapping.ValueToSQLNullString(entity.Description()),
 		Amount:           entity.Amount(),
@@ -125,9 +134,14 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *cor
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := uuid.Parse(dbCategory.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	return category.NewWithID(
 		dbCategory.ID,
-		dbCategory.TenantID,
+		tenantID,
 		dbCategory.Name,
 		dbCategory.Description.String,
 		dbCategory.Amount,
@@ -142,9 +156,14 @@ func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyaccount.Account
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := uuid.Parse(dbAccount.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &moneyaccount.Account{
 		ID:            dbAccount.ID,
-		TenantID:      dbAccount.TenantID,
+		TenantID:      tenantID,
 		Name:          dbAccount.Name,
 		AccountNumber: dbAccount.AccountNumber,
 		Balance:       dbAccount.Balance,
@@ -158,7 +177,7 @@ func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyaccount.Account
 func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 	return &models.MoneyAccount{
 		ID:                entity.ID,
-		TenantID:          entity.TenantID,
+		TenantID:          entity.TenantID.String(),
 		Name:              entity.Name,
 		AccountNumber:     entity.AccountNumber,
 		Balance:           entity.Balance,
@@ -171,13 +190,18 @@ func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 }
 
 func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (*expense.Expense, error) {
+	tenantID, err := uuid.Parse(dbTransaction.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &expense.Expense{
 		ID:      dbExpense.ID,
 		Amount:  -1 * dbTransaction.Amount,
 		Account: moneyaccount.Account{ID: *dbTransaction.OriginAccountID}, //nolint:exhaustruct
 		Category: category.NewWithID(
 			dbExpense.CategoryID,
-			dbTransaction.TenantID,
+			tenantID,
 			"",
 			"",
 			0,

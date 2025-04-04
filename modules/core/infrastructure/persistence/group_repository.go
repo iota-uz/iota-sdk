@@ -249,7 +249,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 
 	dbGroup := ToDBGroup(entity)
 	dbGroup.ID = groupID.String()
-	dbGroup.TenantID = tenant.ID
+	dbGroup.TenantID = tenant.ID.String()
 
 	fields := []string{
 		"id",

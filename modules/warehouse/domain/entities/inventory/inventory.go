@@ -3,6 +3,7 @@ package inventory
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
@@ -10,7 +11,7 @@ import (
 
 type Check struct {
 	ID           uint
-	TenantID     uint
+	TenantID     uuid.UUID
 	Status       Status
 	Name         string
 	Results      []*CheckResult
@@ -42,7 +43,7 @@ type Position struct {
 
 type CheckResult struct {
 	ID               uint
-	TenantID         uint
+	TenantID         uuid.UUID
 	PositionID       uint
 	Position         *position.Position
 	ExpectedQuantity int
