@@ -64,3 +64,110 @@ func TestSchemaState_buildSchema(t *testing.T) {
 		})
 	}
 }
+
+func Test_findColumnIndex(t *testing.T) {
+	tests := []struct {
+		name      string
+		defs      tree.TableDefs
+		colName   string
+		wantIndex int
+	}{
+		{
+			name:      "empty defs",
+			defs:      tree.TableDefs{},
+			colName:   "id",
+			wantIndex: -1,
+		},
+		{
+			name: "column exists",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("id")},
+				&tree.ColumnTableDef{Name: tree.Name("name")},
+			},
+			colName:   "name",
+			wantIndex: 1,
+		},
+		{
+			name: "column does not exist",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("id")},
+				&tree.ColumnTableDef{Name: tree.Name("name")},
+			},
+			colName:   "age",
+			wantIndex: -1,
+		},
+		{
+			name: "case-insensitive match",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("ID")},
+				&tree.ColumnTableDef{Name: tree.Name("NAME")},
+			},
+			colName:   "id",
+			wantIndex: 0,
+		},
+		{
+			name: "case-insensitive match 2",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("ID")},
+				&tree.ColumnTableDef{Name: tree.Name("NAME")},
+			},
+			colName:   "Name",
+			wantIndex: 1,
+		},
+		{
+			name: "mixed defs",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("id")},
+				&tree.ColumnTableDef{Name: tree.Name("name")},
+				&tree.UniqueConstraintTableDef{IndexTableDef: tree.IndexTableDef{Name: tree.Name("unique_name")}},
+				&tree.ColumnTableDef{Name: tree.Name("age")},
+			},
+			colName:   "age",
+			wantIndex: 3,
+		},
+		{
+			name: "mixed defs not found",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("id")},
+				&tree.ColumnTableDef{Name: tree.Name("name")},
+				&tree.UniqueConstraintTableDef{IndexTableDef: tree.IndexTableDef{Name: tree.Name("unique_name")}},
+				&tree.ColumnTableDef{Name: tree.Name("age")},
+			},
+			colName:   "address",
+			wantIndex: -1,
+		},
+		{
+			name: "column with spaces",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("id")},
+				&tree.ColumnTableDef{Name: tree.Name("first name")},
+			},
+			colName:   "first name",
+			wantIndex: 1,
+		},
+		{
+			name: "column with special characters",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("id")},
+				&tree.ColumnTableDef{Name: tree.Name("user-name")},
+			},
+			colName:   "user-name",
+			wantIndex: 1,
+		},
+		{
+			name: "column with mixed case",
+			defs: tree.TableDefs{
+				&tree.ColumnTableDef{Name: tree.Name("Id")},
+				&tree.ColumnTableDef{Name: tree.Name("Name")},
+			},
+			colName:   "id",
+			wantIndex: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotIndex := findColumnIndex(tt.defs, tt.colName)
+			assert.Equal(t, tt.wantIndex, gotIndex)
+		})
+	}
+}
