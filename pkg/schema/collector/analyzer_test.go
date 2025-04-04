@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
@@ -468,31 +469,40 @@ func TestCompareTables_UniqueConstraintChange(t *testing.T) {
 	assert.Equal(t, "passports_passport_number_key", dropConstraint1.Constraint.String(), "First constraint name should be 'passports_passport_number_key'")
 	assert.True(t, dropConstraint1.IfExists, "IfExists should be true")
 
+	for i, chg := range upChanges {
+		alterTable2 := chg.(*tree.AlterTable)
+		fmt.Printf("- >> up %d chg: %#v\n", i, alterTable2.String())
+	}
+	for i, chg := range downChanges {
+		alterTable2 := chg.(*tree.AlterTable)
+		fmt.Printf("- >> down chg %d: %#v\n", i, alterTable2.String())
+	}
+
 	// Verify second up change (add unique constraint on passport_number and series)
 	alterTable2 := upChanges[1].(*tree.AlterTable)
 	addConstraint2, ok := alterTable2.Cmds[0].(*tree.AlterTableAddConstraint)
 	require.True(t, ok, "Expected AlterTableAddConstraint")
 	uniqueConstraint, ok := addConstraint2.ConstraintDef.(*tree.UniqueConstraintTableDef)
 	require.True(t, ok, "Expected UniqueConstraintTableDef")
-	assert.Equal(t, "passports_passport_number_series_key", uniqueConstraint.Name, "Second constraint name should be 'passports_passport_number_series_key'")
+	assert.Equal(t, "passports_passport_number_series_key", uniqueConstraint.Name.String(), "Second constraint name should be 'passports_passport_number_series_key'")
 	require.Len(t, uniqueConstraint.Columns, 2, "Should have 2 columns in unique constraint")
 	assert.Equal(t, "passport_number", uniqueConstraint.Columns[0].Column.String(), "First column in unique constraint should be 'passport_number'")
 	assert.Equal(t, "series", uniqueConstraint.Columns[1].Column.String(), "Second column in unique constraint should be 'series'")
 
-	// Verify first down change (drop unique constraint on passport_number and series)
-	downAlterTable1 := downChanges[0].(*tree.AlterTable)
-	downDropConstraint1, ok := downAlterTable1.Cmds[0].(*tree.AlterTableDropConstraint)
-	require.True(t, ok, "Expected AlterTableDropConstraint")
-	assert.Equal(t, "passports_passport_number_series_key", downDropConstraint1.Constraint.String(), "First down constraint name should be 'passports_passport_number_series_key'")
-	assert.True(t, downDropConstraint1.IfExists, "IfExists should be true")
-
 	// Verify second down change (add unique constraint on passport_number)
-	downAlterTable2 := downChanges[1].(*tree.AlterTable)
+	downAlterTable2 := downChanges[0].(*tree.AlterTable)
 	downAddConstraint2, ok := downAlterTable2.Cmds[0].(*tree.AlterTableAddConstraint)
 	require.True(t, ok, "Expected AlterTableAddConstraint")
 	downUniqueConstraint, ok := downAddConstraint2.ConstraintDef.(*tree.UniqueConstraintTableDef)
 	require.True(t, ok, "Expected UniqueConstraintTableDef")
-	assert.Equal(t, "passports_passport_number_key", downUniqueConstraint.Name, "Second down constraint name should be 'passports_passport_number_key'")
+	assert.Equal(t, "passports_passport_number_key", downUniqueConstraint.Name.String(), "Second down constraint name should be 'passports_passport_number_key'")
 	require.Len(t, downUniqueConstraint.Columns, 1, "Should have 1 column in unique constraint")
 	assert.Equal(t, "passport_number", downUniqueConstraint.Columns[0].Column.String(), "First column in unique constraint should be 'passport_number'")
+
+	// Verify first down change (drop unique constraint on passport_number and series)
+	downAlterTable1 := downChanges[1].(*tree.AlterTable)
+	downDropConstraint1, ok := downAlterTable1.Cmds[0].(*tree.AlterTableDropConstraint)
+	require.True(t, ok, "Expected AlterTableDropConstraint")
+	assert.Equal(t, "passports_passport_number_series_key", downDropConstraint1.Constraint.String(), "First down constraint name should be 'passports_passport_number_series_key'")
+	assert.True(t, downDropConstraint1.IfExists, "IfExists should be true")
 }
