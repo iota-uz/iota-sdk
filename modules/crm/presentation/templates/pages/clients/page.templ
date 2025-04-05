@@ -368,6 +368,29 @@ templ Notes() {
 	</div>
 }
 
+templ ActionsTab(clientID string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="h-full max-h-full p-4">
+		<div class="flex flex-col border border-primary rounded-md h-full p-4">
+			<div class="flex flex-col gap-4">
+				<h3 class="font-medium">{ pageCtx.T("Clients.Tabs.Actions") }</h3>
+				<div class="flex flex-col gap-2">
+					@button.Danger(button.Props{
+						Icon: icons.Trash(icons.Props{Size: "20"}),
+						Attrs: templ.Attributes{
+							"hx-delete": fmt.Sprintf("/crm/clients/%s", clientID),
+							"hx-confirm": pageCtx.T("Clients.Single.DeleteConfirmation"),
+							"hx-target": "body",
+						},
+					}) {
+						{ pageCtx.T("Clients.Single.Delete") }
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
 // ---- Not Found ----
 templ NotFound() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
