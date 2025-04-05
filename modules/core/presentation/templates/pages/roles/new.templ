@@ -25,7 +25,9 @@ templ CreateForm(props *CreateFormProps) {
 		hx-indicator="#save-btn"
 	>
 		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-6">
-			@card.Card(card.Props{}) {
+			@card.Card(card.Props{
+				Class: "space-y-3",
+			}) {
 				@input.Text(&input.Props{
 					Label:       pageCtx.T("Roles.Single.Name.Label"),
 					Placeholder: pageCtx.T("Roles.Single.Name.Placeholder"),
@@ -39,7 +41,8 @@ templ CreateForm(props *CreateFormProps) {
 					Label:       pageCtx.T("Roles.Single.Description.Label"),
 					Placeholder: pageCtx.T("Roles.Single.Description.Placeholder"),
 					Attrs: templ.Attributes{
-						"name":  "Description",
+						"name": "Description",
+						"rows": "4",
 					},
 					Value: props.Role.Description,
 					Error: props.Errors["Description"],
