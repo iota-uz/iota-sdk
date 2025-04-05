@@ -41,12 +41,12 @@ func (s *GroupService) GetPaginatedWithTotal(ctx context.Context, params *group.
 	if err != nil {
 		return nil, 0, err
 	}
-	
+
 	total, err := s.repo.Count(ctx, params)
 	if err != nil {
 		return nil, 0, err
 	}
-	
+
 	return groups, total, nil
 }
 
