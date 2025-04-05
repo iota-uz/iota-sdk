@@ -290,6 +290,8 @@ func (c *ClientController) tabToComponent(
 			Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
 			ClientsURL: c.basePath,
 		}), nil
+	case "actions":
+		return clients.ActionsTab(strconv.Itoa(int(clientID))), nil
 	default:
 		return clients.NotFound(), nil
 	}
@@ -342,6 +344,12 @@ func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
 				MessageID: "Clients.Tabs.Chat",
 			}),
 			Value: "chat",
+		},
+		{
+			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "Clients.Tabs.Actions",
+			}),
+			Value: "actions",
 		},
 	}
 	for _, t := range tabs {

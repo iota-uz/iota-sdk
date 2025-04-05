@@ -111,8 +111,7 @@ func (p *serviceProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http
 		return reflect.Value{}, err
 	}
 
-	services := app.Services()
-	if service, exists := services[t.Elem()]; exists {
+	if service, exists := app.Services()[t.Elem()]; exists {
 		return reflect.ValueOf(service), nil
 	}
 

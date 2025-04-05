@@ -39,7 +39,8 @@
 			"Notes": "Eslatmalar",
 			"Chat": "Xabarlar",
 			"Personal": "Shaxsiy",
-			"Documents": "Hujjatlar"
+			"Documents": "Hujjatlar",
+			"Actions": "Amallar"
 		},
 		"Notes": {
 			"NoNotes": "Eslatmalar mavjud emas"
