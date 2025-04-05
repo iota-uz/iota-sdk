@@ -1,0 +1,142 @@
+package groups
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type RoleSelectProps struct {
+	Roles    []*viewmodels.Role
+	Selected []*viewmodels.Role
+	Name     string
+	Form     string
+	Error    string
+}
+
+func isRoleSelected(id string, roles []*viewmodels.Role) bool {
+	for _, role := range roles {
+		if role.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+templ RoleSelect(props *RoleSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Combobox(base.ComboboxProps{
+		Label:       pageCtx.T("Groups.Single.RoleIDs"),
+		Placeholder: pageCtx.T("Groups.Single.SelectRole"),
+		Multiple:    true,
+		Name:        props.Name,
+		Form:        props.Form,
+	}) {
+		for _, role := range props.Roles {
+			if isRoleSelected(role.ID, props.Selected) {
+				<option value={ role.ID } selected>{ role.Name }</option>
+			} else {
+				<option value={ role.ID }>{ role.Name }</option>
+			}
+		}
+	}
+}
+
+// Modern styled version of role select with checkboxes
+templ ModernRoleSelect(props *RoleSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div>
+		<label class="text-sm text-[#94a3b8]">{ pageCtx.T("Groups.Single.RoleIDs") }</label>
+		<div class="relative mt-1">
+			<div class="flex items-center relative">
+				@icons.MagnifyingGlass(icons.Props{Size: "16", Class: "absolute left-3 top-2.5 text-[#94a3b8]"})
+				<input
+					type="text"
+					placeholder={ pageCtx.T("Groups.Single.SearchRoles") }
+					class="w-full pl-10 pr-3 py-2 border border-[#d6dee7] rounded-md focus:outline-none focus:ring-2 focus:ring-[#695eff] focus:border-transparent"
+				/>
+			</div>
+		</div>
+		<div class="mt-4 space-y-2">
+			<input type="hidden" name={ props.Name } form={ props.Form } id="selected-roles"/>
+			for _, role := range props.Roles {
+				{{
+					isSelected := isRoleSelected(role.ID, props.Selected)
+					checkboxID := "role-" + role.ID
+				}}
+				<div
+					class={
+						"p-4 rounded-md border cursor-pointer",
+						templ.KV("border-[#695eff] bg-[#f8f8fc]", isSelected),
+						templ.KV("border-[#d6dee7] hover:border-[#a0aec0]", !isSelected),
+					}
+					x-data={ `{
+						checked: ${isSelected},
+						id: "${role.ID}",
+						updateHiddenInput() {
+							let input = document.getElementById("selected-roles");
+							let currentValues = input.value ? input.value.split(",") : [];
+							
+							if (this.checked) {
+								if (!currentValues.includes(this.id)) {
+									currentValues.push(this.id);
+								}
+							} else {
+								currentValues = currentValues.filter(v => v !== this.id);
+							}
+							
+							input.value = currentValues.join(",");
+						}
+					}` }
+					x-init="updateHiddenInput()"
+					@click="checked = !checked; updateHiddenInput()"
+				>
+					<div class="flex items-start gap-3">
+						<div
+							class={
+								"w-5 h-5 flex-shrink-0 border rounded transition-colors",
+								templ.KV("bg-[#695eff] border-[#695eff] text-white", isSelected),
+								templ.KV("border-[#d1d5db]", !isSelected),
+							}
+							x-bind:class="checked ? 'bg-[#695eff] border-[#695eff] text-white' : 'border-[#d1d5db]'"
+						>
+							<svg
+								class="w-5 h-5"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								x-show="checked"
+							>
+								<polyline points="20 6 9 17 4 12"></polyline>
+							</svg>
+						</div>
+						<div class="space-y-1">
+							<label for={ checkboxID } class="font-medium text-[#131313] block cursor-pointer">
+								{ role.Name }
+							</label>
+							if role.Description != "" {
+								<p class="text-xs text-[#94a3b8]">{ role.Description }</p>
+							} else {
+								<p class="text-xs text-[#94a3b8]">{ pageCtx.T("Groups.Single.NoRoleDescription") }</p>
+							}
+						</div>
+					</div>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+type SharedProps struct {
+	Value string
+	Form  string
+	Error string
+}
+
+type GroupFormData struct {
+	Name        string
+	Description string
+	RoleIDs     []string
+}

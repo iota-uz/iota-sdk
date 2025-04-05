@@ -81,6 +81,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUploadController(app),
 		controllers.NewUsersController(app),
 		controllers.NewRolesController(app),
+		controllers.NewGroupsController(app),
 		controllers.NewDIExampleController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
@@ -93,6 +94,7 @@ func (m *Module) Register(app application.Application) error {
 	app.Spotlight().Register(
 		spotlight.NewItem(nil, DashboardLink.Name, DashboardLink.Href),
 		spotlight.NewItem(nil, UsersLink.Name, UsersLink.Href),
+		spotlight.NewItem(nil, GroupsLink.Name, GroupsLink.Href),
 		spotlight.NewItem(
 			icons.Gear(icons.Props{Size: "24"}),
 			"NavigationLinks.Navbar.Settings",
@@ -102,6 +104,11 @@ func (m *Module) Register(app application.Application) error {
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Users.List.New",
 			"/users/new",
+		),
+		spotlight.NewItem(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"Groups.List.New",
+			"/groups/new",
 		),
 	)
 	return nil

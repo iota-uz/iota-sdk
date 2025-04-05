@@ -137,6 +137,7 @@
     "Administration": "Ma'muriyat",
     "Users": "Foydalanuvchilar",
     "Roles": "Rollar",
+    "Groups": "Guruhlar",
     "KnowledgeBase": "Bilimlar bazasi",
     "Operations": "Operatsiyalar",
     "Settings": "Sozlamalar",
@@ -231,6 +232,44 @@
       },
       "Delete": "Rolni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Guruhlar"
+      },
+      "Edit": {
+        "Title": "Guruhni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi guruh"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Guruh ma'lumotlari",
+      "MembershipInfo": "A'zolik ma'lumotlari" 
+    },
+    "List": {
+      "New": "Yangi guruh",
+      "Name": "Nomi",
+      "Description": "Tavsif",
+      "Roles": "Rollar",
+      "Users": "Foydalanuvchilar",
+      "NoGroups": {
+        "Title": "Guruhlar topilmadi",
+        "Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "Description": "Tavsif",
+      "RoleIDs": "Rollar",
+      "UserIDs": "Foydalanuvchilar",
+      "SelectRole": "Rollarni tanlang",
+      "SelectUser": "Foydalanuvchilarni tanlang",
+      "Delete": "Guruhni o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
     }
   },
   "Projects": {

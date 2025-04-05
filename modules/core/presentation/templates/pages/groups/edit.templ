@@ -1,0 +1,133 @@
+package groups
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type EditFormProps struct {
+	Group  *viewmodels.Group
+	Roles  []*viewmodels.Role
+	Errors map[string]string
+}
+
+templ EditForm(props *EditFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
+		<div class="flex-1 overflow-y-auto p-6">
+			<div class="space-y-6">
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Groups.Single.Name"),
+					Placeholder: pageCtx.T("Groups.Single.EnterGroupName"),
+					Error:       props.Errors["Name"],
+					Attrs: templ.Attributes{
+						"name":  "Name",
+						"value": props.Group.Name,
+						"form":  "save-form",
+					},
+				})
+
+				@input.TextArea(&input.TextAreaProps{
+					Label:       pageCtx.T("Groups.Single.Description"),
+					Placeholder: pageCtx.T("Groups.Single.EnterDescription"),
+					Error:       props.Errors["Description"],
+					Value:       props.Group.Description,
+					Attrs: templ.Attributes{
+						"name": "Description",
+						"form": "save-form",
+						"rows": "3",
+					},
+				})
+
+				@ModernRoleSelect(&RoleSelectProps{
+					Roles:    props.Roles,
+					Selected: props.Group.Roles,
+					Error:    props.Errors["RoleIDs"],
+					Form:     "save-form",
+					Name:     "RoleIDs",
+				})
+			</div>
+		</div>
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="delete-form"
+				hx-delete={ fmt.Sprintf("/groups/%s", props.Group.ID) }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-group-btn"
+				hx-disabled-elt="find button"
+				class="flex-1"
+			>
+				@button.Danger(button.Props{
+					Size:  button.SizeMD,
+					Class: "w-full justify-center",
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-group-confirmation')",
+						"id":     "delete-group-btn",
+					},
+				}) {
+					{ pageCtx.T("Delete") }
+				}
+			</form>
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ fmt.Sprintf("/groups/%s", props.Group.ID) }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+				class="flex-1"
+			>
+				@button.Primary(button.Props{
+					Size:  button.SizeMD,
+					Class: "w-full bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Groups.Meta.Edit.Title")},
+	}) {
+		@EditForm(props)
+		@dialog.Confirmation(&dialog.Props{
+			Heading: pageCtx.T("Groups.Single.Delete"),
+			Text:    pageCtx.T("Groups.Single.DeleteConfirmation"),
+			Icon:    icons.Trash(icons.Props{Size: "20"}),
+			Action:  "open-delete-group-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+		})
+	}
+}
