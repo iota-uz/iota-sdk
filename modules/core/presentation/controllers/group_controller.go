@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -137,12 +138,9 @@ func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
 }
 
 type GroupsController struct {
-	app          application.Application
-	groupService *services.GroupService
-	userService  *services.UserService
-	roleService  *services.RoleService
-	basePath     string
-	realtime     *GroupRealtimeUpdates
+	app      application.Application
+	basePath string
+	realtime *GroupRealtimeUpdates
 }
 
 func NewGroupsController(app application.Application) application.Controller {
@@ -150,12 +148,9 @@ func NewGroupsController(app application.Application) application.Controller {
 	basePath := "/groups"
 
 	controller := &GroupsController{
-		app:          app,
-		groupService: groupService,
-		userService:  app.Service(services.UserService{}).(*services.UserService),
-		roleService:  app.Service(services.RoleService{}).(*services.RoleService),
-		basePath:     basePath,
-		realtime:     NewGroupRealtimeUpdates(app, groupService, basePath),
+		app:      app,
+		basePath: basePath,
+		realtime: NewGroupRealtimeUpdates(app, groupService, basePath),
 	}
 
 	return controller
@@ -176,21 +171,25 @@ func (c *GroupsController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("", c.Groups).Methods(http.MethodGet)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[a-f0-9-]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("", di.NewHandler(c.Groups).Handler())
+	router.HandleFunc("/new", di.NewHandler(c.GetNew).Handler())
+	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.GetEdit).Handler())
 
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[a-f0-9-]+}", c.Update).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[a-f0-9-]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("", di.NewHandler(c.Create).Handler()).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.Update).Handler()).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.Delete).Handler()).Methods(http.MethodDelete)
 
 	c.realtime.Register()
 }
 
-func (c *GroupsController) Groups(w http.ResponseWriter, r *http.Request) {
+func (c *GroupsController) Groups(
+	r *http.Request,
+	w http.ResponseWriter,
+	groupService *services.GroupService,
+) {
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
-	groupEntities, total, err := c.groupService.GetPaginatedWithTotal(r.Context(), &group.FindParams{
+	groupEntities, total, err := groupService.GetPaginatedWithTotal(r.Context(), &group.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: group.SortBy{Fields: []group.Field{}},
@@ -223,7 +222,12 @@ func (c *GroupsController) Groups(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *GroupsController) GetEdit(w http.ResponseWriter, r *http.Request) {
+func (c *GroupsController) GetEdit(
+	r *http.Request,
+	w http.ResponseWriter,
+	groupService *services.GroupService,
+	roleService *services.RoleService,
+) {
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -231,13 +235,13 @@ func (c *GroupsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roles, err := c.roleService.GetAll(r.Context())
+	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
 
-	groupEntity, err := c.groupService.GetByID(r.Context(), id)
+	groupEntity, err := groupService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving group", http.StatusInternalServerError)
 		return
@@ -256,8 +260,12 @@ func (c *GroupsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *GroupsController) GetNew(w http.ResponseWriter, r *http.Request) {
-	roles, err := c.roleService.GetAll(r.Context())
+func (c *GroupsController) GetNew(
+	r *http.Request,
+	w http.ResponseWriter,
+	roleService *services.RoleService,
+) {
+	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
@@ -271,7 +279,12 @@ func (c *GroupsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(groups.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *GroupsController) Create(w http.ResponseWriter, r *http.Request) {
+func (c *GroupsController) Create(
+	r *http.Request,
+	w http.ResponseWriter,
+	groupService *services.GroupService,
+	roleService *services.RoleService,
+) {
 	dto, err := composables.UseForm(&group.CreateDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -279,7 +292,7 @@ func (c *GroupsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
-		roles, err := c.roleService.GetAll(r.Context())
+		roles, err := roleService.GetAll(r.Context())
 		if err != nil {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
@@ -312,14 +325,14 @@ func (c *GroupsController) Create(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		role, err := c.roleService.GetByID(r.Context(), uint(roleID))
+		role, err := roleService.GetByID(r.Context(), uint(roleID))
 		if err != nil {
 			continue
 		}
 		groupEntity = groupEntity.AssignRole(role)
 	}
 
-	if _, err := c.groupService.Create(r.Context(), groupEntity); err != nil {
+	if _, err := groupService.Create(r.Context(), groupEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -333,7 +346,12 @@ func (c *GroupsController) Create(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *GroupsController) Update(w http.ResponseWriter, r *http.Request) {
+func (c *GroupsController) Update(
+	r *http.Request,
+	w http.ResponseWriter,
+	groupService *services.GroupService,
+	roleService *services.RoleService,
+) {
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -353,7 +371,7 @@ func (c *GroupsController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
-		roles, err := c.roleService.GetAll(r.Context())
+		roles, err := roleService.GetAll(r.Context())
 		if err != nil {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
@@ -384,7 +402,7 @@ func (c *GroupsController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current group to preserve existing data
-	existingGroup, err := c.groupService.GetByID(r.Context(), id)
+	existingGroup, err := groupService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Error retrieving existing group", http.StatusInternalServerError)
 		return
@@ -409,7 +427,7 @@ func (c *GroupsController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !roleExists {
-			role, err := c.roleService.GetByID(r.Context(), uint(roleID))
+			role, err := roleService.GetByID(r.Context(), uint(roleID))
 			if err != nil {
 				continue
 			}
@@ -426,7 +444,7 @@ func (c *GroupsController) Update(w http.ResponseWriter, r *http.Request) {
 		groupEntity = groupEntity.AssignRole(r)
 	}
 
-	if _, err := c.groupService.Update(r.Context(), groupEntity); err != nil {
+	if _, err := groupService.Update(r.Context(), groupEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -437,7 +455,11 @@ func (c *GroupsController) Update(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *GroupsController) Delete(w http.ResponseWriter, r *http.Request) {
+func (c *GroupsController) Delete(
+	r *http.Request,
+	w http.ResponseWriter,
+	groupService *services.GroupService,
+) {
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -445,7 +467,7 @@ func (c *GroupsController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.groupService.Delete(r.Context(), id); err != nil {
+	if err := groupService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
