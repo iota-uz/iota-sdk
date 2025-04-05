@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 )
 
@@ -185,6 +186,7 @@ func (c *GroupsController) Register(r *mux.Router) {
 func (c *GroupsController) Groups(
 	r *http.Request,
 	w http.ResponseWriter,
+	logger *logrus.Entry,
 	groupService *services.GroupService,
 ) {
 	params := composables.UsePaginated(r)
@@ -196,6 +198,7 @@ func (c *GroupsController) Groups(
 		Name:   search,
 	})
 	if err != nil {
+		logger.Errorf("Error retrieving groups: %v", err)
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
 		return
 	}
@@ -225,24 +228,28 @@ func (c *GroupsController) Groups(
 func (c *GroupsController) GetEdit(
 	r *http.Request,
 	w http.ResponseWriter,
+	logger *logrus.Entry,
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("Error parsing group ID: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
+		logger.Errorf("Error retrieving roles: %v", err)
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
 
 	groupEntity, err := groupService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving group: %v", err)
 		http.Error(w, "Error retrieving group", http.StatusInternalServerError)
 		return
 	}
@@ -263,10 +270,12 @@ func (c *GroupsController) GetEdit(
 func (c *GroupsController) GetNew(
 	r *http.Request,
 	w http.ResponseWriter,
+	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
+		logger.Errorf("Error retrieving roles: %v", err)
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
