@@ -132,7 +132,6 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					default:
-						buffer.WriteString(fmt.Sprintf("-- Change ALTER_TABLE: %T\n", altCmd))
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					}
@@ -178,7 +177,6 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					default:
-						buffer.WriteString(fmt.Sprintf("-- Undo ALTER_TABLE: %T\n", altCmd))
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					}

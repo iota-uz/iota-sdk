@@ -1,6 +1,8 @@
 package collector
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
@@ -24,6 +26,83 @@ func CompareTables(oldTable, newTable *tree.CreateTable) ([]interface{}, []inter
 		if colDef, ok := colNode.(*tree.ColumnTableDef); ok {
 			newColumns[colDef.Name.String()] = colDef
 		}
+	}
+
+	// Extract constraints
+	oldConstraints := extractConstraints(oldTable.Defs, oldTable.Table.Table())
+	newConstraints := extractConstraints(newTable.Defs, newTable.Table.Table())
+
+	// Compare constraints
+	droppedConstraints, addedConstraints := compareConstraints(oldConstraints, newConstraints)
+
+	// Generate ALTER TABLE commands for dropped constraints
+	for _, constraint := range droppedConstraints {
+		tableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{oldTable.Table.Table()},
+			0, /* no annotation */
+		)
+		dropConstraint := &tree.AlterTable{
+			Table: tableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableDropConstraint{
+					Constraint: tree.Name(constraint.Name),
+					IfExists:   true,
+				},
+			},
+		}
+		upChanges = append(upChanges, dropConstraint)
+
+		// Corresponding down operation: add the constraint back
+		downTableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{oldTable.Table.Table()},
+			0, /* no annotation */
+		)
+		addConstraint := &tree.AlterTable{
+			Table: downTableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableAddConstraint{
+					ConstraintDef: constraint.Def,
+				},
+			},
+		}
+		downChanges = append(downChanges, addConstraint)
+	}
+
+	// Generate ALTER TABLE commands for added constraints
+	for _, constraint := range addedConstraints {
+		tableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{newTable.Table.Table()},
+			0, /* no annotation */
+		)
+		addConstraint := &tree.AlterTable{
+			Table: tableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableAddConstraint{
+					ConstraintDef: constraint.Def,
+				},
+			},
+		}
+		upChanges = append(upChanges, addConstraint)
+
+		// Corresponding down operation: drop the constraint
+		downTableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{newTable.Table.Table()},
+			0, /* no annotation */
+		)
+		dropConstraint := &tree.AlterTable{
+			Table: downTableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableDropConstraint{
+					Constraint: tree.Name(constraint.Name),
+					IfExists:   true,
+				},
+			},
+		}
+		downChanges = append(downChanges, dropConstraint)
 	}
 
 	// iterate over the array instead of map to preserve order
@@ -246,4 +325,58 @@ func CollectSchemaChanges(oldSchema, newSchema *common.Schema) (*common.ChangeSe
 	downChanges.Changes = reversedDownChanges
 
 	return upChanges, downChanges, nil
+}
+
+type constraintInfo struct {
+	Name string
+	Def  tree.ConstraintTableDef
+}
+
+func extractConstraints(defs tree.TableDefs, tableName string) map[string]constraintInfo {
+	constraints := make(map[string]constraintInfo)
+	for _, def := range defs {
+		switch c := def.(type) {
+		case *tree.UniqueConstraintTableDef:
+			name := c.Name
+			if name == "" {
+				name = tree.Name(generateConstraintName(tableName, "key", c.Columns)) // !important need to be _key suffix in schemas
+			}
+			constraints[name.String()] = constraintInfo{Name: name.String(), Def: c}
+		case *tree.ColumnTableDef:
+			if c.Unique {
+				name := fmt.Sprintf("%s_%s_key", tableName, c.Name)
+				constraints[name] = constraintInfo{Name: name, Def: &tree.UniqueConstraintTableDef{
+					IndexTableDef: tree.IndexTableDef{
+						Name:    tree.Name(name),
+						Columns: []tree.IndexElem{{Column: c.Name}},
+					},
+				}}
+			}
+			// TODO handle other constraints like PRIMARY SHARED, CHECK, FOREIGN KEY, etc.
+			// etc c.PrimaryKey.IsPrimaryKey
+		}
+	}
+	return constraints
+}
+
+func compareConstraints(oldConstraints, newConstraints map[string]constraintInfo) (dropped, added []constraintInfo) {
+	for name, constraint := range oldConstraints {
+		if _, exists := newConstraints[name]; !exists {
+			dropped = append(dropped, constraint)
+		}
+	}
+	for name, constraint := range newConstraints {
+		if _, exists := oldConstraints[name]; !exists {
+			added = append(added, constraint)
+		}
+	}
+	return
+}
+
+func generateConstraintName(tableName, constraintType string, columns []tree.IndexElem) string {
+	var columnNames []string
+	for _, col := range columns {
+		columnNames = append(columnNames, col.Column.String())
+	}
+	return fmt.Sprintf("%s_%s_%s", tableName, strings.Join(columnNames, "_"), constraintType)
 }
