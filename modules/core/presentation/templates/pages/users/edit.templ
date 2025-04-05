@@ -19,6 +19,7 @@ import (
 type EditFormProps struct {
 	User             *viewmodels.User
 	Roles            []*viewmodels.Role
+	Groups           []*viewmodels.Group
 	PermissionGroups []*viewmodels.PermissionGroup
 	Errors           map[string]string
 }
@@ -104,6 +105,13 @@ templ EditForm(props *EditFormProps) {
 								Error:    props.Errors["RoleIDs"],
 								Form:     "save-form",
 								Name:     "RoleIDs",
+							})
+							@GroupSelect(&GroupSelectProps{
+								Groups:   props.Groups,
+								Selected: props.User.Groups,
+								Error:    props.Errors["GroupIDs"],
+								Form:     "save-form",
+								Name:     "GroupIDs",
 							})
 							@input.Password(&input.Props{
 								Label:       pageCtx.T("Users.Single.Password"),
