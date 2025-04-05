@@ -172,9 +172,9 @@ func (c *GroupsController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("", di.NewHandler(c.Groups).Handler())
-	router.HandleFunc("/new", di.NewHandler(c.GetNew).Handler())
-	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.GetEdit).Handler())
+	router.HandleFunc("", di.NewHandler(c.Groups).Handler()).Methods(http.MethodGet)
+	router.HandleFunc("/new", di.NewHandler(c.GetNew).Handler()).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.GetEdit).Handler()).Methods(http.MethodGet)
 
 	router.HandleFunc("", di.NewHandler(c.Create).Handler()).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.Update).Handler()).Methods(http.MethodPost)
@@ -260,11 +260,7 @@ func (c *GroupsController) GetEdit(
 		Errors: map[string]string{},
 	}
 
-	if htmx.IsHxRequest(r) {
-		templ.Handler(groups.EditGroupDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else {
-		templ.Handler(groups.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
-	}
+	templ.Handler(groups.EditGroupDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *GroupsController) GetNew(
@@ -396,11 +392,7 @@ func (c *GroupsController) Update(
 			Errors: errors,
 		}
 
-		if htmx.IsHxRequest(r) {
-			templ.Handler(groups.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		} else {
-			templ.Handler(groups.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
-		}
+		templ.Handler(groups.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

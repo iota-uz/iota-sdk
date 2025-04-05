@@ -31,6 +31,10 @@ templ GroupCreatedEvent(group *viewmodels.Group, rowProps *base.TableRowProps) {
 templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 	{{
 		rowProps.Attrs["id"] = fmt.Sprintf("group-%s", group.ID)
+		rowProps.Attrs["hx-get"] = fmt.Sprintf("/groups/%s", group.ID)
+		rowProps.Attrs["hx-target"] = "body"
+		rowProps.Attrs["hx-swap"] = "beforeend"
+		rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
 	}}
 	@base.TableRow(*rowProps) {
 		@base.TableCell(base.TableCellProps{}) {
@@ -47,22 +51,6 @@ templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 			<div x-data="relativeformat">
 				<span x-text={ fmt.Sprintf("format('%s')", group.UpdatedAt) }></span>
 			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
-			@button.Secondary(button.Props{
-				Fixed: true,
-				Size:  button.SizeSM,
-				Class: "btn-fixed",
-				Attrs: templ.Attributes{
-					"hx-get":     fmt.Sprintf("/groups/%s", group.ID),
-					"hx-target":  "body",
-					"hx-swap":    "beforeend",
-					"hx-trigger": "click",
-					"x-data":     "",
-				},
-			}) {
-				@icons.PencilSimple(icons.Props{Size: "20"})
-			}
 		}
 	}
 }
@@ -95,7 +83,6 @@ templ GroupsTable(props *IndexPageProps) {
 				{Label: pageCtx.T("Groups.List.Name"), Key: "name"},
 				{Label: pageCtx.T("Groups.List.Roles"), Key: "roles"},
 				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
 		}) {
 			<tbody id="groups-table-body">
