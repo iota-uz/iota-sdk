@@ -237,6 +237,10 @@
         "Label": "Role name",
         "Placeholder": "Enter the name of the role"
       },
+      "Description": {
+        "Label": "Description",
+        "Placeholder": "Enter description for the role"
+      },
       "Delete": "Delete role",
       "DeleteConfirmation": "Are you sure you want to delete this role?"
     }
