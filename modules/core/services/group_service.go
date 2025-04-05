@@ -35,9 +35,31 @@ func (s *GroupService) GetPaginated(ctx context.Context, params *group.FindParam
 	return s.repo.GetPaginated(ctx, params)
 }
 
+// GetPaginatedWithTotal returns a paginated list of groups with total count
+func (s *GroupService) GetPaginatedWithTotal(ctx context.Context, params *group.FindParams) ([]group.Group, int64, error) {
+	groups, err := s.repo.GetPaginated(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.repo.Count(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	return groups, total, nil
+}
+
 // GetByID returns a group by its ID
 func (s *GroupService) GetByID(ctx context.Context, id uuid.UUID) (group.Group, error) {
 	return s.repo.GetByID(ctx, id)
+}
+
+// GetAll returns all groups
+func (s *GroupService) GetAll(ctx context.Context) ([]group.Group, error) {
+	return s.repo.GetPaginated(ctx, &group.FindParams{
+		Limit: 1000, // Use a high limit to fetch all groups
+	})
 }
 
 // Create creates a new group

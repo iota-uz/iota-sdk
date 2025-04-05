@@ -39,6 +39,7 @@
   "Resources": {
     "user": "User",
     "role": "Roles",
+    "group": "Groups",
     "payment": "Payment",
     "expense": "Expense",
     "expense_category": "Expense category",
@@ -60,6 +61,12 @@
       "Read": "Read role",
       "Update": "Update role",
       "Delete": "Delete role"
+    },
+    "Group": {
+      "Create": "Create group",
+      "Read": "Read group",
+      "Update": "Update group",
+      "Delete": "Delete group"
     },
     "Account": {
       "Create": "Create account",
@@ -137,6 +144,7 @@
     "Administration": "Administration",
     "Users": "Users",
     "Roles": "Roles",
+    "Groups": "Groups",
     "KnowledgeBase": "Knowledge Base",
     "Operations": "Operations",
     "Settings": "Settings",
@@ -231,6 +239,48 @@
       },
       "Delete": "Delete role",
       "DeleteConfirmation": "Are you sure you want to delete this role?"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Groups"
+      },
+      "Edit": {
+        "Title": "Edit group"
+      },
+      "New": {
+        "Title": "New group"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Group information",
+      "MembershipInfo": "Membership information" 
+    },
+    "List": {
+      "New": "New group",
+      "Name": "Name",
+      "Description": "Description",
+      "Roles": "Roles",
+      "Users": "Users",
+      "NoGroups": {
+        "Title": "No groups found",
+        "Description": "Create your first group by clicking the 'New group' button"
+      }
+    },
+    "Single": {
+      "Name": "Name",
+      "Description": "Description",
+      "RoleIDs": "Roles",
+      "UserIDs": "Users",
+      "SelectRole": "Select roles",
+      "SelectUser": "Select users",
+      "SearchRoles": "Search for roles",
+      "EnterGroupName": "Enter group name",
+      "EnterDescription": "Enter description",
+      "NoRoleDescription": "No description available",
+      "Delete": "Delete group",
+      "DeleteConfirmation": "Are you sure you want to delete this group?"
     }
   },
   "Projects": {

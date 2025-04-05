@@ -1,0 +1,453 @@
+package controllers
+
+import (
+	"bytes"
+	"context"
+	"net/http"
+	"net/url"
+	"strconv"
+
+	"github.com/a-h/templ"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/groups"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/server"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"golang.org/x/text/language"
+)
+
+type GroupRealtimeUpdates struct {
+	app          application.Application
+	groupService *services.GroupService
+	basePath     string
+}
+
+func NewGroupRealtimeUpdates(app application.Application, groupService *services.GroupService, basePath string) *GroupRealtimeUpdates {
+	return &GroupRealtimeUpdates{
+		app:          app,
+		groupService: groupService,
+		basePath:     basePath,
+	}
+}
+
+func (ru *GroupRealtimeUpdates) Register() {
+	ru.app.EventPublisher().Subscribe(ru.onGroupCreated)
+	ru.app.EventPublisher().Subscribe(ru.onGroupUpdated)
+	ru.app.EventPublisher().Subscribe(ru.onGroupDeleted)
+}
+
+func (ru *GroupRealtimeUpdates) publisherContext() (context.Context, error) {
+	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
+	ctx := composables.WithLocalizer(
+		context.Background(),
+		localizer,
+	)
+	_url, err := url.Parse(ru.basePath)
+	if err != nil {
+		return nil, err
+	}
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		URL:       _url,
+		Locale:    language.English,
+		Localizer: localizer,
+	})
+	return composables.WithPool(ctx, ru.app.DB()), nil
+}
+
+func (ru *GroupRealtimeUpdates) onGroupCreated(event *group.CreatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	updatedGroup := event.Group
+	component := groups.GroupCreatedEvent(mappers.GroupToViewModel(updatedGroup), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering group row: %v | Event: onGroupCreated", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *GroupRealtimeUpdates) onGroupDeleted(event *group.DeletedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
+		Attrs: templ.Attributes{
+			"hx-swap-oob": "delete",
+		},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering group row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering group row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+type GroupsController struct {
+	app          application.Application
+	groupService *services.GroupService
+	userService  *services.UserService
+	roleService  *services.RoleService
+	basePath     string
+	realtime     *GroupRealtimeUpdates
+}
+
+func NewGroupsController(app application.Application) application.Controller {
+	groupService := app.Service(services.GroupService{}).(*services.GroupService)
+	basePath := "/groups"
+
+	controller := &GroupsController{
+		app:          app,
+		groupService: groupService,
+		userService:  app.Service(services.UserService{}).(*services.UserService),
+		roleService:  app.Service(services.RoleService{}).(*services.RoleService),
+		basePath:     basePath,
+		realtime:     NewGroupRealtimeUpdates(app, groupService, basePath),
+	}
+
+	return controller
+}
+
+func (c *GroupsController) Key() string {
+	return c.basePath
+}
+
+func (c *GroupsController) Register(r *mux.Router) {
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
+		middleware.Authorize(),
+		middleware.RedirectNotAuthenticated(),
+		middleware.ProvideUser(),
+		middleware.Tabs(),
+		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.NavItems(),
+		middleware.WithPageContext(),
+	)
+	router.HandleFunc("", c.Groups).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[a-f0-9-]+}", c.GetEdit).Methods(http.MethodGet)
+
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[a-f0-9-]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[a-f0-9-]+}", c.Delete).Methods(http.MethodDelete)
+
+	c.realtime.Register()
+}
+
+func (c *GroupsController) Groups(w http.ResponseWriter, r *http.Request) {
+	params := composables.UsePaginated(r)
+	search := r.URL.Query().Get("name")
+	groupEntities, total, err := c.groupService.GetPaginatedWithTotal(r.Context(), &group.FindParams{
+		Limit:  params.Limit,
+		Offset: params.Offset,
+		SortBy: group.SortBy{Fields: []group.Field{}},
+		Name:   search,
+	})
+	if err != nil {
+		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		return
+	}
+	isHxRequest := htmx.IsHxRequest(r)
+
+	viewModelGroups := mapping.MapViewModels(groupEntities, mappers.GroupToViewModel)
+
+	pageProps := &groups.IndexPageProps{
+		Groups:  viewModelGroups,
+		Page:    params.Page,
+		PerPage: params.Limit,
+		Search:  search,
+		HasMore: total > int64(params.Page*params.Limit),
+	}
+
+	if isHxRequest {
+		if params.Page > 1 {
+			templ.Handler(groups.GroupRows(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			templ.Handler(groups.GroupsTable(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
+		}
+	} else {
+		templ.Handler(groups.Index(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
+
+func (c *GroupsController) GetEdit(w http.ResponseWriter, r *http.Request) {
+	idStr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	roles, err := c.roleService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		return
+	}
+
+	groupEntity, err := c.groupService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving group", http.StatusInternalServerError)
+		return
+	}
+
+	props := &groups.EditFormProps{
+		Group:  mappers.GroupToViewModel(groupEntity),
+		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Errors: map[string]string{},
+	}
+
+	if htmx.IsHxRequest(r) {
+		templ.Handler(groups.EditGroupDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		templ.Handler(groups.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
+
+func (c *GroupsController) GetNew(w http.ResponseWriter, r *http.Request) {
+	roles, err := c.roleService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		return
+	}
+
+	props := &groups.CreateFormProps{
+		Group:  &groups.GroupFormData{},
+		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Errors: map[string]string{},
+	}
+	templ.Handler(groups.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *GroupsController) Create(w http.ResponseWriter, r *http.Request) {
+	dto, err := composables.UseForm(&group.CreateDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if errors, ok := dto.Ok(r.Context()); !ok {
+		roles, err := c.roleService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+			return
+		}
+
+		props := &groups.CreateFormProps{
+			Group: &groups.GroupFormData{
+				Name:        dto.Name,
+				Description: dto.Description,
+				RoleIDs:     dto.RoleIDs,
+			},
+			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors: errors,
+		}
+		templ.Handler(
+			groups.CreateForm(props), templ.WithStreaming(),
+		).ServeHTTP(w, r)
+		return
+	}
+
+	groupEntity, err := dto.ToEntity()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Process role assignments
+	for _, roleIDStr := range dto.RoleIDs {
+		roleID, err := strconv.ParseUint(roleIDStr, 10, 64)
+		if err != nil {
+			continue
+		}
+		role, err := c.roleService.GetByID(r.Context(), uint(roleID))
+		if err != nil {
+			continue
+		}
+		groupEntity = groupEntity.AssignRole(role)
+	}
+
+	if _, err := c.groupService.Create(r.Context(), groupEntity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if htmx.IsHxRequest(r) {
+		form := r.FormValue("form")
+		if form == "drawer-form" {
+			htmx.SetTrigger(w, "closeDrawer", `{"id": "new-group-drawer"}`)
+		}
+	}
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *GroupsController) Update(w http.ResponseWriter, r *http.Request) {
+	idStr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+
+	dto, err := composables.UseForm(&group.UpdateDTO{}, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if errors, ok := dto.Ok(r.Context()); !ok {
+		roles, err := c.roleService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+			return
+		}
+
+		props := &groups.EditFormProps{
+			Group: &viewmodels.Group{
+				ID:          id.String(),
+				Name:        dto.Name,
+				Description: dto.Description,
+			},
+			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Errors: errors,
+		}
+
+		if htmx.IsHxRequest(r) {
+			templ.Handler(groups.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			templ.Handler(groups.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+		}
+		return
+	}
+
+	groupEntity, err := dto.ToEntity(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Get current group to preserve existing data
+	existingGroup, err := c.groupService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving existing group", http.StatusInternalServerError)
+		return
+	}
+
+	// Process role assignments
+	roleMap := make(map[uint]struct{})
+	for _, roleIDStr := range dto.RoleIDs {
+		roleID, err := strconv.ParseUint(roleIDStr, 10, 64)
+		if err != nil {
+			continue
+		}
+		roleMap[uint(roleID)] = struct{}{}
+
+		// Check if role already exists in the group
+		roleExists := false
+		for _, r := range existingGroup.Roles() {
+			if r.ID() == uint(roleID) {
+				roleExists = true
+				break
+			}
+		}
+
+		if !roleExists {
+			role, err := c.roleService.GetByID(r.Context(), uint(roleID))
+			if err != nil {
+				continue
+			}
+			groupEntity = groupEntity.AssignRole(role)
+		}
+	}
+
+	// Remove roles that are no longer selected
+	for _, r := range existingGroup.Roles() {
+		if _, exists := roleMap[r.ID()]; !exists {
+			continue
+		}
+		// Keep this role
+		groupEntity = groupEntity.AssignRole(r)
+	}
+
+	if _, err := c.groupService.Update(r.Context(), groupEntity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if htmx.IsHxRequest(r) {
+		htmx.SetTrigger(w, "closeDrawer", `{"id": "edit-group-drawer"}`)
+	}
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *GroupsController) Delete(w http.ResponseWriter, r *http.Request) {
+	idStr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.groupService.Delete(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	shared.Redirect(w, r, c.basePath)
+}
