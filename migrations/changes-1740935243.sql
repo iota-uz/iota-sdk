@@ -10,7 +10,7 @@ CREATE TABLE passports (
     birth_place varchar(255),
     nationality varchar(100),
     passport_type varchar(20),
-    passport_number varchar(20) CONSTRAINT passports_passport_number_key UNIQUE,
+    passport_number varchar(20),
     series varchar(20),
     issuing_country varchar(100),
     issued_at date,
@@ -21,7 +21,8 @@ CREATE TABLE passports (
     signature_image bytea,
     remarks text,
     created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now()
+    updated_at timestamptz DEFAULT now(),
+    CONSTRAINT passports_passport_number_key UNIQUE (passport_number)
 );
 
 -- Change ADD_COLUMN: passport_id

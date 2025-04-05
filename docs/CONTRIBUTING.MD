@@ -123,8 +123,10 @@ Options:
 
 When defining or altering table schemas in `.sql` files that are processed by the `schema/collector` (both in `db/migrations/` and embedded module schemas):
 
-## IMPORTANT
+## IMPORTANT NOTE:
 Migration tool only support UNIQUE constraint and other constraints in TODO. Keep it in mind when mutating schemas.
+Does not support change in configuration of the type like varchar(255) varchar(500) or datetime from null to now() is not handled.
+TODO list of limitations.
 
 **```All constraints (PRIMARY KEY, UNIQUE, FOREIGN KEY, CHECK) MUST be explicitly named using the CONSTRAINT <constraint_name> syntax.```**
 
