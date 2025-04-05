@@ -33,6 +33,16 @@ templ EditForm(props *EditFormProps) {
 					},
 					Error: props.Errors["Name"],
 				})
+				@input.TextArea(&input.TextAreaProps{
+					Label:       pageCtx.T("Roles.Single.Description.Label"),
+					Placeholder: pageCtx.T("Roles.Single.Description.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "Description",
+						"form":  "save-form",
+					},
+					Value: props.Role.Description,
+					Error: props.Errors["Description"],
+				})
 			}
 			for _, group := range props.PermissionGroups {
 				@card.Card(card.Props{

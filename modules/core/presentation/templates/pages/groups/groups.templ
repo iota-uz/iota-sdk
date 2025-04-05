@@ -11,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"strconv"
 )
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
@@ -41,17 +40,7 @@ templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 		}
 		@base.TableCell(base.TableCellProps{}) {
 			<div>
-				{ group.Description }
-			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
-			<div>
 				{ group.RolesVerbose() }
-			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
-			<div>
-				{ strconv.Itoa(group.UsersCount()) }
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
@@ -104,9 +93,7 @@ templ GroupsTable(props *IndexPageProps) {
 		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("Groups.List.Name"), Key: "name"},
-				{Label: pageCtx.T("Groups.List.Description"), Key: "description"},
 				{Label: pageCtx.T("Groups.List.Roles"), Key: "roles"},
-				{Label: pageCtx.T("Groups.List.Users"), Key: "users"},
 				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 				{Label: pageCtx.T("Actions"), Class: "w-16"},
 			},
