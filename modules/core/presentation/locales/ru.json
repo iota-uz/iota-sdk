@@ -257,7 +257,9 @@
       "New": "Новый пользователь",
       "FullName": "Полное имя",
       "Roles": "Роли",
-      "Email": "Эл. почта"
+      "Email": "Эл. почта",
+      "Groups": "Группы",
+      "AllUsers": "Все пользователи"
     },
     "Cards": {
       "PersonalInfo": "Персональные данные",
@@ -280,7 +282,9 @@
       "SelectLanguage": "Выбрать язык",
       "ChooseAvatar": "Выберите аватар",
       "RoleIDs": "Роль",
+      "GroupIDs": "Группа",
       "SelectRole": "Выбрать роль",
+      "SelectGroup": "Выбрать группу",
       "EnterPassword": "Введите пароль",
       "Delete": "Удалить пользователя",
       "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?",
