@@ -39,6 +39,7 @@
   "Resources": {
     "user": "Foydalanuvchi",
     "role": "Rol",
+    "group": "Guruhlar",
     "payment": "To'lov",
     "expense": "Xarajat",
     "expense_category": "Xarajat toifasi",
@@ -60,6 +61,12 @@
       "Read": "Rolni ko'rish",
       "Update": "Rolni tahrirlash",
       "Delete": "Rolni o'chirish"
+    },
+    "Group": {
+      "Create": "Guruh yaratish",
+      "Read": "Guruhni ko'rish",
+      "Update": "Guruhni tahrirlash",
+      "Delete": "Guruhni o'chirish"
     },
     "Account": {
       "Create": "Hisob yaratish",
@@ -230,6 +237,10 @@
         "Label": "Rol nomi",
         "Placeholder": "Rol nomini kiriting"
       },
+      "Description": {
+        "Label": "Tavsif",
+        "Placeholder": "Rol uchun tavsif kiriting"
+      },
       "Delete": "Rolni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
     }
@@ -268,6 +279,10 @@
       "UserIDs": "Foydalanuvchilar",
       "SelectRole": "Rollarni tanlang",
       "SelectUser": "Foydalanuvchilarni tanlang",
+      "SearchRoles": "Rollarni qidirish",
+      "EnterGroupName": "Guruh nomini kiriting",
+      "EnterDescription": "Tavsif kiriting",
+      "NoRoleDescription": "Tavsif mavjud emas",
       "Delete": "Guruhni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
     }
