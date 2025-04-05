@@ -22,7 +22,9 @@ templ EditForm(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
 		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-6">
-			@card.Card(card.Props{}) {
+			@card.Card(card.Props{
+				Class: "space-y-3",
+			}) {
 				@input.Text(&input.Props{
 					Label:       pageCtx.T("Roles.Single.Name.Label"),
 					Placeholder: pageCtx.T("Roles.Single.Name.Placeholder"),
@@ -37,8 +39,9 @@ templ EditForm(props *EditFormProps) {
 					Label:       pageCtx.T("Roles.Single.Description.Label"),
 					Placeholder: pageCtx.T("Roles.Single.Description.Placeholder"),
 					Attrs: templ.Attributes{
-						"name":  "Description",
-						"form":  "save-form",
+						"name": "Description",
+						"form": "save-form",
+						"rows": "4",
 					},
 					Value: props.Role.Description,
 					Error: props.Errors["Description"],
