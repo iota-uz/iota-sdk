@@ -378,9 +378,9 @@ templ ActionsTab(clientID string) {
 					@button.Danger(button.Props{
 						Icon: icons.Trash(icons.Props{Size: "20"}),
 						Attrs: templ.Attributes{
-							"hx-delete": fmt.Sprintf("/crm/clients/%s", clientID),
+							"hx-delete":  fmt.Sprintf("/crm/clients/%s", clientID),
 							"hx-confirm": pageCtx.T("Clients.Single.DeleteConfirmation"),
-							"hx-target": "body",
+							"hx-target":  "body",
 						},
 					}) {
 						{ pageCtx.T("Clients.Single.Delete") }

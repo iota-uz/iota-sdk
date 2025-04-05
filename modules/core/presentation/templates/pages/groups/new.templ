@@ -33,18 +33,16 @@ templ CreateForm(props *CreateFormProps) {
 						"value": props.Group.Name,
 					},
 				})
-
 				@input.TextArea(&input.TextAreaProps{
 					Label:       pageCtx.T("Groups.Single.Description"),
 					Placeholder: pageCtx.T("Groups.Single.EnterDescription"),
 					Error:       props.Errors["Description"],
 					Value:       props.Group.Description,
 					Attrs: templ.Attributes{
-						"name":  "Description",
-						"rows":  "3",
+						"name": "Description",
+						"rows": "3",
 					},
 				})
-
 				@ModernRoleSelect(&RoleSelectProps{
 					Roles:    props.Roles,
 					Selected: []*viewmodels.Role{},

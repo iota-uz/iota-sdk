@@ -32,7 +32,6 @@ templ EditForm(props *EditFormProps) {
 						"form":  "save-form",
 					},
 				})
-
 				@input.TextArea(&input.TextAreaProps{
 					Label:       pageCtx.T("Groups.Single.Description"),
 					Placeholder: pageCtx.T("Groups.Single.EnterDescription"),
@@ -44,7 +43,6 @@ templ EditForm(props *EditFormProps) {
 						"rows": "3",
 					},
 				})
-
 				@ModernRoleSelect(&RoleSelectProps{
 					Roles:    props.Roles,
 					Selected: props.Group.Roles,
