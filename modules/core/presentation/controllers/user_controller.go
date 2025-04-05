@@ -305,7 +305,7 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
-	
+
 	groups, err := c.groupService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -333,7 +333,7 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
-	
+
 	groups, err := c.groupService.GetAll(r.Context())
 	if err != nil {
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -363,7 +363,7 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
-		
+
 		groups, err := c.groupService.GetAll(r.Context())
 		if err != nil {
 			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -393,13 +393,13 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	// Parse the form to access form fields
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Error parsing form", http.StatusBadRequest)
 		return
 	}
-	
+
 	// Handle groups (if any)
 	groupIDs := r.Form["GroupIDs"]
 	if len(groupIDs) > 0 {
@@ -413,12 +413,12 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 				ids = append(ids, uuid)
 			}
 		}
-		
+
 		if len(ids) > 0 {
 			userEntity = userEntity.SetGroupIDs(ids)
 		}
 	}
-	
+
 	if err := c.userService.Create(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -451,7 +451,7 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
-		
+
 		groups, err := c.groupService.GetAll(r.Context())
 		if err != nil {
 			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -497,7 +497,7 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 
 	// Set permissions on the user entity
 	userEntity = userEntity.SetPermissions(permissions)
-	
+
 	// Handle groups (if any)
 	groupIDs := r.Form["GroupIDs"]
 	if len(groupIDs) > 0 {
@@ -511,7 +511,7 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 				ids = append(ids, uuid)
 			}
 		}
-		
+
 		if len(ids) > 0 {
 			userEntity = userEntity.SetGroupIDs(ids)
 		}
