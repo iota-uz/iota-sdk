@@ -11,7 +11,10 @@ type AccentColorProps struct {
 }
 
 templ AccentColor(props AccentColorProps) {
-	<label class="accent-color-card cursor-pointer rounded-xl border border-primary max-w-xs flex flex-col items-center gap-3 p-3 pb-4 duration-300 has-[input:checked]:border-[var(--color)]" style={ templ.SafeCSS(fmt.Sprintf("--color: %s", props.Color)) }>
+	<label
+		class="accent-color-card cursor-pointer rounded-xl border border-primary max-w-xs flex flex-col items-center gap-3 p-3 pb-4 duration-300 has-[input:checked]:border-[var(--color)]"
+		style={ templ.SafeCSS(fmt.Sprintf("--color: %s", props.Color)) }
+	>
 		<input
 			type="radio"
 			name={ props.Name }

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"sort"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -17,8 +18,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -151,6 +154,7 @@ type UsersController struct {
 	userService       *services.UserService
 	roleService       *services.RoleService
 	permissionService *services.PermissionService
+	groupService      *services.GroupService
 	basePath          string
 	realtime          *UserRealtimeUpdates
 }
@@ -164,6 +168,7 @@ func NewUsersController(app application.Application) application.Controller {
 		userService:       userService,
 		roleService:       app.Service(services.RoleService{}).(*services.RoleService),
 		permissionService: app.Service(services.PermissionService{}).(*services.PermissionService),
+		groupService:      app.Service(services.GroupService{}).(*services.GroupService),
 		basePath:          basePath,
 		realtime:          NewUserRealtimeUpdates(app, userService, basePath),
 	}
@@ -200,30 +205,55 @@ func (c *UsersController) Register(r *mux.Router) {
 func (c *UsersController) Users(w http.ResponseWriter, r *http.Request) {
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
-	us, total, err := c.userService.GetPaginatedWithTotal(r.Context(), &user.FindParams{
+	groupID := r.URL.Query().Get("groupID")
+
+	// Create find params
+	findParams := &user.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: user.SortBy{Fields: []user.Field{}},
-		Name:   search,
-	})
+		SortBy: user.SortBy{Fields: []user.Field{
+			user.CreatedAt,
+		}},
+		Name: search,
+	}
+
+	// Apply group filter if provided
+	if groupID != "" {
+		findParams.GroupID = &repo.Filter{
+			Expr:  repo.Eq,
+			Value: groupID,
+		}
+	}
+
+	// Get users based on filters
+	us, total, err := c.userService.GetPaginatedWithTotal(r.Context(), findParams)
 	if err != nil {
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &users.IndexPageProps{
-		Users:   mapping.MapViewModels(us, mappers.UserToViewModel),
-		Page:    params.Page,
-		PerPage: params.Limit,
-		Search:  search,
-		HasMore: total > int64(params.Page*params.Limit),
+
+	// Get all groups for the sidebar
+	groups, err := c.groupService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		return
 	}
-	if isHxRequest {
+
+	props := &users.IndexPageProps{
+		Users:         mapping.MapViewModels(us, mappers.UserToViewModel),
+		Groups:        mapping.MapViewModels(groups, mappers.GroupToViewModel),
+		SelectedGroup: groupID,
+		Page:          params.Page,
+		PerPage:       params.Limit,
+		Search:        search,
+		HasMore:       total > int64(params.Page*params.Limit),
+	}
+
+	if htmx.IsHxRequest(r) {
 		if params.Page > 1 {
-			// pages after the first one are served as extensions of the previous table due to infinite scroll
 			templ.Handler(users.UserRows(props), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
-			templ.Handler(users.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(users.UsersContent(props), templ.WithStreaming()).ServeHTTP(w, r)
 		}
 	} else {
 		templ.Handler(users.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -275,6 +305,12 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
+	
+	groups, err := c.groupService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		return
+	}
 
 	us, err := c.userService.GetByID(r.Context(), id)
 	if err != nil {
@@ -284,6 +320,7 @@ func (c *UsersController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	props := &users.EditFormProps{
 		User:             mappers.UserToViewModel(us),
 		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
 		PermissionGroups: c.permissionGroups(us.Permissions()...),
 		Errors:           map[string]string{},
 	}
@@ -296,10 +333,17 @@ func (c *UsersController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
 	}
+	
+	groups, err := c.groupService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		return
+	}
 
 	props := &users.CreateFormProps{
 		User:             viewmodels.User{},
 		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
 		PermissionGroups: c.permissionGroups(),
 		Errors:           map[string]string{},
 	}
@@ -319,6 +363,12 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
+		
+		groups, err := c.groupService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+			return
+		}
 
 		userEntity, err := dto.ToEntity()
 		if err != nil {
@@ -328,6 +378,7 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 		props := &users.CreateFormProps{
 			User:             *mappers.UserToViewModel(userEntity),
 			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
 			PermissionGroups: c.permissionGroups(),
 			Errors:           errors,
 		}
@@ -342,6 +393,32 @@ func (c *UsersController) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	
+	// Parse the form to access form fields
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+	
+	// Handle groups (if any)
+	groupIDs := r.Form["GroupIDs"]
+	if len(groupIDs) > 0 {
+		// Convert string IDs to UUID
+		ids := make([]uuid.UUID, 0, len(groupIDs))
+		for _, id := range groupIDs {
+			if id == "" {
+				continue
+			}
+			if uuid, err := uuid.Parse(id); err == nil {
+				ids = append(ids, uuid)
+			}
+		}
+		
+		if len(ids) > 0 {
+			userEntity = userEntity.SetGroupIDs(ids)
+		}
+	}
+	
 	if err := c.userService.Create(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -374,6 +451,12 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
+		
+		groups, err := c.groupService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+			return
+		}
 
 		us, err := c.userService.GetByID(r.Context(), id)
 		if err != nil {
@@ -384,6 +467,7 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 		props := &users.EditFormProps{
 			User:             mappers.UserToViewModel(us),
 			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
 			PermissionGroups: c.permissionGroups(us.Permissions()...),
 			Errors:           errors,
 		}
@@ -413,6 +497,25 @@ func (c *UsersController) Update(w http.ResponseWriter, r *http.Request) {
 
 	// Set permissions on the user entity
 	userEntity = userEntity.SetPermissions(permissions)
+	
+	// Handle groups (if any)
+	groupIDs := r.Form["GroupIDs"]
+	if len(groupIDs) > 0 {
+		// Convert string IDs to UUID
+		ids := make([]uuid.UUID, 0, len(groupIDs))
+		for _, id := range groupIDs {
+			if id == "" {
+				continue
+			}
+			if uuid, err := uuid.Parse(id); err == nil {
+				ids = append(ids, uuid)
+			}
+		}
+		
+		if len(ids) > 0 {
+			userEntity = userEntity.SetGroupIDs(ids)
+		}
+	}
 
 	if err := c.userService.Update(r.Context(), userEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

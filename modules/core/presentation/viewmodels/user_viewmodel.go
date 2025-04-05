@@ -17,6 +17,7 @@ type User struct {
 	UpdatedAt   string
 	AvatarID    string
 	Roles       []*Role
+	Groups      []*Group
 	Permissions []*Permission
 	Avatar      *Upload
 }
