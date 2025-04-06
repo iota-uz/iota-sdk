@@ -20,7 +20,7 @@ type FindParams struct {
 	Limit     int
 	Offset    int
 	SortBy    SortBy
-	Name      string
+	Search    string
 	CreatedAt *repo.Filter
 	UpdateAt  *repo.Filter
 }
