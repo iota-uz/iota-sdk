@@ -133,41 +133,46 @@ templ UsersTable(props *IndexPageProps) {
 templ GroupFilter(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<h2 class="text-lg font-medium mb-3">{ pageCtx.T("Users.List.Groups") }</h2>
-		<div class="space-y-1">
-			<a
-				href={ templ.SafeURL("/users") }
-				class={ templ.KV("font-medium text-primary", props.SelectedGroup == "") }
-				hx-get="/users"
-				hx-target="#users-table-wrapper"
-				hx-swap="innerHTML"
-			>
-				{ pageCtx.T("Users.List.AllUsers") }
-			</a>
-			for _, group := range props.Groups {
+		<ul class="space-y-3">
+			<li>
 				<a
-					href={ templ.SafeURL(fmt.Sprintf("/users?groupID=%s", group.ID)) }
-					class={ templ.KV("font-medium text-primary", props.SelectedGroup == group.ID) }
-					hx-get={ fmt.Sprintf("/users?groupID=%s", group.ID) }
+					href={ templ.SafeURL("/users") }
+					class={ templ.KV("font-medium text-brand-500", props.SelectedGroup == "") }
+					hx-get="/users"
 					hx-target="#users-table-wrapper"
 					hx-swap="innerHTML"
+					hx-push-url="true"
 				>
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							@avatar.Avatar(avatar.Props{
-								Initials: group.GetInitials(),
-								Variant:  avatar.Round,
-								Class:    templ.Classes("w-8 h-8 min-w-8"),
-							})
-							<span>{ group.Name }</span>
-						</div>
-						<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full">
-							{ fmt.Sprintf("%d", group.UsersCount()) }
-						</span>
-					</div>
+					{ pageCtx.T("Users.List.AllUsers") }
 				</a>
+			</li>
+			for _, group := range props.Groups {
+				<li>
+					<a
+						href={ templ.SafeURL(fmt.Sprintf("/users?groupID=%s", group.ID)) }
+						class={ templ.KV("font-medium text-brand-500", props.SelectedGroup == group.ID) }
+						hx-get={ fmt.Sprintf("/users?groupID=%s", group.ID) }
+						hx-target="#users-table-wrapper"
+						hx-swap="innerHTML"
+						hx-push-url="true"
+					>
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-2">
+								@avatar.Avatar(avatar.Props{
+									Initials: group.GetInitials(),
+									Variant:  avatar.Round,
+									Class:    templ.Classes("w-8 h-8 min-w-8"),
+								})
+								<span>{ group.Name }</span>
+							</div>
+							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full">
+								{ fmt.Sprintf("%d", group.UsersCount()) }
+							</span>
+						</div>
+					</a>
+				</li>
 			}
-		</div>
+		</ul>
 	</div>
 }
 
@@ -178,7 +183,7 @@ templ UsersContent(props *IndexPageProps) {
 			class="p-4 flex items-center gap-3"
 			hx-get="/users"
 			hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-			hx-target="#users-table-wrapper"
+			hx-target="#users-table-body"
 			hx-swap="innerHTML"
 		>
 			<input type="hidden" name="page" value="1"/>

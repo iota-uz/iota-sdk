@@ -293,7 +293,11 @@ func (c *UsersController) Users(
 		if params.Page > 1 {
 			templ.Handler(users.UserRows(props), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
-			templ.Handler(users.UsersContent(props), templ.WithStreaming()).ServeHTTP(w, r)
+			if htmx.Target(r) == "users-table-body" {
+				templ.Handler(users.UserRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+			} else {
+				templ.Handler(users.UsersContent(props), templ.WithStreaming()).ServeHTTP(w, r)
+			}
 		}
 	} else {
 		templ.Handler(users.Index(props), templ.WithStreaming()).ServeHTTP(w, r)

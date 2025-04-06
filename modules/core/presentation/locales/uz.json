@@ -186,7 +186,6 @@
       "FullName": "To'liq ism",
       "Roles": "Rollar",
       "Email": "Email",
-      "Groups": "Guruhlar",
       "AllUsers": "Barcha foydalanuvchilar"
     },
     "Cards": {
@@ -263,7 +262,7 @@
     },
     "Cards": {
       "GroupInfo": "Guruh ma'lumotlari",
-      "MembershipInfo": "A'zolik ma'lumotlari" 
+      "MembershipInfo": "A'zolik ma'lumotlari"
     },
     "List": {
       "New": "Yangi guruh",
