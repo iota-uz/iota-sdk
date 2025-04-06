@@ -1,6 +1,6 @@
 CREATE TABLE prompts (
     id varchar(30) PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     title varchar(255) NOT NULL,
     description text NOT NULL,
     prompt text NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE prompts (
 
 CREATE TABLE dialogues (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     user_id int NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     label varchar(255) NOT NULL,
     messages json NOT NULL,

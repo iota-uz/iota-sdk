@@ -1,6 +1,6 @@
 CREATE TABLE clients (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255),
     middle_name varchar(255),
@@ -28,7 +28,7 @@ CREATE TABLE client_contacts (
 
 CREATE TABLE chats (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     created_at timestamp(3) DEFAULT now() NOT NULL,
     client_id int NOT NULL REFERENCES clients (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     last_message_at timestamp(3) DEFAULT now()
@@ -54,7 +54,7 @@ CREATE TABLE message_media (
 
 CREATE TABLE message_templates (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     template TEXT NOT NULL,
     created_at timestamp with time zone DEFAULT now()
 );

@@ -1,6 +1,6 @@
 CREATE TABLE positions (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     created_at timestamp with time zone DEFAULT now(),
@@ -10,7 +10,7 @@ CREATE TABLE positions (
 
 CREATE TABLE employees (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255) NOT NULL,
     middle_name varchar(255),
