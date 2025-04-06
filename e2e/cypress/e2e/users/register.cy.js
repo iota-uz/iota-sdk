@@ -24,7 +24,10 @@ describe("user auth and registration flow", () => {
 		cy.get("[name=Phone]").type("+14155551234");
 		cy.get("[name=Password]").type("TestPass123!");
 		cy.get("[name=UILanguage]").select(2);
-		cy.get('div:has(select[name="RoleIDs"]) button[x-ref=trigger]').click();
+		cy.get('select[name="RoleIDs"]')
+			.closest('div') // this div directly wraps the select
+			.find('button[x-ref="trigger"]')
+			.click();
 		cy.get("ul[x-ref=list]").should("be.visible");
 		cy.get("ul[x-ref=list]").find("li").first().click();
 		cy.get("[id=save-btn]").click();
