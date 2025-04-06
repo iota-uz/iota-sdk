@@ -23,7 +23,7 @@ type User struct {
 }
 
 func (u *User) FullName() string {
-	return u.FirstName + " " + u.LastName + " " + u.MiddleName
+	return u.FirstName + " " + u.LastName
 }
 
 func (u *User) RolesVerbose() string {

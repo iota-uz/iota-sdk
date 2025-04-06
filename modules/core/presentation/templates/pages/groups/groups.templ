@@ -5,6 +5,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
@@ -55,13 +56,16 @@ templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div>
-				{ group.RolesVerbose() }
-			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="relativeformat">
-				<span x-text={ fmt.Sprintf("format('%s')", group.UpdatedAt) }></span>
+			<div class="flex flex-wrap gap-2">
+				for _, r := range group.Roles {
+					@badge.New(badge.Props{
+						Class:   templ.Classes("px-2"),
+						Variant: badge.VariantGray,
+						Size:    badge.SizeNormal,
+					}) {
+						{ r.Name }
+					}
+				}
 			</div>
 		}
 	}
@@ -94,7 +98,6 @@ templ GroupsTable(props *IndexPageProps) {
 			Columns: []*base.TableColumn{
 				{Label: pageCtx.T("Groups.List.Name"), Key: "name"},
 				{Label: pageCtx.T("Groups.List.Roles"), Key: "roles"},
-				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 			},
 		}) {
 			<tbody id="groups-table-body">
