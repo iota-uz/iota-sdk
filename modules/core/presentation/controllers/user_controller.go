@@ -243,7 +243,6 @@ func (c *UsersController) Users(
 	groupService *services.GroupService,
 ) {
 	params := composables.UsePaginated(r)
-	search := r.URL.Query().Get("name")
 	groupID := r.URL.Query().Get("groupID")
 
 	// Create find params
@@ -253,7 +252,7 @@ func (c *UsersController) Users(
 		SortBy: user.SortBy{Fields: []user.Field{
 			user.CreatedAt,
 		}},
-		Search: search,
+		Search: r.URL.Query().Get("Search"),
 	}
 
 	// Apply group filter if provided
@@ -312,7 +311,6 @@ func (c *UsersController) Users(
 		SelectedGroup: groupID,
 		Page:          params.Page,
 		PerPage:       params.Limit,
-		Search:        search,
 		HasMore:       total > int64(params.Page*params.Limit),
 	}
 
