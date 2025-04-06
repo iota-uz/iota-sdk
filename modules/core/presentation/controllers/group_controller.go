@@ -202,10 +202,10 @@ func (c *GroupsController) Groups(
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
-		findParams.CreatedAt = &repo.Filter{
-			Expr:  repo.Lt,
-			Value: v,
-		}
+		findParams.Filters = append(findParams.Filters, group.Filter{
+			Column: group.CreatedAt,
+			Filter: repo.Lt(v),
+		})
 	}
 
 	groupEntities, total, err := groupService.GetPaginatedWithTotal(r.Context(), findParams)

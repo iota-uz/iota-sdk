@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -252,15 +253,41 @@ func (c *UsersController) Users(
 		SortBy: user.SortBy{Fields: []user.Field{
 			user.CreatedAt,
 		}},
-		Name: search,
+		Search: search,
 	}
 
 	// Apply group filter if provided
 	if groupID != "" {
-		findParams.GroupID = &repo.Filter{
-			Expr:  repo.Eq,
-			Value: groupID,
+		findParams.Filters = append(findParams.Filters, user.Filter{
+			Column: user.GroupID,
+			Filter: repo.Eq(groupID),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.To: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
 		}
+		findParams.Filters = append(findParams.Filters, user.Filter{
+			Column: user.CreatedAt,
+			Filter: repo.Lt(t),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.From: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
+		}
+		findParams.Filters = append(findParams.Filters, user.Filter{
+			Column: user.CreatedAt,
+			Filter: repo.Gt(t),
+		})
 	}
 
 	// Get users based on filters
