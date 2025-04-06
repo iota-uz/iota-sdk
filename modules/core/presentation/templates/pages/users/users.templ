@@ -81,11 +81,6 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="relativeformat">
-				<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt) }></span>
-			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
 			@button.Secondary(button.Props{
 				Fixed: true,
 				Size:  button.SizeSM,
@@ -120,7 +115,6 @@ templ UsersTable(props *IndexPageProps) {
 			{Label: pageCtx.T("Users.List.FullName"), Key: "fullName"},
 			{Label: pageCtx.T("Users.List.Roles"), Key: "roles"},
 			{Label: pageCtx.T("Users.List.Email"), Key: "email"},
-			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
