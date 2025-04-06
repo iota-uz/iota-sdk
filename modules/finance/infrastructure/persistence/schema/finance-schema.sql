@@ -1,6 +1,6 @@
 CREATE TABLE counterparty (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     tin varchar(20),
     name varchar(255) NOT NULL,
     type VARCHAR(255) NOT NULL, -- customer, supplier, individual
@@ -25,7 +25,7 @@ CREATE TABLE counterparty_contacts (
 
 CREATE TABLE inventory (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     currency_id varchar(3) REFERENCES currencies (code) ON DELETE SET NULL,
@@ -38,7 +38,7 @@ CREATE TABLE inventory (
 
 CREATE TABLE expense_categories (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     amount numeric(9, 2) NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE expense_categories (
 
 CREATE TABLE money_accounts (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     account_number varchar(255) NOT NULL,
     description text,
@@ -63,7 +63,7 @@ CREATE TABLE money_accounts (
 
 CREATE TABLE transactions (
     id serial PRIMARY KEY,
-    tenant_id int NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     amount numeric(9, 2) NOT NULL,
     origin_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
     destination_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
