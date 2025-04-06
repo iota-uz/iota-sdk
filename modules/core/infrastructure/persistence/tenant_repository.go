@@ -175,7 +175,7 @@ func toDomainTenant(t *models.Tenant) *tenant.Tenant {
 		// Log error or handle it appropriately
 		id = uuid.Nil
 	}
-	
+
 	return tenant.New(
 		t.Name,
 		tenant.WithID(id),

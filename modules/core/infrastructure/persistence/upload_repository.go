@@ -75,10 +75,10 @@ func (g *GormUploadRepository) queryUploads(
 			return nil, err
 		}
 		domainUpload, err := ToDomainUpload(&dbUpload)
-			if err != nil {
-				return nil, err
-			}
-			uploads = append(uploads, domainUpload)
+		if err != nil {
+			return nil, err
+		}
+		uploads = append(uploads, domainUpload)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
