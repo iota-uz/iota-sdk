@@ -3,7 +3,7 @@ package messagetemplatesui
 import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
+	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -26,7 +26,7 @@ templ CreateForm(props *CreatePageProps) {
 		@card.Card(card.Props{
 			WrapperClass: "m-6",
 		}) {
-			@textarea.Basic(&textarea.Props{
+			@input.TextArea(&input.TextAreaProps{
 				Label:       pageCtx.T("MessageTemplates.Single.Template.Label"),
 				Placeholder: pageCtx.T("MessageTemplates.Single.Template.Placeholder"),
 				Value:       props.Template.Template,

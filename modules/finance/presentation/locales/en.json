@@ -21,7 +21,11 @@
     "List": {
       "New": "New Category",
       "Name": "Name",
-      "Amount": "Amount"
+      "Amount": "Amount",
+      "NoCategories": {
+        "Title": "No expense categories found",
+        "Description": "There are no expense categories yet. Click 'New Category' to create one."
+      }
     },
     "Single": {
       "EditUser": "Edit category",
@@ -50,7 +54,11 @@
     },
     "List": {
       "New": "Add payment",
-      "Amount": "Amount"
+      "Amount": "Amount",
+      "NoPayments": {
+        "Title": "No payments found",
+        "Description": "There are no payments yet. Click 'Add payment' to create one."
+      }
     },
     "Single": {
       "Account": "Account",
@@ -84,7 +92,11 @@
     "List": {
       "New": "Add expense",
       "Category": "Category",
-      "Amount": "Amount"
+      "Amount": "Amount",
+      "NoExpenses": {
+        "Title": "No expenses found",
+        "Description": "There are no expenses yet. Click 'Add expense' to create one."
+      }
     },
     "Single": {
       "Account": "Account",
@@ -115,7 +127,11 @@
     "List": {
       "New": "Add account",
       "Name": "Name",
-      "Balance": "Balance"
+      "Balance": "Balance",
+      "NoAccounts": {
+        "Title": "No accounts found",
+        "Description": "There are no accounts yet. Click 'Add account' to create one."
+      }
     },
     "Single": {
       "Edit": "Edit account",

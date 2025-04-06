@@ -7,7 +7,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
@@ -70,7 +69,7 @@ templ EditForm(props *EditPageProps) {
 				Form:        "save-form",
 				Name:        "CounterpartyID",
 			})
-			@textarea.Basic(&textarea.Props{
+			@input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("Payments.Single.Comment"),
 				Attrs: templ.Attributes{
 					"value": props.Payment.Comment,

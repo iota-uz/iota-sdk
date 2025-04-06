@@ -12,10 +12,11 @@ import (
 )
 
 type CreateFormProps struct {
-	User        viewmodels.User
-	Roles       []*viewmodels.Role
-	Permissions []*viewmodels.Permission
-	Errors      map[string]string
+	User             viewmodels.User
+	Roles            []*viewmodels.Role
+	Groups           []*viewmodels.Group
+	PermissionGroups []*viewmodels.PermissionGroup
+	Errors           map[string]string
 }
 
 templ CreateForm(props *CreateFormProps) {
@@ -73,6 +74,11 @@ templ CreateForm(props *CreateFormProps) {
 						Roles: props.Roles,
 						Error: props.Errors["RoleIDs"],
 						Name:  "RoleIDs",
+					})
+					@GroupSelect(&GroupSelectProps{
+						Groups: props.Groups,
+						Error:  props.Errors["GroupIDs"],
+						Name:   "GroupIDs",
 					})
 					@input.Password(&input.Props{
 						Label:       pageCtx.T("Users.Single.Password"),

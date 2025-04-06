@@ -3,6 +3,7 @@ package composables
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/jackc/pgx/v5"
@@ -48,4 +49,24 @@ func BeginTx(ctx context.Context) (pgx.Tx, error) {
 		return nil, err
 	}
 	return pool.Begin(ctx)
+}
+
+func InTx(ctx context.Context, fn func(context.Context) error) error {
+	pool, err := UsePool(ctx)
+	if err != nil {
+		return err
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := fn(WithTx(ctx, tx)); err != nil {
+		if rErr := tx.Rollback(ctx); rErr != nil {
+			return errors.Join(err, rErr)
+		}
+		return err
+	}
+	return tx.Commit(ctx)
 }

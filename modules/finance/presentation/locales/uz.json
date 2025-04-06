@@ -21,7 +21,11 @@
     "List": {
       "New": "Yangi kategoriya",
       "Name": "Nomi",
-      "Amount": "Miqdori"
+      "Amount": "Miqdori",
+      "NoCategories": {
+        "Title": "Xarajat kategoriyalari topilmadi",
+        "Description": "Hali xarajat kategoriyalari yo'q. Yangi yaratish uchun 'Yangi kategoriya' tugmasini bosing."
+      }
     },
     "Single": {
       "EditUser": "Kategoriyani tahrirlash",
@@ -50,7 +54,11 @@
     },
     "List": {
       "New": "To'lov qo'shish",
-      "Amount": "Miqdori"
+      "Amount": "Miqdori",
+      "NoPayments": {
+        "Title": "To'lovlar topilmadi",
+        "Description": "Hali to'lovlar yo'q. Yangi yaratish uchun 'To'lov qo'shish' tugmasini bosing."
+      }
     },
     "Single": {
       "Account": "Hisob",
@@ -84,7 +92,11 @@
     "List": {
       "New": "Xarajat qo'shish",
       "Category": "Kategoriya",
-      "Amount": "Miqdori"
+      "Amount": "Miqdori",
+      "NoExpenses": {
+        "Title": "Xarajatlar topilmadi",
+        "Description": "Hali xarajatlar yo'q. Yangi yaratish uchun 'Xarajat qo'shish' tugmasini bosing."
+      }
     },
     "Single": {
       "Account": "Hisob",
@@ -115,7 +127,11 @@
     "List": {
       "New": "Hisob qo'shish",
       "Name": "Nomi",
-      "Balance": "Balans"
+      "Balance": "Balans",
+      "NoAccounts": {
+        "Title": "Hisoblar topilmadi",
+        "Description": "Hali hisoblar yo'q. Yangi yaratish uchun 'Hisob qo'shish' tugmasini bosing."
+      }
     },
     "Single": {
       "Edit": "Hisobni tahrirlash",

@@ -11,19 +11,32 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"net/url"
+	"strconv"
 )
 
 type IndexPageProps struct {
-	Users   []*viewmodels.User
-	Page    int
-	PerPage int
-	Search  string
-	HasMore bool
+	Users         []*viewmodels.User
+	Groups        []*viewmodels.Group
+	SelectedGroup string
+	Page          int
+	PerPage       int
+	Search        string
+	HasMore       bool
 }
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(props.Page+1))
+	params.Set("name", props.Search)
+	params.Set("limit", strconv.Itoa(props.PerPage))
+
+	if props.SelectedGroup != "" {
+		params.Set("groupID", props.SelectedGroup)
+	}
+
 	return templ.Attributes{
-		"hx-get":     fmt.Sprintf("/users?page=%d&name=%s&limit=%d", props.Page+1, props.Search, props.PerPage),
+		"hx-get":     "/users?" + params.Encode(),
 		"hx-trigger": "intersect once",
 		"hx-swap":    "afterend",
 		"hx-target":  "this",
@@ -31,7 +44,7 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 }
 
 templ UserCreatedEvent(user *viewmodels.User, rowProps *base.TableRowProps) {
-	<tbody hx-swap-oob="afterbegin:tbody">
+	<tbody hx-swap-oob="afterbegin:#users-table-body">
 		@UserRow(user, rowProps)
 	</tbody>
 }
@@ -46,7 +59,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			<div class="flex items-center gap-3">
 				@avatar.Avatar(avatar.Props{
 					Initials: user.Initials(),
-					Class:    templ.Classes("w-8 h-8 min-w-8"),
+					Class:    templ.Classes("w-8 h-8 min-w-8 !bg-avatar text-avatar"),
 				})
 				<span>
 					{ user.FullName() }
@@ -111,80 +124,94 @@ templ UsersTable(props *IndexPageProps) {
 			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 	}) {
-		@UserRows(props)
+		<tbody id="users-table-body">
+			@UserRows(props)
+		</tbody>
 	}
+}
+
+templ GroupFilter(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+		<h2 class="text-lg font-medium mb-3">{ pageCtx.T("Users.List.Groups") }</h2>
+		<div class="space-y-1">
+			<a
+				href={ templ.SafeURL("/users") }
+				class={ templ.KV("font-medium text-primary", props.SelectedGroup == "") }
+				hx-get="/users"
+				hx-target="#users-table-wrapper"
+				hx-swap="innerHTML"
+			>
+				{ pageCtx.T("Users.List.AllUsers") }
+			</a>
+			for _, group := range props.Groups {
+				<a
+					href={ templ.SafeURL(fmt.Sprintf("/users?groupID=%s", group.ID)) }
+					class={ templ.KV("font-medium text-primary", props.SelectedGroup == group.ID) }
+					hx-get={ fmt.Sprintf("/users?groupID=%s", group.ID) }
+					hx-target="#users-table-wrapper"
+					hx-swap="innerHTML"
+				>
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							@avatar.Avatar(avatar.Props{
+								Initials: group.GetInitials(),
+								Variant:  avatar.Round,
+								Class:    templ.Classes("w-8 h-8 min-w-8"),
+							})
+							<span>{ group.Name }</span>
+						</div>
+						<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full">
+							{ fmt.Sprintf("%d", group.UsersCount()) }
+						</span>
+					</div>
+				</a>
+			}
+		</div>
+	</div>
 }
 
 templ UsersContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@filters.Drawer(filters.DrawerProps{
-		Heading: "Filters",
-		Action:  "open-user-filters",
-	}) {
-		@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-			<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
-			<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
-		}
-	}
-	<div class="m-6">
-		<div class="flex justify-between md:justify-start">
-			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("NavigationLinks.Users") }
-			</h1>
-			<div class="flex md:hidden gap-2">
-				@button.Secondary(button.Props{
-					Size:  button.SizeNormal,
-					Class: "bg-transparent",
-					Icon:  icons.List(icons.Props{Size: "18"}),
+	<div class="bg-surface-600 border border-primary rounded-lg">
+		<form
+			class="p-4 flex items-center gap-3"
+			hx-get="/users"
+			hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+			hx-target="#users-table-wrapper"
+			hx-swap="innerHTML"
+		>
+			<input type="hidden" name="page" value="1"/>
+			if props.SelectedGroup != "" {
+				<input type="hidden" name="groupID" value={ props.SelectedGroup }/>
+			}
+			<div class="flex-1">
+				@input.Text(&input.Props{
+					AddonLeft: &input.Addon{
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: pageCtx.T("Search"),
 					Attrs: templ.Attributes{
-						"x-data": "",
-						"@click": "$dispatch('open-user-filters')",
+						"name":  "name",
+						"value": props.Search,
 					},
 				})
+			</div>
+			<div class="hidden md:flex gap-3">
+				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
+					<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
+					<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
+				}
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
 					Href: "/users/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-				})
+				}) {
+					{ pageCtx.T("Users.List.New") }
+				}
 			</div>
-		</div>
-		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
-			<form
-				class="p-4 flex items-center gap-3"
-				hx-get="/users"
-				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target="table"
-				hx-swap="outerHTML"
-			>
-				<input type="hidden" name="page" value="1"/>
-				<div class="flex-1">
-					@input.Text(&input.Props{
-						AddonLeft: &input.Addon{
-							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-						},
-						Placeholder: pageCtx.T("Search"),
-						Attrs: templ.Attributes{
-							"name":  "name",
-							"value": props.Search,
-						},
-					})
-				</div>
-				<div class="hidden md:flex gap-3">
-					@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-						<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
-						<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
-					}
-					@button.Primary(button.Props{
-						Size: button.SizeNormal,
-						Href: "/users/new",
-						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					}) {
-						{ pageCtx.T("Users.List.New") }
-					}
-				</div>
-			</form>
-			@UsersTable(props)
-		</div>
+		</form>
+		@UsersTable(props)
 	</div>
 }
 
@@ -193,6 +220,47 @@ templ Index(props *IndexPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.List.Title")},
 	}) {
-		@UsersContent(props)
+		@filters.Drawer(filters.DrawerProps{
+			Heading: "Filters",
+			Action:  "open-user-filters",
+		}) {
+			@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
+				<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
+				<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
+			}
+		}
+		<div class="m-6">
+			<div class="flex justify-between md:justify-start">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.Users") }
+				</h1>
+				<div class="flex md:hidden gap-2">
+					@button.Secondary(button.Props{
+						Size:  button.SizeNormal,
+						Class: "bg-transparent",
+						Icon:  icons.List(icons.Props{Size: "18"}),
+						Attrs: templ.Attributes{
+							"x-data": "",
+							"@click": "$dispatch('open-user-filters')",
+						},
+					})
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Href: "/users/new",
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					})
+				</div>
+			</div>
+			<div class="mt-5 flex space-x-5">
+				<!-- Left sidebar with group filters -->
+				<div class="hidden md:block w-64 flex-shrink-0">
+					@GroupFilter(props)
+				</div>
+				<!-- Main content area with user list -->
+				<div class="flex-1" id="users-table-wrapper">
+					@UsersContent(props)
+				</div>
+			</div>
+		</div>
 	}
 }

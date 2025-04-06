@@ -8,17 +8,20 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/utils/random"
 )
 
 type EditFormProps struct {
-	User        *viewmodels.User
-	Roles       []*viewmodels.Role
-	Permissions []*viewmodels.Permission
-	Errors      map[string]string
+	User             *viewmodels.User
+	Roles            []*viewmodels.Role
+	Groups           []*viewmodels.Group
+	PermissionGroups []*viewmodels.PermissionGroup
+	Errors           map[string]string
 }
 
 func useUploads(u *viewmodels.User) []*viewmodels.Upload {
@@ -31,107 +34,153 @@ func useUploads(u *viewmodels.User) []*viewmodels.Upload {
 templ EditForm(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ uploads := useUploads(props.User) }}
-	<div class="flex flex-col justify-between h-full" id="edit-content">
-		<div class="flex gap-5 p-6">
-			<div class="flex-1 space-y-5">
-				@card.Card(card.Props{
-					Header: card.DefaultHeader(pageCtx.T("Users.Cards.PersonalInfo")),
-					Class:  "grid grid-cols-2 gap-4",
-				}) {
-					@input.Text(&input.Props{
-						Label: pageCtx.T("Users.Single.FirstName"),
-						Attrs: templ.Attributes{
-							"value": props.User.FirstName,
-							"name":  "FirstName",
-							"form":  "save-form",
-						},
-						Error: props.Errors["FirstName"],
-					})
-					@input.Text(&input.Props{
-						Label: pageCtx.T("Users.Single.LastName"),
-						Attrs: templ.Attributes{
-							"value": props.User.LastName,
-							"name":  "LastName",
-							"form":  "save-form",
-						},
-						Error: props.Errors["LastName"],
-					})
-					@input.Text(&input.Props{
-						Label: pageCtx.T("Users.Single.MiddleName"),
-						Attrs: templ.Attributes{
-							"value": props.User.MiddleName,
-							"name":  "MiddleName",
-							"form":  "save-form",
-						},
-						Error: props.Errors["MiddleName"],
-					})
-					@EmailInput(SharedProps{
-						Value: props.User.Email,
-						Error: props.Errors["Email"],
-						Form:  "save-form",
-					})
-					@input.Text(&input.Props{
-						Label: pageCtx.T("Users.Single.Phone"),
-						Attrs: templ.Attributes{
-							"value": props.User.Phone,
-							"name":  "Phone",
-							"form":  "save-form",
-						},
-						Error: props.Errors["Phone"],
-					})
+	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
+		<div class="flex-1 overflow-y-auto p-6">
+			@tab.Root(tab.Props{
+				DefaultValue: "userinfo",
+			}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Button("userinfo") {
+						{ pageCtx.T("Users.Tabs.UserInfo") }
+					}
+					@tab.Button("permissions") {
+						{ pageCtx.T("Users.Tabs.Permissions") }
+					}
 				}
-				@card.Card(card.Props{
-					Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
-					Class:  "grid grid-cols-3 gap-4",
-				}) {
-					@RoleSelect(&RoleSelectProps{
-						Roles:    props.Roles,
-						Selected: props.User.Roles,
-						Error:    props.Errors["RoleIDs"],
-						Form:     "save-form",
-						Name:     "RoleIDs",
-					})
-					@input.Password(&input.Props{
-						Label:       pageCtx.T("Users.Single.Password"),
-						Placeholder: pageCtx.T("Users.Single.EnterPassword"),
-						Attrs: templ.Attributes{
-							"autocomplete": "new-password",
-							"name":         "Password",
-							"form":         "save-form",
-						},
-					})
-					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-						Label:       pageCtx.T("Users.Single.Language"),
-						Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-						Value:       string(props.User.UILanguage),
-						Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
-					})
-				}
-			</div>
-			@card.Card(card.Props{}) {
-				@components.UploadInput(&components.UploadInputProps{
-					Label:       pageCtx.T("Users.Single.ChooseAvatar"),
-					Placeholder: "PNG, JPG",
-					Name:        "AvatarID",
-					Class:       "col-span-2",
-					Accept:      "image/*",
-					Error:       props.Errors["AvatarID"],
-					Uploads:     uploads,
-					Form:        "save-form",
-				})
+				<div x-show="selectedTab === 'userinfo'" class="flex gap-5 mt-5">
+					<div class="flex-1 space-y-5">
+						@card.Card(card.Props{
+							Header: card.DefaultHeader(pageCtx.T("Users.Cards.PersonalInfo")),
+							Class:  "grid grid-cols-2 gap-4",
+						}) {
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Users.Single.FirstName"),
+								Attrs: templ.Attributes{
+									"value": props.User.FirstName,
+									"name":  "FirstName",
+									"form":  "save-form",
+								},
+								Error: props.Errors["FirstName"],
+							})
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Users.Single.LastName"),
+								Attrs: templ.Attributes{
+									"value": props.User.LastName,
+									"name":  "LastName",
+									"form":  "save-form",
+								},
+								Error: props.Errors["LastName"],
+							})
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Users.Single.MiddleName"),
+								Attrs: templ.Attributes{
+									"value": props.User.MiddleName,
+									"name":  "MiddleName",
+									"form":  "save-form",
+								},
+								Error: props.Errors["MiddleName"],
+							})
+							@EmailInput(SharedProps{
+								Value: props.User.Email,
+								Error: props.Errors["Email"],
+								Form:  "save-form",
+							})
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Users.Single.Phone"),
+								Attrs: templ.Attributes{
+									"value": props.User.Phone,
+									"name":  "Phone",
+									"form":  "save-form",
+								},
+								Error: props.Errors["Phone"],
+							})
+						}
+						@card.Card(card.Props{
+							Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
+							Class:  "grid grid-cols-3 gap-4",
+						}) {
+							@RoleSelect(&RoleSelectProps{
+								Roles:    props.Roles,
+								Selected: props.User.Roles,
+								Error:    props.Errors["RoleIDs"],
+								Form:     "save-form",
+								Name:     "RoleIDs",
+							})
+							@GroupSelect(&GroupSelectProps{
+								Groups:   props.Groups,
+								Selected: props.User.Groups,
+								Error:    props.Errors["GroupIDs"],
+								Form:     "save-form",
+								Name:     "GroupIDs",
+							})
+							@input.Password(&input.Props{
+								Label:       pageCtx.T("Users.Single.Password"),
+								Placeholder: pageCtx.T("Users.Single.EnterPassword"),
+								Attrs: templ.Attributes{
+									"autocomplete": "new-password",
+									"name":         "Password",
+									"form":         "save-form",
+								},
+							})
+							@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+								Label:       pageCtx.T("Users.Single.Language"),
+								Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
+								Value:       string(props.User.UILanguage),
+								Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
+							})
+						}
+					</div>
+					@card.Card(card.Props{}) {
+						@components.UploadInput(&components.UploadInputProps{
+							Label:       pageCtx.T("Users.Single.ChooseAvatar"),
+							Placeholder: "PNG, JPG",
+							Name:        "AvatarID",
+							Class:       "col-span-2",
+							Accept:      "image/*",
+							Error:       props.Errors["AvatarID"],
+							Uploads:     uploads,
+							Form:        "save-form",
+						})
+					}
+				</div>
+				<div x-show="selectedTab === 'permissions'" class="mt-5 flex flex-col gap-5">
+					{{ pageCtx := composables.UsePageCtx(ctx) }}
+					for _, group := range props.PermissionGroups {
+						@card.Card(card.Props{
+							Class:  "space-y-3",
+							Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Resource))),
+						}) {
+							<div class="space-y-3">
+								for _, permission := range group.Permissions {
+									{{ id := random.String(12, random.LowerCharSet) }}
+									<div class="flex justify-between items-center border border-gray-400 bg-gray-200 rounded-md py-2 px-3">
+										<label
+											class="form-control-label"
+											for={ id }
+										>
+											{ pageCtx.T(fmt.Sprintf("Permissions.%s", permission.Name)) }
+										</label>
+										@input.Switch(&input.SwitchProps{
+											ID:      id,
+											Checked: permission.Checked,
+											Attrs: templ.Attributes{
+												"name":  "PermissionIDs",
+												"value": permission.ID,
+												"form":  "save-form",
+											},
+										})
+									</div>
+								}
+							</div>
+						}
+					}
+				</div>
 			}
 		</div>
 		<div
 			x-data
 			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
-			<a href={ templ.SafeURL(fmt.Sprintf("/users/%s/permissions", props.User.ID)) }>
-				@button.Secondary(button.Props{
-					Size: button.SizeMD,
-				}) {
-					{ pageCtx.T("Users.Single.Permissions") }
-				}
-			</a>
 			<form
 				id="delete-form"
 				hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }

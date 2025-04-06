@@ -5,7 +5,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -215,7 +214,7 @@ templ Configure(props Props) {
 					Label:       pageCtx.T("AIChatBot.Title.Label"),
 					Placeholder: pageCtx.T("AIChatBot.Title.Placeholder"),
 				})
-				@textarea.Basic(&textarea.Props{
+				@input.TextArea(&input.TextAreaProps{
 					Label:       pageCtx.T("AIChatBot.Description.Label"),
 					Placeholder: pageCtx.T("AIChatBot.Description.Placeholder"),
 				})

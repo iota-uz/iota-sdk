@@ -160,11 +160,11 @@ func Insert(tableName string, fields []string, returning ...string) string {
 		"INSERT INTO %s (%s) VALUES (%s)",
 		tableName,
 		strings.Join(fields, ", "), strings.Join(args, ", "))
-		
+
 	if len(returning) > 0 {
 		query += " RETURNING " + strings.Join(returning, ", ")
 	}
-	
+
 	return query
 }
 

@@ -1,0 +1,35 @@
+package base
+
+import (
+	twmerge "github.com/Oudwins/tailwind-merge-go"
+	"github.com/iota-uz/iota-sdk/components/illustrations"
+)
+
+type TableEmptyStateProps struct {
+	Title       string
+	Description string
+	Class       string
+	Attrs       templ.Attributes
+}
+
+templ TableEmptyState(props TableEmptyStateProps) {
+	<div
+		class={
+			twmerge.Merge(
+				"flex flex-col items-center justify-center py-36 px-4",
+				props.Class,
+			),
+		}
+		{ props.Attrs... }
+	>
+		<div class="flex flex-col items-center max-w-md text-center">
+			@illustrations.EmptyTable(illustrations.EmptyTableProps{
+				Width:  100,
+				Height: 114,
+			})
+			<!-- Text content -->
+			<h2 class="text-foreground-900 font-medium my-2">{ props.Title }</h2>
+			<p class="text-foreground-700">{ props.Description }</p>
+		</div>
+	</div>
+}

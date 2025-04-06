@@ -472,7 +472,7 @@ func (p *CheckboxProps) render() templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 101, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 103, Col: 12}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -512,7 +512,7 @@ func (p *CheckboxProps) render() templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 102, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 109, Col: 13}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -522,11 +522,17 @@ func (p *CheckboxProps) render() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = icons.Check(icons.Props{Size: "16", Class: "scale-0 peer-indeterminate:group-[]:hidden peer-checked:group-[]:scale-100"}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = icons.Check(icons.Props{
+			Size:  "16",
+			Class: "scale-0 peer-indeterminate:group-[]:hidden peer-checked:group-[]:scale-100",
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = icons.Minus(icons.Props{Size: "16", Class: "scale-0 hidden peer-indeterminate:group-[]:inline peer-indeterminate:group-[]:scale-100"}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = icons.Minus(icons.Props{
+			Size:  "16",
+			Class: "scale-0 hidden peer-indeterminate:group-[]:inline peer-indeterminate:group-[]:scale-100",
+		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -542,7 +548,7 @@ func (p *CheckboxProps) render() templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(p.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 107, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 122, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -555,7 +561,7 @@ func (p *CheckboxProps) render() templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(p.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 108, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 123, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -653,7 +659,7 @@ func passwordLock(p *Props) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(p.id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 123, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 138, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {

@@ -1,98 +1,95 @@
-// Package radio provides radio button components for forms.
+// Package radio implements customizable radio button components.
 //
 // Example usage:
 //
 //	@radio.RadioGroup(&radio.RadioGroupProps{
 //		Name: "fruit",
 //		Label: "Select a fruit",
-//		Orientation: "horizontal",
+//		Orientation: radio.OrientationHorizontal,
 //	}) {
-//		@radio.RadioItem(&radio.RadioItemProps{
+//		@radio.CardItem(&radio.CardItemProps{
 //			Value: "apple",
-//			Label: "Apple",
-//			GroupName: "fruit",
+//			Name: "fruit",
 //			Checked: true,
 //		})
-//		@radio.RadioItem(&radio.RadioItemProps{
+//		@radio.CardItem(&radio.CardItemProps{
 //			Value: "orange",
-//			Label: "Orange",
-//			GroupName: "fruit",
+//			Name: "fruit",
 //		})
-//		@radio.RadioItem(&radio.RadioItemProps{
+//		@radio.CardItem(&radio.CardItemProps{
 //			Value: "banana",
-//			Label: "Banana",
-//			GroupName: "fruit",
+//			Name: "fruit",
 //			Disabled: true,
 //		})
 //	}
 package radio
 
-import "github.com/iota-uz/utils/random"
+import twmerge "github.com/Oudwins/tailwind-merge-go"
 
-// RadioGroupProps defines properties for the RadioGroup component.
+// Orientation defines the layout direction of radio items
+type Orientation string
+
+const (
+	OrientationVertical   Orientation = "vertical"
+	OrientationHorizontal Orientation = "horizontal"
+)
+
+// RadioGroupProps configures the RadioGroup component's behavior and appearance.
 type RadioGroupProps struct {
-	Name         string           // Input name attribute for all radio items in the group
-	Label        string           // Group label text
-	Error        string           // Error message for the group
-	Class        string           // Additional CSS classes for the group container
-	Attrs        templ.Attributes // Additional HTML attributes for the group
-	WrapperProps templ.Attributes // Additional HTML attributes for the outer wrapper
-	Orientation  string           // Layout orientation: "vertical" (default) or "horizontal"
+	Label        string
+	Error        string
+	Class        string
+	Attrs        templ.Attributes
+	WrapperProps templ.Attributes
+	Orientation  Orientation // Layout direction: vertical (default) or horizontal
 }
 
-// RadioItemProps defines properties for individual RadioItem components.
-type RadioItemProps struct {
-	Value     string           // Value attribute for the radio input
-	Label     string           // Text label for the radio item
-	LabelComp templ.Component  // Component to use as label instead of text
-	Checked   bool             // Whether the radio is selected
-	Disabled  bool             // Whether the radio is disabled
-	Class     string           // Additional CSS classes for the radio element
-	Attrs     templ.Attributes // Additional HTML attributes for the input
-	GroupName string           // Name attribute linking this item to its group
-	ID        string           // HTML ID for the input (auto-generated if empty)
+// CardItemProps configures an individual radio input styled as a card.
+type CardItemProps struct {
+	WrapperClass templ.CSSClasses
+	Class        templ.CSSClasses
+	Name         string
+	Checked      bool
+	Disabled     bool
+	Attrs        templ.Attributes
+	Value        string
+	Form         string
 }
 
-type CardProps struct {
-	Class    string
-	Name     string
-	Checked  bool
-	Disabled bool
-	Attrs    templ.Attributes
-	Value    string
-	Form     string
-}
-
-func newRadioItem(props RadioItemProps) RadioItemProps {
-	if props.ID == "" {
-		props.ID = random.String(12, random.LowerCharSet)
-	}
-	return props
-}
-
-templ (p RadioGroupProps) render() {
-	<div class="w-full" { p.WrapperProps... }>
-		if len(p.Label) > 0 {
-			<h2 class="form-control-label mb-2">{ p.Label }</h2>
+// RadioGroup creates a container for radio inputs with optional label and error message.
+// Child components (typically CardItem elements) are rendered within the group.
+templ RadioGroup(props RadioGroupProps) {
+	<div class="w-full" { props.WrapperProps... }>
+		if len(props.Label) > 0 {
+			<h2 class="form-control-label mb-2">{ props.Label }</h2>
 		}
-		<div class={ "flex w-full gap-2", getOrientationClass(p.Orientation), p.Class } { p.Attrs... }>
+		<div
+			class={ twmerge.Merge(
+					"flex w-full gap-2 " + getOrientationClass(props.Orientation),
+					props.Class,
+				) }
+			{ props.Attrs... }
+		>
 			{ children... }
 		</div>
-		if p.Error != "" {
-			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+		if props.Error != "" {
+			<small class="text-xs text-red-500 mt-1">{ props.Error }</small>
 		}
 	</div>
 }
 
-// RadioGroup wraps multiple RadioItem components as a form control.
-templ RadioGroup(props RadioGroupProps) {
-	@props.render() {
-		{ children... }
-	}
-}
-
-templ Card(props CardProps) {
-	<label class="flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg border border-primary duration-300 has-[input:checked]:border-brand-500">
+// CardItem renders a styled radio input as a card-like UI element.
+// Children are rendered as the label content next to the radio indicator.
+templ CardItem(props CardItemProps) {
+	<label
+		class={
+			twmerge.Merge(
+				"flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg",
+				"border border-primary duration-300 has-[input:checked]:border-brand-500 cursor-pointer",
+				props.WrapperClass.String(),
+			),
+		}
+	>
 		<input
 			type="radio"
 			name={ props.Name }
@@ -102,67 +99,23 @@ templ Card(props CardProps) {
 			checked?={ props.Checked }
 			{ props.Attrs... }
 		/>
-		<div class="w-5 h-5 border border-primary rounded-full druation-300 peer-checked:border-brand-500 relative after:absolute after:duration-300 after:w-3 after:h-3 after:rounded-full after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 peer-checked:after:bg-brand-500"></div>
+		<div
+			class={
+				twmerge.Merge(
+					"w-5 h-5 border border-primary rounded-full druation-300 peer-checked:border-brand-500 relative after:absolute after:duration-300 after:w-3 after:h-3 after:rounded-full after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 peer-checked:after:bg-brand-500",
+					props.Class.String(),
+				),
+			}
+		></div>
 		<span class="text-300 peer-checked:text-100 font-medium text-sm">
 			{ children... }
 		</span>
 	</label>
 }
 
-templ (p RadioItemProps) render() {
-	{{
-		dataState := ""
-		if p.Checked {
-			dataState = "checked"
-		}
-	}}
-	<label
-		for={ p.ID }
-		class={ "flex items-center space-x-2 rounded-lg border border-gray-100 p-3 cursor-pointer transition-colors flex-1 hover:bg-gray-50", 
-		"data-[state=checked]:bg-violet-50 data-[state=checked]:border-violet-100",
-		getDisabledClass(p.Disabled), p.Class }
-		data-state={ dataState }
-	>
-		<div class="flex items-center justify-center w-5 h-5">
-			<input
-				type="radio"
-				id={ p.ID }
-				name={ p.GroupName }
-				value={ p.Value }
-				class="sr-only peer"
-				checked?={ p.Checked }
-				disabled?={ p.Disabled }
-				{ p.Attrs... }
-			/>
-			<div class="h-5 w-5 rounded-full border border-gray-300 flex items-center justify-center peer-checked:border-violet-600">
-				<div class="h-2.5 w-2.5 rounded-full bg-violet-600 scale-0 peer-checked:scale-100"></div>
-			</div>
-		</div>
-		if len(p.Label) > 0 {
-			<span class="text-base font-normal">{ p.Label }</span>
-		} else if p.LabelComp != nil {
-			<span class="text-base font-normal">
-				@p.LabelComp
-			</span>
-		}
-	</label>
-}
-
-// RadioItem renders a single radio button with its label.
-templ RadioItem(props RadioItemProps) {
-	@newRadioItem(props).render()
-}
-
-func getOrientationClass(orientation string) string {
-	if orientation == "horizontal" {
+func getOrientationClass(orientation Orientation) string {
+	if orientation == OrientationHorizontal {
 		return "grid-flow-col"
 	}
 	return ""
-}
-
-func getDisabledClass(disabled bool) string {
-	if disabled {
-		return "cursor-not-allowed opacity-50"
-	}
-	return "cursor-pointer"
 }

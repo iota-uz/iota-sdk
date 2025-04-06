@@ -27,34 +27,34 @@ func hasExportedName(names []string) bool {
 
 func getFunctionSignature(fset *token.FileSet, f *doc.Func) string {
 	decl := f.Decl
-	
+
 	return formatFuncSignature(decl, "")
 }
 
 func getMethodSignature(fset *token.FileSet, m *doc.Func, receiverType string) string {
 	decl := m.Decl
-	
+
 	return formatFuncSignature(decl, receiverType)
 }
 
 func formatFuncSignature(decl *ast.FuncDecl, receiverType string) string {
 	name := decl.Name.Name
 	typeSig := parseFuncType(decl.Type)
-	
+
 	signature := name
-	
+
 	if receiverType != "" {
 		signature = fmt.Sprintf("(%s) %s", receiverType, signature)
 	}
-	
+
 	signature += typeSig
-	
+
 	return signature
 }
 
 func parseFuncType(funcType *ast.FuncType) string {
 	var params, results []string
-	
+
 	if funcType.Params != nil {
 		for _, param := range funcType.Params.List {
 			paramType := formatNode(param.Type)
@@ -62,7 +62,7 @@ func parseFuncType(funcType *ast.FuncType) string {
 			for _, name := range param.Names {
 				names = append(names, name.Name)
 			}
-			
+
 			if len(names) > 0 {
 				params = append(params, fmt.Sprintf("%s %s", strings.Join(names, ", "), paramType))
 			} else {
@@ -70,7 +70,7 @@ func parseFuncType(funcType *ast.FuncType) string {
 			}
 		}
 	}
-	
+
 	if funcType.Results != nil {
 		for _, result := range funcType.Results.List {
 			resultType := formatNode(result.Type)
@@ -78,7 +78,7 @@ func parseFuncType(funcType *ast.FuncType) string {
 			for _, name := range result.Names {
 				names = append(names, name.Name)
 			}
-			
+
 			if len(names) > 0 {
 				results = append(results, fmt.Sprintf("%s %s", strings.Join(names, ", "), resultType))
 			} else {
@@ -86,9 +86,9 @@ func parseFuncType(funcType *ast.FuncType) string {
 			}
 		}
 	}
-	
+
 	typeSig := fmt.Sprintf("(%s)", strings.Join(params, ", "))
-	
+
 	if len(results) > 0 {
 		if len(results) == 1 && !strings.Contains(results[0], " ") {
 			typeSig += " " + results[0]
@@ -96,7 +96,7 @@ func parseFuncType(funcType *ast.FuncType) string {
 			typeSig += fmt.Sprintf(" (%s)", strings.Join(results, ", "))
 		}
 	}
-	
+
 	return typeSig
 }
 
@@ -182,7 +182,7 @@ func extractInterfaceMethods(interfaceType *ast.InterfaceType) []string {
 		}
 
 		methodName := method.Names[0].Name
-		
+
 		switch methodType := method.Type.(type) {
 		case *ast.FuncType:
 			sig := fmt.Sprintf("%s%s", methodName, parseFuncType(methodType))

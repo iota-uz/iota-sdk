@@ -537,7 +537,6 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		"middle_name",
 		"email",
 		"phone",
-		"password",
 		"ui_language",
 		"avatar_id",
 		"updated_at",
@@ -551,10 +550,14 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		dbUser.MiddleName,
 		dbUser.Email,
 		dbUser.Phone,
-		dbUser.Password,
 		dbUser.UILanguage,
 		dbUser.AvatarID,
 		dbUser.UpdatedAt,
+	}
+
+	if dbUser.Password.Valid && dbUser.Password.String != "" {
+		fields = append(fields, "password")
+		values = append(values, dbUser.Password)
 	}
 
 	if efs, ok := data.(repo.ExtendedFieldSet); ok {

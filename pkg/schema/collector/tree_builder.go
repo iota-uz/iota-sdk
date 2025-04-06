@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
+	"github.com/iota-uz/psql-parser/sql/lex"
 	"github.com/iota-uz/psql-parser/sql/parser"
 	"github.com/iota-uz/psql-parser/sql/sem/tree"
 	"github.com/iota-uz/psql-parser/walk"
@@ -184,7 +185,7 @@ func (s *schemaState) buildSchema() *common.Schema {
 func findColumnIndex(defs tree.TableDefs, colName string) int {
 	for i, def := range defs {
 		if col, ok := def.(*tree.ColumnTableDef); ok {
-			if strings.ToLower(col.String()) == colName {
+			if col.Name.Normalize() == lex.NormalizeName(colName) {
 				return i
 			}
 		}
@@ -196,7 +197,7 @@ func dropColumn(node *tree.CreateTable, colName string) {
 	var filteredDefs tree.TableDefs
 	for _, def := range node.Defs {
 		if col, ok := def.(*tree.ColumnTableDef); ok {
-			if strings.ToLower(col.Name.String()) == colName {
+			if col.Name.Normalize() == lex.NormalizeName(colName) {
 				continue
 			}
 		}

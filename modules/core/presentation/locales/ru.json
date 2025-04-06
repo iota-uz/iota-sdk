@@ -39,6 +39,7 @@
   "Resources": {
     "user": "Пользователь",
     "role": "Роль",
+    "group": "Группы",
     "payment": "Платеж",
     "expense": "Расход",
     "expense_category": "Категория расходов",
@@ -60,6 +61,12 @@
       "Read": "Просмотр ролей",
       "Update": "Изменение ролей",
       "Delete": "Удаление ролей"
+    },
+    "Group": {
+      "Create": "Создание групп",
+      "Read": "Просмотр групп",
+      "Update": "Изменение групп",
+      "Delete": "Удаление групп"
     },
     "Account": {
       "Create": "Создание счетов",
@@ -137,6 +144,7 @@
     "Administration": "Администрирование",
     "Users": "Пользователи",
     "Roles": "Роли",
+    "Groups": "Группы",
     "KnowledgeBase": "База знаний",
     "Operations": "Операции",
     "Settings": "Настройки",
@@ -149,7 +157,6 @@
     "Reports": "Отчеты",
     "Navbar": {
       "Profile": "Профиль",
-      "Settings": "Настройки",
       "Logout": "Выйти"
     }
   },
@@ -175,8 +182,54 @@
         "Label": "Название роли",
         "Placeholder": "Введите название роли"
       },
+      "Description": {
+        "Label": "Описание",
+        "Placeholder": "Введите описание роли"
+      },
       "Delete": "Удалить роль",
       "DeleteConfirmation": "Вы уверены что хотите удалить эту роль?"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Группы"
+      },
+      "Edit": {
+        "Title": "Редактировать группу"
+      },
+      "New": {
+        "Title": "Новая группа"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Информация о группе",
+      "MembershipInfo": "Информация о членстве" 
+    },
+    "List": {
+      "New": "Новая группа",
+      "Name": "Название",
+      "Description": "Описание",
+      "Roles": "Роли",
+      "Users": "Пользователи",
+      "NoGroups": {
+        "Title": "Группы не найдены",
+        "Description": "Создайте свою первую группу, нажав кнопку 'Новая группа'"
+      }
+    },
+    "Single": {
+      "Name": "Название",
+      "Description": "Описание",
+      "RoleIDs": "Роли",
+      "UserIDs": "Пользователи",
+      "SelectRole": "Выбрать роли",
+      "SelectUser": "Выбрать пользователей",
+      "SearchRoles": "Искать роли",
+      "EnterGroupName": "Введите название группы",
+      "EnterDescription": "Введите описание",
+      "NoRoleDescription": "Нет доступного описания",
+      "Delete": "Удалить группу",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить эту группу?"
     }
   },
   "Dashboard": {
@@ -204,11 +257,17 @@
       "New": "Новый пользователь",
       "FullName": "Полное имя",
       "Roles": "Роли",
-      "Email": "Эл. почта"
+      "Email": "Эл. почта",
+      "Groups": "Группы",
+      "AllUsers": "Все пользователи"
     },
     "Cards": {
       "PersonalInfo": "Персональные данные",
       "UserInfo": "Данные аккаунта"
+    },
+    "Tabs": {
+      "UserInfo": "Информация",
+      "Permissions": "Разрешения"
     },
     "Single": {
       "EditUser": "Редактировать пользователя",
@@ -223,7 +282,9 @@
       "SelectLanguage": "Выбрать язык",
       "ChooseAvatar": "Выберите аватар",
       "RoleIDs": "Роль",
+      "GroupIDs": "Группа",
       "SelectRole": "Выбрать роль",
+      "SelectGroup": "Выбрать группу",
       "EnterPassword": "Введите пароль",
       "Delete": "Удалить пользователя",
       "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?",
@@ -265,13 +326,32 @@
       }
     },
     "BrowseFilesystem": "Выбрать изображение",
-    "FirstName": "Имя",
-    "LastName": "Фамилия",
-    "MiddleName": "Отчество",
-    "Email": "Электронная почта",
-    "Phone": "Телефон",
+    "FirstName": {
+      "Label": "Имя",
+      "Placeholder": "Введите имя"
+    },
+    "LastName": {
+      "Label": "Фамилия",
+      "Placeholder": "Введите фамилию"
+    },
+    "MiddleName": {
+      "Label": "Отчество",
+      "Placeholder": "Введите отчество"
+    },
+    "Email": {
+      "Label": "Электронная почта",
+      "Placeholder": "Введите электронную почту"
+    },
+    "Phone": {
+      "Label": "Телефон",
+      "Placeholder": "Введите номер телефона"
+    },
     "Password": "Пароль",
-    "Save": "Сохранить"
+    "Save": "Сохранить",
+    "Tabs": {
+      "Profile": "Настройки профиля",
+      "Sidebar": "Настройки боковой панели"
+    }
   },
   "Login": {
     "Meta": {

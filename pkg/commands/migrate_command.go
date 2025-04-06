@@ -43,7 +43,7 @@ func Migrate(mods ...application.Module) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel())
+	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel(), conf.Loki.LogPath)
 	if err != nil {
 		log.Fatalf("failed to create logger: %v", err)
 	}

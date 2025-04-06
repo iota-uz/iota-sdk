@@ -142,6 +142,7 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
 	dto, err := composables.UseForm(&LoginDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -149,6 +150,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
 	if err != nil {
+		logger.Error("Failed to get localizer", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -160,6 +162,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
 	if err != nil {
+		logger.Error("Failed to authenticate user", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
 			shared.SetFlash(w, "error", []byte(composables.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else {

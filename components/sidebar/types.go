@@ -162,4 +162,3 @@ func (l *link) Text() string {
 func (l *link) Href() string {
 	return l.href
 }
-

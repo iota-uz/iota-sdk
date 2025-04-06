@@ -1,45 +1,84 @@
 package input
 
-import "github.com/iota-uz/utils/random"
+import (
+	twmerge "github.com/Oudwins/tailwind-merge-go"
+	"github.com/iota-uz/utils/random"
+)
+
+type SwitchSize string
+
+const (
+	SwitchSizeSM SwitchSize = "sm"
+	SwitchSizeMD SwitchSize = "md"
+	SwitchSizeLG SwitchSize = "lg"
+)
 
 type SwitchProps struct {
-	Label     string
-	LabelComp templ.Component
-	Error     string
-	Checked   bool
-	Attrs     templ.Attributes
-	Class     string
-	ID        string
+	ID           string
+	Label        string
+	LabelComp    templ.Component
+	LabelClasses templ.CSSClasses
+	Error        string
+	Checked      bool
+	Attrs        templ.Attributes
+	Size         SwitchSize
 }
 
 func newSwitch(p *SwitchProps) *SwitchProps {
 	if p.ID == "" {
 		p.ID = random.String(12, random.LowerCharSet)
 	}
+	if p.Size == "" {
+		p.Size = SwitchSizeMD
+	}
 	return p
 }
 
 templ (p *SwitchProps) render() {
-	<div class="inline-flex items-center cursor-pointer">
+	<label
+		for={ p.ID }
+		class={
+			twmerge.Merge(
+				"form-control-label inline-flex items-center cursor-pointer gap-3",
+				p.LabelClasses.String(),
+			),
+		}
+	>
 		<input
-			type="checkbox"
 			id={ p.ID }
-			class={ p.Class }
+			type="checkbox"
+			class="sr-only peer"
 			checked?={ p.Checked }
 			{ p.Attrs... }
 		/>
+		<div
+			class={
+				"relative bg-gray-200 rounded-full",
+				"peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white peer-checked:bg-brand-600",
+				"peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300",
+				"after:content-[''] after:absolute after:bg-white after:border-gray-300 after:border after:rounded-full after:transition-all",
+				templ.KV("w-9 h-5", p.Size == SwitchSizeSM),
+				templ.KV("w-11 h-6", p.Size == SwitchSizeMD),
+				templ.KV("w-14 h-7", p.Size == SwitchSizeLG),
+			
+				templ.KV("after:top-[2px] after:start-[2px]", p.Size == SwitchSizeSM || p.Size == SwitchSizeMD),
+				templ.KV("after:top-0.5 after:start-[4px]", p.Size == SwitchSizeLG),
+			
+				templ.KV("after:h-4 after:w-4", p.Size == SwitchSizeSM),
+				templ.KV("after:h-5 after:w-5", p.Size == SwitchSizeMD),
+				templ.KV("after:h-6 after:w-6", p.Size == SwitchSizeLG),
+			}
+		></div>
 		if len(p.Label) > 0 {
-			<label for={ p.ID } class="ml-2 text-sm">
-				{ p.Label }
-			</label>
+			<span class="text-sm">{ p.Label }</span>
 		}
 		if p.LabelComp != nil {
-			<label for={ p.ID } class="ml-2 text-sm">
+			<span class="text-sm">
 				@p.LabelComp
-			</label>
+			</span>
 		}
 		{ children... }
-	</div>
+	</label>
 }
 
 templ Switch(p *SwitchProps) {
