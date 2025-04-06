@@ -1,5 +1,5 @@
 CREATE TABLE tenants (
-    id text PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    id text PRIMARY KEY DEFAULT gen_random_uuid () ::text,
     name varchar(255) NOT NULL UNIQUE,
     domain varchar(255),
     is_active boolean NOT NULL DEFAULT TRUE,
