@@ -11,50 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Expr represents a comparison expression type for filtering queries.
-type Expr int
-
-const (
-	// Eq represents the equals (=) comparison operator.
-	Eq Expr = iota
-	// NotEq represents the not equals (!=) comparison operator.
-	NotEq
-	// Gt represents the greater than (>) comparison operator.
-	Gt
-	// Gte represents the greater than or equal (>=) comparison operator.
-	Gte
-	// Lt represents the less than (<) comparison operator.
-	Lt
-	// Lte represents the less than or equal (<=) comparison operator.
-	Lte
-	// In represents the SQL IN operator.
-	In
-	// NotIn represents the SQL NOT IN operator.
-	NotIn
-	// Like represents the SQL LIKE operator for pattern matching.
-	Like
-	// NotLike represents the SQL NOT LIKE operator for pattern matching.
-	NotLike
-)
-
-// SortBy defines sorting criteria for queries with generic field type support.
-// Use with OrderBy function to generate ORDER BY clauses.
-type SortBy[T any] struct {
-	// Fields represents the list of fields to sort by.
-	Fields []T
-	// Ascending indicates the sort direction (true for ASC, false for DESC).
-	Ascending bool
-}
-
-// Filter defines a filter condition for queries.
-// Combines an expression type with a value to be used in WHERE clauses.
-type Filter struct {
-	// Expr is the comparison expression to use (Eq, NotEq, Gt, etc.).
-	Expr Expr
-	// Value is the value to compare against.
-	Value any
-}
-
 // Tx is an interface that abstracts database transaction operations.
 // It provides a subset of pgx.Tx functionality needed for common database operations.
 type Tx interface {

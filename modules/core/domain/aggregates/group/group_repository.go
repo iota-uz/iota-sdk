@@ -16,13 +16,14 @@ const (
 
 type SortBy repo.SortBy[Field]
 
+type Filter = repo.FieldFilter[Field]
+
 type FindParams struct {
-	Limit     int
-	Offset    int
-	SortBy    SortBy
-	Search    string
-	CreatedAt *repo.Filter
-	UpdateAt  *repo.Filter
+	Limit   int
+	Offset  int
+	SortBy  SortBy
+	Search  string
+	Filters []Filter
 }
 
 type Repository interface {
