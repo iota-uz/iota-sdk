@@ -45,35 +45,83 @@ const (
 	roleDeleteQuery = `DELETE FROM roles WHERE id = $1`
 )
 
-type GormRoleRepository struct{}
+type GormRoleRepository struct{
+	fieldMap map[role.Field]string
+}
 
 func NewRoleRepository() role.Repository {
-	return &GormRoleRepository{}
+	return &GormRoleRepository{
+		fieldMap: map[role.Field]string{
+			role.Name:        "r.name",
+			role.Description: "r.description",
+			role.CreatedAt:   "r.created_at",
+			role.PermissionID: "rp.permission_id",
+		},
+	}
+}
+
+func (g *GormRoleRepository) buildRoleFilters(params *role.FindParams) ([]string, []interface{}, error) {
+	where := []string{"1 = 1"}
+	args := []interface{}{}
+
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
+		}
+		
+		// Special handling for IN filters with arrays
+		if values, ok := filter.Filter.Value().([]interface{}); ok {
+			where = append(where, filter.Filter.String(column, len(args)+1))
+			args = append(args, values...)
+		} else {
+			where = append(where, filter.Filter.String(column, len(args)+1))
+			args = append(args, filter.Filter.Value())
+		}
+	}
+
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(
+			where,
+			fmt.Sprintf(
+				"(r.name ILIKE $%d OR r.description ILIKE $%d)",
+				index,
+				index,
+			),
+		)
+		args = append(args, "%"+params.Search+"%")
+	}
+
+	return where, args, nil
 }
 
 func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.FindParams) ([]role.Role, error) {
 	sortFields := []string{}
 	for _, f := range params.SortBy.Fields {
-		switch f {
-		case role.Name:
-			sortFields = append(sortFields, "r.name")
-		case role.Description:
-			sortFields = append(sortFields, "r.description")
-		case role.CreatedAt:
-			sortFields = append(sortFields, "r.created_at")
-		default:
+		if field, ok := g.fieldMap[f]; ok {
+			sortFields = append(sortFields, field)
+		} else {
 			return nil, fmt.Errorf("unknown sort field: %v", f)
 		}
 	}
 
-	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.Name != "" {
-		where = append(where, fmt.Sprintf("r.name = $%d", len(args)+1))
-		args = append(args, params.Name)
+	where, args, err := g.buildRoleFilters(params)
+	if err != nil {
+		return nil, err
+	}
+
+	baseQuery := roleFindQuery
+	// Add necessary joins based on filters
+	for _, f := range params.Filters {
+		if f.Column == role.PermissionID {
+			baseQuery += " JOIN role_permissions rp ON r.id = rp.role_id"
+			break // Only add the join once
+		}
 	}
 
 	query := repo.Join(
-		roleFindQuery,
+		baseQuery,
 		repo.JoinWhere(where...),
 		repo.OrderBy(sortFields, params.SortBy.Ascending),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
@@ -81,14 +129,44 @@ func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.Find
 	return g.queryRoles(ctx, query, args...)
 }
 
-func (g *GormRoleRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormRoleRepository) Count(ctx context.Context, params *role.FindParams) (int64, error) {
 	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get transaction")
+	}
+	
+	if params == nil {
+		var count int64
+		if err := tx.QueryRow(ctx, roleCountQuery).Scan(&count); err != nil {
+			return 0, errors.Wrap(err, "failed to count roles")
+		}
+		return count, nil
+	}
+
+	where, args, err := g.buildRoleFilters(params)
 	if err != nil {
 		return 0, err
 	}
+
+	baseQuery := roleCountQuery
+	
+	// Add necessary joins based on filters
+	for _, f := range params.Filters {
+		if f.Column == role.PermissionID {
+			baseQuery += " JOIN role_permissions rp ON r.id = rp.role_id"
+			break // Only add the join once
+		}
+	}
+
+	query := repo.Join(
+		baseQuery,
+		repo.JoinWhere(where...),
+	)
+
 	var count int64
-	if err := tx.QueryRow(ctx, roleCountQuery).Scan(&count); err != nil {
-		return 0, err
+	err = tx.QueryRow(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to count roles")
 	}
 	return count, nil
 }

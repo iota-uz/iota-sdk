@@ -19,8 +19,8 @@ func NewRoleService(repo role.Repository, publisher eventbus.EventBus) *RoleServ
 	}
 }
 
-func (s *RoleService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *RoleService) Count(ctx context.Context, params *role.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }
 
 func (s *RoleService) GetAll(ctx context.Context) ([]role.Role, error) {
