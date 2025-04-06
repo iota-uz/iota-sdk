@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/groups"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -23,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -191,12 +193,23 @@ func (c *GroupsController) Groups(
 ) {
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
-	groupEntities, total, err := groupService.GetPaginatedWithTotal(r.Context(), &group.FindParams{
+
+	findParams := &group.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: group.SortBy{Fields: []group.Field{}},
-		Name:   search,
-	})
+		Search: search,
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		findParams.CreatedAt = &repo.Filter{
+			Expr:  repo.Lt,
+			Value: v,
+		}
+	}
+
+	groupEntities, total, err := groupService.GetPaginatedWithTotal(r.Context(), findParams)
+
 	if err != nil {
 		logger.Errorf("Error retrieving groups: %v", err)
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -287,6 +300,7 @@ func (c *GroupsController) GetNew(
 func (c *GroupsController) Create(
 	r *http.Request,
 	w http.ResponseWriter,
+	logger *logrus.Entry,
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
@@ -299,6 +313,7 @@ func (c *GroupsController) Create(
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		roles, err := roleService.GetAll(r.Context())
 		if err != nil {
+			logger.Errorf("Error retrieving roles: %v", err)
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
@@ -354,6 +369,7 @@ func (c *GroupsController) Create(
 func (c *GroupsController) Update(
 	r *http.Request,
 	w http.ResponseWriter,
+	logger *logrus.Entry,
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
@@ -396,53 +412,35 @@ func (c *GroupsController) Update(
 		return
 	}
 
-	groupEntity, err := dto.ToEntity(id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Get current group to preserve existing data
 	existingGroup, err := groupService.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Error retrieving existing group", http.StatusInternalServerError)
-		return
+		logger.Errorf("Error retrieving group: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	// Process role assignments
-	roleMap := make(map[uint]struct{})
-	for _, roleIDStr := range dto.RoleIDs {
-		roleID, err := strconv.ParseUint(roleIDStr, 10, 64)
+	var roles []role.Role
+
+	for _, rID := range dto.RoleIDs {
+		rUintID, err := strconv.ParseUint(rID, 10, 64)
 		if err != nil {
-			continue
+			logger.Errorf("Error parsing role id: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-		roleMap[uint(roleID)] = struct{}{}
-
-		// Check if role already exists in the group
-		roleExists := false
-		for _, r := range existingGroup.Roles() {
-			if r.ID() == uint(roleID) {
-				roleExists = true
-				break
-			}
+		role, err := roleService.GetByID(r.Context(), uint(rUintID))
+		if err != nil {
+			logger.Errorf("Error getting role: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-
-		if !roleExists {
-			role, err := roleService.GetByID(r.Context(), uint(roleID))
-			if err != nil {
-				continue
-			}
-			groupEntity = groupEntity.AssignRole(role)
-		}
+		roles = append(roles, role)
 	}
 
-	// Remove roles that are no longer selected
-	for _, r := range existingGroup.Roles() {
-		if _, exists := roleMap[r.ID()]; !exists {
-			continue
-		}
-		// Keep this role
-		groupEntity = groupEntity.AssignRole(r)
+	groupEntity, err := dto.Apply(existingGroup, roles)
+	if err != nil {
+		logger.Errorf("Error updating group: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	if _, err := groupService.Update(r.Context(), groupEntity); err != nil {

@@ -163,10 +163,7 @@ templ GroupsContent(props *IndexPageProps) {
 					})
 				</div>
 				<div class="hidden md:flex gap-3">
-					@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-						<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
-						<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
-					}
+					@filters.CreatedAt()
 					@button.Primary(button.Props{
 						Size: button.SizeNormal,
 						Icon: icons.PlusCircle(icons.Props{Size: "18"}),

@@ -81,6 +81,11 @@ func BuildGroupFilters(params *group.FindParams) ([]string, []interface{}, error
 	where := []string{"1 = 1"}
 	args := []interface{}{}
 
+	if params.Search != "" {
+		where = append(where, "g.name ILIKE $1 OR g.description ILIKE $1")
+		args = append(args, "%"+params.Search+"%")
+	}
+
 	if params.CreatedAt != nil {
 		switch params.CreatedAt.Expr {
 		case repo.Gt:
