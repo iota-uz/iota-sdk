@@ -119,6 +119,36 @@ Options:
 - `-recursive`: Process subdirectories
 - `-exclude`: Skip specified directories (comma-separated)
 
+## Explicitly Name Database Constraints
+
+When defining or altering table schemas in `.sql` files that are processed by the `schema/collector` (both in `db/migrations/` and embedded module schemas):
+
+## IMPORTANT NOTE:
+Migration tool only supports UNIQUE constraints (other constraints are not yet supported). Keep this in mind when mutating schemas.
+Changes in configuration such as altering varchar(255) to varchar(500) or changing datetime from null to now() are not handled.
+TODO list of limitations.
+
+**```All constraints (PRIMARY KEY, UNIQUE, FOREIGN KEY, CHECK) MUST be explicitly named using the CONSTRAINT <constraint_name> syntax.```**
+
+### Reasoning:
+
+The `schema/collector` tool automatically generates `Up` and `Down` migration scripts by comparing schema states. To create correct `DROP CONSTRAINT` commands (especially critical for `Down` migrations and for modifying existing constraints), the tool relies on predictable constraint names. Database auto-generated names are inconsistent and difficult for the tool to determine reliably, leading to potential migration failures. Explicit naming ensures that schema comparisons and generated migrations are accurate and robust.
+
+### Recommended Naming Convention:
+
+Please use the following convention for consistency:
+
+`<table>_<column(s)>_<type_suffix>`
+
+**Suffixes:**
+
+* `_pkey` for Primary Keys
+* `_key` for Unique Constraints (please be consistent within the project)
+* `_fk` for Foreign Keys
+* `_check` for Check Constraints
+
+**Note:** For multi-column constraints, include relevant column names separated by underscores if feasible, or provide a meaningful description.
+
 This documentation provides context for LLMs working on the IOTA-SDK project.
 
 ## ❓ Troubleshooting Windows Setup
