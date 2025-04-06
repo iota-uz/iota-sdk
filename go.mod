@@ -56,8 +56,8 @@ require (
 require (
 	cloud.google.com/go/auth v0.11.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
-	github.com/PuerkitoBio/goquery v1.10.1 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
+	github.com/PuerkitoBio/goquery v1.10.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/certifi/gocertifi v0.0.0-20200922220541-2c3bb06c6054 // indirect
