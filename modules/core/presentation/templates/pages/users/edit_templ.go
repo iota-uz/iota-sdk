@@ -279,7 +279,7 @@ func EditForm(props *EditFormProps) templ.Component {
 				}
 				templ_7745c5c3_Err = GroupSelect(&GroupSelectProps{
 					Groups:   props.Groups,
-					Selected: props.User.Groups,
+					Selected: props.User.GroupIDs,
 					Error:    props.Errors["GroupIDs"],
 					Form:     "save-form",
 					Name:     "GroupIDs",
