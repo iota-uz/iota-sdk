@@ -39,6 +39,7 @@
   "Resources": {
     "user": "Foydalanuvchi",
     "role": "Rol",
+    "group": "Guruhlar",
     "payment": "To'lov",
     "expense": "Xarajat",
     "expense_category": "Xarajat toifasi",
@@ -60,6 +61,12 @@
       "Read": "Rolni ko'rish",
       "Update": "Rolni tahrirlash",
       "Delete": "Rolni o'chirish"
+    },
+    "Group": {
+      "Create": "Guruh yaratish",
+      "Read": "Guruhni ko'rish",
+      "Update": "Guruhni tahrirlash",
+      "Delete": "Guruhni o'chirish"
     },
     "Account": {
       "Create": "Hisob yaratish",
@@ -137,6 +144,7 @@
     "Administration": "Ma'muriyat",
     "Users": "Foydalanuvchilar",
     "Roles": "Rollar",
+    "Groups": "Guruhlar",
     "KnowledgeBase": "Bilimlar bazasi",
     "Operations": "Operatsiyalar",
     "Settings": "Sozlamalar",
@@ -149,7 +157,6 @@
     "Reports": "Hisobotlar",
     "Navbar": {
       "Profile": "Profil",
-      "Settings": "Sozlamalar",
       "Logout": "Chiqish"
     }
   },
@@ -178,11 +185,17 @@
       "New": "Yangi foydalanuvchi",
       "FullName": "To'liq ism",
       "Roles": "Rollar",
-      "Email": "Email"
+      "Email": "Email",
+      "Groups": "Guruhlar",
+      "AllUsers": "Barcha foydalanuvchilar"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",
       "UserInfo": "Foydalanuvchi ma'lumotlari"
+    },
+    "Tabs": {
+      "UserInfo": "Ma'lumotlar",
+      "Permissions": "Ruxsatlar"
     },
     "Single": {
       "EditUser": "Foydalanuvchini tahrirlash",
@@ -197,7 +210,9 @@
       "SelectLanguage": "Tilni tanlang",
       "ChooseAvatar": "Avatar tanlang",
       "RoleIDs": "Rol",
+      "GroupIDs": "Guruh",
       "SelectRole": "Rolni tanlang",
+      "SelectGroup": "Guruhni tanlang",
       "EnterPassword": "Parolni kiriting",
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
@@ -226,8 +241,54 @@
         "Label": "Rol nomi",
         "Placeholder": "Rol nomini kiriting"
       },
+      "Description": {
+        "Label": "Tavsif",
+        "Placeholder": "Rol uchun tavsif kiriting"
+      },
       "Delete": "Rolni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Guruhlar"
+      },
+      "Edit": {
+        "Title": "Guruhni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi guruh"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Guruh ma'lumotlari",
+      "MembershipInfo": "A'zolik ma'lumotlari" 
+    },
+    "List": {
+      "New": "Yangi guruh",
+      "Name": "Nomi",
+      "Description": "Tavsif",
+      "Roles": "Rollar",
+      "Users": "Foydalanuvchilar",
+      "NoGroups": {
+        "Title": "Guruhlar topilmadi",
+        "Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "Description": "Tavsif",
+      "RoleIDs": "Rollar",
+      "UserIDs": "Foydalanuvchilar",
+      "SelectRole": "Rollarni tanlang",
+      "SelectUser": "Foydalanuvchilarni tanlang",
+      "SearchRoles": "Rollarni qidirish",
+      "EnterGroupName": "Guruh nomini kiriting",
+      "EnterDescription": "Tavsif kiriting",
+      "NoRoleDescription": "Tavsif mavjud emas",
+      "Delete": "Guruhni o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
     }
   },
   "Projects": {
@@ -265,13 +326,32 @@
       }
     },
     "BrowseFilesystem": "Fayllarni ko'rish",
-    "FirstName": "Ism",
-    "LastName": "Familiya",
-    "MiddleName": "Otasining ismi",
-    "Email": "Email",
-    "Phone": "Telefon",
+    "FirstName": {
+      "Label": "Ism",
+      "Placeholder": "Ismingizni kiriting"
+    },
+    "LastName": {
+      "Label": "Familiya",
+      "Placeholder": "Familiyangizni kiriting"
+    },
+    "MiddleName": {
+      "Label": "Otasining ismi",
+      "Placeholder": "Otangizning ismini kiriting"
+    },
+    "Email": {
+      "Label": "Email",
+      "Placeholder": "Email manzilingizni kiriting"
+    },
+    "Phone": {
+      "Label": "Telefon",
+      "Placeholder": "Telefon raqamingizni kiriting"
+    },
     "Password": "Parol",
-    "Save": "Saqlash"
+    "Save": "Saqlash",
+    "Tabs": {
+      "Profile": "Profil sozlamalari",
+      "Sidebar": "Yon panel sozlamalari"
+    }
   },
   "Login": {
     "Meta": {

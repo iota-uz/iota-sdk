@@ -22,38 +22,45 @@ type IndexPageProps struct {
 templ PaymentsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(base.TableProps{
-			Columns: []*base.TableColumn{
-				{Label: pageCtx.T("Payments.List.Amount"), Key: "amount"},
-				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
-			},
-		}) {
-			for _, payment := range props.Payments {
-				@base.TableRow(base.TableRowProps{}) {
-					@base.TableCell(base.TableCellProps{}) {
-						{ payment.AmountWithCurrency }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt) }></span>
-						</div>
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						@button.Secondary(button.Props{
-							Fixed: true,
-							Size:  button.SizeSM,
-							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/finance/payments/%s", payment.ID),
-						}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
+		if len(props.Payments) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("Payments.List.NoPayments.Title"),
+				Description: pageCtx.T("Payments.List.NoPayments.Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("Payments.List.Amount"), Key: "amount"},
+					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, payment := range props.Payments {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							{ payment.AmountWithCurrency }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt) }></span>
+							</div>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@button.Secondary(button.Props{
+								Fixed: true,
+								Size:  button.SizeSM,
+								Class: "btn-fixed",
+								Href:  fmt.Sprintf("/finance/payments/%s", payment.ID),
+							}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
 						}
 					}
 				}
 			}
-		}
-		if len(props.PaginationState.Pages()) > 1 {
-			@pagination.Pagination(props.PaginationState)
+			if len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
 		}
 	</div>
 }

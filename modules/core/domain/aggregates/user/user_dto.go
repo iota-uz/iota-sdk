@@ -22,7 +22,7 @@ type CreateDTO struct {
 	Email      string `validate:"required,email"`
 	Phone      string
 	Password   string
-	RoleIDs    []uint `validate:"required"`
+	RoleIDs    []uint
 	AvatarID   uint
 	UILanguage string `validate:"required"`
 }

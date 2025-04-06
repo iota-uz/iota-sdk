@@ -18,58 +18,74 @@ type IndexPageProps struct {
 	NewURL          string
 }
 
+templ ClientRow(client *viewmodels.Client, rowProps *base.TableRowProps) {
+	{{
+		url := fmt.Sprintf("/crm/clients?tab=profile&view=%s", client.ID)
+	}}
+	@base.TableRow(*rowProps) {
+		@base.TableCell(base.TableCellProps{}) {
+			<button
+				type="button"
+				x-data
+				hx-get={ url }
+				hx-target="body"
+				hx-swap="beforeend"
+				hx-trigger="click"
+				hx-push-url="true"
+				class="cursor-pointer"
+			>
+				<div class="flex items-center gap-3">
+					<div
+						class={
+							"w-8 h-8 rounded-full flex items-center justify-center",
+							"bg-brand-500/10 text-brand-500 font-medium text-sm",
+						}
+					>
+						{ client.Initials() }
+					</div>
+					<span>
+						{ client.FullName() }
+					</span>
+				</div>
+			</button>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ client.Phone }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<div x-data="relativeformat">
+				<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
+			</div>
+		}
+	}
+}
+
+templ ClientCreatedEvent(client *viewmodels.Client, rowProps *base.TableRowProps) {
+	<tbody hx-swap-oob="afterbegin:#clients-table-body">
+		@ClientRow(client, rowProps)
+	</tbody>
+}
+
+templ ClientRows(clients []*viewmodels.Client) {
+	for _, client := range clients {
+		@ClientRow(client, &base.TableRowProps{})
+	}
+}
+
 templ ClientsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@NewClientDrawer()
 	<div class="flex flex-col gap-4 table-wrapper">
 		@base.Table(base.TableProps{
 			Columns: []*base.TableColumn{
-				{Label: pageCtx.T("Clients.List.FullName"), Key: "client"},
-				{Label: pageCtx.T("Clients.List.Phone"), Key: "status"},
+				{Label: pageCtx.T("Clients.List.FullName"), Key: "fullName"},
+				{Label: pageCtx.T("Clients.List.Phone"), Key: "phone"},
 				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 			},
 		}) {
-			for _, client := range props.Clients {
-				{{
-					url := fmt.Sprintf("/crm/clients?tab=profile&view=%s", client.ID)
-				}}
-				@base.TableRow(base.TableRowProps{}) {
-					@base.TableCell(base.TableCellProps{}) {
-						<button
-							type="button"
-							x-data
-							hx-get={ url }
-							hx-target="body"
-							hx-swap="beforeend"
-							hx-trigger="click"
-							hx-push-url="true"
-							class="cursor-pointer"
-						>
-							<div class="flex items-center gap-3">
-								<div
-									class={
-										"w-8 h-8 rounded-full flex items-center justify-center",
-										"bg-brand-500/10 text-brand-500 font-medium text-sm",
-									}
-								>
-									{ client.Initials() }
-								</div>
-								<span>
-									{ client.FullName() }
-								</span>
-							</div>
-						</button>
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						{ client.Phone }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
-						</div>
-					}
-				}
-			}
+			<tbody id="clients-table-body">
+				@ClientRows(props.Clients)
+			</tbody>
 		}
 		if len(props.PaginationState.Pages()) > 1 {
 			@pagination.Pagination(props.PaginationState)
@@ -94,7 +110,7 @@ templ ClientsContent(props *IndexPageProps) {
 				@filters.Search([]filters.SearchField{
 					{
 						Label: pageCtx.T("Clients.List.FullName"),
-						Key:   "firstName",
+						Key:   "full_name",
 					},
 				})
 				@filters.PageSize()

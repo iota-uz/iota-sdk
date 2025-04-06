@@ -1,0 +1,263 @@
+package groups
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"net/url"
+	"strconv"
+)
+
+func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(props.Page+1))
+	params.Set("name", props.Search)
+	params.Set("limit", strconv.Itoa(props.PerPage))
+
+	return templ.Attributes{
+		"hx-get":     "/groups?" + params.Encode(),
+		"hx-trigger": "intersect once",
+		"hx-swap":    "afterend",
+		"hx-target":  "this",
+	}
+}
+
+templ GroupCreatedEvent(group *viewmodels.Group, rowProps *base.TableRowProps) {
+	<tbody hx-swap-oob="afterbegin:#groups-table-body">
+		@GroupRow(group, rowProps)
+	</tbody>
+}
+
+templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
+	{{
+		rowProps.Attrs["id"] = fmt.Sprintf("group-%s", group.ID)
+		rowProps.Attrs["hx-get"] = fmt.Sprintf("/groups/%s", group.ID)
+		rowProps.Attrs["hx-target"] = "body"
+		rowProps.Attrs["hx-swap"] = "beforeend"
+		rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
+	}}
+	@base.TableRow(*rowProps) {
+		@base.TableCell(base.TableCellProps{}) {
+			<div class="flex items-center gap-3">
+				@avatar.Avatar(avatar.Props{
+					Initials: group.GetInitials(),
+					Variant:  avatar.Round,
+				})
+				<span>{ group.Name }</span>
+			</div>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<div>
+				{ group.RolesVerbose() }
+			</div>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<div x-data="relativeformat">
+				<span x-text={ fmt.Sprintf("format('%s')", group.UpdatedAt) }></span>
+			</div>
+		}
+	}
+}
+
+templ GroupRows(props *IndexPageProps) {
+	for ix, group := range props.Groups {
+		{{
+			isLastRow := ix == len(props.Groups)-1
+			rowProps := &base.TableRowProps{
+				Attrs: templ.Attributes{},
+			}
+			if isLastRow && props.HasMore {
+				rowProps.Attrs = mkInfiniteAttrs(props)
+			}
+		}}
+		@GroupRow(group, rowProps)
+	}
+}
+
+templ GroupsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if len(props.Groups) == 0 {
+		@base.TableEmptyState(base.TableEmptyStateProps{
+			Title:       pageCtx.T("Groups.List.NoGroups.Title"),
+			Description: pageCtx.T("Groups.List.NoGroups.Description"),
+		})
+	} else {
+		@base.Table(base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: pageCtx.T("Groups.List.Name"), Key: "name"},
+				{Label: pageCtx.T("Groups.List.Roles"), Key: "roles"},
+				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+			},
+		}) {
+			<tbody id="groups-table-body">
+				@GroupRows(props)
+			</tbody>
+		}
+	}
+}
+
+templ GroupsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@filters.Drawer(filters.DrawerProps{
+		Heading: "Filters",
+		Action:  "open-group-filters",
+	}) {
+		@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
+			<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
+			<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
+		}
+	}
+	<div class="m-6">
+		<div class="flex justify-between md:justify-start">
+			<h1 class="text-2xl font-medium">
+				{ pageCtx.T("NavigationLinks.Groups") }
+			</h1>
+			<div class="flex md:hidden gap-2">
+				@button.Secondary(button.Props{
+					Size:  button.SizeNormal,
+					Class: "bg-transparent",
+					Icon:  icons.List(icons.Props{Size: "18"}),
+					Attrs: templ.Attributes{
+						"x-data": "",
+						"@click": "$dispatch('open-group-filters')",
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal,
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					Attrs: templ.Attributes{
+						"type":   "button",
+						"x-data": "",
+						"@click": "$dispatch('new-group')",
+					},
+				})
+			</div>
+		</div>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/groups"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target="table"
+				hx-swap="outerHTML"
+			>
+				<input type="hidden" name="page" value="1"/>
+				<div class="flex-1">
+					@input.Text(&input.Props{
+						AddonLeft: &input.Addon{
+							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+						},
+						Placeholder: pageCtx.T("Search"),
+						Attrs: templ.Attributes{
+							"name":  "name",
+							"value": props.Search,
+						},
+					})
+				</div>
+				<div class="hidden md:flex gap-3">
+					@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
+						<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
+						<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
+					}
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"x-data": "",
+							"@click": "$dispatch('new-group')",
+						},
+					}) {
+						{ pageCtx.T("Groups.List.New") }
+					}
+				</div>
+			</form>
+			@GroupsTable(props)
+		</div>
+	</div>
+}
+
+templ NewGroupDrawer() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.RTL,
+		Action:    "new-group",
+		Classes:   templ.Classes("flex items-stretch"),
+		ID:        "new-group-drawer",
+	}) {
+		<div class="bg-white w-full md:w-[450px] ml-auto">
+			<div class="flex flex-col h-full">
+				<form method="dialog">
+					<div class="flex justify-between px-4 py-3 border-b border-primary">
+						<h3 class="text-lg font-medium">
+							{ pageCtx.T("Groups.Meta.New.Title") }
+						</h3>
+						<div>
+							<button class="cursor-pointer">
+								@icons.XCircle(icons.Props{Size: "20"})
+							</button>
+						</div>
+					</div>
+				</form>
+				<div class="flex-1 min-h-0" hx-get="/groups/new" hx-trigger="load" hx-swap="innerHTML">
+					<div class="flex justify-center items-center h-full">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ EditGroupDrawer(props *EditFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.RTL,
+		Action:    "edit-group",
+		Open:      true,
+		Classes:   templ.Classes("flex items-stretch"),
+		ID:        "edit-group-drawer",
+		Attrs: templ.Attributes{
+			"@closing": "window.history.pushState({}, '', '/groups')",
+			"@closed":  "document.getElementById('edit-group-drawer').remove()",
+		},
+	}) {
+		<div class="bg-white w-full md:w-[450px] ml-auto">
+			<div class="flex flex-col h-full">
+				<form method="dialog">
+					<div class="flex justify-between px-4 py-3 border-b border-primary">
+						<h3 class="text-lg font-medium">
+							{ pageCtx.T("Groups.Meta.Edit.Title") }
+						</h3>
+						<div>
+							<button class="cursor-pointer">
+								@icons.XCircle(icons.Props{Size: "20"})
+							</button>
+						</div>
+					</div>
+				</form>
+				<div class="flex-1 min-h-0">
+					@EditForm(props)
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Groups.Meta.List.Title")},
+	}) {
+		@GroupsContent(props)
+		@NewGroupDrawer()
+	}
+}

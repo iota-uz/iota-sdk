@@ -73,6 +73,7 @@ type RBAC interface {
 	Register(permissions ...*permission.Permission)
 	Get(id uuid.UUID) (*permission.Permission, error)
 	Permissions() []*permission.Permission
+	PermissionsByResource() map[string][]*permission.Permission
 }
 
 type rbac struct {
@@ -102,4 +103,15 @@ func (r *rbac) Get(id uuid.UUID) (*permission.Permission, error) {
 
 func (r *rbac) Permissions() []*permission.Permission {
 	return r.permissions
+}
+
+func (r *rbac) PermissionsByResource() map[string][]*permission.Permission {
+	result := make(map[string][]*permission.Permission)
+
+	for _, p := range r.permissions {
+		resource := string(p.Resource)
+		result[resource] = append(result[resource], p)
+	}
+
+	return result
 }

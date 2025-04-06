@@ -9,35 +9,34 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 // Table renders a dynamic table based on configuration and data
-templ Table(config TableConfig, data TableData) {
+templ Table(config *TableConfig, data TableData) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Table(base.TableProps{
-		Columns: toBaseTableColumns(config.Columns, pageCtx),
-	}) {
-		for _, item := range data.Items {
-			@base.TableRow(base.TableRowProps{}) {
-				for _, col := range config.Columns {
-					@base.TableCell(base.TableCellProps{}) {
-						if col.Key == "actions" && col.Format != nil {
-							// Special handling for action buttons
-							@button.Secondary(button.Props{
-								Fixed: true,
-								Size:  button.SizeSM,
-								Class: "btn-fixed",
-								Href:  fmt.Sprintf("%v", item["_editUrl"]),
-							}) {
-								@icons.PencilSimple(icons.Props{Size: "20"})
+	if len(data.Items) == 0 {
+		@base.TableEmptyState(base.TableEmptyStateProps{
+			Title:       "No data available",
+			Description: "There is no data available for this table.",
+		})
+	} else {
+		@base.Table(base.TableProps{
+			Columns: toBaseTableColumns(config.Columns, pageCtx),
+		}) {
+			for _, item := range data.Items {
+				@base.TableRow(base.TableRowProps{}) {
+					for _, col := range config.Columns {
+						@base.TableCell(base.TableCellProps{}) {
+							if col.Format != nil && item[col.Key] != nil {
+								@templ.Raw(col.Format(item[col.Key]))
+							} else if item[col.Key] != nil {
+								{ fmt.Sprintf("%v", item[col.Key]) }
 							}
-						} else if col.Format != nil && item[col.Key] != nil {
-							@templ.Raw(col.Format(item[col.Key]))
-						} else if item[col.Key] != nil {
-							{ fmt.Sprintf("%v", item[col.Key]) }
 						}
 					}
 				}
@@ -47,33 +46,83 @@ templ Table(config TableConfig, data TableData) {
 }
 
 // Content renders the complete scaffold page content with filters and table
-templ Content(config TableConfig, data TableData) {
+templ Content(config *TableConfig, data TableData) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@filters.Drawer(filters.DrawerProps{
+		Heading: "Filters",
+		Action:  "open-user-filters",
+	}) {
+		for _, filter := range config.Filters {
+			@filter.Component()
+		}
+	}
 	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ config.Title }
-		</h1>
+		<div class="flex justify-between md:justify-start">
+			<h1 class="text-2xl font-medium">
+				{ config.Title }
+			</h1>
+			<div class="flex md:hidden gap-2">
+				@button.Secondary(button.Props{
+					Size:  button.SizeNormal,
+					Class: "bg-transparent",
+					Icon:  icons.List(icons.Props{Size: "18"}),
+					Attrs: templ.Attributes{
+						"x-data": "",
+						"@click": "$dispatch('open-user-filters')",
+					},
+				})
+			</div>
+		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get={ config.DataURL }
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target="table"
+				hx-swap="outerHTML"
+			>
+				<input type="hidden" name="page" value="1"/>
+				<div class="flex-1">
+					@input.Text(&input.Props{
+						AddonLeft: &input.Addon{
+							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+						},
+						Placeholder: pageCtx.T("Search"),
+						Attrs: templ.Attributes{
+							"name":  "search",
+							"value": "",
+						},
+					})
+				</div>
+				<div class="hidden md:flex gap-3">
+					for _, filter := range config.Filters {
+						@filter.Component()
+					}
+				</div>
+			</form>
 			@Table(config, data)
 		</div>
 	</div>
 }
 
 // Page renders a complete authenticated page with the scaffolded content
-templ Page(config TableConfig, data TableData) {
+templ Page(config *TableConfig, data TableData) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: ""},
+		BaseProps: layouts.BaseProps{Title: config.Title},
 	}) {
 		@Content(config, data)
 	}
 }
 
-// Helper function to convert our TableColumn slice to base.TableColumn slice
 func toBaseTableColumns(columns []TableColumn, pageCtx *types.PageContext) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(columns))
 	for i, col := range columns {
-		// Get the translated label
-		label := pageCtx.T(col.Label)
-
+		var label string
+		if col.localizeLabel {
+			label = pageCtx.T(col.Label)
+		} else {
+			label = col.Label
+		}
 		result[i] = &base.TableColumn{
 			Key:   col.Key,
 			Label: label,

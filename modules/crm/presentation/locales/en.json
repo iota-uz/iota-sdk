@@ -39,7 +39,8 @@
 			"Notes": "Notes",
 			"Chat": "Messages",
 			"Personal": "Personal",
-			"Documents": "Documents"
+			"Documents": "Documents",
+			"Actions": "Actions"
 		},
 		"Notes": {
 			"NoNotes": "No notes available"

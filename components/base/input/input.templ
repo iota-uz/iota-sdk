@@ -98,10 +98,25 @@ func newCheckbox(p *CheckboxProps) *CheckboxProps {
 
 templ (p *CheckboxProps) render() {
 	<div class="flex items-center gap-3">
-		<input type="checkbox" id={ p.ID } class={ "peer appearance-none sr-only", p.Class } checked?={ p.Checked } { p.Attrs... }/>
-		<label for={ p.ID } class="w-5 h-5 rounded-[5px] border border-gray-500 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group">
-			@icons.Check(icons.Props{Size: "16", Class: "scale-0 peer-indeterminate:group-[]:hidden peer-checked:group-[]:scale-100"})
-			@icons.Minus(icons.Props{Size: "16", Class: "scale-0 hidden peer-indeterminate:group-[]:inline peer-indeterminate:group-[]:scale-100"})
+		<input
+			type="checkbox"
+			id={ p.ID }
+			class={ "peer appearance-none sr-only", p.Class }
+			checked?={ p.Checked }
+			{ p.Attrs... }
+		/>
+		<label
+			for={ p.ID }
+			class="w-5 h-5 rounded-[5px] border border-gray-500 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
+		>
+			@icons.Check(icons.Props{
+				Size:  "16",
+				Class: "scale-0 peer-indeterminate:group-[]:hidden peer-checked:group-[]:scale-100",
+			})
+			@icons.Minus(icons.Props{
+				Size:  "16",
+				Class: "scale-0 hidden peer-indeterminate:group-[]:inline peer-indeterminate:group-[]:scale-100",
+			})
 		</label>
 		if len(p.Label) > 0 {
 			<label for={ p.ID }>

@@ -1,4 +1,4 @@
-package textarea
+package input
 
 import (
 	"github.com/iota-uz/utils/random"
@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-type Props struct {
+type TextAreaProps struct {
 	Placeholder  string
 	Label        string
 	Class        string
@@ -17,12 +17,12 @@ type Props struct {
 	id           string
 }
 
-func newTextArea(props *Props) *Props {
+func newTextArea(props *TextAreaProps) *TextAreaProps {
 	id := random.String(12, random.LowerCharSet)
 	class := new(strings.Builder)
 	sequence.Pad(class, " ")
 	class.WriteString(props.Class)
-	return &Props{
+	return &TextAreaProps{
 		id:           id,
 		Label:        props.Label,
 		Class:        class.String(),
@@ -34,7 +34,7 @@ func newTextArea(props *Props) *Props {
 	}
 }
 
-templ (p *Props) render() {
+templ (p *TextAreaProps) render() {
 	<div class={ "flex flex-col w-full", p.WrapperClass }>
 		if len(p.Label) > 0 {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
@@ -50,6 +50,6 @@ templ (p *Props) render() {
 	</div>
 }
 
-templ Basic(props *Props) {
+templ TextArea(props *TextAreaProps) {
 	@newTextArea(props).render()
 }

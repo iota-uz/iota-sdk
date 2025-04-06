@@ -1,1 +1,6 @@
 modules/core/presentation/assets/js/lib/*.js linguist-vendored
+# Automatically detect text files and normalize line endings to LF in the repo
+* text=auto eol=lf
+
+# Ensure specific Go files always use LF
+*.go text eol=lf

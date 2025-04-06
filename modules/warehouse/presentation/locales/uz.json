@@ -23,7 +23,11 @@
       },
       "New": "Yangi mahsulot",
       "Position": "Nomi",
-      "Status": "Holati"
+      "Status": "Holati",
+      "NoProducts": {
+        "Title": "Mahsulotlar topilmadi",
+        "Description": "Hali mahsulotlar yo'q. Yangi yaratish uchun 'Yangi mahsulot' tugmasini bosing."
+      }
     },
     "New": {
       "Meta": {
@@ -62,7 +66,11 @@
       "Barcode": "Artikul",
       "Unit": "O'lchov birligi",
       "NewIn": "Yangi kirish",
-      "NewOut": "Yangi chiqish"
+      "NewOut": "Yangi chiqish",
+      "NoPositions": {
+        "Title": "Nomlar topilmadi",
+        "Description": "Hali nomlar yo'q. Yangi yaratish uchun 'Yangi nom' tugmasini bosing."
+      }
     },
     "New": {
       "Meta": {
@@ -94,6 +102,7 @@
       "Meta": {
         "Title": ".xlsx yuklash"
       },
+      "Title": "Nomlarni yuklash",
       "Example": {
         "Title": "Excel yuklash",
         "Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
@@ -115,7 +124,11 @@
       },
       "New": "Yangi birlik",
       "Title": "Nomi",
-      "ShortTitle": "Qisqa nomi"
+      "ShortTitle": "Qisqa nomi",
+      "NoUnits": {
+        "Title": "Birliklar topilmadi",
+        "Description": "Hali birliklar yo'q. Yangi yaratish uchun 'Yangi birlik' tugmasini bosing."
+      }
     },
     "New": {
       "Meta": {
@@ -151,7 +164,11 @@
       "Type": "Turi",
       "Status": "Holati",
       "Products": "Birliklar",
-      "Positions": "Nomlar"
+      "Positions": "Nomlar",
+      "NoOrders": {
+        "Title": "Nakladnoylar topilmadi",
+        "Description": "Hali nakladnoylar yo'q. Yangi yaratish uchun 'Yangi nakladnoy' tugmasini bosing."
+      }
     },
     "New": {
       "Meta": {
@@ -219,7 +236,11 @@
       "CreatedBy": "Yaratgan",
       "FinishedBy": "Yakunlagan",
       "SelectStatus": "Holatni tanlang",
-      "SelectType": "Turini tanlang"
+      "SelectType": "Turini tanlang",
+      "NoInventory": {
+        "Title": "Inventarizatsiya topilmadi",
+        "Description": "Hali inventarizatsiya yo'q. Yangi yaratish uchun 'Yangi inventarizatsiya' tugmasini bosing."
+      }
     },
     "New": {
       "Meta": {

@@ -1,0 +1,98 @@
+package groups
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type RoleSelectProps struct {
+	Roles    []*viewmodels.Role
+	Selected []*viewmodels.Role
+	Name     string
+	Form     string
+	Error    string
+}
+
+func isRoleSelected(id string, roles []*viewmodels.Role) bool {
+	for _, role := range roles {
+		if role.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// Modern styled version of role select with checkboxes
+templ ModernRoleSelect(props *RoleSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div>
+		<label class="text-sm text-[#94a3b8]">{ pageCtx.T("Groups.Single.RoleIDs") }</label>
+		<div class="relative mt-1">
+			<div class="flex items-center relative">
+				@icons.MagnifyingGlass(icons.Props{Size: "16", Class: "absolute left-3 top-2.5 text-[#94a3b8]"})
+				<input
+					type="text"
+					placeholder={ pageCtx.T("Groups.Single.SearchRoles") }
+					class="w-full pl-10 pr-3 py-2 border border-[#d6dee7] rounded-md focus:outline-none focus:ring-2 focus:ring-[#695eff] focus:border-transparent"
+				/>
+			</div>
+		</div>
+		<div class="mt-4 space-y-2">
+			for _, role := range props.Roles {
+				{{
+					isSelected := isRoleSelected(role.ID, props.Selected)
+					checkboxID := "role-" + role.ID
+				}}
+				<label
+					class={
+						"p-4 rounded-md border cursor-pointer block",
+						templ.KV("border-[#695eff] bg-[#f8f8fc]", isSelected),
+						templ.KV("border-[#d6dee7] hover:border-[#a0aec0]", !isSelected),
+					}
+					for={ checkboxID }
+				>
+					<div class="flex items-start gap-3">
+						@input.Checkbox(&input.CheckboxProps{
+							ID:      checkboxID,
+							Checked: isSelected,
+							Attrs: func() templ.Attributes {
+								attrs := templ.Attributes{
+									"name":  props.Name,
+									"value": role.ID,
+								}
+								if props.Form != "" {
+									attrs["form"] = props.Form
+								}
+								return attrs
+							}(),
+						})
+						<div class="space-y-1">
+							<p class="font-medium text-[#131313] block cursor-pointer">
+								{ role.Name }
+							</p>
+							if role.Description != "" {
+								<p class="text-xs text-gray-600">{ role.Description }</p>
+							} else {
+								<p class="text-xs text-[#94a3b8]">{ pageCtx.T("Groups.Single.NoRoleDescription") }</p>
+							}
+						</div>
+					</div>
+				</label>
+			}
+		</div>
+	</div>
+}
+
+type SharedProps struct {
+	Value string
+	Form  string
+	Error string
+}
+
+type GroupFormData struct {
+	Name        string
+	Description string
+	RoleIDs     []string
+}

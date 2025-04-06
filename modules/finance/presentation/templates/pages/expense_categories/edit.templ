@@ -7,7 +7,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/base/textarea"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -57,7 +56,7 @@ templ EditForm(props *EditPageProps) {
 					"form": "save-form",
 				},
 			})
-			@textarea.Basic(&textarea.Props{
+			@input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("ExpenseCategories.Single.Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",

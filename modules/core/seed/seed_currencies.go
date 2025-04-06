@@ -11,7 +11,7 @@ import (
 func CreateCurrencies(ctx context.Context, app application.Application) error {
 	conf := configuration.Use()
 	currencyRepository := persistence.NewCurrencyRepository()
-	
+
 	conf.Logger().Info("Seeding currencies")
 	for _, c := range currency.Currencies {
 		conf.Logger().Infof("Creating or updating currency: %s (%s)", c.Name, c.Code)

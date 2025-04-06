@@ -35,9 +35,31 @@ func (s *GroupService) GetPaginated(ctx context.Context, params *group.FindParam
 	return s.repo.GetPaginated(ctx, params)
 }
 
+// GetPaginatedWithTotal returns a paginated list of groups with total count
+func (s *GroupService) GetPaginatedWithTotal(ctx context.Context, params *group.FindParams) ([]group.Group, int64, error) {
+	groups, err := s.repo.GetPaginated(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total, err := s.repo.Count(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return groups, total, nil
+}
+
 // GetByID returns a group by its ID
 func (s *GroupService) GetByID(ctx context.Context, id uuid.UUID) (group.Group, error) {
 	return s.repo.GetByID(ctx, id)
+}
+
+// GetAll returns all groups
+func (s *GroupService) GetAll(ctx context.Context) ([]group.Group, error) {
+	return s.repo.GetPaginated(ctx, &group.FindParams{
+		Limit: 1000, // Use a high limit to fetch all groups
+	})
 }
 
 // Create creates a new group
@@ -47,20 +69,12 @@ func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, 
 		return nil, err
 	}
 
-	tx, err := composables.BeginTx(ctx)
+	var savedGroup group.Group
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		savedGroup, err = s.repo.Save(txCtx, g)
+		return err
+	})
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
-	txCtx := composables.WithTx(ctx, tx)
-	
-	savedGroup, err := s.repo.Save(txCtx, g)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -77,25 +91,20 @@ func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, 
 		return nil, err
 	}
 
-	tx, err := composables.BeginTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
+	var oldGroup group.Group
+	var updatedGroup group.Group
 
-	txCtx := composables.WithTx(ctx, tx)
-	
-	oldGroup, err := s.repo.GetByID(txCtx, g.ID())
-	if err != nil {
-		return nil, err
-	}
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		oldGroup, err = s.repo.GetByID(txCtx, g.ID())
+		if err != nil {
+			return err
+		}
 
-	updatedGroup, err := s.repo.Save(txCtx, g)
+		updatedGroup, err = s.repo.Save(txCtx, g)
+		return err
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -112,24 +121,17 @@ func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	tx, err := composables.BeginTx(ctx)
+	var g group.Group
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		g, err = s.repo.GetByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+
+		return s.repo.Delete(txCtx, id)
+	})
 	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	txCtx := composables.WithTx(ctx, tx)
-	
-	g, err := s.repo.GetByID(txCtx, id)
-	if err != nil {
-		return err
-	}
-
-	if err := s.repo.Delete(txCtx, id); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 
@@ -146,27 +148,19 @@ func (s *GroupService) AddUser(ctx context.Context, groupID uuid.UUID, userToAdd
 		return nil, err
 	}
 
-	tx, err := composables.BeginTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
+	var savedGroup group.Group
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		g, err := s.repo.GetByID(txCtx, groupID)
+		if err != nil {
+			return err
+		}
 
-	txCtx := composables.WithTx(ctx, tx)
-	
-	g, err := s.repo.GetByID(txCtx, groupID)
-	if err != nil {
-		return nil, err
-	}
+		updatedGroup := g.AddUser(userToAdd)
 
-	updatedGroup := g.AddUser(userToAdd)
-	
-	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
+		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
+		return err
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -183,27 +177,19 @@ func (s *GroupService) RemoveUser(ctx context.Context, groupID uuid.UUID, userTo
 		return nil, err
 	}
 
-	tx, err := composables.BeginTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
+	var savedGroup group.Group
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		g, err := s.repo.GetByID(txCtx, groupID)
+		if err != nil {
+			return err
+		}
 
-	txCtx := composables.WithTx(ctx, tx)
-	
-	g, err := s.repo.GetByID(txCtx, groupID)
-	if err != nil {
-		return nil, err
-	}
+		updatedGroup := g.RemoveUser(userToRemove)
 
-	updatedGroup := g.RemoveUser(userToRemove)
-	
-	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
+		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
+		return err
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -220,27 +206,21 @@ func (s *GroupService) AssignRole(ctx context.Context, groupID uuid.UUID, roleTo
 		return nil, err
 	}
 
-	tx, err := composables.BeginTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
+	var g group.Group
+	var savedGroup group.Group
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		g, err = s.repo.GetByID(txCtx, groupID)
+		if err != nil {
+			return err
+		}
 
-	txCtx := composables.WithTx(ctx, tx)
-	
-	g, err := s.repo.GetByID(txCtx, groupID)
-	if err != nil {
-		return nil, err
-	}
+		updatedGroup := g.AssignRole(roleToAssign)
 
-	updatedGroup := g.AssignRole(roleToAssign)
-	
-	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
+		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
+		return err
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -257,27 +237,21 @@ func (s *GroupService) RemoveRole(ctx context.Context, groupID uuid.UUID, roleTo
 		return nil, err
 	}
 
-	tx, err := composables.BeginTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
+	var g group.Group
+	var savedGroup group.Group
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		g, err = s.repo.GetByID(txCtx, groupID)
+		if err != nil {
+			return err
+		}
 
-	txCtx := composables.WithTx(ctx, tx)
-	
-	g, err := s.repo.GetByID(txCtx, groupID)
-	if err != nil {
-		return nil, err
-	}
+		updatedGroup := g.RemoveRole(roleToRemove)
 
-	updatedGroup := g.RemoveRole(roleToRemove)
-	
-	savedGroup, err := s.repo.Save(txCtx, updatedGroup)
+		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
+		return err
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 

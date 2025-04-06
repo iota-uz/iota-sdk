@@ -142,6 +142,7 @@ type User interface {
 	AddRole(r role.Role) User
 	AddGroupID(groupID uuid.UUID) User
 	RemoveGroupID(groupID uuid.UUID) User
+	SetGroupIDs(groupIDs []uuid.UUID) User
 	AddPermission(perm *permission.Permission) User
 	RemovePermission(permID uuid.UUID) User
 	SetPermissions(perms []*permission.Permission) User
@@ -312,6 +313,13 @@ func (u *user) RemoveGroupID(groupID uuid.UUID) User {
 		filteredGroups = append(filteredGroups, id)
 	}
 	result.groupIDs = filteredGroups
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) SetGroupIDs(groupIDs []uuid.UUID) User {
+	result := *u
+	result.groupIDs = groupIDs
 	result.updatedAt = time.Now()
 	return &result
 }

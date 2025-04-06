@@ -15,7 +15,7 @@ as well as more complex components like tables, charts, and dialogs.
 All components follow the project's design system and are built
 with accessability in mind.
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -59,15 +59,17 @@ It displays existing uploads and allows selecting new files.
 
 ## Package `base` (components/base)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
-templ: version: v0.3.819
+templ: version: v0.3.857
+
+templ: version: v0.3.857
 
 
 ### Types
@@ -126,6 +128,19 @@ type DropdownItemProps struct {
 }
 ```
 
+#### ProgressProps
+
+```go
+type ProgressProps struct {
+    Value uint
+    Target uint
+    TargetLabel string
+    ValueLabel string
+    TargetLabelComp templ.Component
+    ValueLabelComp templ.Component
+}
+```
+
 #### SelectProps
 
 ```go
@@ -140,6 +155,15 @@ type SelectProps struct {
 ```
 
 ##### Methods
+
+#### TableCellProps
+
+```go
+type TableCellProps struct {
+    Classes templ.CSSClasses
+    Attrs templ.Attributes
+}
+```
 
 #### TableColumn
 
@@ -203,15 +227,17 @@ type TriggerProps struct {
 
 #### `func DropdownItem(props DropdownItemProps) templ.Component`
 
+#### `func Progress(p ProgressProps) templ.Component`
+
 #### `func Select(p *SelectProps) templ.Component`
 
 #### `func SelectedValues() templ.Component`
 
-#### `func Table(props *TableProps) templ.Component`
+#### `func Table(props TableProps) templ.Component`
 
-#### `func TableCell() templ.Component`
+#### `func TableCell(props TableCellProps) templ.Component`
 
-#### `func TableRow(props *TableRowProps) templ.Component`
+#### `func TableRow(props TableRowProps) templ.Component`
 
 ### Variables and Constants
 
@@ -219,7 +245,7 @@ type TriggerProps struct {
 
 ## Package `alert` (components/base/alert)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Functions
@@ -232,7 +258,7 @@ templ: version: v0.3.819
 
 ## Package `avatar` (components/base/avatar)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -258,9 +284,46 @@ type Props struct {
 
 ---
 
+## Package `badge` (components/base/badge)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### Props
+
+```go
+type Props struct {
+    Size Size
+}
+```
+
+#### Size
+
+### Functions
+
+#### `func Blue(props Props) templ.Component`
+
+#### `func Gray(props Props) templ.Component`
+
+#### `func Green(props Props) templ.Component`
+
+#### `func Pink(props Props) templ.Component`
+
+#### `func Purple(props Props) templ.Component`
+
+#### `func Yellow(props Props) templ.Component`
+
+### Variables and Constants
+
+- Const: `[SizeNormal SizeLG]`
+
+---
+
 ## Package `button` (components/base/button)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -308,10 +371,24 @@ type Props struct {
 
 ## Package `card` (components/base/card)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
+
+templ: version: v0.3.857
 
 
 ### Types
+
+#### AccentColorProps
+
+```go
+type AccentColorProps struct {
+    Name string
+    Value string
+    Color string
+    Form string
+    Checked bool
+}
+```
 
 #### Props
 
@@ -326,6 +403,8 @@ type Props struct {
 
 ### Functions
 
+#### `func AccentColor(props AccentColorProps) templ.Component`
+
 #### `func Card(props Props) templ.Component`
 
 #### `func DefaultHeader(text string) templ.Component`
@@ -336,9 +415,9 @@ type Props struct {
 
 ## Package `dialog` (components/base/dialog)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -398,9 +477,11 @@ type StdDrawerProps struct {
 
 ## Package `input` (components/base/input)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
-templ: version: v0.3.819
+templ: version: v0.3.857
+
+templ: version: v0.3.857
 
 
 ### Types
@@ -431,6 +512,34 @@ type CheckboxProps struct {
 ```
 
 ##### Methods
+
+#### DatePickerMode
+
+#### DatePickerProps
+
+```go
+type DatePickerProps struct {
+    Label string `json:"-"`
+    Placeholder string `json:"-"`
+    Mode DatePickerMode `json:"mode"`
+    SelectorType DateSelectorType `json:"selectorType"`
+    Attrs templ.Attributes
+    DateFormat string `json:"dateFormat"`
+    LabelFormat string `json:"labelFormat"`
+    MinDate string `json:"minDate"`
+    MaxDate string `json:"maxDate"`
+    Selected []string `json:"selected"`
+    Locale string `json:"locale"`
+    Name string `json:"-"`
+    EndName string `json:"-"`
+    StartName string `json:"-"`
+    Form string `json:"-"`
+}
+```
+
+##### Methods
+
+#### DateSelectorType
 
 #### Props
 
@@ -471,6 +580,8 @@ type SwitchProps struct {
 
 #### `func Date(props *Props) templ.Component`
 
+#### `func DatePicker(props DatePickerProps) templ.Component`
+
 #### `func Email(props *Props) templ.Component`
 
 #### `func Number(props *Props) templ.Component`
@@ -483,11 +594,15 @@ type SwitchProps struct {
 
 ### Variables and Constants
 
+- Const: `[DatePickerModeSingle DatePickerModeMultiple DatePickerModeRange]`
+
+- Const: `[DateSelectorTypeDay DateSelectorTypeMonth DateSelectorTypeWeek DateSelectorTypeYear]`
+
 ---
 
 ## Package `pagination` (components/base/pagination)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -542,56 +657,57 @@ type State struct {
 
 ### Types
 
+#### CardItemProps
+
+CardItemProps configures an individual radio input styled as a card.
+
+
+```go
+type CardItemProps struct {
+    WrapperClass templ.CSSClasses
+    Class templ.CSSClasses
+    Name string
+    Checked bool
+    Disabled bool
+    Attrs templ.Attributes
+    Value string
+    Form string
+}
+```
+
+#### Orientation
+
+Orientation defines the layout direction of radio items
+
+
 #### RadioGroupProps
 
-RadioGroupProps defines properties for the RadioGroup component.
+RadioGroupProps configures the RadioGroup component's behavior and appearance.
 
 
 ```go
 type RadioGroupProps struct {
-    Name string
     Label string
     Error string
     Class string
     Attrs templ.Attributes
     WrapperProps templ.Attributes
-    Orientation string
+    Orientation Orientation
 }
 ```
-
-##### Methods
-
-#### RadioItemProps
-
-RadioItemProps defines properties for individual RadioItem components.
-
-
-```go
-type RadioItemProps struct {
-    Value string
-    Label string
-    LabelComp templ.Component
-    Checked bool
-    Disabled bool
-    Class string
-    Attrs templ.Attributes
-    GroupName string
-    ID string
-}
-```
-
-##### Methods
 
 ### Functions
 
+#### `func CardItem(props CardItemProps) templ.Component`
+
+CardItem renders a styled radio input as a card-like UI element.
+Children are rendered as the label content next to the radio indicator.
+
+
 #### `func RadioGroup(props RadioGroupProps) templ.Component`
 
-RadioGroup wraps multiple RadioItem components as a form control.
-
-
-#### `func RadioItem(props RadioItemProps) templ.Component`
-
-RadioItem renders a single radio button with its label.
+RadioGroup creates a container for radio inputs with optional label and error message.
+Child components (typically CardItem elements) are rendered within the group.
 
 
 ### Variables and Constants
@@ -600,7 +716,7 @@ RadioItem renders a single radio button with its label.
 
 ## Package `selects` (components/base/selects)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -647,7 +763,7 @@ type Value struct {
 
 ## Package `tab` (components/base/tab)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -703,7 +819,7 @@ type Props struct {
 
 ## Package `textarea` (components/base/textarea)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -734,7 +850,7 @@ type Props struct {
 
 ## Package `toggle` (components/base/toggle)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -954,7 +1070,7 @@ the ApexCharts library to render the chart on the client side.
 
 ## Package `filters` (components/filters)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 
 ### Types
@@ -1171,7 +1287,7 @@ Countries are translated according to the current locale.
 
 ## Package `sidebar` (components/sidebar)
 
-templ: version: v0.3.819
+templ: version: v0.3.857
 
 Package sidebar provides navigation components for application layout.
 
@@ -1657,6 +1773,8 @@ type Configuration struct {
     Database DatabaseOptions
     Google GoogleOptions
     Twilio TwilioOptions
+    Loki LokiOptions
+    OpenTelemetry OpenTelemetryOptions
     MigrationsDir string `env:"MIGRATIONS_DIR" envDefault:"migrations"`
     ServerPort int `env:"PORT" envDefault:"3200"`
     SessionDuration time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
@@ -1669,6 +1787,8 @@ type Configuration struct {
     PageSize int `env:"PAGE_SIZE" envDefault:"25"`
     MaxPageSize int `env:"MAX_PAGE_SIZE" envDefault:"100"`
     LogLevel string `env:"LOG_LEVEL" envDefault:"error"`
+    RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
+    RealIPHeader string `env:"REAL_IP_HEADER" envDefault:"X-Real-IP"`
     SidCookieKey string `env:"SID_COOKIE_KEY" envDefault:"sid"`
     OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
     TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
@@ -1713,6 +1833,26 @@ type GoogleOptions struct {
     RedirectURL string `env:"GOOGLE_REDIRECT_URL"`
     ClientID string `env:"GOOGLE_CLIENT_ID"`
     ClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
+}
+```
+
+#### LokiOptions
+
+```go
+type LokiOptions struct {
+    URL string `env:"LOKI_URL"`
+    AppName string `env:"LOKI_APP_NAME" envDefault:"sdk"`
+    LogPath string `env:"LOG_PATH" envDefault:"./logs/app.log"`
+}
+```
+
+#### OpenTelemetryOptions
+
+```go
+type OpenTelemetryOptions struct {
+    Enabled bool `env:"OTEL_ENABLED" envDefault:"false"`
+    TempoURL string `env:"OTEL_TEMPO_URL" envDefault:"localhost:4318"`
+    ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
 }
 ```
 
@@ -2627,11 +2767,68 @@ type Table struct {
 
 ## Package `logging` (pkg/logging)
 
+### Types
+
+#### LokiConfig
+
+```go
+type LokiConfig struct {
+    Labels map[string]string
+    Client *http.Client
+}
+```
+
+#### LokiHook
+
+LokiHook sends logs to Loki
+
+
+```go
+type LokiHook struct {
+    URL string
+    AppName string
+    Config *LokiConfig
+}
+```
+
+##### Methods
+
+- `func (LokiHook) Fire(entry *logrus.Entry) error`
+
+- `func (LokiHook) Levels() []logrus.Level`
+
+#### LokiPush
+
+LokiPush represents the payload sent to Loki's push API
+
+
+```go
+type LokiPush struct {
+    Streams []LokiStream `json:"streams"`
+}
+```
+
+#### LokiStream
+
+LokiStream represents a stream of log entries in Loki format
+
+
+```go
+type LokiStream struct {
+    Stream map[string]string `json:"stream"`
+    Values [][2]string `json:"values"`
+}
+```
+
 ### Functions
+
+#### `func AddLokiHook(logger *logrus.Logger, url, appName string) error`
 
 #### `func ConsoleLogger(level logrus.Level) *logrus.Logger`
 
-#### `func FileLogger(level logrus.Level) (*os.File, *logrus.Logger, error)`
+#### `func FileLogger(level logrus.Level, logPath string) (*os.File, *logrus.Logger, error)`
+
+#### `func SetupTracing(ctx context.Context, serviceName string, tempoURL string) func()`
 
 ---
 
@@ -2716,6 +2913,8 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 #### `func RequireAuthorization() mux.MiddlewareFunc`
 
 #### `func Tabs() mux.MiddlewareFunc`
+
+#### `func TracedMiddleware(name string) mux.MiddlewareFunc`
 
 #### `func WithLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc`
 

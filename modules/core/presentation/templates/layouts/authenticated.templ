@@ -156,9 +156,6 @@ templ Navbar(pageCtx *types.PageContext) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
 				}
-				@base.DropdownItem(base.DropdownItemProps{Href: "/account/settings"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
-				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
 				}
@@ -179,6 +176,7 @@ templ SidebarFooter(pageCtx *types.PageContext) {
 		})
 		{ pageCtx.T("SignOut") }
 	}
+	{ children... }
 }
 
 templ MobileSidebar(props sidebar.Props) {

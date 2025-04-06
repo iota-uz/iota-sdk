@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"sort"
 
@@ -43,6 +42,7 @@ func (c *RolesController) Key() string {
 func (c *RolesController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
 		middleware.Authorize(),
+		middleware.RedirectNotAuthenticated(),
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
@@ -157,7 +157,7 @@ func (c *RolesController) Update(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *RolesController) permissionGroups(selected ...*permission.Permission) []*roles.Group {
+func (c *RolesController) permissionGroups(selected ...*permission.Permission) []*viewmodels.PermissionGroup {
 	isSelected := func(p2 *permission.Permission) bool {
 		for _, p1 := range selected {
 			if p1.ID == p2.ID {
@@ -166,28 +166,27 @@ func (c *RolesController) permissionGroups(selected ...*permission.Permission) [
 		}
 		return false
 	}
-	groupedByResource := make(map[string][]*permission.Permission)
-	for _, perm := range c.app.RBAC().Permissions() {
-		resource := string(perm.Resource)
-		groupedByResource[resource] = append(groupedByResource[resource], perm)
-	}
-	groups := make([]*roles.Group, 0, len(groupedByResource))
+
+	// Use the PermissionsByResource method
+	groupedByResource := c.app.RBAC().PermissionsByResource()
+
+	groups := make([]*viewmodels.PermissionGroup, 0, len(groupedByResource))
 	for resource, permissions := range groupedByResource {
-		var children []*roles.Child
+		var permList []*viewmodels.PermissionItem
 		for _, perm := range permissions {
-			children = append(children, &roles.Child{
-				Name:    fmt.Sprintf("Permissions[%s]", perm.ID.String()),
-				Label:   perm.Name,
+			permList = append(permList, &viewmodels.PermissionItem{
+				ID:      perm.ID.String(),
+				Name:    perm.Name,
 				Checked: isSelected(perm),
 			})
 		}
-		groups = append(groups, &roles.Group{
-			Label:    resource,
-			Children: children,
+		groups = append(groups, &viewmodels.PermissionGroup{
+			Resource:    resource,
+			Permissions: permList,
 		})
 	}
 	sort.Slice(groups, func(i, j int) bool {
-		return groups[i].Label < groups[j].Label
+		return groups[i].Resource < groups[j].Resource
 	})
 	return groups
 }

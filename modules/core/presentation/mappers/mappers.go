@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
@@ -87,5 +88,17 @@ func PermissionToViewModel(entity *permission.Permission) *viewmodels.Permission
 		Resource: string(entity.Resource),
 		Action:   string(entity.Action),
 		Modifier: string(entity.Modifier),
+	}
+}
+
+func GroupToViewModel(entity group.Group) *viewmodels.Group {
+	return &viewmodels.Group{
+		ID:          entity.ID().String(),
+		Name:        entity.Name(),
+		Description: entity.Description(),
+		Roles:       mapping.MapViewModels(entity.Roles(), RoleToViewModel),
+		Users:       mapping.MapViewModels(entity.Users(), UserToViewModel),
+		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 	}
 }

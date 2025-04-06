@@ -5,6 +5,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -24,68 +25,78 @@ templ ProfileForm(props *ProfilePageProps) {
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
 	>
-		<h1 class="text-2xl font-medium pl-6 pt-6">
-			{ props.User.FirstName } { props.User.LastName }
-		</h1>
-		@card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
-			WrapperClass: "m-6",
-		}) {
-			if props.User.Avatar == nil {
-				@components.UploadInput(&components.UploadInputProps{
-					Label:   pageCtx.T("Account.BrowseFilesystem"),
-					Name:    "AvatarID",
-					Class:   "col-span-3",
-					Uploads: []*viewmodels.Upload{},
+		<div class="flex flex-col gap-5 p-6">
+			@tab.Root(tab.Props{}) {
+				@tab.Link("/account", true) {
+					{ pageCtx.T("Account.Tabs.Profile") }
+				}
+				@tab.Link("/account/sidebar", false) {
+					{ pageCtx.T("Account.Tabs.Sidebar") }
+				}
+			}
+			@card.Card(card.Props{
+				Class: "grid grid-cols-3 gap-4",
+			}) {
+				if props.User.Avatar == nil {
+					@components.UploadInput(&components.UploadInputProps{
+						Label:   pageCtx.T("Account.BrowseFilesystem"),
+						Name:    "AvatarID",
+						Class:   "col-span-3",
+						Uploads: []*viewmodels.Upload{},
+					})
+				} else {
+					@components.UploadInput(&components.UploadInputProps{
+						Label:   pageCtx.T("Account.BrowseFilesystem"),
+						Name:    "AvatarID",
+						Class:   "col-span-3",
+						Uploads: []*viewmodels.Upload{props.User.Avatar},
+					})
+				}
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Account.FirstName.Label"),
+					Placeholder: pageCtx.T("Account.FirstName.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "FirstName",
+						"value": props.User.FirstName,
+					},
+					Error: props.Errors["FirstName"],
 				})
-			} else {
-				@components.UploadInput(&components.UploadInputProps{
-					Label:   pageCtx.T("Account.BrowseFilesystem"),
-					Name:    "AvatarID",
-					Class:   "col-span-3",
-					Uploads: []*viewmodels.Upload{props.User.Avatar},
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Account.LastName.Label"),
+					Placeholder: pageCtx.T("Account.LastName.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "LastName",
+						"value": props.User.LastName,
+					},
+					Error: props.Errors["LastName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Account.MiddleName.Label"),
+					Placeholder: pageCtx.T("Account.MiddleName.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "MiddleName",
+						"value": props.User.MiddleName,
+					},
+					Error: props.Errors["MiddleName"],
+				})
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Account.Phone.Label"),
+					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "Phone",
+						"value": props.User.Phone,
+					},
+					Error: props.Errors["Phone"],
+				})
+				@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+					Label:       pageCtx.T("Users.Single.Language"),
+					Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
+					Value:       string(props.User.UILanguage),
+					Attrs:       templ.Attributes{"name": "UILanguage"},
+					Error:       props.Errors["UILanguage"],
 				})
 			}
-			@input.Text(&input.Props{
-				Placeholder: pageCtx.T("Account.FirstName"),
-				Attrs: templ.Attributes{
-					"name":  "FirstName",
-					"value": props.User.FirstName,
-				},
-				Error: props.Errors["FirstName"],
-			})
-			@input.Text(&input.Props{
-				Placeholder: pageCtx.T("Account.LastName"),
-				Attrs: templ.Attributes{
-					"name":  "LastName",
-					"value": props.User.LastName,
-				},
-				Error: props.Errors["LastName"],
-			})
-			@input.Text(&input.Props{
-				Placeholder: pageCtx.T("Account.MiddleName"),
-				Attrs: templ.Attributes{
-					"name":  "MiddleName",
-					"value": props.User.MiddleName,
-				},
-				Error: props.Errors["MiddleName"],
-			})
-			@input.Text(&input.Props{
-				Placeholder: pageCtx.T("Account.Phone"),
-				Attrs: templ.Attributes{
-					"name":  "Phone",
-					"value": props.User.Phone,
-				},
-				Error: props.Errors["Phone"],
-			})
-			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-				Label:       pageCtx.T("Users.Single.Language"),
-				Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-				Value:       string(props.User.UILanguage),
-				Attrs:       templ.Attributes{"name": "UILanguage"},
-				Error:       props.Errors["UILanguage"],
-			})
-		}
+		</div>
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Attrs: templ.Attributes{

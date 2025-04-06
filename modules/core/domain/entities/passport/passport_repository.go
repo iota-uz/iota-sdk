@@ -15,4 +15,3 @@ type Repository interface {
 	Update(ctx context.Context, id uuid.UUID, data Passport) (Passport, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
-

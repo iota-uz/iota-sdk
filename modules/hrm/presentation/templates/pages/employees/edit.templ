@@ -101,9 +101,9 @@ templ EditForm(props *EditPageProps) {
 							Label: pageCtx.T("Employees.Public.BirthDate.Label"),
 							Error: props.Errors["BirthDate"],
 							Attrs: templ.Attributes{
-								"name": "BirthDate",
+								"name":  "BirthDate",
 								"value": props.Employee.BirthDate,
-								"form": "save-form",
+								"form":  "save-form",
 							},
 						})
 					}

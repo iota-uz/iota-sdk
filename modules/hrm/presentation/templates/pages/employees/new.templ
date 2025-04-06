@@ -98,7 +98,7 @@ templ CreateForm(props *CreatePageProps) {
 							Label: pageCtx.T("Employees.Public.BirthDate.Label"),
 							Error: props.Errors["BirthDate"],
 							Attrs: templ.Attributes{
-								"name": "BirthDate",
+								"name":  "BirthDate",
 								"value": props.Employee.BirthDate,
 							},
 						})
