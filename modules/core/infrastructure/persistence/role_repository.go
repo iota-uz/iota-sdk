@@ -45,16 +45,16 @@ const (
 	roleDeleteQuery = `DELETE FROM roles WHERE id = $1`
 )
 
-type GormRoleRepository struct{
+type GormRoleRepository struct {
 	fieldMap map[role.Field]string
 }
 
 func NewRoleRepository() role.Repository {
 	return &GormRoleRepository{
 		fieldMap: map[role.Field]string{
-			role.Name:        "r.name",
-			role.Description: "r.description",
-			role.CreatedAt:   "r.created_at",
+			role.Name:         "r.name",
+			role.Description:  "r.description",
+			role.CreatedAt:    "r.created_at",
 			role.PermissionID: "rp.permission_id",
 		},
 	}
@@ -69,7 +69,7 @@ func (g *GormRoleRepository) buildRoleFilters(params *role.FindParams) ([]string
 		if !ok {
 			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
 		}
-		
+
 		// Special handling for IN filters with arrays
 		if values, ok := filter.Filter.Value().([]interface{}); ok {
 			where = append(where, filter.Filter.String(column, len(args)+1))
@@ -134,7 +134,7 @@ func (g *GormRoleRepository) Count(ctx context.Context, params *role.FindParams)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
-	
+
 	if params == nil {
 		var count int64
 		if err := tx.QueryRow(ctx, roleCountQuery).Scan(&count); err != nil {
@@ -149,7 +149,7 @@ func (g *GormRoleRepository) Count(ctx context.Context, params *role.FindParams)
 	}
 
 	baseQuery := roleCountQuery
-	
+
 	// Add necessary joins based on filters
 	for _, f := range params.Filters {
 		if f.Column == role.PermissionID {
