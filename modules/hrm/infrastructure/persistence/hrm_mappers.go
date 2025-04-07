@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -33,8 +34,13 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := uuid.Parse(dbEmployee.TenantID)
+	if err != nil {
+		return nil, err
+	}
 	return employee.NewWithID(
 		dbEmployee.ID,
+		tenantID,
 		dbEmployee.FirstName,
 		dbEmployee.LastName,
 		dbEmployee.MiddleName.String,
@@ -57,6 +63,7 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 	salary := entity.Salary()
 	dbEmployee := &models.Employee{
 		ID:               entity.ID(),
+		TenantID:         entity.TenantID().String(),
 		FirstName:        entity.FirstName(),
 		LastName:         entity.LastName(),
 		MiddleName:       mapping.ValueToSQLNullString(entity.MiddleName()),
@@ -84,6 +91,7 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 func toDomainPosition(dbPosition *models.Position) (*position.Position, error) {
 	return &position.Position{
 		ID:          dbPosition.ID,
+		TenantID:    dbPosition.TenantID,
 		Name:        dbPosition.Name,
 		Description: dbPosition.Description.String,
 		CreatedAt:   dbPosition.CreatedAt,
@@ -94,6 +102,7 @@ func toDomainPosition(dbPosition *models.Position) (*position.Position, error) {
 func toDBPosition(position *position.Position) *models.Position {
 	return &models.Position{
 		ID:          position.ID,
+		TenantID:    position.TenantID,
 		Name:        position.Name,
 		Description: mapping.ValueToSQLNullString(position.Description),
 		CreatedAt:   position.CreatedAt,

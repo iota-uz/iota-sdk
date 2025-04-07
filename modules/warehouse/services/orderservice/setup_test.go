@@ -60,10 +60,23 @@ func setupTest(t *testing.T) *testFixtures {
 	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
+	// Setup application and run migrations
 	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Run migrations first to create all tables including tenants
+	if err := app.Migrations().Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test tenant and add it to the context
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = composables.WithTenant(ctx, tenant)
 
 	return &testFixtures{
 		ctx:  ctx,

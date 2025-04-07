@@ -20,8 +20,9 @@ var (
 
 const (
 	selectChatQuery = `
-		SELECT 
+		SELECT
 			c.id,
+			c.tenant_id,
 			c.created_at,
 			c.last_message_at,
 			c.client_id
@@ -32,21 +33,22 @@ const (
 
 	insertChatQuery = `
 		INSERT INTO chats (
+			tenant_id,
 			client_id,
 			created_at
-		) VALUES ($1, $2) RETURNING id
+		) VALUES ($1, $2, $3) RETURNING id
 	`
 
 	updateChatQuery = `UPDATE chats SET
 		client_id = $1,
 		created_at = $2,
 		last_message_at = $3
-		WHERE id = $4`
+		WHERE id = $4 AND tenant_id = $5`
 
-	deleteChatQuery = `DELETE FROM chats WHERE id = $1`
+	deleteChatQuery = `DELETE FROM chats WHERE id = $1 AND tenant_id = $2`
 
 	selectMessagesQuery = `
-		SELECT 
+		SELECT
 			m.id,
 			m.chat_id,
 			m.message,
@@ -63,7 +65,7 @@ const (
 	selectMessageClientSender = `SELECT id, first_name, last_name FROM clients WHERE id = $1`
 
 	selectMessageAttachmentsQuery = `
-		SELECT 
+		SELECT
 			u.id AS upload_id,
 			u.hash,
 			u.path,
@@ -90,12 +92,12 @@ const (
 		) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
 	updateMessageQuery = `
-		UPDATE messages SET 
+		UPDATE messages SET
 			chat_id = $1,
 			message = $2,
 			sender_user_id = $3,
 			sender_client_id = $4,
-			is_read = $5, 
+			is_read = $5,
 			read_at = $6
 		WHERE id = $7
 	`
@@ -127,6 +129,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 		var c models.Chat
 		if err := rows.Scan(
 			&c.ID,
+			&c.TenantID,
 			&c.CreatedAt,
 			&c.LastMessageAt,
 			&c.ClientID,
@@ -266,6 +269,11 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 func (g *ChatRepository) GetPaginated(
 	ctx context.Context, params *chat.FindParams,
 ) ([]chat.Chat, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	sortFields := []string{}
 	for _, f := range params.SortBy.Fields {
 		switch f {
@@ -278,14 +286,16 @@ func (g *ChatRepository) GetPaginated(
 		}
 	}
 
-	where, args := []string{"1 = 1"}, []interface{}{}
+	where, args := []string{"c.tenant_id = $1"}, []interface{}{tenant.ID}
+
 	if params.Search != "" {
 		where = append(
 			where,
-			"cl.first_name ILIKE $1 OR cl.last_name ILIKE $1 OR cl.middle_name ILIKE $1 OR cl.phone_number ILIKE $1",
+			fmt.Sprintf("cl.first_name ILIKE $%d OR cl.last_name ILIKE $%d OR cl.middle_name ILIKE $%d OR cl.phone_number ILIKE $%d", len(args)+1, len(args)+1, len(args)+1, len(args)+1),
 		)
 		args = append(args, "%"+params.Search+"%")
 	}
+
 	return g.queryChats(
 		ctx,
 		repo.Join(
@@ -303,15 +313,26 @@ func (g *ChatRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	var count int64
-	if err := pool.QueryRow(ctx, countChatQuery).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countChatQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
 		return 0, errors.Wrap(err, "failed to count chats")
 	}
 	return count, nil
 }
 
 func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
-	chats, err := g.queryChats(ctx, selectChatQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.tenant_id = $1", tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get all chats")
 	}
@@ -319,7 +340,12 @@ func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
 }
 
 func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
-	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.id = $1", id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.id = $1 AND c.tenant_id = $2", id, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get chat with id %d", id)
 	}
@@ -330,7 +356,12 @@ func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error
 }
 
 func (g *ChatRepository) GetByClientID(ctx context.Context, clientID uint) (chat.Chat, error) {
-	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.client_id = $1", clientID)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.client_id = $1 AND c.tenant_id = $2", clientID, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get chat for client %d", clientID)
 	}
@@ -475,7 +506,13 @@ func (g *ChatRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
-	if _, err := tx.Exec(ctx, deleteChatQuery, id); err != nil {
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	if _, err := tx.Exec(ctx, deleteChatQuery, id, tenant.ID); err != nil {
 		return errors.Wrapf(err, "failed to delete chat with id %d", id)
 	}
 	return nil

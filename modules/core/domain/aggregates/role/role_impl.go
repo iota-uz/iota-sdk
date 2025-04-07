@@ -1,8 +1,10 @@
 package role
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
 
 func NewWithID(
@@ -12,9 +14,11 @@ func NewWithID(
 	permissions []*permission.Permission,
 	createdAt time.Time,
 	updatedAt time.Time,
+	tenantID uuid.UUID,
 ) (Role, error) {
 	return &role{
 		id:          id,
+		tenantID:    tenantID,
 		name:        name,
 		description: description,
 		permissions: permissions,
@@ -30,6 +34,7 @@ func New(
 ) (Role, error) {
 	return &role{
 		id:          0,
+		tenantID:    uuid.Nil,
 		name:        name,
 		description: description,
 		permissions: permissions,
@@ -40,6 +45,7 @@ func New(
 
 type role struct {
 	id          uint
+	tenantID    uuid.UUID
 	name        string
 	description string
 	permissions []*permission.Permission
@@ -49,6 +55,10 @@ type role struct {
 
 func (r *role) ID() uint {
 	return r.id
+}
+
+func (r *role) TenantID() uuid.UUID {
+	return r.tenantID
 }
 
 func (r *role) Name() string {
@@ -74,6 +84,7 @@ func (r *role) UpdatedAt() time.Time {
 func (r *role) SetName(name string) Role {
 	return &role{
 		id:          r.id,
+		tenantID:    r.tenantID,
 		name:        name,
 		description: r.description,
 		permissions: r.permissions,
@@ -85,8 +96,21 @@ func (r *role) SetName(name string) Role {
 func (r *role) SetDescription(description string) Role {
 	return &role{
 		id:          r.id,
+		tenantID:    r.tenantID,
 		name:        r.name,
 		description: description,
+		permissions: r.permissions,
+		createdAt:   r.createdAt,
+		updatedAt:   time.Now(),
+	}
+}
+
+func (r *role) SetTenantID(tenantID uuid.UUID) Role {
+	return &role{
+		id:          r.id,
+		tenantID:    tenantID,
+		name:        r.name,
+		description: r.description,
 		permissions: r.permissions,
 		createdAt:   r.createdAt,
 		updatedAt:   time.Now(),
@@ -96,6 +120,7 @@ func (r *role) SetDescription(description string) Role {
 func (r *role) AddPermission(p *permission.Permission) Role {
 	return &role{
 		id:          r.id,
+		tenantID:    r.tenantID,
 		name:        r.name,
 		description: r.description,
 		permissions: append(r.permissions, p),
@@ -107,6 +132,7 @@ func (r *role) AddPermission(p *permission.Permission) Role {
 func (r *role) SetPermissions(permissions []*permission.Permission) Role {
 	return &role{
 		id:          r.id,
+		tenantID:    r.tenantID,
 		name:        r.name,
 		description: r.description,
 		permissions: permissions,

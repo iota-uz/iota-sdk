@@ -20,6 +20,7 @@ const (
 	LastLogin
 	CreatedAt
 	UpdatedAt
+	TenantID
 )
 
 type SortBy repo.SortBy[Field]

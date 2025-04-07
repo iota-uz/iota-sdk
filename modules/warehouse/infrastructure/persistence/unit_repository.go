@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/models"
@@ -15,11 +16,11 @@ var (
 )
 
 const (
-	selectUnitsQuery = `SELECT id, title, short_title, created_at, updated_at FROM warehouse_units`
+	selectUnitsQuery = `SELECT id, title, short_title, created_at, updated_at, tenant_id FROM warehouse_units`
 	countUnitsQuery  = `SELECT COUNT(*) FROM warehouse_units`
-	insertUnitQuery  = `INSERT INTO warehouse_units (title, short_title, created_at) VALUES ($1, $2, $3) RETURNING id`
-	updateUnitQuery  = `UPDATE warehouse_units SET title = $1, short_title = $2, updated_at = $3 WHERE id = $4`
-	deleteUnitQuery  = `DELETE FROM warehouse_units WHERE id = $1`
+	insertUnitQuery  = `INSERT INTO warehouse_units (title, short_title, created_at, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
+	updateUnitQuery  = `UPDATE warehouse_units SET title = $1, short_title = $2, updated_at = $3 WHERE id = $4 AND tenant_id = $5`
+	deleteUnitQuery  = `DELETE FROM warehouse_units WHERE id = $1 AND tenant_id = $2`
 )
 
 type GormUnitRepository struct{}
@@ -29,12 +30,19 @@ func NewUnitRepository() unit.Repository {
 }
 
 func (g *GormUnitRepository) GetPaginated(ctx context.Context, params *unit.FindParams) ([]*unit.Unit, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return g.queryUnits(
 		ctx,
 		repo.Join(
 			selectUnitsQuery,
+			"WHERE tenant_id = $1",
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
+		tenant.ID,
 	)
 }
 
@@ -43,15 +51,26 @@ func (g *GormUnitRepository) Count(ctx context.Context) (uint, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	var count uint
-	if err := pool.QueryRow(ctx, countUnitsQuery).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countUnitsQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit.Unit, error) {
-	units, err := g.queryUnits(ctx, selectUnitsQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	units, err := g.queryUnits(ctx, selectUnitsQuery+" WHERE tenant_id = $1", tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +79,12 @@ func (g *GormUnitRepository) GetAll(ctx context.Context) ([]*unit.Unit, error) {
 }
 
 func (g *GormUnitRepository) GetByID(ctx context.Context, id uint) (*unit.Unit, error) {
-	units, err := g.queryUnits(ctx, selectUnitsQuery+" WHERE id = $1", id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	units, err := g.queryUnits(ctx, selectUnitsQuery+" WHERE id = $1 AND tenant_id = $2", id, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +97,12 @@ func (g *GormUnitRepository) GetByID(ctx context.Context, id uint) (*unit.Unit, 
 }
 
 func (g *GormUnitRepository) GetByTitleOrShortTitle(ctx context.Context, name string) (*unit.Unit, error) {
-	units, err := g.queryUnits(ctx, selectUnitsQuery+" WHERE title = $1 OR short_title = $1", name)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	units, err := g.queryUnits(ctx, selectUnitsQuery+" WHERE (title = $1 OR short_title = $1) AND tenant_id = $2", name, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -89,13 +118,22 @@ func (g *GormUnitRepository) Create(ctx context.Context, data *unit.Unit) error 
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
 	dbRow := mappers.ToDBUnit(data)
+	dbRow.TenantID = tenant.ID.String()
+
 	if err := tx.QueryRow(
 		ctx,
 		insertUnitQuery,
 		dbRow.Title,
 		dbRow.ShortTitle,
 		dbRow.CreatedAt,
+		dbRow.TenantID,
 	).Scan(&data.ID); err != nil {
 		return err
 	}
@@ -124,7 +162,15 @@ func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error 
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
 	dbRow := mappers.ToDBUnit(data)
+	dbRow.TenantID = tenant.ID.String()
+
 	if _, err := tx.Exec(
 		ctx,
 		updateUnitQuery,
@@ -132,6 +178,7 @@ func (g *GormUnitRepository) Update(ctx context.Context, data *unit.Unit) error 
 		dbRow.ShortTitle,
 		dbRow.UpdatedAt,
 		dbRow.ID,
+		dbRow.TenantID,
 	); err != nil {
 		return err
 	}
@@ -143,7 +190,13 @@ func (g *GormUnitRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, deleteUnitQuery, id); err != nil {
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, deleteUnitQuery, id, tenant.ID); err != nil {
 		return err
 	}
 	return nil
@@ -169,11 +222,15 @@ func (g *GormUnitRepository) queryUnits(ctx context.Context, query string, args 
 			&u.ShortTitle,
 			&u.CreatedAt,
 			&u.UpdatedAt,
+			&u.TenantID,
 		); err != nil {
 			return nil, err
 		}
 
-		domainUnit := mappers.ToDomainUnit(&u)
+		domainUnit, err := mappers.ToDomainUnit(&u)
+		if err != nil {
+			return nil, err
+		}
 		units = append(units, domainUnit)
 	}
 

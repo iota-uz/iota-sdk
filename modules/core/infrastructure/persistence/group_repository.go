@@ -25,12 +25,13 @@ const (
 			g.name,
 			g.description,
 			g.created_at,
-			g.updated_at
+			g.updated_at,
+			g.tenant_id
 		FROM user_groups g`
 
 	groupCountQuery = `SELECT COUNT(DISTINCT g.id) FROM user_groups g`
 
-	groupDeleteQuery     = `DELETE FROM user_groups WHERE id = $1`
+	groupDeleteQuery     = `DELETE FROM user_groups WHERE id = $1 AND tenant_id = $2`
 	groupUserDeleteQuery = `DELETE FROM group_users WHERE group_id = $1`
 	groupRoleDeleteQuery = `DELETE FROM group_roles WHERE group_id = $1`
 	groupUserInsertQuery = `INSERT INTO group_users (group_id, user_id) VALUES`
@@ -78,6 +79,7 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 		fieldMap: map[group.Field]string{
 			group.CreatedAt: "g.created_at",
 			group.UpdatedAt: "g.updated_at",
+			group.TenantID:  "g.tenant_id",
 		},
 	}
 }
@@ -163,7 +165,12 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 }
 
 func (g *PgGroupRepository) GetByID(ctx context.Context, id uuid.UUID) (group.Group, error) {
-	groups, err := g.queryGroups(ctx, groupFindQuery+" WHERE g.id = $1", id.String())
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	groups, err := g.queryGroups(ctx, groupFindQuery+" WHERE g.id = $1 AND g.tenant_id = $2", id.String(), tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group with id: %s", id.String()))
 	}
@@ -179,8 +186,14 @@ func (g *PgGroupRepository) Exists(ctx context.Context, id uuid.UUID) (bool, err
 		return false, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	var exists bool
-	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1)", id.String()).Scan(&exists)
+	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1 AND tenant_id = $2)",
+		id.String(), tenant.ID).Scan(&exists)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to check if group exists")
 	}
@@ -205,6 +218,11 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	// Generate a new UUID if not provided
 	var groupID uuid.UUID
 	if entity.ID() == uuid.Nil {
@@ -215,6 +233,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 
 	dbGroup := ToDBGroup(entity)
 	dbGroup.ID = groupID.String()
+	dbGroup.TenantID = tenant.ID.String()
 
 	fields := []string{
 		"id",
@@ -222,6 +241,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 		"description",
 		"created_at",
 		"updated_at",
+		"tenant_id",
 	}
 
 	values := []interface{}{
@@ -230,6 +250,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 		dbGroup.Description,
 		dbGroup.CreatedAt,
 		dbGroup.UpdatedAt,
+		dbGroup.TenantID,
 	}
 
 	_, err = tx.Exec(ctx, repo.Insert("user_groups", fields), values...)
@@ -300,6 +321,11 @@ func (g *PgGroupRepository) update(ctx context.Context, entity group.Group) (gro
 func (g *PgGroupRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	uuidStr := id.String()
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	if err := g.execQuery(ctx, groupUserDeleteQuery, uuidStr); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete users for group ID: %s", uuidStr))
 	}
@@ -308,7 +334,7 @@ func (g *PgGroupRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete roles for group ID: %s", uuidStr))
 	}
 
-	if err := g.execQuery(ctx, groupDeleteQuery, uuidStr); err != nil {
+	if err := g.execQuery(ctx, groupDeleteQuery, uuidStr, tenant.ID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete group with ID: %s", uuidStr))
 	}
 
@@ -337,6 +363,7 @@ func (g *PgGroupRepository) queryGroups(ctx context.Context, query string, args 
 			&dbGroup.Description,
 			&dbGroup.CreatedAt,
 			&dbGroup.UpdatedAt,
+			&dbGroup.TenantID,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan group row")
 		}

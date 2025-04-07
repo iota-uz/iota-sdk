@@ -194,11 +194,24 @@ func (c *GroupsController) Groups(
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant from request context: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+		return
+	}
+
 	findParams := &group.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: group.SortBy{Fields: []group.Field{}},
 		Search: search,
+		Filters: []group.Filter{
+			{
+				Column: group.TenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
