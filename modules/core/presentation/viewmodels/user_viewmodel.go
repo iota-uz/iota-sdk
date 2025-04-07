@@ -17,13 +17,13 @@ type User struct {
 	UpdatedAt   string
 	AvatarID    string
 	Roles       []*Role
-	Groups      []*Group
+	GroupIDs    []string
 	Permissions []*Permission
 	Avatar      *Upload
 }
 
 func (u *User) FullName() string {
-	return u.FirstName + " " + u.LastName + " " + u.MiddleName
+	return u.FirstName + " " + u.LastName
 }
 
 func (u *User) RolesVerbose() string {

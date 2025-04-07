@@ -3,13 +3,9 @@ package base
 import twmerge "github.com/Oudwins/tailwind-merge-go"
 
 type TableColumn struct {
-	Label      string
-	Key        string
-	Width      int
-	Class      string
-	DateFormat string
-	Duration   bool
-	Sortable   bool
+	Label string
+	Key   string
+	Class string
 }
 
 type TableRowProps struct {
@@ -37,20 +33,39 @@ templ TableCell(props TableCellProps) {
 }
 
 type TableProps struct {
-	Columns []*TableColumn
+	Columns      []*TableColumn
+	Classes      templ.CSSClasses
+	Attrs        templ.Attributes
+	TBodyClasses templ.CSSClasses
+	TBodyAttrs   templ.Attributes
 }
 
 templ Table(props TableProps) {
 	<div class="overflow-x-auto relative">
-		<table class="min-w-full rounded-b-lg table bg-surface-600 text-sm">
+		<table
+			class={
+				twmerge.Merge(
+					"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+					props.Classes.String(),
+				),
+			}
+			{ props.Attrs... }
+		>
 			<thead>
 				<tr class="bg-surface-500 text-200">
 					for _, col := range props.Columns {
-						<th class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }>{ col.Label }</th>
+						<th
+							class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }
+						>
+							{ col.Label }
+						</th>
 					}
 				</tr>
 			</thead>
-			<tbody>
+			<tbody
+				class={ props.TBodyClasses }
+				{ props.TBodyAttrs... }
+			>
 				{ children... }
 			</tbody>
 		</table>

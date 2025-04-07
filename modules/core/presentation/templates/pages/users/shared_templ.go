@@ -156,15 +156,15 @@ type SharedProps struct {
 
 type GroupSelectProps struct {
 	Groups   []*viewmodels.Group
-	Selected []*viewmodels.Group
+	Selected []string
 	Name     string
 	Form     string
 	Error    string
 }
 
-func isGroupSelected(id string, groups []*viewmodels.Group) bool {
-	for _, group := range groups {
-		if group.ID == id {
+func isGroupSelected(id string, groups []string) bool {
+	for _, groupID := range groups {
+		if groupID == id {
 			return true
 		}
 	}

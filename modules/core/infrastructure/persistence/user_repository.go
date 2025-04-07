@@ -84,142 +84,50 @@ const (
 
 type PgUserRepository struct {
 	uploadRepo upload.Repository
+	fieldMap   map[user.Field]string
 }
 
 func NewUserRepository(uploadRepo upload.Repository) user.Repository {
 	return &PgUserRepository{
 		uploadRepo: uploadRepo,
+		fieldMap: map[user.Field]string{
+			user.FirstName:    "u.first_name",
+			user.LastName:     "u.last_name",
+			user.MiddleName:   "u.middle_name",
+			user.Email:        "u.email",
+			user.GroupID:      "gu.group_id",
+			user.RoleID:       "ur.role_id",
+			user.Phone:        "u.phone",
+			user.PermissionID: "rp.permission_id",
+			user.LastLogin:    "u.last_login",
+			user.CreatedAt:    "u.created_at",
+			user.UpdatedAt:    "u.updated_at",
+			user.TenantID:     "u.tenant_id",
+		},
 	}
 }
 
-func BuildUserFilters(params *user.FindParams) ([]string, []interface{}, error) {
+func (g *PgUserRepository) buildUserFilters(params *user.FindParams) ([]string, []interface{}, error) {
 	where := []string{"1 = 1"}
 	args := []interface{}{}
 
-	// Add join for role filter if needed
-	if params.RoleID != nil {
-		switch params.RoleID.Expr {
-		case repo.Eq:
-			where = append(where, fmt.Sprintf("ur.role_id = $%d", len(args)+1))
-			args = append(args, params.RoleID.Value)
-		case repo.NotEq:
-			where = append(where, fmt.Sprintf("ur.role_id != $%d", len(args)+1))
-			args = append(args, params.RoleID.Value)
-		case repo.In:
-			if values, ok := params.RoleID.Value.([]interface{}); ok && len(values) > 0 {
-				where = append(where, fmt.Sprintf("ur.role_id = ANY($%d)", len(args)+1))
-				args = append(args, values)
-			} else {
-				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for role ID filter: %v", params.RoleID.Value), "invalid filter")
-			}
-		default:
-			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for role ID filter: %v", params.RoleID.Expr), "invalid filter")
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
+		}
+
+		// Special handling for IN filters with arrays
+		if values, ok := filter.Filter.Value().([]interface{}); ok {
+			where = append(where, filter.Filter.String(column, len(args)+1))
+			args = append(args, values...)
+		} else {
+			where = append(where, filter.Filter.String(column, len(args)+1))
+			args = append(args, filter.Filter.Value())
 		}
 	}
 
-	// Add join for group filter if needed
-	if params.GroupID != nil {
-		switch params.GroupID.Expr {
-		case repo.Eq:
-			where = append(where, fmt.Sprintf("gu.group_id = $%d", len(args)+1))
-			args = append(args, params.GroupID.Value)
-		case repo.NotEq:
-			where = append(where, fmt.Sprintf("gu.group_id != $%d", len(args)+1))
-			args = append(args, params.GroupID.Value)
-		case repo.In:
-			if values, ok := params.GroupID.Value.([]interface{}); ok && len(values) > 0 {
-				where = append(where, fmt.Sprintf("gu.group_id = ANY($%d)", len(args)+1))
-				args = append(args, values)
-			} else {
-				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for group ID filter: %v", params.GroupID.Value), "invalid filter")
-			}
-		default:
-			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for group ID filter: %v", params.GroupID.Expr), "invalid filter")
-		}
-	}
-
-	if params.PermissionID != nil {
-		switch params.PermissionID.Expr {
-		case repo.Eq:
-			where = append(where, fmt.Sprintf("rp.permission_id = $%d", len(args)+1))
-			args = append(args, params.PermissionID.Value)
-		case repo.NotEq:
-			where = append(where, fmt.Sprintf("rp.permission_id != $%d", len(args)+1))
-			args = append(args, params.PermissionID.Value)
-		case repo.In:
-			if values, ok := params.PermissionID.Value.([]interface{}); ok && len(values) > 0 {
-				where = append(where, fmt.Sprintf("rp.permission_id = ANY($%d)", len(args)+1))
-				args = append(args, values)
-			} else {
-				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for permission ID filter: %v", params.PermissionID.Value), "invalid filter")
-			}
-		case repo.NotIn:
-			if values, ok := params.PermissionID.Value.([]interface{}); ok && len(values) > 0 {
-				where = append(where, fmt.Sprintf("rp.permission_id != ALL($%d)", len(args)+1))
-				args = append(args, values)
-			} else {
-				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for permission ID filter: %v", params.PermissionID.Value), "invalid filter")
-			}
-		}
-	}
-
-	if params.CreatedAt != nil {
-		switch params.CreatedAt.Expr {
-		case repo.Gt:
-			where = append(where, fmt.Sprintf("u.created_at > $%d", len(args)+1))
-		case repo.Gte:
-			where = append(where, fmt.Sprintf("u.created_at >= $%d", len(args)+1))
-		case repo.Lt:
-			where = append(where, fmt.Sprintf("u.created_at < $%d", len(args)+1))
-		case repo.Lte:
-			where = append(where, fmt.Sprintf("u.created_at <= $%d", len(args)+1))
-		default:
-			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for created at filter: %v", params.CreatedAt.Expr), "invalid filter")
-		}
-
-		args = append(args, params.CreatedAt.Value)
-	}
-
-	if params.Email != nil {
-		switch params.Email.Expr {
-		case repo.Eq:
-			where = append(where, fmt.Sprintf("u.email = $%d", len(args)+1))
-			args = append(args, params.Email.Value)
-		case repo.NotEq:
-			where = append(where, fmt.Sprintf("u.email != $%d", len(args)+1))
-			args = append(args, params.Email.Value)
-		case repo.Like:
-			where = append(where, fmt.Sprintf("u.email ILIKE $%d", len(args)+1))
-			args = append(args, params.Email.Value)
-		case repo.In:
-			if values, ok := params.Email.Value.([]interface{}); ok && len(values) > 0 {
-				where = append(where, fmt.Sprintf("u.email = ANY($%d)", len(args)+1))
-				args = append(args, values)
-			} else {
-				return nil, nil, errors.Wrap(fmt.Errorf("invalid value for email filter: %v", params.Email.Value), "invalid filter")
-			}
-		default:
-			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for email filter: %v", params.Email.Expr), "invalid filter")
-		}
-	}
-
-	if params.LastLogin != nil {
-		switch params.LastLogin.Expr {
-		case repo.Gt:
-			where = append(where, fmt.Sprintf("u.last_login > $%d", len(args)+1))
-		case repo.Gte:
-			where = append(where, fmt.Sprintf("u.last_login >= $%d", len(args)+1))
-		case repo.Lt:
-			where = append(where, fmt.Sprintf("u.last_login < $%d", len(args)+1))
-		case repo.Lte:
-			where = append(where, fmt.Sprintf("u.last_login <= $%d", len(args)+1))
-		default:
-			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for last login filter: %v", params.LastLogin.Expr), "invalid filter")
-		}
-		args = append(args, params.LastLogin.Value)
-	}
-
-	if params.Name != "" {
+	if params.Search != "" {
 		index := len(args) + 1
 		where = append(
 			where,
@@ -230,57 +138,41 @@ func BuildUserFilters(params *user.FindParams) ([]string, []interface{}, error) 
 				index,
 			),
 		)
-		args = append(args, "%"+params.Name+"%")
+		args = append(args, "%"+params.Search+"%")
 	}
 
 	return where, args, nil
 }
 
 func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
-	}
-
-	fieldMap := map[user.Field]string{
-		user.FirstName:  "u.first_name",
-		user.LastName:   "u.last_name",
-		user.MiddleName: "u.middle_name",
-		user.Email:      "u.email",
-		user.LastLogin:  "u.last_login",
-		user.CreatedAt:  "u.created_at",
-		user.UpdatedAt:  "u.updated_at",
-	}
-
 	sortFields := make([]string, 0, len(params.SortBy.Fields))
 
 	for _, f := range params.SortBy.Fields {
-		if field, ok := fieldMap[f]; ok {
+		if field, ok := g.fieldMap[f]; ok {
 			sortFields = append(sortFields, field)
 		} else {
 			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid pagination parameters")
 		}
 	}
 
-	where, args, err := BuildUserFilters(params)
+	where, args, err := g.buildUserFilters(params)
 	if err != nil {
 		return nil, err
 	}
 
-	where = append(where, fmt.Sprintf("u.tenant_id = $%d", len(args)+1))
-	args = append(args, tenant.ID)
-
 	baseQuery := userFindQuery
-	if params.RoleID != nil || params.PermissionID != nil {
-		baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
-	}
+	for _, f := range params.Filters {
+		if f.Column == user.RoleID {
+			baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+		}
 
-	if params.GroupID != nil {
-		baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
-	}
+		if f.Column == user.GroupID {
+			baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
+		}
 
-	if params.PermissionID != nil {
-		baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
+		if f.Column == user.PermissionID {
+			baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
+		}
 	}
 
 	query := repo.Join(
@@ -307,7 +199,7 @@ func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	where, args, err := BuildUserFilters(params)
+	where, args, err := g.buildUserFilters(params)
 	if err != nil {
 		return 0, err
 	}
@@ -316,16 +208,19 @@ func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (
 	args = append(args, tenant.ID)
 
 	baseQuery := userCountQuery
-	if params.RoleID != nil || params.PermissionID != nil {
-		baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
-	}
 
-	if params.GroupID != nil {
-		baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
-	}
+	for _, f := range params.Filters {
+		if f.Column == user.RoleID {
+			baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
+		}
 
-	if params.PermissionID != nil {
-		baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
+		if f.Column == user.GroupID {
+			baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
+		}
+
+		if f.Column == user.PermissionID {
+			baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
+		}
 	}
 
 	query := repo.Join(
@@ -524,7 +419,6 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
-	fmt.Printf("TENANT: %v\n", tenant)
 	dbUser, _ := toDBUser(data)
 	if dbUser.TenantID == uuid.Nil.String() {
 		dbUser.TenantID = tenant.ID.String()
@@ -542,7 +436,6 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		"updated_at",
 	}
 
-	fmt.Printf("DB_USER tenant_id: %s\n", dbUser.TenantID)
 	values := []interface{}{
 		dbUser.TenantID,
 		dbUser.FirstName,

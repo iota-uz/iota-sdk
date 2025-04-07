@@ -624,6 +624,22 @@
     --display: block;
   }
 
+  .htmx-request .hide-on-load {
+    display: none;
+  }
+
+  .htmx-request.hide-on-load {
+    display: revert;
+  }
+
+  .htmx-request .hidden {
+    display: revert;
+  }
+
+  .htmx-request.hidden {
+    display: revert;
+  }
+
   .table {
     --radius: var(--table-radius);
     border-collapse: separate;
