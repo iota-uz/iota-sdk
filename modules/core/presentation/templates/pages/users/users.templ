@@ -76,8 +76,8 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			}
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div>
-				{ user.Email }
+			<div x-data="relativeformat">
+				<span x-text={ fmt.Sprintf("format('%s')", user.CreatedAt) }></span>
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
@@ -123,7 +123,7 @@ templ UsersTable(props *IndexPageProps) {
 		Columns: []*base.TableColumn{
 			{Label: pageCtx.T("Users.List.FullName"), Key: "fullName"},
 			{Label: pageCtx.T("Users.List.Roles"), Key: "roles"},
-			{Label: pageCtx.T("Users.List.Email"), Key: "email"},
+			{Label: pageCtx.T("CreatedAt"), Key: "createdAt"},
 			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
 		TBodyAttrs: templ.Attributes{
