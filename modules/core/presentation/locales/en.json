@@ -186,7 +186,7 @@
       "FullName": "Full name",
       "Roles": "Roles",
       "Email": "Email",
-      "AllUsers": "All Users"
+      "AllGroups": "All Groups"
     },
     "Cards": {
       "PersonalInfo": "Personal information",
