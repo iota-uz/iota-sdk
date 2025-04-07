@@ -44,7 +44,7 @@ CREATE TABLE passports (
     remarks text, -- Additional notes (e.g., travel restrictions, visa endorsements).
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    UNIQUE (tenant_id, passport_number, series)
+    CONSTRAINT passports_tenant_passport_number_series_key UNIQUE (tenant_id, passport_number, series)
 );
 
 CREATE TABLE companies (
