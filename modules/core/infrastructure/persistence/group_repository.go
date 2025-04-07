@@ -92,7 +92,7 @@ func (g *PgGroupRepository) buildGroupFilters(params *group.FindParams) ([]strin
 			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
 		}
 		where = append(where, filter.Filter.String(column, len(args)+1))
-		args = append(args, filter.Filter.Value())
+		args = append(args, filter.Filter.Value()...)
 	}
 
 	if params.Search != "" {
