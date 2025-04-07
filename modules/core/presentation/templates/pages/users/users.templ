@@ -17,11 +17,11 @@ import (
 )
 
 type IndexPageProps struct {
-	Users    []*viewmodels.User
-	Groups   []*viewmodels.Group
-	Page     int
-	PerPage  int
-	HasMore  bool
+	Users   []*viewmodels.User
+	Groups  []*viewmodels.Group
+	Page    int
+	PerPage int
+	HasMore bool
 }
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
@@ -132,11 +132,11 @@ templ UsersTable(props *IndexPageProps) {
 templ GroupFilter(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<form 
-			hx-get="/users" 
-			hx-target="#users-table-wrapper" 
-			hx-swap="innerHTML" 
-			hx-push-url="true" 
+		<form
+			hx-get="/users"
+			hx-target="#users-table-wrapper"
+			hx-swap="innerHTML"
+			hx-push-url="true"
 			hx-indicator="#users-table-body"
 			hx-trigger="change"
 			x-data="checkboxes"
@@ -147,25 +147,23 @@ templ GroupFilter(props *IndexPageProps) {
 				<div>
 					@input.Checkbox(&input.CheckboxProps{
 						Label: pageCtx.T("Users.List.AllGroups"),
-						ID: "all-users-checkbox",
+						ID:    "all-users-checkbox",
 						Attrs: templ.Attributes{
-							"class": "parent",
-							"x-ref": "parent",
+							"class":   "parent",
+							"x-ref":   "parent",
 							"@change": "onParentChange",
 						},
 					})
 				</div>
-				
-				<hr class="my-3 border-t border-surface-400" />
-				
+				<hr class="my-3 border-t border-surface-400"/>
 				<div class="space-y-3">
 					for _, group := range props.Groups {
 						@input.Checkbox(&input.CheckboxProps{
 							Label: group.Name,
-							ID: fmt.Sprintf("group-%s", group.ID),
+							ID:    fmt.Sprintf("group-%s", group.ID),
 							Attrs: templ.Attributes{
-								"name": "groupID",
-								"value": group.ID,
+								"name":    "groupID",
+								"value":   group.ID,
 								"@change": "onChange",
 							},
 						}) {
