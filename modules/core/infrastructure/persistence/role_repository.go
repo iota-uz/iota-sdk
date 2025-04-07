@@ -71,7 +71,7 @@ func (g *GormRoleRepository) buildRoleFilters(params *role.FindParams) ([]string
 		}
 
 		where = append(where, filter.Filter.String(column, len(args)+1))
-		args = append(args, filter.Filter.Value())
+		args = append(args, filter.Filter.Value()...)
 	}
 
 	if params.Search != "" {
