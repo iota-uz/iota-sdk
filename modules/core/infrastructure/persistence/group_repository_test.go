@@ -338,9 +338,11 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 		// Test filtering by created_at with Gt expression
 		params := &group.FindParams{
-			CreatedAt: &repo.Filter{
-				Expr:  repo.Gt,
-				Value: pastTime,
+			Filters: []group.Filter{
+				{
+					Column: group.CreatedAt,
+					Filter: repo.Gt(pastTime),
+				},
 			},
 			SortBy: group.SortBy{
 				Fields:    []group.Field{group.CreatedAt},
@@ -360,9 +362,19 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Test with Lt expression
-		params.CreatedAt = &repo.Filter{
-			Expr:  repo.Lt,
-			Value: pastTime,
+		params = &group.FindParams{
+			Filters: []group.Filter{
+				{
+					Column: group.CreatedAt,
+					Filter: repo.Lt(pastTime),
+				},
+			},
+			SortBy: group.SortBy{
+				Fields:    []group.Field{group.CreatedAt},
+				Ascending: true,
+			},
+			Limit:  100,
+			Offset: 0,
 		}
 
 		// Get groups created before yesterday
@@ -375,9 +387,19 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Test with Gte expression
-		params.CreatedAt = &repo.Filter{
-			Expr:  repo.Gte,
-			Value: pastTime,
+		params = &group.FindParams{
+			Filters: []group.Filter{
+				{
+					Column: group.CreatedAt,
+					Filter: repo.Gte(pastTime),
+				},
+			},
+			SortBy: group.SortBy{
+				Fields:    []group.Field{group.CreatedAt},
+				Ascending: true,
+			},
+			Limit:  100,
+			Offset: 0,
 		}
 
 		// Get groups created on or after yesterday
@@ -391,9 +413,19 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Test with Lte expression
-		params.CreatedAt = &repo.Filter{
-			Expr:  repo.Lte,
-			Value: pastTime,
+		params = &group.FindParams{
+			Filters: []group.Filter{
+				{
+					Column: group.CreatedAt,
+					Filter: repo.Lte(pastTime),
+				},
+			},
+			SortBy: group.SortBy{
+				Fields:    []group.Field{group.CreatedAt},
+				Ascending: true,
+			},
+			Limit:  100,
+			Offset: 0,
 		}
 
 		// Get groups created on or before yesterday

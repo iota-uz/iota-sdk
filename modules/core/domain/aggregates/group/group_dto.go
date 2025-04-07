@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 )
 
 type CreateDTO struct {
-	Name        string   `form:"Name"`
-	Description string   `form:"Description"`
-	RoleIDs     []string `form:"RoleIDs"`
+	Name        string
+	Description string
+	RoleIDs     []string
 }
 
 func (dto *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -33,31 +34,29 @@ func (dto *CreateDTO) ToEntity() (Group, error) {
 }
 
 type UpdateDTO struct {
-	Name        string   `form:"Name"`
-	Description string   `form:"Description"`
-	RoleIDs     []string `form:"RoleIDs"`
+	Name        string
+	Description string
+	RoleIDs     []string
 }
 
-func (dto *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
+func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	errors := make(map[string]string)
 
-	if dto.Name == "" {
+	if d.Name == "" {
 		errors["Name"] = "Name is required"
 	}
 
 	return errors, len(errors) == 0
 }
 
-func (dto *UpdateDTO) ToEntity(id uuid.UUID) (Group, error) {
-	if id == uuid.Nil {
+func (d *UpdateDTO) Apply(g Group, roles []role.Role) (Group, error) {
+	if g.ID() == uuid.Nil {
 		return nil, errors.New("id cannot be nil")
 	}
 
-	return New(dto.Name,
-		WithID(id),
-		WithDescription(dto.Description),
-		WithUpdatedAt(time.Now()),
-	), nil
-}
+	g = g.SetName(d.Name).
+		SetDescription(d.Description).
+		SetRoles(roles)
 
-// Using FindParams from group_repository.go
+	return g, nil
+}

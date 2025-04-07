@@ -32,12 +32,19 @@ var sizes = map[Size]string{
 }
 
 type Props struct {
+	Class   templ.CSSClasses
 	Size    Size
 	Variant Variant
 }
 
 templ New(props Props) {
-	<div class={ "flex items-center justify-center rounded-lg text-sm font-medium border", variants[props.Variant], sizes[props.Size] }>
+	<div
+		class={
+			"flex items-center justify-center rounded-lg text-sm font-medium border",
+			variants[props.Variant], sizes[props.Size],
+			props.Class,
+		}
+	>
 		{ children... }
 	</div>
 }

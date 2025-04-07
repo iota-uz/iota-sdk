@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -242,8 +243,14 @@ func (c *UsersController) Users(
 	groupService *services.GroupService,
 ) {
 	params := composables.UsePaginated(r)
-	search := r.URL.Query().Get("name")
 	groupID := r.URL.Query().Get("groupID")
+
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant from request: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+		return
+	}
 
 	// Create find params
 	findParams := &user.FindParams{
@@ -252,15 +259,47 @@ func (c *UsersController) Users(
 		SortBy: user.SortBy{Fields: []user.Field{
 			user.CreatedAt,
 		}},
-		Name: search,
+		Search: r.URL.Query().Get("Search"),
+		Filters: []user.Filter{
+			{
+				Column: user.TenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
 	}
 
 	// Apply group filter if provided
 	if groupID != "" {
-		findParams.GroupID = &repo.Filter{
-			Expr:  repo.Eq,
-			Value: groupID,
+		findParams.Filters = append(findParams.Filters, user.Filter{
+			Column: user.GroupID,
+			Filter: repo.Eq(groupID),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.To: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
 		}
+		findParams.Filters = append(findParams.Filters, user.Filter{
+			Column: user.CreatedAt,
+			Filter: repo.Lt(t),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.From: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
+		}
+		findParams.Filters = append(findParams.Filters, user.Filter{
+			Column: user.CreatedAt,
+			Filter: repo.Gt(t),
+		})
 	}
 
 	// Get users based on filters
@@ -285,7 +324,6 @@ func (c *UsersController) Users(
 		SelectedGroup: groupID,
 		Page:          params.Page,
 		PerPage:       params.Limit,
-		Search:        search,
 		HasMore:       total > int64(params.Page*params.Limit),
 	}
 
@@ -293,7 +331,11 @@ func (c *UsersController) Users(
 		if params.Page > 1 {
 			templ.Handler(users.UserRows(props), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
-			templ.Handler(users.UsersContent(props), templ.WithStreaming()).ServeHTTP(w, r)
+			if htmx.Target(r) == "users-table-body" {
+				templ.Handler(users.UserRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+			} else {
+				templ.Handler(users.UsersContent(props), templ.WithStreaming()).ServeHTTP(w, r)
+			}
 		}
 	} else {
 		templ.Handler(users.Index(props), templ.WithStreaming()).ServeHTTP(w, r)

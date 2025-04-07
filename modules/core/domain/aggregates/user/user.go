@@ -140,6 +140,7 @@ type User interface {
 	CheckPassword(password string) bool
 
 	AddRole(r role.Role) User
+	RemoveRole(r role.Role) User
 	AddGroupID(groupID uuid.UUID) User
 	RemoveGroupID(groupID uuid.UUID) User
 	SetGroupIDs(groupIDs []uuid.UUID) User
@@ -292,6 +293,20 @@ func (u *user) FullName() string {
 func (u *user) AddRole(r role.Role) User {
 	result := *u
 	result.roles = append(result.roles, r)
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) RemoveRole(r role.Role) User {
+	result := *u
+	filteredRoles := make([]role.Role, 0, len(result.roles))
+	for _, role := range result.roles {
+		if role.ID() == r.ID() {
+			continue
+		}
+		filteredRoles = append(filteredRoles, role)
+	}
+	result.roles = filteredRoles
 	result.updatedAt = time.Now()
 	return &result
 }

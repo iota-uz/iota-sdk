@@ -69,66 +69,58 @@ const (
 type PgGroupRepository struct {
 	userRepository user.Repository
 	roleRepository role.Repository
+	fieldMap       map[group.Field]string
 }
 
 func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) group.Repository {
 	return &PgGroupRepository{
 		userRepository: userRepo,
 		roleRepository: roleRepo,
+		fieldMap: map[group.Field]string{
+			group.CreatedAt: "g.created_at",
+			group.UpdatedAt: "g.updated_at",
+			group.TenantID:  "g.tenant_id",
+		},
 	}
 }
 
-func BuildGroupFilters(params *group.FindParams) ([]string, []interface{}, error) {
+func (g *PgGroupRepository) buildGroupFilters(params *group.FindParams) ([]string, []interface{}, error) {
 	where := []string{"1 = 1"}
 	args := []interface{}{}
 
-	if params.CreatedAt != nil {
-		switch params.CreatedAt.Expr {
-		case repo.Gt:
-			where = append(where, fmt.Sprintf("g.created_at > $%d", len(args)+1))
-		case repo.Gte:
-			where = append(where, fmt.Sprintf("g.created_at >= $%d", len(args)+1))
-		case repo.Lt:
-			where = append(where, fmt.Sprintf("g.created_at < $%d", len(args)+1))
-		case repo.Lte:
-			where = append(where, fmt.Sprintf("g.created_at <= $%d", len(args)+1))
-		default:
-			return nil, nil, errors.Wrap(fmt.Errorf("unsupported expression for created at filter: %v", params.CreatedAt.Expr), "invalid filter")
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
 		}
-		args = append(args, params.CreatedAt.Value)
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value())
+	}
+
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(where, fmt.Sprintf("(g.name ILIKE $%d OR g.description ILIKE $%d)", index, index))
+		args = append(args, "%"+params.Search+"%")
 	}
 
 	return where, args, nil
 }
 
 func (g *PgGroupRepository) GetPaginated(ctx context.Context, params *group.FindParams) ([]group.Group, error) {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
-	}
-
-	fieldMap := map[group.Field]string{
-		group.CreatedAt: "g.created_at",
-		group.UpdatedAt: "g.updated_at",
-	}
-
 	sortFields := make([]string, 0, len(params.SortBy.Fields))
 
 	for _, f := range params.SortBy.Fields {
-		if field, ok := fieldMap[f]; ok {
+		if field, ok := g.fieldMap[f]; ok {
 			sortFields = append(sortFields, field)
 		} else {
 			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid pagination parameters")
 		}
 	}
 
-	where, args, err := BuildGroupFilters(params)
+	where, args, err := g.buildGroupFilters(params)
 	if err != nil {
 		return nil, err
 	}
-
-	where = append(where, fmt.Sprintf("g.tenant_id = $%d", len(args)+1))
-	args = append(args, tenant.ID)
 
 	baseQuery := groupFindQuery
 
@@ -152,18 +144,10 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to get tenant from context")
-	}
-
-	where, args, err := BuildGroupFilters(params)
+	where, args, err := g.buildGroupFilters(params)
 	if err != nil {
 		return 0, err
 	}
-
-	where = append(where, fmt.Sprintf("g.tenant_id = $%d", len(args)+1))
-	args = append(args, tenant.ID)
 
 	baseQuery := groupCountQuery
 

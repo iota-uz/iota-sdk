@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -21,14 +22,12 @@ type IndexPageProps struct {
 	SelectedGroup string
 	Page          int
 	PerPage       int
-	Search        string
 	HasMore       bool
 }
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	params := url.Values{}
 	params.Set("page", strconv.Itoa(props.Page+1))
-	params.Set("name", props.Search)
 	params.Set("limit", strconv.Itoa(props.PerPage))
 
 	if props.SelectedGroup != "" {
@@ -53,6 +52,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		rowProps.Attrs["id"] = fmt.Sprintf("user-%s", user.ID)
+		rowProps.Attrs["class"] = "hide-on-load"
 	}}
 	@base.TableRow(*rowProps) {
 		@base.TableCell(base.TableCellProps{}) {
@@ -81,11 +81,6 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="relativeformat">
-				<span x-text={ fmt.Sprintf("format('%s')", user.UpdatedAt) }></span>
-			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
 			@button.Secondary(button.Props{
 				Fixed: true,
 				Size:  button.SizeSM,
@@ -99,6 +94,15 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 }
 
 templ UserRows(props *IndexPageProps) {
+	<tr class="hidden">
+		<td colspan="4">
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes(
+					"flex justify-center items-center py-4",
+				),
+			})
+		</td>
+	</tr>
 	for ix, user := range props.Users {
 		{{
 			isLastRow := ix == len(props.Users)-1
@@ -120,54 +124,61 @@ templ UsersTable(props *IndexPageProps) {
 			{Label: pageCtx.T("Users.List.FullName"), Key: "fullName"},
 			{Label: pageCtx.T("Users.List.Roles"), Key: "roles"},
 			{Label: pageCtx.T("Users.List.Email"), Key: "email"},
-			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
+		TBodyAttrs: templ.Attributes{
+			"id": "users-table-body",
+		},
 	}) {
-		<tbody id="users-table-body">
-			@UserRows(props)
-		</tbody>
+		@UserRows(props)
 	}
 }
 
 templ GroupFilter(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<h2 class="text-lg font-medium mb-3">{ pageCtx.T("Users.List.Groups") }</h2>
-		<div class="space-y-1">
-			<a
-				href={ templ.SafeURL("/users") }
-				class={ templ.KV("font-medium text-primary", props.SelectedGroup == "") }
-				hx-get="/users"
-				hx-target="#users-table-wrapper"
-				hx-swap="innerHTML"
-			>
-				{ pageCtx.T("Users.List.AllUsers") }
-			</a>
-			for _, group := range props.Groups {
+		<ul class="space-y-3">
+			<li>
 				<a
-					href={ templ.SafeURL(fmt.Sprintf("/users?groupID=%s", group.ID)) }
-					class={ templ.KV("font-medium text-primary", props.SelectedGroup == group.ID) }
-					hx-get={ fmt.Sprintf("/users?groupID=%s", group.ID) }
+					href={ templ.SafeURL("/users") }
+					class={ templ.KV("font-medium text-brand-500", props.SelectedGroup == "") }
+					hx-get="/users"
 					hx-target="#users-table-wrapper"
 					hx-swap="innerHTML"
+					hx-push-url="true"
+					hx-indicator="#users-table-body"
 				>
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							@avatar.Avatar(avatar.Props{
-								Initials: group.GetInitials(),
-								Variant:  avatar.Round,
-								Class:    templ.Classes("w-8 h-8 min-w-8"),
-							})
-							<span>{ group.Name }</span>
-						</div>
-						<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full">
-							{ fmt.Sprintf("%d", group.UsersCount()) }
-						</span>
-					</div>
+					{ pageCtx.T("Users.List.AllUsers") }
 				</a>
+			</li>
+			for _, group := range props.Groups {
+				<li>
+					<a
+						href={ templ.SafeURL(fmt.Sprintf("/users?groupID=%s", group.ID)) }
+						class={ templ.KV("font-medium text-brand-500", props.SelectedGroup == group.ID) }
+						hx-get={ fmt.Sprintf("/users?groupID=%s", group.ID) }
+						hx-target="#users-table-wrapper"
+						hx-swap="innerHTML"
+						hx-push-url="true"
+						hx-indicator="#users-table-body"
+					>
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-2">
+								@avatar.Avatar(avatar.Props{
+									Initials: group.GetInitials(),
+									Variant:  avatar.Round,
+									Class:    templ.Classes("w-8 h-8 min-w-8"),
+								})
+								<span>{ group.Name }</span>
+							</div>
+							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full">
+								{ fmt.Sprintf("%d", group.UsersCount()) }
+							</span>
+						</div>
+					</a>
+				</li>
 			}
-		</div>
+		</ul>
 	</div>
 }
 
@@ -178,8 +189,9 @@ templ UsersContent(props *IndexPageProps) {
 			class="p-4 flex items-center gap-3"
 			hx-get="/users"
 			hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-			hx-target="#users-table-wrapper"
+			hx-target="#users-table-body"
 			hx-swap="innerHTML"
+			hx-indicator="#users-table-body"
 		>
 			<input type="hidden" name="page" value="1"/>
 			if props.SelectedGroup != "" {
@@ -192,16 +204,12 @@ templ UsersContent(props *IndexPageProps) {
 					},
 					Placeholder: pageCtx.T("Search"),
 					Attrs: templ.Attributes{
-						"name":  "name",
-						"value": props.Search,
+						"name": "Search",
 					},
 				})
 			</div>
 			<div class="hidden md:flex gap-3">
-				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-					<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
-					<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
-				}
+				@filters.CreatedAt()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
 					Href: "/users/new",
@@ -224,10 +232,7 @@ templ Index(props *IndexPageProps) {
 			Heading: "Filters",
 			Action:  "open-user-filters",
 		}) {
-			@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-				<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
-				<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
-			}
+			@filters.CreatedAt()
 		}
 		<div class="m-6">
 			<div class="flex justify-between md:justify-start">

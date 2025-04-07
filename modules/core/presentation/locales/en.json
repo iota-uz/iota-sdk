@@ -186,7 +186,6 @@
       "FullName": "Full name",
       "Roles": "Roles",
       "Email": "Email",
-      "Groups": "Groups",
       "AllUsers": "All Users"
     },
     "Cards": {
@@ -263,7 +262,7 @@
     },
     "Cards": {
       "GroupInfo": "Group information",
-      "MembershipInfo": "Membership information" 
+      "MembershipInfo": "Membership information"
     },
     "List": {
       "New": "New group",
@@ -591,3 +590,4 @@
     "TR": "Turkey"
   }
 }
+

@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -54,7 +55,14 @@ func (s *userSeeder) CreateUser(ctx context.Context, app application.Application
 
 func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Application) (role.Role, error) {
 	roleRepository := persistence.NewRoleRepository()
-	matches, err := roleRepository.GetPaginated(ctx, &role.FindParams{Name: adminRoleName})
+	matches, err := roleRepository.GetPaginated(ctx, &role.FindParams{
+		Filters: []role.Filter{
+			{
+				Column: role.Name,
+				Filter: repo.Eq(adminRoleName),
+			},
+		},
+	})
 	if err != nil {
 		return nil, err
 	}

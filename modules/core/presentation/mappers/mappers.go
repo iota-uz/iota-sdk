@@ -26,6 +26,14 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		phone = entity.Phone().Value()
 	}
 
+	var groupIDs []string
+	if entity.GroupIDs() != nil {
+		groupIDs = make([]string, len(entity.GroupIDs()))
+		for i, groupID := range entity.GroupIDs() {
+			groupIDs[i] = groupID.String()
+		}
+	}
+
 	return &viewmodels.User{
 		ID:          strconv.FormatUint(uint64(entity.ID()), 10),
 		FirstName:   entity.FirstName(),
@@ -39,6 +47,7 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 		Roles:       mapping.MapViewModels(entity.Roles(), RoleToViewModel),
+		GroupIDs:    groupIDs,
 		Permissions: mapping.MapViewModels(entity.Permissions(), PermissionToViewModel),
 		AvatarID:    strconv.Itoa(int(entity.AvatarID())),
 	}
