@@ -17,22 +17,17 @@ import (
 )
 
 type IndexPageProps struct {
-	Users         []*viewmodels.User
-	Groups        []*viewmodels.Group
-	SelectedGroup string
-	Page          int
-	PerPage       int
-	HasMore       bool
+	Users    []*viewmodels.User
+	Groups   []*viewmodels.Group
+	Page     int
+	PerPage  int
+	HasMore  bool
 }
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	params := url.Values{}
 	params.Set("page", strconv.Itoa(props.Page+1))
 	params.Set("limit", strconv.Itoa(props.PerPage))
-
-	if props.SelectedGroup != "" {
-		params.Set("groupID", props.SelectedGroup)
-	}
 
 	return templ.Attributes{
 		"hx-get":     "/users?" + params.Encode(),
@@ -137,48 +132,51 @@ templ UsersTable(props *IndexPageProps) {
 templ GroupFilter(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<ul class="space-y-3">
-			<li>
-				<a
-					href={ templ.SafeURL("/users") }
-					class={ templ.KV("font-medium text-brand-500", props.SelectedGroup == "") }
-					hx-get="/users"
-					hx-target="#users-table-wrapper"
-					hx-swap="innerHTML"
-					hx-push-url="true"
-					hx-indicator="#users-table-body"
-				>
-					{ pageCtx.T("Users.List.AllUsers") }
-				</a>
-			</li>
-			for _, group := range props.Groups {
-				<li>
-					<a
-						href={ templ.SafeURL(fmt.Sprintf("/users?groupID=%s", group.ID)) }
-						class={ templ.KV("font-medium text-brand-500", props.SelectedGroup == group.ID) }
-						hx-get={ fmt.Sprintf("/users?groupID=%s", group.ID) }
-						hx-target="#users-table-wrapper"
-						hx-swap="innerHTML"
-						hx-push-url="true"
-						hx-indicator="#users-table-body"
-					>
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-2">
-								@avatar.Avatar(avatar.Props{
-									Initials: group.GetInitials(),
-									Variant:  avatar.Round,
-									Class:    templ.Classes("w-8 h-8 min-w-8"),
-								})
-								<span>{ group.Name }</span>
-							</div>
-							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full">
+		<form 
+			hx-get="/users" 
+			hx-target="#users-table-wrapper" 
+			hx-swap="innerHTML" 
+			hx-push-url="true" 
+			hx-indicator="#users-table-body"
+			hx-trigger="change"
+			x-data="checkboxes"
+			x-init="init"
+			x-on:DOMNodeRemoved="destroy"
+		>
+			<div class="space-y-3">
+				<div>
+					@input.Checkbox(&input.CheckboxProps{
+						Label: pageCtx.T("Users.List.AllGroups"),
+						ID: "all-users-checkbox",
+						Attrs: templ.Attributes{
+							"class": "parent",
+							"x-ref": "parent",
+							"@change": "onParentChange",
+						},
+					})
+				</div>
+				
+				<hr class="my-3 border-t border-surface-400" />
+				
+				<div class="space-y-3">
+					for _, group := range props.Groups {
+						@input.Checkbox(&input.CheckboxProps{
+							Label: group.Name,
+							ID: fmt.Sprintf("group-%s", group.ID),
+							Attrs: templ.Attributes{
+								"name": "groupID",
+								"value": group.ID,
+								"@change": "onChange",
+							},
+						}) {
+							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-2">
 								{ fmt.Sprintf("%d", group.UsersCount()) }
 							</span>
-						</div>
-					</a>
-				</li>
-			}
-		</ul>
+						}
+					}
+				</div>
+			</div>
+		</form>
 	</div>
 }
 
@@ -194,9 +192,6 @@ templ UsersContent(props *IndexPageProps) {
 			hx-indicator="#users-table-body"
 		>
 			<input type="hidden" name="page" value="1"/>
-			if props.SelectedGroup != "" {
-				<input type="hidden" name="groupID" value={ props.SelectedGroup }/>
-			}
 			<div class="flex-1">
 				@input.Text(&input.Props{
 					AddonLeft: &input.Addon{
