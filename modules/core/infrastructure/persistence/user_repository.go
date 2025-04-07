@@ -729,4 +729,3 @@ func (g *PgUserRepository) updateUserPermissions(ctx context.Context, userID uin
 	}
 	return nil
 }
-
