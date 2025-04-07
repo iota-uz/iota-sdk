@@ -34,7 +34,7 @@ func (c *DIEmployeeController) Key() string {
 }
 
 func (c *DIEmployeeController) Register(r *mux.Router) {
-	subRouter := r.PathPrefix("/di-example").Subrouter()
+	subRouter := r.PathPrefix("/di").Subrouter()
 	subRouter.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
@@ -90,8 +90,11 @@ func (c *DIEmployeeController) ScaffoldTable(
 	userService *services.UserService,
 	roleService *services.RoleService,
 ) {
+	params := &user.FindParams{
+		Search: r.URL.Query().Get("search"),
+	}
 
-	users, err := userService.GetAll(r.Context())
+	users, err := userService.GetPaginated(r.Context(), params)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -121,7 +124,7 @@ func (c *DIEmployeeController) ScaffoldTable(
 		roleFilter.AddOpt(fmt.Sprintf("%d", r.ID()), r.Name())
 	}
 
-	tableConfig := scaffoldui.NewTableConfig("Users", "/di-example/scaffold-table")
+	tableConfig := scaffoldui.NewTableConfig("Users", "/di/scaffold-table")
 	tableConfig.AddFilters(
 		createdAtFilter,
 		roleFilter,
@@ -144,7 +147,7 @@ func (c *DIEmployeeController) ScaffoldTable(
 	}
 
 	if htmx.IsHxRequest(r) {
-		templ.Handler(scaffoldui.Table(tableConfig, tableData)).ServeHTTP(w, r)
+		templ.Handler(scaffoldui.Rows(tableConfig, tableData)).ServeHTTP(w, r)
 	} else {
 		templ.Handler(scaffoldui.Page(tableConfig, tableData)).ServeHTTP(w, r)
 	}
