@@ -31,81 +31,9 @@ func CompareTables(oldTable, newTable *tree.CreateTable) ([]interface{}, []inter
 	// Extract constraints
 	oldConstraints := extractConstraints(oldTable.Defs, oldTable.Table.Table())
 	newConstraints := extractConstraints(newTable.Defs, newTable.Table.Table())
-
-	// Compare constraints
-	droppedConstraints, addedConstraints := compareConstraints(oldConstraints, newConstraints)
-
-	// Generate ALTER TABLE commands for dropped constraints
-	for _, constraint := range droppedConstraints {
-		tableName, _ := tree.NewUnresolvedObjectName(
-			1, /* number of parts */
-			[3]string{oldTable.Table.Table()},
-			0, /* no annotation */
-		)
-		dropConstraint := &tree.AlterTable{
-			Table: tableName,
-			Cmds: tree.AlterTableCmds{
-				&tree.AlterTableDropConstraint{
-					Constraint: tree.Name(constraint.Name),
-					IfExists:   true,
-				},
-			},
-		}
-		upChanges = append(upChanges, dropConstraint)
-
-		// Corresponding down operation: add the constraint back
-		downTableName, _ := tree.NewUnresolvedObjectName(
-			1, /* number of parts */
-			[3]string{oldTable.Table.Table()},
-			0, /* no annotation */
-		)
-		addConstraint := &tree.AlterTable{
-			Table: downTableName,
-			Cmds: tree.AlterTableCmds{
-				&tree.AlterTableAddConstraint{
-					ConstraintDef: constraint.Def,
-				},
-			},
-		}
-		downChanges = append(downChanges, addConstraint)
-	}
-
-	// Generate ALTER TABLE commands for added constraints
-	for _, constraint := range addedConstraints {
-		tableName, _ := tree.NewUnresolvedObjectName(
-			1, /* number of parts */
-			[3]string{newTable.Table.Table()},
-			0, /* no annotation */
-		)
-		addConstraint := &tree.AlterTable{
-			Table: tableName,
-			Cmds: tree.AlterTableCmds{
-				&tree.AlterTableAddConstraint{
-					ConstraintDef: constraint.Def,
-				},
-			},
-		}
-		upChanges = append(upChanges, addConstraint)
-
-		// Corresponding down operation: drop the constraint
-		downTableName, _ := tree.NewUnresolvedObjectName(
-			1, /* number of parts */
-			[3]string{newTable.Table.Table()},
-			0, /* no annotation */
-		)
-		dropConstraint := &tree.AlterTable{
-			Table: downTableName,
-			Cmds: tree.AlterTableCmds{
-				&tree.AlterTableDropConstraint{
-					Constraint: tree.Name(constraint.Name),
-					IfExists:   true,
-				},
-			},
-		}
-		downChanges = append(downChanges, dropConstraint)
-	}
-
-	// iterate over the array instead of map to preserve order
+	
+	// First process column additions and modifications to ensure they exist before constraints are added
+	// Detect added and modified columns
 	for _, def := range newTable.Defs {
 		newCol, ok := def.(*tree.ColumnTableDef)
 		if !ok {
@@ -227,6 +155,80 @@ func CompareTables(oldTable, newTable *tree.CreateTable) ([]interface{}, []inter
 		}
 	}
 
+	// Now handle constraints after column changes to ensure columns referenced by constraints
+	// exist before the constraints are added
+	// Compare constraints
+	droppedConstraints, addedConstraints := compareConstraints(oldConstraints, newConstraints)
+
+	// Generate ALTER TABLE commands for dropped constraints
+	for _, constraint := range droppedConstraints {
+		tableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{oldTable.Table.Table()},
+			0, /* no annotation */
+		)
+		dropConstraint := &tree.AlterTable{
+			Table: tableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableDropConstraint{
+					Constraint: tree.Name(constraint.Name),
+					IfExists:   true,
+				},
+			},
+		}
+		upChanges = append(upChanges, dropConstraint)
+
+		// Corresponding down operation: add the constraint back
+		downTableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{oldTable.Table.Table()},
+			0, /* no annotation */
+		)
+		addConstraint := &tree.AlterTable{
+			Table: downTableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableAddConstraint{
+					ConstraintDef: constraint.Def,
+				},
+			},
+		}
+		downChanges = append(downChanges, addConstraint)
+	}
+
+	// Generate ALTER TABLE commands for added constraints
+	for _, constraint := range addedConstraints {
+		tableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{newTable.Table.Table()},
+			0, /* no annotation */
+		)
+		addConstraint := &tree.AlterTable{
+			Table: tableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableAddConstraint{
+					ConstraintDef: constraint.Def,
+				},
+			},
+		}
+		upChanges = append(upChanges, addConstraint)
+
+		// Corresponding down operation: drop the constraint
+		downTableName, _ := tree.NewUnresolvedObjectName(
+			1, /* number of parts */
+			[3]string{newTable.Table.Table()},
+			0, /* no annotation */
+		)
+		dropConstraint := &tree.AlterTable{
+			Table: downTableName,
+			Cmds: tree.AlterTableCmds{
+				&tree.AlterTableDropConstraint{
+					Constraint: tree.Name(constraint.Name),
+					IfExists:   true,
+				},
+			},
+		}
+		downChanges = append(downChanges, dropConstraint)
+	}
 	return upChanges, downChanges, nil
 }
 
