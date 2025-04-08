@@ -25,7 +25,7 @@ Ensure these tools are installed before you begin:
 
 4. **Templ**:
    ```cmd
-   go install github.com/a-h/templ/cmd/templ@v0.3.819
+   go install github.com/a-h/templ/cmd/templ@v0.3.857
    ```
 
 5. **TailwindCSS**: Using npm (requires Node.js):
@@ -34,7 +34,7 @@ Ensure these tools are installed before you begin:
    ```
    Or with standalone executable:
    ```cmd
-   curl.exe -sLO https://github.com/tailwindlabs/tailwindcss/releases/v3.4.15/download/tailwindcss-windows-x64.exe
+   curl.exe -sLO https://github.com/tailwindlabs/tailwindcss/releases/v3.4.13/download/tailwindcss-windows-x64.exe
    rename tailwindcss-windows-x64.exe tailwindcss.exe
    ```
 
@@ -151,7 +151,27 @@ Please use the following convention for consistency:
 
 This documentation provides context for LLMs working on the IOTA-SDK project.
 
-## ❓ Troubleshooting Windows Setup
+## ❓ Known Issues and Troubleshooting
+
+### Linting Issues
+
+Do not run
+```shell
+golangci-lint run --fix
+```
+It will break the code.
+
+When facing an error like this:
+```
+WARN [runner] Can't run linter goanalysis_metalinter: buildssa: failed to load package : could not load export data: no
+export data for "github.com/iota-uz/iota-sdk/modules/core/domain/entities/expense_category"
+```
+Try running:
+```shell
+go mod tidy
+```
+
+### Windows Setup Issues
 
 1. **Make commands fail**:
    - Install via [GnuWin32](http://gnuwin32.sourceforge.net/packages/make.htm)
