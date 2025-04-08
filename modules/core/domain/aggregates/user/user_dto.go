@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
@@ -93,10 +92,7 @@ func (u *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 func (u *CreateDTO) ToEntity() (User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, id := range u.RoleIDs {
-		r, err := role.NewWithID(id, "", "", nil, time.Now(), time.Now())
-		if err != nil {
-			return nil, err
-		}
+		r := role.New("", role.WithID(id))
 		roles[i] = r
 	}
 
@@ -132,10 +128,7 @@ func (u *CreateDTO) ToEntity() (User, error) {
 func (u *UpdateDTO) ToEntity(id uint) (User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, rID := range u.RoleIDs {
-		r, err := role.NewWithID(rID, "", "", nil, time.Now(), time.Now())
-		if err != nil {
-			return nil, err
-		}
+		r := role.New("", role.WithID(rID))
 		roles[i] = r
 	}
 

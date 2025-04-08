@@ -31,12 +31,12 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	assert.NoError(t, err)
 
 	// First role
-	roleData, err := role.New(
+	roleData := role.New(
 		"test-role",
-		"test role description",
-		[]*permission.Permission{
+		role.WithDescription("test role description"),
+		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
-		},
+		}),
 	)
 	assert.NoError(t, err)
 
@@ -44,14 +44,13 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Second role for testing role filtering
-	secondRoleData, err := role.New(
+	secondRoleData := role.New(
 		"admin-role",
-		"admin role description",
-		[]*permission.Permission{
+		role.WithDescription("admin role description"),
+		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
-		},
+		}),
 	)
-	assert.NoError(t, err)
 
 	secondRoleEntity, err := roleRepository.Create(f.ctx, secondRoleData)
 	assert.NoError(t, err)

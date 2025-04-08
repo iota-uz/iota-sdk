@@ -22,7 +22,11 @@
 			},
 			"New": "Yangi mijoz",
 			"FullName": "To'liq ism",
-			"Phone": "Telefon"
+			"Phone": "Telefon",
+			"NoData": {
+				"Title": "Mijozlar topilmadi",
+				"Description": "Ish boshlash uchun yangi mijoz yarating"
+			}
 		},
 		"New": {
 			"Meta": {

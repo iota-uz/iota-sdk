@@ -84,7 +84,18 @@ templ ClientsTable(props *IndexPageProps) {
 			},
 		}) {
 			<tbody id="clients-table-body">
-				@ClientRows(props.Clients)
+				if len(props.Clients) == 0 {
+					<tr>
+						<td colspan="3">
+							@base.TableEmptyState(base.TableEmptyStateProps{
+								Title: pageCtx.T("Clients.List.NoData.Title"),
+								Description: pageCtx.T("Clients.List.NoData.Description"),
+							})
+						</td>
+					</tr>
+				} else {
+					@ClientRows(props.Clients)
+				}
 			</tbody>
 		}
 		if len(props.PaginationState.Pages()) > 1 {
