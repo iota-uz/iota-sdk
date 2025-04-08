@@ -22,7 +22,11 @@
 			},
 			"New": "New client",
 			"FullName": "Full Name",
-			"Phone": "Phone"
+			"Phone": "Phone",
+			"NoData": {
+				"Title": "No clients found",
+				"Description": "Create a new client to get started"
+			}
 		},
 		"New": {
 			"Meta": {

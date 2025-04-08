@@ -17,14 +17,11 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := role.New(
+	data := role.New(
 		"test",
-		"test",
-		[]*permission.Permission{permissions.PositionCreate},
+		role.WithDescription("test"),
+		role.WithPermissions([]*permission.Permission{permissions.PositionCreate}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	roleEntity, err := roleRepository.Create(f.ctx, data)
 	if err != nil {
 		t.Fatal(err)
