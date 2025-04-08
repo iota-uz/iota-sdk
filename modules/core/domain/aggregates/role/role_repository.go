@@ -12,6 +12,7 @@ const (
 	Description
 	CreatedAt
 	PermissionID
+	TenantID
 )
 
 type SortBy repo.SortBy[Field]

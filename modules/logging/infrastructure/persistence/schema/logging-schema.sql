@@ -1,5 +1,6 @@
 CREATE TABLE authentication_logs (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     user_id integer NOT NULL CONSTRAINT fk_user_id REFERENCES users (id) ON DELETE CASCADE,
     ip varchar(255) NOT NULL,
     user_agent varchar(255) NOT NULL,
@@ -8,6 +9,7 @@ CREATE TABLE authentication_logs (
 
 CREATE TABLE action_logs (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     method varchar(255) NOT NULL,
     path varchar(255) NOT NULL,
     user_id int REFERENCES users (id) ON DELETE SET NULL,

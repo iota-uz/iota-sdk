@@ -1,17 +1,30 @@
+CREATE TABLE tenants (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    name varchar(255) NOT NULL,
+    domain varchar(255),
+    is_active boolean NOT NULL DEFAULT TRUE,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT tenants_name_key UNIQUE (name)
+);
+
 CREATE TABLE uploads (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL, -- original file name
-    hash VARCHAR(255) NOT NULL UNIQUE, -- md5 hash of the file
+    hash VARCHAR(255) NOT NULL, -- md5 hash of the file
     path varchar(1024) NOT NULL DEFAULT '', -- relative path to the file
     size int NOT NULL DEFAULT 0, -- in bytes
     mimetype varchar(255) NOT NULL, -- image/jpeg, application/pdf, etc.
     type VARCHAR(255) NOT NULL, -- image, document, etc.
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT uploads_tenant_hash_key UNIQUE (tenant_id, hash)
 );
 
 CREATE TABLE passports (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255),
     last_name varchar(255),
     middle_name varchar(255),
@@ -32,18 +45,20 @@ CREATE TABLE passports (
     remarks text, -- Additional notes (e.g., travel restrictions, visa endorsements).
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT passports_passport_number_series_key UNIQUE (passport_number, series)
+    CONSTRAINT passports_tenant_passport_number_series_key UNIQUE (tenant_id, passport_number, series)
 );
 
 CREATE TABLE companies (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     about text,
     address varchar(255),
     phone varchar(255),
     logo_id int REFERENCES uploads (id) ON DELETE SET NULL,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT companies_tenant_name_key UNIQUE (tenant_id, name)
 );
 
 CREATE TABLE currencies (
@@ -56,27 +71,32 @@ CREATE TABLE currencies (
 
 CREATE TABLE roles (
     id serial PRIMARY KEY,
-    name varchar(255) NOT NULL UNIQUE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
+    name varchar(255) NOT NULL,
     description text,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT roles_tenant_name_key UNIQUE (tenant_id, name)
 );
 
 CREATE TABLE users (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255) NOT NULL,
     middle_name varchar(255),
-    email varchar(255) NOT NULL UNIQUE,
+    email varchar(255) NOT NULL,
     password VARCHAR(255),
     ui_language varchar(3) NOT NULL,
-    phone varchar(255) UNIQUE,
+    phone varchar(255),
     avatar_id int REFERENCES uploads (id) ON DELETE SET NULL,
     last_login timestamp NULL,
     last_ip varchar(255) NULL,
     last_action timestamp with time zone NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone NOT NULL DEFAULT now()
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT users_tenant_email_key UNIQUE (tenant_id, email),
+    CONSTRAINT users_tenant_phone_key UNIQUE (tenant_id, phone)
 );
 
 CREATE TABLE user_roles (
@@ -88,10 +108,12 @@ CREATE TABLE user_roles (
 
 CREATE TABLE user_groups (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    name varchar(255) UNIQUE NOT NULL,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
+    name varchar(255) NOT NULL,
     description text,
     created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
+    updated_at timestamp DEFAULT now(),
+    CONSTRAINT user_groups_tenant_name_key UNIQUE (tenant_id, name)
 );
 
 CREATE TABLE group_users (
@@ -121,11 +143,13 @@ CREATE TABLE uploaded_images (
 
 CREATE TABLE permissions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid () NOT NULL,
-    name varchar(255) NOT NULL UNIQUE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
+    name varchar(255) NOT NULL,
     resource varchar(255) NOT NULL, -- roles, users, etc.
     action varchar(255) NOT NULL, -- create, read, update, delete
     modifier varchar(255) NOT NULL, -- all / own
-    description text
+    description text,
+    CONSTRAINT permissions_tenant_name_key UNIQUE (tenant_id, name)
 );
 
 CREATE TABLE role_permissions (
@@ -142,6 +166,7 @@ CREATE TABLE user_permissions (
 
 CREATE TABLE sessions (
     token varchar(255) NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     expires_at timestamp with time zone NOT NULL,
     ip varchar(255) NOT NULL,
@@ -151,10 +176,11 @@ CREATE TABLE sessions (
 
 CREATE TABLE tabs (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     href varchar(255) NOT NULL,
     user_id int NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     position int NOT NULL DEFAULT 0,
-    UNIQUE (href, user_id)
+    CONSTRAINT tabs_tenant_href_user_id_key UNIQUE (tenant_id, href, user_id)
 );
 
 CREATE INDEX users_first_name_idx ON users (first_name);

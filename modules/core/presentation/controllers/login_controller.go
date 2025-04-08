@@ -166,7 +166,9 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, composables.ErrInvalidPassword) {
 			shared.SetFlash(w, "error", []byte(composables.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else {
-			shared.SetFlash(w, "error", []byte(composables.MustT(r.Context(), "Errors.Internal")))
+			errMsg := fmt.Sprintf("Login error: %v", err)
+			configuration.Use().Logger().Error(errMsg)
+			shared.SetFlash(w, "error", []byte(errMsg))
 		}
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return

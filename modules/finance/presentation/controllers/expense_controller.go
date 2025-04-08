@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
@@ -245,7 +246,7 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Categories: categories,
 		Errors:     map[string]string{},
 		Expense: mappers.ExpenseToViewModel(&expense.Expense{
-			Category: category.New("", "", 0, &currency.USD),
+			Category: category.New(uuid.Nil, "", "", 0, &currency.USD),
 		}),
 	}
 	templ.Handler(expenses2.New(props), templ.WithStreaming()).ServeHTTP(w, r)

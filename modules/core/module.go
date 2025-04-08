@@ -48,7 +48,12 @@ func (m *Module) Register(app application.Application) error {
 	// Create repositories
 	userRepo := persistence.NewUserRepository(uploadRepo)
 	roleRepo := persistence.NewRoleRepository()
+	tenantRepo := persistence.NewTenantRepository()
 	permRepo := persistence.NewPermissionRepository()
+
+	// Create services
+	tabService := services.NewTabService(persistence.NewTabRepository())
+	tenantService := services.NewTenantService(tenantRepo)
 
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
@@ -59,6 +64,8 @@ func (m *Module) Register(app application.Application) error {
 		services.NewAuthService(app),
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
 		services.NewRoleService(roleRepo, app.EventPublisher()),
+		tabService,
+		tenantService,
 		services.NewPermissionService(permRepo, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
 		services.NewTabService(persistence.NewTabRepository()),

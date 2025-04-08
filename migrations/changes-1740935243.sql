@@ -35,7 +35,7 @@ ALTER TABLE clients
 
 -- Change ADD_COLUMN: phone
 ALTER TABLE users
-    ADD COLUMN phone VARCHAR(255) UNIQUE;
+    ADD COLUMN phone VARCHAR(255);
 
 -- Change CREATE_TABLE: client_contacts
 CREATE TABLE client_contacts (

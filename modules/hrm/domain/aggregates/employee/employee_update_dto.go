@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
@@ -119,6 +120,7 @@ func (d *UpdateDTO) ToEntity(id uint) (Employee, error) {
 	}
 	return NewWithID(
 		id,
+		uuid.Nil,
 		d.FirstName,
 		d.LastName,
 		d.MiddleName,

@@ -1,12 +1,14 @@
 CREATE TABLE counterparty (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     tin varchar(20),
     name varchar(255) NOT NULL,
     type VARCHAR(255) NOT NULL, -- customer, supplier, individual
     legal_type varchar(255) NOT NULL, -- LLC, JSC, etc.
     legal_address varchar(255),
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT counterparty_tenant_tin_key UNIQUE (tenant_id, tin)
 );
 
 CREATE TABLE counterparty_contacts (
@@ -23,38 +25,45 @@ CREATE TABLE counterparty_contacts (
 
 CREATE TABLE inventory (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     currency_id varchar(3) REFERENCES currencies (code) ON DELETE SET NULL,
     price numeric(9, 2) NOT NULL,
     quantity int NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT inventory_tenant_name_key UNIQUE (tenant_id, name)
 );
 
 CREATE TABLE expense_categories (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     amount numeric(9, 2) NOT NULL,
     amount_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT expense_categories_tenant_name_key UNIQUE (tenant_id, name)
 );
 
 CREATE TABLE money_accounts (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     account_number varchar(255) NOT NULL,
     description text,
     balance numeric(9, 2) NOT NULL,
     balance_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT money_accounts_tenant_account_number_key UNIQUE (tenant_id, account_number)
 );
 
 CREATE TABLE transactions (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     amount numeric(9, 2) NOT NULL,
     origin_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
     destination_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
@@ -100,4 +109,6 @@ CREATE INDEX counterparty_tin_idx ON counterparty (tin);
 CREATE INDEX inventory_currency_id_idx ON inventory (currency_id);
 
 CREATE INDEX money_accounts_balance_currency_id_idx ON money_accounts (balance_currency_id);
+
+CREATE INDEX transactions_tenant_id_idx ON transactions (tenant_id)
 

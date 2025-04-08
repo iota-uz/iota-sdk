@@ -1,5 +1,6 @@
 CREATE TABLE clients (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255),
     middle_name varchar(255),
@@ -11,7 +12,9 @@ CREATE TABLE clients (
     passport_id uuid REFERENCES passports (id) ON DELETE SET NULL ON UPDATE CASCADE,
     pin varchar(128), -- Personal Identification Number
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT clients_tenant_phone_number UNIQUE (tenant_id, phone_number),
+    CONSTRAINT clients_tenant_email UNIQUE (tenant_id, email)
 );
 
 CREATE TABLE client_contacts (
@@ -25,6 +28,7 @@ CREATE TABLE client_contacts (
 
 CREATE TABLE chats (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     created_at timestamp(3) DEFAULT now() NOT NULL,
     client_id int NOT NULL REFERENCES clients (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     last_message_at timestamp(3) DEFAULT now()
@@ -50,6 +54,7 @@ CREATE TABLE message_media (
 
 CREATE TABLE message_templates (
     id serial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     template TEXT NOT NULL,
     created_at timestamp with time zone DEFAULT now()
 );

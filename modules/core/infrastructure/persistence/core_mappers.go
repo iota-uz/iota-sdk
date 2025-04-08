@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
@@ -30,7 +31,11 @@ import (
 func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []*permission.Permission) (user.User, error) {
 	var avatar upload.Upload
 	if dbUpload != nil {
-		avatar = ToDomainUpload(dbUpload)
+		var err error
+		avatar, err = ToDomainUpload(dbUpload)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	email, err := internet.NewEmail(dbUser.Email)
@@ -40,6 +45,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 
 	options := []user.Option{
 		user.WithID(dbUser.ID),
+		user.WithTenantID(uuid.MustParse(dbUser.TenantID)),
 		user.WithMiddleName(dbUser.MiddleName.String),
 		user.WithPassword(dbUser.Password.String),
 		user.WithRoles(roles),
@@ -91,6 +97,7 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 
 	return &models.User{
 		ID:         entity.ID(),
+		TenantID:   entity.TenantID().String(),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
@@ -112,10 +119,16 @@ func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.R
 	for i, p := range permissions {
 		dP, err := toDomainPermission(p)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to cast to domain permission")
 		}
 		domainPermissions[i] = dP
 	}
+
+	tenantID, err := uuid.Parse(dbRole.TenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse uuid")
+	}
+
 	return role.NewWithID(
 		dbRole.ID,
 		dbRole.Name,
@@ -123,6 +136,7 @@ func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.R
 		domainPermissions,
 		dbRole.CreatedAt,
 		dbRole.UpdatedAt,
+		tenantID,
 	)
 }
 
@@ -133,6 +147,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 	}
 	return &models.Role{
 		ID:          entity.ID(),
+		TenantID:    entity.TenantID().String(),
 		Name:        entity.Name(),
 		Description: mapping.ValueToSQLNullString(entity.Description()),
 		CreatedAt:   entity.CreatedAt(),
@@ -143,6 +158,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 func toDBPermission(entity *permission.Permission) *models.Permission {
 	return &models.Permission{
 		ID:       entity.ID.String(),
+		TenantID: entity.TenantID.String(),
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
 		Action:   string(entity.Action),
@@ -155,8 +171,15 @@ func toDomainPermission(dbPermission *models.Permission) (*permission.Permission
 	if err != nil {
 		return nil, err
 	}
+
+	tenantID, err := uuid.Parse(dbPermission.TenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse uuid")
+	}
+
 	return &permission.Permission{
 		ID:       id,
+		TenantID: tenantID,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),
 		Action:   permission.Action(dbPermission.Action),
@@ -181,6 +204,7 @@ func ToDomainTin(s sql.NullString, c country.Country) (tax.Tin, error) {
 func ToDBUpload(upload upload.Upload) *models.Upload {
 	return &models.Upload{
 		ID:        upload.ID(),
+		TenantID:  upload.TenantID().String(),
 		Path:      upload.Path(),
 		Hash:      upload.Hash(),
 		Name:      upload.Name(),
@@ -192,13 +216,20 @@ func ToDBUpload(upload upload.Upload) *models.Upload {
 	}
 }
 
-func ToDomainUpload(dbUpload *models.Upload) upload.Upload {
+func ToDomainUpload(dbUpload *models.Upload) (upload.Upload, error) {
 	var mime *mimetype.MIME
 	if dbUpload.Mimetype != "" {
 		mime = mimetype.Lookup(dbUpload.Mimetype)
 	}
+
+	tenantID, err := uuid.Parse(dbUpload.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	return upload.NewWithID(
 		dbUpload.ID,
+		tenantID,
 		dbUpload.Hash,
 		dbUpload.Path,
 		dbUpload.Name,
@@ -207,7 +238,7 @@ func ToDomainUpload(dbUpload *models.Upload) upload.Upload {
 		upload.UploadType(dbUpload.Type),
 		dbUpload.CreatedAt,
 		dbUpload.UpdatedAt,
-	)
+	), nil
 }
 
 func ToDBCurrency(entity *currency.Currency) *models.Currency {
@@ -242,21 +273,29 @@ func ToDBTab(tab *tab.Tab) *models.Tab {
 		Href:     tab.Href,
 		Position: tab.Position,
 		UserID:   tab.UserID,
+		TenantID: tab.TenantID.String(),
 	}
 }
 
 func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
+	tenantID, err := uuid.Parse(dbTab.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &tab.Tab{
 		ID:       dbTab.ID,
 		Href:     dbTab.Href,
 		Position: dbTab.Position,
 		UserID:   dbTab.UserID,
+		TenantID: tenantID,
 	}, nil
 }
 
-func toDBSession(session *session.Session) *models.Session {
+func ToDBSession(session *session.Session) *models.Session {
 	return &models.Session{
 		UserID:    session.UserID,
+		TenantID:  session.TenantID.String(),
 		Token:     session.Token,
 		IP:        session.IP,
 		UserAgent: session.UserAgent,
@@ -265,9 +304,15 @@ func toDBSession(session *session.Session) *models.Session {
 	}
 }
 
-func toDomainSession(dbSession *models.Session) *session.Session {
+func ToDomainSession(dbSession *models.Session) *session.Session {
+	tenantID, err := uuid.Parse(dbSession.TenantID)
+	if err != nil {
+		tenantID = uuid.Nil
+	}
+
 	return &session.Session{
 		UserID:    dbSession.UserID,
+		TenantID:  tenantID,
 		Token:     dbSession.Token,
 		IP:        dbSession.IP,
 		UserAgent: dbSession.UserAgent,
@@ -279,6 +324,7 @@ func toDomainSession(dbSession *models.Session) *session.Session {
 func toDBAuthenticationLog(log *authlog.AuthenticationLog) *models.AuthenticationLog {
 	return &models.AuthenticationLog{
 		ID:        log.ID,
+		TenantID:  log.TenantID.String(),
 		UserID:    log.UserID,
 		IP:        log.IP,
 		UserAgent: log.UserAgent,
@@ -287,8 +333,14 @@ func toDBAuthenticationLog(log *authlog.AuthenticationLog) *models.Authenticatio
 }
 
 func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.AuthenticationLog {
+	tenantID, err := uuid.Parse(dbLog.TenantID)
+	if err != nil {
+		tenantID = uuid.Nil
+	}
+
 	return &authlog.AuthenticationLog{
 		ID:        dbLog.ID,
+		TenantID:  tenantID,
 		UserID:    dbLog.UserID,
 		IP:        dbLog.IP,
 		UserAgent: dbLog.UserAgent,
@@ -302,8 +354,15 @@ func ToDomainPassport(dbPassport *models.Passport) (passport.Passport, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	tenantID, err := uuid.Parse(dbPassport.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	opts := []passport.Option{
 		passport.WithID(id),
+		passport.WithTenantID(tenantID),
 	}
 
 	if dbPassport.FirstName.Valid || dbPassport.LastName.Valid || dbPassport.MiddleName.Valid {
@@ -412,6 +471,7 @@ func ToDBPassport(passportEntity passport.Passport) (*models.Passport, error) {
 
 	return &models.Passport{
 		ID:                  passportEntity.ID().String(),
+		TenantID:            passportEntity.TenantID().String(),
 		FirstName:           mapping.ValueToSQLNullString(passportEntity.FirstName()),
 		LastName:            mapping.ValueToSQLNullString(passportEntity.LastName()),
 		MiddleName:          mapping.ValueToSQLNullString(passportEntity.MiddleName()),
@@ -441,8 +501,14 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 		return nil, err
 	}
 
+	tenantID, err := uuid.Parse(dbGroup.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	opts := []group.Option{
 		group.WithID(groupID),
+		group.WithTenantID(tenantID),
 		group.WithDescription(dbGroup.Description.String),
 		group.WithUsers(users),
 		group.WithRoles(roles),
@@ -456,6 +522,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 func ToDBGroup(g group.Group) *models.Group {
 	return &models.Group{
 		ID:          g.ID().String(),
+		TenantID:    g.TenantID().String(),
 		Name:        g.Name(),
 		Description: mapping.ValueToSQLNullString(g.Description()),
 		CreatedAt:   g.CreatedAt(),

@@ -245,6 +245,13 @@ func (c *UsersController) Users(
 	params := composables.UsePaginated(r)
 	groupID := r.URL.Query().Get("groupID")
 
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant from request: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+		return
+	}
+
 	// Create find params
 	findParams := &user.FindParams{
 		Limit:  params.Limit,
@@ -253,6 +260,12 @@ func (c *UsersController) Users(
 			user.CreatedAt,
 		}},
 		Search: r.URL.Query().Get("Search"),
+		Filters: []user.Filter{
+			{
+				Column: user.TenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
 	}
 
 	// Apply group filter if provided

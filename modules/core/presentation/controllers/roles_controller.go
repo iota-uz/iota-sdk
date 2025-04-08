@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 
@@ -108,11 +109,23 @@ func (c *RolesController) List(
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant from request context: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+		return
+	}
+
 	// Create find params with search
 	findParams := &role.FindParams{
-		Limit:   params.Limit,
-		Offset:  params.Offset,
-		Filters: []role.Filter{},
+		Limit:  params.Limit,
+		Offset: params.Offset,
+		Filters: []role.Filter{
+			{
+				Column: role.TenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
 	}
 
 	// Apply search filter if provided

@@ -1,14 +1,16 @@
 package persistence_test
 
 import (
+	"testing"
+	"time"
+
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	core "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/utils/random"
-	"testing"
-	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
@@ -40,6 +42,7 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 			f.ctx,
 			upload.NewWithID(
 				0,
+				uuid.Nil, // tenant_id will be set correctly in repository
 				random.String(32, random.LowerCharSet),
 				"image.png",
 				"image.png",
@@ -100,6 +103,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		f.ctx,
 		upload.NewWithID(
 			1,
+			uuid.Nil, // tenant_id will be set correctly in repository
 			"hash",
 			"url",
 			"image.png",
