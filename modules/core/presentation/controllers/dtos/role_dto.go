@@ -58,12 +58,12 @@ func (r *CreateRoleDTO) ToEntity(rbac rbac.RBAC) (role.Role, error) {
 		}
 		perms = append(perms, perm)
 	}
-	
+
 	options := []role.Option{
 		role.WithDescription(r.Description),
 		role.WithPermissions(perms),
 	}
-	
+
 	return role.New(r.Name, options...), nil
 }
 

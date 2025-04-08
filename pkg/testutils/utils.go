@@ -33,8 +33,8 @@ type TestFixtures struct {
 }
 
 func MockUser(permissions ...*permission.Permission) user.User {
-	r := role.New("admin", 
-		role.WithID(1), 
+	r := role.New("admin",
+		role.WithID(1),
 		role.WithPermissions(permissions),
 		role.WithCreatedAt(time.Now()),
 		role.WithUpdatedAt(time.Now()),
