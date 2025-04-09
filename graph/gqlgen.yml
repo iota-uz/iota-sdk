@@ -1,0 +1,6 @@
+# graph/gqlgen.yml
+
+schema:
+  - schema.merged.graphql
+
+# ... other configurations (exec, model, resolver, etc.) ...
