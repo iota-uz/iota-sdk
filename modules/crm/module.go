@@ -60,8 +60,17 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
+	// Configure client controller with explicit tabs
+	basePath := "/crm/clients"
 	app.RegisterControllers(
-		controllers.NewClientController(app, "/crm/clients"),
+		controllers.NewClientController(app, controllers.ClientControllerConfig{
+			BasePath: basePath,
+			Tabs: []controllers.TabDefinition{
+				controllers.ProfileTab(basePath),
+				controllers.ChatTab(basePath),
+				controllers.ActionsTab(),
+			},
+		}),
 		controllers.NewChatController(app, "/crm/chats"),
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
 		controllers.NewTwilioController(app, twilioProvider),
