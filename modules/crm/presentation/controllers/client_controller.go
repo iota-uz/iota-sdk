@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	userdomain "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmPermissions "github.com/iota-uz/iota-sdk/modules/crm/permissions"
@@ -116,7 +117,7 @@ func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 type TabDefinition struct {
 	ID          string
 	NameKey     string
-	Component   func(r *http.Request, clientID uint, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error)
+	Component   func(r *http.Request, clientID uint, user userdomain.User, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error)
 	SortOrder   int
 	Permissions []*permission.Permission
 }
@@ -189,7 +190,7 @@ var (
 			Permissions: []*permission.Permission{
 				crmPermissions.ClientRead,
 			},
-			Component: func(r *http.Request, clientID uint, clientService *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint, u userdomain.User, clientService *services.ClientService, _ *services.ChatService) (templ.Component, error) {
 				clientEntity, err := clientService.GetByID(r.Context(), clientID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
@@ -211,7 +212,7 @@ var (
 			Permissions: []*permission.Permission{
 				crmPermissions.ClientRead,
 			},
-			Component: func(r *http.Request, clientID uint, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint, u userdomain.User, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error) {
 				clientEntity, err := clientService.GetByID(r.Context(), clientID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
@@ -237,7 +238,7 @@ var (
 				crmPermissions.ClientUpdate,
 				crmPermissions.ClientDelete,
 			},
-			Component: func(r *http.Request, clientID uint, _ *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint, u userdomain.User, _ *services.ClientService, _ *services.ChatService) (templ.Component, error) {
 				return clients.ActionsTab(strconv.Itoa(int(clientID))), nil
 			},
 		}
@@ -289,12 +290,26 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.Use(commonMiddleware...)
 	hxRouter.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.View).Handler()).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.NewHandler(c.GetPersonalEdit).Handler()).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.NewHandler(c.GetPassportEdit).Handler()).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.NewHandler(c.GetTaxEdit).Handler()).Methods(http.MethodGet)
-
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.NewHandler(c.UpdatePersonal).Handler()).Methods(http.MethodPost)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.NewHandler(c.UpdatePassport).Handler()).Methods(http.MethodPost)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.NewHandler(c.UpdateTax).Handler()).Methods(http.MethodPost)
+	hxRouter.HandleFunc(
+		"/{id:[0-9]+}/edit/passport",
+		di.NewHandler(c.GetPassportEdit).Handler(),
+	).Methods(http.MethodGet)
+	hxRouter.HandleFunc(
+		"/{id:[0-9]+}/edit/tax",
+		di.NewHandler(c.GetTaxEdit).Handler(),
+	).Methods(http.MethodGet)
+	hxRouter.HandleFunc(
+		"/{id:[0-9]+}/edit/personal",
+		di.NewHandler(c.UpdatePersonal).Handler(),
+	).Methods(http.MethodPost)
+	hxRouter.HandleFunc(
+		"/{id:[0-9]+}/edit/passport",
+		di.NewHandler(c.UpdatePassport).Handler(),
+	).Methods(http.MethodPost)
+	hxRouter.HandleFunc(
+		"/{id:[0-9]+}/edit/tax",
+		di.NewHandler(c.UpdateTax).Handler(),
+	).Methods(http.MethodPost)
 
 	// Register realtime updates if enabled
 	if c.realtime != nil {
@@ -456,6 +471,13 @@ func (c *ClientController) tabToComponent(
 		return clients.NotFound(), nil
 	}
 
+	// Get user from context for both permission check and passing to component
+	currentUser, err := composables.UseUser(r.Context())
+	if err != nil {
+		// If user not found in context, redirect to NotFound
+		return clients.NotFound(), nil
+	}
+
 	// Check permissions if specified
 	if len(tab.Permissions) > 0 {
 		// Convert permission pointers to rbac.Permission types
@@ -464,21 +486,14 @@ func (c *ClientController) tabToComponent(
 			perms = append(perms, rbac.Perm(p))
 		}
 
-		// Get user from context
-		user, err := composables.UseUser(r.Context())
-		if err != nil {
-			// If user not found in context, redirect to NotFound
-			return clients.NotFound(), nil
-		}
-
 		// If user doesn't have any of the required permissions, return NotFound
-		if !rbac.Or(perms...).Can(user) {
+		if !rbac.Or(perms...).Can(currentUser) {
 			return clients.NotFound(), nil
 		}
 	}
 
 	// Generate the component using the tab's component function
-	return tab.Component(r, clientID, clientService, chatService)
+	return tab.Component(r, clientID, currentUser, clientService, chatService)
 }
 
 func (c *ClientController) View(
