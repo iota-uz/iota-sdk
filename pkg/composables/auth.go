@@ -61,6 +61,18 @@ func CanUserAll(ctx context.Context, perms ...rbac.Permission) error {
 	return nil
 }
 
+// CanUserAny checks if the user has any of the given permissions (OR logic)
+func CanUserAny(ctx context.Context, perms ...rbac.Permission) error {
+	u, err := UseUser(ctx)
+	if err != nil || len(perms) == 0 {
+		return nil // don't check if the user isn't in the context
+	}
+	if !rbac.Or(perms...).Can(u) {
+		return ErrForbidden
+	}
+	return nil
+}
+
 // UseSession returns the session from the context.
 func UseSession(ctx context.Context) (*session.Session, error) {
 	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)

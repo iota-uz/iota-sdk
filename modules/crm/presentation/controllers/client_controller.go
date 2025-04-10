@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -18,11 +20,14 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	crmPermissions "github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/clients"
@@ -32,6 +37,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -107,12 +113,36 @@ func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 	wsHub.BroadcastToAll(buf.Bytes())
 }
 
+type TabDefinition struct {
+	ID          string
+	NameKey     string
+	Component   func(r *http.Request, clientID uint, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error)
+	SortOrder   int
+	Permissions []*permission.Permission
+}
+
+type ClientControllerConfig struct {
+	BasePath    string
+	Middleware  []mux.MiddlewareFunc
+	Tabs        []TabDefinition
+	RealtimeBus bool
+}
+
+func DefaultClientControllerConfig() ClientControllerConfig {
+	return ClientControllerConfig{
+		BasePath:    "/clients",
+		Middleware:  []mux.MiddlewareFunc{},
+		Tabs:        []TabDefinition{}, // Empty by default, must be explicitly provided
+		RealtimeBus: true,
+	}
+}
+
 type ClientController struct {
-	app           application.Application
-	clientService *services.ClientService
-	chatService   *services.ChatService
-	basePath      string
-	realtime      *ClientRealtimeUpdates
+	app       application.Application
+	config    ClientControllerConfig
+	realtime  *ClientRealtimeUpdates
+	tabsByID  map[string]TabDefinition
+	tabsOrder []TabDefinition
 }
 
 type ClientsPaginatedResponse struct {
@@ -120,50 +150,162 @@ type ClientsPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewClientController(app application.Application, basePath string) application.Controller {
-	return &ClientController{
-		app:           app,
-		clientService: app.Service(services.ClientService{}).(*services.ClientService),
-		chatService:   app.Service(services.ChatService{}).(*services.ChatService),
-		basePath:      basePath,
-		realtime:      NewClientRealtimeUpdates(app, app.Service(services.ClientService{}).(*services.ClientService), basePath),
+func NewClientController(app application.Application, config ...ClientControllerConfig) application.Controller {
+	// Use default config or the provided one
+	cfg := DefaultClientControllerConfig()
+	if len(config) > 0 {
+		cfg = config[0]
 	}
+
+	clientService := app.Service(services.ClientService{}).(*services.ClientService)
+
+	// Initialize controller
+	controller := &ClientController{
+		app:      app,
+		config:   cfg,
+		tabsByID: make(map[string]TabDefinition),
+	}
+
+	// Register provided tabs
+	for _, tab := range cfg.Tabs {
+		controller.RegisterTab(tab)
+	}
+
+	// Initialize realtime if enabled
+	if cfg.RealtimeBus {
+		controller.realtime = NewClientRealtimeUpdates(app, clientService, cfg.BasePath)
+	}
+
+	return controller
+}
+
+// Default tab definitions - exported for configuration
+var (
+	ProfileTab = func(basePath string) TabDefinition {
+		return TabDefinition{
+			ID:        "profile",
+			NameKey:   "Clients.Tabs.Profile",
+			SortOrder: 10,
+			Permissions: []*permission.Permission{
+				crmPermissions.ClientRead,
+			},
+			Component: func(r *http.Request, clientID uint, clientService *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+				clientEntity, err := clientService.GetByID(r.Context(), clientID)
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving client")
+				}
+				return clients.Profile(clients.ProfileProps{
+					ClientURL: basePath,
+					EditURL:   fmt.Sprintf("%s/%d/edit", basePath, clientID),
+					Client:    mappers.ClientToViewModel(clientEntity),
+				}), nil
+			},
+		}
+	}
+
+	ChatTab = func(basePath string) TabDefinition {
+		return TabDefinition{
+			ID:        "chat",
+			NameKey:   "Clients.Tabs.Chat",
+			SortOrder: 20,
+			Permissions: []*permission.Permission{
+				crmPermissions.ClientRead,
+			},
+			Component: func(r *http.Request, clientID uint, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error) {
+				clientEntity, err := clientService.GetByID(r.Context(), clientID)
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving client")
+				}
+				chatEntity, err := chatService.GetByClientIDOrCreate(r.Context(), clientID)
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving chat")
+				}
+				return clients.Chats(chatsui.SelectedChatProps{
+					Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
+					ClientsURL: basePath,
+				}), nil
+			},
+		}
+	}
+
+	ActionsTab = func() TabDefinition {
+		return TabDefinition{
+			ID:        "actions",
+			NameKey:   "Clients.Tabs.Actions",
+			SortOrder: 100,
+			Permissions: []*permission.Permission{
+				crmPermissions.ClientUpdate,
+				crmPermissions.ClientDelete,
+			},
+			Component: func(r *http.Request, clientID uint, _ *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+				return clients.ActionsTab(strconv.Itoa(int(clientID))), nil
+			},
+		}
+	}
+)
+
+func (c *ClientController) RegisterTab(tab TabDefinition) {
+	c.tabsByID[tab.ID] = tab
+
+	// Rebuild the sorted tab list
+	c.tabsOrder = make([]TabDefinition, 0, len(c.tabsByID))
+	for _, t := range c.tabsByID {
+		c.tabsOrder = append(c.tabsOrder, t)
+	}
+
+	// Sort by SortOrder
+	sort.Slice(c.tabsOrder, func(i, j int) bool {
+		return c.tabsOrder[i].SortOrder < c.tabsOrder[j].SortOrder
+	})
 }
 
 func (c *ClientController) Key() string {
-	return c.basePath
+	return c.config.BasePath
 }
 
 func (c *ClientController) Register(r *mux.Router) {
-	commonMiddleware := []mux.MiddlewareFunc{
-		middleware.Authorize(),
-		middleware.RedirectNotAuthenticated(),
-		middleware.ProvideUser(),
-		middleware.WithLocalizer(c.app.Bundle()),
-		middleware.WithPageContext(),
-	}
-	router := r.PathPrefix(c.basePath).Subrouter()
+	// Combine configured middleware with required middleware
+	commonMiddleware := append(
+		[]mux.MiddlewareFunc{
+			middleware.Authorize(),
+			middleware.RedirectNotAuthenticated(),
+			middleware.ProvideUser(),
+			middleware.Tabs(),
+			middleware.WithLocalizer(c.app.Bundle()),
+			middleware.WithPageContext(),
+			middleware.NavItems(),
+		},
+		c.config.Middleware...,
+	)
+
+	router := r.PathPrefix(c.config.BasePath).Subrouter()
 	router.Use(commonMiddleware...)
 	router.Use(middleware.Tabs(), middleware.NavItems())
-	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("", di.NewHandler(c.List).Handler()).Methods(http.MethodGet)
+	router.HandleFunc("", di.NewHandler(c.Create).Handler()).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.Delete).Handler()).Methods(http.MethodDelete)
 
-	hxRouter := r.PathPrefix(c.basePath).Subrouter()
+	hxRouter := r.PathPrefix(c.config.BasePath).Subrouter()
 	hxRouter.Use(commonMiddleware...)
-	hxRouter.HandleFunc("/{id:[0-9]+}", c.View).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", c.GetPersonalEdit).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", c.GetPassportEdit).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", c.GetTaxEdit).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.View).Handler()).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.NewHandler(c.GetPersonalEdit).Handler()).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.NewHandler(c.GetPassportEdit).Handler()).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.NewHandler(c.GetTaxEdit).Handler()).Methods(http.MethodGet)
 
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", c.UpdatePersonal).Methods(http.MethodPost)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", c.UpdatePassport).Methods(http.MethodPost)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", c.UpdateTax).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.NewHandler(c.UpdatePersonal).Handler()).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.NewHandler(c.UpdatePassport).Handler()).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.NewHandler(c.UpdateTax).Handler()).Methods(http.MethodPost)
 
-	c.realtime.Register()
+	// Register realtime updates if enabled
+	if c.realtime != nil {
+		c.realtime.Register()
+	}
 }
 
-func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedResponse, error) {
+func (c *ClientController) viewModelClients(
+	r *http.Request,
+	clientService *services.ClientService,
+) (*ClientsPaginatedResponse, error) {
 	paginationParams := composables.UsePaginated(r)
 	params := &client.FindParams{
 		Limit:  paginationParams.Limit,
@@ -186,35 +328,53 @@ func (c *ClientController) viewModelClients(r *http.Request) (*ClientsPaginatedR
 		params.Search = q
 	}
 
-	clientEntities, err := c.clientService.GetPaginated(r.Context(), params)
+	clientEntities, err := clientService.GetPaginated(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving expenses")
 	}
 
-	total, err := c.clientService.Count(r.Context())
+	total, err := clientService.Count(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting expenses")
 	}
 
 	return &ClientsPaginatedResponse{
 		Clients:         mapping.MapViewModels(clientEntities, mappers.ClientToViewModel),
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
+		PaginationState: pagination.New(c.config.BasePath, paginationParams.Page, int(total), params.Limit),
 	}, nil
 }
 
-func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
-	paginated, err := c.viewModelClients(r)
+func (c *ClientController) List(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
+	// Check permissions
+	user, err := composables.UseUser(r.Context())
 	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !user.Can(crmPermissions.ClientRead) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	paginated, err := c.viewModelClients(r, clientService)
+	if err != nil {
+		logger.Errorf("Error retrieving clients: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	isHxRequest := htmx.IsHxRequest(r)
 	if isHxRequest && r.URL.Query().Get("view") != "" {
-		c.View(w, r)
+		c.View(r, w, logger, clientService, c.app.Service(services.ChatService{}).(*services.ChatService))
 		return
 	}
 	props := &clients.IndexPageProps{
-		NewURL:          fmt.Sprintf("%s/new", c.basePath),
+		NewURL:          fmt.Sprintf("%s/new", c.config.BasePath),
 		Clients:         paginated.Clients,
 		PaginationState: paginated.PaginationState,
 	}
@@ -225,9 +385,27 @@ func (c *ClientController) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *ClientController) Create(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) Create(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
+	// Check permissions
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !user.Can(crmPermissions.ClientCreate) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	dto, err := composables.UseForm(&client.CreateDTO{}, r)
 	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -249,70 +427,103 @@ func (c *ClientController) Create(w http.ResponseWriter, r *http.Request) {
 					Number: dto.PassportNumber,
 				},
 			},
-			SaveURL: c.basePath,
+			SaveURL: c.config.BasePath,
 		}
 		templ.Handler(clients.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	if _, err = c.clientService.Create(r.Context(), dto); err != nil {
+	if _, err = clientService.Create(r.Context(), dto); err != nil {
+		logger.Errorf("Error creating client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	shared.Redirect(w, r, c.basePath)
-
+	shared.Redirect(w, r, c.config.BasePath)
 }
 
 func (c *ClientController) tabToComponent(
 	r *http.Request,
 	clientID uint,
-	tab string,
+	tabID string,
+	clientService *services.ClientService,
+	chatService *services.ChatService,
 ) (templ.Component, error) {
-	clientEntity, err := c.clientService.GetByID(r.Context(), clientID)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving client")
-	}
-
-	switch tab {
-	case "profile":
-		return clients.Profile(clients.ProfileProps{
-			ClientURL: c.basePath,
-			EditURL:   fmt.Sprintf("%s/%d/edit", c.basePath, clientID),
-			Client:    mappers.ClientToViewModel(clientEntity),
-		}), nil
-	case "chat":
-		chatEntity, err := c.chatService.GetByClientIDOrCreate(r.Context(), clientID)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error retrieving chat")
-		}
-		return clients.Chats(chatsui.SelectedChatProps{
-			Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
-			ClientsURL: c.basePath,
-		}), nil
-	case "actions":
-		return clients.ActionsTab(strconv.Itoa(int(clientID))), nil
-	default:
+	// Find the tab by ID
+	tab, exists := c.tabsByID[tabID]
+	if !exists {
+		// If the requested tab doesn't exist, return NotFound
 		return clients.NotFound(), nil
 	}
+
+	// Check permissions if specified
+	if len(tab.Permissions) > 0 {
+		// Convert permission pointers to rbac.Permission types
+		perms := make([]rbac.Permission, 0, len(tab.Permissions))
+		for _, p := range tab.Permissions {
+			perms = append(perms, rbac.Perm(p))
+		}
+
+		// Get user from context
+		user, err := composables.UseUser(r.Context())
+		if err != nil {
+			// If user not found in context, redirect to NotFound
+			return clients.NotFound(), nil
+		}
+
+		// If user doesn't have any of the required permissions, return NotFound
+		if !rbac.Or(perms...).Can(user) {
+			return clients.NotFound(), nil
+		}
+	}
+
+	// Generate the component using the tab's component function
+	return tab.Component(r, clientID, clientService, chatService)
 }
 
-func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) View(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+	chatService *services.ChatService,
+) {
+	// Check permissions
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !user.Can(crmPermissions.ClientRead) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	clientID, err := clientIDFromQ(r.URL)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	qTab := r.URL.Query().Get("tab")
 	disablePush := r.URL.Query().Get("dp") == "true"
 
-	entity, err := c.clientService.GetByID(r.Context(), clientID)
+	// If no tab is selected, default to the first tab
+	if qTab == "" && len(c.tabsOrder) > 0 {
+		qTab = c.tabsOrder[0].ID
+	}
+
+	entity, err := clientService.GetByID(r.Context(), clientID)
 	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
-	component, err := c.tabToComponent(r, clientID, qTab)
+
+	component, err := c.tabToComponent(r, clientID, qTab, clientService, chatService)
 	if err != nil {
+		logger.Errorf("Error getting tab component: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -321,44 +532,48 @@ func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
 
 	hxCurrentURL, err := url.Parse(r.Header.Get("Hx-Current-URL"))
 	if err != nil {
+		logger.Errorf("Error parsing Hx-Current-URL: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	props := clients.ViewDrawerProps{
 		SelectedTab: r.URL.RequestURI(),
 		CallbackURL: hxCurrentURL.Path,
 		Tabs:        []clients.ClientTab{},
 	}
-	tabs := []struct {
-		Name  string
-		Value string
-	}{
-		{
-			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "Clients.Tabs.Profile",
-			}),
-			Value: "profile",
-		},
-		{
-			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "Clients.Tabs.Chat",
-			}),
-			Value: "chat",
-		},
-		{
-			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "Clients.Tabs.Actions",
-			}),
-			Value: "actions",
-		},
-	}
-	for _, t := range tabs {
+
+	// Build tabs from configured tabs
+	for _, tabDef := range c.tabsOrder {
+		// Check permissions if needed here
+		if len(tabDef.Permissions) > 0 {
+			// Convert permission pointers to rbac.Permission types
+			perms := make([]rbac.Permission, 0, len(tabDef.Permissions))
+			for _, p := range tabDef.Permissions {
+				perms = append(perms, rbac.Perm(p))
+			}
+
+			// Get user from context
+			user, err := composables.UseUser(r.Context())
+			if err != nil {
+				continue // Skip this tab if no user found
+			}
+
+			// Skip tab if user doesn't have any of the required permissions
+			if !rbac.Or(perms...).Can(user) {
+				continue
+			}
+		}
+
 		q := url.Values{}
 		q.Set("view", strconv.Itoa(int(entity.ID())))
-		q.Set("tab", t.Value)
-		href := fmt.Sprintf("%s?%s", c.basePath, q.Encode())
+		q.Set("tab", tabDef.ID)
+		href := fmt.Sprintf("%s?%s", c.config.BasePath, q.Encode())
+
 		props.Tabs = append(props.Tabs, clients.ClientTab{
-			Name: t.Name,
+			Name: localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: tabDef.NameKey,
+			}),
 			BoostLinkProps: tab.BoostLinkProps{
 				Href: href,
 				Push: !disablePush,
@@ -374,15 +589,22 @@ func (c *ClientController) View(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *ClientController) GetPersonalEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) GetPersonalEdit(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err := c.clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, fmt.Sprintf("Error retrieving client: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
@@ -395,15 +617,22 @@ func (c *ClientController) GetPersonalEdit(w http.ResponseWriter, r *http.Reques
 	templ.Handler(clients.PersonalInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) GetPassportEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) GetPassportEdit(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err := c.clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
@@ -416,15 +645,22 @@ func (c *ClientController) GetPassportEdit(w http.ResponseWriter, r *http.Reques
 	templ.Handler(clients.PassportInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) GetTaxEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) GetTaxEdit(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err := c.clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
@@ -437,27 +673,48 @@ func (c *ClientController) GetTaxEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) UpdatePersonal(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) UpdatePersonal(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
+	// Check permissions
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !user.Can(crmPermissions.ClientUpdate) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	dto, err := composables.UseForm(&client.UpdatePersonalDTO{}, r)
 	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := c.clientService.GetByID(r.Context(), id)
+		entity, err := clientService.GetByID(r.Context(), id)
 		if err != nil {
+			logger.Errorf("Error retrieving client: %v", err)
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 			return
 		}
@@ -472,25 +729,29 @@ func (c *ClientController) UpdatePersonal(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	entity, err := c.clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
 
 	updated, err := dto.Apply(entity)
 	if err != nil {
+		logger.Errorf("Error applying changes: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := c.clientService.Save(r.Context(), updated); err != nil {
+	if err := clientService.Save(r.Context(), updated); err != nil {
+		logger.Errorf("Error saving client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err = c.clientService.GetByID(r.Context(), id)
+	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
 		return
 	}
@@ -500,27 +761,36 @@ func (c *ClientController) UpdatePersonal(w http.ResponseWriter, r *http.Request
 	templ.Handler(clients.PersonalInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) UpdatePassport(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) UpdatePassport(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	dto, err := composables.UseForm(&client.UpdatePassportDTO{}, r)
 	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := c.clientService.GetByID(r.Context(), id)
+		entity, err := clientService.GetByID(r.Context(), id)
 		if err != nil {
+			logger.Errorf("Error retrieving client: %v", err)
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 			return
 		}
@@ -535,25 +805,29 @@ func (c *ClientController) UpdatePassport(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	entity, err := c.clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
 
 	updated, err := dto.Apply(entity)
 	if err != nil {
+		logger.Errorf("Error applying changes: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := c.clientService.Save(r.Context(), updated); err != nil {
+	if err := clientService.Save(r.Context(), updated); err != nil {
+		logger.Errorf("Error saving client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err = c.clientService.GetByID(r.Context(), id)
+	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
 		return
 	}
@@ -563,27 +837,36 @@ func (c *ClientController) UpdatePassport(w http.ResponseWriter, r *http.Request
 	templ.Handler(clients.PassportInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) UpdateTax(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) UpdateTax(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	dto, err := composables.UseForm(&client.UpdateTaxDTO{}, r)
 	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := c.clientService.GetByID(r.Context(), id)
+		entity, err := clientService.GetByID(r.Context(), id)
 		if err != nil {
+			logger.Errorf("Error retrieving client: %v", err)
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 			return
 		}
@@ -598,25 +881,29 @@ func (c *ClientController) UpdateTax(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entity, err := c.clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
 		return
 	}
 
 	updated, err := dto.Apply(entity)
 	if err != nil {
+		logger.Errorf("Error applying changes: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := c.clientService.Save(r.Context(), updated); err != nil {
+	if err := clientService.Save(r.Context(), updated); err != nil {
+		logger.Errorf("Error saving client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err = c.clientService.GetByID(r.Context(), id)
+	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
 		return
 	}
@@ -626,16 +913,35 @@ func (c *ClientController) UpdateTax(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(clients.TaxInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ClientController) Delete(w http.ResponseWriter, r *http.Request) {
+func (c *ClientController) Delete(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
+	// Check permissions
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !user.Can(crmPermissions.ClientDelete) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
-	if _, err := c.clientService.Delete(r.Context(), id); err != nil {
+	if _, err := clientService.Delete(r.Context(), id); err != nil {
+		logger.Errorf("Error deleting client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	shared.Redirect(w, r, c.basePath)
+	shared.Redirect(w, r, c.config.BasePath)
 }
