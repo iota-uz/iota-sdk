@@ -1,6 +1,7 @@
 package di
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -19,9 +20,9 @@ type Provider interface {
 	// Ok checks if this provider can handle the requested type
 	Ok(t reflect.Type) bool
 
-	// Provide returns the value for the given type
+	// Provide returns the value for the given type from the context
 	// Should only be called if Ok returns true
-	Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error)
+	Provide(t reflect.Type, ctx context.Context) (reflect.Value, error)
 }
 
 // Define provider types for each built-in provider
@@ -39,16 +40,20 @@ func (p *pageContextProvider) Ok(t reflect.Type) bool {
 	return t == pageCtxType
 }
 
-func (p *pageContextProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	return reflect.ValueOf(composables.UsePageCtx(r.Context())), nil
+func (p *pageContextProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	return reflect.ValueOf(composables.UsePageCtx(ctx)), nil
 }
 
 func (p *httpWriterProvider) Ok(t reflect.Type) bool {
 	writerType := reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
-	return t.Implements(writerType)
+	return t == writerType || (t.Kind() == reflect.Interface && writerType.Implements(t))
 }
 
-func (p *httpWriterProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
+func (p *httpWriterProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	w, ok := composables.UseWriter(ctx)
+	if !ok {
+		return reflect.Value{}, fmt.Errorf("http.ResponseWriter not found in context")
+	}
 	return reflect.ValueOf(w), nil
 }
 
@@ -57,8 +62,8 @@ func (p *httpRequestProvider) Ok(t reflect.Type) bool {
 	return t == requestType
 }
 
-func (p *httpRequestProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	return reflect.ValueOf(r), nil
+func (p *httpRequestProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	return reflect.Value{}, fmt.Errorf("http.Request access has been deprecated in this way")
 }
 
 func (p *localizerProvider) Ok(t reflect.Type) bool {
@@ -66,23 +71,23 @@ func (p *localizerProvider) Ok(t reflect.Type) bool {
 	return t == localizerType
 }
 
-func (p *localizerProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	localizer, ok := composables.UseLocalizer(r.Context())
+func (p *localizerProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	localizer, ok := composables.UseLocalizer(ctx)
 	if !ok {
-		return reflect.Value{}, fmt.Errorf("localizer not found in request context")
+		return reflect.Value{}, fmt.Errorf("localizer not found in context")
 	}
 	return reflect.ValueOf(localizer), nil
 }
 
 func (p *userProvider) Ok(t reflect.Type) bool {
 	userType := reflect.TypeOf((*user.User)(nil)).Elem()
-	return t.Implements(userType)
+	return t == userType || (t.Kind() == reflect.Interface && userType.Implements(t))
 }
 
-func (p *userProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	u, err := composables.UseUser(r.Context())
+func (p *userProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	u, err := composables.UseUser(ctx)
 	if err != nil {
-		return reflect.Value{}, fmt.Errorf("user not found in request context")
+		return reflect.Value{}, fmt.Errorf("user not found in context")
 	}
 	return reflect.ValueOf(u), nil
 }
@@ -92,8 +97,8 @@ func (p *appProvider) Ok(t reflect.Type) bool {
 	return t.Implements(appType)
 }
 
-func (p *appProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	app, err := composables.UseApp(r.Context())
+func (p *appProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	app, err := composables.UseApp(ctx)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -105,8 +110,8 @@ func (p *serviceProvider) Ok(t reflect.Type) bool {
 	return t.Kind() == reflect.Ptr
 }
 
-func (p *serviceProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	app, err := composables.UseApp(r.Context())
+func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	app, err := composables.UseApp(ctx)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -123,8 +128,8 @@ func (p *loggerProvider) Ok(t reflect.Type) bool {
 	return t == loggerType
 }
 
-func (p *loggerProvider) Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error) {
-	logger := composables.UseLogger(r.Context())
+func (p *loggerProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	logger := composables.UseLogger(ctx)
 	return reflect.ValueOf(logger), nil
 }
 
