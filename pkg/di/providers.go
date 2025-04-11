@@ -3,7 +3,6 @@ package di
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"reflect"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -27,8 +26,6 @@ type Provider interface {
 
 // Define provider types for each built-in provider
 type pageContextProvider struct{}
-type httpWriterProvider struct{}
-type httpRequestProvider struct{}
 type localizerProvider struct{}
 type userProvider struct{}
 type appProvider struct{}
@@ -42,28 +39,6 @@ func (p *pageContextProvider) Ok(t reflect.Type) bool {
 
 func (p *pageContextProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
 	return reflect.ValueOf(composables.UsePageCtx(ctx)), nil
-}
-
-func (p *httpWriterProvider) Ok(t reflect.Type) bool {
-	writerType := reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
-	return t == writerType || (t.Kind() == reflect.Interface && writerType.Implements(t))
-}
-
-func (p *httpWriterProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	w, ok := composables.UseWriter(ctx)
-	if !ok {
-		return reflect.Value{}, fmt.Errorf("http.ResponseWriter not found in context")
-	}
-	return reflect.ValueOf(w), nil
-}
-
-func (p *httpRequestProvider) Ok(t reflect.Type) bool {
-	requestType := reflect.TypeOf((*http.Request)(nil))
-	return t == requestType
-}
-
-func (p *httpRequestProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	return reflect.Value{}, fmt.Errorf("http.Request access has been deprecated in this way")
 }
 
 func (p *localizerProvider) Ok(t reflect.Type) bool {
@@ -124,13 +99,11 @@ func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.
 }
 
 func (p *loggerProvider) Ok(t reflect.Type) bool {
-	loggerType := reflect.TypeOf((*logrus.Entry)(nil))
-	return t == loggerType
+	return t == reflect.TypeOf((*logrus.Entry)(nil))
 }
 
 func (p *loggerProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	logger := composables.UseLogger(ctx)
-	return reflect.ValueOf(logger), nil
+	return reflect.ValueOf(composables.UseLogger(ctx)), nil
 }
 
 // BuiltinProviders returns the list of built-in providers
@@ -138,8 +111,6 @@ func BuiltinProviders() []Provider {
 	return []Provider{
 		&loggerProvider{},
 		&pageContextProvider{},
-		&httpWriterProvider{},
-		&httpRequestProvider{},
 		&localizerProvider{},
 		&userProvider{},
 		&appProvider{},
