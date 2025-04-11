@@ -44,8 +44,8 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	subRouter.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.Handler).Handler())
-	subRouter.HandleFunc("/scaffold-table", di.NewHandler(c.ScaffoldTable).Handler())
+	subRouter.HandleFunc("/{id:[0-9]+}", di.H(c.Handler))
+	subRouter.HandleFunc("/scaffold-table", di.H(c.ScaffoldTable))
 }
 
 func (c *DIEmployeeController) Handler(

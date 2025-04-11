@@ -118,9 +118,8 @@ func BenchmarkDIRouter(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/123", nil)
 	req = req.WithContext(ctx)
 
-	// Create a new handler for each run to ensure setup time is not included in the benchmark
-	handler := NewHandler(diTestHandler)
-	handlerFunc := handler.Handler() // Pre-compute the handler function
+	// Get the handler function directly
+	handlerFunc := H(diTestHandler)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -271,10 +271,8 @@ func (c *ClientController) Register(r *mux.Router) {
 			middleware.Authorize(),
 			middleware.RedirectNotAuthenticated(),
 			middleware.ProvideUser(),
-			middleware.Tabs(),
 			middleware.WithLocalizer(c.app.Bundle()),
 			middleware.WithPageContext(),
-			middleware.NavItems(),
 		},
 		c.config.Middleware...,
 	)
@@ -282,33 +280,33 @@ func (c *ClientController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.config.BasePath).Subrouter()
 	router.Use(commonMiddleware...)
 	router.Use(middleware.Tabs(), middleware.NavItems())
-	router.HandleFunc("", di.NewHandler(c.List).Handler()).Methods(http.MethodGet)
-	router.HandleFunc("", di.NewHandler(c.Create).Handler()).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.Delete).Handler()).Methods(http.MethodDelete)
+	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
 	hxRouter := r.PathPrefix(c.config.BasePath).Subrouter()
 	hxRouter.Use(commonMiddleware...)
-	hxRouter.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.View).Handler()).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.NewHandler(c.GetPersonalEdit).Handler()).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}", di.H(c.View)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.GetPersonalEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc(
 		"/{id:[0-9]+}/edit/passport",
-		di.NewHandler(c.GetPassportEdit).Handler(),
+		di.H(c.GetPassportEdit),
 	).Methods(http.MethodGet)
 	hxRouter.HandleFunc(
 		"/{id:[0-9]+}/edit/tax",
-		di.NewHandler(c.GetTaxEdit).Handler(),
+		di.H(c.GetTaxEdit),
 	).Methods(http.MethodGet)
 	hxRouter.HandleFunc(
 		"/{id:[0-9]+}/edit/personal",
-		di.NewHandler(c.UpdatePersonal).Handler(),
+		di.H(c.UpdatePersonal),
 	).Methods(http.MethodPost)
 	hxRouter.HandleFunc(
 		"/{id:[0-9]+}/edit/passport",
-		di.NewHandler(c.UpdatePassport).Handler(),
+		di.H(c.UpdatePassport),
 	).Methods(http.MethodPost)
 	hxRouter.HandleFunc(
 		"/{id:[0-9]+}/edit/tax",
-		di.NewHandler(c.UpdateTax).Handler(),
+		di.H(c.UpdateTax),
 	).Methods(http.MethodPost)
 
 	// Register realtime updates if enabled
@@ -363,15 +361,9 @@ func (c *ClientController) List(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
+	user userdomain.User,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientRead) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
