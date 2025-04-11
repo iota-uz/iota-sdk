@@ -117,7 +117,7 @@ func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 type TabDefinition struct {
 	ID          string
 	NameKey     string
-	Component   func(r *http.Request, clientID uint, user userdomain.User, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error)
+	Component   func(r *http.Request, clientID uint) (templ.Component, error)
 	SortOrder   int
 	Permissions []*permission.Permission
 }
@@ -190,7 +190,12 @@ var (
 			Permissions: []*permission.Permission{
 				crmPermissions.ClientRead,
 			},
-			Component: func(r *http.Request, clientID uint, u userdomain.User, clientService *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+				app, err := composables.UseApp(r.Context())
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving app")
+				}
+				clientService := app.Service(services.ClientService{}).(*services.ClientService)
 				clientEntity, err := clientService.GetByID(r.Context(), clientID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
@@ -212,7 +217,13 @@ var (
 			Permissions: []*permission.Permission{
 				crmPermissions.ClientRead,
 			},
-			Component: func(r *http.Request, clientID uint, u userdomain.User, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+				app, err := composables.UseApp(r.Context())
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving app")
+				}
+				clientService := app.Service(services.ClientService{}).(*services.ClientService)
+				chatService := app.Service(services.ChatService{}).(*services.ChatService)
 				clientEntity, err := clientService.GetByID(r.Context(), clientID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
@@ -238,7 +249,7 @@ var (
 				crmPermissions.ClientUpdate,
 				crmPermissions.ClientDelete,
 			},
-			Component: func(r *http.Request, clientID uint, u userdomain.User, _ *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
 				return clients.ActionsTab(strconv.Itoa(int(clientID))), nil
 			},
 		}
@@ -271,10 +282,8 @@ func (c *ClientController) Register(r *mux.Router) {
 			middleware.Authorize(),
 			middleware.RedirectNotAuthenticated(),
 			middleware.ProvideUser(),
-			middleware.Tabs(),
 			middleware.WithLocalizer(c.app.Bundle()),
 			middleware.WithPageContext(),
-			middleware.NavItems(),
 		},
 		c.config.Middleware...,
 	)
@@ -282,34 +291,19 @@ func (c *ClientController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.config.BasePath).Subrouter()
 	router.Use(commonMiddleware...)
 	router.Use(middleware.Tabs(), middleware.NavItems())
-	router.HandleFunc("", di.NewHandler(c.List).Handler()).Methods(http.MethodGet)
-	router.HandleFunc("", di.NewHandler(c.Create).Handler()).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.Delete).Handler()).Methods(http.MethodDelete)
+	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
 	hxRouter := r.PathPrefix(c.config.BasePath).Subrouter()
 	hxRouter.Use(commonMiddleware...)
-	hxRouter.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.View).Handler()).Methods(http.MethodGet)
-	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.NewHandler(c.GetPersonalEdit).Handler()).Methods(http.MethodGet)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/passport",
-		di.NewHandler(c.GetPassportEdit).Handler(),
-	).Methods(http.MethodGet)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/tax",
-		di.NewHandler(c.GetTaxEdit).Handler(),
-	).Methods(http.MethodGet)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/personal",
-		di.NewHandler(c.UpdatePersonal).Handler(),
-	).Methods(http.MethodPost)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/passport",
-		di.NewHandler(c.UpdatePassport).Handler(),
-	).Methods(http.MethodPost)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/tax",
-		di.NewHandler(c.UpdateTax).Handler(),
-	).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}", di.H(c.View)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.GetPersonalEdit)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.GetPassportEdit)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.GetTaxEdit)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.UpdatePersonal)).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.UpdatePassport)).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.UpdateTax)).Methods(http.MethodPost)
 
 	// Register realtime updates if enabled
 	if c.realtime != nil {
@@ -363,15 +357,9 @@ func (c *ClientController) List(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
+	user userdomain.User,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientRead) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -385,7 +373,7 @@ func (c *ClientController) List(
 	}
 	isHxRequest := htmx.IsHxRequest(r)
 	if isHxRequest && r.URL.Query().Get("view") != "" {
-		c.View(r, w, logger, clientService, c.app.Service(services.ChatService{}).(*services.ChatService))
+		c.View(r, w, user, logger, clientService, c.app.Service(services.ChatService{}).(*services.ChatService))
 		return
 	}
 	props := &clients.IndexPageProps{
@@ -403,16 +391,10 @@ func (c *ClientController) List(
 func (c *ClientController) Create(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientCreate) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -493,23 +475,17 @@ func (c *ClientController) tabToComponent(
 	}
 
 	// Generate the component using the tab's component function
-	return tab.Component(r, clientID, currentUser, clientService, chatService)
+	return tab.Component(r, clientID)
 }
 
 func (c *ClientController) View(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 	chatService *services.ChatService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientRead) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -568,15 +544,8 @@ func (c *ClientController) View(
 				perms = append(perms, rbac.Perm(p))
 			}
 
-			// Get user from context
-			user, err := composables.UseUser(r.Context())
-			if err != nil {
-				continue // Skip this tab if no user found
-			}
-
-			// Skip tab if user doesn't have any of the required permissions
-			if !rbac.Or(perms...).Can(user) {
-				continue
+			if err := composables.CanUserAny(r.Context(), rbac.Or(perms...)); err != nil {
+				continue // Skip this tab if user doesn't have permission
 			}
 		}
 
@@ -691,16 +660,10 @@ func (c *ClientController) GetTaxEdit(
 func (c *ClientController) UpdatePersonal(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientUpdate) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -931,16 +894,10 @@ func (c *ClientController) UpdateTax(
 func (c *ClientController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientDelete) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
