@@ -288,26 +288,11 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.Use(commonMiddleware...)
 	hxRouter.HandleFunc("/{id:[0-9]+}", di.H(c.View)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.GetPersonalEdit)).Methods(http.MethodGet)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/passport",
-		di.H(c.GetPassportEdit),
-	).Methods(http.MethodGet)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/tax",
-		di.H(c.GetTaxEdit),
-	).Methods(http.MethodGet)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/personal",
-		di.H(c.UpdatePersonal),
-	).Methods(http.MethodPost)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/passport",
-		di.H(c.UpdatePassport),
-	).Methods(http.MethodPost)
-	hxRouter.HandleFunc(
-		"/{id:[0-9]+}/edit/tax",
-		di.H(c.UpdateTax),
-	).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.GetPassportEdit)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.GetTaxEdit)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.UpdatePersonal)).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.UpdatePassport)).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.UpdateTax)).Methods(http.MethodPost)
 
 	// Register realtime updates if enabled
 	if c.realtime != nil {
@@ -377,7 +362,7 @@ func (c *ClientController) List(
 	}
 	isHxRequest := htmx.IsHxRequest(r)
 	if isHxRequest && r.URL.Query().Get("view") != "" {
-		c.View(r, w, logger, clientService, c.app.Service(services.ChatService{}).(*services.ChatService))
+		c.View(r, w, user, logger, clientService, c.app.Service(services.ChatService{}).(*services.ChatService))
 		return
 	}
 	props := &clients.IndexPageProps{
@@ -395,16 +380,10 @@ func (c *ClientController) List(
 func (c *ClientController) Create(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientCreate) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -491,17 +470,11 @@ func (c *ClientController) tabToComponent(
 func (c *ClientController) View(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 	chatService *services.ChatService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientRead) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -560,15 +533,8 @@ func (c *ClientController) View(
 				perms = append(perms, rbac.Perm(p))
 			}
 
-			// Get user from context
-			user, err := composables.UseUser(r.Context())
-			if err != nil {
-				continue // Skip this tab if no user found
-			}
-
-			// Skip tab if user doesn't have any of the required permissions
-			if !rbac.Or(perms...).Can(user) {
-				continue
+			if err := composables.CanUserAny(r.Context(), rbac.Or(perms...)); err != nil {
+				continue // Skip this tab if user doesn't have permission
 			}
 		}
 
@@ -683,16 +649,10 @@ func (c *ClientController) GetTaxEdit(
 func (c *ClientController) UpdatePersonal(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientUpdate) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -923,16 +883,10 @@ func (c *ClientController) UpdateTax(
 func (c *ClientController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,
+	user userdomain.User,
 	logger *logrus.Entry,
 	clientService *services.ClientService,
 ) {
-	// Check permissions
-	user, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	if !user.Can(crmPermissions.ClientDelete) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
