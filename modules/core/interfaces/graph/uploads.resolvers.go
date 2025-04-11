@@ -45,6 +45,33 @@ func (r *queryResolver) Uploads(ctx context.Context, filter model.UploadFilter) 
 	if filter.MimeType != nil {
 		params.Mimetype = mimetype.Lookup(*filter.MimeType)
 	}
+
+	// Apply sorting if requested
+	if filter.Sort != nil {
+		sortBy := upload.SortBy{
+			Ascending: filter.Sort.Ascending,
+			Fields:    []upload.Field{},
+		}
+
+		// Map GraphQL sort field to domain sort field
+		switch filter.Sort.Field {
+		case model.UploadSortFieldSize:
+			sortBy.Fields = append(sortBy.Fields, upload.FieldSize)
+		case model.UploadSortFieldName:
+			sortBy.Fields = append(sortBy.Fields, upload.FieldName)
+		case model.UploadSortFieldCreatedAt:
+			sortBy.Fields = append(sortBy.Fields, upload.FieldCreatedAt)
+		case model.UploadSortFieldUpdatedAt:
+			sortBy.Fields = append(sortBy.Fields, upload.FieldUpdatedAt)
+		default:
+			return nil, fmt.Errorf("unknown sort field: %s", filter.Sort.Field)
+		}
+		if len(sortBy.Fields) == 0 {
+			sortBy.Fields = []upload.Field{upload.FieldCreatedAt}
+		}
+		params.SortBy = sortBy
+	}
+
 	uploads, err := r.uploadService.GetPaginated(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find uploads: %w", err)

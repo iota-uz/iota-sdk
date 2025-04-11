@@ -3,6 +3,9 @@
 package model
 
 import (
+	"fmt"
+	"io"
+	"strconv"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -46,6 +49,12 @@ type UploadFilter struct {
 	MimeType       *string            `json:"mimeType,omitempty"`
 	MimeTypePrefix *string            `json:"mimeTypePrefix,omitempty"`
 	Type           *upload.UploadType `json:"type,omitempty"`
+	Sort           *UploadSort        `json:"sort,omitempty"`
+}
+
+type UploadSort struct {
+	Field     UploadSortField `json:"field"`
+	Ascending bool            `json:"ascending"`
 }
 
 type User struct {
@@ -56,4 +65,49 @@ type User struct {
 	UILanguage string    `json:"uiLanguage"`
 	UpdatedAt  time.Time `json:"updatedAt"`
 	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type UploadSortField string
+
+const (
+	UploadSortFieldSize      UploadSortField = "SIZE"
+	UploadSortFieldName      UploadSortField = "NAME"
+	UploadSortFieldCreatedAt UploadSortField = "CREATED_AT"
+	UploadSortFieldUpdatedAt UploadSortField = "UPDATED_AT"
+)
+
+var AllUploadSortField = []UploadSortField{
+	UploadSortFieldSize,
+	UploadSortFieldName,
+	UploadSortFieldCreatedAt,
+	UploadSortFieldUpdatedAt,
+}
+
+func (e UploadSortField) IsValid() bool {
+	switch e {
+	case UploadSortFieldSize, UploadSortFieldName, UploadSortFieldCreatedAt, UploadSortFieldUpdatedAt:
+		return true
+	}
+	return false
+}
+
+func (e UploadSortField) String() string {
+	return string(e)
+}
+
+func (e *UploadSortField) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = UploadSortField(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid UploadSortField", str)
+	}
+	return nil
+}
+
+func (e UploadSortField) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }

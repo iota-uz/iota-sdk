@@ -89,7 +89,13 @@ func (g *GormUploadRepository) GetPaginated(
 	for _, f := range params.SortBy.Fields {
 		switch f {
 		case upload.FieldSize:
-			sortFields = append(sortFields, "u.size")
+			sortFields = append(sortFields, "size")
+		case upload.FieldName:
+			sortFields = append(sortFields, "name")
+		case upload.FieldCreatedAt:
+			sortFields = append(sortFields, "created_at")
+		case upload.FieldUpdatedAt:
+			sortFields = append(sortFields, "updated_at")
 		default:
 			return nil, fmt.Errorf("unknown sort field: %v", f)
 		}
