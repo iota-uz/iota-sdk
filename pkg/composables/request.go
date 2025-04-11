@@ -62,16 +62,6 @@ func UseWriter(ctx context.Context) (http.ResponseWriter, bool) {
 	return params.Writer, true
 }
 
-// UseRequest returns the request from the context.
-// If the request is not found, the second return value will be false.
-func UseRequest(ctx context.Context) (*http.Request, bool) {
-	params, ok := UseParams(ctx)
-	if !ok {
-		return nil, false
-	}
-	return params.Request, true
-}
-
 // UseLogger returns the logger from the context.
 // If the logger is not found, the second return value will be false.
 func UseLogger(ctx context.Context) *logrus.Entry {
