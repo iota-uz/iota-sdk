@@ -166,6 +166,46 @@ func (f *notLikeFilter) Value() []any {
 	return []any{f.value}
 }
 
+type orFilter struct {
+	filters []Filter
+}
+
+func (f *orFilter) String(column string, argIdx int) string {
+	parts := make([]string, len(f.filters))
+	for i, filter := range f.filters {
+		parts[i] = filter.String(column, argIdx)
+	}
+	return fmt.Sprintf("(%s)", strings.Join(parts, " OR "))
+}
+
+func (f *orFilter) Value() []any {
+	var values []any
+	for _, filter := range f.filters {
+		values = append(values, filter.Value()...)
+	}
+	return values
+}
+
+type andFilter struct {
+	filters []Filter
+}
+
+func (f *andFilter) String(column string, argIdx int) string {
+	parts := make([]string, len(f.filters))
+	for i, filter := range f.filters {
+		parts[i] = filter.String(column, argIdx)
+	}
+	return fmt.Sprintf("(%s)", strings.Join(parts, " AND "))
+}
+
+func (f *andFilter) Value() []any {
+	var values []any
+	for _, filter := range f.filters {
+		values = append(values, filter.Value()...)
+	}
+	return values
+}
+
 // ==============================
 // === Filter Constructors    ===
 // ==============================
@@ -192,3 +232,13 @@ func NotIn(value any) Filter {
 }
 func Like(value any) Filter    { return &likeFilter{value} }
 func NotLike(value any) Filter { return &notLikeFilter{value} }
+
+// Logic operators
+
+func Or(filters ...Filter) Filter {
+	return &orFilter{filters}
+}
+
+func And(filters ...Filter) Filter {
+	return &andFilter{filters}
+}

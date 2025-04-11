@@ -10,6 +10,9 @@ type Field int
 
 const (
 	FieldSize Field = iota
+	FieldName
+	FieldCreatedAt
+	FieldUpdatedAt
 )
 
 type SortBy struct {
