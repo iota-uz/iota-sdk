@@ -117,7 +117,7 @@ func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 type TabDefinition struct {
 	ID          string
 	NameKey     string
-	Component   func(r *http.Request, clientID uint, user userdomain.User, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error)
+	Component   func(r *http.Request, clientID uint) (templ.Component, error)
 	SortOrder   int
 	Permissions []*permission.Permission
 }
@@ -190,7 +190,12 @@ var (
 			Permissions: []*permission.Permission{
 				crmPermissions.ClientRead,
 			},
-			Component: func(r *http.Request, clientID uint, u userdomain.User, clientService *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+				app, err := composables.UseApp(r.Context())
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving app")
+				}
+				clientService := app.Service(services.ClientService{}).(*services.ClientService)
 				clientEntity, err := clientService.GetByID(r.Context(), clientID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
@@ -212,7 +217,13 @@ var (
 			Permissions: []*permission.Permission{
 				crmPermissions.ClientRead,
 			},
-			Component: func(r *http.Request, clientID uint, u userdomain.User, clientService *services.ClientService, chatService *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+				app, err := composables.UseApp(r.Context())
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving app")
+				}
+				clientService := app.Service(services.ClientService{}).(*services.ClientService)
+				chatService := app.Service(services.ChatService{}).(*services.ChatService)
 				clientEntity, err := clientService.GetByID(r.Context(), clientID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
@@ -238,7 +249,7 @@ var (
 				crmPermissions.ClientUpdate,
 				crmPermissions.ClientDelete,
 			},
-			Component: func(r *http.Request, clientID uint, u userdomain.User, _ *services.ClientService, _ *services.ChatService) (templ.Component, error) {
+			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
 				return clients.ActionsTab(strconv.Itoa(int(clientID))), nil
 			},
 		}
@@ -464,7 +475,7 @@ func (c *ClientController) tabToComponent(
 	}
 
 	// Generate the component using the tab's component function
-	return tab.Component(r, clientID, currentUser, clientService, chatService)
+	return tab.Component(r, clientID)
 }
 
 func (c *ClientController) View(
