@@ -141,8 +141,8 @@ jobs:
 
       - name: Run lint and vet
         run: |
-          make lint
           go vet ./...
+          make lint
 
       - name: Run tests
         run: go test -v ./...
