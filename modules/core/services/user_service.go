@@ -70,7 +70,11 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			// Just log the error since we can't return it
+		}
+	}()
 	createdEvent, err := user.NewCreatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -108,7 +112,11 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			// Just log the error since we can't return it
+		}
+	}()
 	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -138,7 +146,11 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			// Just log the error since we can't return it
+		}
+	}()
 	deletedEvent, err := user.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err

@@ -10,7 +10,9 @@ import (
 
 func handler404(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
-	error_pages.NotFoundContent().Render(r.Context(), w)
+	if err := error_pages.NotFoundContent().Render(r.Context(), w); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func NotFound(app application.Application) http.HandlerFunc {

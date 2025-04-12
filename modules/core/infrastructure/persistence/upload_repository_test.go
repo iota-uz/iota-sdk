@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGormUploadRepository_CRUD(t *testing.T) {
@@ -29,7 +30,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 
 		// Create upload
 		createdUpload, err := uploadRepository.Create(f.ctx, uploadData)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, uint(0), createdUpload.ID())
 		assert.Equal(t, "test-hash", createdUpload.Hash())
 		assert.Equal(t, "uploads/test.jpg", createdUpload.Path())
@@ -55,11 +56,11 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 
 		// Create upload
 		createdUpload, err := uploadRepository.Create(f.ctx, uploadData)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Get upload by ID
 		retrievedUpload, err := uploadRepository.GetByID(f.ctx, createdUpload.ID())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, createdUpload.ID(), retrievedUpload.ID())
 		assert.Equal(t, "pdf-hash", retrievedUpload.Hash())
 		assert.Equal(t, "uploads/document.pdf", retrievedUpload.Path())
@@ -84,11 +85,11 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 
 		// Create upload
 		_, err := uploadRepository.Create(f.ctx, uploadData)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Get upload by hash
 		retrievedUpload, err := uploadRepository.GetByHash(f.ctx, uniqueHash)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, uniqueHash, retrievedUpload.Hash())
 		assert.Equal(t, "uploads/text.txt", retrievedUpload.Path())
 		assert.Equal(t, "text.txt", retrievedUpload.Name())
@@ -100,14 +101,14 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 	t.Run("GetAll", func(t *testing.T) {
 		// Get all uploads
 		uploads, err := uploadRepository.GetAll(f.ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEmpty(t, uploads)
 	})
 
 	t.Run("Count", func(t *testing.T) {
 		// Count uploads
 		count, err := uploadRepository.Count(f.ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotZero(t, count)
 	})
 
@@ -124,7 +125,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 
 		// Create upload
 		createdUpload, err := uploadRepository.Create(f.ctx, uploadData)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Create a new upload with the same ID for update
 		updatedMime := mimetype.Lookup("image/png")
@@ -142,11 +143,11 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 
 		// Update upload
 		err = uploadRepository.Update(f.ctx, updatedUpload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Get updated upload
 		retrievedUpload, err := uploadRepository.GetByID(f.ctx, createdUpload.ID())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "updated-hash", retrievedUpload.Hash())
 		assert.Equal(t, "uploads/updated.png", retrievedUpload.Path())
 		assert.Equal(t, "updated.png", retrievedUpload.Name())
@@ -165,7 +166,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 				mime,
 			)
 			_, err := uploadRepository.Create(f.ctx, uploadData)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		// Test pagination
@@ -179,7 +180,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		}
 
 		uploads, err := uploadRepository.GetPaginated(f.ctx, params)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.LessOrEqual(t, len(uploads), 3)
 
 		// Verify sorting by size (ascending)
@@ -190,7 +191,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		// Test with different sort order
 		params.SortBy.Ascending = false
 		uploadsDesc, err := uploadRepository.GetPaginated(f.ctx, params)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.LessOrEqual(t, len(uploadsDesc), 3)
 
 		// Verify sorting by size (descending)
@@ -209,7 +210,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		}
 
 		imageUploads, err := uploadRepository.GetPaginated(f.ctx, params)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		for _, u := range imageUploads {
 			assert.True(t, u.IsImage())
 			assert.Equal(t, "image/jpeg", u.Mimetype().String())
@@ -229,11 +230,11 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 
 		// Create upload
 		createdUpload, err := uploadRepository.Create(f.ctx, uploadData)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Delete upload
 		err = uploadRepository.Delete(f.ctx, createdUpload.ID())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Try to get deleted upload
 		_, err = uploadRepository.GetByID(f.ctx, createdUpload.ID())

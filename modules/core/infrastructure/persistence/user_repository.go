@@ -136,7 +136,6 @@ func (g *PgUserRepository) buildUserFilters(params *user.FindParams) ([]string, 
 }
 
 func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
-
 	sortFields := make([]string, 0, len(params.SortBy.Fields))
 
 	for _, f := range params.SortBy.Fields {

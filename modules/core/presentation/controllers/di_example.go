@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 
@@ -72,16 +71,16 @@ func (c *DIEmployeeController) Handler(
 		return
 	}
 
-	w.Write([]byte(fmt.Sprintf("NavigationLinks.Dashboard: %s", message)))
-	w.Write([]byte("\n"))
-	w.Write([]byte(fmt.Sprintf("Fullname: %s %s", u.FirstName(), u.LastName())))
-	w.Write([]byte("\n"))
-	w.Write([]byte(fmt.Sprintf("ID: %d", id)))
-	w.Write([]byte("\n"))
+	_, _ = w.Write([]byte(fmt.Sprintf("NavigationLinks.Dashboard: %s", message)))
+	_, _ = w.Write([]byte("\n"))
+	_, _ = w.Write([]byte(fmt.Sprintf("Fullname: %s %s", u.FirstName(), u.LastName())))
+	_, _ = w.Write([]byte("\n"))
+	_, _ = w.Write([]byte(fmt.Sprintf("ID: %d", id)))
+	_, _ = w.Write([]byte("\n"))
 
 	for _, c := range currencies {
-		w.Write([]byte(fmt.Sprintf("Currency: %s", c.Name)))
-		w.Write([]byte("\n"))
+		_, _ = w.Write([]byte(fmt.Sprintf("Currency: %s", c.Name)))
+		_, _ = w.Write([]byte("\n"))
 	}
 }
 
@@ -147,8 +146,12 @@ func (c *DIEmployeeController) ScaffoldTable(
 	}
 
 	if htmx.IsHxRequest(r) {
-		templ.Handler(scaffoldui.Rows(tableConfig, tableData)).ServeHTTP(w, r)
+		err = scaffoldui.Rows(tableConfig, tableData).Render(r.Context(), w)
 	} else {
-		templ.Handler(scaffoldui.Page(tableConfig, tableData)).ServeHTTP(w, r)
+		err = scaffoldui.Page(tableConfig, tableData).Render(r.Context(), w)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

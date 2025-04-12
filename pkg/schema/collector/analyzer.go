@@ -374,7 +374,7 @@ func compareConstraints(oldConstraints, newConstraints map[string]constraintInfo
 }
 
 func generateConstraintName(tableName, constraintType string, columns []tree.IndexElem) string {
-	var columnNames []string
+	columnNames := make([]string, 0, len(columns))
 	for _, col := range columns {
 		columnNames = append(columnNames, col.Column.String())
 	}

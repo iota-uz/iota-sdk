@@ -200,7 +200,7 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 	}
 
 	// Write the file
-	err := os.WriteFile(filepath, []byte(buffer.String()), 0644)
+	err := os.WriteFile(filepath, buffer.Bytes(), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write migration file: %w", err)
 	}

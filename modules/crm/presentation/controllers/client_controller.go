@@ -521,7 +521,7 @@ func (c *ClientController) View(
 
 	localizer := composables.MustUseLocalizer(r.Context())
 
-	hxCurrentURL, err := url.Parse(r.Header.Get("Hx-Current-URL"))
+	hxCurrentURL, err := url.Parse(r.Header.Get("Hx-Current-Url"))
 	if err != nil {
 		logger.Errorf("Error parsing Hx-Current-URL: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

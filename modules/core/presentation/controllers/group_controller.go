@@ -418,7 +418,7 @@ func (c *GroupsController) Update(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	var roles []role.Role
+	roles := make([]role.Role, 0, len(dto.RoleIDs))
 
 	for _, rID := range dto.RoleIDs {
 		rUintID, err := strconv.ParseUint(rID, 10, 64)

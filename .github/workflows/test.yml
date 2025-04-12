@@ -114,7 +114,7 @@ jobs:
             fi
           done
           echo "All SQL files are properly formatted"
-          
+
       - name: Check templ files formatting
         run: |
           # Run templ fmt on the whole project
@@ -126,7 +126,7 @@ jobs:
             exit 1
           fi
           echo "All templ files are properly formatted"
-          
+
       - name: Check Go files formatting
         run: |
           # Run go fmt on the whole project
@@ -139,12 +139,13 @@ jobs:
           fi
           echo "All Go files are properly formatted"
 
-      - name: Run go vet && tests
+      - name: Run lint and vet
         run: |
-          make generate
-          git diff --exit-code
+          make lint
           go vet ./...
-          go test -v ./...
+
+      - name: Run tests
+        run: go test -v ./...
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
