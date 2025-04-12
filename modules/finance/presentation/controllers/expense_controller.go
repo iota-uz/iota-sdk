@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expensesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
@@ -359,27 +361,39 @@ func (c *ExpenseController) Update(
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&dtos.ExpenseUpdateDTO{}, r)
+	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, "Error parsing form", http.StatusBadRequest)
 		return
 	}
 
-	dto := dtos.ExpenseUpdateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		logger.Errorf("Error decoding form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	existing, err := expenseService.GetByID(r.Context(), id)
+	if errors.Is(err, persistence.ErrExpenseNotFound) {
+		logger.Errorf("Expense not found: %v", err)
+		http.Error(w, "Expense not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		logger.Errorf("Error retrieving expense: %v", err)
+		http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
+		return
+	}
+
+	cat, err := expenseCategoryService.GetByID(r.Context(), dto.CategoryID)
+	if errors.Is(err, persistence.ErrExpenseCategoryNotFound) {
+		logger.Errorf("Expense category not found: %v", err)
+		http.Error(w, "Expense category not found", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		logger.Errorf("Error retrieving expense category: %v", err)
+		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := expenseService.GetByID(r.Context(), id)
-		if err != nil {
-			logger.Errorf("Error retrieving expense: %v", err)
-			http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
-			return
-		}
-
 		accounts, err := moneyAccountService.GetAll(r.Context())
 		if err != nil {
 			logger.Errorf("Error retrieving accounts: %v", err)
@@ -395,7 +409,7 @@ func (c *ExpenseController) Update(
 		}
 
 		props := &expensesui.EditPageProps{
-			Expense:    mappers.ExpenseToViewModel(entity),
+			Expense:    mappers.ExpenseToViewModel(existing),
 			Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
 			Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
 			Errors:     errorsMap,
@@ -404,7 +418,7 @@ func (c *ExpenseController) Update(
 		return
 	}
 
-	entity, err := dto.ToEntity(id)
+	entity, err := dto.Apply(existing, cat)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

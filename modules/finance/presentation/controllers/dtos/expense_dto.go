@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
-	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -100,22 +100,13 @@ func (d *ExpenseCreateDTO) ToEntity() (expense.Expense, error) {
 	), nil
 }
 
-func (d *ExpenseUpdateDTO) ToEntity(id uint) (expense.Expense, error) {
-	account := moneyAccount.Account{ID: d.AccountID}
-	expenseCategory := category.New(
-		"",  // name - will be populated when fetched from DB
-		0,   // amount - will be populated when fetched from DB
-		nil, // currency - will be populated when fetched from DB
-		category.WithID(d.CategoryID),
-	)
-
-	return expense.New(
-		d.Amount,
-		account,
-		expenseCategory,
-		d.Date,
-		expense.WithID(id),
-		expense.WithComment(d.Comment),
-		expense.WithAccountingPeriod(d.AccountingPeriod),
-	), nil
+func (d *ExpenseUpdateDTO) Apply(entity expense.Expense, cat category.ExpenseCategory) (expense.Expense, error) {
+	entity = entity.
+		SetAccount(moneyAccount.Account{ID: d.AccountID}).
+		SetCategory(cat).
+		SetComment(d.Comment).
+		SetAmount(d.Amount).
+		SetDate(d.Date).
+		SetAccountingPeriod(d.AccountingPeriod)
+	return entity, nil
 }
