@@ -54,14 +54,11 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 
 func (d *CreateDTO) ToEntity() (Expense, error) {
 	account := moneyAccount.Account{ID: d.AccountID}
-	expenseCategory := category.NewWithID(
-		d.CategoryID,
-		"",
-		"",
-		0,
-		nil,
-		time.Now(),
-		time.Now(),
+	expenseCategory := category.New(
+		"",  // name - will be populated when fetched from DB
+		0,   // amount - will be populated when fetched from DB
+		nil, // currency - will be populated when fetched from DB
+		category.WithID(d.CategoryID),
 	)
 
 	return New(
@@ -76,14 +73,11 @@ func (d *CreateDTO) ToEntity() (Expense, error) {
 
 func (d *UpdateDTO) ToEntity(id uint) (Expense, error) {
 	account := moneyAccount.Account{ID: d.AccountID}
-	expenseCategory := category.NewWithID(
-		d.CategoryID,
-		"",
-		"",
-		0,
-		nil,
-		time.Now(),
-		time.Now(),
+	expenseCategory := category.New(
+		"",  // name - will be populated when fetched from DB
+		0,   // amount - will be populated when fetched from DB
+		nil, // currency - will be populated when fetched from DB
+		category.WithID(d.CategoryID),
 	)
 
 	return New(
