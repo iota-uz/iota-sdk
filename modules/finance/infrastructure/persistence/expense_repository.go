@@ -64,7 +64,6 @@ func (g *GormExpenseRepository) buildExpenseFilters(params *expense.FindParams) 
 	where := []string{"1 = 1"}
 	args := []interface{}{}
 
-	// Process all filters
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
 		if !ok {
@@ -73,25 +72,6 @@ func (g *GormExpenseRepository) buildExpenseFilters(params *expense.FindParams) 
 
 		where = append(where, filter.Filter.String(column, len(args)+1))
 		args = append(args, filter.Filter.Value()...)
-	}
-
-	// Legacy ID filter support
-	if params.ID != 0 {
-		where = append(where, fmt.Sprintf("ex.id = $%d", len(args)+1))
-		args = append(args, params.ID)
-	}
-
-	// Legacy CreatedAt filter support
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where = append(where, fmt.Sprintf("ex.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
-		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
-	}
-
-	// Legacy query/field support
-	if params.Query != "" && params.Field != "" {
-		column := fmt.Sprintf("ex.%s", params.Field)
-		where = append(where, fmt.Sprintf("%s::VARCHAR ILIKE $%d", column, len(args)+1))
-		args = append(args, "%"+params.Query+"%")
 	}
 
 	// Search support

@@ -93,6 +93,8 @@
       "New": "Xarajat qo'shish",
       "Category": "Kategoriya",
       "Amount": "Miqdori",
+      "AccountingPeriod": "Hisob davri",
+      "Date": "Sana",
       "NoExpenses": {
         "Title": "Xarajatlar topilmadi",
         "Description": "Hali xarajatlar yo'q. Yangi yaratish uchun 'Xarajat qo'shish' tugmasini bosing."

@@ -93,6 +93,8 @@
       "New": "Add expense",
       "Category": "Category",
       "Amount": "Amount",
+      "AccountingPeriod": "Accounting period",
+      "Date": "Date",
       "NoExpenses": {
         "Title": "No expenses found",
         "Description": "There are no expenses yet. Click 'Add expense' to create one."

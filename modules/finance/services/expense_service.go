@@ -5,7 +5,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
-	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -51,12 +50,8 @@ func (s *ExpenseService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *ExpenseService) Create(ctx context.Context, data *dtos.ExpenseCreateDTO) error {
+func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) error {
 	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
-		return err
-	}
-	entity, err := data.ToEntity()
-	if err != nil {
 		return err
 	}
 	if err := s.repo.Create(ctx, entity); err != nil {
@@ -73,12 +68,8 @@ func (s *ExpenseService) Create(ctx context.Context, data *dtos.ExpenseCreateDTO
 	return nil
 }
 
-func (s *ExpenseService) Update(ctx context.Context, id uint, data *dtos.ExpenseUpdateDTO) error {
+func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) error {
 	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
-		return err
-	}
-	entity, err := data.ToEntity(id)
-	if err != nil {
 		return err
 	}
 	if err := s.repo.Update(ctx, entity); err != nil {
