@@ -35,34 +35,6 @@ const (
 	groupRoleDeleteQuery = `DELETE FROM group_roles WHERE group_id = $1`
 	groupUserInsertQuery = `INSERT INTO group_users (group_id, user_id) VALUES`
 	groupRoleInsertQuery = `INSERT INTO group_roles (group_id, role_id) VALUES`
-
-	groupUsersQuery = `
-		SELECT
-			u.id,
-			u.first_name,
-			u.last_name,
-			u.middle_name,
-			u.email,
-			u.password,
-			u.ui_language,
-			u.avatar_id,
-			u.last_login,
-			u.last_ip,
-			u.last_action,
-			u.created_at,
-			u.updated_at
-		FROM group_users gu LEFT JOIN users u ON gu.user_id = u.id WHERE gu.group_id = $1
-	`
-
-	groupRolesQuery = `
-		SELECT
-			r.id,
-			r.name,
-			r.description,
-			r.created_at,
-			r.updated_at
-		FROM group_roles gr LEFT JOIN roles r ON gr.role_id = r.id WHERE gr.group_id = $1
-	`
 )
 
 type PgGroupRepository struct {

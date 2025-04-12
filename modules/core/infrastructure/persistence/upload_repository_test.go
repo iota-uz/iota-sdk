@@ -238,19 +238,19 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 
 		// Try to get deleted upload
 		_, err = uploadRepository.GetByID(f.ctx, createdUpload.ID())
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrUploadNotFound)
+		require.Error(t, err)
+		require.ErrorIs(t, err, persistence.ErrUploadNotFound)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
 		// Try to get non-existent upload
 		_, err := uploadRepository.GetByID(f.ctx, 99999)
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrUploadNotFound)
+		require.Error(t, err)
+		require.ErrorIs(t, err, persistence.ErrUploadNotFound)
 
 		// Try to get upload with non-existent hash
 		_, err = uploadRepository.GetByHash(f.ctx, "non-existent-hash")
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrUploadNotFound)
+		require.Error(t, err)
+		require.ErrorIs(t, err, persistence.ErrUploadNotFound)
 	})
 }

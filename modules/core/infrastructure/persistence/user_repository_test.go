@@ -437,7 +437,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = userRepository.GetByID(f.ctx, createdUser.ID())
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrUserNotFound)
+		require.Error(t, err)
+		require.ErrorIs(t, err, persistence.ErrUserNotFound)
 	})
 }
