@@ -1,7 +1,7 @@
 package viewmodels
 
 import (
-	"unicode"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type User struct {
@@ -38,15 +38,5 @@ func (u *User) RolesVerbose() string {
 }
 
 func (u *User) Initials() string {
-	initials := ""
-	if u.FirstName != "" {
-		initials += string(unicode.ToUpper(rune(u.FirstName[0])))
-	}
-	if u.LastName != "" {
-		initials += string(unicode.ToUpper(rune(u.LastName[0])))
-	}
-	if initials == "" {
-		return "NA"
-	}
-	return initials
+	return shared.GetInitials(u.FirstName, u.LastName)
 }

@@ -3,6 +3,7 @@ package layouts
 import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
@@ -29,19 +30,18 @@ templ DefaultLogo() {
 }
 
 templ Avatar() {
-	{{ u := mappers.UserToViewModel(composables.MustUseUser(ctx)) }}
-	<summary
-		class="w-9 h-9 rounded-full font-medium flex items-center justify-center cursor-pointer bg-avatar text-avatar"
-	>
+	{{
+		u := mappers.UserToViewModel(composables.MustUseUser(ctx))
+		var url string
 		if u.Avatar != nil {
-			<img
-				src={ u.Avatar.URL }
-				alt="Avatar"
-				class="w-9 h-9 object-cover rounded-full"
-			/>
-		} else {
-			{ u.Initials() }
+			url = u.Avatar.URL
 		}
+	}}
+	<summary class="flex items-center justify-center cursor-pointer">
+		@avatar.Avatar(avatar.Props{
+			ImageURL: url,
+			Initials: u.Initials(),
+		})
 	</summary>
 }
 

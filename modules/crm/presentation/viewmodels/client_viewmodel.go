@@ -1,6 +1,10 @@
 package viewmodels
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/shared"
+)
 
 type Passport struct {
 	ID             string
@@ -52,15 +56,5 @@ func (c *Client) FullName() string {
 }
 
 func (c *Client) Initials() string {
-	res := ""
-	if len(c.FirstName) > 0 {
-		res += string(c.FirstName[0])
-	}
-	if len(c.LastName) > 0 {
-		res += string(c.LastName[0])
-	}
-	if len(res) == 0 {
-		return "NA"
-	}
-	return res
+	return shared.GetInitials(c.FirstName, c.LastName)
 }
