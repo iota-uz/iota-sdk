@@ -102,7 +102,14 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 	}
 	defer rows.Close()
 
-	expenses := make([]expense.Expense, 0)
+	// First collect all DB row data
+	type expenseData struct {
+		expense       models.Expense
+		transaction   models.Transaction
+		domainExpense expense.Expense
+	}
+	expensesData := make([]expenseData, 0)
+
 	for rows.Next() {
 		var dbExpense models.Expense
 		var dbTransaction models.Transaction
@@ -127,30 +134,42 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain expense")
 		}
-		domainCategory, err := g.categoryRepo.GetByID(ctx, dbExpense.CategoryID)
-		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to get category for expense ID: %d", dbExpense.ID))
-		}
 
-		// Create a new expense with the retrieved category
-		exp := expense.New(
-			domainExpense.Amount(),
-			domainExpense.Account(),
-			domainCategory,
-			domainExpense.Date(),
-			expense.WithID(domainExpense.ID()),
-			expense.WithComment(domainExpense.Comment()),
-			expense.WithTransactionID(domainExpense.TransactionID()),
-			expense.WithAccountingPeriod(domainExpense.AccountingPeriod()),
-			expense.WithCreatedAt(domainExpense.CreatedAt()),
-			expense.WithUpdatedAt(domainExpense.UpdatedAt()),
-		)
-		expenses = append(expenses, exp)
+		expensesData = append(expensesData, expenseData{
+			expense:       dbExpense,
+			transaction:   dbTransaction,
+			domainExpense: domainExpense,
+		})
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, errors.Wrap(err, "row iteration error")
 	}
+
+	// Now fetch all categories in a single batch
+	expenses := make([]expense.Expense, 0, len(expensesData))
+	for _, data := range expensesData {
+		domainCategory, err := g.categoryRepo.GetByID(ctx, data.expense.CategoryID)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get category for expense ID: %d", data.expense.ID))
+		}
+
+		// Create a new expense with the retrieved category
+		exp := expense.New(
+			data.domainExpense.Amount(),
+			data.domainExpense.Account(),
+			domainCategory,
+			data.domainExpense.Date(),
+			expense.WithID(data.domainExpense.ID()),
+			expense.WithComment(data.domainExpense.Comment()),
+			expense.WithTransactionID(data.domainExpense.TransactionID()),
+			expense.WithAccountingPeriod(data.domainExpense.AccountingPeriod()),
+			expense.WithCreatedAt(data.domainExpense.CreatedAt()),
+			expense.WithUpdatedAt(data.domainExpense.UpdatedAt()),
+		)
+		expenses = append(expenses, exp)
+	}
+
 	return expenses, nil
 }
 

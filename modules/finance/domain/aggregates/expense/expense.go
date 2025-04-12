@@ -82,6 +82,13 @@ type Expense interface {
 	Date() time.Time
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+
+	SetAccount(account moneyaccount.Account) Expense
+	SetCategory(category category.ExpenseCategory) Expense
+	SetComment(comment string) Expense
+	SetAmount(amount float64) Expense
+	SetDate(date time.Time) Expense
+	SetAccountingPeriod(period time.Time) Expense
 }
 
 // Implementation
@@ -161,4 +168,46 @@ func (e *expense) CreatedAt() time.Time {
 
 func (e *expense) UpdatedAt() time.Time {
 	return e.updatedAt
+}
+
+func (e *expense) SetAccount(account moneyaccount.Account) Expense {
+	result := *e
+	result.account = account
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (e *expense) SetCategory(category category.ExpenseCategory) Expense {
+	result := *e
+	result.category = category
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (e *expense) SetComment(comment string) Expense {
+	result := *e
+	result.comment = comment
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (e *expense) SetAmount(amount float64) Expense {
+	result := *e
+	result.amount = amount
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (e *expense) SetDate(date time.Time) Expense {
+	result := *e
+	result.date = date
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (e *expense) SetAccountingPeriod(period time.Time) Expense {
+	result := *e
+	result.accountingPeriod = period
+	result.updatedAt = time.Now()
+	return &result
 }
