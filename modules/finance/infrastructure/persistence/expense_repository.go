@@ -2,16 +2,38 @@ package persistence
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+)
+
+const (
+	// SQL queries
+	expenseFindQuery = `
+		SELECT ex.id, ex.transaction_id, ex.category_id, ex.created_at, ex.updated_at,
+		tr.amount, tr.transaction_date, tr.accounting_period, tr.transaction_type, tr.comment,
+		tr.origin_account_id, tr.destination_account_id
+		FROM expenses ex LEFT JOIN transactions tr on tr.id = ex.transaction_id`
+
+	expenseCountQuery = `SELECT COUNT(ex.id) FROM expenses ex`
+
+	expenseInsertQuery = `
+		INSERT INTO expenses (transaction_id, category_id)
+		VALUES ($1, $2)
+		RETURNING id`
+
+	expenseUpdateQuery = `
+		UPDATE expenses
+		SET transaction_id = $1, category_id = $2
+		WHERE id = $3`
+
+	expenseDeleteQuery = `DELETE FROM expenses where id = $1`
 )
 
 var (
@@ -21,50 +43,86 @@ var (
 type GormExpenseRepository struct {
 	categoryRepo    category.Repository
 	transactionRepo transaction.Repository
+	fieldMap        map[expense.Field]string
 }
 
 func NewExpenseRepository(categoryRepo category.Repository, transactionRepo transaction.Repository) expense.Repository {
 	return &GormExpenseRepository{
 		categoryRepo:    categoryRepo,
 		transactionRepo: transactionRepo,
+		fieldMap: map[expense.Field]string{
+			expense.ID:            "ex.id",
+			expense.TransactionID: "ex.transaction_id",
+			expense.CategoryID:    "ex.category_id",
+			expense.CreatedAt:     "ex.created_at",
+			expense.UpdatedAt:     "ex.updated_at",
+		},
 	}
 }
 
-func (g *GormExpenseRepository) GetPaginated(
-	ctx context.Context, params *expense.FindParams,
-) ([]*expense.Expense, error) {
-	pool, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, err
+func (g *GormExpenseRepository) buildExpenseFilters(params *expense.FindParams) ([]string, []interface{}, error) {
+	where := []string{"1 = 1"}
+	args := []interface{}{}
+
+	// Process all filters
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
+		}
+
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
+
+	// Legacy ID filter support
 	if params.ID != 0 {
-		where, args = append(where, fmt.Sprintf("ex.id = $%d", len(args)+1)), append(args, params.ID)
+		where = append(where, fmt.Sprintf("ex.id = $%d", len(args)+1))
+		args = append(args, params.ID)
 	}
 
+	// Legacy CreatedAt filter support
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where, args = append(where, fmt.Sprintf("ex.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
+		where = append(where, fmt.Sprintf("ex.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
+		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
 
+	// Legacy query/field support
 	if params.Query != "" && params.Field != "" {
-		where, args = append(where, fmt.Sprintf("ex.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
+		column := fmt.Sprintf("ex.%s", params.Field)
+		where = append(where, fmt.Sprintf("%s::VARCHAR ILIKE $%d", column, len(args)+1))
+		args = append(args, "%"+params.Query+"%")
 	}
 
-	rows, err := pool.Query(ctx, `
-		SELECT ex.id, ex.transaction_id, ex.category_id, ex.created_at, ex.updated_at,
-		tr.amount, tr.transaction_date, tr.accounting_period, tr.transaction_type, tr.comment,
-		tr.origin_account_id, tr.destination_account_id
-		FROM expenses ex LEFT JOIN transactions tr on tr.id = ex.transaction_id
-		WHERE `+strings.Join(where, " AND ")+`
-		ORDER BY id DESC
-		`+repo.FormatLimitOffset(params.Limit, params.Offset),
-		args...,
-	)
+	// Search support
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(
+			where,
+			fmt.Sprintf(
+				"(tr.comment ILIKE $%d)",
+				index,
+			),
+		)
+		args = append(args, "%"+params.Search+"%")
+	}
+
+	return where, args, nil
+}
+
+func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string, args ...interface{}) ([]expense.Expense, error) {
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute query")
 	}
 	defer rows.Close()
-	expenses := make([]*expense.Expense, 0)
+
+	expenses := make([]expense.Expense, 0)
 	for rows.Next() {
 		var dbExpense models.Expense
 		var dbTransaction models.Transaction
@@ -82,96 +140,140 @@ func (g *GormExpenseRepository) GetPaginated(
 			&dbTransaction.OriginAccountID,
 			&dbTransaction.DestinationAccountID,
 		); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to scan expense row")
 		}
 
 		domainExpense, err := toDomainExpense(&dbExpense, &dbTransaction)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to convert to domain expense")
 		}
 		domainCategory, err := g.categoryRepo.GetByID(ctx, dbExpense.CategoryID)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get category for expense ID: %d", dbExpense.ID))
 		}
-		domainExpense.Category = domainCategory
-		expenses = append(expenses, domainExpense)
+
+		// Create a new expense with the retrieved category
+		exp := expense.New(
+			domainExpense.Amount(),
+			domainExpense.Account(),
+			domainCategory,
+			domainExpense.Date(),
+			expense.WithID(domainExpense.ID()),
+			expense.WithComment(domainExpense.Comment()),
+			expense.WithTransactionID(domainExpense.TransactionID()),
+			expense.WithAccountingPeriod(domainExpense.AccountingPeriod()),
+			expense.WithCreatedAt(domainExpense.CreatedAt()),
+			expense.WithUpdatedAt(domainExpense.UpdatedAt()),
+		)
+		expenses = append(expenses, exp)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "row iteration error")
 	}
 	return expenses, nil
 }
 
-func (g *GormExpenseRepository) Count(ctx context.Context) (uint, error) {
-	pool, err := composables.UseTx(ctx)
+func (g *GormExpenseRepository) GetPaginated(ctx context.Context, params *expense.FindParams) ([]expense.Expense, error) {
+	where, args, err := g.buildExpenseFilters(params)
 	if err != nil {
-		return 0, err
+		return nil, errors.Wrap(err, "failed to build filters")
 	}
-	var count uint
-	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM expenses
-	`).Scan(&count); err != nil {
-		return 0, err
+
+	sortFields := make([]string, 0, len(params.SortBy.Fields))
+	for _, f := range params.SortBy.Fields {
+		if field, ok := g.fieldMap[f]; ok {
+			sortFields = append(sortFields, field)
+		} else {
+			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid sort parameters")
+		}
+	}
+
+	query := repo.Join(
+		expenseFindQuery,
+		repo.JoinWhere(where...),
+		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+
+	return g.queryExpenses(ctx, query, args...)
+}
+
+func (g *GormExpenseRepository) Count(ctx context.Context, params *expense.FindParams) (int64, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get transaction")
+	}
+
+	where, args, err := g.buildExpenseFilters(params)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to build filters")
+	}
+
+	query := repo.Join(
+		expenseCountQuery,
+		repo.JoinWhere(where...),
+	)
+
+	var count int64
+	err = tx.QueryRow(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to count expenses")
 	}
 	return count, nil
 }
 
-func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]*expense.Expense, error) {
-	return g.GetPaginated(ctx, &expense.FindParams{
-		Limit: 100000,
-	})
+func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]expense.Expense, error) {
+	query := expenseFindQuery
+	return g.queryExpenses(ctx, query)
 }
 
-func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (*expense.Expense, error) {
-	expenses, err := g.GetPaginated(ctx, &expense.FindParams{
-		ID: id,
-	})
+func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (expense.Expense, error) {
+	query := repo.Join(
+		expenseFindQuery,
+		repo.JoinWhere("ex.id = $1"),
+	)
+
+	expenses, err := g.queryExpenses(ctx, query, id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to get expense with ID: %d", id))
 	}
 	if len(expenses) == 0 {
-		return nil, ErrExpenseNotFound
+		return nil, errors.Wrap(ErrExpenseNotFound, fmt.Sprintf("id: %d", id))
 	}
 	return expenses[0], nil
 }
 
-func (g *GormExpenseRepository) Create(ctx context.Context, data *expense.Expense) error {
+func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get transaction")
 	}
 	expenseRow, transactionRow := toDBExpense(data)
 	if err := g.transactionRepo.Create(ctx, transactionRow); err != nil {
-		return err
+		return errors.Wrap(err, "failed to create transaction")
 	}
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO expenses (transaction_id, category_id)
-		VALUES ($1, $2)
-		RETURNING id
-	`, transactionRow.ID, expenseRow.CategoryID).Scan(&data.ID); err != nil {
-		return err
+
+	var id uint
+	if err := tx.QueryRow(ctx, expenseInsertQuery, transactionRow.ID, expenseRow.CategoryID).Scan(&id); err != nil {
+		return errors.Wrap(err, "failed to create expense")
 	}
 	expenseRow.TransactionID = transactionRow.ID
 	return nil
 }
 
-func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expense) error {
+func (g *GormExpenseRepository) Update(ctx context.Context, data expense.Expense) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get transaction")
 	}
 	expenseRow, transactionRow := toDBExpense(data)
 	if err := g.transactionRepo.Update(ctx, transactionRow); err != nil {
-		return err
+		return errors.Wrap(err, "failed to update transaction")
 	}
 	expenseRow.TransactionID = transactionRow.ID
-	if _, err := tx.Exec(ctx, `
-		UPDATE expenses
-		SET transaction_id = $1, category_id = 2
-		WHERE id = $3
-	`, expenseRow.TransactionID, expenseRow.CategoryID); err != nil {
-		return err
+	if _, err := tx.Exec(ctx, expenseUpdateQuery, expenseRow.TransactionID, expenseRow.CategoryID, expenseRow.ID); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to update expense with ID: %d", expenseRow.ID))
 	}
 	return nil
 }
@@ -179,10 +281,10 @@ func (g *GormExpenseRepository) Update(ctx context.Context, data *expense.Expens
 func (g *GormExpenseRepository) Delete(ctx context.Context, id uint) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get transaction")
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM expenses where id = $1`, id); err != nil {
-		return err
+	if _, err := tx.Exec(ctx, expenseDeleteQuery, id); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to delete expense with ID: %d", id))
 	}
 	return nil
 }
