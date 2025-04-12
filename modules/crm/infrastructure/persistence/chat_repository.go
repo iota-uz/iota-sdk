@@ -77,8 +77,6 @@ const (
 		WHERE m.id = $1
 	`
 
-	countMessagesQuery = `SELECT COUNT(*) as count FROM messages`
-
 	insertMessageQuery = `
 		INSERT INTO messages (
 			chat_id,

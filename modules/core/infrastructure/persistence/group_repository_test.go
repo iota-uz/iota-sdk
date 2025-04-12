@@ -170,8 +170,8 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Test with non-existent ID
 		nonExistentID := uuid.New()
 		_, err = groupRepository.GetByID(f.ctx, nonExistentID)
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrGroupNotFound)
+		require.Error(t, err)
+		require.ErrorIs(t, err, persistence.ErrGroupNotFound)
 	})
 
 	t.Run("Update", func(t *testing.T) {
@@ -558,7 +558,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 		// Verify the group was deleted
 		_, err = groupRepository.GetByID(f.ctx, savedGroup.ID())
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, persistence.ErrGroupNotFound)
+		require.Error(t, err)
+		require.ErrorIs(t, err, persistence.ErrGroupNotFound)
 	})
 }

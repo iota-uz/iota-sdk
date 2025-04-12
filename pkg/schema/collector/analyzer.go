@@ -359,7 +359,9 @@ func extractConstraints(defs tree.TableDefs, tableName string) map[string]constr
 	return constraints
 }
 
-func compareConstraints(oldConstraints, newConstraints map[string]constraintInfo) (dropped, added []constraintInfo) {
+func compareConstraints(oldConstraints, newConstraints map[string]constraintInfo) ([]constraintInfo, []constraintInfo) {
+	dropped := make([]constraintInfo, 0, len(oldConstraints))
+	added := make([]constraintInfo, 0, len(newConstraints))
 	for name, constraint := range oldConstraints {
 		if _, exists := newConstraints[name]; !exists {
 			dropped = append(dropped, constraint)
@@ -370,7 +372,7 @@ func compareConstraints(oldConstraints, newConstraints map[string]constraintInfo
 			added = append(added, constraint)
 		}
 	}
-	return
+	return dropped, added
 }
 
 func generateConstraintName(tableName, constraintType string, columns []tree.IndexElem) string {

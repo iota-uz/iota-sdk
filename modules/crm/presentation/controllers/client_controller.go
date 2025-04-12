@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -456,6 +457,7 @@ func (c *ClientController) tabToComponent(
 	// Get user from context for both permission check and passing to component
 	currentUser, err := composables.UseUser(r.Context())
 	if err != nil {
+		log.Printf("failed to get user from context: %v", err)
 		// If user not found in context, redirect to NotFound
 		return clients.NotFound(), nil
 	}

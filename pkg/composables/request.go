@@ -155,7 +155,7 @@ func WithPageCtx(ctx context.Context, pageCtx *types.PageContext) context.Contex
 	return context.WithValue(ctx, constants.PageContext, pageCtx)
 }
 
-func UseFlash(w http.ResponseWriter, r *http.Request, name string) (val []byte, err error) {
+func UseFlash(w http.ResponseWriter, r *http.Request, name string) ([]byte, error) {
 	c, err := r.Cookie(name)
 	if err != nil {
 		switch err {
@@ -169,7 +169,7 @@ func UseFlash(w http.ResponseWriter, r *http.Request, name string) (val []byte, 
 			return nil, err
 		}
 	}
-	val, err = base64.URLEncoding.DecodeString(c.Value)
+	val, err := base64.URLEncoding.DecodeString(c.Value)
 	if err != nil {
 		return nil, err
 	}
