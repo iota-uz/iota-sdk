@@ -115,5 +115,7 @@ linters-settings:
     exclude-dirs:
       - apex
       - test
+      - node_modules
+      - e2e
       - .vscode
     check-zero-byte-files: true
