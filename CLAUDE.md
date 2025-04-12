@@ -12,7 +12,7 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 - Run all tests: `make test` or `go test -v ./...` 
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
-- JSON linting: `make build-iota-linter && make run-iota-linter`
+- Linting translation files: `make run-iota-linter`
 - Apply migrations: `make migrate up`
 
 ## Code Style Guidelines

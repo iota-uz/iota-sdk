@@ -78,16 +78,9 @@ release-local:
 clean:
 	rm -rf $(TAILWIND_OUTPUT)
 
-## Linter targets
-#.PHONY: build-iota-linter run-iota-linter clean-iota-linter
-
-# Build the JSON linter
-build-iota-linter:
-	go build -o bin/iotalinter tools/iotalinter.go
-
 # Run the JSON linter
 run-iota-linter:
-	./bin/iotalinter ./...
+	go build -o bin/iotalinter tools/iotalinter.go && ./bin/iotalinter ./...
 
 # Clean built binaries
 clean-iota-linter:
