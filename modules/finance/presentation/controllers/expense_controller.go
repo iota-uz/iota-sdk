@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expensesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
@@ -193,17 +195,12 @@ func (c *ExpenseController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	dto := expense.UpdateDTO{}
+	dto := dtos.ExpenseUpdateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		entity, err := c.expenseService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
@@ -255,9 +252,9 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 			0,
 			moneyaccount.Account{},
 			category.New(
-				"",  // name
-				0.0, // amount - using 0.0 to be explicit about float64
-				nil, // currency
+				"",            // name
+				0.0,           // amount - using 0.0 to be explicit about float64
+				&currency.USD, // currency
 			),
 			time.Now(),
 		)),
@@ -271,18 +268,13 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := expense.CreateDTO{}
+	dto := dtos.ExpenseCreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
