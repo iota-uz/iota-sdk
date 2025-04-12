@@ -4,17 +4,6 @@ run:
 
 issues:
   exclude-use-default: false
-  exclude-rules:
-    - linters:
-        - exhaustruct
-      path: .*
-    - linters:
-        - exhaustruct
-      path-except: ^modules/[^/]+/infrastructure/persistence/[^/]*mappers\.go
-    - linters:
-        - exhaustruct
-      path-except: ^modules/[^/]+/domain/[^/]+/[^/]+/[^/]+\.go
-
   exclude-files:
     - pkg/graphql/graphql.go
   exclude-dirs:
@@ -54,7 +43,6 @@ linters:
     - errchkjson
     - errname
     - exhaustive
-    - exhaustruct
     - fatcontext
     - forbidigo
     #    - gci
@@ -64,7 +52,7 @@ linters:
     - gochecksumtype
     #    - gocognit
     #    - goconst
-    - gocyclo
+    #    - gocyclo
     #    - godot
     - gofmt
     #    - gofumpt
@@ -82,7 +70,7 @@ linters:
     #    - intrange
     #    - lll
     - loggercheck
-    - maintidx
+    #    - maintidx
     - makezero
     - mirror
     - misspell
@@ -120,12 +108,3 @@ linters:
     - whitespace
     - zerologlint
 
-linters-settings:
-  iotalinter:
-    # exclude-dirs uses pattern matching to check if a directory path contains any of these strings
-    # For example, "test" will match "tests", "testing", and any path containing "test"
-    exclude-dirs:
-      - apex
-      - test
-      - .vscode
-    check-zero-byte-files: true

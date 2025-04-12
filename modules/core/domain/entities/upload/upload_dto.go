@@ -42,7 +42,6 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	}
 
 	return errorMessages, len(errorMessages) == 0
-
 }
 
 func (d *CreateDTO) ToEntity() (Upload, []byte, error) {

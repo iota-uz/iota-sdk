@@ -104,7 +104,7 @@ func (b *TableControllerBuilder[T]) List(w http.ResponseWriter, r *http.Request)
 	params := b.findParamsFn(r)
 
 	// Extract search from params
-	search := ""
+	var search string
 	if paramsMap, ok := params.(map[string]interface{}); ok && paramsMap["search"] != nil {
 		search = paramsMap["search"].(string)
 	} else if paramsStruct, ok := params.(struct{ Search string }); ok {
@@ -155,7 +155,7 @@ func (b *TableControllerBuilder[T]) List(w http.ResponseWriter, r *http.Request)
 
 	if isHxRequest {
 		// Render just the table component
-		ExtendedTable(
+		_ = ExtendedTable(
 			b.tableConfig,
 			data,
 			page,
@@ -172,8 +172,7 @@ func (b *TableControllerBuilder[T]) List(w http.ResponseWriter, r *http.Request)
 			int(totalPages),
 			pageCtx,
 		)
-		component := PageWithLayout(content, pageCtx)
-		component.Render(ctx, w)
+		_ = PageWithLayout(content, pageCtx).Render(ctx, w)
 	}
 }
 

@@ -44,6 +44,7 @@ func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindPar
 }
 
 func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (client.Client, error) {
+	logger := composables.UseLogger(ctx)
 	entity, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -52,7 +53,11 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 	ctx = composables.WithTx(ctx, tx)
 	createdEntity, err := s.repo.Create(ctx, entity)
 	if err != nil {
@@ -81,11 +86,16 @@ func (s *ClientService) Create(ctx context.Context, data *client.CreateDTO) (cli
 }
 
 func (s *ClientService) Save(ctx context.Context, entity client.Client) error {
+	logger := composables.UseLogger(ctx)
 	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 	ctx = composables.WithTx(ctx, tx)
 
 	if _, err := s.repo.Update(ctx, entity); err != nil {
@@ -105,11 +115,16 @@ func (s *ClientService) Save(ctx context.Context, entity client.Client) error {
 }
 
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
+	logger := composables.UseLogger(ctx)
 	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 	ctx = composables.WithTx(ctx, tx)
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {

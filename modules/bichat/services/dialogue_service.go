@@ -147,7 +147,7 @@ func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error
 	ch := make(chan openai.ChatCompletionMessage)
 	msg := "Hello, how can I help you?"
 	go func() {
-		for i, _ := range msg {
+		for i := range msg {
 			ch <- openai.ChatCompletionMessage{
 				Role:    openai.ChatMessageRoleAssistant,
 				Content: msg[:i+1],

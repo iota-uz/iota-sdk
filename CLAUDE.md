@@ -3,6 +3,9 @@
 ## Overview
 The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
 
+## Tool use
+- DO NOT USE `sed` for file manipulation
+
 ## Build/Lint/Test Commands
 - After changes to css or .templ files: `make generate && make css`
 - After changes to Go code: `go vet ./...`
@@ -13,6 +16,7 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 - Apply migrations: `make migrate up`
 
 ## Code Style Guidelines
+- Use `go fmt` for formatting. Do not indent code manually.
 - Use Go v1.23.2 and follow standard Go idioms
 - File organization: group related functionality in modules/ or pkg/ directories
 - Naming: use camelCase for variables, PascalCase for exported functions/types

@@ -55,7 +55,7 @@ func TestGroupService_GetByID(t *testing.T) {
 	result, err := service.GetByID(f.ctx, savedGroup.ID())
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, savedGroup.ID(), result.ID())
 	assert.Equal(t, savedGroup.Name(), result.Name())
 }
@@ -91,7 +91,7 @@ func TestGroupService_Count(t *testing.T) {
 	result, err := service.Count(f.ctx, &group.FindParams{})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(5), result)
 }
 
@@ -149,8 +149,8 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	result, err := service.GetPaginated(f.ctx, params)
 
 	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(result))
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
 
 	// Verify sorting - older group should come first with ascending sort
 	assert.Equal(t, "Older Group", result[0].Name())
@@ -161,8 +161,8 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	result, err = service.GetPaginated(f.ctx, params)
 
 	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(result))
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
 
 	// Verify sorting - newer group should come first with descending sort
 	assert.Equal(t, "Newer Group", result[0].Name())

@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
@@ -47,7 +46,7 @@ func TestCollectSchemaChanges(t *testing.T) {
 
 	// Collect upChanges
 	upChanges, downChanges, err := CollectSchemaChanges(oldSchema, newSchema)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, upChanges)
 
 	// Verify changes
@@ -137,7 +136,7 @@ func TestCollectSchemaChanges_AddColumn(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	require.NotNil(t, upChanges)
-	require.Equal(t, 1, len(upChanges.Changes), "Expected one change for the new column")
+	require.Len(t, upChanges.Changes, 1, "Expected one change for the new column")
 
 	// Check if the change is a AlterTable with AddColumn
 	alterTable, ok := upChanges.Changes[0].(*tree.AlterTable)
@@ -150,7 +149,7 @@ func TestCollectSchemaChanges_AddColumn(t *testing.T) {
 
 	// Check downChanges
 	require.NotNil(t, downChanges)
-	require.Equal(t, 1, len(downChanges.Changes), "Expected one change for column removal")
+	require.Len(t, downChanges.Changes, 1, "Expected one change for column removal")
 
 	dropTable, ok := downChanges.Changes[0].(*tree.AlterTable)
 	require.True(t, ok, "Expected an AlterTable change for drop")
@@ -197,7 +196,7 @@ func TestCollectSchemaChanges_AlterColumnType(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	require.NotNil(t, upChanges)
-	require.Equal(t, 1, len(upChanges.Changes), "Expected one change for the column type change")
+	require.Len(t, upChanges.Changes, 1, "Expected one change for the column type change")
 
 	// Check if the change is a AlterTable with AlterColumnType
 	alterTable, ok := upChanges.Changes[0].(*tree.AlterTable)
@@ -210,7 +209,7 @@ func TestCollectSchemaChanges_AlterColumnType(t *testing.T) {
 
 	// Check downChanges - should revert to original type
 	require.NotNil(t, downChanges)
-	require.Equal(t, 1, len(downChanges.Changes), "Expected one change for column type reversion")
+	require.Len(t, downChanges.Changes, 1, "Expected one change for column type reversion")
 
 	revertTable, ok := downChanges.Changes[0].(*tree.AlterTable)
 	require.True(t, ok, "Expected an AlterTable change for type reversion")
@@ -471,11 +470,11 @@ func TestCompareTables_UniqueConstraintChange(t *testing.T) {
 
 	for i, chg := range upChanges {
 		alterTable2 := chg.(*tree.AlterTable)
-		fmt.Printf("- >> up %d chg: %#v\n", i, alterTable2.String())
+		t.Logf("- >> up %d chg: %#v", i, alterTable2.String())
 	}
 	for i, chg := range downChanges {
 		alterTable2 := chg.(*tree.AlterTable)
-		fmt.Printf("- >> down chg %d: %#v\n", i, alterTable2.String())
+		t.Logf("- >> down chg %d: %#v", i, alterTable2.String())
 	}
 
 	// Verify second up change (add unique constraint on passport_number and series)
