@@ -52,48 +52,47 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (d *CreateDTO) ToEntity() (*Expense, error) {
-	return &Expense{
-		ID:      0,
-		Account: moneyAccount.Account{ID: d.AccountID},
-		Amount:  d.Amount,
-		Category: category.NewWithID(
-			d.CategoryID,
-			"",
-			"",
-			0,
-			nil,
-			time.Now(),
-			time.Now(),
-		),
-		Comment:          d.Comment,
-		AccountingPeriod: d.AccountingPeriod,
-		Date:             d.Date,
-		TransactionID:    0,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
-	}, nil
+func (d *CreateDTO) ToEntity() (Expense, error) {
+	account := moneyAccount.Account{ID: d.AccountID}
+	expenseCategory := category.NewWithID(
+		d.CategoryID,
+		"",
+		"",
+		0,
+		nil,
+		time.Now(),
+		time.Now(),
+	)
+
+	return New(
+		d.Amount,
+		account,
+		expenseCategory,
+		d.Date,
+		WithComment(d.Comment),
+		WithAccountingPeriod(d.AccountingPeriod),
+	), nil
 }
 
-func (d *UpdateDTO) ToEntity(id uint) (*Expense, error) {
-	return &Expense{
-		ID:      id,
-		Account: moneyAccount.Account{ID: d.AccountID},
-		Amount:  d.Amount,
-		Category: category.NewWithID(
-			d.CategoryID,
-			"",
-			"",
-			0,
-			nil,
-			time.Now(),
-			time.Now(),
-		),
-		Comment:          d.Comment,
-		AccountingPeriod: d.AccountingPeriod,
-		Date:             d.Date,
-		TransactionID:    0,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
-	}, nil
+func (d *UpdateDTO) ToEntity(id uint) (Expense, error) {
+	account := moneyAccount.Account{ID: d.AccountID}
+	expenseCategory := category.NewWithID(
+		d.CategoryID,
+		"",
+		"",
+		0,
+		nil,
+		time.Now(),
+		time.Now(),
+	)
+
+	return New(
+		d.Amount,
+		account,
+		expenseCategory,
+		d.Date,
+		WithID(id),
+		WithComment(d.Comment),
+		WithAccountingPeriod(d.AccountingPeriod),
+	), nil
 }

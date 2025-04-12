@@ -2,13 +2,14 @@ package controllers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
-	expenses2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
+	expensesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -88,7 +89,12 @@ func (c *ExpenseController) viewModelExpenses(r *http.Request) (*ExpensePaginati
 	params, err := composables.UseQuery(&expense.FindParams{
 		Offset: paginationParams.Offset,
 		Limit:  paginationParams.Limit,
-		SortBy: []string{"created_at desc"},
+		SortBy: expense.SortBy{
+			Fields: []expense.Field{
+				expense.CreatedAt,
+			},
+			Ascending: false,
+		},
 	}, r)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error using query")
@@ -99,7 +105,7 @@ func (c *ExpenseController) viewModelExpenses(r *http.Request) (*ExpensePaginati
 	}
 	viewExpenses := mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel)
 
-	total, err := c.expenseService.Count(r.Context())
+	total, err := c.expenseService.Count(r.Context(), &expense.FindParams{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting expenses")
 	}
@@ -125,14 +131,14 @@ func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &expenses2.IndexPageProps{
+	props := &expensesui.IndexPageProps{
 		Expenses:        paginated.Expenses,
 		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
-		templ.Handler(expenses2.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(expenses2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -158,13 +164,13 @@ func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &expenses2.EditPageProps{
+	props := &expensesui.EditPageProps{
 		Expense:    mappers.ExpenseToViewModel(entity),
 		Accounts:   accounts,
 		Categories: categories,
 		Errors:     map[string]string{},
 	}
-	templ.Handler(expenses2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expensesui.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -213,13 +219,13 @@ func (c *ExpenseController) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &expenses2.EditPageProps{
+		props := &expensesui.EditPageProps{
 			Expense:    mappers.ExpenseToViewModel(entity),
 			Accounts:   accounts,
 			Categories: categories,
 			Errors:     errorsMap,
 		}
-		templ.Handler(expenses2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expensesui.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 	if err := c.expenseService.Update(r.Context(), id, &dto); err != nil {
@@ -240,15 +246,24 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &expenses2.CreatePageProps{
+
+	props := &expensesui.CreatePageProps{
 		Accounts:   accounts,
 		Categories: categories,
 		Errors:     map[string]string{},
-		Expense: mappers.ExpenseToViewModel(&expense.Expense{
-			Category: category.New("", "", 0, &currency.USD),
-		}),
+		Expense: mappers.ExpenseToViewModel(expense.New(
+			0,
+			moneyaccount.Account{},
+			category.New(
+				"",
+				"",
+				0,
+				nil,
+			),
+			time.Now(),
+		)),
 	}
-	templ.Handler(expenses2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expensesui.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
@@ -284,13 +299,13 @@ func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &expenses2.CreatePageProps{
+		props := &expensesui.CreatePageProps{
 			Accounts:   accounts,
 			Errors:     errorsMap,
 			Categories: categories,
 			Expense:    mappers.ExpenseToViewModel(entity),
 		}
-		templ.Handler(expenses2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expensesui.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

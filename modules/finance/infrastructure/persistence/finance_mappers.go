@@ -162,47 +162,52 @@ func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 	}
 }
 
-func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (*expense.Expense, error) {
-	return &expense.Expense{
-		ID:      dbExpense.ID,
-		Amount:  -1 * dbTransaction.Amount,
-		Account: moneyaccount.Account{ID: *dbTransaction.OriginAccountID}, //nolint:exhaustruct
-		Category: category.NewWithID(
-			dbExpense.CategoryID,
-			"",
-			"",
-			0,
-			nil,
-			dbExpense.CreatedAt,
-			dbExpense.UpdatedAt,
-		),
-		Comment:          dbTransaction.Comment,
-		TransactionID:    dbExpense.TransactionID,
-		AccountingPeriod: dbTransaction.AccountingPeriod,
-		Date:             dbTransaction.TransactionDate,
-		CreatedAt:        dbExpense.CreatedAt,
-		UpdatedAt:        dbExpense.UpdatedAt,
-	}, nil
+func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (expense.Expense, error) {
+	account := moneyaccount.Account{ID: *dbTransaction.OriginAccountID} //nolint:exhaustruct
+	expenseCategory := category.NewWithID(
+		dbExpense.CategoryID,
+		"",
+		"",
+		0,
+		nil,
+		dbExpense.CreatedAt,
+		dbExpense.UpdatedAt,
+	)
+
+	domainExpense := expense.New(
+		-1*dbTransaction.Amount,
+		account,
+		expenseCategory,
+		dbTransaction.TransactionDate,
+		expense.WithID(dbExpense.ID),
+		expense.WithComment(dbTransaction.Comment),
+		expense.WithTransactionID(dbExpense.TransactionID),
+		expense.WithAccountingPeriod(dbTransaction.AccountingPeriod),
+		expense.WithCreatedAt(dbExpense.CreatedAt),
+		expense.WithUpdatedAt(dbExpense.UpdatedAt),
+	)
+
+	return domainExpense, nil
 }
 
-func toDBExpense(entity *expense.Expense) (*models.Expense, *transaction.Transaction) {
+func toDBExpense(entity expense.Expense) (*models.Expense, *transaction.Transaction) {
 	domainTransaction := &transaction.Transaction{
-		ID:                   entity.TransactionID,
-		Amount:               -1 * entity.Amount,
-		Comment:              entity.Comment,
-		AccountingPeriod:     entity.AccountingPeriod,
-		TransactionDate:      entity.Date,
-		OriginAccountID:      &entity.Account.ID,
+		ID:                   entity.TransactionID(),
+		Amount:               -1 * entity.Amount(),
+		Comment:              entity.Comment(),
+		AccountingPeriod:     entity.AccountingPeriod(),
+		TransactionDate:      entity.Date(),
+		OriginAccountID:      mapping.Pointer(entity.Account().ID),
 		DestinationAccountID: nil,
 		TransactionType:      transaction.Withdrawal,
-		CreatedAt:            entity.CreatedAt,
+		CreatedAt:            entity.CreatedAt(),
 	}
 	dbExpense := &models.Expense{
-		ID:            entity.ID,
-		CategoryID:    entity.Category.ID(),
-		TransactionID: entity.TransactionID,
-		CreatedAt:     entity.CreatedAt,
-		UpdatedAt:     entity.UpdatedAt,
+		ID:            entity.ID(),
+		CategoryID:    entity.Category().ID(),
+		TransactionID: entity.TransactionID(),
+		CreatedAt:     entity.CreatedAt(),
+		UpdatedAt:     entity.UpdatedAt(),
 	}
 	return dbExpense, domainTransaction
 }

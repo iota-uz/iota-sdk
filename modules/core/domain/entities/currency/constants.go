@@ -36,10 +36,10 @@ var (
 		Name:   "Chinese Yuan",
 		Symbol: CnySymbol,
 	}
-	SOM = Currency{
-		Code:   SomCode,
+	UZS = Currency{
+		Code:   UzsCode,
 		Name:   "Som",
-		Symbol: SomSymbol,
+		Symbol: UzsSymbol,
 	}
 	AUD = Currency{
 		Code:   AudCode,
@@ -60,10 +60,10 @@ var (
 
 var (
 	ValidCodes = []Code{
-		UsdCode, EurCode, RubCode, TryCode, SomCode, GbpCode, AudCode, CadCode, ChfCode, CnyCode, JpyCode,
+		UsdCode, EurCode, RubCode, TryCode, UzsCode, GbpCode, AudCode, CadCode, ChfCode, CnyCode, JpyCode,
 	}
 	ValidSymbols = []Symbol{
-		UsdSymbol, EurSymbol, RubSymbol, TrySymbol, SomSymbol, GbpSymbol, AudSymbol, CadSymbol, ChfSymbol, CnySymbol,
+		UsdSymbol, EurSymbol, RubSymbol, TrySymbol, UzsSymbol, GbpSymbol, AudSymbol, CadSymbol, ChfSymbol, CnySymbol,
 		JpySymbol,
 	}
 	Currencies = []Currency{
@@ -78,6 +78,6 @@ var (
 		AUD,
 		CAD,
 		CHF,
-		SOM,
+		UZS,
 	}
 )
