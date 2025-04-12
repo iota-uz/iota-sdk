@@ -255,10 +255,9 @@ func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
 			0,
 			moneyaccount.Account{},
 			category.New(
-				"",
-				"",
-				0,
-				nil,
+				"",  // name
+				0.0, // amount - using 0.0 to be explicit about float64
+				nil, // currency
 			),
 			time.Now(),
 		)),

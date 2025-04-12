@@ -120,14 +120,21 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *cor
 	if err != nil {
 		return nil, err
 	}
-	return category.NewWithID(
-		dbCategory.ID,
+	opts := []category.Option{
+		category.WithID(dbCategory.ID),
+		category.WithCreatedAt(dbCategory.CreatedAt),
+		category.WithUpdatedAt(dbCategory.UpdatedAt),
+	}
+
+	if dbCategory.Description.Valid {
+		opts = append(opts, category.WithDescription(dbCategory.Description.String))
+	}
+
+	return category.New(
 		dbCategory.Name,
-		dbCategory.Description.String,
 		dbCategory.Amount,
 		domainCurrency,
-		dbCategory.CreatedAt,
-		dbCategory.UpdatedAt,
+		opts...,
 	), nil
 }
 
@@ -164,14 +171,13 @@ func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 
 func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (expense.Expense, error) {
 	account := moneyaccount.Account{ID: *dbTransaction.OriginAccountID} //nolint:exhaustruct
-	expenseCategory := category.NewWithID(
-		dbExpense.CategoryID,
-		"",
-		"",
-		0,
-		nil,
-		dbExpense.CreatedAt,
-		dbExpense.UpdatedAt,
+	expenseCategory := category.New(
+		"",  // name - will be populated when actual category is fetched
+		0.0, // amount - will be populated when actual category is fetched
+		nil, // currency - will be populated when actual category is fetched
+		category.WithID(dbExpense.CategoryID),
+		category.WithCreatedAt(dbExpense.CreatedAt),
+		category.WithUpdatedAt(dbExpense.UpdatedAt),
 	)
 
 	domainExpense := expense.New(
