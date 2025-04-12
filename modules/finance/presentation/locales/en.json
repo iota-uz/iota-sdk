@@ -107,6 +107,7 @@
       "Name": "Name",
       "Amount": "Amount",
       "Date": "Date",
+      "AccountingPeriod": "Accounting period",
       "Comment": "Comment",
       "Delete": "Delete expense",
       "DeleteConfirmation": "Are you sure you want to delete this expense?"

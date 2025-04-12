@@ -8,7 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
-func NewCreatedEvent(ctx context.Context, data CreateDTO, result Expense) (*CreatedEvent, error) {
+func NewCreatedEvent(ctx context.Context, result Expense) (*CreatedEvent, error) {
 	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -20,12 +20,11 @@ func NewCreatedEvent(ctx context.Context, data CreateDTO, result Expense) (*Crea
 	return &CreatedEvent{
 		Sender:  sender,
 		Session: *sess,
-		Data:    data,
 		Result:  result,
 	}, nil
 }
 
-func NewUpdatedEvent(ctx context.Context, data UpdateDTO, result Expense) (*UpdatedEvent, error) {
+func NewUpdatedEvent(ctx context.Context, result Expense) (*UpdatedEvent, error) {
 	sender, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -37,7 +36,6 @@ func NewUpdatedEvent(ctx context.Context, data UpdateDTO, result Expense) (*Upda
 	return &UpdatedEvent{
 		Sender:  sender,
 		Session: *sess,
-		Data:    data,
 		Result:  result,
 	}, nil
 }
@@ -61,14 +59,12 @@ func NewDeletedEvent(ctx context.Context, result Expense) (*DeletedEvent, error)
 type CreatedEvent struct {
 	Sender  user.User
 	Session session.Session
-	Data    CreateDTO
 	Result  Expense
 }
 
 type UpdatedEvent struct {
 	Sender  user.User
 	Session session.Session
-	Data    UpdateDTO
 	Result  Expense
 }
 
