@@ -10,6 +10,7 @@ import (
 	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 func ClientToViewModel(entity client.Client) *viewmodels.Client {
@@ -81,20 +82,9 @@ func PassportToViewModel(p passport.Passport) viewmodels.Passport {
 	}
 }
 
-func initialsFromFullName(firstName, lastName string) string {
-	res := ""
-	if len(firstName) > 0 {
-		res += string(firstName[0])
-	}
-	if len(lastName) > 0 {
-		res += string(lastName[0])
-	}
-	return res
-}
-
 func SenderToViewModel(entity chat.Sender) viewmodels.MessageSender {
 	senderID := strconv.FormatUint(uint64(entity.ID()), 10)
-	initials := initialsFromFullName(entity.FirstName(), entity.LastName())
+	initials := shared.GetInitials(entity.FirstName(), entity.LastName())
 	if entity.IsClient() {
 		return viewmodels.NewClientMessageSender(senderID, initials)
 	}
