@@ -2,6 +2,7 @@ package expense
 
 import (
 	"context"
+
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -15,31 +16,17 @@ const (
 	UpdatedAt
 )
 
-type DateRange struct {
-	From string
-	To   string
-}
+type SortBy = repo.SortBy[Field]
+
+type Filter = repo.FieldFilter[Field]
 
 type FindParams struct {
-	ID        uint
-	Limit     int
-	Offset    int
-	SortBy    SortBy
-	Query     string
-	Field     string
-	CreatedAt DateRange
-	Filters   []FieldFilter
-	Search    string
-}
-
-type FieldFilter struct {
-	Column Field
-	Filter repo.Filter
-}
-
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
+	ID      uint
+	Limit   int
+	Offset  int
+	SortBy  SortBy
+	Filters []Filter
+	Search  string
 }
 
 type Repository interface {

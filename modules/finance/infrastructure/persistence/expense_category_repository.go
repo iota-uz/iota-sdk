@@ -68,7 +68,6 @@ func (g *GormExpenseCategoryRepository) buildCategoryFilters(params *category.Fi
 	where := []string{"1 = 1"}
 	args := []interface{}{}
 
-	// Process all filters
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
 		if !ok {
@@ -78,16 +77,6 @@ func (g *GormExpenseCategoryRepository) buildCategoryFilters(params *category.Fi
 		where = append(where, filter.Filter.String(column, len(args)+1))
 		args = append(args, filter.Filter.Value()...)
 	}
-
-	// Legacy ID filter support
-	if params.ID != 0 {
-		where = append(where, fmt.Sprintf("ec.id = $%d", len(args)+1))
-		args = append(args, params.ID)
-	}
-
-	// We've removed CreatedAt filter support as it's not in the FindParams struct anymore
-
-	// We've removed legacy query/field support as they're not in the FindParams struct anymore
 
 	// Search support
 	if params.Search != "" {
