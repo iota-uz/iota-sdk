@@ -14,12 +14,21 @@ import (
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"time"
 )
 
+templ DateTime(ts time.Time) {
+	<div x-data="relativeformat">
+		<span x-text={ fmt.Sprintf(`format('%s')`, ts.Format(time.RFC3339)) }>
+			{ ts.Format("2006-01-02 15:04:05") }
+		</span>
+	</div>
+}
+
 // Rows renders the table rows for a scaffold table
-templ Rows(config *TableConfig, data TableData) {
+templ Rows(config *TableConfig) {
 	<tr class="hidden">
-		<td colspan="4">
+		<td colspan={ fmt.Sprintf("%d", len(config.Columns)) }>
 			@loaders.Spinner(loaders.SpinnerProps{
 				ContainerClass: templ.Classes(
 					"flex justify-center items-center py-4",
@@ -27,19 +36,15 @@ templ Rows(config *TableConfig, data TableData) {
 			})
 		</td>
 	</tr>
-	for _, item := range data.Items {
+	for _, item := range config.Rows {
 		@base.TableRow(base.TableRowProps{
 			Attrs: templ.Attributes{
 				"class": "hide-on-load",
 			},
 		}) {
-			for _, col := range config.Columns {
+			for _, cell := range item.Cells() {
 				@base.TableCell(base.TableCellProps{}) {
-					if col.Format != nil && item[col.Key] != nil {
-						@templ.Raw(col.Format(item[col.Key]))
-					} else if item[col.Key] != nil {
-						{ fmt.Sprintf("%v", item[col.Key]) }
-					}
+					@cell
 				}
 			}
 		}
@@ -47,9 +52,9 @@ templ Rows(config *TableConfig, data TableData) {
 }
 
 // Table renders a dynamic table based on configuration and data
-templ Table(config *TableConfig, data TableData) {
+templ Table(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	if len(data.Items) == 0 {
+	if len(config.Rows) == 0 {
 		@base.TableEmptyState(base.TableEmptyStateProps{
 			Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
 			Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
@@ -61,13 +66,13 @@ templ Table(config *TableConfig, data TableData) {
 				"id": "table-body",
 			},
 		}) {
-			@Rows(config, data)
+			@Rows(config)
 		}
 	}
 }
 
 // Content renders the complete scaffold page content with filters and table
-templ Content(config *TableConfig, data TableData) {
+templ Content(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@filters.Drawer(filters.DrawerProps{
 		Heading: pageCtx.T("Scaffold.Filters.Title"),
@@ -100,7 +105,7 @@ templ Content(config *TableConfig, data TableData) {
 				hx-get={ config.DataURL }
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target="#table-body"
-				hx-swap="outerHTML"
+				hx-swap="innerHTML"
 				hx-indicator="#table-body"
 			>
 				<input type="hidden" name="page" value="1"/>
@@ -122,17 +127,17 @@ templ Content(config *TableConfig, data TableData) {
 					}
 				</div>
 			</form>
-			@Table(config, data)
+			@Table(config)
 		</div>
 	</div>
 }
 
 // Page renders a complete authenticated page with the scaffolded content
-templ Page(config *TableConfig, data TableData) {
+templ Page(config *TableConfig) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: config.Title},
 	}) {
-		@Content(config, data)
+		@Content(config)
 	}
 }
 
@@ -140,9 +145,9 @@ func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(columns))
 	for i, col := range columns {
 		result[i] = &base.TableColumn{
-			Key:   col.Key,
-			Label: col.Label,
-			Class: col.Class,
+			Key:   col.Key(),
+			Label: col.Label(),
+			Class: col.Class(),
 		}
 	}
 	return result

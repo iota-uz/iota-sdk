@@ -1,69 +1,93 @@
-// Package scaffold provides utilities for generating dynamic UI components.
-//
-// It simplifies the creation of consistent data tables and other UI elements
-// based on configuration and data, reducing boilerplate code.
 package scaffold
 
 import (
-	"fmt"
-	"log"
-	"time"
-
+	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/scaffold/filters"
 )
 
-type ColumnOpt func(t *TableColumn)
+// --- Interfaces ---
+
+type TableColumn interface {
+	Key() string
+	Label() string
+	Class() string
+	Width() string
+}
+
+type TableRow interface {
+	Cells() []templ.Component
+}
+
+// --- Private Implementations ---
+
+type tableColumnImpl struct {
+	key   string
+	label string
+	class string
+	width string
+}
+
+func (c *tableColumnImpl) Key() string   { return c.key }
+func (c *tableColumnImpl) Label() string { return c.label }
+func (c *tableColumnImpl) Class() string { return c.class }
+func (c *tableColumnImpl) Width() string { return c.width }
+
+type tableRowImpl struct {
+	cells []templ.Component
+}
+
+func (r *tableRowImpl) Cells() []templ.Component {
+	return r.cells
+}
+
+// --- Column Option Type ---
+
+type ColumnOpt func(c *tableColumnImpl)
 
 func WithClass(classes string) ColumnOpt {
-	return func(t *TableColumn) {
-		t.Class = classes
+	return func(c *tableColumnImpl) {
+		c.class = classes
 	}
 }
 
-func WithDateFormatter() ColumnOpt {
-	return func(t *TableColumn) {
-		t.Format = func(value any) string {
-			if ts, ok := value.(time.Time); ok {
-				return fmt.Sprintf(`<div x-data="relativeformat"><span x-text="format('%s')">%s</span></div>`,
-					ts.Format(time.RFC3339),
-					ts.Format("2006-01-02 15:04:05"))
-			}
-			log.Printf("expected time.Time, got %T", value)
-			return fmt.Sprintf("%v", value)
-		}
-	}
-}
+// --- Table Configuration ---
 
-// TableColumn defines a column in a dynamic table.
-type TableColumn struct {
-	Key    string           // Field key in the data source
-	Label  string           // Display label for the column header
-	Class  string           // CSS classes for the column
-	Width  string           // Width specification (e.g., "100px" or "20%")
-	Format func(any) string // Optional formatter for cell values
-}
-
-// TableConfig holds the configuration for a dynamic table.
 type TableConfig struct {
-	Title   string // Table title displayed at the top
-	DataURL string // URL to fetch data from
+	Title   string
+	DataURL string
 	Filters []*filters.TableFilter
-	Columns []TableColumn // Column definitions
+	Columns []TableColumn
+	Rows    []TableRow
 }
 
-// TableData contains the data to be displayed in the table.
-type TableData struct {
-	Items []map[string]any // Row items with key-value pairs
-}
-
-// NewTableConfig creates a new empty table configuration.
 func NewTableConfig(title, dataURL string) *TableConfig {
 	return &TableConfig{
 		Title:   title,
 		DataURL: dataURL,
 		Columns: []TableColumn{},
 		Filters: []*filters.TableFilter{},
+		Rows:    []TableRow{},
 	}
+}
+
+func Column(key, label string, opts ...ColumnOpt) TableColumn {
+	col := &tableColumnImpl{
+		key:   key,
+		label: label,
+	}
+	for _, opt := range opts {
+		opt(col)
+	}
+	return col
+}
+
+func Row(cells ...templ.Component) TableRow {
+	return &tableRowImpl{cells: cells}
+}
+
+func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
+	c.Columns = append(c.Columns, cols...)
+	return c
 }
 
 func (c *TableConfig) AddFilters(filters ...*filters.TableFilter) *TableConfig {
@@ -71,28 +95,7 @@ func (c *TableConfig) AddFilters(filters ...*filters.TableFilter) *TableConfig {
 	return c
 }
 
-// AddColumn adds a column to the table configuration
-func (c *TableConfig) AddColumn(key, label string, opts ...ColumnOpt) *TableConfig {
-	col := &TableColumn{
-		Key:   key,
-		Label: label,
-	}
-	for _, opt := range opts {
-		opt(col)
-	}
-	c.Columns = append(c.Columns, *col)
+func (c *TableConfig) AddRows(rows ...TableRow) *TableConfig {
+	c.Rows = append(c.Rows, rows...)
 	return c
-}
-
-// NewData creates a new empty TableData
-func NewData() TableData {
-	return TableData{
-		Items: []map[string]any{},
-	}
-}
-
-// AddItem adds an item to the table data
-func (d *TableData) AddItem(item map[string]any) *TableData {
-	d.Items = append(d.Items, item)
-	return d
 }
