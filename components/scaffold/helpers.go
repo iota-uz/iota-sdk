@@ -34,20 +34,13 @@ func WithDateFormatter() ColumnOpt {
 	}
 }
 
-func LocalizeLabel() ColumnOpt {
-	return func(t *TableColumn) {
-		t.localizeLabel = true
-	}
-}
-
 // TableColumn defines a column in a dynamic table.
 type TableColumn struct {
-	Key           string           // Field key in the data source
-	Label         string           // Display label for the column header
-	Class         string           // CSS classes for the column
-	Width         string           // Width specification (e.g., "100px" or "20%")
-	Format        func(any) string // Optional formatter for cell values
-	localizeLabel bool
+	Key    string           // Field key in the data source
+	Label  string           // Display label for the column header
+	Class  string           // CSS classes for the column
+	Width  string           // Width specification (e.g., "100px" or "20%")
+	Format func(any) string // Optional formatter for cell values
 }
 
 // TableConfig holds the configuration for a dynamic table.

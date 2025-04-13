@@ -28,11 +28,8 @@ func NewFilter(name string, opts ...Option) *TableFilter {
 	return f
 }
 
-func (t *TableFilter) AddOpt(key, label string) *TableFilter {
-	t.options = append(t.options, OptionItem{
-		Value: key,
-		Label: label,
-	})
+func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
+	t.options = append(t.options, opts...)
 	return t
 }
 
@@ -78,7 +75,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 40, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 37, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -91,7 +88,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 41, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 38, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -134,7 +131,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 53, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 50, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -147,7 +144,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 54, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 51, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {

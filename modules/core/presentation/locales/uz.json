@@ -19,6 +19,15 @@
       "ThisMonth": "Shu oy"
     }
   },
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Ma'lumotlar yo'q",
+      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas."
+    },
+    "Filters": {
+      "Title": "Filtrlar"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",

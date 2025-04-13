@@ -20,11 +20,8 @@ func NewFilter(name string, opts ...Option) *TableFilter {
 	return f
 }
 
-func (t *TableFilter) AddOpt(key, label string) *TableFilter {
-	t.options = append(t.options, OptionItem{
-		Value: key,
-		Label: label,
-	})
+func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
+	t.options = append(t.options, opts...)
 	return t
 }
 
