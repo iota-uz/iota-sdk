@@ -26,7 +26,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 // Rows renders the table rows for a scaffold table
@@ -102,7 +101,7 @@ func Rows(config *TableConfig, data TableData) templ.Component {
 							var templ_7745c5c3_Var4 string
 							templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%v", item[col.Key]))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 42, Col: 40}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 41, Col: 40}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 							if templ_7745c5c3_Err != nil {
@@ -156,8 +155,8 @@ func Table(config *TableConfig, data TableData) templ.Component {
 		pageCtx := composables.UsePageCtx(ctx)
 		if len(data.Items) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
-				Title:       "No data available",
-				Description: "There is no data available for this table.",
+				Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
+				Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -182,7 +181,7 @@ func Table(config *TableConfig, data TableData) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = base.Table(base.TableProps{
-				Columns: toBaseTableColumns(config.Columns, pageCtx),
+				Columns: toBaseTableColumns(config.Columns),
 				TBodyAttrs: templ.Attributes{
 					"id": "table-body",
 				},
@@ -239,7 +238,7 @@ func Content(config *TableConfig, data TableData) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = filters.Drawer(filters.DrawerProps{
-			Heading: "Filters",
+			Heading: pageCtx.T("Scaffold.Filters.Title"),
 			Action:  "open-filters",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -252,7 +251,7 @@ func Content(config *TableConfig, data TableData) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(config.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 84, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 83, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -281,7 +280,7 @@ func Content(config *TableConfig, data TableData) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(config.DataURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 101, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 100, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -380,18 +379,12 @@ func Page(config *TableConfig, data TableData) templ.Component {
 	})
 }
 
-func toBaseTableColumns(columns []TableColumn, pageCtx *types.PageContext) []*base.TableColumn {
+func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(columns))
 	for i, col := range columns {
-		var label string
-		if col.localizeLabel {
-			label = pageCtx.T(col.Label)
-		} else {
-			label = col.Label
-		}
 		result[i] = &base.TableColumn{
 			Key:   col.Key,
-			Label: label,
+			Label: col.Label,
 			Class: col.Class,
 		}
 	}

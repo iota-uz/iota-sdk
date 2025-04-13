@@ -19,6 +19,15 @@
       "ThisMonth": "В этом месяце"
     }
   },
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Данные недоступны",
+      "NoDataDescription": "Для этой таблицы нет доступных данных."
+    },
+    "Filters": {
+      "Title": "Фильтры"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Поиск...",
     "NothingFound": "Ничего не найдено",

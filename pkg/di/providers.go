@@ -7,6 +7,7 @@ import (
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -31,6 +32,7 @@ type userProvider struct{}
 type appProvider struct{}
 type serviceProvider struct{}
 type loggerProvider struct{}
+type localeProvider struct{}
 
 func (p *pageContextProvider) Ok(t reflect.Type) bool {
 	pageCtxType := reflect.TypeOf((*types.PageContext)(nil))
@@ -106,6 +108,14 @@ func (p *loggerProvider) Provide(t reflect.Type, ctx context.Context) (reflect.V
 	return reflect.ValueOf(composables.UseLogger(ctx)), nil
 }
 
+func (p *localeProvider) Ok(t reflect.Type) bool {
+	return t == reflect.TypeOf(language.Tag{})
+}
+
+func (p *localeProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
+	return reflect.ValueOf(composables.UseLocale(ctx, language.English)), nil
+}
+
 // BuiltinProviders returns the list of built-in providers
 func BuiltinProviders() []Provider {
 	return []Provider{
@@ -115,5 +125,6 @@ func BuiltinProviders() []Provider {
 		&userProvider{},
 		&appProvider{},
 		&serviceProvider{},
+		&localeProvider{},
 	}
 }

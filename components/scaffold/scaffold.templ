@@ -14,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 // Rows renders the table rows for a scaffold table
@@ -52,12 +51,12 @@ templ Table(config *TableConfig, data TableData) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	if len(data.Items) == 0 {
 		@base.TableEmptyState(base.TableEmptyStateProps{
-			Title:       "No data available",
-			Description: "There is no data available for this table.",
+			Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
+			Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
 		})
 	} else {
 		@base.Table(base.TableProps{
-			Columns: toBaseTableColumns(config.Columns, pageCtx),
+			Columns: toBaseTableColumns(config.Columns),
 			TBodyAttrs: templ.Attributes{
 				"id": "table-body",
 			},
@@ -71,7 +70,7 @@ templ Table(config *TableConfig, data TableData) {
 templ Content(config *TableConfig, data TableData) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@filters.Drawer(filters.DrawerProps{
-		Heading: "Filters",
+		Heading: pageCtx.T("Scaffold.Filters.Title"),
 		Action:  "open-filters",
 	}) {
 		for _, filter := range config.Filters {
@@ -137,18 +136,12 @@ templ Page(config *TableConfig, data TableData) {
 	}
 }
 
-func toBaseTableColumns(columns []TableColumn, pageCtx *types.PageContext) []*base.TableColumn {
+func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(columns))
 	for i, col := range columns {
-		var label string
-		if col.localizeLabel {
-			label = pageCtx.T(col.Label)
-		} else {
-			label = col.Label
-		}
 		result[i] = &base.TableColumn{
 			Key:   col.Key,
-			Label: label,
+			Label: col.Label,
 			Class: col.Class,
 		}
 	}
