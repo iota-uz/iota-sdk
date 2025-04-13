@@ -151,7 +151,7 @@ templ Navbar(pageCtx *types.PageContext) {
 			@ThemeSwitcher()
 			@base.DetailsDropdown(&base.DetailsDropdownProps{
 				Summary: Avatar(),
-				Classes: templ.CSSClasses{"z-10"},
+				Classes: templ.Classes("z-10"),
 			}) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }

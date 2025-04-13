@@ -372,7 +372,7 @@ func Navbar(pageCtx *types.PageContext) templ.Component {
 		})
 		templ_7745c5c3_Err = base.DetailsDropdown(&base.DetailsDropdownProps{
 			Summary: Avatar(),
-			Classes: templ.CSSClasses{"z-10"},
+			Classes: templ.Classes("z-10"),
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
