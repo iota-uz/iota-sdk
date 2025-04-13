@@ -71,6 +71,56 @@ templ Table(config *TableConfig) {
 	}
 }
 
+// TableContent renders the table with search and filters
+templ TableContent(config *TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="bg-surface-600 border border-primary rounded-lg">
+		<form
+			class="p-4 flex items-center gap-3"
+			hx-get={ config.DataURL }
+			hx-trigger="keyup changed delay:300ms from:(form input), change changed from:(form select), change from:(form input[type='checkbox'])"
+			hx-target="#table-body"
+			hx-swap="innerHTML"
+			hx-indicator="#table-body"
+		>
+			<input type="hidden" name="page" value="1"/>
+			<div class="flex-1">
+				@input.Text(&input.Props{
+					AddonLeft: &input.Addon{
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: pageCtx.T("Search"),
+					Attrs: templ.Attributes{
+						"name":  "search",
+						"value": "",
+					},
+				})
+			</div>
+			<div class="hidden md:flex gap-3 h-full">
+				for _, filter := range config.Filters {
+					@filter.Component()
+				}
+			</div>
+		</form>
+		@Table(config)
+	</div>
+}
+
+templ SideFilter() {
+	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+		<form
+			hx-get="/users"
+			hx-target="#table-body"
+			hx-swap="innerHTML"
+			hx-push-url="true"
+			hx-indicator="#table-body"
+			hx-trigger="change"
+		>
+			{ children... }
+		</form>
+	</div>
+}
+
 // Content renders the complete scaffold page content with filters and table
 templ Content(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
@@ -99,36 +149,24 @@ templ Content(config *TableConfig) {
 				})
 			</div>
 		</div>
-		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
-			<form
-				class="p-4 flex items-center gap-3"
-				hx-get={ config.DataURL }
-				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target="#table-body"
-				hx-swap="innerHTML"
-				hx-indicator="#table-body"
-			>
-				<input type="hidden" name="page" value="1"/>
-				<div class="flex-1">
-					@input.Text(&input.Props{
-						AddonLeft: &input.Addon{
-							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-						},
-						Placeholder: pageCtx.T("Search"),
-						Attrs: templ.Attributes{
-							"name":  "search",
-							"value": "",
-						},
-					})
-				</div>
-				<div class="hidden md:flex gap-3">
-					for _, filter := range config.Filters {
-						@filter.Component()
+		if config.SideFilter != nil {
+			<div class="mt-5 flex gap-5">
+				<!-- Left sidebar with filters -->
+				<div class="hidden md:block w-64 flex-shrink-0">
+					@SideFilter() {
+						@config.SideFilter
 					}
 				</div>
-			</form>
-			@Table(config)
-		</div>
+				<!-- Main content area with table -->
+				<div class="flex-1">
+					@TableContent(config)
+				</div>
+			</div>
+		} else {
+			<div class="mt-5">
+				@TableContent(config)
+			</div>
+		}
 	</div>
 }
 

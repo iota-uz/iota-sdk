@@ -94,14 +94,13 @@ func (c *DIEmployeeController) ScaffoldTable(
 
 	tcfg := sfui.NewTableConfig("Users", "/di/scaffold-table")
 	tcfg.AddFilters(
-		createdAtFilter,
 		roleFilter,
+		createdAtFilter,
 	)
 
 	tcfg.AddCols(
 		sfui.Column("fullname", "Fullname"),
 		sfui.Column("email", "Email"),
-		sfui.Column("phone", "Phone"),
 		sfui.Column("createdAt", "Created At"),
 	)
 	for _, c := range users {
@@ -109,7 +108,6 @@ func (c *DIEmployeeController) ScaffoldTable(
 			sfui.Row(
 				templ.Raw(c.FirstName()+" "+c.LastName()),
 				templ.Raw(c.Email().Value()),
-				templ.Raw(c.Phone().Value()),
 				sfui.DateTime(c.CreatedAt()),
 			),
 		)

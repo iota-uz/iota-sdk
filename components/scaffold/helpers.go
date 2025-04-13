@@ -53,11 +53,12 @@ func WithClass(classes string) ColumnOpt {
 // --- Table Configuration ---
 
 type TableConfig struct {
-	Title   string
-	DataURL string
-	Filters []*filters.TableFilter
-	Columns []TableColumn
-	Rows    []TableRow
+	Title      string
+	DataURL    string
+	Filters    []*filters.TableFilter
+	Columns    []TableColumn
+	Rows       []TableRow
+	SideFilter templ.Component
 }
 
 func NewTableConfig(title, dataURL string) *TableConfig {
@@ -97,5 +98,10 @@ func (c *TableConfig) AddFilters(filters ...*filters.TableFilter) *TableConfig {
 
 func (c *TableConfig) AddRows(rows ...TableRow) *TableConfig {
 	c.Rows = append(c.Rows, rows...)
+	return c
+}
+
+func (c *TableConfig) SetSideFilter(filter templ.Component) *TableConfig {
+	c.SideFilter = filter
 	return c
 }

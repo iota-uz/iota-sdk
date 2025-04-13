@@ -19,6 +19,12 @@ func MultiSelect() Option {
 	}
 }
 
+func WithOptions(options ...OptionItem) Option {
+	return func(t *TableFilter) {
+		t.options = options
+	}
+}
+
 func Opt(value, label string) OptionItem {
 	return OptionItem{
 		Value: value,

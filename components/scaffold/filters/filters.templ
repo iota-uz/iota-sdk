@@ -1,6 +1,10 @@
 package filters
 
-import "github.com/iota-uz/iota-sdk/components/base"
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+)
 
 type TableFilter struct {
 	Name        string
@@ -25,18 +29,116 @@ func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
 	return t
 }
 
+type DropdownProps struct {
+	Label string
+	Name  string
+}
+
+templ Dropdown(props DropdownProps) {
+	<div
+		x-data="{
+				open: false,
+				selected: [],
+				toggleValue(val) {
+					const index = this.selected.indexOf(val);
+					if (index === -1) {
+						this.selected.push(val);
+					} else {
+						this.selected.splice(index, 1);
+					}
+				}
+			}"
+		class="relative w-32"
+	>
+		<!-- Trigger -->
+		<div class="flex">
+			<!-- Clear Button -->
+			<button
+				x-show="selected.length"
+				class={
+					"flex items-center justify-center cursor-pointer",
+					"border border-gray-500 rounded-md rounded-r-none px-2",
+				}
+			>
+				@icons.X(icons.Props{
+					Size: "16",
+					Attributes: templ.Attributes{
+						"@click": "selected = []",
+					},
+				})
+			</button>
+			<!-- Dropdown Button -->
+			<button
+				@click="open = !open"
+				type="button"
+				class={
+					"w-full border border-gray-500 rounded-md shadow-sm cursor-pointer",
+					"flex items-center justify-between px-4 py-2",
+				}
+				:class="selected.length ? 'rounded-l-none border-l-0' : ''"
+			>
+				<span class="text-gray-700 font-medium">
+					{ props.Label }
+				</span>
+				@icons.CaretDown(icons.Props{
+					Class: "text-gray-700 duration-200",
+					Attributes: templ.Attributes{
+						":class": "open ? 'rotate-180' : ''",
+					},
+					Size: "16",
+				})
+			</button>
+		</div>
+		<!-- Dropdown Items -->
+		<ul
+			x-show="open"
+			@click.away="open = false"
+			x-transition
+			class="absolute z-20 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-y-auto"
+		>
+			{ children... }
+		</ul>
+	</div>
+}
+
+type DropdownItemProps struct {
+	Class templ.CSSClasses
+	Label string
+	Value string
+	Name  string
+}
+
+templ DropdownItem(props DropdownItemProps) {
+	<li
+		class={
+			"hover:bg-gray-100 p-2",
+			props.Class.String(),
+		}
+	>
+		@input.Checkbox(&input.CheckboxProps{
+			Label: props.Label,
+			Attrs: templ.Attributes{
+				"value":    props.Value,
+				"name":     props.Name,
+				"@change":  "toggleValue($event.target.value)",
+				":checked": "selected.includes('" + props.Value + "')",
+			},
+		})
+	</li>
+}
+
 templ (t *TableFilter) Component() {
 	if t.multiple {
-		@base.Combobox(base.ComboboxProps{
-			Label:       "",
-			Placeholder: t.placeholder,
-			Name:        t.Name,
-			Multiple:    true,
+		@Dropdown(DropdownProps{
+			Label: t.placeholder,
+			Name:  t.Name,
 		}) {
 			for _, opt := range t.options {
-				<option value={ opt.Value }>
-					{ opt.Label }
-				</option>
+				@DropdownItem(DropdownItemProps{
+					Label: opt.Label,
+					Value: opt.Value,
+					Name:  t.Name,
+				})
 			}
 		}
 	} else {
