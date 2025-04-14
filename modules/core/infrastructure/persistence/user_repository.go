@@ -117,14 +117,8 @@ func (g *PgUserRepository) buildUserFilters(params *user.FindParams) ([]string, 
 			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
 		}
 
-		// Special handling for IN filters with arrays
-		if values, ok := filter.Filter.Value().([]interface{}); ok {
-			where = append(where, filter.Filter.String(column, len(args)+1))
-			args = append(args, values...)
-		} else {
-			where = append(where, filter.Filter.String(column, len(args)+1))
-			args = append(args, filter.Filter.Value())
-		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
 	}
 
 	if params.Search != "" {

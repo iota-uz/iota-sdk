@@ -19,6 +19,15 @@
       "ThisMonth": "This month"
     }
   },
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "No data available",
+      "NoDataDescription": "There is no data available for this table."
+    },
+    "Filters": {
+      "Title": "Filters"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
@@ -186,7 +195,7 @@
       "FullName": "Full name",
       "Roles": "Roles",
       "Email": "Email",
-      "AllUsers": "All Users"
+      "AllGroups": "All Groups"
     },
     "Cards": {
       "PersonalInfo": "Personal information",

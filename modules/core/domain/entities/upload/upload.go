@@ -163,10 +163,7 @@ func (u *upload) PreviewURL() string {
 }
 
 func (u *upload) IsImage() bool {
-	if strings.HasPrefix(u.mimetype.String(), "image") {
-		return true
-	}
-	return false
+	return strings.HasPrefix(u.mimetype.String(), "image")
 }
 
 func (u *upload) Mimetype() *mimetype.MIME {

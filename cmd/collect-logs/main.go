@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -99,7 +100,9 @@ func (c *LogCollector) Process() {
 		fileInfo, err := file.Stat()
 		if err != nil {
 			log.Printf("Failed to get file info: %v. Retrying in 5 seconds...", err)
-			file.Close()
+			if err := file.Close(); err != nil {
+				log.Printf("Failed to close file: %v", err)
+			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -107,7 +110,9 @@ func (c *LogCollector) Process() {
 		offset := fileInfo.Size()
 		if _, err := file.Seek(offset, 0); err != nil {
 			log.Printf("Failed to seek to end of file: %v. Retrying in 5 seconds...", err)
-			file.Close()
+			if err := file.Close(); err != nil {
+				log.Printf("Failed to close file: %v", err)
+			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -205,7 +210,9 @@ func (c *LogCollector) Process() {
 
 		processBatch()
 
-		file.Close()
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
 
 		log.Printf("Reopening log file in 5 seconds...")
 		time.Sleep(5 * time.Second)
@@ -287,7 +294,7 @@ func (c *LogCollector) SendBatch(client *http.Client, batch []map[string]interfa
 		return fmt.Errorf("failed to marshal Loki payload: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.LokiURL, bytes.NewBuffer(buf))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.LokiURL, bytes.NewBuffer(buf))
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -297,7 +304,11 @@ func (c *LogCollector) SendBatch(client *http.Client, batch []map[string]interfa
 	if err != nil {
 		return fmt.Errorf("failed to send data to Loki: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		respBody, err := io.ReadAll(resp.Body)

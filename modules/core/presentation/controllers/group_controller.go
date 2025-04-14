@@ -174,13 +174,13 @@ func (c *GroupsController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("", di.NewHandler(c.Groups).Handler()).Methods(http.MethodGet)
-	router.HandleFunc("/new", di.NewHandler(c.GetNew).Handler()).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.GetEdit).Handler()).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.Groups)).Methods(http.MethodGet)
+	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[a-f0-9-]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
 
-	router.HandleFunc("", di.NewHandler(c.Create).Handler()).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.Update).Handler()).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[a-f0-9-]+}", di.NewHandler(c.Delete).Handler()).Methods(http.MethodDelete)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[a-f0-9-]+}", di.H(c.Update)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[a-f0-9-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
 	c.realtime.Register()
 }
@@ -431,7 +431,7 @@ func (c *GroupsController) Update(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	var roles []role.Role
+	roles := make([]role.Role, 0, len(dto.RoleIDs))
 
 	for _, rID := range dto.RoleIDs {
 		rUintID, err := strconv.ParseUint(rID, 10, 64)

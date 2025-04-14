@@ -78,16 +78,9 @@ release-local:
 clean:
 	rm -rf $(TAILWIND_OUTPUT)
 
-## Linter targets
-#.PHONY: build-iota-linter run-iota-linter clean-iota-linter
-
-# Build the JSON linter
-build-iota-linter:
-	go build -o bin/iotalinter tools/iotalinter.go
-
 # Run the JSON linter
 run-iota-linter:
-	./bin/iotalinter ./...
+	go build -o bin/iotalinter tools/iotalinter.go && ./bin/iotalinter ./...
 
 # Clean built binaries
 clean-iota-linter:
@@ -103,4 +96,4 @@ build-docker-prod:
 %:
 	@:
 
-.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup build-iota-linter run-iota-linter clean-iota-linter collect-migrations docs seed
+.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup run-iota-linter clean-iota-linter collect-migrations docs seed

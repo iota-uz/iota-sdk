@@ -47,7 +47,11 @@ func Migrate(mods ...application.Module) error {
 	if err != nil {
 		log.Fatalf("failed to create logger: %v", err)
 	}
-	defer logFile.Close()
+	defer func() {
+		if err := logFile.Close(); err != nil {
+			log.Printf("Failed to close log file: %v", err)
+		}
+	}()
 
 	if err := ensureDirectories(); err != nil {
 		return err

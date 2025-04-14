@@ -19,6 +19,15 @@
       "ThisMonth": "Shu oy"
     }
   },
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Ma'lumotlar yo'q",
+      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas."
+    },
+    "Filters": {
+      "Title": "Filtrlar"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",
@@ -186,7 +195,7 @@
       "FullName": "To'liq ism",
       "Roles": "Rollar",
       "Email": "Email",
-      "AllUsers": "Barcha foydalanuvchilar"
+      "AllGroups": "Barcha guruhlar"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",

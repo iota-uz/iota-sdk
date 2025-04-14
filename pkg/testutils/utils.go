@@ -34,18 +34,13 @@ type TestFixtures struct {
 }
 
 func MockUser(permissions ...*permission.Permission) user.User {
-	r, err := role.NewWithID(
-		1,
-		"admin",
-		"",
-		permissions,
-		time.Now(),
-		time.Now(),
-		uuid.Nil, // tenant_id will be set correctly in repository
+	r := role.New("admin",
+		role.WithID(1),
+		role.WithPermissions(permissions),
+		role.WithCreatedAt(time.Now()),
+		role.WithUpdatedAt(time.Now()),
+		role.WithTenantID(uuid.Nil), // tenant_id will be set correctly in repository
 	)
-	if err != nil {
-		panic(err)
-	}
 
 	email, err := internet.NewEmail("test@example.com")
 	if err != nil {

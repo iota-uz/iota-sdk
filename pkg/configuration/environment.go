@@ -193,6 +193,8 @@ func (c *Configuration) load(envFiles []string) error {
 // unload handles a graceful shutdown.
 func (c *Configuration) Unload() {
 	if c.logFile != nil {
-		c.logFile.Close()
+		if err := c.logFile.Close(); err != nil {
+			log.Printf("Failed to close log file: %v", err)
+		}
 	}
 }

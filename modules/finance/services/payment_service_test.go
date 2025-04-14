@@ -89,6 +89,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 
 // setupApplication initializes and configures the application
 func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher eventbus.EventBus) application.Application {
+	t.Helper()
 	app := application.New(pool, publisher)
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		t.Fatal(err)

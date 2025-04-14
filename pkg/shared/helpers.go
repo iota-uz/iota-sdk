@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"unicode"
 
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 
@@ -40,4 +41,23 @@ func SetFlashMap[K comparable, V any](w http.ResponseWriter, name string, value 
 		return
 	}
 	SetFlash(w, name, errors)
+}
+
+// GetInitials safely extracts the first character from first and last names,
+// properly handling non-ASCII characters and converting to uppercase.
+// Returns "NA" if both names are empty.
+func GetInitials(firstName, lastName string) string {
+	initials := ""
+	if firstName != "" {
+		firstRune := []rune(firstName)[0]
+		initials += string(unicode.ToUpper(firstRune))
+	}
+	if lastName != "" {
+		lastRune := []rune(lastName)[0]
+		initials += string(unicode.ToUpper(lastRune))
+	}
+	if initials == "" {
+		return "NA"
+	}
+	return initials
 }

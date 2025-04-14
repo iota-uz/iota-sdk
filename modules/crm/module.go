@@ -16,10 +16,10 @@ import (
 )
 
 //go:embed presentation/locales/*.json
-var localeFiles embed.FS
+var LocaleFiles embed.FS
 
 //go:embed infrastructure/persistence/schema/crm-schema.sql
-var migrationFiles embed.FS
+var MigrationFiles embed.FS
 
 func NewModule() application.Module {
 	return &Module{}
@@ -60,8 +60,17 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
+	// Configure client controller with explicit tabs
+	basePath := "/crm/clients"
 	app.RegisterControllers(
-		controllers.NewClientController(app, "/crm/clients"),
+		controllers.NewClientController(app, controllers.ClientControllerConfig{
+			BasePath: basePath,
+			Tabs: []controllers.TabDefinition{
+				controllers.ProfileTab(basePath),
+				controllers.ChatTab(basePath),
+				controllers.ActionsTab(),
+			},
+		}),
 		controllers.NewChatController(app, "/crm/chats"),
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
 		controllers.NewTwilioController(app, twilioProvider),
@@ -73,8 +82,8 @@ func (m *Module) Register(app application.Application) error {
 	}
 
 	app.RBAC().Register(permissions.Permissions...)
-	app.RegisterLocaleFiles(&localeFiles)
-	app.Migrations().RegisterSchema(&migrationFiles)
+	app.RegisterLocaleFiles(&LocaleFiles)
+	app.Migrations().RegisterSchema(&MigrationFiles)
 	return nil
 }
 

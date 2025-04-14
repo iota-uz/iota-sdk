@@ -3,7 +3,6 @@ package persistence_test
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
@@ -21,11 +20,10 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	createdCategory, err := categoryRepository.Create(
 		f.ctx,
 		category.New(
-			uuid.Nil,
-			"test",
-			"test",
-			100,
+			"test", // name
+			100.0,  // amount
 			&currency.USD,
+			category.WithDescription("test"),
 		),
 	)
 	if err != nil {
@@ -33,7 +31,7 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	}
 
 	t.Run("Count", func(t *testing.T) {
-		count, err := categoryRepository.Count(f.ctx)
+		count, err := categoryRepository.Count(f.ctx, &category.FindParams{})
 		if err != nil {
 			t.Fatal(err)
 		}

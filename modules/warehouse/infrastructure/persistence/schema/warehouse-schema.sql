@@ -1,6 +1,6 @@
 CREATE TABLE warehouse_units (
     id serial PRIMARY KEY,
-    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     title varchar(255) NOT NULL, -- Kilogram, Piece, etc.
     short_title varchar(255) NOT NULL, -- kg, pcs, etc.
     created_at timestamp with time zone DEFAULT now(),
@@ -11,7 +11,7 @@ CREATE TABLE warehouse_units (
 
 CREATE TABLE warehouse_positions (
     id serial PRIMARY KEY,
-    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     title varchar(255) NOT NULL,
     barcode varchar(255) NOT NULL,
     description text,
@@ -29,7 +29,7 @@ CREATE TABLE warehouse_position_images (
 
 CREATE TABLE warehouse_products (
     id serial PRIMARY KEY,
-    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     position_id int NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
     rfid varchar(255) NULL,
     status varchar(255) NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE warehouse_products (
 
 CREATE TABLE warehouse_orders (
     id serial PRIMARY KEY,
-    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     type VARCHAR(255) NOT NULL,
     status varchar(255) NOT NULL,
     created_at timestamp with time zone DEFAULT now()
@@ -54,7 +54,7 @@ CREATE TABLE warehouse_order_items (
 
 CREATE TABLE inventory_checks (
     id serial PRIMARY KEY,
-    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     status varchar(255) NOT NULL,
     name varchar(255) NOT NULL,
     type VARCHAR(255) NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE inventory_checks (
 
 CREATE TABLE inventory_check_results (
     id serial PRIMARY KEY,
-    tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     inventory_check_id int NOT NULL REFERENCES inventory_checks (id) ON DELETE CASCADE,
     position_id int NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
     expected_quantity int NOT NULL,

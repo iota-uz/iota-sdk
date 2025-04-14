@@ -134,20 +134,28 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *cor
 	if err != nil {
 		return nil, err
 	}
+
 	tenantID, err := uuid.Parse(dbCategory.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	return category.NewWithID(
-		dbCategory.ID,
-		tenantID,
+	opts := []category.Option{
+		category.WithID(dbCategory.ID),
+		category.WithTenantID(tenantID),
+		category.WithCreatedAt(dbCategory.CreatedAt),
+		category.WithUpdatedAt(dbCategory.UpdatedAt),
+	}
+
+	if dbCategory.Description.Valid {
+		opts = append(opts, category.WithDescription(dbCategory.Description.String))
+	}
+
+	return category.New(
 		dbCategory.Name,
-		dbCategory.Description.String,
 		dbCategory.Amount,
 		domainCurrency,
-		dbCategory.CreatedAt,
-		dbCategory.UpdatedAt,
+		opts...,
 	), nil
 }
 
@@ -189,53 +197,57 @@ func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
 	}
 }
 
-func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (*expense.Expense, error) {
+func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (expense.Expense, error) {
 	tenantID, err := uuid.Parse(dbTransaction.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &expense.Expense{
-		ID:      dbExpense.ID,
-		Amount:  -1 * dbTransaction.Amount,
-		Account: moneyaccount.Account{ID: *dbTransaction.OriginAccountID}, //nolint:exhaustruct
-		Category: category.NewWithID(
-			dbExpense.CategoryID,
-			tenantID,
-			"",
-			"",
-			0,
-			nil,
-			dbExpense.CreatedAt,
-			dbExpense.UpdatedAt,
-		),
-		Comment:          dbTransaction.Comment,
-		TransactionID:    dbExpense.TransactionID,
-		AccountingPeriod: dbTransaction.AccountingPeriod,
-		Date:             dbTransaction.TransactionDate,
-		CreatedAt:        dbExpense.CreatedAt,
-		UpdatedAt:        dbExpense.UpdatedAt,
-	}, nil
+	account := moneyaccount.Account{ID: *dbTransaction.OriginAccountID} //nolint:exhaustruct
+	expenseCategory := category.New(
+		"",  // name - will be populated when actual category is fetched
+		0.0, // amount - will be populated when actual category is fetched
+		nil, // currency - will be populated when actual category is fetched
+		category.WithID(dbExpense.CategoryID),
+		category.WithTenantID(tenantID),
+		category.WithCreatedAt(dbExpense.CreatedAt),
+		category.WithUpdatedAt(dbExpense.UpdatedAt),
+	)
+
+	domainExpense := expense.New(
+		-1*dbTransaction.Amount,
+		account,
+		expenseCategory,
+		dbTransaction.TransactionDate,
+		expense.WithID(dbExpense.ID),
+		expense.WithComment(dbTransaction.Comment),
+		expense.WithTransactionID(dbExpense.TransactionID),
+		expense.WithAccountingPeriod(dbTransaction.AccountingPeriod),
+		expense.WithCreatedAt(dbExpense.CreatedAt),
+		expense.WithUpdatedAt(dbExpense.UpdatedAt),
+	)
+
+	return domainExpense, nil
 }
 
-func toDBExpense(entity *expense.Expense) (*models.Expense, *transaction.Transaction) {
+func toDBExpense(entity expense.Expense) (*models.Expense, *transaction.Transaction) {
 	domainTransaction := &transaction.Transaction{
-		ID:                   entity.TransactionID,
-		Amount:               -1 * entity.Amount,
-		Comment:              entity.Comment,
-		AccountingPeriod:     entity.AccountingPeriod,
-		TransactionDate:      entity.Date,
-		OriginAccountID:      &entity.Account.ID,
+		ID:                   entity.TransactionID(),
+		Amount:               -1 * entity.Amount(),
+		Comment:              entity.Comment(),
+		AccountingPeriod:     entity.AccountingPeriod(),
+		TransactionDate:      entity.Date(),
+		OriginAccountID:      mapping.Pointer(entity.Account().ID),
 		DestinationAccountID: nil,
 		TransactionType:      transaction.Withdrawal,
-		CreatedAt:            entity.CreatedAt,
+		CreatedAt:            entity.CreatedAt(),
 	}
 	dbExpense := &models.Expense{
-		ID:            entity.ID,
-		CategoryID:    entity.Category.ID(),
-		TransactionID: entity.TransactionID,
-		CreatedAt:     entity.CreatedAt,
-		UpdatedAt:     entity.UpdatedAt,
+		ID:            entity.ID(),
+		CategoryID:    entity.Category().ID(),
+		TransactionID: entity.TransactionID(),
+		CreatedAt:     entity.CreatedAt(),
+		UpdatedAt:     entity.UpdatedAt(),
 	}
 	return dbExpense, domainTransaction
 }

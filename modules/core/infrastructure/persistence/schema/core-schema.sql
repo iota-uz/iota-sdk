@@ -1,5 +1,5 @@
 CREATE TABLE tenants (
-    id text PRIMARY KEY DEFAULT gen_random_uuid () ::text,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     name varchar(255) NOT NULL UNIQUE,
     domain varchar(255),
     is_active boolean NOT NULL DEFAULT TRUE,
@@ -9,7 +9,7 @@ CREATE TABLE tenants (
 
 CREATE TABLE uploads (
     id serial PRIMARY KEY,
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL, -- original file name
     hash VARCHAR(255) NOT NULL, -- md5 hash of the file
     path varchar(1024) NOT NULL DEFAULT '', -- relative path to the file
@@ -23,7 +23,7 @@ CREATE TABLE uploads (
 
 CREATE TABLE passports (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255),
     last_name varchar(255),
     middle_name varchar(255),
@@ -49,7 +49,7 @@ CREATE TABLE passports (
 
 CREATE TABLE companies (
     id serial PRIMARY KEY,
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     about text,
     address varchar(255),
@@ -70,7 +70,7 @@ CREATE TABLE currencies (
 
 CREATE TABLE roles (
     id serial PRIMARY KEY,
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     created_at timestamp with time zone DEFAULT now(),
@@ -80,7 +80,7 @@ CREATE TABLE roles (
 
 CREATE TABLE users (
     id serial PRIMARY KEY,
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255) NOT NULL,
     middle_name varchar(255),
@@ -107,7 +107,7 @@ CREATE TABLE user_roles (
 
 CREATE TABLE user_groups (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     created_at timestamp DEFAULT now(),
@@ -142,7 +142,7 @@ CREATE TABLE uploaded_images (
 
 CREATE TABLE permissions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid () NOT NULL,
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     resource varchar(255) NOT NULL, -- roles, users, etc.
     action varchar(255) NOT NULL, -- create, read, update, delete
@@ -165,7 +165,7 @@ CREATE TABLE user_permissions (
 
 CREATE TABLE sessions (
     token varchar(255) NOT NULL PRIMARY KEY,
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     expires_at timestamp with time zone NOT NULL,
     ip varchar(255) NOT NULL,
@@ -175,7 +175,7 @@ CREATE TABLE sessions (
 
 CREATE TABLE tabs (
     id serial PRIMARY KEY,
-    tenant_id text REFERENCES tenants (id) ON DELETE CASCADE,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     href varchar(255) NOT NULL,
     user_id int NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     position int NOT NULL DEFAULT 0,

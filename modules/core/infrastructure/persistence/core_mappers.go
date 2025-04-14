@@ -129,15 +129,15 @@ func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.R
 		return nil, errors.Wrap(err, "failed to parse uuid")
 	}
 
-	return role.NewWithID(
-		dbRole.ID,
-		dbRole.Name,
-		dbRole.Description.String,
-		domainPermissions,
-		dbRole.CreatedAt,
-		dbRole.UpdatedAt,
-		tenantID,
-	)
+	options := []role.Option{
+		role.WithID(dbRole.ID),
+		role.WithDescription(dbRole.Description.String),
+		role.WithPermissions(domainPermissions),
+		role.WithCreatedAt(dbRole.CreatedAt),
+		role.WithUpdatedAt(dbRole.UpdatedAt),
+		role.WithTenantID(tenantID),
+	}
+	return role.New(dbRole.Name, options...), nil
 }
 
 func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {

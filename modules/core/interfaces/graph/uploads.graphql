@@ -5,6 +5,18 @@ enum UploadType @goModel(model: "github.com/iota-uz/iota-sdk/modules/core/domain
   Image @goEnum(value: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadTypeImage")
 }
 
+enum UploadSortField {
+  SIZE
+  NAME
+  CREATED_AT
+  UPDATED_AT
+}
+
+input UploadSort {
+  field: UploadSortField!
+  ascending: Boolean!
+}
+
 type Upload {
   id: ID!
   url: String!
@@ -20,6 +32,7 @@ input UploadFilter {
   mimeType: String
   mimeTypePrefix: String
   type: UploadType
+  sort: UploadSort
 }
 
 extend type Mutation {

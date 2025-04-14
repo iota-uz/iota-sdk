@@ -1,7 +1,10 @@
 package expenses
 
 import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -57,6 +60,29 @@ templ CategorySelect(props *CategorySelectProps) {
 				<option value={ category.ID }>
 					{ category.Name }
 				</option>
+			}
+		}
+	}
+}
+
+// ExpenseRow renders a single expense row
+templ ExpenseRow(expense *viewmodels.Expense, attrs *templ.Attributes) {
+	@base.TableRow(base.TableRowProps{Attrs: *attrs}) {
+		@base.TableCell(base.TableCellProps{}) {
+			{ expense.Category.Name }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ expense.AmountWithCurrency }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ expense.AccountingPeriod }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ expense.Date }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/expenses/%s", expense.ID)}) {
+				@icons.PencilSimple(icons.Props{Size: "20"})
 			}
 		}
 	}

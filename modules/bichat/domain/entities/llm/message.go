@@ -67,10 +67,10 @@ type FunctionCall struct {
 }
 
 type ChatCompletionMessage struct {
-	Role         string `json:"role"`
-	Content      string `json:"content"`
-	Refusal      string `json:"refusal,omitempty"`
-	MultiContent []ChatMessagePart
+	Role         string            `json:"role"`
+	Content      string            `json:"content"`
+	Refusal      string            `json:"refusal,omitempty"`
+	MultiContent []ChatMessagePart `json:"multi_content,omitempty"`
 
 	Name string `json:"name,omitempty"`
 
