@@ -298,6 +298,23 @@ let combobox = (searchable = false) => ({
   },
 });
 
+let filtersDropdown = () => ({
+  open: false,
+  selected: [],
+  init() {
+    this.selected = Array.from(this.$el.querySelectorAll('input[type=checkbox]:checked'))
+      .map(el => el.value);
+  },
+  toggleValue(val) {
+    const index = this.selected.indexOf(val);
+    if (index === -1) {
+      this.selected.push(val);
+    } else {
+      this.selected.splice(index, 1);
+    }
+  }
+});
+
 let checkboxes = () => ({
   children: [],
   onParentChange(e) {
@@ -440,6 +457,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
   Alpine.data("combobox", combobox);
+  Alpine.data("filtersDropdown", filtersDropdown);
   Alpine.data("checkboxes", checkboxes);
   Alpine.data("spotlight", spotlight);
   Alpine.data("dateFns", dateFns);

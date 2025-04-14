@@ -9,33 +9,11 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/Oudwins/tailwind-merge-go"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 )
-
-type TableFilter struct {
-	Name        string
-	formatter   func(o OptionItem) string
-	placeholder string
-	options     []OptionItem
-	multiple    bool
-}
-
-func NewFilter(name string, opts ...Option) *TableFilter {
-	f := &TableFilter{
-		Name: name,
-	}
-	for _, opt := range opts {
-		opt(f)
-	}
-	return f
-}
-
-func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
-	t.options = append(t.options, opts...)
-	return t
-}
 
 type DropdownProps struct {
 	Label string
@@ -63,7 +41,7 @@ func Dropdown(props DropdownProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{\n\t\t\t\topen: false,\n\t\t\t\tselected: [],\n\t\t\t\ttoggleValue(val) {\n\t\t\t\t\tconst index = this.selected.indexOf(val);\n\t\t\t\t\tif (index === -1) {\n\t\t\t\t\t\tthis.selected.push(val);\n\t\t\t\t\t} else {\n\t\t\t\t\t\tthis.selected.splice(index, 1);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\" class=\"relative w-32\"><!-- Trigger --><div class=\"flex\"><!-- Clear Button -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"filtersDropdown\" class=\"relative w-32\"><!-- Trigger --><div class=\"flex\"><!-- Clear Button -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -133,7 +111,7 @@ func Dropdown(props DropdownProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 81, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 48, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -170,10 +148,11 @@ func Dropdown(props DropdownProps) templ.Component {
 }
 
 type DropdownItemProps struct {
-	Class templ.CSSClasses
-	Label string
-	Value string
-	Name  string
+	Class   templ.CSSClasses
+	Label   string
+	Value   string
+	Name    string
+	Checked bool
 }
 
 func DropdownItem(props DropdownItemProps) templ.Component {
@@ -198,8 +177,10 @@ func DropdownItem(props DropdownItemProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		var templ_7745c5c3_Var8 = []any{
-			"hover:bg-gray-100 p-2",
-			props.Class.String(),
+			twmerge.Merge(
+				"hover:bg-gray-100 p-2",
+				props.Class.String(),
+			),
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var8...)
 		if templ_7745c5c3_Err != nil {
@@ -223,7 +204,8 @@ func DropdownItem(props DropdownItemProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
-			Label: props.Label,
+			Label:   props.Label,
+			Checked: props.Checked,
 			Attrs: templ.Attributes{
 				"value":    props.Value,
 				"name":     props.Name,
@@ -278,9 +260,10 @@ func (t *TableFilter) Component() templ.Component {
 				ctx = templ.InitializeContext(ctx)
 				for _, opt := range t.options {
 					templ_7745c5c3_Err = DropdownItem(DropdownItemProps{
-						Label: opt.Label,
-						Value: opt.Value,
-						Name:  t.Name,
+						Label:   opt.Label,
+						Value:   opt.Value,
+						Name:    t.Name,
+						Checked: isOptionChecked(ctx, t.Name, opt),
 					}).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -316,7 +299,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 152, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 124, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -329,7 +312,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 153, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 125, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {

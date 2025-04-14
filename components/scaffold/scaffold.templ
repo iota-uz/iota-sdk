@@ -78,6 +78,7 @@ templ TableContent(config *TableConfig) {
 		<form
 			class="p-4 flex items-center gap-3"
 			hx-get={ config.DataURL }
+			hx-push-url="true"
 			hx-trigger="keyup changed delay:300ms from:(form input), change changed from:(form select), change from:(form input[type='checkbox'])"
 			hx-target="#table-body"
 			hx-swap="innerHTML"
