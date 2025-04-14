@@ -34,14 +34,16 @@ import (
 )
 
 type GroupRealtimeUpdates struct {
-	app      application.Application
-	basePath string
+	app          application.Application
+	groupService *services.GroupService
+	basePath     string
 }
 
-func NewGroupRealtimeUpdates(app application.Application, basePath string) *GroupRealtimeUpdates {
+func NewGroupRealtimeUpdates(app application.Application, groupService *services.GroupService, basePath string) *GroupRealtimeUpdates {
 	return &GroupRealtimeUpdates{
-		app:      app,
-		basePath: basePath,
+		app:          app,
+		groupService: groupService,
+		basePath:     basePath,
 	}
 }
 
