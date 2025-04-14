@@ -1,19 +1,17 @@
 package controllers
 
 import (
-	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"log"
 	"net/http"
-	"path/filepath"
 
-	"github.com/99designs/gqlgen/graphql/executor"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+
+	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/graph"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/graphql"
 )
 
 type GraphQLController struct {
@@ -30,14 +28,16 @@ func (g *GraphQLController) Register(r *mux.Router) {
 			Resolvers: graph.NewResolver(g.app),
 		},
 	)
-	srv := graphql.NewBaseServer(schema)
-	for _, schema := range g.app.GraphSchemas() {
-		exec := executor.New(schema.Value)
-		if schema.ExecutorCb != nil {
-			schema.ExecutorCb(exec)
-		}
-		srv.AddExecutor(exec)
-	}
+	srv := handler.NewDefaultServer(schema) // Use standard handler
+
+	/* 	srv := graphql.NewBaseServer(schema)
+	   	for _, schema := range g.app.GraphSchemas() {
+	   		exec := executor.New(schema.Value)
+	   		if schema.ExecutorCb != nil {
+	   			schema.ExecutorCb(exec)
+	   		}
+	   		srv.AddExecutor(exec)
+	   	} */
 	router := r.Methods(http.MethodGet, http.MethodPost).Subrouter()
 	router.Use(
 		middleware.Authorize(),
@@ -47,13 +47,13 @@ func (g *GraphQLController) Register(r *mux.Router) {
 
 	router.Handle("/query", srv)
 	router.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
-	for _, schema := range g.app.GraphSchemas() {
+	/* for _, schema := range g.app.GraphSchemas() {
 		exec := executor.New(schema.Value)
 		if schema.ExecutorCb != nil {
 			schema.ExecutorCb(exec)
 		}
 		router.Handle(filepath.Join(fmt.Sprintf("/query/%s", schema.BasePath)), graphql.NewHandler(exec))
-	}
+	} */
 	log.Printf("connect to http://localhost:%d/playground for GraphQL playground", configuration.Use().ServerPort)
 }
 
