@@ -40,7 +40,6 @@ type OptionItem struct {
 
 type TableFilter struct {
 	Name        string
-	formatter   func(o OptionItem) string
 	placeholder string
 	options     []OptionItem
 	multiple    bool
