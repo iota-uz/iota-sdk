@@ -62,7 +62,7 @@ type ComplexityRoot struct {
 		CompleteInventoryCheck func(childComplexity int, items []*InventoryItem) int
 		DeleteSession          func(childComplexity int, token string) int
 		GoogleAuthenticate     func(childComplexity int) int
-		UploadFile             func(childComplexity int, file *string) int
+		UploadFile             func(childComplexity int, file *graphql.Upload) int
 	}
 
 	Order struct {
@@ -110,18 +110,18 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		CompleteOrder          func(childComplexity int, id string) int
+		CompleteOrder          func(childComplexity int, id int64) int
 		CreateProductsFromTags func(childComplexity int, input CreateProductsFromTags) int
 		Inventory              func(childComplexity int) int
-		Order                  func(childComplexity int, id string) int
+		Order                  func(childComplexity int, id int64) int
 		Orders                 func(childComplexity int, query OrderQuery) int
-		Product                func(childComplexity int, id string) int
+		Product                func(childComplexity int, id int64) int
 		Products               func(childComplexity int, offset int, limit int, sortBy []string) int
 		Uploads                func(childComplexity int, filter UploadFilter) int
-		User                   func(childComplexity int, id string) int
+		User                   func(childComplexity int, id int64) int
 		Users                  func(childComplexity int, offset int, limit int, sortBy []int, ascending bool) int
 		ValidateProducts       func(childComplexity int, tags []string) int
-		WarehousePosition      func(childComplexity int, id string) int
+		WarehousePosition      func(childComplexity int, id int64) int
 		WarehousePositions     func(childComplexity int, offset int, limit int, sortBy []string) int
 	}
 
@@ -179,27 +179,27 @@ type MutationResolver interface {
 	Authenticate(ctx context.Context, email string, password string) (*Session, error)
 	GoogleAuthenticate(ctx context.Context) (string, error)
 	DeleteSession(ctx context.Context, token string) (bool, error)
-	UploadFile(ctx context.Context, file *string) (*Upload, error)
+	UploadFile(ctx context.Context, file *graphql.Upload) (*Upload, error)
 	CompleteInventoryCheck(ctx context.Context, items []*InventoryItem) (bool, error)
 }
 type QueryResolver interface {
 	Uploads(ctx context.Context, filter UploadFilter) ([]*Upload, error)
-	User(ctx context.Context, id string) (*User, error)
+	User(ctx context.Context, id int64) (*User, error)
 	Users(ctx context.Context, offset int, limit int, sortBy []int, ascending bool) (*PaginatedUsers, error)
 	Inventory(ctx context.Context) ([]*InventoryPosition, error)
-	Order(ctx context.Context, id string) (*Order, error)
+	Order(ctx context.Context, id int64) (*Order, error)
 	Orders(ctx context.Context, query OrderQuery) (*PaginatedOrders, error)
-	CompleteOrder(ctx context.Context, id string) (*Order, error)
-	WarehousePosition(ctx context.Context, id string) (*WarehousePosition, error)
+	CompleteOrder(ctx context.Context, id int64) (*Order, error)
+	WarehousePosition(ctx context.Context, id int64) (*WarehousePosition, error)
 	WarehousePositions(ctx context.Context, offset int, limit int, sortBy []string) (*PaginatedWarehousePositions, error)
-	Product(ctx context.Context, id string) (*Product, error)
+	Product(ctx context.Context, id int64) (*Product, error)
 	Products(ctx context.Context, offset int, limit int, sortBy []string) (*PaginatedProducts, error)
 	CreateProductsFromTags(ctx context.Context, input CreateProductsFromTags) ([]*Product, error)
 	ValidateProducts(ctx context.Context, tags []string) (*ValidateProductsResult, error)
 }
 type SubscriptionResolver interface {
 	Counter(ctx context.Context) (<-chan int, error)
-	SessionDeleted(ctx context.Context) (<-chan string, error)
+	SessionDeleted(ctx context.Context) (<-chan int64, error)
 }
 
 type executableSchema struct {
@@ -307,7 +307,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UploadFile(childComplexity, args["file"].(*string)), true
+		return e.complexity.Mutation.UploadFile(childComplexity, args["file"].(*graphql.Upload)), true
 
 	case "Order.createdAt":
 		if e.complexity.Order.CreatedAt == nil {
@@ -480,7 +480,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.CompleteOrder(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.CompleteOrder(childComplexity, args["id"].(int64)), true
 
 	case "Query.createProductsFromTags":
 		if e.complexity.Query.CreateProductsFromTags == nil {
@@ -511,7 +511,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Order(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.Order(childComplexity, args["id"].(int64)), true
 
 	case "Query.orders":
 		if e.complexity.Query.Orders == nil {
@@ -535,7 +535,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Product(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.Product(childComplexity, args["id"].(int64)), true
 
 	case "Query.products":
 		if e.complexity.Query.Products == nil {
@@ -571,7 +571,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.User(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.User(childComplexity, args["id"].(int64)), true
 
 	case "Query.users":
 		if e.complexity.Query.Users == nil {
@@ -607,7 +607,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.WarehousePosition(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.WarehousePosition(childComplexity, args["id"].(int64)), true
 
 	case "Query.warehousePositions":
 		if e.complexity.Query.WarehousePositions == nil {
@@ -1171,22 +1171,22 @@ func (ec *executionContext) field_Mutation_uploadFile_args(ctx context.Context, 
 func (ec *executionContext) field_Mutation_uploadFile_argsFile(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*string, error) {
+) (*graphql.Upload, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["file"]
 	if !ok {
-		var zeroVal *string
+		var zeroVal *graphql.Upload
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("file"))
 	if tmp, ok := rawArgs["file"]; ok {
-		return ec.unmarshalOFile2ᚖstring(ctx, tmp)
+		return ec.unmarshalOFile2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚐUpload(ctx, tmp)
 	}
 
-	var zeroVal *string
+	var zeroVal *graphql.Upload
 	return zeroVal, nil
 }
 
@@ -1235,22 +1235,22 @@ func (ec *executionContext) field_Query_completeOrder_args(ctx context.Context, 
 func (ec *executionContext) field_Query_completeOrder_argsID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (string, error) {
+) (int64, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["id"]
 	if !ok {
-		var zeroVal string
+		var zeroVal int64
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 	if tmp, ok := rawArgs["id"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
+		return ec.unmarshalNID2int64(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal int64
 	return zeroVal, nil
 }
 
@@ -1299,22 +1299,22 @@ func (ec *executionContext) field_Query_order_args(ctx context.Context, rawArgs 
 func (ec *executionContext) field_Query_order_argsID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (string, error) {
+) (int64, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["id"]
 	if !ok {
-		var zeroVal string
+		var zeroVal int64
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 	if tmp, ok := rawArgs["id"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
+		return ec.unmarshalNID2int64(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal int64
 	return zeroVal, nil
 }
 
@@ -1363,22 +1363,22 @@ func (ec *executionContext) field_Query_product_args(ctx context.Context, rawArg
 func (ec *executionContext) field_Query_product_argsID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (string, error) {
+) (int64, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["id"]
 	if !ok {
-		var zeroVal string
+		var zeroVal int64
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 	if tmp, ok := rawArgs["id"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
+		return ec.unmarshalNID2int64(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal int64
 	return zeroVal, nil
 }
 
@@ -1513,22 +1513,22 @@ func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs m
 func (ec *executionContext) field_Query_user_argsID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (string, error) {
+) (int64, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["id"]
 	if !ok {
-		var zeroVal string
+		var zeroVal int64
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 	if tmp, ok := rawArgs["id"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
+		return ec.unmarshalNID2int64(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal int64
 	return zeroVal, nil
 }
 
@@ -1690,22 +1690,22 @@ func (ec *executionContext) field_Query_warehousePosition_args(ctx context.Conte
 func (ec *executionContext) field_Query_warehousePosition_argsID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (string, error) {
+) (int64, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["id"]
 	if !ok {
-		var zeroVal string
+		var zeroVal int64
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 	if tmp, ok := rawArgs["id"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
+		return ec.unmarshalNID2int64(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal int64
 	return zeroVal, nil
 }
 
@@ -1893,9 +1893,9 @@ func (ec *executionContext) _InventoryPosition_id(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_InventoryPosition_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2236,7 +2236,7 @@ func (ec *executionContext) _Mutation_uploadFile(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UploadFile(rctx, fc.Args["file"].(*string))
+		return ec.resolvers.Mutation().UploadFile(rctx, fc.Args["file"].(*graphql.Upload))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2376,9 +2376,9 @@ func (ec *executionContext) _Order_id(ctx context.Context, field graphql.Collect
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Order_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2820,9 +2820,9 @@ func (ec *executionContext) _PaginatedOrders_total(ctx context.Context, field gr
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt642string(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedOrders_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2924,9 +2924,9 @@ func (ec *executionContext) _PaginatedProducts_total(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt642string(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedProducts_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3028,9 +3028,9 @@ func (ec *executionContext) _PaginatedUsers_total(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt642string(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedUsers_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3128,9 +3128,9 @@ func (ec *executionContext) _PaginatedWarehousePositions_total(ctx context.Conte
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNInt642string(ctx, field.Selections, res)
+	return ec.marshalNInt642int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PaginatedWarehousePositions_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3172,9 +3172,9 @@ func (ec *executionContext) _Product_id(ctx context.Context, field graphql.Colle
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Product_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3272,9 +3272,9 @@ func (ec *executionContext) _Product_positionID(ctx context.Context, field graph
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Product_positionID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3553,7 +3553,7 @@ func (ec *executionContext) _Query_user(ctx context.Context, field graphql.Colle
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().User(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Query().User(rctx, fc.Args["id"].(int64))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3734,7 +3734,7 @@ func (ec *executionContext) _Query_order(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Order(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Query().Order(rctx, fc.Args["id"].(int64))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3859,7 +3859,7 @@ func (ec *executionContext) _Query_completeOrder(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().CompleteOrder(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Query().CompleteOrder(rctx, fc.Args["id"].(int64))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3923,7 +3923,7 @@ func (ec *executionContext) _Query_warehousePosition(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().WarehousePosition(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Query().WarehousePosition(rctx, fc.Args["id"].(int64))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -4048,7 +4048,7 @@ func (ec *executionContext) _Query_product(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Product(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Query().Product(rctx, fc.Args["id"].(int64))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -4494,9 +4494,9 @@ func (ec *executionContext) _Session_userId(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Session_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4774,7 +4774,7 @@ func (ec *executionContext) _Subscription_sessionDeleted(ctx context.Context, fi
 	}
 	return func(ctx context.Context) graphql.Marshaler {
 		select {
-		case res, ok := <-resTmp.(<-chan string):
+		case res, ok := <-resTmp.(<-chan int64):
 			if !ok {
 				return nil
 			}
@@ -4782,7 +4782,7 @@ func (ec *executionContext) _Subscription_sessionDeleted(ctx context.Context, fi
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.marshalNID2string(ctx, field.Selections, res).MarshalGQL(w)
+				ec.marshalNID2int64(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		case <-ctx.Done():
@@ -4830,9 +4830,9 @@ func (ec *executionContext) _Upload_id(ctx context.Context, field graphql.Collec
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Upload_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5182,9 +5182,9 @@ func (ec *executionContext) _User_id(ctx context.Context, field graphql.Collecte
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5578,9 +5578,9 @@ func (ec *executionContext) _WarehousePosition_id(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int64)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNID2int64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_WarehousePosition_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -7561,7 +7561,7 @@ func (ec *executionContext) unmarshalInputCreateProductsFromTags(ctx context.Con
 		switch k {
 		case "positionId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("positionId"))
-			data, err := ec.unmarshalNID2string(ctx, v)
+			data, err := ec.unmarshalNID2int64(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -7595,7 +7595,7 @@ func (ec *executionContext) unmarshalInputInventoryItem(ctx context.Context, obj
 		switch k {
 		case "positionId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("positionId"))
-			data, err := ec.unmarshalNID2string(ctx, v)
+			data, err := ec.unmarshalNID2int64(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -9202,13 +9202,13 @@ func (ec *executionContext) unmarshalNCreateProductsFromTags2githubᚗcomᚋiota
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
-	res, err := graphql.UnmarshalID(v)
+func (ec *executionContext) unmarshalNID2int64(ctx context.Context, v interface{}) (int64, error) {
+	res, err := graphql.UnmarshalInt64(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
-	res := graphql.MarshalID(v)
+func (ec *executionContext) marshalNID2int64(ctx context.Context, sel ast.SelectionSet, v int64) graphql.Marshaler {
+	res := graphql.MarshalInt64(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -9232,13 +9232,13 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) unmarshalNInt642string(ctx context.Context, v interface{}) (string, error) {
-	res, err := graphql.UnmarshalString(v)
+func (ec *executionContext) unmarshalNInt642int64(ctx context.Context, v interface{}) (int64, error) {
+	res, err := graphql.UnmarshalInt64(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNInt642string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
-	res := graphql.MarshalString(v)
+func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.SelectionSet, v int64) graphql.Marshaler {
+	res := graphql.MarshalInt64(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -10113,19 +10113,19 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalOFile2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
+func (ec *executionContext) unmarshalOFile2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚐUpload(ctx context.Context, v interface{}) (*graphql.Upload, error) {
 	if v == nil {
 		return nil, nil
 	}
-	res, err := graphql.UnmarshalString(v)
+	res, err := graphql.UnmarshalUpload(v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOFile2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+func (ec *executionContext) marshalOFile2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚐUpload(ctx context.Context, sel ast.SelectionSet, v *graphql.Upload) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	res := graphql.MarshalString(*v)
+	res := graphql.MarshalUpload(*v)
 	return res
 }
 

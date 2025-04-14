@@ -9,17 +9,17 @@ import (
 )
 
 type CreateProductsFromTags struct {
-	PositionID string   `json:"positionId"`
+	PositionID int64    `json:"positionId"`
 	Tags       []string `json:"tags"`
 }
 
 type InventoryItem struct {
-	PositionID string `json:"positionId"`
-	Found      int    `json:"found"`
+	PositionID int64 `json:"positionId"`
+	Found      int   `json:"found"`
 }
 
 type InventoryPosition struct {
-	ID    string   `json:"id"`
+	ID    int64    `json:"id"`
 	Title string   `json:"title"`
 	Tags  []string `json:"tags"`
 }
@@ -28,7 +28,7 @@ type Mutation struct {
 }
 
 type Order struct {
-	ID        string       `json:"id"`
+	ID        int64        `json:"id"`
 	Type      string       `json:"type"`
 	Status    string       `json:"status"`
 	Items     []*OrderItem `json:"items"`
@@ -51,28 +51,28 @@ type OrderQuery struct {
 
 type PaginatedOrders struct {
 	Data  []*Order `json:"data"`
-	Total string   `json:"total"`
+	Total int64    `json:"total"`
 }
 
 type PaginatedProducts struct {
 	Data  []*Product `json:"data"`
-	Total string     `json:"total"`
+	Total int64      `json:"total"`
 }
 
 type PaginatedUsers struct {
 	Data  []*User `json:"data"`
-	Total string  `json:"total"`
+	Total int64   `json:"total"`
 }
 
 type PaginatedWarehousePositions struct {
 	Data  []*WarehousePosition `json:"data"`
-	Total string               `json:"total"`
+	Total int64                `json:"total"`
 }
 
 type Product struct {
-	ID         string             `json:"id"`
+	ID         int64              `json:"id"`
 	Position   *WarehousePosition `json:"position"`
-	PositionID string             `json:"positionID"`
+	PositionID int64              `json:"positionID"`
 	Rfid       string             `json:"rfid"`
 	Status     string             `json:"status"`
 	CreatedAt  time.Time          `json:"createdAt"`
@@ -84,7 +84,7 @@ type Query struct {
 
 type Session struct {
 	Token     string    `json:"token"`
-	UserID    string    `json:"userId"`
+	UserID    int64     `json:"userId"`
 	IP        string    `json:"ip"`
 	UserAgent string    `json:"userAgent"`
 	ExpiresAt time.Time `json:"expiresAt"`
@@ -95,7 +95,7 @@ type Subscription struct {
 }
 
 type Upload struct {
-	ID       string            `json:"id"`
+	ID       int64             `json:"id"`
 	URL      string            `json:"url"`
 	Hash     string            `json:"hash"`
 	Path     string            `json:"path"`
@@ -112,7 +112,7 @@ type UploadFilter struct {
 }
 
 type User struct {
-	ID         string    `json:"id"`
+	ID         int64     `json:"id"`
 	FirstName  string    `json:"firstName"`
 	LastName   string    `json:"lastName"`
 	Email      string    `json:"email"`
@@ -127,7 +127,7 @@ type ValidateProductsResult struct {
 }
 
 type WarehousePosition struct {
-	ID        string    `json:"id"`
+	ID        int64     `json:"id"`
 	Title     string    `json:"title"`
 	Barcode   string    `json:"barcode"`
 	CreatedAt time.Time `json:"createdAt"`
