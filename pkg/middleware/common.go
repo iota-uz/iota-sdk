@@ -133,8 +133,8 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 					traceID := spanContext.TraceID().String()
 					spanID := spanContext.SpanID().String()
 
-					w.Header().Set("X-Trace-ID", traceID)
-					w.Header().Set("X-Span-ID", spanID)
+					w.Header().Set("X-Trace-Id", traceID)
+					w.Header().Set("X-Span-Id", spanID)
 
 					fieldsLogger = fieldsLogger.WithFields(logrus.Fields{
 						"trace-id": traceID,

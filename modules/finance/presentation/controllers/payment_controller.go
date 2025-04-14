@@ -2,11 +2,12 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -216,6 +217,10 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = c.paymentService.Update(r.Context(), id, &dto)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -187,13 +187,13 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("", di.NewHandler(c.Users).Handler()).Methods(http.MethodGet)
-	router.HandleFunc("/new", di.NewHandler(c.GetNew).Handler()).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.GetEdit).Handler()).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.Users)).Methods(http.MethodGet)
+	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
 
-	router.HandleFunc("", di.NewHandler(c.Create).Handler()).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.Update).Handler()).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", di.NewHandler(c.Delete).Handler()).Methods(http.MethodDelete)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
 	c.realtime.Register()
 }
@@ -243,7 +243,7 @@ func (c *UsersController) Users(
 	groupService *services.GroupService,
 ) {
 	params := composables.UsePaginated(r)
-	groupID := r.URL.Query().Get("groupID")
+	groupIDs := r.URL.Query()["groupID"]
 
 	tenant, err := composables.UseTenant(r.Context())
 	if err != nil {
@@ -268,11 +268,10 @@ func (c *UsersController) Users(
 		},
 	}
 
-	// Apply group filter if provided
-	if groupID != "" {
+	if len(groupIDs) > 0 {
 		findParams.Filters = append(findParams.Filters, user.Filter{
 			Column: user.GroupID,
-			Filter: repo.Eq(groupID),
+			Filter: repo.In(groupIDs),
 		})
 	}
 
@@ -319,12 +318,11 @@ func (c *UsersController) Users(
 	}
 
 	props := &users.IndexPageProps{
-		Users:         mapping.MapViewModels(us, mappers.UserToViewModel),
-		Groups:        mapping.MapViewModels(groups, mappers.GroupToViewModel),
-		SelectedGroup: groupID,
-		Page:          params.Page,
-		PerPage:       params.Limit,
-		HasMore:       total > int64(params.Page*params.Limit),
+		Users:   mapping.MapViewModels(us, mappers.UserToViewModel),
+		Groups:  mapping.MapViewModels(groups, mappers.GroupToViewModel),
+		Page:    params.Page,
+		PerPage: params.Limit,
+		HasMore: total > int64(params.Page*params.Limit),
 	}
 
 	if htmx.IsHxRequest(r) {

@@ -143,7 +143,7 @@ func extractStructFields(structType *ast.StructType) []string {
 		return nil
 	}
 
-	var fields []string
+	fields := make([]string, 0, 10) // Pre-allocate with a reasonable capacity
 	for _, field := range structType.Fields.List {
 		if len(field.Names) == 0 || !isExported(field.Names[0].Name) {
 			continue

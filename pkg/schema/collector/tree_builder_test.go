@@ -209,6 +209,8 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				assert.Len(t, table.Defs, 3, "Should have 3 definitions (2 initial + 1 added)")
@@ -231,6 +233,8 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				assert.Len(t, table.Defs, 2, "Should still have 2 definitions (add should be skipped)")
@@ -255,6 +259,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				assert.Len(t, table.Defs, 2, "Should have 2 definitions left (id, value)")
@@ -281,6 +286,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				assert.Len(t, table.Defs, 2, "Should still have 2 definitions")
@@ -305,6 +311,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				assert.Len(t, table.Defs, 4, "Should have 4 definitions (3 cols + 1 constraint)")
@@ -333,6 +340,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				assert.Len(t, table.Defs, 2, "Should have 2 definitions left (2 cols)")
@@ -355,6 +363,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				assert.Len(t, table.Defs, 2, "Should still have 2 definitions")
@@ -379,6 +388,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				col, exists := findDefByName[*tree.ColumnTableDef](table.Defs, "name")
@@ -401,6 +411,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				col, exists := findDefByName[*tree.ColumnTableDef](table.Defs, "name")
@@ -424,6 +435,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				table, ok := finalState.tables[testTblNameNorm]
 				require.True(t, ok, "Table should still exist")
 				col, exists := findDefByName[*tree.ColumnTableDef](table.Defs, "name")
@@ -448,6 +460,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				// State should be unchanged because the function should return early
 				assert.True(t, finalState.drops[testTblNameNorm], "Table should remain marked as dropped")
 			},
@@ -462,6 +475,7 @@ func TestApplyAlterTable(t *testing.T) {
 				},
 			},
 			assertions: func(t *testing.T, finalState *schemaState) {
+				t.Helper()
 				assert.Empty(t, finalState.tables, "Tables map should remain empty")
 				// Check log for warning ideally
 			},

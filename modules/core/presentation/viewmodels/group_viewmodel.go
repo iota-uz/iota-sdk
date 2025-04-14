@@ -28,8 +28,23 @@ func (g *Group) GetInitials() string {
 	}
 
 	if len(words) == 1 {
-		return strings.ToUpper(string(words[0][0]))
+		firstWord := []rune(words[0])
+		if len(firstWord) > 0 {
+			return strings.ToUpper(string(firstWord[0]))
+		}
+		return ""
 	}
 
-	return strings.ToUpper(string(words[0][0]) + string(words[len(words)-1][0]))
+	firstWord := []rune(words[0])
+	lastWord := []rune(words[len(words)-1])
+
+	initials := ""
+	if len(firstWord) > 0 {
+		initials += strings.ToUpper(string(firstWord[0]))
+	}
+	if len(lastWord) > 0 {
+		initials += strings.ToUpper(string(lastWord[0]))
+	}
+
+	return initials
 }

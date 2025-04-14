@@ -77,12 +77,10 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 		return nil, errors.Wrapf(err, "failed to get tenant from context")
 	}
 
-	newRole, err := role.New(adminRoleName, adminRoleDesc, app.RBAC().Permissions())
-	if err != nil {
-		return nil, err
-	}
-	newRole = newRole.SetTenantID(tenant.ID)
-
+	newRole := role.New(adminRoleName,
+		role.WithDescription(adminRoleDesc),
+		role.WithPermissions(app.RBAC().Permissions()),
+		role.WithTenantID(tenant.ID))
 	logger.Infof("Creating role %s", adminRoleName)
 	return roleRepository.Create(ctx, newRole)
 }

@@ -40,8 +40,8 @@ func MustUseUser(ctx context.Context) user.User {
 }
 
 func CanUser(ctx context.Context, permission *permission.Permission) error {
-	u, err := UseUser(ctx)
-	if err != nil {
+	u, _ := UseUser(ctx)
+	if u == nil {
 		return nil
 	}
 	if !u.Can(permission) {
@@ -51,11 +51,23 @@ func CanUser(ctx context.Context, permission *permission.Permission) error {
 }
 
 func CanUserAll(ctx context.Context, perms ...rbac.Permission) error {
-	u, err := UseUser(ctx)
-	if err != nil || len(perms) == 0 {
+	u, _ := UseUser(ctx)
+	if u == nil || len(perms) == 0 {
 		return nil // don't check if the user isn't in the context
 	}
 	if !rbac.And(perms...).Can(u) {
+		return ErrForbidden
+	}
+	return nil
+}
+
+// CanUserAny checks if the user has any of the given permissions (OR logic)
+func CanUserAny(ctx context.Context, perms ...rbac.Permission) error {
+	u, _ := UseUser(ctx)
+	if u == nil || len(perms) == 0 {
+		return nil // don't check if the user isn't in the context
+	}
+	if !rbac.Or(perms...).Can(u) {
 		return ErrForbidden
 	}
 	return nil

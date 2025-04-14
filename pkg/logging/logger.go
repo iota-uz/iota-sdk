@@ -2,9 +2,11 @@ package logging
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -127,7 +129,8 @@ func (h *LokiHook) Fire(entry *logrus.Entry) error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", h.URL, bytes.NewBuffer(buf))
+	ctx := context.Background()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.URL, bytes.NewBuffer(buf))
 	if err != nil {
 		return err
 	}
@@ -137,7 +140,11 @@ func (h *LokiHook) Fire(entry *logrus.Entry) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("error closing response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)

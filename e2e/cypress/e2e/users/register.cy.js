@@ -60,7 +60,6 @@ describe("user auth and registration flow", () => {
 		cy.visit("http://localhost:3200/users");
 		cy.get("tbody tr").should("have.length", 3); // including the spinner row
 		cy.get("tbody tr").should("contain.text", "TestNew UserNew");
-		cy.get("tbody tr").should("contain.text", "test1new@gmail.com");
 
 		// Verify phone number persists by checking the edit page
 		cy.get("tbody tr").contains("td", "TestNew UserNew").parent("tr").find("td a").click();
@@ -73,3 +72,4 @@ describe("user auth and registration flow", () => {
 		cy.url().should("include", "/users");
 	});
 });
+

@@ -24,10 +24,18 @@ func Generate(config Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %v", err)
 	}
-	defer outputFile.Close()
+	defer func() {
+		if closeErr := outputFile.Close(); closeErr != nil {
+			log.Printf("Error closing output file: %v", closeErr)
+		}
+	}()
 
-	fmt.Fprintf(outputFile, "# IOTA SDK Documentation (github.com/iota-uz/iota-sdk)\n\n")
-	fmt.Fprintf(outputFile, "Generated automatically from source code.\n\n")
+	if _, err := fmt.Fprintf(outputFile, "# IOTA SDK Documentation (github.com/iota-uz/iota-sdk)\n\n"); err != nil {
+		return fmt.Errorf("failed to write to output file: %v", err)
+	}
+	if _, err := fmt.Fprintf(outputFile, "Generated automatically from source code.\n\n"); err != nil {
+		return fmt.Errorf("failed to write to output file: %v", err)
+	}
 
 	dirs := []string{config.SourceDir}
 	if config.Recursive {
@@ -83,24 +91,24 @@ func processDirectory(dir string, outputFile *os.File) {
 			continue
 		}
 
-		fmt.Fprintf(outputFile, "## Package `%s` (%s)\n\n", name, dir)
+		_, _ = fmt.Fprintf(outputFile, "## Package `%s` (%s)\n\n", name, dir)
 
 		docPkg := doc.New(pkg, "./", doc.AllDecls)
 
 		if docPkg.Doc != "" {
-			fmt.Fprintf(outputFile, "%s\n\n", docPkg.Doc)
+			_, _ = fmt.Fprintf(outputFile, "%s\n\n", docPkg.Doc)
 		}
 
 		if len(docPkg.Types) > 0 {
-			fmt.Fprintf(outputFile, "### Types\n\n")
+			_, _ = fmt.Fprintf(outputFile, "### Types\n\n")
 			for _, t := range docPkg.Types {
 				if !isExported(t.Name) {
 					continue
 				}
 
-				fmt.Fprintf(outputFile, "#### %s\n\n", t.Name)
+				_, _ = fmt.Fprintf(outputFile, "#### %s\n\n", t.Name)
 				if t.Doc != "" {
-					fmt.Fprintf(outputFile, "%s\n\n", t.Doc)
+					_, _ = fmt.Fprintf(outputFile, "%s\n\n", t.Doc)
 				}
 
 				for _, spec := range t.Decl.Specs {
@@ -109,38 +117,38 @@ func processDirectory(dir string, outputFile *os.File) {
 						case *ast.StructType:
 							fields := extractStructFields(underlying)
 							if len(fields) > 0 {
-								fmt.Fprintf(outputFile, "```go\ntype %s struct {\n", t.Name)
+								_, _ = fmt.Fprintf(outputFile, "```go\ntype %s struct {\n", t.Name)
 								for _, field := range fields {
-									fmt.Fprintf(outputFile, "    %s\n", field)
+									_, _ = fmt.Fprintf(outputFile, "    %s\n", field)
 								}
-								fmt.Fprintf(outputFile, "}\n```\n\n")
+								_, _ = fmt.Fprintf(outputFile, "}\n```\n\n")
 							}
 						case *ast.InterfaceType:
 							methods := extractInterfaceMethods(underlying)
 							if len(methods) > 0 {
-								fmt.Fprintf(outputFile, "##### Interface Methods\n\n")
+								_, _ = fmt.Fprintf(outputFile, "##### Interface Methods\n\n")
 								for _, method := range methods {
-									fmt.Fprintf(outputFile, "- `%s`\n", method)
+									_, _ = fmt.Fprintf(outputFile, "- `%s`\n", method)
 								}
-								fmt.Fprintf(outputFile, "\n")
+								_, _ = fmt.Fprintf(outputFile, "\n")
 							}
 						}
 					}
 				}
 
 				if len(t.Methods) > 0 {
-					fmt.Fprintf(outputFile, "##### Methods\n\n")
+					_, _ = fmt.Fprintf(outputFile, "##### Methods\n\n")
 					for _, m := range t.Methods {
 						if !isExported(m.Name) {
 							continue
 						}
 
 						methodSig := getMethodSignature(fset, m, t.Name)
-						fmt.Fprintf(outputFile, "- `func %s`\n", methodSig)
+						_, _ = fmt.Fprintf(outputFile, "- `func %s`\n", methodSig)
 						if m.Doc != "" {
-							fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(m.Doc, "\n", "\n  ", -1))
+							_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(m.Doc, "\n", "\n  ", -1))
 						} else {
-							fmt.Fprintf(outputFile, "\n")
+							_, _ = fmt.Fprintf(outputFile, "\n")
 						}
 					}
 				}
@@ -148,33 +156,33 @@ func processDirectory(dir string, outputFile *os.File) {
 		}
 
 		if len(docPkg.Funcs) > 0 {
-			fmt.Fprintf(outputFile, "### Functions\n\n")
+			_, _ = fmt.Fprintf(outputFile, "### Functions\n\n")
 			for _, f := range docPkg.Funcs {
 				if !isExported(f.Name) {
 					continue
 				}
 
 				sig := getFunctionSignature(fset, f)
-				fmt.Fprintf(outputFile, "#### `func %s`\n\n", sig)
+				_, _ = fmt.Fprintf(outputFile, "#### `func %s`\n\n", sig)
 				if f.Doc != "" {
-					fmt.Fprintf(outputFile, "%s\n\n", f.Doc)
+					_, _ = fmt.Fprintf(outputFile, "%s\n\n", f.Doc)
 				}
 			}
 		}
 
 		if len(docPkg.Vars) > 0 || len(docPkg.Consts) > 0 {
-			fmt.Fprintf(outputFile, "### Variables and Constants\n\n")
+			_, _ = fmt.Fprintf(outputFile, "### Variables and Constants\n\n")
 
 			for _, v := range docPkg.Vars {
 				if !hasExportedName(v.Names) {
 					continue
 				}
 
-				fmt.Fprintf(outputFile, "- Var: `%s`\n", v.Names)
+				_, _ = fmt.Fprintf(outputFile, "- Var: `%s`\n", v.Names)
 				if v.Doc != "" {
-					fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(v.Doc, "\n", "\n  ", -1))
+					_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(v.Doc, "\n", "\n  ", -1))
 				} else {
-					fmt.Fprintf(outputFile, "\n")
+					_, _ = fmt.Fprintf(outputFile, "\n")
 				}
 			}
 
@@ -183,15 +191,15 @@ func processDirectory(dir string, outputFile *os.File) {
 					continue
 				}
 
-				fmt.Fprintf(outputFile, "- Const: `%s`\n", c.Names)
+				_, _ = fmt.Fprintf(outputFile, "- Const: `%s`\n", c.Names)
 				if c.Doc != "" {
-					fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(c.Doc, "\n", "\n  ", -1))
+					_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(c.Doc, "\n", "\n  ", -1))
 				} else {
-					fmt.Fprintf(outputFile, "\n")
+					_, _ = fmt.Fprintf(outputFile, "\n")
 				}
 			}
 		}
 
-		fmt.Fprintf(outputFile, "---\n\n")
+		_, _ = fmt.Fprintf(outputFile, "---\n\n")
 	}
 }

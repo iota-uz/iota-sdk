@@ -29,9 +29,6 @@ linters-settings:
 Available make targets for iotalinter:
 
 ```bash
-# Build the JSON linter
-make build-iota-linter
-
 # Run the JSON linter
 make run-iota-linter
 
@@ -53,10 +50,6 @@ make lint
 
 3. To use the iotalinter:
 ```bash
-# First, build the linter
-make build-iota-linter
-
-# Then run it
 make run-iota-linter
 ```
 

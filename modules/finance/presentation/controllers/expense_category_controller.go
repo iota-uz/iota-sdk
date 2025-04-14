@@ -83,13 +83,21 @@ func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*v
 
 func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {
 	paginationParams := composables.UsePaginated(r)
-	params, err := composables.UseQuery(&category.FindParams{
+	params := &category.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
-		SortBy: []string{"created_at desc"},
-	}, r)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error using query")
+		SortBy: category.SortBy{
+			Fields: []category.Field{
+				category.CreatedAt,
+			},
+			Ascending: false,
+		},
+	}
+
+	// Use query parameters for additional filtering
+	queryParams := r.URL.Query()
+	if search := queryParams.Get("search"); search != "" {
+		params.Search = search
 	}
 
 	expenseEntities, err := c.expenseCategoryService.GetPaginated(r.Context(), params)
@@ -98,7 +106,7 @@ func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request
 	}
 	viewCategories := mapping.MapViewModels(expenseEntities, mappers.ExpenseCategoryToViewModel)
 
-	total, err := c.expenseCategoryService.Count(r.Context())
+	total, err := c.expenseCategoryService.Count(r.Context(), params)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting expenses")
 	}

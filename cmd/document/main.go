@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -34,5 +35,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Documentation generated successfully at %s\n", *outputPath)
+	log.Printf("Documentation generated successfully at %s", *outputPath)
 }

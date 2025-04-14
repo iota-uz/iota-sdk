@@ -35,6 +35,24 @@ templ EditForm(props *EditPageProps) {
 				},
 				Error: props.Errors["Amount"],
 			})
+			@input.Date(&input.Props{
+				Label: pageCtx.T("Expenses.Single.Date"),
+				Error: props.Errors["Date"],
+				Attrs: templ.Attributes{
+					"value": props.Expense.Date,
+					"name":  "Date",
+					"form":  "save-form",
+				},
+			})
+			@input.Date(&input.Props{
+				Label: pageCtx.T("Expenses.Single.AccountingPeriod"),
+				Error: props.Errors["AccountingPeriod"],
+				Attrs: templ.Attributes{
+					"value": props.Expense.AccountingPeriod,
+					"name":  "AccountingPeriod",
+					"form":  "save-form",
+				},
+			})
 			@AccountSelect(&AccountSelectProps{
 				Value:    props.Expense.AccountID,
 				Accounts: props.Accounts,

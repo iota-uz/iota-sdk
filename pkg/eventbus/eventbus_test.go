@@ -59,10 +59,8 @@ func TestPublisher_Subscribe(t *testing.T) {
 
 func TestMatchSignature(t *testing.T) {
 	type args struct {
-		data interface{}
 	}
 	type args2 struct {
-		data interface{}
 	}
 	if !MatchSignature(func(e *args) {}, []interface{}{&args{}}) {
 		t.Error("expected true")

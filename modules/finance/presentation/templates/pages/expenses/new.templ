@@ -33,6 +33,22 @@ templ CreateForm(props *CreatePageProps) {
 				Attrs: templ.Attributes{"name": "Amount", "value": props.Expense.Amount},
 				Error: props.Errors["Amount"],
 			})
+			@input.Date(&input.Props{
+				Label: pageCtx.T("Expenses.Single.Date"),
+				Error: props.Errors["Date"],
+				Attrs: templ.Attributes{
+					"value": props.Expense.Date,
+					"name":  "Date",
+				},
+			})
+			@input.Date(&input.Props{
+				Label: pageCtx.T("Expenses.Single.AccountingPeriod"),
+				Error: props.Errors["AccountingPeriod"],
+				Attrs: templ.Attributes{
+					"value": props.Expense.AccountingPeriod,
+					"name":  "AccountingPeriod",
+				},
+			})
 			@AccountSelect(&AccountSelectProps{
 				Value:    "",
 				Accounts: props.Accounts,
