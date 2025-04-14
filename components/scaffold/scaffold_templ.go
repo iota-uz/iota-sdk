@@ -287,7 +287,7 @@ func TableContent(config *TableConfig) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-trigger=\"keyup changed delay:300ms from:(form input), change changed from:(form select), change from:(form input[type=&#39;checkbox&#39;])\" hx-target=\"#table-body\" hx-swap=\"innerHTML\" hx-indicator=\"#table-body\"><input type=\"hidden\" name=\"page\" value=\"1\"><div class=\"flex-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-push-url=\"true\" hx-trigger=\"keyup changed delay:300ms from:(form input), change changed from:(form select), change from:(form input[type=&#39;checkbox&#39;])\" hx-target=\"#table-body\" hx-swap=\"innerHTML\" hx-indicator=\"#table-body\"><input type=\"hidden\" name=\"page\" value=\"1\"><div class=\"flex-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -424,7 +424,7 @@ func Content(config *TableConfig) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(config.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 138, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/scaffold.templ`, Line: 139, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {

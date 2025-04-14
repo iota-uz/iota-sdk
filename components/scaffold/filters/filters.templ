@@ -1,33 +1,11 @@
 package filters
 
 import (
+	"github.com/Oudwins/tailwind-merge-go"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 )
-
-type TableFilter struct {
-	Name        string
-	formatter   func(o OptionItem) string
-	placeholder string
-	options     []OptionItem
-	multiple    bool
-}
-
-func NewFilter(name string, opts ...Option) *TableFilter {
-	f := &TableFilter{
-		Name: name,
-	}
-	for _, opt := range opts {
-		opt(f)
-	}
-	return f
-}
-
-func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
-	t.options = append(t.options, opts...)
-	return t
-}
 
 type DropdownProps struct {
 	Label string
@@ -36,18 +14,7 @@ type DropdownProps struct {
 
 templ Dropdown(props DropdownProps) {
 	<div
-		x-data="{
-				open: false,
-				selected: [],
-				toggleValue(val) {
-					const index = this.selected.indexOf(val);
-					if (index === -1) {
-						this.selected.push(val);
-					} else {
-						this.selected.splice(index, 1);
-					}
-				}
-			}"
+		x-data="filtersDropdown"
 		class="relative w-32"
 	>
 		<!-- Trigger -->
@@ -102,21 +69,25 @@ templ Dropdown(props DropdownProps) {
 }
 
 type DropdownItemProps struct {
-	Class templ.CSSClasses
-	Label string
-	Value string
-	Name  string
+	Class   templ.CSSClasses
+	Label   string
+	Value   string
+	Name    string
+	Checked bool
 }
 
 templ DropdownItem(props DropdownItemProps) {
 	<li
 		class={
-			"hover:bg-gray-100 p-2",
-			props.Class.String(),
+			twmerge.Merge(
+				"hover:bg-gray-100 p-2",
+				props.Class.String(),
+			),
 		}
 	>
 		@input.Checkbox(&input.CheckboxProps{
-			Label: props.Label,
+			Label:   props.Label,
+			Checked: props.Checked,
 			Attrs: templ.Attributes{
 				"value":    props.Value,
 				"name":     props.Name,
@@ -135,9 +106,10 @@ templ (t *TableFilter) Component() {
 		}) {
 			for _, opt := range t.options {
 				@DropdownItem(DropdownItemProps{
-					Label: opt.Label,
-					Value: opt.Value,
-					Name:  t.Name,
+					Label:   opt.Label,
+					Value:   opt.Value,
+					Name:    t.Name,
+					Checked: isOptionChecked(ctx, t.Name, opt),
 				})
 			}
 		}
