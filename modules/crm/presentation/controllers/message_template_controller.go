@@ -106,7 +106,6 @@ func (c *MessageTemplateController) GetEdit(w http.ResponseWriter, r *http.Reque
 		if errors.Is(err, persistence.ErrMessageTemplateNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
-
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return

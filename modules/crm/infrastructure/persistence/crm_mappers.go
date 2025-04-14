@@ -21,7 +21,6 @@ import (
 )
 
 func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
-
 	options := []client.Option{
 		client.WithID(dbRow.ID),
 		client.WithCreatedAt(dbRow.CreatedAt),
@@ -90,7 +89,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 
 	var email sql.NullString
 
-	if domainEntity.Email() != nil && domainEntity.Email() != nil {
+	if domainEntity.Email() != nil {
 		email = mapping.ValueToSQLNullString(domainEntity.Email().Value())
 	}
 

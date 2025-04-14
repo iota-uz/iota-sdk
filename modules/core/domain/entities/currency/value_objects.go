@@ -19,7 +19,7 @@ const (
 	JpyCode Code = "JPY"
 	RubCode Code = "RUB"
 	TryCode Code = "TRY"
-	SomCode Code = "SOM"
+	UzsCode Code = "UZS"
 )
 
 func (s Code) IsValid() bool {
@@ -48,7 +48,7 @@ const (
 	JpySymbol Symbol = "¥"
 	RubSymbol Symbol = "₽"
 	TrySymbol Symbol = "₺"
-	SomSymbol Symbol = "S"
+	UzsSymbol Symbol = "UZS"
 )
 
 func (s Symbol) IsValid() bool {

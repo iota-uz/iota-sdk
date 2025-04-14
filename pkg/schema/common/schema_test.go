@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/psql-parser/sql/sem/tree"
 	"github.com/iota-uz/psql-parser/sql/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newColumn(t *testing.T, name string, typ *types.T, qualifications ...tree.ColumnQualification) *tree.ColumnTableDef {
@@ -18,7 +19,7 @@ func newColumn(t *testing.T, name string, typ *types.T, qualifications ...tree.C
 		})
 	}
 	col, err := tree.NewColumnTableDef(tree.Name(name), typ, false, qs)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	return col
 }
 
@@ -239,7 +240,7 @@ func TestSortTableDefs(t *testing.T) {
 			expected := tt.expected()
 
 			result, err := SortTableDefs(tables)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// We need to verify the order is correct for dependency resolution
 			assert.Equal(t, len(expected), len(result), "Result should have the same number of tables")

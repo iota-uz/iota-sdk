@@ -3,8 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"io"
-	"log"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/dialogue"
@@ -72,6 +70,8 @@ func (s *DialogueService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
+// streamCompletions is currently not used but may be needed in the future
+/*
 func (s *DialogueService) streamCompletions(
 	ctx context.Context,
 	messages []llm.ChatCompletionMessage,
@@ -142,12 +142,13 @@ func (s *DialogueService) streamCompletions(
 	}()
 	return ch, nil
 }
+*/
 
 func (s *DialogueService) fakeStream() (chan openai.ChatCompletionMessage, error) {
 	ch := make(chan openai.ChatCompletionMessage)
 	msg := "Hello, how can I help you?"
 	go func() {
-		for i, _ := range msg {
+		for i := range msg {
 			ch <- openai.ChatCompletionMessage{
 				Role:    openai.ChatMessageRoleAssistant,
 				Content: msg[:i+1],

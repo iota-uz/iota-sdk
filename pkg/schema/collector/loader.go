@@ -50,7 +50,7 @@ func (l *FileLoader) LoadExistingSchema(ctx context.Context) (*common.Schema, er
 	if err != nil {
 		if os.IsNotExist(err) {
 			l.logger.Info("No existing migrations directory found")
-			return nil, nil
+			return nil, err
 		}
 		return nil, fmt.Errorf("failed to read migrations directory: %w", err)
 	}

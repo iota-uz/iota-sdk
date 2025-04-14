@@ -77,8 +77,13 @@ func (c *Collector) CollectMigrations(ctx context.Context) (*common.ChangeSet, *
 }
 
 func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) error {
-	if (upChanges == nil || len(upChanges.Changes) == 0) && (downChanges == nil || len(downChanges.Changes) == 0) {
-		c.logger.Info("No changes to store")
+	if upChanges == nil || len(upChanges.Changes) == 0 {
+		c.logger.Info("No up changes to store")
+		return nil
+	}
+
+	if downChanges == nil || len(downChanges.Changes) == 0 {
+		c.logger.Info("No down changes to store")
 		return nil
 	}
 
@@ -110,45 +115,42 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 	// Up migrations
 	buffer.WriteString("-- +migrate Up\n\n")
 
-	if upChanges != nil && len(upChanges.Changes) > 0 {
-		// Process each up change and convert to SQL
-		for i, change := range upChanges.Changes {
-			switch node := change.(type) {
-			case *tree.CreateTable:
-				buffer.WriteString(fmt.Sprintf("-- Change CREATE_TABLE: %s\n", node.Table.TableName))
-				buffer.WriteString(pPrinter.Pretty(node))
-				buffer.WriteString(";\n\n")
+	// Process each up change and convert to SQL
+	for i, change := range upChanges.Changes {
+		switch node := change.(type) {
+		case *tree.CreateTable:
+			buffer.WriteString(fmt.Sprintf("-- Change CREATE_TABLE: %s\n", node.Table.TableName))
+			buffer.WriteString(pPrinter.Pretty(node))
+			buffer.WriteString(";\n\n")
 
-			case *tree.AlterTable:
-				// Handle each command in the AlterTable
-				for _, cmd := range node.Cmds {
-					switch altCmd := cmd.(type) {
-					case *tree.AlterTableAddColumn:
-						buffer.WriteString(fmt.Sprintf("-- Change ADD_COLUMN: %s\n", altCmd.ColumnDef.Name))
-						buffer.WriteString(pPrinter.Pretty(node))
-						buffer.WriteString(";\n\n")
-					case *tree.AlterTableAlterColumnType:
-						buffer.WriteString(fmt.Sprintf("-- Change ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
-						buffer.WriteString(pPrinter.Pretty(node))
-						buffer.WriteString(";\n\n")
-					default:
-						buffer.WriteString(fmt.Sprintf("-- Change ALTER_TABLE: %T\n", altCmd))
-						buffer.WriteString(pPrinter.Pretty(node))
-						buffer.WriteString(";\n\n")
-					}
-				}
-			case *tree.CreateIndex:
-				buffer.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
-				buffer.WriteString(pPrinter.Pretty(node))
-				buffer.WriteString(";\n\n")
-			default:
-				c.logger.Warnf("Unknown up change type at index %d: %T", i, change)
-				buffer.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
-				// Try to use String() method if available via reflection
-				if stringer, ok := change.(fmt.Stringer); ok {
-					buffer.WriteString(stringer.String())
+		case *tree.AlterTable:
+			// Handle each command in the AlterTable
+			for _, cmd := range node.Cmds {
+				switch altCmd := cmd.(type) {
+				case *tree.AlterTableAddColumn:
+					buffer.WriteString(fmt.Sprintf("-- Change ADD_COLUMN: %s\n", altCmd.ColumnDef.Name))
+					buffer.WriteString(pPrinter.Pretty(node))
+					buffer.WriteString(";\n\n")
+				case *tree.AlterTableAlterColumnType:
+					buffer.WriteString(fmt.Sprintf("-- Change ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
+					buffer.WriteString(pPrinter.Pretty(node))
+					buffer.WriteString(";\n\n")
+				default:
+					buffer.WriteString(pPrinter.Pretty(node))
 					buffer.WriteString(";\n\n")
 				}
+			}
+		case *tree.CreateIndex:
+			buffer.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
+			buffer.WriteString(pPrinter.Pretty(node))
+			buffer.WriteString(";\n\n")
+		default:
+			c.logger.Warnf("Unknown up change type at index %d: %T", i, change)
+			buffer.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
+			// Try to use String() method if available via reflection
+			if stringer, ok := change.(fmt.Stringer); ok {
+				buffer.WriteString(stringer.String())
+				buffer.WriteString(";\n\n")
 			}
 		}
 	}
@@ -178,7 +180,6 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					default:
-						buffer.WriteString(fmt.Sprintf("-- Undo ALTER_TABLE: %T\n", altCmd))
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					}
@@ -202,7 +203,7 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 	}
 
 	// Write the file
-	err := os.WriteFile(filepath, []byte(buffer.String()), 0644)
+	err := os.WriteFile(filepath, buffer.Bytes(), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write migration file: %w", err)
 	}

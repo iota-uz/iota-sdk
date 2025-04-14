@@ -46,7 +46,7 @@ func TestCollectSchemaChanges(t *testing.T) {
 
 	// Collect upChanges
 	upChanges, downChanges, err := CollectSchemaChanges(oldSchema, newSchema)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, upChanges)
 
 	// Verify changes
@@ -136,7 +136,7 @@ func TestCollectSchemaChanges_AddColumn(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	require.NotNil(t, upChanges)
-	require.Equal(t, 1, len(upChanges.Changes), "Expected one change for the new column")
+	require.Len(t, upChanges.Changes, 1, "Expected one change for the new column")
 
 	// Check if the change is a AlterTable with AddColumn
 	alterTable, ok := upChanges.Changes[0].(*tree.AlterTable)
@@ -149,7 +149,7 @@ func TestCollectSchemaChanges_AddColumn(t *testing.T) {
 
 	// Check downChanges
 	require.NotNil(t, downChanges)
-	require.Equal(t, 1, len(downChanges.Changes), "Expected one change for column removal")
+	require.Len(t, downChanges.Changes, 1, "Expected one change for column removal")
 
 	dropTable, ok := downChanges.Changes[0].(*tree.AlterTable)
 	require.True(t, ok, "Expected an AlterTable change for drop")
@@ -196,7 +196,7 @@ func TestCollectSchemaChanges_AlterColumnType(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	require.NotNil(t, upChanges)
-	require.Equal(t, 1, len(upChanges.Changes), "Expected one change for the column type change")
+	require.Len(t, upChanges.Changes, 1, "Expected one change for the column type change")
 
 	// Check if the change is a AlterTable with AlterColumnType
 	alterTable, ok := upChanges.Changes[0].(*tree.AlterTable)
@@ -209,7 +209,7 @@ func TestCollectSchemaChanges_AlterColumnType(t *testing.T) {
 
 	// Check downChanges - should revert to original type
 	require.NotNil(t, downChanges)
-	require.Equal(t, 1, len(downChanges.Changes), "Expected one change for column type reversion")
+	require.Len(t, downChanges.Changes, 1, "Expected one change for column type reversion")
 
 	revertTable, ok := downChanges.Changes[0].(*tree.AlterTable)
 	require.True(t, ok, "Expected an AlterTable change for type reversion")
@@ -392,4 +392,116 @@ func TestCompareTables_ColumnsRemoved(t *testing.T) {
 	addColumn2 := downAlterTable2.Cmds[0].(*tree.AlterTableAddColumn)
 	assert.Equal(t, "address", addColumn2.ColumnDef.Name.String(), "First down change should add 'address'")
 	assert.Equal(t, types.String.String(), addColumn2.ColumnDef.Type.String(), "Column type should be string")
+}
+
+func TestCompareTables_UniqueConstraintChange(t *testing.T) {
+	// Create tables with a change in unique constraints
+	tableName := tree.MakeTableName("", "passports")
+	oldTable := &tree.CreateTable{
+		Table: tableName,
+		Defs: tree.TableDefs{
+			&tree.ColumnTableDef{
+				Name: tree.Name("passport_number"),
+				Type: types.String,
+				// Old schema has inline unique constraint
+				Nullable: struct {
+					Nullability    tree.Nullability
+					ConstraintName tree.Name
+				}{tree.NotNull, ""},
+				Unique: true,
+			},
+			&tree.ColumnTableDef{
+				Name: tree.Name("series"),
+				Type: types.String,
+				Nullable: struct {
+					Nullability    tree.Nullability
+					ConstraintName tree.Name
+				}{tree.NotNull, ""},
+			},
+		},
+	}
+
+	newTable := &tree.CreateTable{
+		Table: tableName,
+		Defs: tree.TableDefs{
+			&tree.ColumnTableDef{
+				Name: tree.Name("passport_number"),
+				Type: types.String,
+				Nullable: struct {
+					Nullability    tree.Nullability
+					ConstraintName tree.Name
+				}{tree.NotNull, ""},
+				Unique: false, // Removed inline unique
+			},
+			&tree.ColumnTableDef{
+				Name: tree.Name("series"),
+				Type: types.String,
+				Nullable: struct {
+					Nullability    tree.Nullability
+					ConstraintName tree.Name
+				}{tree.NotNull, ""},
+			},
+			// New schema has a table-level unique constraint
+			&tree.UniqueConstraintTableDef{
+				IndexTableDef: tree.IndexTableDef{
+					Name: tree.Name("passports_passport_number_series_key"),
+					Columns: []tree.IndexElem{
+						{Column: tree.Name("passport_number")},
+						{Column: tree.Name("series")}},
+				},
+			},
+		},
+	}
+
+	// Compare tables
+	upChanges, downChanges, err := CompareTables(oldTable, newTable)
+
+	// Assertions
+	require.NoError(t, err)
+	require.Len(t, upChanges, 2, "Should have exactly 2 changes for unique constraint change")
+	require.Len(t, downChanges, 2, "Should have exactly 2 down changes to revert unique constraint change")
+
+	// Verify first up change (drop unique constraint on passport_number)
+	alterTable1 := upChanges[0].(*tree.AlterTable)
+	dropConstraint1, ok := alterTable1.Cmds[0].(*tree.AlterTableDropConstraint)
+	require.True(t, ok, "Expected AlterTableDropConstraint")
+	assert.Equal(t, "passports_passport_number_key", dropConstraint1.Constraint.String(), "First constraint name should be 'passports_passport_number_key'")
+	assert.True(t, dropConstraint1.IfExists, "IfExists should be true")
+
+	for i, chg := range upChanges {
+		alterTable2 := chg.(*tree.AlterTable)
+		t.Logf("- >> up %d chg: %#v", i, alterTable2.String())
+	}
+	for i, chg := range downChanges {
+		alterTable2 := chg.(*tree.AlterTable)
+		t.Logf("- >> down chg %d: %#v", i, alterTable2.String())
+	}
+
+	// Verify second up change (add unique constraint on passport_number and series)
+	alterTable2 := upChanges[1].(*tree.AlterTable)
+	addConstraint2, ok := alterTable2.Cmds[0].(*tree.AlterTableAddConstraint)
+	require.True(t, ok, "Expected AlterTableAddConstraint")
+	uniqueConstraint, ok := addConstraint2.ConstraintDef.(*tree.UniqueConstraintTableDef)
+	require.True(t, ok, "Expected UniqueConstraintTableDef")
+	assert.Equal(t, "passports_passport_number_series_key", uniqueConstraint.Name.String(), "Second constraint name should be 'passports_passport_number_series_key'")
+	require.Len(t, uniqueConstraint.Columns, 2, "Should have 2 columns in unique constraint")
+	assert.Equal(t, "passport_number", uniqueConstraint.Columns[0].Column.String(), "First column in unique constraint should be 'passport_number'")
+	assert.Equal(t, "series", uniqueConstraint.Columns[1].Column.String(), "Second column in unique constraint should be 'series'")
+
+	// Verify second down change (add unique constraint on passport_number)
+	downAlterTable2 := downChanges[0].(*tree.AlterTable)
+	downAddConstraint2, ok := downAlterTable2.Cmds[0].(*tree.AlterTableAddConstraint)
+	require.True(t, ok, "Expected AlterTableAddConstraint")
+	downUniqueConstraint, ok := downAddConstraint2.ConstraintDef.(*tree.UniqueConstraintTableDef)
+	require.True(t, ok, "Expected UniqueConstraintTableDef")
+	assert.Equal(t, "passports_passport_number_key", downUniqueConstraint.Name.String(), "Second down constraint name should be 'passports_passport_number_key'")
+	require.Len(t, downUniqueConstraint.Columns, 1, "Should have 1 column in unique constraint")
+	assert.Equal(t, "passport_number", downUniqueConstraint.Columns[0].Column.String(), "First column in unique constraint should be 'passport_number'")
+
+	// Verify first down change (drop unique constraint on passport_number and series)
+	downAlterTable1 := downChanges[1].(*tree.AlterTable)
+	downDropConstraint1, ok := downAlterTable1.Cmds[0].(*tree.AlterTableDropConstraint)
+	require.True(t, ok, "Expected AlterTableDropConstraint")
+	assert.Equal(t, "passports_passport_number_series_key", downDropConstraint1.Constraint.String(), "First down constraint name should be 'passports_passport_number_series_key'")
+	assert.True(t, downDropConstraint1.IfExists, "IfExists should be true")
 }

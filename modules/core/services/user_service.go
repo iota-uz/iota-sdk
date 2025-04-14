@@ -66,11 +66,16 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 	if err := composables.CanUser(ctx, permissions.UserCreate); err != nil {
 		return err
 	}
+	logger := composables.UseLogger(ctx)
 	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 	createdEvent, err := user.NewCreatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -104,11 +109,16 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 	if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
 		return err
 	}
+	logger := composables.UseLogger(ctx)
 	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -134,11 +144,16 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	if err := composables.CanUser(ctx, permissions.UserDelete); err != nil {
 		return nil, err
 	}
+	logger := composables.UseLogger(ctx)
 	tx, err := composables.BeginTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 	deletedEvent, err := user.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err

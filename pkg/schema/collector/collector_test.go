@@ -91,7 +91,7 @@ func TestCollector_CollectMigrations(t *testing.T) {
 	upChanges, downChanges, err := collector.CollectMigrations(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, upChanges)
-	assert.Greater(t, len(upChanges.Changes), 0)
+	assert.NotEmpty(t, upChanges.Changes)
 
 	// Verify that the changes include adding the created_at column
 	foundCreatedAt := false
@@ -106,7 +106,7 @@ func TestCollector_CollectMigrations(t *testing.T) {
 	assert.True(t, foundCreatedAt, "Expected to find an ALTER TABLE ADD COLUMN created_at change")
 
 	require.NotNil(t, downChanges)
-	assert.Greater(t, len(downChanges.Changes), 0)
+	assert.NotEmpty(t, downChanges.Changes)
 }
 
 func TestCollector_StoreMigrations(t *testing.T) {
@@ -148,7 +148,7 @@ func TestCollector_StoreMigrations(t *testing.T) {
 	// Verify that migration files were created
 	files, err := os.ReadDir(migrationsDir)
 	require.NoError(t, err)
-	assert.Greater(t, len(files), 0)
+	assert.NotEmpty(t, files)
 }
 
 // The following tests are commented out because they rely on complex file loading
@@ -205,7 +205,7 @@ func TestTableFormattingInGeneratedSQL(t *testing.T) {
 	// Check the generated migration file
 	files, err := os.ReadDir(migrationsDir)
 	require.NoError(t, err)
-	require.Greater(t, len(files), 0)
+	require.NotEmpty(t, files)
 
 	// Read the migration file
 	migrationFile := filepath.Join(migrationsDir, "changes-12345678.sql")

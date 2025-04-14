@@ -19,6 +19,15 @@
       "ThisMonth": "Shu oy"
     }
   },
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Ma'lumotlar yo'q",
+      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas."
+    },
+    "Filters": {
+      "Title": "Filtrlar"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",
@@ -185,7 +194,8 @@
       "New": "Yangi foydalanuvchi",
       "FullName": "To'liq ism",
       "Roles": "Rollar",
-      "Email": "Email"
+      "Email": "Email",
+      "AllGroups": "Barcha guruhlar"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",
@@ -208,7 +218,9 @@
       "SelectLanguage": "Tilni tanlang",
       "ChooseAvatar": "Avatar tanlang",
       "RoleIDs": "Rol",
+      "GroupIDs": "Guruh",
       "SelectRole": "Rolni tanlang",
+      "SelectGroup": "Guruhni tanlang",
       "EnterPassword": "Parolni kiriting",
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
@@ -259,7 +271,7 @@
     },
     "Cards": {
       "GroupInfo": "Guruh ma'lumotlari",
-      "MembershipInfo": "A'zolik ma'lumotlari" 
+      "MembershipInfo": "A'zolik ma'lumotlari"
     },
     "List": {
       "New": "Yangi guruh",

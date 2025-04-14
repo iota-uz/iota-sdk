@@ -1,7 +1,7 @@
 package collector
 
 import (
-	"fmt"
+	"log"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/schema/common"
@@ -15,11 +15,6 @@ type schemaState struct {
 	tables  map[string]*tree.CreateTable // table -> column -> state
 	indexes map[string]*indexState
 	drops   map[string]bool
-}
-
-type columnState struct {
-	node      *tree.ColumnTableDef
-	timestamp int64
 }
 
 type indexState struct {
@@ -41,7 +36,7 @@ func (s *schemaState) update(stmts parser.Statements, timestamp int64, fileName 
 		Fn: func(ctx interface{}, node interface{}) bool {
 			switch n := node.(type) {
 			case *tree.CreateTable:
-				name := n.Table.String()
+				name := n.Table.TableName.Normalize()
 				s.tables[name] = n
 			case *tree.AlterTable:
 				s.applyAlterTable(n, timestamp, fileName)
@@ -49,8 +44,9 @@ func (s *schemaState) update(stmts parser.Statements, timestamp int64, fileName 
 				s.updateIndexState(n, timestamp, fileName)
 			case *tree.DropTable:
 				for _, name := range n.Names {
-					tableName := name.String()
-					s.drops[strings.ToLower(tableName)] = true
+					tableName := name.TableName.Normalize()
+					s.drops[tableName] = true
+					delete(s.tables, tableName)
 				}
 			}
 			return true
@@ -59,97 +55,137 @@ func (s *schemaState) update(stmts parser.Statements, timestamp int64, fileName 
 	_, _ = w.Walk(stmts, nil)
 }
 
+func getConstraintName(def tree.TableDef) (string, bool) {
+	switch d := def.(type) {
+	case *tree.UniqueConstraintTableDef:
+		if d.Name != "" {
+			return d.Name.Normalize(), true
+		}
+		// TODO handle other constraint types
+	}
+	return "", false // not a recognized named constraint type
+}
+
 func (s *schemaState) applyAlterTable(node *tree.AlterTable, timestamp int64, fileName string) {
-	name := node.Table.String()
-	if s.drops[name] {
+	// Use normalized table name for lookup
+	tableNameKey := node.Table.ToTableName().TableName.Normalize()
+
+	if s.drops[tableNameKey] {
+		// Table was dropped earlier, ignore ALTER commands
 		return
 	}
 
+	// Get the table state - IMPORTANT: Check existence *before* the loop
+	table, tableExists := s.tables[tableNameKey]
+	if !tableExists {
+		// This can happen if the CREATE TABLE migration was missing or used a different name/qualification
+		log.Printf("WARNING: Table '%s' not found in schema state while processing ALTER command from file: %s. Skipping command.", tableNameKey, fileName)
+		return
+	}
+	// Process each command in the AlterTable
 	for _, cmd := range node.Cmds {
 		switch c := cmd.(type) {
 		case *tree.AlterTableAddColumn:
-			s.updateColumnState(name, c.ColumnDef, timestamp, fileName)
-		case *tree.AlterTableDropColumn:
-			if _, exists := s.tables[name]; exists {
-				dropColumn(s.tables[name], strings.ToLower(c.Column.String()))
-			} else {
-				println("    Found unknown table for column:", name)
+			newColName := c.ColumnDef.Name.Normalize()
+			colExists := false
+			for _, def := range table.Defs {
+				if colDef, ok := def.(*tree.ColumnTableDef); ok {
+					if colDef.Name.Normalize() == newColName {
+						colExists = true
+						break
+					}
+				}
 			}
+			if !colExists {
+				table.Defs = append(table.Defs, c.ColumnDef)
+			} else {
+				log.Printf("WARNING: Column '%s' already exists in table '%s' state when processing ADD COLUMN from %s. Skipping add.", newColName, tableNameKey, fileName)
+			}
+		case *tree.AlterTableDropColumn:
+			dropColumn(table, c.Column.Normalize())
 		case *tree.AlterTableAlterColumnType:
-			s.updateColumnState(name, c, timestamp, fileName)
+			s.updateColumnState(table, c, timestamp, fileName)
 		case *tree.AlterTableDropNotNull:
-			s.updateColumnState(name, c, timestamp, fileName)
+			s.updateColumnState(table, c, timestamp, fileName)
 		case *tree.AlterTableSetDefault:
-			s.updateColumnState(name, c, timestamp, fileName)
+			s.updateColumnState(table, c, timestamp, fileName)
 		case *tree.AlterTableDropConstraint:
-			s.updateColumnState(name, c, timestamp, fileName)
+			constraintNameToDrop := c.Constraint.Normalize()
+			found := false
+			newDefs := make(tree.TableDefs, 0, len(table.Defs))
+			for _, def := range table.Defs {
+				name, isNamedConstraint := getConstraintName(def)
+				if isNamedConstraint && name == constraintNameToDrop {
+					// Found the constraint by name, skip adding it to newDefs
+					found = true
+				} else {
+					// Keep this definition
+					newDefs = append(newDefs, def)
+				}
+			}
+			if !found {
+				// This might happen if constraint was already dropped or name mismatch
+				log.Printf("WARNING: Constraint '%s' to drop was not found in table '%s' state when processing %s.", constraintNameToDrop, tableNameKey, fileName)
+			}
+			table.Defs = newDefs // Update the definitions slice
+
 		case *tree.AlterTableAddConstraint:
-			s.updateColumnState(name, c, timestamp, fileName)
+			table.Defs = append(table.Defs, c.ConstraintDef)
 		default:
-			println("    Found unknown alter table command for table:", name, "type:", fmt.Sprintf("%T", c))
+			log.Printf("Found unknown alter table command for table: %s type: %T", tableNameKey, c)
 		}
 	}
 }
 
-func (s *schemaState) updateColumnState(tableName string, cmd interface{}, timestamp int64, fileName string) {
-	if def, ok := cmd.(*tree.ColumnTableDef); ok {
-		if _, exists := s.tables[tableName]; !exists {
-			println(fmt.Sprintf("    Found unknown column %s for table %s", def.Name, tableName))
-			return
-		}
-		s.tables[tableName].Defs = append(s.tables[tableName].Defs, def)
-		return
-	}
-	table, ok := s.tables[tableName]
-	if !ok {
-		println("    Found unknown table for column:", tableName)
-		return
-	}
+func (s *schemaState) updateColumnState(table *tree.CreateTable, cmd interface{}, timestamp int64, fileName string) {
+	tableName := table.Table.TableName.Normalize()
+
 	switch c := cmd.(type) {
-	case *tree.AlterTableDropConstraint:
-		// TODO: handle constraints
 	case *tree.AlterTableDropNotNull:
-		colName := strings.ToLower(c.Column.String())
+		colName := c.Column.Normalize()
 		idx := findColumnIndex(table.Defs, colName)
 		if idx == -1 {
-			println("    Found unknown column for table:", tableName, "column:", colName)
+			log.Printf("WARNING: Column '%s' not found in table '%s' state for DropNotNull from %s.", colName, tableName, fileName)
 			return
 		}
-		col := table.Defs[idx].(*tree.ColumnTableDef)
-		col.Nullable.Nullability = tree.Null
+		// Ensure it's actually a ColumnTableDef before asserting type
+		if col, ok := table.Defs[idx].(*tree.ColumnTableDef); ok {
+			col.Nullable.Nullability = tree.Null
+		} else {
+			log.Printf("ERROR: Definition found for '%s' in table '%s' is not a ColumnTableDef (%T).", colName, tableName, table.Defs[idx])
+		}
+
 	case *tree.AlterTableAlterColumnType:
-		colName := strings.ToLower(c.Column.String())
+		colName := c.Column.Normalize()
 		idx := findColumnIndex(table.Defs, colName)
 		if idx == -1 {
-			println("    Found unknown column for table:", tableName, "column:", colName)
+			log.Printf("WARNING: Column '%s' not found in table '%s' state for AlterColumnType from %s.", colName, tableName, fileName)
 			return
 		}
-		col := table.Defs[idx].(*tree.ColumnTableDef)
-		col.Type = c.ToType
+		if col, ok := table.Defs[idx].(*tree.ColumnTableDef); ok {
+			col.Type = c.ToType
+		} else {
+			log.Printf("ERROR: Definition found for '%s' in table '%s' is not a ColumnTableDef (%T).", colName, tableName, table.Defs[idx])
+		}
+
 	case *tree.AlterTableSetDefault:
-		colName := strings.ToLower(c.Column.String())
+		colName := c.Column.Normalize()
 		idx := findColumnIndex(table.Defs, colName)
 		if idx == -1 {
-			println("    Found unknown column for table:", tableName, "column:", colName)
+			log.Printf("WARNING: Column '%s' not found in table '%s' state for SetDefault from %s.", colName, tableName, fileName)
 			return
 		}
-		col := table.Defs[idx].(*tree.ColumnTableDef)
-		col.DefaultExpr.Expr = c.Default
-	case *tree.ForeignKeyConstraintTableDef:
-		for _, col := range c.FromCols {
-			idx := findColumnIndex(table.Defs, strings.ToLower(col.String()))
-			if idx == -1 {
-				println("    Found unknown column for table:", tableName, "column:", col)
-				continue
-			}
-			col1 := table.Defs[idx].(*tree.ColumnTableDef)
-			col1.References.Table = &c.Table
-			col1.References.Table = &c.Table
-			col1.References.Col = col
-			col1.References.ConstraintName = c.Name
-			col1.References.Actions = c.Actions
-			col1.References.Match = c.Match
+		if col, ok := table.Defs[idx].(*tree.ColumnTableDef); ok {
+			col.DefaultExpr.Expr = c.Default
+		} else {
+			log.Printf("ERROR: Definition found for '%s' in table '%s' is not a ColumnTableDef (%T).", colName, tableName, table.Defs[idx])
 		}
+
+		// Removed ForeignKeyConstraintTableDef case as it's not an ALTER command type
+		// FKs are added via AlterTableAddConstraint with a ForeignKeyConstraintTableDef inside
+	default:
+		// This case should ideally not be reached if routing in applyAlterTable is correct
+		log.Printf("WARNING: Unhandled command type '%T' passed to updateColumnState for table '%s' from file %s.", c, tableName, fileName)
 	}
 }
 
@@ -165,17 +201,18 @@ func (s *schemaState) updateIndexState(node *tree.CreateIndex, timestamp int64, 
 func (s *schemaState) buildSchema() *common.Schema {
 	schema := common.NewSchema()
 
-	for _, t := range s.tables {
-		tableName := t.Table.String()
+	for tableName, t := range s.tables {
+		// Check against drops using the same normalized key
 		if s.drops[tableName] {
 			continue
 		}
 
-		// Create the table in the schema
+		// Add table to the final schema
 		schema.Tables[tableName] = t
 	}
 
 	for name, idx := range s.indexes {
+		// For now, assume indexes persist unless explicitly dropped (DROP INDEX not handled yet)
 		schema.Indexes[name] = idx.node
 	}
 
@@ -194,14 +231,24 @@ func findColumnIndex(defs tree.TableDefs, colName string) int {
 }
 
 func dropColumn(node *tree.CreateTable, colName string) {
-	var filteredDefs tree.TableDefs
-	for _, def := range node.Defs {
+	newDefs := make(tree.TableDefs, 0, len(node.Defs))
+	found := false
+	for _, def := range node.Defs { // Iterate original
 		if col, ok := def.(*tree.ColumnTableDef); ok {
+			// If it's the target column...
 			if col.Name.Normalize() == lex.NormalizeName(colName) {
-				continue
+				found = true
+			} else {
+				newDefs = append(newDefs, def)
 			}
+		} else {
+			newDefs = append(newDefs, def)
 		}
-		filteredDefs = append(filteredDefs, def)
 	}
-	node.Defs = filteredDefs
+	if found {
+		node.Defs = newDefs
+	} else {
+		// Added a warning for safety
+		log.Printf("WARNING: Column '%s' to drop was not found in table '%s' definition.", lex.NormalizeName(colName), node.Table.TableName.Normalize())
+	}
 }

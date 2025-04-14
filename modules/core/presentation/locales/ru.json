@@ -19,6 +19,15 @@
       "ThisMonth": "В этом месяце"
     }
   },
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Данные недоступны",
+      "NoDataDescription": "Для этой таблицы нет доступных данных."
+    },
+    "Filters": {
+      "Title": "Фильтры"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Поиск...",
     "NothingFound": "Ничего не найдено",
@@ -204,7 +213,7 @@
     },
     "Cards": {
       "GroupInfo": "Информация о группе",
-      "MembershipInfo": "Информация о членстве" 
+      "MembershipInfo": "Информация о членстве"
     },
     "List": {
       "New": "Новая группа",
@@ -257,7 +266,8 @@
       "New": "Новый пользователь",
       "FullName": "Полное имя",
       "Roles": "Роли",
-      "Email": "Эл. почта"
+      "Email": "Эл. почта",
+      "AllGroups": "Все группы"
     },
     "Cards": {
       "PersonalInfo": "Персональные данные",
@@ -280,7 +290,9 @@
       "SelectLanguage": "Выбрать язык",
       "ChooseAvatar": "Выберите аватар",
       "RoleIDs": "Роль",
+      "GroupIDs": "Группа",
       "SelectRole": "Выбрать роль",
+      "SelectGroup": "Выбрать группу",
       "EnterPassword": "Введите пароль",
       "Delete": "Удалить пользователя",
       "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?",

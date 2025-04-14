@@ -2,9 +2,10 @@ package mappers
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"strconv"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
@@ -67,21 +68,21 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 	}
 }
 
-func ExpenseToViewModel(entity *expense.Expense) *viewmodels.Expense {
-	currencyEntity := entity.Category.Currency()
+func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
+	currencyEntity := entity.Category().Currency()
 	return &viewmodels.Expense{
-		ID:                 strconv.FormatUint(uint64(entity.ID), 10),
-		Amount:             fmt.Sprintf("%.2f", entity.Amount),
-		AccountID:          strconv.FormatUint(uint64(entity.Account.ID), 10),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount, currencyEntity.Symbol),
-		CategoryID:         strconv.FormatUint(uint64(entity.Category.ID()), 10),
-		Category:           ExpenseCategoryToViewModel(entity.Category),
-		Comment:            entity.Comment,
-		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID), 10),
-		AccountingPeriod:   entity.AccountingPeriod.Format(time.RFC3339),
-		Date:               entity.Date.Format(time.RFC3339),
-		CreatedAt:          entity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:          entity.UpdatedAt.Format(time.RFC3339),
+		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
+		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
+		AccountID:          strconv.FormatUint(uint64(entity.Account().ID), 10),
+		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), currencyEntity.Symbol),
+		CategoryID:         strconv.FormatUint(uint64(entity.Category().ID()), 10),
+		Category:           ExpenseCategoryToViewModel(entity.Category()),
+		Comment:            entity.Comment(),
+		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID()), 10),
+		AccountingPeriod:   entity.AccountingPeriod().Format(time.RFC3339),
+		Date:               entity.Date().Format(time.RFC3339),
+		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
 

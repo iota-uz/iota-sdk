@@ -13,25 +13,24 @@ const (
 	LastName
 	MiddleName
 	Email
+	Phone
+	GroupID
+	RoleID
+	PermissionID
 	LastLogin
 	CreatedAt
 	UpdatedAt
 )
 
 type SortBy repo.SortBy[Field]
+type Filter = repo.FieldFilter[Field]
 
 type FindParams struct {
-	Limit        int
-	Offset       int
-	SortBy       SortBy
-	Name         string
-	PermissionID *repo.Filter
-	RoleID       *repo.Filter
-	GroupID      *repo.Filter
-	Email        *repo.Filter
-	LastLogin    *repo.Filter
-	CreatedAt    *repo.Filter
-	UpdateAt     *repo.Filter
+	Limit   int
+	Offset  int
+	SortBy  SortBy
+	Search  string
+	Filters []Filter
 }
 
 type Repository interface {

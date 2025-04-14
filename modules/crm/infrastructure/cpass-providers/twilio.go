@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/twilio/twilio-go"
@@ -178,17 +177,17 @@ func (s *TwilioProvider) WebhookHandler(eventBus eventbus.EventBus) http.Handler
 //}
 
 // Helper function to get file extension from MIME type
-func getExtensionFromMimeType(mimeType string) string {
-	// This is a simplified version. You might want to use a more comprehensive MIME type mapping
-	mimeMap := map[string]string{
-		"image/jpeg": "jpg",
-		"image/png":  "png",
-		"image/gif":  "gif",
-		// Add more mappings as needed
-	}
-
-	if ext, ok := mimeMap[strings.ToLower(mimeType)]; ok {
-		return ext
-	}
-	return "bin"
-}
+//func getExtensionFromMimeType(mimeType string) string {
+//	// This is a simplified version. You might want to use a more comprehensive MIME type mapping
+//	mimeMap := map[string]string{
+//		"image/jpeg": "jpg",
+//		"image/png":  "png",
+//		"image/gif":  "gif",
+//		// Add more mappings as needed
+//	}
+//
+//	if ext, ok := mimeMap[strings.ToLower(mimeType)]; ok {
+//		return ext
+//	}
+//	return "bin"
+//}

@@ -25,6 +25,7 @@ type Group interface {
 	RemoveUser(u user.User) Group
 	AssignRole(r role.Role) Group
 	RemoveRole(r role.Role) Group
+	SetRoles(roles []role.Role) Group
 	SetName(name string) Group
 	SetDescription(desc string) Group
 }
@@ -136,6 +137,13 @@ func (g *group) SetDescription(desc string) Group {
 func (g *group) AssignRole(r role.Role) Group {
 	res := *g
 	res.roles = append(res.roles, r)
+	res.updatedAt = time.Now()
+	return &res
+}
+
+func (g *group) SetRoles(roles []role.Role) Group {
+	res := *g
+	res.roles = roles
 	res.updatedAt = time.Now()
 	return &res
 }

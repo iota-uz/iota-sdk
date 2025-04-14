@@ -19,6 +19,15 @@
       "ThisMonth": "This month"
     }
   },
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "No data available",
+      "NoDataDescription": "There is no data available for this table."
+    },
+    "Filters": {
+      "Title": "Filters"
+    }
+  },
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
@@ -185,7 +194,8 @@
       "New": "New User",
       "FullName": "Full name",
       "Roles": "Roles",
-      "Email": "Email"
+      "Email": "Email",
+      "AllGroups": "All Groups"
     },
     "Cards": {
       "PersonalInfo": "Personal information",
@@ -208,7 +218,9 @@
       "SelectLanguage": "Select language",
       "ChooseAvatar": "Choose avatar",
       "RoleIDs": "Role",
+      "GroupIDs": "Group",
       "SelectRole": "Select role",
+      "SelectGroup": "Select group",
       "EnterPassword": "Enter password",
       "Delete": "Delete user",
       "DeleteConfirmation": "Are you sure you want to delete this user?",
@@ -248,7 +260,7 @@
   "Groups": {
     "Meta": {
       "List": {
-        "Title": "Groups"
+        "Title": "Groups List"
       },
       "Edit": {
         "Title": "Edit group"
@@ -259,7 +271,7 @@
     },
     "Cards": {
       "GroupInfo": "Group information",
-      "MembershipInfo": "Membership information" 
+      "MembershipInfo": "Membership information"
     },
     "List": {
       "New": "New group",
@@ -587,3 +599,4 @@
     "TR": "Turkey"
   }
 }
+

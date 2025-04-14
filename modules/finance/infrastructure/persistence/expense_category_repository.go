@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
@@ -32,7 +33,7 @@ const (
 			c.updated_at
 		FROM expense_categories ec LEFT JOIN currencies c ON ec.amount_currency_id = c.code
 	`
-	countExpenseCategoryQuery  = `SELECT COUNT(*) as count FROM expense_categories`
+	countExpenseCategoryQuery  = `SELECT COUNT(*) as count FROM expense_categories ec`
 	insertExpenseCategoryQuery = `
 	INSERT INTO expense_categories (
 		name, 
@@ -46,20 +47,61 @@ const (
 )
 
 type GormExpenseCategoryRepository struct {
+	fieldMap map[category.Field]string
 }
 
 func NewExpenseCategoryRepository() category.Repository {
-	return &GormExpenseCategoryRepository{}
+	return &GormExpenseCategoryRepository{
+		fieldMap: map[category.Field]string{
+			category.ID:          "ec.id",
+			category.Name:        "ec.name",
+			category.Description: "ec.description",
+			category.Amount:      "ec.amount",
+			category.CurrencyID:  "ec.amount_currency_id",
+			category.CreatedAt:   "ec.created_at",
+			category.UpdatedAt:   "ec.updated_at",
+		},
+	}
+}
+
+func (g *GormExpenseCategoryRepository) buildCategoryFilters(params *category.FindParams) ([]string, []interface{}, error) {
+	where := []string{"1 = 1"}
+	args := []interface{}{}
+
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, fmt.Errorf("invalid filter: unknown filter field: %v", filter.Column)
+		}
+
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
+	}
+
+	// Search support
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(
+			where,
+			fmt.Sprintf(
+				"(ec.name ILIKE $%d OR ec.description ILIKE $%d)",
+				index, index,
+			),
+		)
+		args = append(args, "%"+params.Search+"%")
+	}
+
+	return where, args, nil
 }
 
 func (g *GormExpenseCategoryRepository) queryCategories(ctx context.Context, query string, args ...interface{}) ([]category.ExpenseCategory, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 	categories := make([]category.ExpenseCategory, 0)
@@ -81,17 +123,17 @@ func (g *GormExpenseCategoryRepository) queryCategories(ctx context.Context, que
 			&c.CreatedAt,
 			&c.UpdatedAt,
 		); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan expense category row: %w", err)
 		}
 		entity, err := toDomainExpenseCategory(&ec, &c)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to convert to domain expense category: %w", err)
 		}
 		categories = append(categories, entity)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 	return categories, nil
 }
@@ -99,47 +141,71 @@ func (g *GormExpenseCategoryRepository) queryCategories(ctx context.Context, que
 func (g *GormExpenseCategoryRepository) GetPaginated(
 	ctx context.Context, params *category.FindParams,
 ) ([]category.ExpenseCategory, error) {
-	where, args := []string{"1 = 1"}, []interface{}{}
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where, args = append(where, fmt.Sprintf("ec.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
+	where, args, err := g.buildCategoryFilters(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build filters: %w", err)
 	}
-	if params.Query != "" && params.Field != "" {
-		where, args = append(where, fmt.Sprintf("ec.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
+
+	sortFields := make([]string, 0, len(params.SortBy.Fields))
+	for _, f := range params.SortBy.Fields {
+		if field, ok := g.fieldMap[f]; ok {
+			sortFields = append(sortFields, field)
+		} else {
+			return nil, fmt.Errorf("invalid sort parameters: unknown sort field: %v", f)
+		}
 	}
-	return g.queryCategories(
-		ctx,
-		repo.Join(
-			selectExpenseCategoryQuery,
-			repo.JoinWhere(where...),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
+
+	query := repo.Join(
+		selectExpenseCategoryQuery,
+		repo.JoinWhere(where...),
+		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
+
+	return g.queryCategories(ctx, query, args...)
 }
 
-func (g *GormExpenseCategoryRepository) Count(ctx context.Context) (uint, error) {
-	pool, err := composables.UseTx(ctx)
+func (g *GormExpenseCategoryRepository) Count(ctx context.Context, params *category.FindParams) (int64, error) {
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to get transaction: %w", err)
 	}
-	var count uint
-	if err := pool.QueryRow(ctx, countExpenseCategoryQuery).Scan(&count); err != nil {
-		return 0, err
+
+	where, args, err := g.buildCategoryFilters(params)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build filters: %w", err)
+	}
+
+	query := repo.Join(
+		countExpenseCategoryQuery,
+		repo.JoinWhere(where...),
+	)
+
+	var count int64
+	err = tx.QueryRow(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count expense categories: %w", err)
 	}
 	return count, nil
 }
 
 func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]category.ExpenseCategory, error) {
-	return g.queryCategories(ctx, selectExpenseCategoryQuery)
+	query := selectExpenseCategoryQuery
+	return g.queryCategories(ctx, query)
 }
 
 func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (category.ExpenseCategory, error) {
-	categories, err := g.queryCategories(ctx, selectExpenseCategoryQuery+" WHERE ec.id = $1", id)
+	query := repo.Join(
+		selectExpenseCategoryQuery,
+		repo.JoinWhere("ec.id = $1"),
+	)
+
+	categories, err := g.queryCategories(ctx, query, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get expense category with ID: %d: %w", id, err)
 	}
 	if len(categories) == 0 {
-		return nil, ErrExpenseCategoryNotFound
+		return nil, fmt.Errorf("%s: id: %d", ErrExpenseCategoryNotFound.Error(), id)
 	}
 	return categories[0], nil
 }
@@ -147,9 +213,10 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (c
 func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data category.ExpenseCategory) (category.ExpenseCategory, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 	dbRow := toDBExpenseCategory(data)
+	var id uint
 	if err := tx.QueryRow(
 		ctx,
 		insertExpenseCategoryQuery,
@@ -157,16 +224,16 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data categor
 		dbRow.Description,
 		dbRow.Amount,
 		dbRow.AmountCurrencyID,
-	).Scan(&dbRow.ID); err != nil {
-		return nil, err
+	).Scan(&id); err != nil {
+		return nil, fmt.Errorf("failed to create expense category: %w", err)
 	}
-	return g.GetByID(ctx, dbRow.ID)
+	return g.GetByID(ctx, id)
 }
 
 func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data category.ExpenseCategory) (category.ExpenseCategory, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 	dbRow := toDBExpenseCategory(data)
 	if _, err := tx.Exec(
@@ -178,7 +245,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data categor
 		dbRow.AmountCurrencyID,
 		data.ID(),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update expense category with ID: %d: %w", data.ID(), err)
 	}
 	return g.GetByID(ctx, data.ID())
 }
@@ -186,10 +253,10 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data categor
 func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get transaction: %w", err)
 	}
 	if _, err := tx.Exec(ctx, deleteExpenseCategoryQuery, id); err != nil {
-		return err
+		return fmt.Errorf("failed to delete expense category with ID: %d: %w", id, err)
 	}
 	return nil
 }

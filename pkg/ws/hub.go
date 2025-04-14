@@ -154,7 +154,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Hub) readPump(conn *Connection) {
 	defer func() {
 		h.removeConnection(conn)
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	for {

@@ -6,13 +6,58 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	Roles []*viewmodels.Role
+	Roles  []*viewmodels.Role
+	Search string
+}
+
+templ RoleRow(role *viewmodels.Role) {
+	@base.TableRow(base.TableRowProps{
+		Attrs: templ.Attributes{
+			"id":    fmt.Sprintf("role-%s", role.ID),
+			"class": "hide-on-load",
+		},
+	}) {
+		@base.TableCell(base.TableCellProps{}) {
+			{ role.Name }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<div x-data="relativeformat">
+				<span x-text={ fmt.Sprintf("format('%s')", role.UpdatedAt) }></span>
+			</div>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			@button.Secondary(button.Props{
+				Fixed: true,
+				Size:  button.SizeSM,
+				Class: "btn-fixed",
+				Href:  fmt.Sprintf("/roles/%s", role.ID),
+			}) {
+				@icons.PencilSimple(icons.Props{Size: "20"})
+			}
+		}
+	}
+}
+
+templ RoleRows(props *IndexPageProps) {
+	<tr class="hidden">
+		<td colspan="3">
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes(
+					"flex justify-center items-center py-4",
+				),
+			})
+		</td>
+	</tr>
+	for _, role := range props.Roles {
+		@RoleRow(role)
+	}
 }
 
 templ RolesTable(props *IndexPageProps) {
@@ -23,29 +68,11 @@ templ RolesTable(props *IndexPageProps) {
 			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 			{Label: pageCtx.T("Actions"), Class: "w-16"},
 		},
+		TBodyAttrs: templ.Attributes{
+			"id": "roles-table-body",
+		},
 	}) {
-		for _, role := range props.Roles {
-			@base.TableRow(base.TableRowProps{}) {
-				@base.TableCell(base.TableCellProps{}) {
-					{ role.Name }
-				}
-				@base.TableCell(base.TableCellProps{}) {
-					<div x-data="relativeformat">
-						<span x-text={ fmt.Sprintf("format('%s')", role.UpdatedAt) }></span>
-					</div>
-				}
-				@base.TableCell(base.TableCellProps{}) {
-					@button.Secondary(button.Props{
-						Fixed: true,
-						Size:  button.SizeSM,
-						Class: "btn-fixed",
-						Href:  fmt.Sprintf("/roles/%s", role.ID),
-					}) {
-						@icons.PencilSimple(icons.Props{Size: "20"})
-					}
-				}
-			}
-		}
+		@RoleRows(props)
 	}
 }
 
@@ -60,8 +87,9 @@ templ RolesContent(props *IndexPageProps) {
 				class="p-4 flex items-center gap-3"
 				hx-get="/roles"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target="table"
-				hx-swap="outerHTML"
+				hx-target="#roles-table-body"
+				hx-swap="innerHTML"
+				hx-indicator="#roles-table-body"
 			>
 				@input.Text(&input.Props{
 					AddonLeft: &input.Addon{
@@ -69,24 +97,10 @@ templ RolesContent(props *IndexPageProps) {
 					},
 					Placeholder: pageCtx.T("Search"),
 					Attrs: templ.Attributes{
-						"name": "name",
+						"name":  "name",
+						"value": props.Search,
 					},
 				})
-				@base.Select(&base.SelectProps{
-					Prefix: pageCtx.T("PerPage"),
-					Attrs: templ.Attributes{
-						"name": "limit",
-					},
-				}) {
-					<option>15</option>
-					<option>25</option>
-					<option>50</option>
-					<option>100</option>
-				}
-				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
-					<option>{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
-					<option>{ pageCtx.T("Filters.CreatedAt.Ereyesterday") }</option>
-				}
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
 					Href: "/roles/new",

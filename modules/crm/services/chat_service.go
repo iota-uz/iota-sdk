@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -113,6 +114,7 @@ func (s *ChatService) RegisterClientMessage(
 	ctx context.Context,
 	params *cpassproviders.ReceivedMessageEvent,
 ) (chat.Chat, error) {
+	logger := composables.UseLogger(ctx)
 	p, err := phone.NewFromE164(params.From)
 	if err != nil {
 		return nil, err
@@ -129,7 +131,11 @@ func (s *ChatService) RegisterClientMessage(
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 	ctx = composables.WithTx(ctx, tx)
 	chatEntity, err := s.GetByClientIDOrCreate(ctx, clientEntity.ID())
 	if err != nil {
@@ -166,6 +172,7 @@ func (s *ChatService) RegisterClientMessage(
 }
 
 func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat.Chat, error) {
+	logger := composables.UseLogger(ctx)
 	user, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -174,7 +181,11 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			logger.WithError(err).Error("failed to rollback transaction")
+		}
+	}()
 
 	ctx = composables.WithTx(ctx, tx)
 	chatEntity, err := s.GetByID(ctx, dto.ChatID)

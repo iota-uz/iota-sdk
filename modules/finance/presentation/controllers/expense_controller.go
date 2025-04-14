@@ -1,33 +1,157 @@
 package controllers
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"net/http"
+	"net/url"
+	"time"
 
+	"github.com/a-h/templ"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
-	expenses2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
+	expensesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-
-	"github.com/a-h/templ"
-	"github.com/go-faster/errors"
-	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/text/language"
 )
 
+type ExpenseRealtimeUpdates struct {
+	app            application.Application
+	expenseService *services.ExpenseService
+	basePath       string
+}
+
+func NewExpenseRealtimeUpdates(app application.Application, expenseService *services.ExpenseService, basePath string) *ExpenseRealtimeUpdates {
+	return &ExpenseRealtimeUpdates{
+		app:            app,
+		expenseService: expenseService,
+		basePath:       basePath,
+	}
+}
+
+func (ru *ExpenseRealtimeUpdates) Register() {
+	ru.app.EventPublisher().Subscribe(ru.onExpenseCreated)
+	ru.app.EventPublisher().Subscribe(ru.onExpenseUpdated)
+	ru.app.EventPublisher().Subscribe(ru.onExpenseDeleted)
+}
+
+func (ru *ExpenseRealtimeUpdates) publisherContext() (context.Context, error) {
+	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
+	ctx := composables.WithLocalizer(
+		context.Background(),
+		localizer,
+	)
+	_url, err := url.Parse(ru.basePath)
+	if err != nil {
+		return nil, err
+	}
+	ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		URL:       _url,
+		Locale:    language.English,
+		Localizer: localizer,
+	})
+	return composables.WithPool(ctx, ru.app.DB()), nil
+}
+
+func (ru *ExpenseRealtimeUpdates) onExpenseCreated(event *expense.CreatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	exp, err := ru.expenseService.GetByID(ctx, event.Result.ID())
+	if err != nil {
+		logger.Errorf("Error retrieving expense: %v | Event: onExpenseCreated", err)
+		return
+	}
+	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(exp), &templ.Attributes{})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering expense row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *ExpenseRealtimeUpdates) onExpenseDeleted(event *expense.DeletedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(event.Result), &templ.Attributes{
+		"hx-swap-oob": "delete",
+	})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering expense row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
+func (ru *ExpenseRealtimeUpdates) onExpenseUpdated(event *expense.UpdatedEvent) {
+	logger := configuration.Use().Logger()
+	ctx, err := ru.publisherContext()
+	if err != nil {
+		logger.Errorf("Error creating publisher context: %v", err)
+		return
+	}
+
+	exp, err := ru.expenseService.GetByID(ctx, event.Result.ID())
+	if err != nil {
+		logger.Errorf("Error retrieving expense: %v", err)
+		return
+	}
+
+	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(exp), &templ.Attributes{})
+
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		logger.Errorf("Error rendering expense row: %v", err)
+		return
+	}
+
+	wsHub := server.WsHub()
+	wsHub.BroadcastToAll(buf.Bytes())
+}
+
 type ExpenseController struct {
-	app                    application.Application
-	moneyAccountService    *services.MoneyAccountService
-	expenseService         *services.ExpenseService
-	expenseCategoryService *services.ExpenseCategoryService
-	basePath               string
+	app      application.Application
+	basePath string
+	realtime *ExpenseRealtimeUpdates
 }
 
 type ExpensePaginationResponse struct {
@@ -36,13 +160,16 @@ type ExpensePaginationResponse struct {
 }
 
 func NewExpensesController(app application.Application) application.Controller {
-	return &ExpenseController{
-		app:                    app,
-		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		expenseService:         app.Service(services.ExpenseService{}).(*services.ExpenseService),
-		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
-		basePath:               "/finance/expenses",
+	expenseService := app.Service(services.ExpenseService{}).(*services.ExpenseService)
+	basePath := "/finance/expenses"
+
+	controller := &ExpenseController{
+		app:      app,
+		basePath: basePath,
+		realtime: NewExpenseRealtimeUpdates(app, expenseService, basePath),
 	}
+
+	return controller
 }
 
 func (c *ExpenseController) Key() string {
@@ -50,7 +177,8 @@ func (c *ExpenseController) Key() string {
 }
 
 func (c *ExpenseController) Register(r *mux.Router) {
-	commonMiddleware := []mux.MiddlewareFunc{
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
@@ -58,243 +186,355 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.WithLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
-	}
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-
-	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	)
+	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
+	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
+	setRouter.Use(
+		middleware.Authorize(),
+		middleware.RedirectNotAuthenticated(),
+		middleware.ProvideUser(),
+		middleware.Tabs(),
+		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.NavItems(),
+		middleware.WithPageContext(),
+		middleware.WithTransaction(),
+	)
+	setRouter.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	c.realtime.Register()
 }
 
-func (c *ExpenseController) viewModelAccounts(r *http.Request) ([]*viewmodels.MoneyAccount, error) {
-	accounts, err := c.moneyAccountService.GetAll(r.Context())
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving moneyaccounts")
-	}
-	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
-}
-
-func (c *ExpenseController) viewModelExpenses(r *http.Request) (*ExpensePaginationResponse, error) {
-	paginationParams := composables.UsePaginated(r)
-	params, err := composables.UseQuery(&expense.FindParams{
-		Offset: paginationParams.Offset,
-		Limit:  paginationParams.Limit,
-		SortBy: []string{"created_at desc"},
-	}, r)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error using query")
-	}
-	expenseEntities, err := c.expenseService.GetPaginated(r.Context(), params)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving expenses")
-	}
-	viewExpenses := mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel)
-
-	total, err := c.expenseService.Count(r.Context())
-	if err != nil {
-		return nil, errors.Wrap(err, "Error counting expenses")
+func (c *ExpenseController) List(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+) {
+	params := composables.UsePaginated(r)
+	findParams := &expense.FindParams{
+		Offset: params.Offset,
+		Limit:  params.Limit,
+		SortBy: expense.SortBy{
+			Fields: []expense.Field{
+				expense.CreatedAt,
+			},
+			Ascending: false,
+		},
+		Search: r.URL.Query().Get("Search"),
 	}
 
-	return &ExpensePaginationResponse{
-		Expenses:        viewExpenses,
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
-	}, nil
-}
-
-func (c *ExpenseController) viewModelCategories(r *http.Request) ([]*viewmodels.ExpenseCategory, error) {
-	categories, err := c.expenseCategoryService.GetAll(r.Context())
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving categories")
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.To: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
+		}
+		findParams.Filters = append(findParams.Filters, expense.Filter{
+			Column: expense.CreatedAt,
+			Filter: repo.Lt(t),
+		})
 	}
-	return mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel), nil
-}
 
-func (c *ExpenseController) List(w http.ResponseWriter, r *http.Request) {
-	paginated, err := c.viewModelExpenses(r)
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.Errorf("Error parsing CreatedAt.From: %v", err)
+			http.Error(w, "Invalid date format", http.StatusBadRequest)
+			return
+		}
+		findParams.Filters = append(findParams.Filters, expense.Filter{
+			Column: expense.CreatedAt,
+			Filter: repo.Gt(t),
+		})
+	}
+
+	expenseEntities, err := expenseService.GetPaginated(r.Context(), findParams)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("Error retrieving expenses: %v", err)
+		http.Error(w, "Error retrieving expenses", http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &expenses2.IndexPageProps{
-		Expenses:        paginated.Expenses,
-		PaginationState: paginated.PaginationState,
+
+	total, err := expenseService.Count(r.Context(), &expense.FindParams{})
+	if err != nil {
+		logger.Errorf("Error counting expenses: %v", err)
+		http.Error(w, "Error counting expenses", http.StatusInternalServerError)
+		return
 	}
-	if isHxRequest {
-		templ.Handler(expenses2.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+	props := &expensesui.IndexPageProps{
+		Expenses:        mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel),
+		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	}
+
+	if htmx.IsHxRequest(r) {
+		templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(expenses2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
-func (c *ExpenseController) GetEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ExpenseController) GetEdit(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+	moneyAccountService *services.MoneyAccountService,
+	expenseCategoryService *services.ExpenseCategoryService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing expense ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err := c.expenseService.GetByID(r.Context(), id)
+	entity, err := expenseService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving expense: %v", err)
 		http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
 		return
 	}
-	accounts, err := c.viewModelAccounts(r)
+
+	accounts, err := moneyAccountService.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("Error retrieving accounts: %v", err)
+		http.Error(w, "Error retrieving accounts", http.StatusInternalServerError)
 		return
 	}
-	categories, err := c.viewModelCategories(r)
+
+	categories, err := expenseCategoryService.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("Error retrieving categories: %v", err)
+		http.Error(w, "Error retrieving categories", http.StatusInternalServerError)
 		return
 	}
-	props := &expenses2.EditPageProps{
+
+	props := &expensesui.EditPageProps{
 		Expense:    mappers.ExpenseToViewModel(entity),
-		Accounts:   accounts,
-		Categories: categories,
+		Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
+		Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
 		Errors:     map[string]string{},
 	}
-	templ.Handler(expenses2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expensesui.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ExpenseController) Delete(w http.ResponseWriter, r *http.Request) {
+func (c *ExpenseController) Delete(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing expense ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
-	if _, err := c.expenseService.Delete(r.Context(), id); err != nil {
+	if _, err := expenseService.Delete(r.Context(), id); err != nil {
+		logger.Errorf("Error deleting expense: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ExpenseController) Update(w http.ResponseWriter, r *http.Request) {
+func (c *ExpenseController) Update(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+	moneyAccountService *services.MoneyAccountService,
+	expenseCategoryService *services.ExpenseCategoryService,
+) {
 	id, err := shared.ParseID(r)
 	if err != nil {
+		logger.Errorf("Error parsing expense ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	dto := expense.UpdateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+
+	dto, err := composables.UseForm(&dtos.ExpenseUpdateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("Error parsing form: %v", err)
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
 		return
 	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
-		entity, err := c.expenseService.GetByID(r.Context(), id)
+
+	existing, err := expenseService.GetByID(r.Context(), id)
+	if errors.Is(err, persistence.ErrExpenseNotFound) {
+		logger.Errorf("Expense not found: %v", err)
+		http.Error(w, "Expense not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		logger.Errorf("Error retrieving expense: %v", err)
+		http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
+		return
+	}
+
+	cat, err := expenseCategoryService.GetByID(r.Context(), dto.CategoryID)
+	if errors.Is(err, persistence.ErrExpenseCategoryNotFound) {
+		logger.Errorf("Expense category not found: %v", err)
+		http.Error(w, "Expense category not found", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		logger.Errorf("Error retrieving expense category: %v", err)
+		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
+		return
+	}
+
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		accounts, err := moneyAccountService.GetAll(r.Context())
 		if err != nil {
-			http.Error(w, "Error retrieving expense", http.StatusInternalServerError)
+			logger.Errorf("Error retrieving accounts: %v", err)
+			http.Error(w, "Error retrieving accounts", http.StatusInternalServerError)
 			return
 		}
-		accounts, err := c.viewModelAccounts(r)
+
+		categories, err := expenseCategoryService.GetAll(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			logger.Errorf("Error retrieving categories: %v", err)
+			http.Error(w, "Error retrieving categories", http.StatusInternalServerError)
 			return
 		}
-		categories, err := c.viewModelCategories(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		props := &expenses2.EditPageProps{
-			Expense:    mappers.ExpenseToViewModel(entity),
-			Accounts:   accounts,
-			Categories: categories,
+
+		props := &expensesui.EditPageProps{
+			Expense:    mappers.ExpenseToViewModel(existing),
+			Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
+			Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
 			Errors:     errorsMap,
 		}
-		templ.Handler(expenses2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expensesui.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-	if err := c.expenseService.Update(r.Context(), id, &dto); err != nil {
+
+	entity, err := dto.Apply(existing, cat)
+	if err != nil {
+		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	if err := expenseService.Update(r.Context(), entity); err != nil {
+		logger.Errorf("Error updating expense: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ExpenseController) GetNew(w http.ResponseWriter, r *http.Request) {
-	accounts, err := c.viewModelAccounts(r)
+func (c *ExpenseController) GetNew(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	moneyAccountService *services.MoneyAccountService,
+	expenseCategoryService *services.ExpenseCategoryService,
+) {
+	accounts, err := moneyAccountService.GetAll(r.Context())
 	if err != nil {
+		logger.Errorf("Error retrieving accounts: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	categories, err := c.viewModelCategories(r)
+
+	categories, err := expenseCategoryService.GetAll(r.Context())
 	if err != nil {
+		logger.Errorf("Error retrieving categories: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &expenses2.CreatePageProps{
-		Accounts:   accounts,
-		Categories: categories,
+
+	props := &expensesui.CreatePageProps{
+		Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
+		Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
 		Errors:     map[string]string{},
-		Expense: mappers.ExpenseToViewModel(&expense.Expense{
-			Category: category.New("", "", 0, &currency.USD),
-		}),
+		Expense: mappers.ExpenseToViewModel(expense.New(
+			0,
+			moneyaccount.Account{},
+			category.New(
+				"",            // name
+				0.0,           // amount - using 0.0 to be explicit about float64
+				&currency.USD, // currency
+			),
+			time.Now(),
+		)),
 	}
-	templ.Handler(expenses2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expensesui.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ExpenseController) Create(w http.ResponseWriter, r *http.Request) {
+func (c *ExpenseController) Create(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+	moneyAccountService *services.MoneyAccountService,
+	expenseCategoryService *services.ExpenseCategoryService,
+) {
 	if err := r.ParseForm(); err != nil {
+		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	dto := expense.CreateDTO{}
+	dto := dtos.ExpenseCreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		logger.Errorf("Error decoding form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
-		accounts, err := c.viewModelAccounts(r)
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		accounts, err := moneyAccountService.GetAll(r.Context())
 		if err != nil {
+			logger.Errorf("Error retrieving accounts: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		entity, err := dto.ToEntity()
 		if err != nil {
+			logger.Errorf("Error converting DTO to entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		categories, err := c.viewModelCategories(r)
+
+		categories, err := expenseCategoryService.GetAll(r.Context())
 		if err != nil {
+			logger.Errorf("Error retrieving categories: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &expenses2.CreatePageProps{
-			Accounts:   accounts,
+
+		props := &expensesui.CreatePageProps{
+			Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
 			Errors:     errorsMap,
-			Categories: categories,
+			Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
 			Expense:    mappers.ExpenseToViewModel(entity),
 		}
-		templ.Handler(expenses2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(expensesui.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	if err := c.expenseService.Create(r.Context(), &dto); err != nil {
+	entity, err := dto.ToEntity()
+	if err != nil {
+		logger.Errorf("Error converting DTO to entity: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := expenseService.Create(r.Context(), entity); err != nil {
+		logger.Errorf("Error creating expense: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

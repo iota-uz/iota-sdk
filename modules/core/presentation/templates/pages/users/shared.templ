@@ -50,6 +50,42 @@ type SharedProps struct {
 	Error string
 }
 
+type GroupSelectProps struct {
+	Groups   []*viewmodels.Group
+	Selected []string
+	Name     string
+	Form     string
+	Error    string
+}
+
+func isGroupSelected(id string, groups []string) bool {
+	for _, groupID := range groups {
+		if groupID == id {
+			return true
+		}
+	}
+	return false
+}
+
+templ GroupSelect(props *GroupSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Combobox(base.ComboboxProps{
+		Label:       pageCtx.T("Users.Single.GroupIDs"),
+		Placeholder: pageCtx.T("Users.Single.SelectGroup"),
+		Multiple:    true,
+		Name:        props.Name,
+		Form:        props.Form,
+	}) {
+		for _, group := range props.Groups {
+			if isGroupSelected(group.ID, props.Selected) {
+				<option value={ group.ID } selected>{ group.Name }</option>
+			} else {
+				<option value={ group.ID }>{ group.Name }</option>
+			}
+		}
+	}
+}
+
 templ EmailInput(props SharedProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)

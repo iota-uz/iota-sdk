@@ -23,8 +23,12 @@ func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (category
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ExpenseCategoryService) Count(ctx context.Context) (uint, error) {
-	return s.repo.Count(ctx)
+func (s *ExpenseCategoryService) Count(ctx context.Context, params *category.FindParams) (uint, error) {
+	count, err := s.repo.Count(ctx, params)
+	if err != nil {
+		return 0, err
+	}
+	return uint(count), nil
 }
 
 func (s *ExpenseCategoryService) GetAll(ctx context.Context) ([]category.ExpenseCategory, error) {

@@ -66,7 +66,6 @@ func (g *tabRepository) queryTabs(ctx context.Context, query string, args ...int
 	}
 
 	return tabs, nil
-
 }
 
 func (g *tabRepository) Count(ctx context.Context) (int64, error) {

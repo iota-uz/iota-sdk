@@ -431,6 +431,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputUploadFilter,
+		ec.unmarshalInputUploadSort,
 	)
 	first := true
 
@@ -4665,7 +4666,7 @@ func (ec *executionContext) unmarshalInputUploadFilter(ctx context.Context, obj 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"mimeType", "mimeTypePrefix", "type"}
+	fieldsInOrder := [...]string{"mimeType", "mimeTypePrefix", "type", "sort"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -4693,6 +4694,47 @@ func (ec *executionContext) unmarshalInputUploadFilter(ctx context.Context, obj 
 				return it, err
 			}
 			it.Type = data
+		case "sort":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sort"))
+			data, err := ec.unmarshalOUploadSort2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadSort(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Sort = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUploadSort(ctx context.Context, obj interface{}) (model.UploadSort, error) {
+	var it model.UploadSort
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"field", "ascending"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "field":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("field"))
+			data, err := ec.unmarshalNUploadSortField2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadSortField(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Field = data
+		case "ascending":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ascending"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Ascending = data
 		}
 	}
 
@@ -5696,6 +5738,16 @@ func (ec *executionContext) unmarshalNUploadFilter2githubᚗcomᚋiotaᚑuzᚋio
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUploadSortField2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadSortField(ctx context.Context, v interface{}) (model.UploadSortField, error) {
+	var res model.UploadSortField
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNUploadSortField2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadSortField(ctx context.Context, sel ast.SelectionSet, v model.UploadSortField) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNUploadType2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋdomainᚋentitiesᚋuploadᚐUploadType(ctx context.Context, v interface{}) (upload.UploadType, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := unmarshalNUploadType2githubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋdomainᚋentitiesᚋuploadᚐUploadType[tmp]
@@ -6162,6 +6214,14 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOUploadSort2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadSort(ctx context.Context, v interface{}) (*model.UploadSort, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputUploadSort(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOUploadType2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋdomainᚋentitiesᚋuploadᚐUploadType(ctx context.Context, v interface{}) (*upload.UploadType, error) {
