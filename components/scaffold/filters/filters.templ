@@ -61,7 +61,10 @@ templ Dropdown(props DropdownProps) {
 			x-show="open"
 			@click.away="open = false"
 			x-transition
-			class="absolute z-20 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-y-auto"
+			class={
+				"absolute z-20 mt-2 bg-white max-h-80 overflow-y-auto min-w-fit",
+				"border border-gray-200 rounded-md shadow-lg",
+			}
 		>
 			{ children... }
 		</ul>
@@ -80,7 +83,7 @@ templ DropdownItem(props DropdownItemProps) {
 	<li
 		class={
 			twmerge.Merge(
-				"hover:bg-gray-100 p-2",
+				"hover:bg-gray-100",
 				props.Class.String(),
 			),
 		}
@@ -88,6 +91,7 @@ templ DropdownItem(props DropdownItemProps) {
 		@input.Checkbox(&input.CheckboxProps{
 			Label:   props.Label,
 			Checked: props.Checked,
+			Class:   templ.Classes("p-2"),
 			Attrs: templ.Attributes{
 				"value":    props.Value,
 				"name":     props.Name,
