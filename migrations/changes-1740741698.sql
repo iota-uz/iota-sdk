@@ -4,13 +4,14 @@
 CREATE TABLE uploads (
 	id         SERIAL8 PRIMARY KEY,
 	name       VARCHAR(255) NOT NULL,
-	hash       VARCHAR(255) NOT NULL UNIQUE,
+	hash       VARCHAR(255) NOT NULL,
 	path       VARCHAR(1024) DEFAULT '' NOT NULL,
 	size       INT8 DEFAULT 0 NOT NULL,
 	mimetype   VARCHAR(255) NOT NULL,
 	type       VARCHAR(255) NOT NULL,
 	created_at TIMESTAMPTZ DEFAULT now(),
-	updated_at TIMESTAMPTZ DEFAULT now()
+	updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT uploads_hash_key UNIQUE (hash)
 );
 
 -- Change CREATE_TABLE: clients
@@ -61,20 +62,22 @@ CREATE TABLE positions (
 -- Change CREATE_TABLE: permissions
 CREATE TABLE permissions (
 	id          UUID DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-	name        VARCHAR(255) NOT NULL UNIQUE,
+	name        VARCHAR(255) NOT NULL,
 	resource    VARCHAR(255) NOT NULL,
 	action      VARCHAR(255) NOT NULL,
 	modifier    VARCHAR(255) NOT NULL,
-	description TEXT
+	description TEXT,
+  CONSTRAINT permissions_name_key UNIQUE (name)
 );
 
 -- Change CREATE_TABLE: roles
 CREATE TABLE roles (
 	id          SERIAL8 PRIMARY KEY,
-	name        VARCHAR(255) NOT NULL UNIQUE,
+	name        VARCHAR(255) NOT NULL,
 	description TEXT,
 	created_at  TIMESTAMPTZ DEFAULT now(),
-	updated_at  TIMESTAMPTZ DEFAULT now()
+	updated_at  TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT roles_name_key UNIQUE (name)
 );
 
 -- Change CREATE_TABLE: warehouse_orders
@@ -122,11 +125,12 @@ CREATE TABLE inventory (
 CREATE TABLE warehouse_positions (
 	id          SERIAL8 PRIMARY KEY,
 	title       VARCHAR(255) NOT NULL,
-	barcode     VARCHAR(255) NOT NULL UNIQUE,
+	barcode     VARCHAR(255) NOT NULL,
 	description TEXT,
 	unit_id     INT8 REFERENCES warehouse_units (id) ON DELETE SET NULL,
 	created_at  TIMESTAMPTZ DEFAULT now(),
-	updated_at  TIMESTAMPTZ DEFAULT now()
+	updated_at  TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT warehouse_positions_barcode_key UNIQUE (barcode)
 );
 
 -- Change CREATE_TABLE: employees
@@ -135,7 +139,7 @@ CREATE TABLE employees (
 	first_name         VARCHAR(255) NOT NULL,
 	last_name          VARCHAR(255) NOT NULL,
 	middle_name        VARCHAR(255),
-	email              VARCHAR(255) NOT NULL UNIQUE,
+	email              VARCHAR(255) NOT NULL,
 	phone              VARCHAR(255),
 	salary             DECIMAL(9,2) NOT NULL,
 	salary_currency_id VARCHAR(3) REFERENCES currencies (code) ON DELETE SET NULL,
@@ -143,7 +147,8 @@ CREATE TABLE employees (
 	coefficient        FLOAT8 NOT NULL,
 	avatar_id          INT8 REFERENCES uploads (id) ON DELETE SET NULL,
 	created_at         TIMESTAMPTZ DEFAULT now(),
-	updated_at         TIMESTAMPTZ DEFAULT now()
+	updated_at         TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT employees_email_key UNIQUE (email)
 );
 
 -- Change CREATE_TABLE: warehouse_position_images
@@ -159,7 +164,7 @@ CREATE TABLE users (
 	first_name  VARCHAR(255) NOT NULL,
 	last_name   VARCHAR(255) NOT NULL,
 	middle_name VARCHAR(255),
-	email       VARCHAR(255) NOT NULL UNIQUE,
+	email       VARCHAR(255) NOT NULL,
 	password    VARCHAR(255),
 	ui_language VARCHAR(3) NOT NULL,
 	avatar_id   INT8 REFERENCES uploads (id) ON DELETE SET NULL,
@@ -167,7 +172,8 @@ CREATE TABLE users (
 	last_ip     VARCHAR(255) NULL,
 	last_action TIMESTAMPTZ NULL,
 	created_at  TIMESTAMPTZ DEFAULT now() NOT NULL,
-	updated_at  TIMESTAMPTZ DEFAULT now() NOT NULL
+	updated_at  TIMESTAMPTZ DEFAULT now() NOT NULL,
+  CONSTRAINT users_email_key UNIQUE (email)
 );
 
 -- Change CREATE_TABLE: role_permissions
@@ -229,10 +235,11 @@ CREATE TABLE employee_meta (
 CREATE TABLE warehouse_products (
 	id          SERIAL8 PRIMARY KEY,
 	position_id INT8 NOT NULL REFERENCES warehouse_positions (id) ON DELETE CASCADE,
-	rfid        VARCHAR(255) NULL UNIQUE,
+	rfid        VARCHAR(255) NULL,
 	status      VARCHAR(255) NOT NULL,
 	created_at  TIMESTAMPTZ DEFAULT now(),
-	updated_at  TIMESTAMPTZ DEFAULT now()
+	updated_at  TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT warehouse_products_rfid UNIQUE (rfid)
 );
 
 -- Change CREATE_TABLE: authentication_logs
@@ -292,7 +299,7 @@ CREATE TABLE tabs (
 	href       VARCHAR(255) NOT NULL,
 	user_id    INT8 NOT NULL REFERENCES users (id) ON DELETE CASCADE,
 	"position" INT8 DEFAULT 0 NOT NULL,
-	UNIQUE (href, user_id)
+	CONSTRAINT tabs_href_user_id_key UNIQUE (href, user_id)
 );
 
 -- Change CREATE_TABLE: counterparty_contacts

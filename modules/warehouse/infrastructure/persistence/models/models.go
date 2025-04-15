@@ -2,13 +2,16 @@ package models
 
 import (
 	"database/sql"
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
-	"github.com/lib/pq"
 	"time"
+
+	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+
+	"github.com/lib/pq"
 )
 
 type WarehouseUnit struct {
 	ID         uint
+	TenantID   string
 	Title      string
 	ShortTitle string
 	CreatedAt  time.Time
@@ -17,6 +20,7 @@ type WarehouseUnit struct {
 
 type InventoryCheck struct {
 	ID           uint
+	TenantID     string
 	Status       string
 	Name         string
 	Results      []*InventoryCheckResult `gorm:"foreignKey:InventoryCheckID"`
@@ -37,6 +41,7 @@ type InventoryPosition struct {
 
 type InventoryCheckResult struct {
 	ID               uint
+	TenantID         string
 	InventoryCheckID uint
 	PositionID       uint
 	Position         *WarehousePosition
@@ -48,6 +53,7 @@ type InventoryCheckResult struct {
 
 type WarehouseOrder struct {
 	ID        uint
+	TenantID  string
 	Type      string
 	Status    string
 	CreatedAt time.Time
@@ -60,6 +66,7 @@ type WarehouseOrderItem struct {
 
 type WarehousePosition struct {
 	ID        uint
+	TenantID  string
 	Title     string
 	Barcode   string
 	UnitID    sql.NullInt32
@@ -70,6 +77,7 @@ type WarehousePosition struct {
 
 type WarehouseProduct struct {
 	ID         uint
+	TenantID   string
 	PositionID uint
 	Rfid       sql.NullString
 	Status     string

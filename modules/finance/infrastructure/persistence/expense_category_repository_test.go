@@ -1,11 +1,12 @@
 package persistence_test
 
 import (
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
-	"testing"
 )
 
 func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {

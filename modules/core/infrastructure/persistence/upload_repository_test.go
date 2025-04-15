@@ -131,6 +131,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		updatedMime := mimetype.Lookup("image/png")
 		updatedUpload := upload.NewWithID(
 			createdUpload.ID(),
+			createdUpload.TenantID(),
 			"updated-hash",
 			"uploads/updated.png",
 			"updated.png",

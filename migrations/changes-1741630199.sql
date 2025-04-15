@@ -2,10 +2,11 @@
 -- Change CREATE_TABLE: user_groups
 CREATE TABLE user_groups (
     id uuid DEFAULT gen_random_uuid () PRIMARY KEY,
-    name varchar(255) NOT NULL UNIQUE,
+    name varchar(255) NOT NULL,
     description text,
     created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
+    updated_at timestamp DEFAULT now(),
+    CONSTRAINT user_groups_name_key UNIQUE (name)
 );
 
 -- Change CREATE_TABLE: group_roles

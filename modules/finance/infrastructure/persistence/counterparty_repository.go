@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -35,9 +36,10 @@ const (
 			legal_type,
 			legal_address,
 			created_at,
-			updated_at
+			updated_at,
+			tenant_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
 	updateCounterpartyQuery = `
 		UPDATE counterparty
 		SET name = $1, tin = $2, type = $3, legal_type = $4, legal_address = $5, updated_at = $6
@@ -106,6 +108,12 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 	if err != nil {
 		return nil, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	args := []interface{}{
 		entity.Name,
 		entity.Tin,
@@ -114,6 +122,7 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 		entity.LegalAddress,
 		entity.CreatedAt,
 		entity.UpdatedAt,
+		tenant.ID,
 	}
 	row := tx.QueryRow(ctx, insertCounterpartyQuery, args...)
 	var id uint
