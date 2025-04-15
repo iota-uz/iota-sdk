@@ -13,6 +13,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type DropdownProps struct {
@@ -111,7 +112,7 @@ func Dropdown(props DropdownProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 48, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 49, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -335,7 +336,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 130, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 131, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 					if templ_7745c5c3_Err != nil {
@@ -348,7 +349,7 @@ func (t *TableFilter) Component() templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 132, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filters/filters.templ`, Line: 133, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -396,12 +397,13 @@ func (t *TableFilter) AsSideFilter() templ.Component {
 			templ_7745c5c3_Var17 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<div class=\"space-y-3\"><div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
-			Label: "Select All",
+			Label: pageCtx.T("Scaffold.Filters.SelectAll"),
 			ID:    "all-users-checkbox",
 			Attrs: templ.Attributes{
 				"class":   "parent",
@@ -418,7 +420,8 @@ func (t *TableFilter) AsSideFilter() templ.Component {
 		}
 		for _, opt := range t.options {
 			templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
-				Label: opt.Label,
+				Label:   opt.Label,
+				Checked: isOptionChecked(ctx, t.Name, opt),
 				Attrs: templ.Attributes{
 					"name":    t.Name,
 					"value":   opt.Value,

@@ -25,7 +25,8 @@
       "NoDataDescription": "There is no data available for this table."
     },
     "Filters": {
-      "Title": "Filters"
+      "Title": "Filters",
+      "SelectAll": "Select All"
     }
   },
   "Spotlight": {

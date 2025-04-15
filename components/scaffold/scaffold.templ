@@ -79,7 +79,7 @@ templ TableSection(config *TableConfig) {
 		hx-target="#table-body"
 		hx-swap="innerHTML"
 		hx-indicator="#table-body"
-		class="flex flex-col md:flex-row gap-5"
+		class="flex gap-5"
 		x-data="checkboxes"
 		x-init="init"
 	>
@@ -94,7 +94,7 @@ templ TableSection(config *TableConfig) {
 		<!-- Main content area with search, filters, and table -->
 		<div class="flex-1">
 			<div class="bg-surface-600 border border-primary rounded-lg">
-				<div class="p-4 flex flex-col md:flex-row md:items-center gap-3">
+				<div class="p-4 flex flex-row md:items-center gap-3">
 					<div class="flex-1">
 						@input.Text(&input.Props{
 							AddonLeft: &input.Addon{
