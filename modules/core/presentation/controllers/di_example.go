@@ -3,10 +3,12 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
@@ -56,6 +58,39 @@ func (c *DIEmployeeController) ScaffoldTable(
 ) {
 	params := &user.FindParams{
 		Search: r.URL.Query().Get("search"),
+	}
+
+	if r.URL.Query().Get("RoleID") != "" {
+		params.Filters = append(params.Filters, user.Filter{
+			Column: user.RoleID,
+			Filter: repo.In(r.URL.Query()["RoleID"]),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.WithError(err).Error("failed to parse CreatedAt.From")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		params.Filters = append(params.Filters, user.Filter{
+			Column: user.CreatedAt,
+			Filter: repo.Gte(t),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.WithError(err).Error("failed to parse CreatedAt.To")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		params.Filters = append(params.Filters, user.Filter{
+			Column: user.CreatedAt,
+			Filter: repo.Lte(t),
+		})
 	}
 
 	users, err := userService.GetPaginated(r.Context(), params)
