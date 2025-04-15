@@ -285,7 +285,7 @@ func TableSection(config *TableConfig) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-push-url=\"true\" hx-trigger=\"keyup changed delay:300ms from:(form input), change from:(form select), change from:(form input[type=&#39;checkbox&#39;])\" hx-target=\"#table-body\" hx-swap=\"innerHTML\" hx-indicator=\"#table-body\" class=\"flex flex-col md:flex-row gap-5\" x-data=\"checkboxes\" x-init=\"init\"><!-- Left sidebar with filters -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-push-url=\"true\" hx-trigger=\"keyup changed delay:300ms from:(form input), change from:(form select), change from:(form input[type=&#39;checkbox&#39;])\" hx-target=\"#table-body\" hx-swap=\"innerHTML\" hx-indicator=\"#table-body\" class=\"flex gap-5\" x-data=\"checkboxes\" x-init=\"init\"><!-- Left sidebar with filters -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -303,7 +303,7 @@ func TableSection(config *TableConfig) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<!-- Main content area with search, filters, and table --><div class=\"flex-1\"><div class=\"bg-surface-600 border border-primary rounded-lg\"><div class=\"p-4 flex flex-col md:flex-row md:items-center gap-3\"><div class=\"flex-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<!-- Main content area with search, filters, and table --><div class=\"flex-1\"><div class=\"bg-surface-600 border border-primary rounded-lg\"><div class=\"p-4 flex flex-row md:items-center gap-3\"><div class=\"flex-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

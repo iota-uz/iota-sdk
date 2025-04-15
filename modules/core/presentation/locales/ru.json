@@ -25,7 +25,8 @@
       "NoDataDescription": "Для этой таблицы нет доступных данных."
     },
     "Filters": {
-      "Title": "Фильтры"
+      "Title": "Фильтры",
+      "SelectAll": "Выбрать все"
     }
   },
   "Spotlight": {

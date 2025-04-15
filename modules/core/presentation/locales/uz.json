@@ -25,7 +25,8 @@
       "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas."
     },
     "Filters": {
-      "Title": "Filtrlar"
+      "Title": "Filtrlar",
+      "SelectAll": "Barchasini tanlash"
     }
   },
   "Spotlight": {
