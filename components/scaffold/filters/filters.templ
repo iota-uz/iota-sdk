@@ -125,7 +125,10 @@ templ (t *TableFilter) Component() {
 			},
 		}) {
 			for _, opt := range t.options {
-				<option value={ opt.Value }>
+				<option
+					selected?={ isOptionChecked(ctx, t.Name, opt) }
+					value={ opt.Value }
+				>
 					{ opt.Label }
 				</option>
 			}
