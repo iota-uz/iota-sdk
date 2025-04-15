@@ -40,6 +40,8 @@ const (
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
 
+	userExistsQuery = `SELECT 1 FROM users u`
+
 	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1`
 
 	userUpdateLastActionQuery = `UPDATE users SET last_action = NOW() WHERE id = $1`
@@ -258,6 +260,22 @@ func (g *PgUserRepository) GetByPhone(ctx context.Context, phone string) (user.U
 		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("phone: %s", phone))
 	}
 	return users[0], nil
+}
+
+func (g *PgUserRepository) PhoneExists(ctx context.Context, phone string) (bool, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get transaction")
+	}
+
+	base := repo.Join(userExistsQuery, "WHERE u.phone = $1")
+	query := repo.Exists(base)
+
+	exists := false
+	if err := tx.QueryRow(ctx, query, phone).Scan(&exists); err != nil {
+		return false, errors.Wrap(err, "checking phone existence failed")
+	}
+	return exists, nil
 }
 
 func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {

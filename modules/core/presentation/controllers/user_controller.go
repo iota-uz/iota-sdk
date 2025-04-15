@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"sort"
@@ -28,6 +29,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/validators"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
@@ -412,22 +414,17 @@ func (c *UsersController) Create(
 	roleService *services.RoleService,
 	groupService *services.GroupService,
 ) {
-	dto, err := composables.UseForm(&user.CreateDTO{}, r)
-	if err != nil {
-		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	respondWithForm := func(errors map[string]string, dto *user.CreateDTO) {
+		ctx := r.Context()
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
-		roles, err := roleService.GetAll(r.Context())
+		roles, err := roleService.GetAll(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving roles: %v", err)
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
 
-		groups, err := groupService.GetAll(r.Context())
+		groups, err := groupService.GetAll(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving groups: %v", err)
 			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -440,6 +437,7 @@ func (c *UsersController) Create(
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		props := &users.CreateFormProps{
 			User:             *mappers.UserToViewModel(userEntity),
 			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
@@ -447,9 +445,19 @@ func (c *UsersController) Create(
 			PermissionGroups: c.permissionGroups(c.app.RBAC()),
 			Errors:           errors,
 		}
-		templ.Handler(
-			users.CreateForm(props), templ.WithStreaming(),
-		).ServeHTTP(w, r)
+
+		templ.Handler(users.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+
+	dto, err := composables.UseForm(&user.CreateDTO{}, r)
+	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if errs, ok := dto.Ok(r.Context()); !ok {
+		respondWithForm(errs, dto)
 		return
 	}
 
@@ -487,6 +495,12 @@ func (c *UsersController) Create(
 	}
 
 	if err := userService.Create(r.Context(), userEntity); err != nil {
+		var errs *validators.ValidationError
+		if errors.As(err, &errs) {
+			respondWithForm(errs.Fields, dto)
+			return
+		}
+
 		logger.Errorf("Error creating user: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
