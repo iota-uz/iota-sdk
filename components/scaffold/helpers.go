@@ -2,7 +2,6 @@ package scaffold
 
 import (
 	"github.com/a-h/templ"
-	"github.com/iota-uz/iota-sdk/components/scaffold/filters"
 )
 
 // --- Interfaces ---
@@ -55,7 +54,7 @@ func WithClass(classes string) ColumnOpt {
 type TableConfig struct {
 	Title      string
 	DataURL    string
-	Filters    []*filters.TableFilter
+	Filters    []templ.Component
 	Columns    []TableColumn
 	Rows       []TableRow
 	SideFilter templ.Component
@@ -66,7 +65,7 @@ func NewTableConfig(title, dataURL string) *TableConfig {
 		Title:   title,
 		DataURL: dataURL,
 		Columns: []TableColumn{},
-		Filters: []*filters.TableFilter{},
+		Filters: []templ.Component{},
 		Rows:    []TableRow{},
 	}
 }
@@ -91,7 +90,7 @@ func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
 	return c
 }
 
-func (c *TableConfig) AddFilters(filters ...*filters.TableFilter) *TableConfig {
+func (c *TableConfig) AddFilters(filters ...templ.Component) *TableConfig {
 	c.Filters = append(c.Filters, filters...)
 	return c
 }
