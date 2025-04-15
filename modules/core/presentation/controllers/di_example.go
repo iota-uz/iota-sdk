@@ -10,8 +10,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/filters"
 	sfui "github.com/iota-uz/iota-sdk/components/scaffold"
-	"github.com/iota-uz/iota-sdk/components/scaffold/filters"
+	fbuilder "github.com/iota-uz/iota-sdk/components/scaffold/filters"
 	scaffoldfilters "github.com/iota-uz/iota-sdk/components/scaffold/filters"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -70,18 +71,6 @@ func (c *DIEmployeeController) ScaffoldTable(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	createdAtFilter := scaffoldfilters.NewFilter(
-		"CreatedAt",
-		scaffoldfilters.WithPlaceholder("Created at"),
-	)
-	createdAtFilter.Add(
-		filters.Opt("today", "Today"),
-		filters.Opt("thisWeek", "This Week"),
-		filters.Opt("thisMonth", "This Month"),
-		filters.Opt("thisYear", "This Year"),
-		filters.Opt("lastYear", "Last Year"),
-	)
 	roleFilter := scaffoldfilters.NewFilter(
 		"RoleID",
 		scaffoldfilters.WithPlaceholder("Role"),
@@ -89,20 +78,19 @@ func (c *DIEmployeeController) ScaffoldTable(
 	)
 
 	for _, r := range roles {
-		roleFilter.Add(filters.Opt(fmt.Sprintf("%d", r.ID()), r.Name()))
+		roleFilter.Add(fbuilder.Opt(fmt.Sprintf("%d", r.ID()), r.Name()))
 	}
 
 	tcfg := sfui.NewTableConfig("Users", "/di/scaffold-table")
 	tcfg.AddFilters(
-		roleFilter,
-		createdAtFilter,
+		filters.CreatedAt(),
 	)
-
 	tcfg.AddCols(
 		sfui.Column("fullname", "Fullname"),
 		sfui.Column("email", "Email"),
 		sfui.Column("createdAt", "Created At"),
 	)
+	tcfg.SetSideFilter(roleFilter.AsSideFilter())
 	for _, c := range users {
 		tcfg.AddRows(
 			sfui.Row(

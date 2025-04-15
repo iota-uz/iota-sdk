@@ -99,26 +99,11 @@ templ TableContent(config *TableConfig) {
 			</div>
 			<div class="hidden md:flex gap-3 h-full">
 				for _, filter := range config.Filters {
-					@filter.Component()
+					@filter
 				}
 			</div>
 		</form>
 		@Table(config)
-	</div>
-}
-
-templ SideFilter() {
-	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<form
-			hx-get="/users"
-			hx-target="#table-body"
-			hx-swap="innerHTML"
-			hx-push-url="true"
-			hx-indicator="#table-body"
-			hx-trigger="change"
-		>
-			{ children... }
-		</form>
 	</div>
 }
 
@@ -130,7 +115,7 @@ templ Content(config *TableConfig) {
 		Action:  "open-filters",
 	}) {
 		for _, filter := range config.Filters {
-			@filter.Component()
+			@filter
 		}
 	}
 	<div class="m-6">
@@ -154,9 +139,20 @@ templ Content(config *TableConfig) {
 			<div class="mt-5 flex gap-5">
 				<!-- Left sidebar with filters -->
 				<div class="hidden md:block w-64 flex-shrink-0">
-					@SideFilter() {
-						@config.SideFilter
-					}
+					<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+						<form
+							hx-get={ config.DataURL }
+							hx-target="#table-body"
+							hx-swap="innerHTML"
+							hx-push-url="true"
+							hx-indicator="#table-body"
+							hx-trigger="change"
+							x-data="checkboxes"
+							x-init="init"
+						>
+							@config.SideFilter
+						</form>
+					</div>
 				</div>
 				<!-- Main content area with table -->
 				<div class="flex-1">

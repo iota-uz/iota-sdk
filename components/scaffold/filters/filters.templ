@@ -132,3 +132,32 @@ templ (t *TableFilter) Component() {
 		}
 	}
 }
+
+templ (t *TableFilter) AsSideFilter() {
+	<div class="space-y-3">
+		<div>
+			@input.Checkbox(&input.CheckboxProps{
+				Label: "Select All",
+				ID:    "all-users-checkbox",
+				Attrs: templ.Attributes{
+					"class":   "parent",
+					"x-ref":   "parent",
+					"@change": "onParentChange",
+				},
+			})
+		</div>
+		<hr class="my-3 border-t border-surface-400"/>
+		<div class="space-y-3">
+			for _, opt := range t.options {
+				@input.Checkbox(&input.CheckboxProps{
+					Label: opt.Label,
+					Attrs: templ.Attributes{
+						"name":    t.Name,
+						"value":   opt.Value,
+						"@change": "onChange",
+					},
+				})
+			}
+		</div>
+	</div>
+}
