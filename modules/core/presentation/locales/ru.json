@@ -22,7 +22,8 @@
   "Scaffold": {
     "Table": {
       "NoDataTitle": "Данные недоступны",
-      "NoDataDescription": "Для этой таблицы нет доступных данных."
+      "NoDataDescription": "Для этой таблицы нет доступных данных.",
+      "NothingFound": "Ничего не найдено"
     },
     "Filters": {
       "Title": "Фильтры",

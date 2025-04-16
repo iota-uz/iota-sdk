@@ -56,8 +56,10 @@ func (c *DIEmployeeController) ScaffoldTable(
 	roleService *services.RoleService,
 	logger *logrus.Entry,
 ) {
-	params := &user.FindParams{
-		Search: r.URL.Query().Get("search"),
+	params := &user.FindParams{}
+
+	if v := r.URL.Query().Get("Search"); v != "" {
+		params.Search = v
 	}
 
 	if r.URL.Query().Get("RoleID") != "" {

@@ -22,7 +22,8 @@
   "Scaffold": {
     "Table": {
       "NoDataTitle": "No data available",
-      "NoDataDescription": "There is no data available for this table."
+      "NoDataDescription": "There is no data available for this table.",
+      "NothingFound": "Nothing found"
     },
     "Filters": {
       "Title": "Filters",
