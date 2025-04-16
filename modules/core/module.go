@@ -64,13 +64,11 @@ func (m *Module) Register(app application.Application) error {
 		services.NewRoleService(roleRepo, app.EventPublisher()),
 		services.NewPermissionService(permRepo, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
-		services.NewTabService(persistence.NewTabRepository()),
 		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
 	)
 
 	tabHandler := handlers.NewTabHandler(
 		app,
-		persistence.NewTabRepository(),
 		configuration.Use().Logger(),
 	)
 	tabHandler.Register(app.EventPublisher())
