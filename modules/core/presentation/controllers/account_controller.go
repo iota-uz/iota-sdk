@@ -55,7 +55,6 @@ func (c *AccountController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/sidebar", c.PostSettings).Methods(http.MethodPost)
 }
