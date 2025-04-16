@@ -6,6 +6,9 @@ import (
 
 // --- Interfaces ---
 
+type RowOpt func(r *tableRowImpl)
+type ColumnOpt func(c *tableColumnImpl)
+
 type TableColumn interface {
 	Key() string
 	Label() string
@@ -15,6 +18,8 @@ type TableColumn interface {
 
 type TableRow interface {
 	Cells() []templ.Component
+	Atrrs() templ.Attributes
+	ApplyOpts(opts ...RowOpt) TableRow
 }
 
 // --- Private Implementations ---
@@ -33,15 +38,36 @@ func (c *tableColumnImpl) Width() string { return c.width }
 
 type tableRowImpl struct {
 	cells []templ.Component
+	attrs templ.Attributes
 }
 
 func (r *tableRowImpl) Cells() []templ.Component {
 	return r.cells
 }
 
-// --- Column Option Type ---
+func (r *tableRowImpl) Atrrs() templ.Attributes {
+	return r.attrs
+}
 
-type ColumnOpt func(c *tableColumnImpl)
+func (r *tableRowImpl) ApplyOpts(opts ...RowOpt) TableRow {
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
+}
+
+// --- Row Options ---
+
+func WithDrawer(fetchURL string) RowOpt {
+	return func(r *tableRowImpl) {
+		r.attrs["class"] = r.attrs["class"].(string) + " cursor-pointer"
+		r.attrs["hx-get"] = fetchURL
+		r.attrs["hx-target"] = "#view-drawer"
+		r.attrs["hx-swap"] = "innerHTML"
+	}
+}
+
+// --- Column Options ---
 
 func WithClass(classes string) ColumnOpt {
 	return func(c *tableColumnImpl) {
@@ -50,6 +76,8 @@ func WithClass(classes string) ColumnOpt {
 }
 
 // --- Table Configuration ---
+
+type TableConfigOpt func(c *TableConfig)
 
 type TableConfig struct {
 	Title      string
@@ -60,14 +88,18 @@ type TableConfig struct {
 	SideFilter templ.Component
 }
 
-func NewTableConfig(title, dataURL string) *TableConfig {
-	return &TableConfig{
+func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig {
+	t := &TableConfig{
 		Title:   title,
 		DataURL: dataURL,
 		Columns: []TableColumn{},
 		Filters: []templ.Component{},
 		Rows:    []TableRow{},
 	}
+	for _, o := range opts {
+		o(t)
+	}
+	return t
 }
 
 func Column(key, label string, opts ...ColumnOpt) TableColumn {
@@ -82,7 +114,12 @@ func Column(key, label string, opts ...ColumnOpt) TableColumn {
 }
 
 func Row(cells ...templ.Component) TableRow {
-	return &tableRowImpl{cells: cells}
+	return &tableRowImpl{
+		cells: cells,
+		attrs: templ.Attributes{
+			"class": "hide-on-load",
+		},
+	}
 }
 
 func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
