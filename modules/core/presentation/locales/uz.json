@@ -22,7 +22,8 @@
   "Scaffold": {
     "Table": {
       "NoDataTitle": "Ma'lumotlar yo'q",
-      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas."
+      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
+      "NothingFound": "Hech narsa topilmadi"
     },
     "Filters": {
       "Title": "Filtrlar",

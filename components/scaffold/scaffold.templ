@@ -29,6 +29,7 @@ templ DateTime(ts time.Time) {
 
 // Rows renders the table rows for a scaffold table
 templ Rows(config *TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<tr class="hidden">
 		<td colspan={ fmt.Sprintf("%d", len(config.Columns)) }>
 			@loaders.Spinner(loaders.SpinnerProps{
@@ -36,13 +37,28 @@ templ Rows(config *TableConfig) {
 			})
 		</td>
 	</tr>
-	for _, item := range config.Rows {
+	if len(config.Rows) == 0 {
 		@base.TableRow(base.TableRowProps{
 			Attrs: templ.Attributes{"class": "hide-on-load"},
 		}) {
-			for _, cell := range item.Cells() {
-				@base.TableCell(base.TableCellProps{}) {
-					@cell
+			@base.TableCell(base.TableCellProps{
+				Classes: templ.Classes("text-center"),
+				Attrs: templ.Attributes{
+					"colspan": fmt.Sprintf("%d", len(config.Columns)),
+				},
+			}) {
+				{ pageCtx.T("Scaffold.Table.NothingFound") }
+			}
+		}
+	} else {
+		for _, item := range config.Rows {
+			@base.TableRow(base.TableRowProps{
+				Attrs: templ.Attributes{"class": "hide-on-load"},
+			}) {
+				for _, cell := range item.Cells() {
+					@base.TableCell(base.TableCellProps{}) {
+						@cell
+					}
 				}
 			}
 		}
@@ -75,61 +91,58 @@ templ TableSection(config *TableConfig) {
 	<form
 		hx-get={ config.DataURL }
 		hx-push-url="true"
-		hx-trigger="keyup changed delay:300ms from:(form input), change from:(form select), change from:(form input[type='checkbox'])"
+		hx-trigger="keyup changed delay:300ms from:input, change from:select, change from:input[type='checkbox']"
 		hx-target="#table-body"
 		hx-swap="innerHTML"
 		hx-indicator="#table-body"
-		class="flex gap-5"
-		x-data="checkboxes"
-		x-init="init"
 	>
-		<!-- Left sidebar with filters -->
-		if config.SideFilter != nil {
-			<div class="hidden md:block w-64 flex-shrink-0">
-				<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+		<div class="flex gap-5">
+			<!-- Left sidebar with filters -->
+			if config.SideFilter != nil {
+				<div class="hidden md:block w-64 flex-shrink-0">
 					@config.SideFilter
 				</div>
-			</div>
-		}
-		<!-- Main content area with search, filters, and table -->
-		<div class="flex-1">
-			<div class="bg-surface-600 border border-primary rounded-lg">
-				<div class="p-4 flex flex-row md:items-center gap-3">
-					<div class="flex-1">
-						@input.Text(&input.Props{
-							AddonLeft: &input.Addon{
-								Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-							},
-							Placeholder: pageCtx.T("Search"),
-							Attrs: templ.Attributes{
-								"name":  "search",
-								"value": "",
-							},
-						})
+			}
+			<!-- Main content area with search, filters, and table -->
+			<div class="flex-1">
+				<div class="bg-surface-600 border border-primary rounded-lg">
+					<div class="p-4 flex flex-row md:items-center gap-3">
+						<div class="flex-1">
+							@input.Text(&input.Props{
+								AddonLeft: &input.Addon{
+									Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+								},
+								Placeholder: pageCtx.T("Search"),
+								Attrs: templ.Attributes{
+									"name":  "Search",
+									"value": "",
+								},
+							})
+						</div>
+						<div class="hidden md:flex gap-3 h-full">
+							for _, filter := range config.Filters {
+								@filter
+							}
+						</div>
 					</div>
-					<div class="hidden md:flex gap-3 h-full">
-						for _, filter := range config.Filters {
-							@filter
-						}
-					</div>
+					@Table(config)
 				</div>
-				@Table(config)
 			</div>
 		</div>
+		@filters.Drawer(filters.DrawerProps{
+			Heading: pageCtx.T("Scaffold.Filters.Title"),
+			Action:  "open-filters",
+		}) {
+			@config.SideFilter
+			for _, filter := range config.Filters {
+				@filter
+			}
+		}
 	</form>
 }
 
 // Content renders the complete scaffold page content with filters and table
 templ Content(config *TableConfig) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@filters.Drawer(filters.DrawerProps{
-		Heading: pageCtx.T("Scaffold.Filters.Title"),
-		Action:  "open-filters",
-	}) {
-		for _, filter := range config.Filters {
-			@filter
-		}
-	}
 	<div class="m-6">
 		<div class="flex justify-between md:justify-start">
 			<h1 class="text-2xl font-medium">

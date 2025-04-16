@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/utils/random"
 )
 
 type DropdownProps struct {
@@ -138,32 +139,41 @@ templ (t *TableFilter) Component() {
 }
 
 templ (t *TableFilter) AsSideFilter() {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="space-y-3">
-		<div>
-			@input.Checkbox(&input.CheckboxProps{
-				Label: pageCtx.T("Scaffold.Filters.SelectAll"),
-				ID:    "all-users-checkbox",
-				Attrs: templ.Attributes{
-					"class":   "parent",
-					"x-ref":   "parent",
-					"@change": "onParentChange",
-				},
-			})
-		</div>
-		<hr class="my-3 border-t border-surface-400"/>
-		<div class="space-y-3">
-			for _, opt := range t.options {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		id := random.String(12, random.LowerCharSet)
+	}}
+	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+		<div
+			class="space-y-3"
+			x-data="checkboxes"
+			x-init="init"
+		>
+			<div>
 				@input.Checkbox(&input.CheckboxProps{
-					Label:   opt.Label,
-					Checked: isOptionChecked(ctx, t.Name, opt),
+					Label: pageCtx.T("Scaffold.Filters.SelectAll"),
+					ID:    id,
 					Attrs: templ.Attributes{
-						"name":    t.Name,
-						"value":   opt.Value,
-						"@change": "onChange",
+						"class":   "parent",
+						"x-ref":   "parent",
+						"@change": "onParentChange",
 					},
 				})
-			}
+			</div>
+			<hr class="my-3 border-t border-surface-400"/>
+			<div class="space-y-3">
+				for _, opt := range t.options {
+					@input.Checkbox(&input.CheckboxProps{
+						Label:   opt.Label,
+						Checked: isOptionChecked(ctx, t.Name, opt),
+						Attrs: templ.Attributes{
+							"name":    t.Name,
+							"value":   opt.Value,
+							"@change": "onChange",
+						},
+					})
+				}
+			</div>
 		</div>
 	</div>
 }
