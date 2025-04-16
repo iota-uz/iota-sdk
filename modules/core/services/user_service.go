@@ -65,41 +65,39 @@ func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.Fi
 }
 
 func (s *UserService) Create(ctx context.Context, data user.User) error {
-	if err := composables.CanUser(ctx, permissions.UserCreate); err != nil {
-		return err
-	}
-	if err := s.validator.ValidateCreate(ctx, data); err != nil {
-		return err
-	}
-	logger := composables.UseLogger(ctx)
-	tx, err := composables.BeginTx(ctx)
+	err := composables.CanUser(ctx, permissions.UserCreate)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			logger.WithError(err).Error("failed to rollback transaction")
-		}
-	}()
-	createdEvent, err := user.NewCreatedEvent(ctx, data)
+	err = s.validator.ValidateCreate(ctx, data)
 	if err != nil {
 		return err
 	}
 	data, err = data.SetPassword(data.Password())
-	if err != nil {
-		return err
-	}
-	created, err := s.repo.Create(ctx, data)
-	if err != nil {
-		return err
-	}
 
-	if err := tx.Commit(ctx); err != nil {
+	var createdUser user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err != nil {
+			return err
+		}
+		created, err := s.repo.Create(ctx, data)
+		if err != nil {
+			return err
+		}
+		createdUser = created
+		return nil
+	})
+	if err != nil {
 		return err
 	}
-	createdEvent.Result = created
+	createdEvent, err := user.NewCreatedEvent(ctx, data)
+	if err != nil {
+		return err
+	}
+	createdEvent.Result = createdUser
 	s.publisher.Publish(createdEvent)
-	return nil
+
+	return err
 }
 
 func (s *UserService) UpdateLastAction(ctx context.Context, id uint) error {
