@@ -40,6 +40,7 @@ type Repository interface {
 	GetByPhone(ctx context.Context, phone string) (User, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]User, error)
 	GetByID(ctx context.Context, id uint) (User, error)
+	PhoneExists(ctx context.Context, phone string) (bool, error)
 	Create(ctx context.Context, user User) (User, error)
 	Update(ctx context.Context, user User) error
 	UpdateLastAction(ctx context.Context, id uint) error

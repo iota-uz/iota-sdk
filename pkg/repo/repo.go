@@ -68,6 +68,16 @@ func Join(expressions ...string) string {
 	return strings.Join(expressions, " ")
 }
 
+// Exists wraps a SELECT query inside SELECT EXISTS (...).
+//
+// Example usage:
+//
+//	query := repo.Exists("SELECT 1 FROM users WHERE phone = $1")
+//	// Returns: "SELECT EXISTS (SELECT 1 FROM users WHERE phone = $1)"
+func Exists(inner string) string {
+	return "SELECT EXISTS (" + inner + ")"
+}
+
 // OrderBy generates an SQL ORDER BY clause for the given fields and sort direction.
 // Returns an empty string if no fields are provided.
 //
