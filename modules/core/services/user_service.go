@@ -11,12 +11,14 @@ import (
 
 type UserService struct {
 	repo      user.Repository
+	validator user.Validator
 	publisher eventbus.EventBus
 }
 
-func NewUserService(repo user.Repository, publisher eventbus.EventBus) *UserService {
+func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus) *UserService {
 	return &UserService{
 		repo:      repo,
+		validator: validator,
 		publisher: publisher,
 	}
 }
@@ -64,6 +66,9 @@ func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.Fi
 
 func (s *UserService) Create(ctx context.Context, data user.User) error {
 	if err := composables.CanUser(ctx, permissions.UserCreate); err != nil {
+		return err
+	}
+	if err := s.validator.ValidateCreate(ctx, data); err != nil {
 		return err
 	}
 	logger := composables.UseLogger(ctx)

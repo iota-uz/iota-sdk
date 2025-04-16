@@ -2,7 +2,7 @@ package core
 
 import (
 	"embed"
-
+	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -50,9 +50,12 @@ func (m *Module) Register(app application.Application) error {
 	roleRepo := persistence.NewRoleRepository()
 	permRepo := persistence.NewPermissionRepository()
 
+	// custom validations
+	userValidator := validators.NewUserValidator(userRepo)
+
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
-		services.NewUserService(userRepo, app.EventPublisher()),
+		services.NewUserService(userRepo, userValidator, app.EventPublisher()),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
 	)
 	app.RegisterServices(

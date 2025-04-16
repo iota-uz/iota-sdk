@@ -227,6 +227,9 @@
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
       "Permissions": "Foydalanuvchi ruxsatlari"
+    },
+    "Errors": {
+      "PhoneUnique": "Telefon raqami allaqachon foydalanilgan"
     }
   },
   "Roles": {
