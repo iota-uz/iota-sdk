@@ -48,6 +48,7 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	)
 	subRouter.HandleFunc("/scaffold-table", di.H(c.ScaffoldTable))
+	subRouter.HandleFunc("/scaffold-table/{id:[0-9]+}", di.H(c.Details))
 }
 
 func (c *DIEmployeeController) ScaffoldTable(
@@ -118,7 +119,10 @@ func (c *DIEmployeeController) ScaffoldTable(
 		roleFilter.Add(fbuilder.Opt(fmt.Sprintf("%d", r.ID()), r.Name()))
 	}
 
-	tcfg := sfui.NewTableConfig("Users", "/di/scaffold-table")
+	tcfg := sfui.NewTableConfig(
+		"Users",
+		"/di/scaffold-table",
+	)
 	tcfg.AddFilters(
 		filters.CreatedAt(),
 	)
@@ -128,13 +132,14 @@ func (c *DIEmployeeController) ScaffoldTable(
 		sfui.Column("createdAt", "Created At"),
 	)
 	tcfg.SetSideFilter(roleFilter.AsSideFilter())
-	for _, c := range users {
+	for _, u := range users {
+		fetchUrl := fmt.Sprintf("/di/scaffold-table/%d", u.ID())
 		tcfg.AddRows(
 			sfui.Row(
-				templ.Raw(c.FirstName()+" "+c.LastName()),
-				templ.Raw(c.Email().Value()),
-				sfui.DateTime(c.CreatedAt()),
-			),
+				templ.Raw(u.FirstName()+" "+u.LastName()),
+				templ.Raw(u.Email().Value()),
+				sfui.DateTime(u.CreatedAt()),
+			).ApplyOpts(sfui.WithDrawer(fetchUrl)),
 		)
 	}
 
@@ -148,4 +153,14 @@ func (c *DIEmployeeController) ScaffoldTable(
 		logger.WithError(err).Error("failed to render table")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (c *DIEmployeeController) Details(
+	r *http.Request, w http.ResponseWriter,
+) {
+	props := sfui.DefaultDrawerProps{
+		Title:       "User Details",
+		CallbackURL: "/di/scaffold-table",
+	}
+	templ.Handler(sfui.DefaultDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

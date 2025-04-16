@@ -28,34 +28,36 @@ templ DateTime(ts time.Time) {
 }
 
 // Rows renders the table rows for a scaffold table
-templ Rows(config *TableConfig) {
+templ Rows(cfg *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<tr class="hidden">
-		<td colspan={ fmt.Sprintf("%d", len(config.Columns)) }>
+		<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) }>
 			@loaders.Spinner(loaders.SpinnerProps{
 				ContainerClass: templ.Classes("flex justify-center items-center py-4"),
 			})
 		</td>
 	</tr>
-	if len(config.Rows) == 0 {
+	if len(cfg.Rows) == 0 {
 		@base.TableRow(base.TableRowProps{
-			Attrs: templ.Attributes{"class": "hide-on-load"},
+			Attrs: templ.Attributes{
+				"class": "hide-on-load",
+			},
 		}) {
 			@base.TableCell(base.TableCellProps{
 				Classes: templ.Classes("text-center"),
 				Attrs: templ.Attributes{
-					"colspan": fmt.Sprintf("%d", len(config.Columns)),
+					"colspan": fmt.Sprintf("%d", len(cfg.Columns)),
 				},
 			}) {
 				{ pageCtx.T("Scaffold.Table.NothingFound") }
 			}
 		}
 	} else {
-		for _, item := range config.Rows {
+		for _, row := range cfg.Rows {
 			@base.TableRow(base.TableRowProps{
-				Attrs: templ.Attributes{"class": "hide-on-load"},
+				Attrs: row.Atrrs(),
 			}) {
-				for _, cell := range item.Cells() {
+				for _, cell := range row.Cells() {
 					@base.TableCell(base.TableCellProps{}) {
 						@cell
 					}
@@ -165,6 +167,8 @@ templ Content(config *TableConfig) {
 		<div class="mt-5">
 			@TableSection(config)
 		</div>
+		<!-- Placeholder for the view drawer -->
+		<div id="view-drawer"></div>
 	</div>
 }
 

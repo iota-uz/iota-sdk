@@ -1,0 +1,45 @@
+package scaffold
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+)
+
+type DefaultDrawerProps struct {
+	Title       string
+	CallbackURL string
+}
+
+templ DefaultDrawer(props DefaultDrawerProps) {
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.RTL,
+		Action:    "open-default-drawer",
+		Open:      true,
+		Classes:   templ.Classes("flex items-stretch"),
+		Attrs: templ.Attributes{
+			"@closing": fmt.Sprintf("window.history.pushState({}, '', '%s')", props.CallbackURL),
+			"@closed":  "document.getElementById('view-drawer').innerHTML = ''",
+		},
+	}) {
+		<div class="bg-white w-full md:w-[450px] ml-auto">
+			<div class="flex flex-col h-full">
+				<form method="dialog">
+					<div class="flex justify-between px-4 py-3 border-b border-primary">
+						<h3 class="text-lg font-medium">
+							{ props.Title }
+						</h3>
+						<div>
+							<button class="cursor-pointer">
+								@icons.XCircle(icons.Props{Size: "20"})
+							</button>
+						</div>
+					</div>
+				</form>
+				<div class="flex-1 min-h-0">
+					{ children... }
+				</div>
+			</div>
+		</div>
+	}
+}
