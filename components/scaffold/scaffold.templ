@@ -133,7 +133,9 @@ templ TableSection(config *TableConfig) {
 			Heading: pageCtx.T("Scaffold.Filters.Title"),
 			Action:  "open-filters",
 		}) {
-			@config.SideFilter
+			if config.SideFilter != nil {
+				@config.SideFilter
+			}
 			for _, filter := range config.Filters {
 				@filter
 			}
