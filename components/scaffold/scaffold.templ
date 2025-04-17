@@ -55,7 +55,7 @@ templ Rows(cfg *TableConfig) {
 	} else {
 		for _, row := range cfg.Rows {
 			@base.TableRow(base.TableRowProps{
-				Attrs: row.Atrrs(),
+				Attrs: row.Attrs(),
 			}) {
 				for _, cell := range row.Cells() {
 					@base.TableCell(base.TableCellProps{}) {

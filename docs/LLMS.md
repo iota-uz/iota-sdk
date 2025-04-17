@@ -71,6 +71,8 @@ templ: version: v0.3.857
 
 templ: version: v0.3.857
 
+templ: version: v0.3.857
+
 
 ### Types
 
@@ -171,11 +173,18 @@ type TableCellProps struct {
 type TableColumn struct {
     Label string
     Key string
-    Width int
     Class string
-    DateFormat string
-    Duration bool
-    Sortable bool
+}
+```
+
+#### TableEmptyStateProps
+
+```go
+type TableEmptyStateProps struct {
+    Title string
+    Description string
+    Class string
+    Attrs templ.Attributes
 }
 ```
 
@@ -184,6 +193,10 @@ type TableColumn struct {
 ```go
 type TableProps struct {
     Columns []*TableColumn
+    Classes templ.CSSClasses
+    Attrs templ.Attributes
+    TBodyClasses templ.CSSClasses
+    TBodyAttrs templ.Attributes
 }
 ```
 
@@ -236,6 +249,8 @@ type TriggerProps struct {
 #### `func Table(props TableProps) templ.Component`
 
 #### `func TableCell(props TableCellProps) templ.Component`
+
+#### `func TableEmptyState(props TableEmptyStateProps) templ.Component`
 
 #### `func TableRow(props TableRowProps) templ.Component`
 
@@ -295,29 +310,43 @@ templ: version: v0.3.857
 
 ```go
 type Props struct {
+    Class templ.CSSClasses
     Size Size
+    Variant Variant
 }
 ```
 
 #### Size
 
+#### Variant
+
 ### Functions
 
-#### `func Blue(props Props) templ.Component`
-
-#### `func Gray(props Props) templ.Component`
-
-#### `func Green(props Props) templ.Component`
-
-#### `func Pink(props Props) templ.Component`
-
-#### `func Purple(props Props) templ.Component`
-
-#### `func Yellow(props Props) templ.Component`
+#### `func New(props Props) templ.Component`
 
 ### Variables and Constants
 
+- Const: `[VariantPink VariantYellow VariantGreen VariantBlue VariantPurple VariantGray]`
+
 - Const: `[SizeNormal SizeLG]`
+
+---
+
+## Package `breadcrumb` (components/base/breadcrumb)
+
+### Functions
+
+#### `func Item() templ.Component`
+
+#### `func Link(href string) templ.Component`
+
+#### `func List() templ.Component`
+
+#### `func Separator() templ.Component`
+
+#### `func SlashSeparator() templ.Component`
+
+### Variables and Constants
 
 ---
 
@@ -483,6 +512,8 @@ templ: version: v0.3.857
 
 templ: version: v0.3.857
 
+templ: version: v0.3.857
+
 
 ### Types
 
@@ -506,7 +537,7 @@ type CheckboxProps struct {
     Error string
     Checked bool
     Attrs templ.Attributes
-    Class string
+    Class templ.CSSClasses
     ID string
 }
 ```
@@ -562,13 +593,32 @@ type Props struct {
 
 ```go
 type SwitchProps struct {
+    ID string
     Label string
     LabelComp templ.Component
+    LabelClasses templ.CSSClasses
     Error string
     Checked bool
     Attrs templ.Attributes
+    Size SwitchSize
+}
+```
+
+##### Methods
+
+#### SwitchSize
+
+#### TextAreaProps
+
+```go
+type TextAreaProps struct {
+    Placeholder string
+    Label string
     Class string
-    ID string
+    WrapperClass string
+    Attrs templ.Attributes
+    Error string
+    Value string
 }
 ```
 
@@ -591,6 +641,8 @@ type SwitchProps struct {
 #### `func Switch(p *SwitchProps) templ.Component`
 
 #### `func Text(props *Props) templ.Component`
+
+#### `func TextArea(props *TextAreaProps) templ.Component`
 
 ### Variables and Constants
 
@@ -812,37 +864,6 @@ type Props struct {
 #### `func List(props ListProps) templ.Component`
 
 #### `func Root(props Props) templ.Component`
-
-### Variables and Constants
-
----
-
-## Package `textarea` (components/base/textarea)
-
-templ: version: v0.3.857
-
-
-### Types
-
-#### Props
-
-```go
-type Props struct {
-    Placeholder string
-    Label string
-    Class string
-    WrapperClass string
-    Attrs templ.Attributes
-    Error string
-    Value string
-}
-```
-
-##### Methods
-
-### Functions
-
-#### `func Basic(props *Props) templ.Component`
 
 ### Variables and Constants
 
@@ -1147,7 +1168,45 @@ it creates a combobox for selecting which field to search on.
 
 ---
 
+## Package `illustrations` (components/illustrations)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### EmptyTableProps
+
+```go
+type EmptyTableProps struct {
+    Width int
+    Height int
+}
+```
+
+### Functions
+
+#### `func EmptyTable(props EmptyTableProps) templ.Component`
+
+### Variables and Constants
+
+---
+
 ## Package `loaders` (components/loaders)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### SpinnerProps
+
+```go
+type SpinnerProps struct {
+    ContainerClass templ.CSSClasses
+    SpinnerClass templ.CSSClasses
+}
+```
 
 ### Functions
 
@@ -1158,94 +1217,172 @@ It's a stylized animation for use during loading states, providing
 visual feedback to users while content or data is being processed.
 
 
+#### `func Spinner(props SpinnerProps) templ.Component`
+
 ### Variables and Constants
 
 ---
 
 ## Package `scaffold` (components/scaffold)
 
-Package scaffold provides utilities for generating dynamic UI components.
-
-It simplifies the creation of consistent data tables and other UI elements
-based on configuration and data, reducing boilerplate code.
+templ: version: v0.3.857
 
 
 ### Types
 
-#### TableColumn
+#### ColumnOpt
 
-TableColumn defines a column in a dynamic table.
-
+#### DefaultDrawerProps
 
 ```go
-type TableColumn struct {
-    Key string
-    Label string
-    Class string
-    Width string
-    Format func(any) string
+type DefaultDrawerProps struct {
+    Title string
+    CallbackURL string
 }
 ```
+
+#### RowOpt
+
+#### TableColumn
+
+##### Interface Methods
+
+- `Key() string`
+- `Label() string`
+- `Class() string`
+- `Width() string`
 
 #### TableConfig
 
-TableConfig holds the configuration for a dynamic table.
-
-
 ```go
 type TableConfig struct {
-    Columns []TableColumn
     Title string
+    DataURL string
+    Filters []templ.Component
+    Columns []TableColumn
+    Rows []TableRow
+    SideFilter templ.Component
 }
 ```
 
 ##### Methods
 
-- `func (TableConfig) AddActionsColumn() *TableConfig`
-  AddActionsColumn adds an actions column with edit button
-  
+- `func (TableConfig) AddCols(cols ...TableColumn) *TableConfig`
 
-- `func (TableConfig) AddColumn(key, label, class string) *TableConfig`
-  AddColumn adds a column to the table configuration
-  
+- `func (TableConfig) AddFilters(filters ...templ.Component) *TableConfig`
 
-- `func (TableConfig) AddDateColumn(key, label string) *TableConfig`
-  AddDateColumn adds a date column with automatic formatting
-  
+- `func (TableConfig) AddRows(rows ...TableRow) *TableConfig`
 
-#### TableData
+- `func (TableConfig) SetSideFilter(filter templ.Component) *TableConfig`
 
-TableData contains the data to be displayed in the table.
+#### TableConfigOpt
 
+#### TableRow
 
-```go
-type TableData struct {
-    Items []map[string]any
-}
-```
+##### Interface Methods
 
-##### Methods
-
-- `func (TableData) AddItem(item map[string]any) *TableData`
-  AddItem adds an item to the table data
-  
+- `Cells() []templ.Component`
+- `Atrrs() templ.Attributes`
+- `ApplyOpts(opts ...RowOpt) TableRow`
 
 ### Functions
 
-#### `func Content(config TableConfig, data TableData) templ.Component`
+#### `func Content(config *TableConfig) templ.Component`
 
 Content renders the complete scaffold page content with filters and table
 
 
-#### `func Page(config TableConfig, data TableData) templ.Component`
+#### `func DateTime(ts time.Time) templ.Component`
+
+DateTime renders a timestamp with Alpine-based relative formatting
+
+
+#### `func DefaultDrawer(props DefaultDrawerProps) templ.Component`
+
+#### `func Page(config *TableConfig) templ.Component`
 
 Page renders a complete authenticated page with the scaffolded content
 
 
-#### `func Table(config TableConfig, data TableData) templ.Component`
+#### `func Rows(cfg *TableConfig) templ.Component`
+
+Rows renders the table rows for a scaffold table
+
+
+#### `func Table(config *TableConfig) templ.Component`
 
 Table renders a dynamic table based on configuration and data
 
+
+#### `func TableSection(config *TableConfig) templ.Component`
+
+TableSection combines filters and table into one form to enable unified HTMX update
+
+
+### Variables and Constants
+
+---
+
+## Package `filters` (components/scaffold/filters)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### DropdownItemProps
+
+```go
+type DropdownItemProps struct {
+    Class templ.CSSClasses
+    Label string
+    Value string
+    Name string
+    Checked bool
+}
+```
+
+#### DropdownProps
+
+```go
+type DropdownProps struct {
+    Label string
+    Name string
+}
+```
+
+#### Option
+
+#### OptionItem
+
+```go
+type OptionItem struct {
+    Value string
+    Label string
+}
+```
+
+#### TableFilter
+
+```go
+type TableFilter struct {
+    Name string
+}
+```
+
+##### Methods
+
+- `func (TableFilter) Add(opts ...OptionItem) *TableFilter`
+
+- `func (TableFilter) AsSideFilter() templ.Component`
+
+- `func (TableFilter) Component() templ.Component`
+
+### Functions
+
+#### `func Dropdown(props DropdownProps) templ.Component`
+
+#### `func DropdownItem(props DropdownItemProps) templ.Component`
 
 ### Variables and Constants
 
@@ -1590,6 +1727,13 @@ type Params struct {
 
 #### `func CanUserAll(ctx context.Context, perms ...rbac.Permission) error`
 
+#### `func CanUserAny(ctx context.Context, perms ...rbac.Permission) error`
+
+CanUserAny checks if the user has any of the given permissions (OR logic)
+
+
+#### `func InTx(ctx context.Context, fn func(context.Context) error) error`
+
 #### `func MustT(ctx context.Context, msgID string) string`
 
 MustT returns the translation for the given message ID.
@@ -1630,7 +1774,7 @@ UseAuthenticated returns whether the user is authenticated and the second return
 If the user is not authenticated, the second return value is false.
 
 
-#### `func UseFlash(w http.ResponseWriter, r *http.Request, name string) (val []byte, err error)`
+#### `func UseFlash(w http.ResponseWriter, r *http.Request, name string) ([]byte, error)`
 
 #### `func UseFlashMap(w http.ResponseWriter, r *http.Request, name string) (map[K]V, error)`
 
@@ -1661,7 +1805,7 @@ UseLocalizer returns the localizer from the context.
 If the localizer is not found, the second return value will be false.
 
 
-#### `func UseLogger(ctx context.Context) (*logrus.Entry, error)`
+#### `func UseLogger(ctx context.Context) *logrus.Entry`
 
 UseLogger returns the logger from the context.
 If the logger is not found, the second return value will be false.
@@ -1683,12 +1827,6 @@ If the page context is not found, function will panic.
 #### `func UsePool(ctx context.Context) (*pgxpool.Pool, error)`
 
 #### `func UseQuery(v T, r *http.Request) (T, error)`
-
-#### `func UseRequest(ctx context.Context) (*http.Request, bool)`
-
-UseRequest returns the request from the context.
-If the request is not found, the second return value will be false.
-
 
 #### `func UseSession(ctx context.Context) (*session.Session, error)`
 
@@ -1893,14 +2031,16 @@ type TwilioOptions struct {
 
 ### Types
 
-#### DIHandler
+#### DIContext
 
-DIHandler is a handler that uses dependency injection to resolve its arguments
+DIContext holds context for dependency injection
 
 
 ##### Methods
 
-- `func (DIHandler) Handler() http.HandlerFunc`
+- `func (DIContext) Invoke(ctx context.Context, fn interface{}) ([]reflect.Value, error)`
+  Invoke resolves dependencies and calls the provided function with the given context
+  
 
 #### Provider
 
@@ -1910,7 +2050,19 @@ Provider is an interface that can provide a value for a given type
 ##### Interface Methods
 
 - `Ok(t reflect.Type) bool`
-- `Provide(t reflect.Type, w http.ResponseWriter, r *http.Request) (reflect.Value, error)`
+- `Provide(t reflect.Type, ctx context.Context) (reflect.Value, error)`
+
+### Functions
+
+#### `func H(handler interface{}, customProviders ...Provider) http.HandlerFunc`
+
+H creates a dependency injection HTTP handler
+
+
+#### `func Invoke(ctx context.Context, fn interface{}, customProviders ...Provider) ([]reflect.Value, error)`
+
+Invoke creates a generic DI function that can be used for any function type
+
 
 ---
 
@@ -2964,6 +3116,7 @@ Package multifs MultiHashFS combines multiple hashfs instances to serve files fr
 - `Register(permissions ...*permission.Permission)`
 - `Get(id uuid.UUID) (*permission.Permission, error)`
 - `Permissions() []*permission.Permission`
+- `PermissionsByResource() map[string][]*permission.Permission`
 
 ### Variables and Constants
 
@@ -2978,10 +3131,11 @@ Package repo provides database utility functions and interfaces for working with
 
 ### Types
 
-#### Expr
+#### Column
 
-Expr represents a comparison expression type for filtering queries.
+##### Interface Methods
 
+- `ToSQL() string`
 
 #### ExtendedFieldSet
 
@@ -2994,18 +3148,24 @@ It allows repositories to work with custom field sets by providing field names a
 - `Fields() []string`
 - `Value(k string) interface{}`
 
-#### Filter
-
-Filter defines a filter condition for queries.
-Combines an expression type with a value to be used in WHERE clauses.
-
+#### FieldFilter
 
 ```go
-type Filter struct {
-    Expr Expr
-    Value any
+type FieldFilter struct {
+    Column T
+    Filter Filter
 }
 ```
+
+#### Filter
+
+Filter defines a query filter with a SQL clause generator and bound value.
+
+
+##### Interface Methods
+
+- `Value() []any`
+- `String(column string, argIdx int) string`
 
 #### SortBy
 
@@ -3056,6 +3216,16 @@ Example usage:
 
 If rows is empty, it returns the baseQuery unchanged and nil for args.
 Panics if rows have inconsistent lengths.
+
+
+#### `func Exists(inner string) string`
+
+Exists wraps a SELECT query inside SELECT EXISTS (...).
+
+Example usage:
+
+	query := repo.Exists("SELECT 1 FROM users WHERE phone = $1")
+	// Returns: "SELECT EXISTS (SELECT 1 FROM users WHERE phone = $1)"
 
 
 #### `func FormatLimitOffset(limit, offset int) string`
@@ -3133,130 +3303,6 @@ Example usage:
 	// No conditions
 	query := repo.Update("settings", []string{"value", "updated_at"})
 	// Returns: "UPDATE settings SET value = $1, updated_at = $2"
-
-
----
-
-## Package `scaffold` (pkg/scaffold)
-
-### Types
-
-#### ContentAdapter
-
-ContentAdapter adapts scaffold.Content to support search and pagination
-
-
-```go
-type ContentAdapter struct {
-    Config *scaffold.TableConfig
-    Data scaffold.TableData
-    Search string
-    Page int
-    TotalPages int
-    PageCtx *types.PageContext
-}
-```
-
-##### Methods
-
-- `func (ContentAdapter) Render(ctx context.Context, w io.Writer) error`
-  Render implements templ.Component interface
-  
-
-#### LayoutAdapter
-
-LayoutAdapter adapts a content component with a layout
-
-
-```go
-type LayoutAdapter struct {
-    Content templ.Component
-    PageCtx *types.PageContext
-}
-```
-
-##### Methods
-
-- `func (LayoutAdapter) Render(ctx context.Context, w io.Writer) error`
-  Render implements templ.Component interface
-  
-
-#### TableAdapter
-
-TableAdapter adapts scaffold.Table to support pagination
-
-
-```go
-type TableAdapter struct {
-    Config *scaffold.TableConfig
-    Data scaffold.TableData
-    Page int
-    TotalPages int
-    PageCtx *types.PageContext
-}
-```
-
-##### Methods
-
-- `func (TableAdapter) Render(ctx context.Context, w io.Writer) error`
-  Render implements templ.Component interface
-  
-
-#### TableControllerBuilder
-
-TableControllerBuilder helps to quickly build controllers for displaying tables
-
-
-##### Methods
-
-- `func (TableControllerBuilder) Key() string`
-
-- `func (TableControllerBuilder) List(w http.ResponseWriter, r *http.Request)`
-  List handles listing entities in a table
-  
-
-- `func (TableControllerBuilder) Register(r *mux.Router)`
-  Register registers the table route
-  
-
-- `func (TableControllerBuilder) WithFindParamsFunc(fn func(r *http.Request) interface{}) *<?>`
-  WithFindParamsFunc sets a custom function for creating find parameters
-  
-
-#### TableService
-
-TableService defines the minimal interface for table data services
-
-
-##### Interface Methods
-
-- `GetPaginated(ctx context.Context, params interface{}) ([]T, error)`
-- `Count(ctx context.Context, params interface{}) (int64, error)`
-
-#### TableViewModel
-
-TableViewModel defines the interface for mapping entity to view model
-
-
-##### Interface Methods
-
-- `MapToViewModel(entity T) map[string]interface{}`
-
-### Functions
-
-#### `func ExtendedContent(config *scaffold.TableConfig, data scaffold.TableData, search string, page int, totalPages int, pageCtx *types.PageContext) templ.Component`
-
-ExtendedContent creates a content component with search and pagination
-
-
-#### `func ExtendedTable(config *scaffold.TableConfig, data scaffold.TableData, page int, totalPages int, pageCtx *types.PageContext) templ.Component`
-
-ExtendedTable creates a table with pagination support
-
-
-#### `func PageWithLayout(content templ.Component, pageCtx *types.PageContext) templ.Component`
-
-PageWithLayout wraps content with a layout
 
 
 ---
@@ -3363,7 +3409,7 @@ from the postgresql-parser tree package
 
 #### `func HasReferences(table *tree.CreateTable) bool`
 
-#### `func SortTableDefs(tables []*tree.CreateTable) []*tree.CreateTable`
+#### `func SortTableDefs(tables []*tree.CreateTable) ([]*tree.CreateTable, error)`
 
 ---
 
@@ -3480,6 +3526,13 @@ type HTTPServer struct {
 - `func (FormAction) IsValid() bool`
 
 ### Functions
+
+#### `func GetInitials(firstName, lastName string) string`
+
+GetInitials safely extracts the first character from first and last names,
+properly handling non-ASCII characters and converting to uppercase.
+Returns "NA" if both names are empty.
+
 
 #### `func ParseID(r *http.Request) (uint, error)`
 
@@ -3627,6 +3680,30 @@ type PageData struct {
     Description string
 }
 ```
+
+---
+
+## Package `validators` (pkg/validators)
+
+### Types
+
+#### ValidationError
+
+```go
+type ValidationError struct {
+    Fields map[string]string
+}
+```
+
+##### Methods
+
+- `func (ValidationError) Error() string`
+
+- `func (ValidationError) Field(field string) string`
+
+- `func (ValidationError) FieldsMap() map[string]string`
+
+- `func (ValidationError) HasField(field string) bool`
 
 ---
 
