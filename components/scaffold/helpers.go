@@ -18,7 +18,7 @@ type TableColumn interface {
 
 type TableRow interface {
 	Cells() []templ.Component
-	Atrrs() templ.Attributes
+	Attrs() templ.Attributes
 	ApplyOpts(opts ...RowOpt) TableRow
 }
 
@@ -45,7 +45,7 @@ func (r *tableRowImpl) Cells() []templ.Component {
 	return r.cells
 }
 
-func (r *tableRowImpl) Atrrs() templ.Attributes {
+func (r *tableRowImpl) Attrs() templ.Attributes {
 	return r.attrs
 }
 
