@@ -11,7 +11,7 @@ type User struct {
 	MiddleName  string
 	Email       string
 	Phone       string
-	UILanguage  string
+	Language    string
 	LastAction  string
 	CreatedAt   string
 	UpdatedAt   string

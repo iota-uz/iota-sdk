@@ -235,7 +235,7 @@ func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, err
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
 	}
 	if len(users) == 0 {
-		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("id: %d", id))
+		return nil, fmt.Errorf("id: %d: %w", id, ErrUserNotFound)
 	}
 	return users[0], nil
 }
@@ -248,6 +248,9 @@ func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.U
 	if len(users) == 0 {
 		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("email: %s", email))
 	}
+	if len(users) == 0 {
+		return nil, fmt.Errorf("email: %s: %w", email, ErrUserNotFound)
+	}
 	return users[0], nil
 }
 
@@ -257,7 +260,7 @@ func (g *PgUserRepository) GetByPhone(ctx context.Context, phone string) (user.U
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with phone: %s", phone))
 	}
 	if len(users) == 0 {
-		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("phone: %s", phone))
+		return nil, fmt.Errorf("phone: %s: %w", phone, ErrUserNotFound)
 	}
 	return users[0], nil
 }
@@ -274,6 +277,22 @@ func (g *PgUserRepository) PhoneExists(ctx context.Context, phone string) (bool,
 	exists := false
 	if err := tx.QueryRow(ctx, query, phone).Scan(&exists); err != nil {
 		return false, errors.Wrap(err, "checking phone existence failed")
+	}
+	return exists, nil
+}
+
+func (g *PgUserRepository) EmailExists(ctx context.Context, email string) (bool, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get transaction")
+	}
+
+	base := repo.Join(userExistsQuery, "WHERE u.email = $1")
+	query := repo.Exists(base)
+
+	exists := false
+	if err := tx.QueryRow(ctx, query, email).Scan(&exists); err != nil {
+		return false, errors.Wrap(err, "checking email existence failed")
 	}
 	return exists, nil
 }
