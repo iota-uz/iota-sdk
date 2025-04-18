@@ -22,7 +22,7 @@ templ DefaultDrawer(props DefaultDrawerProps) {
 			"@closed":  "document.getElementById('view-drawer').innerHTML = ''",
 		},
 	}) {
-		<div class="bg-white w-full md:w-[450px] ml-auto">
+		<div class="bg-white w-full md:w-2/3 ml-auto">
 			<div class="flex flex-col h-full">
 				<form method="dialog">
 					<div class="flex justify-between px-4 py-3 border-b border-primary">
@@ -36,7 +36,7 @@ templ DefaultDrawer(props DefaultDrawerProps) {
 						</div>
 					</div>
 				</form>
-				<div class="flex-1 min-h-0">
+				<div class="flex-1 min-h-0 overflow-y-auto">
 					{ children... }
 				</div>
 			</div>

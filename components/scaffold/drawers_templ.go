@@ -52,7 +52,7 @@ func DefaultDrawer(props DefaultDrawerProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"bg-white w-full md:w-[450px] ml-auto\"><div class=\"flex flex-col h-full\"><form method=\"dialog\"><div class=\"flex justify-between px-4 py-3 border-b border-primary\"><h3 class=\"text-lg font-medium\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"bg-white w-full md:w-2/3 ml-auto\"><div class=\"flex flex-col h-full\"><form method=\"dialog\"><div class=\"flex justify-between px-4 py-3 border-b border-primary\"><h3 class=\"text-lg font-medium\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -73,7 +73,7 @@ func DefaultDrawer(props DefaultDrawerProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</button></div></div></form><div class=\"flex-1 min-h-0\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</button></div></div></form><div class=\"flex-1 min-h-0 overflow-y-auto\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

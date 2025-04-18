@@ -33,6 +33,16 @@ func MapDBModels[T any, V any](
 	return viewModels, nil
 }
 
+// Or is a utility function that returns the first non-zero value.
+func Or[T any](args ...T) T {
+	for _, arg := range args {
+		if !reflect.ValueOf(arg).IsZero() {
+			return arg
+		}
+	}
+	return args[0]
+}
+
 // Pointer is a utility function that returns a pointer to the given value.
 func Pointer[T any](v T) *T {
 	if reflect.ValueOf(v).IsZero() {
