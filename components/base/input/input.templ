@@ -47,7 +47,13 @@ templ (p *Props) render() {
 					}
 				</div>
 			}
-			<input id={ p.id } class={ "form-control-input outline-none w-full", p.Class } type={ p.typ } placeholder={ p.Placeholder } { p.Attrs... }/>
+			<input
+				id={ p.id }
+				class={ "form-control-input outline-none w-full", p.Class }
+				type={ p.typ }
+				placeholder={ p.Placeholder }
+				{ p.Attrs... }
+			/>
 			if p.AddonRight != nil {
 				<div class={ "flex pr-2.5", p.AddonRight.Class } { p.AddonRight.Attrs... }>
 					if p.AddonRight.Render != nil {
@@ -65,19 +71,87 @@ templ (p *Props) render() {
 }
 
 templ Text(props *Props) {
-	@newInput(&Props{typ: "text", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
+	@newInput(&Props{
+		typ:          "text",
+		Class:        props.Class,
+		Label:        props.Label,
+		Attrs:        props.Attrs,
+		Placeholder:  props.Placeholder,
+		AddonRight:   props.AddonRight,
+		AddonLeft:    props.AddonLeft,
+		Error:        props.Error,
+		WrapperProps: props.WrapperProps,
+	}).render()
 }
 
 templ Number(props *Props) {
-	@newInput(&Props{typ: "number", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
+	@newInput(&Props{
+		typ:          "number",
+		Class:        props.Class,
+		Label:        props.Label,
+		Attrs:        props.Attrs,
+		Placeholder:  props.Placeholder,
+		AddonRight:   props.AddonRight,
+		AddonLeft:    props.AddonLeft,
+		Error:        props.Error,
+		WrapperProps: props.WrapperProps,
+	}).render()
 }
 
 templ Email(props *Props) {
-	@newInput(&Props{typ: "email", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
+	@newInput(&Props{
+		typ:          "email",
+		Class:        props.Class,
+		Label:        props.Label,
+		Attrs:        props.Attrs,
+		Placeholder:  props.Placeholder,
+		AddonRight:   props.AddonRight,
+		AddonLeft:    props.AddonLeft,
+		Error:        props.Error,
+		WrapperProps: props.WrapperProps,
+	}).render()
+}
+
+templ Tel(props *Props) {
+	@newInput(&Props{
+		typ:          "tel",
+		Class:        props.Class,
+		Label:        props.Label,
+		Attrs:        props.Attrs,
+		Placeholder:  props.Placeholder,
+		AddonRight:   props.AddonRight,
+		AddonLeft:    props.AddonLeft,
+		Error:        props.Error,
+		WrapperProps: props.WrapperProps,
+	}).render()
 }
 
 templ Date(props *Props) {
-	@newInput(&Props{typ: "date", Class: props.Class, Label: props.Label, Attrs: props.Attrs, Placeholder: props.Placeholder, AddonRight: props.AddonRight, AddonLeft: props.AddonLeft, Error: props.Error, WrapperProps: props.WrapperProps}).render()
+	@newInput(&Props{
+		typ:          "date",
+		Class:        props.Class,
+		Label:        props.Label,
+		Attrs:        props.Attrs,
+		Placeholder:  props.Placeholder,
+		AddonRight:   props.AddonRight,
+		AddonLeft:    props.AddonLeft,
+		Error:        props.Error,
+		WrapperProps: props.WrapperProps,
+	}).render()
+}
+
+templ Color(props *Props) {
+	@newInput(&Props{
+		typ:          "color",
+		Class:        props.Class,
+		Label:        props.Label,
+		Attrs:        props.Attrs,
+		Placeholder:  props.Placeholder,
+		AddonRight:   props.AddonRight,
+		AddonLeft:    props.AddonLeft,
+		Error:        props.Error,
+		WrapperProps: props.WrapperProps,
+	}).render()
 }
 
 type CheckboxProps struct {
@@ -162,5 +236,6 @@ templ Password(props *Props) {
 				return passwordLock(p)
 			},
 		},
+		WrapperProps: props.WrapperProps,
 	}).render()
 }

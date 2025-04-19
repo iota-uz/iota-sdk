@@ -1,0 +1,51 @@
+package form
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// FormFields renders all fields in the form
+templ FormFields(cfg *FormConfig) {
+	for _, f := range cfg.Fields {
+		@f.Component()
+	}
+}
+
+// Form renders a dynamic form using a slice of scaffold.Field
+templ Form(cfg *FormConfig) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	<form
+		class="flex flex-col p-6"
+		hx-post={ cfg.Action }
+		hx-swap="outerHTML"
+		hx-indicator="#submit-btn"
+	>
+		@card.Card(card.Props{
+			Class: "grid grid-cols-2 gap-4",
+		}) {
+			@FormFields(cfg)
+		}
+		<div class="flex justify-end mt-6">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ pgCtx.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+// Page wraps Form in authenticated layout
+templ Page(cfg *FormConfig) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: cfg.Title},
+	}) {
+		@Form(cfg)
+	}
+}
