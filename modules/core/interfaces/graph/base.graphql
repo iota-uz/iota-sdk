@@ -10,10 +10,6 @@ directive @goEnum(
     value: String
 ) on ENUM_VALUE
 
-type Query {
-    hello(name: String): String
-}
-
 type Mutation {
     add(a: Int!, b: Int!): Int!
 }
