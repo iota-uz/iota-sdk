@@ -246,9 +246,6 @@ func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.U
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with email: %s", email))
 	}
 	if len(users) == 0 {
-		return nil, errors.Wrap(ErrUserNotFound, fmt.Sprintf("email: %s", email))
-	}
-	if len(users) == 0 {
 		return nil, fmt.Errorf("email: %s: %w", email, ErrUserNotFound)
 	}
 	return users[0], nil
