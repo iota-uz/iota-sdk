@@ -13,31 +13,47 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/filters"
-	sfui "github.com/iota-uz/iota-sdk/components/scaffold"
-	fbuilder "github.com/iota-uz/iota-sdk/components/scaffold/filters"
-	scaffoldfilters "github.com/iota-uz/iota-sdk/components/scaffold/filters"
+	sfilters "github.com/iota-uz/iota-sdk/components/scaffold/filters"
+	fbuilder "github.com/iota-uz/iota-sdk/components/scaffold/form"
+	tbuilder "github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
+//    code varchar(3) NOT NULL PRIMARY KEY, -- RUB
+//    name varchar(255) NOT NULL, -- Russian Ruble
+//    symbol varchar(3) NOT NULL, -- ₽
+//    created_at timestamp with time zone DEFAULT now(),
+//    updated_at timestamp with time zone DEFAULT now()
+
+type Currency struct {
+	Code    string
+	Name    string
+	Symbol  string
+	Created time.Time
+	Updated time.Time
+}
+
 func NewDIExampleController(app application.Application) application.Controller {
 	return &DIEmployeeController{
-		app: app,
+		app:      app,
+		basePath: "/di",
 	}
 }
 
 type DIEmployeeController struct {
-	app application.Application
+	app      application.Application
+	basePath string
 }
 
 func (c *DIEmployeeController) Key() string {
-	return "/di-example"
+	return c.basePath
 }
 
 func (c *DIEmployeeController) Register(r *mux.Router) {
-	subRouter := r.PathPrefix("/di").Subrouter()
+	subRouter := r.PathPrefix(c.basePath).Subrouter()
 	subRouter.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
@@ -47,8 +63,9 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	subRouter.HandleFunc("/scaffold-table", di.H(c.ScaffoldTable))
-	subRouter.HandleFunc("/scaffold-table/{id:[0-9]+}", di.H(c.Details))
+	subRouter.HandleFunc("/sf-table", di.H(c.ScaffoldTable))
+	subRouter.HandleFunc("/sf-table/{id:[0-9]+}", di.H(c.Details))
+	subRouter.HandleFunc("/sf-table/new", di.H(c.New))
 }
 
 func (c *DIEmployeeController) ScaffoldTable(
@@ -109,44 +126,41 @@ func (c *DIEmployeeController) ScaffoldTable(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	roleFilter := scaffoldfilters.NewFilter(
+	roleFilter := sfilters.NewFilter(
 		"RoleID",
-		scaffoldfilters.WithPlaceholder("Role"),
-		scaffoldfilters.MultiSelect(),
+		sfilters.WithPlaceholder("Role"),
+		sfilters.MultiSelect(),
 	)
 
 	for _, r := range roles {
-		roleFilter.Add(fbuilder.Opt(fmt.Sprintf("%d", r.ID()), r.Name()))
+		roleFilter.Add(sfilters.Opt(fmt.Sprintf("%d", r.ID()), r.Name()))
 	}
 
-	tcfg := sfui.NewTableConfig(
+	tcfg := tbuilder.NewTableConfig(
 		"Users",
-		"/di/scaffold-table",
-	)
-	tcfg.AddFilters(
-		filters.CreatedAt(),
-	)
+		fmt.Sprintf("%s/sf-table", c.basePath),
+	).AddFilters(filters.CreatedAt())
 	tcfg.AddCols(
-		sfui.Column("fullname", "Fullname"),
-		sfui.Column("email", "Email"),
-		sfui.Column("createdAt", "Created At"),
+		tbuilder.Column("fullname", "Fullname"),
+		tbuilder.Column("email", "Email"),
+		tbuilder.Column("createdAt", "Created At"),
 	)
 	tcfg.SetSideFilter(roleFilter.AsSideFilter())
 	for _, u := range users {
-		fetchUrl := fmt.Sprintf("/di/scaffold-table/%d", u.ID())
+		fetchUrl := fmt.Sprintf("/%s/sf-table/%d", c.basePath, u.ID())
 		tcfg.AddRows(
-			sfui.Row(
+			tbuilder.Row(
 				templ.Raw(u.FirstName()+" "+u.LastName()),
 				templ.Raw(u.Email().Value()),
-				sfui.DateTime(u.CreatedAt()),
-			).ApplyOpts(sfui.WithDrawer(fetchUrl)),
+				tbuilder.DateTime(u.CreatedAt()),
+			).ApplyOpts(tbuilder.WithDrawer(fetchUrl)),
 		)
 	}
 
 	if htmx.IsHxRequest(r) {
-		err = sfui.Rows(tcfg).Render(r.Context(), w)
+		err = tbuilder.Rows(tcfg).Render(r.Context(), w)
 	} else {
-		err = sfui.Page(tcfg).Render(r.Context(), w)
+		err = tbuilder.Page(tcfg).Render(r.Context(), w)
 	}
 
 	if err != nil {
@@ -158,9 +172,26 @@ func (c *DIEmployeeController) ScaffoldTable(
 func (c *DIEmployeeController) Details(
 	r *http.Request, w http.ResponseWriter,
 ) {
-	props := sfui.DefaultDrawerProps{
+	props := tbuilder.DefaultDrawerProps{
 		Title:       "User Details",
-		CallbackURL: "/di/scaffold-table",
+		CallbackURL: fmt.Sprintf("%s/sf-table", c.basePath),
 	}
-	templ.Handler(sfui.DefaultDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(tbuilder.DefaultDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *DIEmployeeController) New(
+	r *http.Request, w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	cfg := fbuilder.NewFormConfig(
+		"New Currency",
+		fmt.Sprintf("%s/sf-table", c.basePath),
+		"Create",
+	).Add(
+		fbuilder.NewTextField("code", "Code").Required().Build(),
+		fbuilder.NewTextField("name", "Name").Required().Build(),
+		fbuilder.NewTextField("symbol", "Symbol").Required().Build(),
+	)
+
+	templ.Handler(fbuilder.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)
 }
