@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,8 +12,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 
-	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/login"
@@ -27,16 +28,30 @@ type LoginDTO struct {
 	Password string `validate:"required"`
 }
 
-func (e *LoginDTO) Ok(l ut.Translator) (map[string]string, bool) {
+func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(e)
 	if errs == nil {
 		return errorMessages, true
 	}
 
-	for _, err := range errs.(validator.ValidationErrors) {
-		errorMessages[err.Field()] = err.Translate(l)
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		panic(intl.ErrNoLocalizer)
 	}
+
+	for _, err := range errs.(validator.ValidationErrors) {
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Login.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
+	}
+
 	return errorMessages, len(errorMessages) == 0
 }
 
@@ -149,13 +164,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		logger.Error("Failed to get localizer", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		shared.SetFlashMap(w, "errorsMap", errorsMap)
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return
