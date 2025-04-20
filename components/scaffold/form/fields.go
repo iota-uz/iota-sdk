@@ -599,22 +599,27 @@ func (b *TextFieldBuilder) Default(val string) *TextFieldBuilder {
 	b.defaultVal = val
 	return b
 }
+
 func (b *TextFieldBuilder) Required() *TextFieldBuilder {
 	b.required = true
 	return b
 }
-func (b *TextFieldBuilder) MinLen(min int) *TextFieldBuilder {
-	b.minLen = min
+
+func (b *TextFieldBuilder) MinLen(v int) *TextFieldBuilder {
+	b.minLen = v
 	return b
 }
-func (b *TextFieldBuilder) MaxLen(max int) *TextFieldBuilder {
-	b.maxLen = max
+
+func (b *TextFieldBuilder) MaxLen(v int) *TextFieldBuilder {
+	b.maxLen = v
 	return b
 }
+
 func (b *TextFieldBuilder) Attrs(a templ.Attributes) *TextFieldBuilder {
 	b.attrs = a
 	return b
 }
+
 func (b *TextFieldBuilder) Validators(v []Validator) *TextFieldBuilder {
 	b.validators = v
 	return b
@@ -656,13 +661,13 @@ func (b *TextareaFieldBuilder) Required() *TextareaFieldBuilder {
 	return b
 }
 
-func (b *TextareaFieldBuilder) MinLen(min int) *TextareaFieldBuilder {
-	b.minLen = min
+func (b *TextareaFieldBuilder) MinLen(v int) *TextareaFieldBuilder {
+	b.minLen = v
 	return b
 }
 
-func (b *TextareaFieldBuilder) MaxLen(max int) *TextareaFieldBuilder {
-	b.maxLen = max
+func (b *TextareaFieldBuilder) MaxLen(v int) *TextareaFieldBuilder {
+	b.maxLen = v
 	return b
 }
 
