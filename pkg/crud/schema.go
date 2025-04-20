@@ -176,9 +176,9 @@ func (s *Schema[T, ID]) listHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Render table or rows for HTMX
 	if htmx.IsHxRequest(r) {
-		sfui.Rows(tcfg).Render(ctx, w)
+		templ.Handler(sfui.Rows(tcfg)).ServeHTTP(w, r)
 	} else {
-		sfui.Page(tcfg).Render(ctx, w)
+		templ.Handler(sfui.Page(tcfg)).ServeHTTP(w, r)
 	}
 }
 
