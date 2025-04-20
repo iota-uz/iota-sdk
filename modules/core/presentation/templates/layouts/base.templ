@@ -14,6 +14,8 @@ var (
 
 	alpine      = "/assets/" + assets.HashFS.HashName("js/alpine.js")
 	htmx        = "/assets/" + assets.HashFS.HashName("js/lib/htmx.min.js")
+	htmxSSE     = "/assets/" + assets.HashFS.HashName("js/lib/htmx-sse.js")
+	htmxStream  = "/assets/" + assets.HashFS.HashName("js/lib/htmx-stream.js")
 	htmxPreload = "/assets/" + assets.HashFS.HashName("js/lib/htmx.preload.js")
 	apexJs      = "/assets/" + assets.HashFS.HashName("js/lib/apexcharts.min.js")
 	htmxWS      = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
@@ -30,6 +32,8 @@ templ DefaultHead() {
 	<script defer type="module" src={ alpine }></script>
 	<script src={ htmx }></script>
 	<script src={ htmxPreload }></script>
+	<script src={ htmxSSE }></script>
+	<script src={ htmxStream }></script>
 	<script src={ apexJs }></script>
 	<script src={ htmxWS }></script>
 }
