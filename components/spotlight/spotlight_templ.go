@@ -108,14 +108,14 @@ func SpotlightItems(items []*Item) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		if len(items) > 0 {
 			for i, item := range items {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<li class=\"p-2 rounded-md cursor-pointer\" :class=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<li class=\"p-2 rounded-md cursor-pointer hover:bg-brand-500 hover:text-white transition-all duration-300\" :class=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var4 string
-				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{'bg-blue-500 text-white': highlightedIndex === %d, 'hover:bg-gray-100': highlightedIndex !== %d }", i, i))
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{'bg-brand-500 text-white': highlightedIndex === %d }", i))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 81, Col: 132}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 81, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
