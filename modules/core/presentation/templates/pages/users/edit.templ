@@ -125,8 +125,9 @@ templ EditForm(props *EditFormProps) {
 							@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 								Label:       pageCtx.T("Users.Single.Language"),
 								Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-								Value:       string(props.User.UILanguage),
-								Attrs:       templ.Attributes{"name": "UILanguage", "form": "save-form"},
+								Value:       string(props.User.Language),
+								Attrs:       templ.Attributes{"name": "Language", "form": "save-form"},
+								Error:       props.Errors["Language"],
 							})
 						}
 					</div>
