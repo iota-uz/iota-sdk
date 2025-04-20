@@ -59,27 +59,27 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewPaymentsController(app),
 		controllers.NewCounterpartiesController(app),
 	)
-	app.Spotlight().Register(
-		spotlight.NewItem(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
-		spotlight.NewItem(nil, PaymentsItem.Name, PaymentsItem.Href),
-		spotlight.NewItem(nil, ExpensesItem.Name, ExpensesItem.Href),
-		spotlight.NewItem(nil, AccountsItem.Name, AccountsItem.Href),
-		spotlight.NewItem(
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
+		spotlight.NewQuickLink(nil, PaymentsItem.Name, PaymentsItem.Href),
+		spotlight.NewQuickLink(nil, ExpensesItem.Name, ExpensesItem.Href),
+		spotlight.NewQuickLink(nil, AccountsItem.Name, AccountsItem.Href),
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Expenses.List.New",
 			"/finance/expenses/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Accounts.List.New",
 			"/finance/accounts/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Payments.List.New",
 			"/finance/payments/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"ExpenseCategories.List.New",
 			"/finance/expense-categories/new",

@@ -125,7 +125,9 @@ func (g *PgUserRepository) buildUserFilters(params *user.FindParams) ([]string, 
 		where = append(
 			where,
 			fmt.Sprintf(
-				"(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.middle_name ILIKE $%d)",
+				"(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.middle_name ILIKE $%d OR u.email ILIKE $%d OR u.phone ILIKE $%d)",
+				index,
+				index,
 				index,
 				index,
 				index,

@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"

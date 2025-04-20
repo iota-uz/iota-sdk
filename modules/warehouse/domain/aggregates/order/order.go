@@ -1,9 +1,10 @@
 package order
 
 import (
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"time"
 )
 
 type Order interface {

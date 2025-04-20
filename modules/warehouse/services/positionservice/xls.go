@@ -1,11 +1,12 @@
 package positionservice
 
 import (
-	"github.com/iota-uz/utils/sequence"
-	"github.com/xuri/excelize/v2"
 	"log"
 	"strconv"
 	"strings"
+
+	"github.com/iota-uz/utils/sequence"
+	"github.com/xuri/excelize/v2"
 )
 
 type XlsRow struct {

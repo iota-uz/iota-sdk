@@ -6,8 +6,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 
 	"github.com/go-playground/validator/v10"
@@ -22,9 +22,9 @@ type CreateRoleDTO struct {
 }
 
 func (r *CreateRoleDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(r)
@@ -74,9 +74,9 @@ type UpdateRoleDTO struct {
 }
 
 func (r *UpdateRoleDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(r)
