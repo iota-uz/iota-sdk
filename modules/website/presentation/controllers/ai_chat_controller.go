@@ -32,7 +32,7 @@ func (c *AIChatController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.WithPageContext(),
 		middleware.Tabs(),
 		middleware.NavItems(),

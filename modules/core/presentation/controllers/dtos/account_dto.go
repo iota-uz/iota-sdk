@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
@@ -20,9 +20,9 @@ type SaveAccountDTO struct {
 }
 
 func (d *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)

@@ -2,9 +2,10 @@ package models
 
 import (
 	"database/sql"
+	"time"
+
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/lib/pq"
-	"time"
 )
 
 type WarehouseUnit struct {

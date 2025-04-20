@@ -1,8 +1,9 @@
 package inventory
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"

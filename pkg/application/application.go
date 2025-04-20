@@ -90,13 +90,18 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 
+	sl := spotlight.New()
+	quickLinks := &spotlight.QuickLinks{}
+	sl.Register(quickLinks)
+
 	return &application{
 		pool:           pool,
 		eventPublisher: eventPublisher,
 		rbac:           rbac.NewRbac(),
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
-		spotlight:      spotlight.New(),
+		quickLinks:     quickLinks,
+		spotlight:      sl,
 		bundle:         bundle,
 		migrations:     NewMigrationManager(pool),
 	}
@@ -115,12 +120,17 @@ type application struct {
 	graphSchemas   []GraphSchema
 	bundle         *i18n.Bundle
 	spotlight      spotlight.Spotlight
+	quickLinks     *spotlight.QuickLinks
 	migrations     MigrationManager
 	navItems       []types.NavigationItem
 }
 
 func (app *application) Spotlight() spotlight.Spotlight {
 	return app.spotlight
+}
+
+func (app *application) QuickLinks() *spotlight.QuickLinks {
+	return app.quickLinks
 }
 
 func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationItem {

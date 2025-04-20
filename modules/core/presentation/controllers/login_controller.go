@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,9 +10,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 
-	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/login"
@@ -26,16 +28,30 @@ type LoginDTO struct {
 	Password string `validate:"required"`
 }
 
-func (e *LoginDTO) Ok(l ut.Translator) (map[string]string, bool) {
+func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(e)
 	if errs == nil {
 		return errorMessages, true
 	}
 
-	for _, err := range errs.(validator.ValidationErrors) {
-		errorMessages[err.Field()] = err.Translate(l)
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		panic(intl.ErrNoLocalizer)
 	}
+
+	for _, err := range errs.(validator.ValidationErrors) {
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Login.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
+	}
+
 	return errorMessages, len(errorMessages) == 0
 }
 
@@ -58,7 +74,7 @@ func (c *LoginController) Key() string {
 func (c *LoginController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix("/").Subrouter()
 	getRouter.Use(
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.WithPageContext(),
 	)
 	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
@@ -66,7 +82,7 @@ func (c *LoginController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix("/login").Subrouter()
 	setRouter.Use(
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.WithTransaction(),
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
@@ -78,34 +94,34 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthCodeNotFound"))
+		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthCodeNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	state := r.URL.Query().Get("state")
 	if state == "" {
-		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
+		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	conf := configuration.Use()
 	oauthCookie, err := r.Cookie(conf.OauthStateCookieKey)
 	if err != nil {
-		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
+		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	if oauthCookie.Value != state {
-		queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.OauthStateInvalid"))
+		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthStateInvalid"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
 	cookie, err := c.authService.CookieGoogleAuthenticate(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, persistence.ErrUserNotFound) {
-			queryParams.Set("error", composables.MustT(r.Context(), "Login.Errors.UserNotFound"))
+			queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.UserNotFound"))
 		} else {
-			queryParams.Set("error", composables.MustT(r.Context(), "Errors.Internal"))
+			queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
 		}
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
@@ -148,13 +164,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
-	if err != nil {
-		logger.Error("Failed to get localizer", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		shared.SetFlashMap(w, "errorsMap", errorsMap)
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return
@@ -164,9 +174,9 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("Failed to authenticate user", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
-			shared.SetFlash(w, "error", []byte(composables.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
+			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else {
-			shared.SetFlash(w, "error", []byte(composables.MustT(r.Context(), "Errors.Internal")))
+			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return

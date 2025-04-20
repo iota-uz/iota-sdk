@@ -7,7 +7,8 @@ package spotlight
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 // Spotlight renders a search dialog component that can be triggered
@@ -16,7 +17,7 @@ templ Spotlight() {
 	<div
 		x-data="spotlight"
 		class="relative"
-		x-id="['spotlight']"
+		x-id="['spotlight', 'spinner']"
 	>
 		<button
 			@click="open()"
@@ -36,64 +37,83 @@ templ Spotlight() {
 			x-cloak
 		>
 			<div
-				class="bg-white p-6 rounded-lg shadow-lg w-3/4"
+				class="flex flex-col bg-white p-6 rounded-lg shadow-lg w-2/3 max-h-[400px]"
 				@click.away="close()"
 				x-transition
 			>
 				<!-- Search Input -->
 				<input
+					hx-ext="stream"
 					type="text"
 					@keydown.up="highlightPrevious"
 					@keydown.down="highlightNext"
 					@keydown.enter="goToLink"
 					class="w-full border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-					placeholder={ composables.MustT(ctx, "Spotlight.Placeholder") }
+					placeholder={ intl.MustT(ctx, "Spotlight.Placeholder") }
 					hx-get="/spotlight/search"
 					hx-trigger="input changed delay:250ms, search"
 					hx-sync="this:replace"
 					name="q"
 					:hx-target="'#' + $id('spotlight')"
-					hx-swap="innerHTML"
+					:hx-indicator="'#' + $id('spinner')"
 					autocomplete="off"
 					x-ref="input"
 				/>
-				<!-- Search Results -->
-				<ul class="mt-4 space-y-2" :id="$id('spotlight')"></ul>
+				<div class="flex-1 min-h-0 mt-4 overflow-y-auto">
+					<!-- Search Results -->
+					<ul
+						class="space-y-2"
+						:id="$id('spotlight')"
+					></ul>
+					<!-- Spinner Loader -->
+					<div class="hidden" :id="$id('spinner')">
+						@loaders.Spinner(loaders.SpinnerProps{
+							ContainerClass: templ.Classes(
+								"flex justify-center items-center py-4",
+							),
+						})
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
 }
 
-// Item represents a search result in the Spotlight component.
-type Item struct {
-	Title string          // Title to display in the search results
-	Icon  templ.Component // Icon to display next to the title
-	Link  string          // URL to navigate to when the item is selected
+templ LinkItem(title, link string, icon templ.Component) {
+	<a href={ templ.SafeURL(link) } class="flex items-center gap-2">
+		if icon != nil {
+			@icon
+		}
+		{ title }
+	</a>
+}
+
+// SpotlightItem renders a single item in the Spotlight search results.
+templ SpotlightItem(i int) {
+	<li
+		class={
+			"border border-gray-200 px-4 py-3 rounded-md cursor-pointer",
+			"hover:bg-brand-500 hover:text-white transition-all duration-200",
+		}
+		:class={ fmt.Sprintf("{'bg-brand-500 text-white': highlightedIndex === %d }", i) }
+	>
+		{ children... }
+	</li>
+}
+
+// NotFound renders a message indicating that no search results were found.
+templ NotFound() {
+	<li class="text-center text-gray-700">
+		{ intl.MustT(ctx, "Spotlight.NothingFound") }
+	</li>
 }
 
 // SpotlightItems renders a list of search results in the Spotlight component.
 // If no items are found, it displays a "nothing found" message.
-templ SpotlightItems(items []*Item) {
-	if len(items) > 0 {
-		for i, item := range items {
-			<li
-				class={
-					"border border-gray-200 px-4 py-3 rounded-md cursor-pointer",
-					"hover:bg-brand-500 hover:text-white transition-all duration-200",
-				}
-				:class={ fmt.Sprintf("{'bg-brand-500 text-white': highlightedIndex === %d }", i) }
-			>
-				<a href={ templ.SafeURL(item.Link) } class="flex items-center gap-2">
-					if item.Icon != nil {
-						@item.Icon
-					}
-					{ item.Title }
-				</a>
-			</li>
+templ SpotlightItems(items []templ.Component, startIdx int) {
+	for i, item := range items {
+		@SpotlightItem(startIdx + i) {
+			@item
 		}
-	} else {
-		<li class="text-center text-gray-700">
-			{ composables.MustT(ctx, "Spotlight.NothingFound") }
-		</li>
 	}
 }

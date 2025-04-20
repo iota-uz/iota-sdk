@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
+	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 

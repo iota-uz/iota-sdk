@@ -1,8 +1,9 @@
 package session
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 type Session struct {

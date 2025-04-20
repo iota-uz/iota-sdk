@@ -2,9 +2,10 @@ package services_test
 
 import (
 	"context"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"

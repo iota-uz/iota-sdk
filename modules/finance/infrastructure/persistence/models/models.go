@@ -2,8 +2,9 @@ package models
 
 import (
 	"database/sql"
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"time"
+
+	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 )
 
 type ExpenseCategory struct {

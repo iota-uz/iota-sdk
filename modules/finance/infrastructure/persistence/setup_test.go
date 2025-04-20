@@ -2,13 +2,14 @@ package persistence_test
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"os"
-	"testing"
 )
 
 func TestMain(m *testing.M) {

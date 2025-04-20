@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/validators"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -20,9 +21,9 @@ func NewUserValidator(repo user.Repository) *UserValidator {
 }
 
 func (v *UserValidator) ValidateCreate(ctx context.Context, u user.User) error {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 
 	errorMessages := map[string]string{}
@@ -51,9 +52,9 @@ func (v *UserValidator) ValidateCreate(ctx context.Context, u user.User) error {
 }
 
 func (v *UserValidator) ValidateUpdate(ctx context.Context, u user.User) error {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 
 	errorMessages := map[string]string{}

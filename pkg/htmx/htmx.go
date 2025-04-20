@@ -1,6 +1,9 @@
 package htmx
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 // ================= Setters =================
 
@@ -116,4 +119,17 @@ func TriggerName(r *http.Request) string {
 // Trigger retrieves the ID of the triggered element from the HX-Trigger request header.
 func Trigger(r *http.Request) string {
 	return r.Header.Get("Hx-Trigger")
+}
+
+// SSEEvent creates a Server-Sent Event (SSE) formatted string.
+func SSEEvent(html string, event ...string) string {
+	var res string
+	if len(event) > 2 {
+		panic("too many events")
+	}
+	if len(event) > 0 {
+		res = fmt.Sprintf("event: %s\n", event[0])
+	}
+	res += fmt.Sprintf("data: %s\n", html)
+	return res
 }
