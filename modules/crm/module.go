@@ -61,8 +61,8 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	app.Spotlight().Register(
-		spotlight.NewLocalizedItem(ClientsLink.Icon, ClientsLink.Name, ClientsLink.Href),
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(ClientsLink.Icon, ClientsLink.Name, ClientsLink.Href),
 	)
 
 	// Configure client controller with explicit tabs
