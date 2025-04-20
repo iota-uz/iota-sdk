@@ -77,7 +77,10 @@ templ SpotlightItems(items []*Item) {
 	if len(items) > 0 {
 		for i, item := range items {
 			<li
-				class="p-2 rounded-md cursor-pointer hover:bg-brand-500 hover:text-white transition-all duration-300"
+				class={
+					"border border-gray-200 px-4 py-3 rounded-md cursor-pointer",
+					"hover:bg-brand-500 hover:text-white transition-all duration-200",
+				}
 				:class={ fmt.Sprintf("{'bg-brand-500 text-white': highlightedIndex === %d }", i) }
 			>
 				<a href={ templ.SafeURL(item.Link) } class="flex items-center gap-2">
