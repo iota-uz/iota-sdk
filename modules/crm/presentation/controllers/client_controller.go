@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"golang.org/x/text/language"
@@ -71,7 +72,7 @@ func (ru *ClientRealtimeUpdates) Register() {
 
 func (ru *ClientRealtimeUpdates) publisherContext() (context.Context, error) {
 	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
-	ctx := composables.WithLocalizer(
+	ctx := intl.WithLocalizer(
 		context.Background(),
 		localizer,
 	)
@@ -283,7 +284,7 @@ func (c *ClientController) Register(r *mux.Router) {
 			middleware.Authorize(),
 			middleware.RedirectNotAuthenticated(),
 			middleware.ProvideUser(),
-			middleware.WithLocalizer(c.app.Bundle()),
+			middleware.ProvideLocalizer(c.app.Bundle()),
 			middleware.WithPageContext(),
 		},
 		c.config.Middleware...,
@@ -521,7 +522,12 @@ func (c *ClientController) View(
 		return
 	}
 
-	localizer := composables.MustUseLocalizer(r.Context())
+	localizer, ok := intl.UseLocalizer(r.Context())
+	if !ok {
+		logger.Errorf("Error getting localizer from context")
+		http.Error(w, "Error getting localizer", http.StatusInternalServerError)
+		return
+	}
 
 	hxCurrentURL, err := url.Parse(r.Header.Get("Hx-Current-Url"))
 	if err != nil {

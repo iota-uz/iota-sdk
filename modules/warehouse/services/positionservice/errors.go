@@ -2,6 +2,7 @@ package positionservice
 
 import (
 	"fmt"
+
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )

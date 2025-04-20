@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"

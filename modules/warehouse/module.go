@@ -94,27 +94,27 @@ func (m *Module) Register(app application.Application) error {
 	app.Migrations().RegisterSchema(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.Spotlight().Register(
-		spotlight.NewItem(nil, ProductsItem.Name, ProductsItem.Href),
-		spotlight.NewItem(nil, PositionsItem.Name, PositionsItem.Href),
-		spotlight.NewItem(nil, OrdersItem.Name, OrdersItem.Href),
-		spotlight.NewItem(nil, UnitsItem.Name, UnitsItem.Href),
-		spotlight.NewItem(nil, InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(nil, ProductsItem.Name, ProductsItem.Href),
+		spotlight.NewLocalizedItem(nil, PositionsItem.Name, PositionsItem.Href),
+		spotlight.NewLocalizedItem(nil, OrdersItem.Name, OrdersItem.Href),
+		spotlight.NewLocalizedItem(nil, UnitsItem.Name, UnitsItem.Href),
+		spotlight.NewLocalizedItem(nil, InventoryItem.Name, InventoryItem.Href),
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehousePositions.List.New",
 			"/warehouse/positions/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Products.List.New",
 			"/warehouse/products/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehouseOrders.List.New",
 			"/warehouse/orders/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehouseUnits.List.New",
 			"/warehouse/units/new",

@@ -40,7 +40,7 @@ templ viewTable(props *ViewPageProps) {
 			if len(items) == 0 {
 				<tr>
 					<td class="p-4 text-center" colspan="5">
-						{ composables.MustT(ctx, "WarehouseOrders.View.NoItems") }
+						{ intl.MustT(ctx, "WarehouseOrders.View.NoItems") }
 					</td>
 				</tr>
 			} else {

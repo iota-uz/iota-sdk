@@ -43,7 +43,7 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

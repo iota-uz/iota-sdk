@@ -60,26 +60,26 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewCounterpartiesController(app),
 	)
 	app.Spotlight().Register(
-		spotlight.NewItem(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
-		spotlight.NewItem(nil, PaymentsItem.Name, PaymentsItem.Href),
-		spotlight.NewItem(nil, ExpensesItem.Name, ExpensesItem.Href),
-		spotlight.NewItem(nil, AccountsItem.Name, AccountsItem.Href),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
+		spotlight.NewLocalizedItem(nil, PaymentsItem.Name, PaymentsItem.Href),
+		spotlight.NewLocalizedItem(nil, ExpensesItem.Name, ExpensesItem.Href),
+		spotlight.NewLocalizedItem(nil, AccountsItem.Name, AccountsItem.Href),
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Expenses.List.New",
 			"/finance/expenses/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Accounts.List.New",
 			"/finance/accounts/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Payments.List.New",
 			"/finance/payments/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"ExpenseCategories.List.New",
 			"/finance/expense-categories/new",

@@ -41,7 +41,7 @@ func setupTestContext() context.Context {
 	// Add localizer to context
 	bundle := i18n.NewBundle(language.English)
 	localizer := i18n.NewLocalizer(bundle, "en")
-	ctx = composables.WithLocalizer(ctx, localizer)
+	ctx = intl.WithLocalizer(ctx, localizer)
 
 	// Add page context
 	pageCtx := &types.PageContext{}
@@ -82,7 +82,7 @@ func diTestHandler(
 // Handler without DI approach - manually fetches dependencies
 func NonDIHandler(w http.ResponseWriter, r *http.Request) {
 	// Manually extract dependencies from context
-	localizer, ok := composables.UseLocalizer(r.Context())
+	localizer, ok := intl.UseLocalizer(r.Context())
 	if !ok {
 		http.Error(w, "localizer not found", http.StatusInternalServerError)
 		return

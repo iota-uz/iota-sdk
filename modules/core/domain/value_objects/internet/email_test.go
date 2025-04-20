@@ -1,8 +1,9 @@
 package internet_test
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 )
 
 func TestNewEmail(t *testing.T) {

@@ -2,6 +2,7 @@ package core
 
 import (
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
@@ -92,19 +93,17 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
+	app.Spotlight().RegisterDataSource(&dataSource{
+		userRepo: userRepo,
+	})
 	app.Spotlight().Register(
-		spotlight.NewItem(nil, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewItem(nil, UsersLink.Name, UsersLink.Href),
-		spotlight.NewItem(nil, GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewItem(
+		spotlight.NewLocalizedItem(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewLocalizedItem(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
+		spotlight.NewLocalizedItem(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href),
+		spotlight.NewLocalizedItem(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Users.List.New",
 			"/users/new",
-		),
-		spotlight.NewItem(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"Groups.List.New",
-			"/groups/new",
 		),
 	)
 	return nil
