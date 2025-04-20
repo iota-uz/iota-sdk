@@ -34,6 +34,7 @@ type Application interface {
 	HashFsAssets() []*hashfs.FS
 	RBAC() rbac.RBAC
 	Spotlight() spotlight.Spotlight
+	QuickLinks() *spotlight.QuickLinks
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
 	RegisterNavItems(items ...types.NavigationItem)

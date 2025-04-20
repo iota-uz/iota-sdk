@@ -93,14 +93,14 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
-	app.Spotlight().RegisterDataSource(&dataSource{
+	app.Spotlight().Register(&dataSource{
 		userRepo: userRepo,
 	})
-	app.Spotlight().Register(
-		spotlight.NewLocalizedItem(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewLocalizedItem(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
-		spotlight.NewLocalizedItem(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewLocalizedItem(
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
+		spotlight.NewQuickLink(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href),
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Users.List.New",
 			"/users/new",

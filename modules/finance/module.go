@@ -59,27 +59,27 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewPaymentsController(app),
 		controllers.NewCounterpartiesController(app),
 	)
-	app.Spotlight().Register(
-		spotlight.NewLocalizedItem(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
-		spotlight.NewLocalizedItem(nil, PaymentsItem.Name, PaymentsItem.Href),
-		spotlight.NewLocalizedItem(nil, ExpensesItem.Name, ExpensesItem.Href),
-		spotlight.NewLocalizedItem(nil, AccountsItem.Name, AccountsItem.Href),
-		spotlight.NewLocalizedItem(
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
+		spotlight.NewQuickLink(nil, PaymentsItem.Name, PaymentsItem.Href),
+		spotlight.NewQuickLink(nil, ExpensesItem.Name, ExpensesItem.Href),
+		spotlight.NewQuickLink(nil, AccountsItem.Name, AccountsItem.Href),
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Expenses.List.New",
 			"/finance/expenses/new",
 		),
-		spotlight.NewLocalizedItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Accounts.List.New",
 			"/finance/accounts/new",
 		),
-		spotlight.NewLocalizedItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Payments.List.New",
 			"/finance/payments/new",
 		),
-		spotlight.NewLocalizedItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"ExpenseCategories.List.New",
 			"/finance/expense-categories/new",

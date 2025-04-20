@@ -35,8 +35,8 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewBiChatController(app),
 	)
-	app.Spotlight().Register(
-		spotlight.NewLocalizedItem(nil, BiChatLink.Name, BiChatLink.Href),
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(nil, BiChatLink.Name, BiChatLink.Href),
 	)
 	return nil
 }
