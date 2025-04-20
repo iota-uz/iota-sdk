@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -14,7 +13,6 @@ import (
 var _ spotlight.DataSource = &dataSource{}
 
 type dataSource struct {
-	userRepo user.Repository
 }
 
 func (d *dataSource) Find(ctx context.Context, q string) []spotlight.Item {

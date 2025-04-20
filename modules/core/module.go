@@ -93,9 +93,7 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
-	app.Spotlight().Register(&dataSource{
-		userRepo: userRepo,
-	})
+	app.Spotlight().Register(&dataSource{})
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
 		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
