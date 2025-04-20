@@ -13,7 +13,7 @@ templ NotFoundContent() {
 				<img src="/assets/images/search.svg" class="w-32 h-32" alt="404"/>
 				<h1 class="text-2xl font-bold text-primary">404</h1>
 				<h2 class="text-lg font-bold text-primary">
-					{ composables.MustT(ctx, "ErrorPages.NotFound.Message") }
+					{ intl.MustT(ctx, "ErrorPages.NotFound.Message") }
 				</h2>
 				<div class="mt-4">
 					@button.Primary(button.Props{
@@ -21,7 +21,7 @@ templ NotFoundContent() {
 							"type": "submit",
 						}},
 					) {
-						{ composables.MustT(ctx, "ErrorPages.NotFound.Home") }
+						{ intl.MustT(ctx, "ErrorPages.NotFound.Home") }
 					}
 				</div>
 				<p class="text-lg text-gray-500 mt-4"></p>

@@ -1,8 +1,9 @@
 package product
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 )
 
 func New(rfid string, positionID uint, status Status, position *position.Position) *Product {

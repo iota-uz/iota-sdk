@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"log"
 	"net/http"
 
+	functions "github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"gorm.io/gorm"
 )
 

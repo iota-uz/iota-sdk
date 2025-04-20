@@ -52,9 +52,9 @@ func NotFoundContent() templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(composables.MustT(ctx, "ErrorPages.NotFound.Message"))
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "ErrorPages.NotFound.Message"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/error_pages/notfound.templ`, Line: 16, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/error_pages/notfound.templ`, Line: 16, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -77,9 +77,9 @@ func NotFoundContent() templ.Component {
 				}
 				ctx = templ.InitializeContext(ctx)
 				var templ_7745c5c3_Var5 string
-				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(composables.MustT(ctx, "ErrorPages.NotFound.Home"))
+				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "ErrorPages.NotFound.Home"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/error_pages/notfound.templ`, Line: 24, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/error_pages/notfound.templ`, Line: 24, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {

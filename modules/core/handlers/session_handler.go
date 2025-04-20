@@ -2,14 +2,15 @@ package handlers
 
 import (
 	"context"
+	"log"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log"
-	"time"
 )
 
 type SessionEventsHandler struct {

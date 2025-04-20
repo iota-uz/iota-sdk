@@ -2,13 +2,15 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	moneyaccounts2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
 	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -54,7 +56,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -178,7 +180,7 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -240,7 +242,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

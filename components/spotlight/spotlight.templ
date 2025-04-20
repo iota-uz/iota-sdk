@@ -7,7 +7,7 @@ package spotlight
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 // Spotlight renders a search dialog component that can be triggered
@@ -47,7 +47,7 @@ templ Spotlight() {
 					@keydown.down="highlightNext"
 					@keydown.enter="goToLink"
 					class="w-full border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-					placeholder={ composables.MustT(ctx, "Spotlight.Placeholder") }
+					placeholder={ intl.MustT(ctx, "Spotlight.Placeholder") }
 					hx-get="/spotlight/search"
 					hx-trigger="input changed delay:250ms, search"
 					hx-sync="this:replace"
@@ -64,16 +64,18 @@ templ Spotlight() {
 	</div>
 }
 
-// Item represents a search result in the Spotlight component.
-type Item struct {
-	Title string          // Title to display in the search results
-	Icon  templ.Component // Icon to display next to the title
-	Link  string          // URL to navigate to when the item is selected
+templ SpotlightItem(title, link string, icon templ.Component) {
+	<a href={ templ.SafeURL(link) } class="flex items-center gap-2">
+		if icon != nil {
+			@icon
+		}
+		{ title }
+	</a>
 }
 
 // SpotlightItems renders a list of search results in the Spotlight component.
 // If no items are found, it displays a "nothing found" message.
-templ SpotlightItems(items []*Item) {
+templ SpotlightItems(items []templ.Component) {
 	if len(items) > 0 {
 		for i, item := range items {
 			<li
@@ -83,17 +85,12 @@ templ SpotlightItems(items []*Item) {
 				}
 				:class={ fmt.Sprintf("{'bg-brand-500 text-white': highlightedIndex === %d }", i) }
 			>
-				<a href={ templ.SafeURL(item.Link) } class="flex items-center gap-2">
-					if item.Icon != nil {
-						@item.Icon
-					}
-					{ item.Title }
-				</a>
+				@item
 			</li>
 		}
 	} else {
 		<li class="text-center text-gray-700">
-			{ composables.MustT(ctx, "Spotlight.NothingFound") }
+			{ intl.MustT(ctx, "Spotlight.NothingFound") }
 		</li>
 	}
 }

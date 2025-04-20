@@ -1,12 +1,13 @@
 package persistence_test
 
 import (
+	"testing"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	financepersistence "github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
-	"testing"
-	"time"
 )
 
 func TestGormMoneyAccountRepository_CRUD(t *testing.T) {

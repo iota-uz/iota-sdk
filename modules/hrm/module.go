@@ -38,7 +38,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewEmployeeController(app),
 	)
 	app.Spotlight().Register(
-		spotlight.NewItem(nil, EmployeesLink.Name, EmployeesLink.Href),
+		spotlight.NewLocalizedItem(nil, EmployeesLink.Name, EmployeesLink.Href),
 	)
 	return nil
 }

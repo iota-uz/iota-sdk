@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -60,7 +61,7 @@ func (ru *UserRealtimeUpdates) Register() {
 
 func (ru *UserRealtimeUpdates) publisherContext() (context.Context, error) {
 	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
-	ctx := composables.WithLocalizer(
+	ctx := intl.WithLocalizer(
 		context.Background(),
 		localizer,
 	)
@@ -185,7 +186,7 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

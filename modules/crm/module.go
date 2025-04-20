@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/twilio/twilio-go"
 )
 
@@ -58,6 +59,10 @@ func (m *Module) Register(app application.Application) error {
 			persistence.NewMessageTemplateRepository(),
 			app.EventPublisher(),
 		),
+	)
+
+	app.Spotlight().Register(
+		spotlight.NewLocalizedItem(ClientsLink.Icon, ClientsLink.Name, ClientsLink.Href),
 	)
 
 	// Configure client controller with explicit tabs

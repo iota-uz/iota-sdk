@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type CreateDTO struct {
@@ -38,10 +39,9 @@ type UpdateDTO struct {
 }
 
 func (u *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	// TODO: Use composables.UseLocalizer(ctx) instead of ctx.Value(constants.LocalizerKey)
-	l, ok := ctx.Value(constants.LocalizerKey).(*i18n.Localizer)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic("localizer not found in context")
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(u)
@@ -64,10 +64,9 @@ func (u *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (u *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	// TODO: Use composables.UseLocalizer(ctx) instead of ctx.Value(constants.LocalizerKey)
-	l, ok := ctx.Value(constants.LocalizerKey).(*i18n.Localizer)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic("localizer not found in context")
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(u)

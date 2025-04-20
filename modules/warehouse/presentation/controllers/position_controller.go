@@ -2,16 +2,18 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	positions2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/positions"
 	viewmodels2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"net/http"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -57,7 +59,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -98,7 +100,7 @@ func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -112,7 +114,7 @@ func (c *PositionsController) HandleUpload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	localizer, ok := composables.UseLocalizer(r.Context())
+	localizer, ok := intl.UseLocalizer(r.Context())
 	if !ok {
 		http.Error(w, "Error retrieving localizer", http.StatusInternalServerError)
 		return
@@ -252,7 +254,7 @@ func (c *PositionsController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -314,7 +316,7 @@ func (c *PositionsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

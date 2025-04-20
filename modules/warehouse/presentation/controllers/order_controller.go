@@ -3,6 +3,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strconv"
+
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
@@ -13,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/orders"
 	orderin "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/orders/in"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/orders/out"
+	orderout "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/orders/out"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
@@ -21,11 +24,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/fp"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"net/http"
-	"strconv"
 )
 
 var (
@@ -101,7 +103,7 @@ func (c *OrdersController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -265,7 +267,7 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		}
 		if len(products) < quantity {
 			hasErrors = true
-			items[i].Error = composables.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT")
+			items[i].Error = intl.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT")
 		}
 		for _, p := range products {
 			dto.ProductIDs = append(dto.ProductIDs, p.ID)
@@ -330,7 +332,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		}
 		if len(products) < quantity {
 			hasErrors = true
-			items[i].Error = composables.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK")
+			items[i].Error = intl.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK")
 		}
 		for _, p := range products {
 			dto.ProductIDs = append(dto.ProductIDs, p.ID)
