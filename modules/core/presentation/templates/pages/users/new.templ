@@ -71,14 +71,16 @@ templ CreateForm(props *CreateFormProps) {
 					Class:  "grid grid-cols-3 gap-4",
 				}) {
 					@RoleSelect(&RoleSelectProps{
-						Roles: props.Roles,
-						Error: props.Errors["RoleIDs"],
-						Name:  "RoleIDs",
+						Roles:    props.Roles,
+						Selected: props.User.Roles,
+						Error:    props.Errors["RoleIDs"],
+						Name:     "RoleIDs",
 					})
 					@GroupSelect(&GroupSelectProps{
-						Groups: props.Groups,
-						Error:  props.Errors["GroupIDs"],
-						Name:   "GroupIDs",
+						Groups:   props.Groups,
+						Selected: props.User.GroupIDs,
+						Error:    props.Errors["GroupIDs"],
+						Name:     "GroupIDs",
 					})
 					@input.Password(&input.Props{
 						Label:       pageCtx.T("Users.Single.Password"),
@@ -91,8 +93,9 @@ templ CreateForm(props *CreateFormProps) {
 					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 						Label:       pageCtx.T("Users.Single.Language"),
 						Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-						Value:       string(props.User.UILanguage),
-						Attrs:       templ.Attributes{"name": "UILanguage"},
+						Value:       string(props.User.Language),
+						Error:       props.Errors["Language"],
+						Attrs:       templ.Attributes{"name": "Language"},
 					})
 				}
 			</div>

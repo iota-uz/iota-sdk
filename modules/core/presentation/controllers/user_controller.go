@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -415,7 +417,7 @@ func (c *UsersController) Create(
 	roleService *services.RoleService,
 	groupService *services.GroupService,
 ) {
-	respondWithForm := func(errors map[string]string, dto *user.CreateDTO) {
+	respondWithForm := func(errors map[string]string, dto *dtos.CreateUserDTO) {
 		ctx := r.Context()
 
 		roles, err := roleService.GetAll(ctx)
@@ -432,15 +434,25 @@ func (c *UsersController) Create(
 			return
 		}
 
-		userEntity, err := dto.ToEntity()
-		if err != nil {
-			logger.Errorf("Error converting DTO to entity: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		var selectedRoles []*viewmodels.Role
+		for _, role := range roles {
+			if slices.Contains(dto.RoleIDs, role.ID()) {
+				selectedRoles = append(selectedRoles, mappers.RoleToViewModel(role))
+			}
 		}
 
 		props := &users.CreateFormProps{
-			User:             *mappers.UserToViewModel(userEntity),
+			User: viewmodels.User{
+				FirstName:  dto.FirstName,
+				LastName:   dto.LastName,
+				MiddleName: dto.MiddleName,
+				Email:      dto.Email,
+				Phone:      dto.Phone,
+				GroupIDs:   dto.GroupIDs,
+				Roles:      selectedRoles,
+				Language:   dto.Language,
+				AvatarID:   fmt.Sprint(dto.AvatarID),
+			},
 			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
 			Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
 			PermissionGroups: c.permissionGroups(c.app.RBAC()),
@@ -450,7 +462,7 @@ func (c *UsersController) Create(
 		templ.Handler(users.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 
-	dto, err := composables.UseForm(&user.CreateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.CreateUserDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -467,32 +479,6 @@ func (c *UsersController) Create(
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	// Parse the form to access form fields
-	if err := r.ParseForm(); err != nil {
-		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, "Error parsing form", http.StatusBadRequest)
-		return
-	}
-
-	// Handle groups (if any)
-	groupIDs := r.Form["GroupIDs"]
-	if len(groupIDs) > 0 {
-		// Convert string IDs to UUID
-		ids := make([]uuid.UUID, 0, len(groupIDs))
-		for _, id := range groupIDs {
-			if id == "" {
-				continue
-			}
-			if uuid, err := uuid.Parse(id); err == nil {
-				ids = append(ids, uuid)
-			}
-		}
-
-		if len(ids) > 0 {
-			userEntity = userEntity.SetGroupIDs(ids)
-		}
 	}
 
 	if err := userService.Create(r.Context(), userEntity); err != nil {
@@ -519,6 +505,8 @@ func (c *UsersController) Update(
 	groupService *services.GroupService,
 	permissionService *services.PermissionService,
 ) {
+	ctx := r.Context()
+
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing user ID: %v", err)
@@ -532,32 +520,32 @@ func (c *UsersController) Update(
 		return
 	}
 
-	dto, err := composables.UseForm(&user.UpdateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.UpdateUserDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
-		roles, err := roleService.GetAll(r.Context())
+	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
+		us, err := userService.GetByID(ctx, id)
+		if err != nil {
+			logger.Errorf("Error retrieving user: %v", err)
+			http.Error(w, "Error retrieving user", http.StatusInternalServerError)
+			return
+		}
+
+		roles, err := roleService.GetAll(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving roles: %v", err)
 			http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 			return
 		}
 
-		groups, err := groupService.GetAll(r.Context())
+		groups, err := groupService.GetAll(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving groups: %v", err)
 			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
-			return
-		}
-
-		us, err := userService.GetByID(r.Context(), id)
-		if err != nil {
-			logger.Errorf("Error retrieving user: %v", err)
-			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 			return
 		}
 
@@ -569,6 +557,10 @@ func (c *UsersController) Update(
 			Errors:           errors,
 		}
 		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+
+	if errs, ok := dto.Ok(ctx); !ok {
+		respondWithForm(errs, dto)
 		return
 	}
 
@@ -579,45 +571,29 @@ func (c *UsersController) Update(
 		return
 	}
 
-	// Handle permissions
 	permissionIDs := r.Form["PermissionIDs"]
-	permissions := []*permission.Permission{}
+	permissions := make([]*permission.Permission, 0, len(permissionIDs))
 	for _, permID := range permissionIDs {
 		if permID == "" {
 			continue
 		}
-		perm, err := permissionService.GetByID(r.Context(), permID)
+		perm, err := permissionService.GetByID(ctx, permID)
 		if err != nil {
 			logger.Warnf("Error retrieving permission: %v", err)
 			continue
 		}
 		permissions = append(permissions, perm)
 	}
-
-	// Set permissions on the user entity
 	userEntity = userEntity.SetPermissions(permissions)
 
-	// Handle groups (if any)
-	groupIDs := r.Form["GroupIDs"]
-	if len(groupIDs) > 0 {
-		// Convert string IDs to UUID
-		ids := make([]uuid.UUID, 0, len(groupIDs))
-		for _, id := range groupIDs {
-			if id == "" {
-				continue
-			}
-			if uuid, err := uuid.Parse(id); err == nil {
-				ids = append(ids, uuid)
-			}
+	if err := userService.Update(ctx, userEntity); err != nil {
+		var errs *validators.ValidationError
+		if errors.As(err, &errs) {
+			respondWithForm(errs.Fields, dto)
+			return
 		}
 
-		if len(ids) > 0 {
-			userEntity = userEntity.SetGroupIDs(ids)
-		}
-	}
-
-	if err := userService.Update(r.Context(), userEntity); err != nil {
-		logger.Errorf("Error updating user: %v", err)
+		logger.Errorf("Error creating user: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

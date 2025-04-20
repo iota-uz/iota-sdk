@@ -91,9 +91,9 @@ templ ProfileForm(props *ProfilePageProps) {
 				@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 					Label:       pageCtx.T("Users.Single.Language"),
 					Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-					Value:       string(props.User.UILanguage),
-					Attrs:       templ.Attributes{"name": "UILanguage"},
-					Error:       props.Errors["UILanguage"],
+					Value:       string(props.User.Language),
+					Attrs:       templ.Attributes{"name": "Language"},
+					Error:       props.Errors["Language"],
 				})
 			}
 		</div>
