@@ -229,7 +229,8 @@
       "Permissions": "Foydalanuvchi ruxsatlari"
     },
     "Errors": {
-      "PhoneUnique": "Telefon raqami allaqachon foydalanilgan"
+      "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",
+      "EmailUnique": "Email allaqachon ishlatilgan."
     }
   },
   "Roles": {
