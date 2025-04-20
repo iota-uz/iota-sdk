@@ -65,6 +65,12 @@ func (d *DatabaseOptions) ConnectionString() string {
 	)
 }
 
+type ElasticSearchOptions struct {
+	URL      string `env:"ELASTICSEARCH_URL" envDefault:"http://localhost:9200"`
+	Username string `env:"ELASTICSEARCH_USERNAME" envDefault:"elastic"`
+	Password string `env:"ELASTICSEARCH_PASSWORD" envDefault:"elastic"`
+}
+
 type GoogleOptions struct {
 	RedirectURL  string `env:"GOOGLE_REDIRECT_URL"`
 	ClientID     string `env:"GOOGLE_CLIENT_ID"`
@@ -96,6 +102,7 @@ type Configuration struct {
 	Twilio        TwilioOptions
 	Loki          LokiOptions
 	OpenTelemetry OpenTelemetryOptions
+	ElasticSearch ElasticSearchOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`

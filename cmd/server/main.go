@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"runtime/debug"
 	"time"
 
+	"github.com/elastic/go-elasticsearch/v9"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -32,6 +34,34 @@ func main() {
 
 	conf := configuration.Use()
 	logger := conf.Logger()
+
+	cfg := elasticsearch.Config{
+		Addresses: []string{conf.ElasticSearch.URL},
+		Username:  conf.ElasticSearch.Username,
+		Password:  conf.ElasticSearch.Password,
+	}
+	es, err := elasticsearch.NewClient(cfg)
+	if err != nil {
+		logger.Fatalf("Error creating the client: %s", err)
+	}
+
+	// Ping / Info
+	res, err := es.Info()
+	if err != nil {
+		log.Fatalf("Error getting response: %s", err)
+	}
+	defer res.Body.Close()
+	if res.IsError() {
+		log.Fatalf("Unexpected status code: %s", res.Status())
+	}
+
+	var info map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&info); err != nil {
+		log.Fatalf("Error parsing the response body: %s", err)
+	}
+	log.Printf("Connected! Elasticsearch version %s",
+		info["version"].(map[string]interface{})["number"],
+	)
 
 	// Set up OpenTelemetry if enabled
 	var tracingCleanup func()
