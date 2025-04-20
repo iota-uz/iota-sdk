@@ -23,7 +23,7 @@ describe("user auth and registration flow", () => {
 		cy.get("[name=Email]").type("test1@gmail.com");
 		cy.get("[name=Phone]").type("+14155551234");
 		cy.get("[name=Password]").type("TestPass123!");
-		cy.get("[name=UILanguage]").select(2);
+		cy.get("[name=Language]").select(2);
 		cy.get('select[name="RoleIDs"]')
 			.closest('div') // this div directly wraps the select
 			.find('button[x-ref="trigger"]')
@@ -54,7 +54,7 @@ describe("user auth and registration flow", () => {
 		cy.get("[name=MiddleName]").clear().type("MidNew");
 		cy.get("[name=Email]").clear().type("test1new@gmail.com");
 		cy.get("[name=Phone]").clear().type("+14155559876");
-		cy.get("[name=UILanguage]").select(1);
+		cy.get("[name=Language]").select(1);
 		cy.get("[id=save-btn]").click();
 
 		cy.visit("http://localhost:3200/users");
