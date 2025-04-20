@@ -52,9 +52,9 @@ func (v *UserValidator) ValidateCreate(ctx context.Context, u user.User) error {
 }
 
 func (v *UserValidator) ValidateUpdate(ctx context.Context, u user.User) error {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 
 	errorMessages := map[string]string{}
