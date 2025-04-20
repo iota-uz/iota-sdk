@@ -38,7 +38,6 @@ func (s *spotlight) Find(ctx context.Context, q string) <-chan Item {
 
 	wg.Add(len(s.dataSources))
 	for _, ds := range s.dataSources {
-		ds := ds
 		go func() {
 			defer wg.Done()
 			items := ds.Find(ctx, q)
