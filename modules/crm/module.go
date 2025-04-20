@@ -64,6 +64,7 @@ func (m *Module) Register(app application.Application) error {
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(ClientsLink.Icon, ClientsLink.Name, ClientsLink.Href),
 	)
+	app.Spotlight().Register(&dataSource{})
 
 	// Configure client controller with explicit tabs
 	basePath := "/crm/clients"
