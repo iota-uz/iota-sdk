@@ -5,16 +5,18 @@ package form
 // FormConfig holds the configuration for a dynamic form
 type FormConfig struct {
 	Title       string
-	Action      string
+	SaveURL     string
+	DeleteURL   string
 	SubmitLabel string
 	Fields      []Field
 }
 
 // NewFormConfig creates a new FormConfig with page title, form action URL, and submit button label
-func NewFormConfig(title, action, submitLabel string, fields ...Field) *FormConfig {
+func NewFormConfig(title, saveURL, deleteURL, submitLabel string, fields ...Field) *FormConfig {
 	return &FormConfig{
 		Title:       title,
-		Action:      action,
+		SaveURL:     saveURL,
+		DeleteURL:   deleteURL,
 		SubmitLabel: submitLabel,
 		Fields:      fields,
 	}
