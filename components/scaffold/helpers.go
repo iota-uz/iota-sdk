@@ -1,4 +1,4 @@
-package scaffold
+package table
 
 import (
 	"github.com/a-h/templ"
