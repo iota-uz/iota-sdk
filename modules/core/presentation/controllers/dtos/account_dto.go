@@ -46,7 +46,6 @@ func (d *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
-	fmt.Printf("apply: %s\n", d.Phone)
 	lang, err := user.NewUILanguage(d.Language)
 	if err != nil {
 		return nil, err
