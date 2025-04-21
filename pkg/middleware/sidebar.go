@@ -5,12 +5,14 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -70,7 +72,7 @@ func NavItems() mux.MiddlewareFunc {
 				if err != nil {
 					panic(err.Error())
 				}
-				localizer, ok := composables.UseLocalizer(r.Context())
+				localizer, ok := intl.UseLocalizer(r.Context())
 				if !ok {
 					panic("localizer not found in context")
 				}

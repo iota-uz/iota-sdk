@@ -11,6 +11,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -73,7 +74,7 @@ func (c *ChatController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -89,7 +90,7 @@ func (c *ChatController) Register(r *mux.Router) {
 
 func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
 	localizer := i18n.NewLocalizer(c.app.Bundle(), "en")
-	ctx := composables.WithLocalizer(
+	ctx := intl.WithLocalizer(
 		context.Background(),
 		localizer,
 	)
@@ -111,7 +112,7 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		locale = "en"
 	}
 	localizer := i18n.NewLocalizer(c.app.Bundle(), locale)
-	ctx := composables.WithLocalizer(
+	ctx := intl.WithLocalizer(
 		context.Background(),
 		localizer,
 	)

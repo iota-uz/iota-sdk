@@ -1,8 +1,9 @@
 package services
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/costcomponent"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/costcomponent"
 )
 
 func TestUhrService_Calculate(t *testing.T) {

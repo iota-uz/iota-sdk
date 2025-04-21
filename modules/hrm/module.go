@@ -37,8 +37,8 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewEmployeeController(app),
 	)
-	app.Spotlight().Register(
-		spotlight.NewItem(nil, EmployeesLink.Name, EmployeesLink.Href),
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(nil, EmployeesLink.Name, EmployeesLink.Href),
 	)
 	return nil
 }

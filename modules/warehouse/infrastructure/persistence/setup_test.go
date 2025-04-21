@@ -2,9 +2,10 @@ package persistence_test
 
 import (
 	"context"
-	"github.com/iota-uz/utils/random"
 	"os"
 	"testing"
+
+	"github.com/iota-uz/utils/random"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 

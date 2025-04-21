@@ -31,7 +31,7 @@ describe("user realtime behavior", () => {
                     Email: "realtime@gmail.com",
                     Phone: "+14155551234",
                     Password: "TestPass123!",
-                    UILanguage: "en",
+                    Language: "en",
                     RoleIDs: "1",
                 }
             });
@@ -55,7 +55,7 @@ describe("user realtime behavior", () => {
                         MiddleName: "Mid",
                         Email: "realtime@gmail.com",
                         Phone: "+14155559876",
-                        UILanguage: "en",
+                        Language: "en",
                         RoleIDs: "1",
                     }
                 });

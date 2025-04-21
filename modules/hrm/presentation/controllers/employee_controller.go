@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -50,7 +51,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -170,7 +171,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 
 	err = c.employeeService.Create(r.Context(), dto)
 	if err != nil {
-		l, ok := composables.UseLocalizer(r.Context())
+		l, ok := intl.UseLocalizer(r.Context())
 		if !ok {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -238,7 +239,7 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		err := c.employeeService.Update(r.Context(), id, dto)
 		if err != nil {
-			l, ok := composables.UseLocalizer(r.Context())
+			l, ok := intl.UseLocalizer(r.Context())
 			if !ok {
 				http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 				return

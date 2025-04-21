@@ -44,7 +44,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -86,31 +86,38 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
 	dto, err := composables.UseForm(&dtos.SaveAccountDTO{}, r)
 	if err != nil {
+		logger.WithError(err).Error("failed to parse form")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props, err := c.defaultProps(r, errors)
 		if err != nil {
+			logger.WithError(err).Error("failed to get default props")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		logger.WithField("errors", errors).Debug("validation failed")
 		templ.Handler(account.ProfileForm(props)).ServeHTTP(w, r)
 		return
 	}
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
+		logger.WithError(err).Error("failed to get user from context")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	entity, err := dto.Apply(u)
 	if err != nil {
+		logger.WithError(err).Error("failed to apply dto")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := c.userService.Update(r.Context(), entity); err != nil {
+		logger.WithError(err).Error("failed to update user")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

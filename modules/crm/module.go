@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/twilio/twilio-go"
 )
 
@@ -59,6 +60,11 @@ func (m *Module) Register(app application.Application) error {
 			app.EventPublisher(),
 		),
 	)
+
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(ClientsLink.Icon, ClientsLink.Name, ClientsLink.Href),
+	)
+	app.Spotlight().Register(&dataSource{})
 
 	// Configure client controller with explicit tabs
 	basePath := "/crm/clients"

@@ -6,23 +6,25 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type SaveAccountDTO struct {
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
+	Phone      string
 	MiddleName string
-	UILanguage string `validate:"required"`
+	Language   string `validate:"required"`
 	AvatarID   uint
 }
 
 func (d *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
@@ -44,7 +46,8 @@ func (d *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
-	lang, err := user.NewUILanguage(d.UILanguage)
+	fmt.Printf("apply: %s\n", d.Phone)
+	lang, err := user.NewUILanguage(d.Language)
 	if err != nil {
 		return nil, err
 	}
@@ -55,5 +58,12 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 		// set to empty without hashing because an account cannot change its password and empty
 		// password is ignored by UserService.Update
 		SetPasswordUnsafe("")
+	if d.Phone != "" {
+		p, err := phone.NewFromE164(d.Phone)
+		if err != nil {
+			return nil, err
+		}
+		updated = updated.SetPhone(p)
+	}
 	return updated, nil
 }

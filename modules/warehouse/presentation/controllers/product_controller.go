@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -54,7 +55,7 @@ func (c *ProductsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -167,7 +168,7 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 		c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		c.handleError(w, fmt.Errorf("error retrieving localizer: %w", err))
 		return
@@ -181,7 +182,7 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	localizer, ok := composables.UseLocalizer(r.Context())
+	localizer, ok := intl.UseLocalizer(r.Context())
 	if !ok {
 		c.handleError(w, fmt.Errorf("error retrieving localizer"))
 		return
@@ -227,7 +228,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		c.handleError(w, err)
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		c.handleError(w, fmt.Errorf("error retrieving localizer: %w", err))
 		return
@@ -242,7 +243,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	localizer, ok := composables.UseLocalizer(r.Context())
+	localizer, ok := intl.UseLocalizer(r.Context())
 	if !ok {
 		c.handleError(w, fmt.Errorf("error retrieving localizer"))
 		return

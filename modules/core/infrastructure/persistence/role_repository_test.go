@@ -1,11 +1,12 @@
 package persistence_test
 
 import (
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"testing"
 )
 
 func TestGormRoleRepository_CRUD(t *testing.T) {

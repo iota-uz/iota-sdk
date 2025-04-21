@@ -18,8 +18,8 @@ const (
 	HeadKey        ContextKey = "head"
 	TabsKey        ContextKey = "tabs"
 	RequestStart   ContextKey = "requestStart"
-	LocalizerKey   ContextKey = "localizer"
-	PageContext    ContextKey = "pageContext"
+
+	PageContext ContextKey = "pageContext"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())
