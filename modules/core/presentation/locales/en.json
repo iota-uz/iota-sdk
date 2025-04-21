@@ -229,7 +229,8 @@
       "Permissions": "User Permissions"
     },
     "Errors": {
-      "PhoneUnique": "Phone number is already used"
+      "PhoneUnique": "Phone number is already used",
+      "EmailUnique": "Email is already used"
     }
   },
   "Roles": {

@@ -2,6 +2,7 @@ package assets
 
 import (
 	"embed"
+
 	"github.com/benbjohnson/hashfs"
 )
 

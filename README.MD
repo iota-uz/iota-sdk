@@ -49,11 +49,14 @@ various industries. Here's what's in the pipeline:
 - **Finance & Accounting**: Develop comprehensive tools for managing financial operations, including general ledger,
   accounts payable/receivable, and payroll.
 
+### Work In Progress
+
+- **CRM**: Building a customer relationship management module to streamline client interactions and sales processes.
+- **BI‑Chat**: Introducing a business intelligence chatbot for real-time data insights and reporting.
+
 ### Upcoming Features
 
 - **HRM**: Integrate a human resources management module for employee onboarding, payroll, and benefits.
-- **CRM**: Build a customer relationship management module to streamline client interactions and sales processes.
-- **BI-Chat**: Introduce a business intelligence chatbot for real-time data insights and reporting.
 - **Password Vault**: Securely store and manage sensitive credentials within the platform.
 - **DSL**: Integrate V8/Python for scripting and customizations.
 - **Logging**: Implement a logging system for tracking user actions and system events.

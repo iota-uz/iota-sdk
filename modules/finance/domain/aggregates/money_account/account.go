@@ -1,9 +1,10 @@
 package moneyaccount
 
 import (
+	"time"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
-	"time"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"

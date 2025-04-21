@@ -15,12 +15,10 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"golang.org/x/text/language"
 )
 
 var (
-	ErrNoLocalizer = errors.New("localizer not found")
-	ErrNoLogger    = errors.New("logger not found")
+	ErrNoLogger = errors.New("logger not found")
 )
 
 type Params struct {
@@ -100,40 +98,6 @@ func UseUserAgent(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return params.UserAgent, true
-}
-
-func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
-	user, err := UseUser(ctx)
-	if err != nil {
-		return language.Und, err
-	}
-	tag, err := language.Parse(string(user.UILanguage()))
-	if err != nil {
-		return language.Und, err
-	}
-	return tag, nil
-}
-
-// UseLocale returns the locale from the context.
-// If the locale is not found, the second return value will be false.
-func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag {
-	tag, err := useLocaleFromUser(ctx)
-	if err == nil {
-		return tag
-	}
-	params, ok := UseParams(ctx)
-	if !ok {
-		return defaultLocale
-	}
-	headerValue := params.Request.Header.Get("Accept-Language")
-	tags, _, err := language.ParseAcceptLanguage(headerValue)
-	if err != nil {
-		return defaultLocale
-	}
-	if len(tags) == 0 {
-		return defaultLocale
-	}
-	return tags[0]
 }
 
 // UsePageCtx returns the page context from the context.

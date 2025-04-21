@@ -14,6 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type CreateDTO struct {
@@ -23,9 +24,9 @@ type CreateDTO struct {
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := ctx.Value(constants.LocalizerKey).(*i18n.Localizer)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic("localizer not found in context")
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)

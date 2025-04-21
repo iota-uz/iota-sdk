@@ -2,9 +2,10 @@ package phone_test
 
 import (
 	"errors"
+	"testing"
+
 	country2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
-	"testing"
 )
 
 func TestNewPhoneNumber(t *testing.T) {

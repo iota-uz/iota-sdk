@@ -93,28 +93,28 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterLocaleFiles(&localeFiles)
 	app.Migrations().RegisterSchema(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
-	app.Spotlight().Register(
-		spotlight.NewItem(nil, ProductsItem.Name, ProductsItem.Href),
-		spotlight.NewItem(nil, PositionsItem.Name, PositionsItem.Href),
-		spotlight.NewItem(nil, OrdersItem.Name, OrdersItem.Href),
-		spotlight.NewItem(nil, UnitsItem.Name, UnitsItem.Href),
-		spotlight.NewItem(nil, InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewItem(
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(nil, ProductsItem.Name, ProductsItem.Href),
+		spotlight.NewQuickLink(nil, PositionsItem.Name, PositionsItem.Href),
+		spotlight.NewQuickLink(nil, OrdersItem.Name, OrdersItem.Href),
+		spotlight.NewQuickLink(nil, UnitsItem.Name, UnitsItem.Href),
+		spotlight.NewQuickLink(nil, InventoryItem.Name, InventoryItem.Href),
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehousePositions.List.New",
 			"/warehouse/positions/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Products.List.New",
 			"/warehouse/products/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehouseOrders.List.New",
 			"/warehouse/orders/new",
 		),
-		spotlight.NewItem(
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"WarehouseUnits.List.New",
 			"/warehouse/units/new",

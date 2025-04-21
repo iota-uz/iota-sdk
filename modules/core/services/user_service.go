@@ -69,14 +69,14 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 	if err != nil {
 		return err
 	}
-	err = s.validator.ValidateCreate(ctx, data)
-	if err != nil {
-		return err
-	}
 	data, err = data.SetPassword(data.Password())
 
 	var createdUser user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err != nil {
+			return err
+		}
+		err = s.validator.ValidateCreate(ctx, data)
 		if err != nil {
 			return err
 		}
@@ -109,20 +109,7 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) error {
-	if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
-		return err
-	}
-	logger := composables.UseLogger(ctx)
-	tx, err := composables.BeginTx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			logger.WithError(err).Error("failed to rollback transaction")
-		}
-	}()
-	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
+	err := composables.CanUser(ctx, permissions.UserUpdate)
 	if err != nil {
 		return err
 	}
@@ -132,14 +119,32 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 			return err
 		}
 	}
-	if err := s.repo.Update(ctx, data); err != nil {
+
+	var updatedUser user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err = s.validator.ValidateUpdate(txCtx, data); err != nil {
+			return err
+		}
+		if err = s.repo.Update(txCtx, data); err != nil {
+			return err
+		}
+		userAfterUpdate, err := s.repo.GetByID(txCtx, data.ID())
+		if err != nil {
+			return err
+		}
+		updatedUser = userAfterUpdate
+		return nil
+	})
+	if err != nil {
 		return err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
+	if err != nil {
 		return err
 	}
-	updatedEvent.Result = data
+	updatedEvent.Result = updatedUser
 	s.publisher.Publish(updatedEvent)
+
 	return nil
 }
 

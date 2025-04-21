@@ -3,8 +3,8 @@ package chatfuncs
 import (
 	"encoding/json"
 	"errors"
-	"github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 
+	functions "github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
 	"gorm.io/gorm"
 )
 

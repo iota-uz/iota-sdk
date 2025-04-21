@@ -1,10 +1,11 @@
 package tax
 
 import (
+	"strings"
+
 	"github.com/go-faster/errors"
 	country2 "github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/utils/sequence"
-	"strings"
 )
 
 var (
