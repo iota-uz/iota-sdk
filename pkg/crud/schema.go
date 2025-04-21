@@ -51,6 +51,7 @@ type Schema[T any, ID any] struct {
 	Fields          []formui.Field
 	Store           DataStore[T, ID]
 	modelValidators []ModelLevelValidator[T]
+	middlewares     []mux.MiddlewareFunc
 }
 
 // Ensure Schema implements application.Controller
@@ -91,10 +92,18 @@ func WithModelValidators[T any, ID any](vs ...ModelLevelValidator[T]) SchemaOpt[
 	}
 }
 
+// WithMiddlewares adds middleware functions to the Schema
+func WithMiddlewares[T any, ID any](ms ...mux.MiddlewareFunc) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.middlewares = append(s.middlewares, ms...)
+	}
+}
+
 // Register mounts CRUD HTTP handlers on the provided router
 func (s *Schema[T, ID]) Register(r *mux.Router) {
 	subR := r.PathPrefix(s.Path).Subrouter()
-	subR.HandleFunc("/", s.listHandler).Methods(http.MethodGet)
+	subR.Use(s.middlewares...)
+	subR.HandleFunc("", s.listHandler).Methods(http.MethodGet)
 	subR.HandleFunc("/new", s.newHandler).Methods(http.MethodGet)
 	subR.HandleFunc("/", s.createHandler).Methods(http.MethodPost)
 	subR.HandleFunc("/{id}/edit", s.editHandler).Methods(http.MethodGet)
@@ -110,6 +119,7 @@ func (s *Schema[T, ID]) Key() string {
 // Handler stubs
 func (s *Schema[T, ID]) listHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	fmt.Printf("List %s\n", s.Name)
 
 	// Parse query parameters
 	var params FindParams
@@ -185,7 +195,11 @@ func (s *Schema[T, ID]) listHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Schema[T, ID]) newHandler(w http.ResponseWriter, r *http.Request) {
 
 }
+
 func (s *Schema[T, ID]) createHandler(w http.ResponseWriter, r *http.Request) {}
-func (s *Schema[T, ID]) editHandler(w http.ResponseWriter, r *http.Request)   {}
+
+func (s *Schema[T, ID]) editHandler(w http.ResponseWriter, r *http.Request) {}
+
 func (s *Schema[T, ID]) updateHandler(w http.ResponseWriter, r *http.Request) {}
+
 func (s *Schema[T, ID]) deleteHandler(w http.ResponseWriter, r *http.Request) {}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -29,11 +30,11 @@ import (
 //    updated_at timestamp with time zone DEFAULT now()
 
 type Currency struct {
-	Code    string
-	Name    string
-	Symbol  string
-	Created time.Time
-	Updated time.Time
+	Code      string
+	Name      string
+	Symbol    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func NewDIExampleController(app application.Application) application.Controller {
@@ -66,6 +67,29 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/sf-table", di.H(c.ScaffoldTable))
 	subRouter.HandleFunc("/sf-table/{id:[0-9]+}", di.H(c.Details))
 	subRouter.HandleFunc("/sf-table/new", di.H(c.New))
+
+	schema := crud.NewSchema(
+		"Currency",
+		"/builder",
+		"Code",
+		crud.NewSQLDataStoreAdapter[Currency, string]("currencies"),
+		crud.WithFields[Currency, string](
+			fbuilder.Text("code", "Code").Required().Default("USD").Build(),
+			fbuilder.Text("name", "Name").Required().Build(),
+			fbuilder.Text("symbol", "Symbol").Required().Build(),
+			fbuilder.Color("color", "Color").Required().Build(),
+		),
+		crud.WithMiddlewares[Currency, string](
+			middleware.Authorize(),
+			middleware.RedirectNotAuthenticated(),
+			middleware.ProvideUser(),
+			middleware.Tabs(),
+			middleware.ProvideLocalizer(c.app.Bundle()),
+			middleware.NavItems(),
+			middleware.WithPageContext(),
+		),
+	)
+	schema.Register(r)
 }
 
 func (c *DIEmployeeController) ScaffoldTable(
