@@ -316,6 +316,10 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientEntity, err := clientDto.ToEntity()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	if err = c.clientService.Create(r.Context(), clientEntity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
