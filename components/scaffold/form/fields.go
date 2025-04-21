@@ -22,6 +22,7 @@ const (
 	FieldTypeEmail         FieldType = "email"
 	FieldTypeMonth         FieldType = "month"
 	FieldTypeNumber        FieldType = "number"
+	FieldTypeColor         FieldType = "color"
 	FieldTypeRadio         FieldType = "radio"
 	FieldTypeTel           FieldType = "tel"
 	FieldTypeTime          FieldType = "time"
@@ -133,6 +134,12 @@ type TimeField interface {
 	Default() string
 	Min() string
 	Max() string
+}
+
+// ColorField for color inputs
+type ColorField interface {
+	Field
+	Default() string
 }
 
 // URLField for URL inputs
@@ -579,3 +586,34 @@ func (f *selectField) Attrs() templ.Attributes { return f.attrs }
 func (f *selectField) Validators() []Validator { return f.validators }
 func (f *selectField) Options() []Option       { return f.options }
 func (f *selectField) Default() string         { return f.defaultVal }
+
+type colorField struct {
+	key        string
+	label      string
+	defaultVal string
+	required   bool
+	attrs      templ.Attributes
+	validators []Validator
+}
+
+func (f *colorField) Component() templ.Component {
+	attrs := templ.Attributes{}
+	for k, v := range f.attrs {
+		attrs[k] = v
+	}
+	attrs["name"] = f.key
+	attrs["value"] = f.defaultVal
+	return input.Color(&input.Props{
+		Placeholder: f.label,
+		Label:       f.label,
+		Attrs:       attrs,
+	})
+}
+
+func (f *colorField) Key() string             { return f.key }
+func (f *colorField) Label() string           { return f.label }
+func (f *colorField) Type() FieldType         { return FieldTypeColor }
+func (f *colorField) Required() bool          { return f.required }
+func (f *colorField) Attrs() templ.Attributes { return f.attrs }
+func (f *colorField) Validators() []Validator { return f.validators }
+func (f *colorField) Default() string         { return f.defaultVal }

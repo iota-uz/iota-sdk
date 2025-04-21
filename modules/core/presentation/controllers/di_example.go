@@ -186,11 +186,13 @@ func (c *DIEmployeeController) New(
 	cfg := fbuilder.NewFormConfig(
 		"New Currency",
 		fmt.Sprintf("%s/sf-table", c.basePath),
+		fmt.Sprintf("%s/sf-table", c.basePath),
 		"Create",
 	).Add(
-		fbuilder.NewTextField("code", "Code").Required().Build(),
-		fbuilder.NewTextField("name", "Name").Required().Build(),
-		fbuilder.NewTextField("symbol", "Symbol").Required().Build(),
+		fbuilder.Text("code", "Code").Required().Default("USD").Build(),
+		fbuilder.Text("name", "Name").Required().Build(),
+		fbuilder.Text("symbol", "Symbol").Required().Build(),
+		fbuilder.Color("color", "Color").Required().Build(),
 	)
 
 	templ.Handler(fbuilder.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)

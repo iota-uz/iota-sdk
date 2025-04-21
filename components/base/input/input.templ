@@ -141,17 +141,26 @@ templ Date(props *Props) {
 }
 
 templ Color(props *Props) {
-	@newInput(&Props{
-		typ:          "color",
-		Class:        props.Class,
-		Label:        props.Label,
-		Attrs:        props.Attrs,
-		Placeholder:  props.Placeholder,
-		AddonRight:   props.AddonRight,
-		AddonLeft:    props.AddonLeft,
-		Error:        props.Error,
-		WrapperProps: props.WrapperProps,
-	}).render()
+	{{
+		if props.id == "" {
+			props.id = random.String(12, random.LowerCharSet)
+		}
+	}}
+	<div>
+		<label
+			for={ props.id }
+			class="block text-sm font-medium mb-2 dark:text-white"
+		>
+			{ props.Label }
+			<small class="text-xs text-red-500 mt-1">{ props.Error }</small>
+		</label>
+		<input
+			type="color"
+			class="p-1 h-10 w-14 block bg-white border border-gray-200 cursor-pointer rounded-lg disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700"
+			id={ props.id }
+			title="Choose your color"
+		/>
+	</div>
 }
 
 type CheckboxProps struct {

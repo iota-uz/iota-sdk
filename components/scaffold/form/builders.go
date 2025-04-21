@@ -636,3 +636,45 @@ func (b *SelectFieldBuilder) Build() SelectField {
 		validators: b.validators,
 	}
 }
+
+type ColorFieldBuilder struct {
+	key, label, defaultVal string
+	required               bool
+	attrs                  templ.Attributes
+	validators             []Validator
+}
+
+func Color(key, label string) *ColorFieldBuilder {
+	return &ColorFieldBuilder{key: key, label: label, attrs: templ.Attributes{}}
+}
+
+func (b *ColorFieldBuilder) Default(val string) *ColorFieldBuilder {
+	b.defaultVal = val
+	return b
+}
+
+func (b *ColorFieldBuilder) Required() *ColorFieldBuilder {
+	b.required = true
+	return b
+}
+
+func (b *ColorFieldBuilder) Attrs(a templ.Attributes) *ColorFieldBuilder {
+	b.attrs = a
+	return b
+}
+
+func (b *ColorFieldBuilder) Validators(v []Validator) *ColorFieldBuilder {
+	b.validators = v
+	return b
+}
+
+func (b *ColorFieldBuilder) Build() ColorField {
+	return &colorField{
+		key:        b.key,
+		label:      b.label,
+		defaultVal: b.defaultVal,
+		required:   b.required,
+		attrs:      b.attrs,
+		validators: b.validators,
+	}
+}
