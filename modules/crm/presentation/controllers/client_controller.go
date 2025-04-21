@@ -31,6 +31,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmPermissions "github.com/iota-uz/iota-sdk/modules/crm/permissions"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/clients"
@@ -303,9 +304,11 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.GetPersonalEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.GetPassportEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.GetTaxEdit)).Methods(http.MethodGet)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/notes", di.H(c.GetNotesEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.UpdatePersonal)).Methods(http.MethodPost)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.UpdatePassport)).Methods(http.MethodPost)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.UpdateTax)).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/{id:[0-9]+}/edit/notes", di.H(c.UpdateNotes)).Methods(http.MethodPost)
 
 	// Register realtime updates if enabled
 	if c.realtime != nil {
@@ -402,7 +405,7 @@ func (c *ClientController) Create(
 		return
 	}
 
-	dto, err := composables.UseForm(&client.CreateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.CreateClientDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -432,7 +435,14 @@ func (c *ClientController) Create(
 		return
 	}
 
-	if _, err = clientService.Create(r.Context(), dto); err != nil {
+	clientEntity, err := dto.ToEntity()
+	if err != nil {
+		logger.Errorf("Error converting DTO to entity: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err = clientService.Create(r.Context(), clientEntity); err != nil {
 		logger.Errorf("Error creating client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -665,6 +675,34 @@ func (c *ClientController) GetTaxEdit(
 	templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
+func (c *ClientController) GetNotesEdit(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService,
+) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := clientService.GetByID(r.Context(), id)
+	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+
+	props := &clients.NotesInfoEditProps{
+		Client: mappers.ClientToViewModel(entity),
+		Errors: map[string]string{},
+		Form:   "notes-info-edit-form",
+	}
+	templ.Handler(clients.NotesInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
 func (c *ClientController) UpdatePersonal(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -690,7 +728,7 @@ func (c *ClientController) UpdatePersonal(
 		return
 	}
 
-	dto, err := composables.UseForm(&client.UpdatePersonalDTO{}, r)
+	dto, err := composables.UseForm(&dtos.UpdateClientPersonalDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -729,7 +767,7 @@ func (c *ClientController) UpdatePersonal(
 		return
 	}
 
-	if err := clientService.Save(r.Context(), updated); err != nil {
+	if err := clientService.Update(r.Context(), updated); err != nil {
 		logger.Errorf("Error saving client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -766,7 +804,7 @@ func (c *ClientController) UpdatePassport(
 		return
 	}
 
-	dto, err := composables.UseForm(&client.UpdatePassportDTO{}, r)
+	dto, err := composables.UseForm(&dtos.UpdateClientPassportDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -805,7 +843,7 @@ func (c *ClientController) UpdatePassport(
 		return
 	}
 
-	if err := clientService.Save(r.Context(), updated); err != nil {
+	if err := clientService.Update(r.Context(), updated); err != nil {
 		logger.Errorf("Error saving client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -842,7 +880,7 @@ func (c *ClientController) UpdateTax(
 		return
 	}
 
-	dto, err := composables.UseForm(&client.UpdateTaxDTO{}, r)
+	dto, err := composables.UseForm(&dtos.UpdateClientTaxDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -881,7 +919,7 @@ func (c *ClientController) UpdateTax(
 		return
 	}
 
-	if err := clientService.Save(r.Context(), updated); err != nil {
+	if err := clientService.Update(r.Context(), updated); err != nil {
 		logger.Errorf("Error saving client: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -897,6 +935,81 @@ func (c *ClientController) UpdateTax(
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#tax-info-card")
 	templ.Handler(clients.TaxInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ClientController) UpdateNotes(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	clientService *services.ClientService) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		logger.Errorf("Error parsing client ID: %v", err)
+		http.Error(w, "Error parsing id", http.StatusInternalServerError)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		logger.Errorf("Error parsing form: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	dto, err := composables.UseForm(&dtos.UpdateClientNotesDTO{}, r)
+	if err != nil {
+		logger.Errorf("Error parsing form: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		entity, err := clientService.GetByID(r.Context(), id)
+		if err != nil {
+			logger.Errorf("Error retrieving client: %v", err)
+			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+			return
+		}
+
+		clientVM := mappers.ClientToViewModel(entity)
+		props := &clients.TaxInfoEditProps{
+			Client: clientVM,
+			Errors: errorsMap,
+			Form:   "notes-info-edit-form",
+		}
+		templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	entity, err := clientService.GetByID(r.Context(), id)
+	if err != nil {
+		logger.Errorf("Error retrieving client: %v", err)
+		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
+		return
+	}
+
+	updated, err := dto.Apply(entity)
+	if err != nil {
+		logger.Errorf("Error applying changes: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := clientService.Update(r.Context(), updated); err != nil {
+		logger.Errorf("Error saving client: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	entity, err = clientService.GetByID(r.Context(), id)
+	if err != nil {
+		logger.Errorf("Error retrieving updated client: %v", err)
+		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
+		return
+	}
+
+	clientVM := mappers.ClientToViewModel(entity)
+	htmx.Retarget(w, "#notes-info-card")
+	templ.Handler(clients.NotesInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ClientController) Delete(

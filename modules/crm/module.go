@@ -52,7 +52,6 @@ func (m *Module) Register(app application.Application) error {
 		chatsService,
 		services.NewClientService(
 			clientRepo,
-			chatsService,
 			app.EventPublisher(),
 		),
 		services.NewMessageTemplateService(
@@ -81,6 +80,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewTwilioController(app, twilioProvider),
 	)
 
+	handlers.RegisterClientHandler(app)
 	handlers.RegisterSMSHandlers(app)
 	if botToken := conf.TelegramBotToken; botToken != "" {
 		handlers.RegisterNotificationHandler(app, botToken)

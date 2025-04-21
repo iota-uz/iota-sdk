@@ -20,8 +20,8 @@ import (
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
@@ -308,11 +308,20 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	_, err = c.clientService.Create(r.Context(), &client.CreateDTO{
+
+	clientDto := &dtos.CreateClientDTO{
 		FirstName: "",
 		LastName:  "",
 		Phone:     dto.Phone,
-	})
+	}
+
+	clientEntity, err := clientDto.ToEntity()
+
+	if err = c.clientService.Create(r.Context(), clientEntity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if errors.Is(err, phone.ErrInvalidPhoneNumber) {
 		templ.Handler(chatsui.NewChatForm(chatsui.NewChatProps{
 			BaseURL:       c.basePath,
