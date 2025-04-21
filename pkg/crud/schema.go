@@ -2,9 +2,11 @@ package crud
 
 import (
 	"context"
+	"encoding"
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -15,6 +17,47 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
+
+// parseID converts the incoming URL string into the generic ID type.
+func parseID[ID any](idStr string) (ID, error) {
+	var id ID
+	// first, handle the common scalar cases via a type switch on the zero-value
+	switch any(id).(type) {
+	case string:
+		return any(idStr).(ID), nil
+	case int:
+		v, err := strconv.Atoi(idStr)
+		return any(v).(ID), err
+	case int64:
+		v, err := strconv.ParseInt(idStr, 10, 64)
+		return any(v).(ID), err
+	case uint, uint64:
+		v, err := strconv.ParseUint(idStr, 10, 64)
+		// strconv.ParseUint returns a uint64; convert down if needed
+		if err != nil {
+			return id, err
+		}
+		// perform safe narrowing if ID is uint
+		switch any(id).(type) {
+		case uint:
+			return any(uint(v)).(ID), nil
+		default:
+			return any(v).(ID), nil
+		}
+	}
+
+	// next, see if *ID implements TextUnmarshaler (e.g. for UUID types)
+	ptr := reflect.New(reflect.TypeOf(id))
+	if tu, ok := ptr.Interface().(encoding.TextUnmarshaler); ok {
+		if err := tu.UnmarshalText([]byte(idStr)); err != nil {
+			return id, fmt.Errorf("invalid %T: %w", id, err)
+		}
+		// ptr is *ID; we need the value
+		return ptr.Elem().Interface().(ID), nil
+	}
+
+	return id, fmt.Errorf("unsupported ID type %T", id)
+}
 
 // SortBy and Filter are generic aliases using Field
 type SortBy = repo.SortBy[string]
@@ -193,13 +236,34 @@ func (s *Schema[T, ID]) listHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Schema[T, ID]) newHandler(w http.ResponseWriter, r *http.Request) {
-
+	cfg := formui.NewFormConfig("New Currency", s.Path, s.Path, "Create").Add(s.Fields...)
+	templ.Handler(formui.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (s *Schema[T, ID]) createHandler(w http.ResponseWriter, r *http.Request) {}
+func (s *Schema[T, ID]) createHandler(w http.ResponseWriter, r *http.Request) {
+
+}
 
 func (s *Schema[T, ID]) editHandler(w http.ResponseWriter, r *http.Request) {}
 
 func (s *Schema[T, ID]) updateHandler(w http.ResponseWriter, r *http.Request) {}
 
-func (s *Schema[T, ID]) deleteHandler(w http.ResponseWriter, r *http.Request) {}
+func (s *Schema[T, ID]) deleteHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := mux.Vars(r)["id"]
+
+	// parse the string into ID
+	idVal, err := parseID[ID](idStr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid ID: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// call into the store with the correctly-typed ID
+	if err := s.Store.Delete(ctx, idVal); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, s.Path, http.StatusSeeOther)
+}
