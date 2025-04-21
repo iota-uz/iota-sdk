@@ -9,7 +9,7 @@
 
 // based on configuration and data, reducing boilerplate code.
 
-package scaffold
+package table
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
