@@ -98,6 +98,9 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 		deletedClient = entity
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 	deletedEvent, err := client.NewDeletedEvent(ctx, entity)
 	if err != nil {
 		return nil, err
