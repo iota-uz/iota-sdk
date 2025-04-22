@@ -39,6 +39,10 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 		options = append(options, client.WithAddress(dbRow.Address.String))
 	}
 
+	if dbRow.Comments.Valid {
+		options = append(options, client.WithComments(dbRow.Comments.String))
+	}
+
 	if dbRow.Email.Valid && dbRow.Email.String != "" {
 		e, err := internet.NewEmail(dbRow.Email.String)
 		if err == nil {
@@ -108,6 +112,11 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		phone = mapping.ValueToSQLNullString(domainEntity.Phone().Value())
 	}
 
+	var comments sql.NullString
+	if domainEntity.Comments() != "" {
+		comments = mapping.ValueToSQLNullString(domainEntity.Comments())
+	}
+
 	return &models.Client{
 		ID:          domainEntity.ID(),
 		FirstName:   domainEntity.FirstName(),
@@ -120,6 +129,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 		Gender:      gender,
 		PassportID:  passportID,
 		Pin:         pin,
+		Comments:    comments,
 		CreatedAt:   domainEntity.CreatedAt(),
 		UpdatedAt:   domainEntity.UpdatedAt(),
 	}

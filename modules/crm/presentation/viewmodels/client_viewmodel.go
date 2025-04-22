@@ -37,6 +37,7 @@ type Client struct {
 	CountryCode string
 	DateOfBirth string
 	Gender      string
+	Comments    string
 	CreatedAt   string
 	UpdatedAt   string
 }
