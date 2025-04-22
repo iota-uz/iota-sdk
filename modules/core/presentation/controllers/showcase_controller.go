@@ -42,7 +42,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("/showcase", di.H(c.Showcase)).Methods(http.MethodGet)
+	router.HandleFunc("/components", di.H(c.Showcase)).Methods(http.MethodGet)
 }
 
 func (c *ShowcaseController) Showcase(
@@ -50,12 +50,18 @@ func (c *ShowcaseController) Showcase(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	basePath := fmt.Sprintf("%s/showcase", c.basePath)
 	props := showcaseui.IndexPageProps{
 		SidebarProps: sidebar.Props{
 			Items: []sidebar.Item{
-				sidebar.NewLink(fmt.Sprintf("%s/input", basePath), "Inputs", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/filters", basePath), "Filters", nil),
+				sidebar.NewGroup(
+					"Components",
+					nil,
+					[]sidebar.Item{
+						sidebar.NewLink(fmt.Sprintf("%s/components", c.basePath), "Overview", nil),
+						sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
+						sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
+					},
+				),
 			},
 		},
 	}

@@ -170,7 +170,7 @@ func ComponentShowcase(props ShowcaseProps) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"p-6\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"py-6\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -611,39 +611,39 @@ func Content() templ.Component {
 			Title: "Radio Group",
 			Code: `
 @radio.RadioGroup(radio.RadioGroupProps{Class: "flex space-x-4"}) {
-    @radio.CardItem(radio.CardItemProps{
-        Name:         "DriverType",
-        Value:        "company",
-        WrapperClass: templ.Classes("w-full"),
-        Checked:      props.Driver.DriverType == "company",
-        Attrs: templ.Attributes{
-            "x-model": "driverType",
-        },
-    }) {
-        { pgCtx.T("Drivers.New.DriverType.Company") }
-    }
-    @radio.CardItem(radio.CardItemProps{
-        Name:         "DriverType",
-        Value:        "owner",
-        WrapperClass: templ.Classes("w-full"),
-        Checked:      props.Driver.DriverType == "owner",
-        Attrs: templ.Attributes{
-            "x-model": "driverType",
-        },
-    }) {
-        { pgCtx.T("Drivers.New.DriverType.Owner") }
-    }
-    @radio.CardItem(radio.CardItemProps{
-        Name:         "DriverType",
-        Value:        "lease",
-        WrapperClass: templ.Classes("w-full"),
-        Checked:      props.Driver.DriverType == "lease",
-        Attrs: templ.Attributes{
-            "x-model": "driverType",
-        },
-    }) {
-        { pgCtx.T("Drivers.New.DriverType.Lease") }
-    }
+	@radio.CardItem(radio.CardItemProps{
+		Name:         "DriverType",
+		Value:        "company",
+		WrapperClass: templ.Classes("w-full"),
+		Checked:      false,
+		Attrs: templ.Attributes{
+			"x-model": "driverType",
+		},
+	}) {
+		Company Driver
+	}
+	@radio.CardItem(radio.CardItemProps{
+		Name:         "DriverType",
+		Value:        "owner",
+		WrapperClass: templ.Classes("w-full"),
+		Checked:      false,
+		Attrs: templ.Attributes{
+			"x-model": "driverType",
+		},
+	}) {
+		Owner Driver
+	}
+	@radio.CardItem(radio.CardItemProps{
+		Name:         "DriverType",
+		Value:        "lease",
+		WrapperClass: templ.Classes("w-full"),
+		Checked:      false,
+		Attrs: templ.Attributes{
+			"x-model": "driverType",
+		},
+	}) {
+		Lease Driver
+	}
 }`,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -1239,7 +1239,7 @@ func Index(props IndexPageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<div class=\"flex flex-col h-screen overflow-x-hidden\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<div class=\"flex flex-col h-screen overflow-x-hidden px-6\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

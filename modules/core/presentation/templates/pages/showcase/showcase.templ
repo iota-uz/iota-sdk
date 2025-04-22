@@ -46,7 +46,7 @@ templ ComponentShowcase(props ShowcaseProps) {
 			}
 		}
 		@tab.Content("ui") {
-			<div class="p-6">
+			<div class="py-6">
 				{ children... }
 			</div>
 		}
@@ -179,39 +179,39 @@ templ Content() {
 			Title: "Radio Group",
 			Code: `
 @radio.RadioGroup(radio.RadioGroupProps{Class: "flex space-x-4"}) {
-    @radio.CardItem(radio.CardItemProps{
-        Name:         "DriverType",
-        Value:        "company",
-        WrapperClass: templ.Classes("w-full"),
-        Checked:      props.Driver.DriverType == "company",
-        Attrs: templ.Attributes{
-            "x-model": "driverType",
-        },
-    }) {
-        { pgCtx.T("Drivers.New.DriverType.Company") }
-    }
-    @radio.CardItem(radio.CardItemProps{
-        Name:         "DriverType",
-        Value:        "owner",
-        WrapperClass: templ.Classes("w-full"),
-        Checked:      props.Driver.DriverType == "owner",
-        Attrs: templ.Attributes{
-            "x-model": "driverType",
-        },
-    }) {
-        { pgCtx.T("Drivers.New.DriverType.Owner") }
-    }
-    @radio.CardItem(radio.CardItemProps{
-        Name:         "DriverType",
-        Value:        "lease",
-        WrapperClass: templ.Classes("w-full"),
-        Checked:      props.Driver.DriverType == "lease",
-        Attrs: templ.Attributes{
-            "x-model": "driverType",
-        },
-    }) {
-        { pgCtx.T("Drivers.New.DriverType.Lease") }
-    }
+	@radio.CardItem(radio.CardItemProps{
+		Name:         "DriverType",
+		Value:        "company",
+		WrapperClass: templ.Classes("w-full"),
+		Checked:      false,
+		Attrs: templ.Attributes{
+			"x-model": "driverType",
+		},
+	}) {
+		Company Driver
+	}
+	@radio.CardItem(radio.CardItemProps{
+		Name:         "DriverType",
+		Value:        "owner",
+		WrapperClass: templ.Classes("w-full"),
+		Checked:      false,
+		Attrs: templ.Attributes{
+			"x-model": "driverType",
+		},
+	}) {
+		Owner Driver
+	}
+	@radio.CardItem(radio.CardItemProps{
+		Name:         "DriverType",
+		Value:        "lease",
+		WrapperClass: templ.Classes("w-full"),
+		Checked:      false,
+		Attrs: templ.Attributes{
+			"x-model": "driverType",
+		},
+	}) {
+		Lease Driver
+	}
 }`,
 		}) {
 			@radio.RadioGroup(radio.RadioGroupProps{Class: "flex space-x-4"}) {
@@ -455,7 +455,7 @@ templ Index(props IndexPageProps) {
 	}) {
 		<div class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto">
 			@sidebar.Sidebar(props.SidebarProps)
-			<div class="flex flex-col h-screen overflow-x-hidden">
+			<div class="flex flex-col h-screen overflow-x-hidden px-6">
 				@Content()
 			</div>
 		</div>
