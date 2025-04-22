@@ -7,6 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/sidebar"
@@ -61,7 +62,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 			sidebar.NewLink(c.basePath, "Overview", nil),
 			sidebar.NewGroup(
 				"Components",
-				nil,
+				icons.PuzzlePiece(icons.Props{Size: "20"}),
 				[]sidebar.Item{
 					sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
 					sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
