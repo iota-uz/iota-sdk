@@ -10,6 +10,7 @@ CREATE TABLE clients (
     gender varchar(15),
     passport_id uuid REFERENCES passports (id) ON DELETE SET NULL ON UPDATE CASCADE,
     pin varchar(128), -- Personal Identification Number
+    comments text,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );

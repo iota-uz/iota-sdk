@@ -1,0 +1,16 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base"
+
+templ BasicSelect() {
+	@base.Select(&base.SelectProps{
+		Placeholder: "Select an option",
+		Attrs: templ.Attributes{
+			"name": "selectName",
+		},
+	}) {
+		<option value="option1" selected>Option 1</option>
+		<option value="option2">Option 2</option>
+		<option value="option3">Option 3</option>
+	}
+}

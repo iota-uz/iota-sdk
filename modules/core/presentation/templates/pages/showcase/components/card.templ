@@ -1,0 +1,24 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+)
+
+templ Card() {
+	@card.Card(card.Props{
+		Class:        "grid grid-cols-2 gap-4",
+		Header:       card.DefaultHeader("Tax Information"),
+		WrapperClass: "mt-5",
+	}) {
+		@input.Text(&input.Props{
+			Label:       "PIN",
+			Placeholder: "Enter PIN",
+			Attrs: templ.Attributes{
+				"value": "12345678",
+				"name":  "Pin",
+			},
+			Error: "",
+		})
+	}
+}

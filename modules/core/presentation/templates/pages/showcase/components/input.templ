@@ -1,0 +1,15 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/input"
+
+templ TextInput() {
+	@input.Text(&input.Props{
+		Label:       "Input Label",
+		Placeholder: "Input Placeholder",
+		Error:       "Input Error",
+		Attrs: templ.Attributes{
+			"name":  "InputName",
+			"value": "",
+		},
+	})
+}
