@@ -58,7 +58,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 	return sidebar.Props{
 		Items: []sidebar.Item{
-			sidebar.NewLink(fmt.Sprintf("%s", c.basePath), "Overview", nil),
+			sidebar.NewLink(c.basePath, "Overview", nil),
 			sidebar.NewGroup(
 				"Components",
 				nil,
