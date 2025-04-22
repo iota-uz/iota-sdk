@@ -57,6 +57,7 @@
 			"PersonalInfo": "Личная информация",
 			"PassportInfo": "Паспортные данные",
 			"TaxInfo": "Налоговая информация",
+			"NotesInfo": "Примечания",
 			"FirstName": {
 				"Label": "Имя",
 				"Placeholder": "Введите имя"
@@ -108,6 +109,10 @@
 			"CountryCode": {
 				"Label": "Страна",
 				"Placeholder": "Введите код страны"
+			},
+			"Comments": {
+				"Label": "Комментарии",
+				"Placeholder": "Введите ваши комментарии"
 			},
 			"Delete": "Удалить клиента",
 			"DeleteConfirmation": "Вы уверены, что хотите удалить этого клиента?"

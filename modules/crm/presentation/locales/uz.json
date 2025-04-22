@@ -57,6 +57,7 @@
 			"PersonalInfo": "Shaxsiy ma'lumotlar",
 			"PassportInfo": "Pasport ma'lumotlari",
 			"TaxInfo": "Soliq ma'lumotlari",
+			"NotesInfo": "Eslatmalar",
 			"FirstName": {
 				"Label": "Ismi",
 				"Placeholder": "Ismni kiriting"
@@ -108,6 +109,10 @@
 			"CountryCode": {
 				"Label": "Mamlakat",
 				"Placeholder": "Mamlakat kodini kiriting"
+			},
+			"Comments": {
+				"Label": "Izohlar",
+				"Placeholder": "Izohlaringizni kiriting"
 			},
 			"Delete": "Mijozni o'chirish",
 			"DeleteConfirmation": "Haqiqatan ham ushbu mijozni o'chirib tashlamoqchimisiz?"

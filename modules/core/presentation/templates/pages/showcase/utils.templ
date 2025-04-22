@@ -1,0 +1,132 @@
+package showcase
+
+import (
+	"bytes"
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/sidebar"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components"
+	"log"
+)
+
+type ShowcaseProps struct {
+	Title string
+	Code  string
+}
+
+func highlight(source string) string {
+	buf := &bytes.Buffer{}
+	err := quick.Highlight(buf, source, "go", "html", "monokailight")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return buf.String()
+}
+
+templ ComponentShowcase(props ShowcaseProps) {
+	@card.Card(card.Props{
+		Header: card.DefaultHeader(props.Title),
+	}) {
+		@tab.Root(tab.Props{
+			DefaultValue: "ui",
+		}) {
+			@tab.List(tab.ListProps{
+				Class: "mb-4",
+			}) {
+				@tab.Button("ui") {
+					UI
+				}
+				@tab.Button("code") {
+					Code
+				}
+			}
+			@tab.Content("ui") {
+				<div class="py-6">
+					{ children... }
+				</div>
+			}
+			@tab.Content("code") {
+				@templ.Raw(highlight(props.Code))
+			}
+		}
+	}
+}
+
+templ Content() {
+	<div class="flex flex-col gap-5 p-5">
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Text Input",
+			Code:  InputComponentSource,
+		}) {
+			@components.TextInput()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Text Area",
+			Code:  TextareaComponentSource,
+		}) {
+			@components.TextArea()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Number Input",
+			Code:  NumberComponentSource,
+		}) {
+			@components.NumberInput()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Basic select",
+			Code:  SelectComponentSource,
+		}) {
+			@components.BasicSelect()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Searchable select",
+			Code:  ComboboxComponentSource,
+		}) {
+			@components.SearchableSelect()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Radio Group",
+			Code:  RadioComponentSource,
+		}) {
+			@components.RadioGroup()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Avatar",
+			Code:  AvatarComponentSource,
+		}) {
+			@components.Avatars()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Card",
+			Code:  CardComponentSource,
+		}) {
+			@components.Card()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Date Input",
+			Code:  DatepickerComponentSource,
+		}) {
+			@components.DateInput()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Table",
+			Code:  TableComponentSource,
+		}) {
+			@components.Table()
+		}
+	</div>
+}
+
+type IndexPageProps struct {
+	SidebarProps sidebar.Props
+}
+
+templ Index(props IndexPageProps) {
+	@Layout(LayoutProps{
+		Title:        "Showcase",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@Content()
+	}
+}

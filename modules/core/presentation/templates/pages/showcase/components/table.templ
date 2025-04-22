@@ -1,0 +1,65 @@
+package components
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+)
+
+templ Table() {
+	@base.Table(base.TableProps{
+		Columns: []*base.TableColumn{
+			{Label: "Name", Key: "name"},
+			{Label: "Amount", Key: "amount"},
+			{Label: "Updated At", Key: "updatedAt"},
+			{Label: "Actions", Class: "w-16"},
+		},
+	}) {
+		@base.TableRow(base.TableRowProps{}) {
+			@base.TableCell(base.TableCellProps{}) {
+				Office Supplies
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				$250.00
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				<div x-data="relativeformat">
+					<span x-text="format('2025-03-15T14:30:00Z')"></span>
+				</div>
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				@button.Secondary(button.Props{
+					Fixed: true,
+					Size:  button.SizeSM,
+					Class: "btn-fixed",
+					Href:  "/finance/expense-categories/123",
+				}) {
+					@icons.PencilSimple(icons.Props{Size: "20"})
+				}
+			}
+		}
+		@base.TableRow(base.TableRowProps{}) {
+			@base.TableCell(base.TableCellProps{}) {
+				Travel
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				$1,250.00
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				<div x-data="relativeformat">
+					<span x-text="format('2025-04-01T09:15:00Z')"></span>
+				</div>
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				@button.Secondary(button.Props{
+					Fixed: true,
+					Size:  button.SizeSM,
+					Class: "btn-fixed",
+					Href:  "/finance/expense-categories/456",
+				}) {
+					@icons.PencilSimple(icons.Props{Size: "20"})
+				}
+			}
+		}
+	}
+}

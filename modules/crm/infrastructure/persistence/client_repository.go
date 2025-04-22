@@ -32,6 +32,7 @@ const (
 			c.gender,
 			c.passport_id,
 			c.pin,
+			c.comments,
 			c.created_at,
 			c.updated_at
 		FROM clients c
@@ -88,6 +89,7 @@ func (g *ClientRepository) queryClients(
 			&c.Gender,
 			&c.PassportID,
 			&c.Pin,
+			&c.Comments,
 			&c.CreatedAt,
 			&c.UpdatedAt,
 		); err != nil {
@@ -345,6 +347,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		"gender",
 		"passport_id",
 		"pin",
+		"comments",
 		"updated_at",
 	}
 
@@ -359,6 +362,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		dbRow.Gender,
 		dbRow.PassportID,
 		dbRow.Pin,
+		dbRow.Comments,
 		dbRow.UpdatedAt,
 	}
 

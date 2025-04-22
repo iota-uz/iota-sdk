@@ -1,0 +1,41 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/radio"
+
+templ RadioGroup() {
+	@radio.RadioGroup(radio.RadioGroupProps{Class: "flex space-x-4"}) {
+		@radio.CardItem(radio.CardItemProps{
+			Name:         "DriverType",
+			Value:        "company",
+			WrapperClass: templ.Classes("w-full"),
+			Checked:      false,
+			Attrs: templ.Attributes{
+				"x-model": "driverType",
+			},
+		}) {
+			Company Driver
+		}
+		@radio.CardItem(radio.CardItemProps{
+			Name:         "DriverType",
+			Value:        "owner",
+			WrapperClass: templ.Classes("w-full"),
+			Checked:      false,
+			Attrs: templ.Attributes{
+				"x-model": "driverType",
+			},
+		}) {
+			Owner Driver
+		}
+		@radio.CardItem(radio.CardItemProps{
+			Name:         "DriverType",
+			Value:        "lease",
+			WrapperClass: templ.Classes("w-full"),
+			Checked:      false,
+			Attrs: templ.Attributes{
+				"x-model": "driverType",
+			},
+		}) {
+			Lease Driver
+		}
+	}
+}

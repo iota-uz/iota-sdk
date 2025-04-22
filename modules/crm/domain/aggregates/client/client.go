@@ -50,6 +50,12 @@ func WithPin(pin tax.Pin) Option {
 	}
 }
 
+func WithComments(comments string) Option {
+	return func(c *client) {
+		c.comments = comments
+	}
+}
+
 func WithGender(g general.Gender) Option {
 	return func(c *client) {
 		c.gender = g
@@ -88,6 +94,7 @@ type Client interface {
 	Gender() general.Gender
 	Passport() passport.Passport
 	Pin() tax.Pin
+	Comments() string
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
@@ -99,6 +106,7 @@ type Client interface {
 	SetGender(gender general.Gender) Client
 	SetPassport(p passport.Passport) Client
 	SetPIN(pin tax.Pin) Client
+	SetComments(comments string) Client
 }
 
 func New(
@@ -129,6 +137,7 @@ type client struct {
 	gender      general.Gender
 	passport    passport.Passport
 	pin         tax.Pin
+	comments    string
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -175,6 +184,10 @@ func (c *client) Passport() passport.Passport {
 
 func (c *client) Pin() tax.Pin {
 	return c.pin
+}
+
+func (c *client) Comments() string {
+	return c.comments
 }
 
 func (c *client) CreatedAt() time.Time {
@@ -239,6 +252,13 @@ func (c *client) SetPassport(p passport.Passport) Client {
 func (c *client) SetPIN(pin tax.Pin) Client {
 	result := *c
 	result.pin = pin
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (c *client) SetComments(comments string) Client {
+	result := *c
+	result.comments = comments
 	result.updatedAt = time.Now()
 	return &result
 }

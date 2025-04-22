@@ -57,6 +57,7 @@ func ClientToViewModel(entity client.Client) *viewmodels.Client {
 		Pin:         pin,
 		CountryCode: "", // Phone doesn't have CountryCode method
 		Passport:    passport,
+		Comments:    entity.Comments(),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 	}
