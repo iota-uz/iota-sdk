@@ -57,6 +57,7 @@
 			"PersonalInfo": "Personal Information",
 			"PassportInfo": "Passport Information",
 			"TaxInfo": "Tax Information",
+			"NotesInfo": "Notes",
 			"FirstName": {
 				"Label": "First Name",
 				"Placeholder": "Enter the first name"
@@ -108,6 +109,10 @@
 			"CountryCode": {
 				"Label": "Country",
 				"Placeholder": "Enter the country code"
+			},
+			"Comments": {
+				"Label": "Comments",
+				"Placeholder": "Enter your comments"
 			},
 			"Delete": "Delete client",
 			"DeleteConfirmation": "Are you sure you want to delete this client?"
