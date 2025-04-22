@@ -90,6 +90,10 @@ Ensure these tools are installed before you begin:
      - Password: `TestPass123!`
    - GraphQL: [http://localhost:3200/query](http://localhost:3200/query)
 
+   - Component Showcase: [http://localhost:8080/_dev/showcase](http://localhost:8080/_dev/showcase)
+     - Browse interactive examples of UI components via the sidebar (e.g., Inputs, Filters).
+     - Use the "UI" and "Code" tabs to toggle between rendered component previews and source code.
+
 ## 🧪 Running Tests
 
 To run end-to-end Cypress tests:
