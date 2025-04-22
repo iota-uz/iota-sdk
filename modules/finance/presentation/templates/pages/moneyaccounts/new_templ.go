@@ -130,7 +130,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label:        pageCtx.T("Accounts.Single.Description"),
+				Label:        pageCtx.T("Accounts.Single._Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Account.Description,

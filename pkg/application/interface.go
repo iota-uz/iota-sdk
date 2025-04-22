@@ -14,8 +14,8 @@ import (
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type GraphSchema struct {

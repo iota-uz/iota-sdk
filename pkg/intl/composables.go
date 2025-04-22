@@ -14,7 +14,7 @@ import (
 	"golang.org/x/text/language"
 
 	ut "github.com/go-playground/universal-translator"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 )
 
 type contextKey string

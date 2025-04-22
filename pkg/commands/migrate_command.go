@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 	"github.com/iota-uz/utils/env"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,16 +41,6 @@ func Migrate(mods ...application.Module) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	logFile, logger, err := logging.FileLogger(conf.LogrusLogLevel(), conf.Loki.LogPath)
-	if err != nil {
-		log.Fatalf("failed to create logger: %v", err)
-	}
-	defer func() {
-		if err := logFile.Close(); err != nil {
-			log.Printf("Failed to close log file: %v", err)
-		}
-	}()
-
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
@@ -72,7 +60,7 @@ func Migrate(mods ...application.Module) error {
 
 	switch command {
 	case "collect":
-		return handleSchemaCommands(ctx, command, app, logger.Level)
+		return handleSchemaCommands(ctx, command, app, conf.Logger().Level)
 	default:
 		return handleMigrationCommands(ctx, command, app)
 	}

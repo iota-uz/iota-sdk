@@ -17,7 +17,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 )
 
 type CreateClientDTO struct {

@@ -24,7 +24,7 @@ templ OrdersTable(props *IndexPageProps) {
 		if len(props.Orders) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehouseOrders.List.NoOrders.Title"),
-				Description: pageCtx.T("WarehouseOrders.List.NoOrders.Description"),
+				Description: pageCtx.T("WarehouseOrders.List.NoOrders._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

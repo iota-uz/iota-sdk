@@ -28,7 +28,7 @@ templ InventoryTable(props *IndexPageProps) {
 		if len(props.Checks) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehouseInventory.List.NoInventory.Title"),
-				Description: pageCtx.T("WarehouseInventory.List.NoInventory.Description"),
+				Description: pageCtx.T("WarehouseInventory.List.NoInventory._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{
