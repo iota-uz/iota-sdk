@@ -9,6 +9,7 @@ require (
 	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
 	github.com/a-h/templ v0.3.857
+	github.com/alecthomas/chroma/v2 v2.17.0
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/gabriel-vasile/mimetype v1.4.7
@@ -67,6 +68,7 @@ require (
 	github.com/cockroachdb/sentry-go v0.6.1-cockroachdb.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/getsentry/raven-go v0.2.0 // indirect
