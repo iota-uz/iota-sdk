@@ -66,5 +66,4 @@ func (c *ShowcaseController) Showcase(
 		},
 	}
 	templ.Handler(showcaseui.Index(props)).ServeHTTP(w, r)
-
 }
