@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -11,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	showcaseui "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -45,6 +47,12 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/components", di.H(c.Overview)).Methods(http.MethodGet)
 	router.HandleFunc("/components/form", di.H(c.Form)).Methods(http.MethodGet)
 	router.HandleFunc("/components/other", di.H(c.Other)).Methods(http.MethodGet)
+
+	log.Printf(
+		"See %s/%s for docs\n",
+		configuration.Use().Address(),
+		fmt.Sprintf("%s/components", c.basePath),
+	)
 }
 
 func (c *ShowcaseController) getSidebarProps() sidebar.Props {

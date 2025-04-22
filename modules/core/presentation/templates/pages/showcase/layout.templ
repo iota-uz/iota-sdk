@@ -11,6 +11,13 @@ type LayoutProps struct {
 }
 
 templ Layout(props LayoutProps) {
+	<style>
+		pre.chroma {
+			padding: 0.5rem;
+			border: 1px solid #e5e7eb;
+			border-radius: 0.5rem;
+		}
+	</style>
 	@layouts.Base(&layouts.BaseProps{
 		Title: props.Title,
 	}) {
