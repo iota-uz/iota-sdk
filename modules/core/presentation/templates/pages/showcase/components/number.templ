@@ -1,0 +1,15 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/input"
+
+templ NumberInput() {
+	@input.Number(&input.Props{
+		Label: "Account Balance",
+		Attrs: templ.Attributes{
+			"name":  "Balance",
+			"value": "",
+			"form":  "save-form",
+		},
+		Error: "",
+	})
+}

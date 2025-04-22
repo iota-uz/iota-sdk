@@ -1,0 +1,98 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ Buttons() {
+	<div class="flex flex-col gap-6">
+		<div class="flex flex-col gap-4">
+			<h3 class="text-lg font-medium">Button Variants</h3>
+			<div class="flex flex-wrap gap-4">
+				@button.Primary(button.Props{}) {
+					Primary
+				}
+				@button.Secondary(button.Props{}) {
+					Secondary
+				}
+				@button.PrimaryOutline(button.Props{}) {
+					Primary Outline
+				}
+				@button.Danger(button.Props{}) {
+					Danger
+				}
+				@button.Ghost(button.Props{}) {
+					Ghost
+				}
+				@button.Sidebar(button.Props{}) {
+					Sidebar
+				}
+			</div>
+		</div>
+		<div class="flex flex-col gap-4">
+			<h3 class="text-lg font-medium">Button Sizes</h3>
+			<div class="flex flex-wrap items-center gap-4">
+				@button.Primary(button.Props{Size: button.SizeNormal}) {
+					Normal
+				}
+				@button.Primary(button.Props{Size: button.SizeMD}) {
+					Medium
+				}
+				@button.Primary(button.Props{Size: button.SizeSM}) {
+					Small
+				}
+				@button.Primary(button.Props{Size: button.SizeXS}) {
+					Extra Small
+				}
+			</div>
+		</div>
+		<div class="flex flex-col gap-4">
+			<h3 class="text-lg font-medium">Rounded Buttons</h3>
+			<div class="flex flex-wrap gap-4">
+				@button.Primary(button.Props{Rounded: true}) {
+					Rounded
+				}
+				@button.Secondary(button.Props{Rounded: true}) {
+					Rounded
+				}
+				@button.PrimaryOutline(button.Props{Rounded: true}) {
+					Rounded
+				}
+			</div>
+		</div>
+		<div class="flex flex-col gap-4">
+			<h3 class="text-lg font-medium">Loading State</h3>
+			<div class="flex flex-wrap gap-4">
+				@button.Primary(button.Props{Loading: true}) {
+					Loading
+				}
+				@button.Secondary(button.Props{Loading: true}) {
+					Loading
+				}
+				@button.Danger(button.Props{Loading: true}) {
+					Loading
+				}
+			</div>
+		</div>
+		<div class="flex flex-col gap-4">
+			<h3 class="text-lg font-medium">Fixed Width</h3>
+			<div class="flex flex-wrap gap-4">
+				@button.Primary(button.Props{Fixed: true}) {
+					Fixed Width
+				}
+				@button.Secondary(button.Props{Fixed: true}) {
+					Fixed Width Button
+				}
+			</div>
+		</div>
+		<div class="flex flex-col gap-4">
+			<h3 class="text-lg font-medium">Link Buttons</h3>
+			<div class="flex flex-wrap gap-4">
+				@button.Primary(button.Props{Href: "#"}) {
+					Link Button
+				}
+				@button.Secondary(button.Props{Href: "#"}) {
+					Link Button
+				}
+			</div>
+		</div>
+	</div>
+}
