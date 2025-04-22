@@ -68,7 +68,7 @@ templ ExpensesTable(props *IndexPageProps) {
 		if len(props.Expenses) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Expenses.List.NoExpenses.Title"),
-				Description: pageCtx.T("Expenses.List.NoExpenses.Description"),
+				Description: pageCtx.T("Expenses.List.NoExpenses._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

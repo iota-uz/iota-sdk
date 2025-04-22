@@ -77,7 +77,7 @@ const (
 	Hungary                      country = "HU"
 	Iceland                      country = "IS"
 	India                        country = "IN"
-	Indonesia                    country = "ID"
+	Indonesia                    country = "IDN"
 	Iran                         country = "IR"
 	Iraq                         country = "IQ"
 	Ireland                      country = "IE"

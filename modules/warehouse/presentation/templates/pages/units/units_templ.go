@@ -54,7 +54,7 @@ func UnitsTable(props *IndexPageProps) templ.Component {
 		if len(props.Units) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehouseUnits.List.NoUnits.Title"),
-				Description: pageCtx.T("WarehouseUnits.List.NoUnits.Description"),
+				Description: pageCtx.T("WarehouseUnits.List.NoUnits._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

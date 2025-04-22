@@ -25,7 +25,7 @@
 			"Phone": "Phone",
 			"NoData": {
 				"Title": "No clients found",
-				"Description": "Create a new client to get started"
+				"_Description": "Create a new client to get started"
 			}
 		},
 		"New": {

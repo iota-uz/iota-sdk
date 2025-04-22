@@ -23,7 +23,7 @@ templ ProductsTable(props *IndexPageProps) {
 		if len(props.Products) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Products.List.NoProducts.Title"),
-				Description: pageCtx.T("Products.List.NoProducts.Description"),
+				Description: pageCtx.T("Products.List.NoProducts._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

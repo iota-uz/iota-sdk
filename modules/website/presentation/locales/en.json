@@ -11,7 +11,7 @@
 			"Label": "Title",
 			"Placeholder": "Enter the title"
 		},
-		"Description": {
+		"_Description": {
 			"Label": "Description",
 			"Placeholder": "Enter the description"
 		}

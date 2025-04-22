@@ -11,7 +11,7 @@
 			"Label": "Заголовок",
 			"Placeholder": "Введите заголовок"
 		},
-		"Description": {
+		"_Description": {
 			"Label": "Описание",
 			"Placeholder": "Введите описание"
 		}

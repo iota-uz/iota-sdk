@@ -1,9 +1,9 @@
 package order
 
 import (
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type ErrOrderIsComplete struct {

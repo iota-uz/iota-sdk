@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/validators"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type UserValidator struct {

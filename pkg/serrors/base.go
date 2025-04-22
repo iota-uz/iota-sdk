@@ -1,6 +1,6 @@
 package serrors
 
-import "github.com/nicksnyder/go-i18n/v2/i18n"
+import "github.com/iota-uz/go-i18n/v2/i18n"
 
 type BaseError struct {
 	Code         string            `json:"code"`
