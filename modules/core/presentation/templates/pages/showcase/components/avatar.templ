@@ -1,0 +1,18 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/avatar"
+
+templ Avatars() {
+	<div class="flex gap-4">
+		@avatar.Avatar(avatar.Props{
+			Initials: "JD",
+			Class:    templ.Classes("w-10 h-10 min-w-10"),
+			Variant:  avatar.Square,
+		})
+		@avatar.Avatar(avatar.Props{
+			Initials: "JD",
+			Class:    templ.Classes("w-10 h-10 min-w-10"),
+			Variant:  avatar.Round,
+		})
+	</div>
+}

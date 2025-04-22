@@ -42,28 +42,56 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("/components", di.H(c.Showcase)).Methods(http.MethodGet)
+	router.HandleFunc("/components", di.H(c.Overview)).Methods(http.MethodGet)
+	router.HandleFunc("/components/form", di.H(c.Form)).Methods(http.MethodGet)
+	router.HandleFunc("/components/other", di.H(c.Other)).Methods(http.MethodGet)
 }
 
-func (c *ShowcaseController) Showcase(
+func (c *ShowcaseController) getSidebarProps() sidebar.Props {
+	return sidebar.Props{
+		Items: []sidebar.Item{
+			sidebar.NewGroup(
+				"Components",
+				nil,
+				[]sidebar.Item{
+					sidebar.NewLink(fmt.Sprintf("%s/components", c.basePath), "Overview", nil),
+					sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
+					sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
+				},
+			),
+		},
+	}
+}
+
+func (c *ShowcaseController) Overview(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
 	props := showcaseui.IndexPageProps{
-		SidebarProps: sidebar.Props{
-			Items: []sidebar.Item{
-				sidebar.NewGroup(
-					"Components",
-					nil,
-					[]sidebar.Item{
-						sidebar.NewLink(fmt.Sprintf("%s/components", c.basePath), "Overview", nil),
-						sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
-						sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
-					},
-				),
-			},
-		},
+		SidebarProps: c.getSidebarProps(),
 	}
-	templ.Handler(showcaseui.Index(props)).ServeHTTP(w, r)
+	templ.Handler(showcaseui.OverviewPage(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Form(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcaseui.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcaseui.FormPage(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Other(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcaseui.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcaseui.OtherPage(props)).ServeHTTP(w, r)
 }
