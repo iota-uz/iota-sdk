@@ -1,0 +1,191 @@
+package showcase
+
+import (
+	"bytes"
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/sidebar"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"log"
+)
+
+type ShowcaseProps struct {
+	Title string
+	Code  string
+}
+
+func highlight(source string) string {
+	buf := &bytes.Buffer{}
+	err := quick.Highlight(buf, source, "go", "html", "monokailight")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return buf.String()
+}
+
+templ ComponentShowcase(props ShowcaseProps) {
+	<h3 class="text-lg font-semibold text-gray-900">
+		{ props.Title }
+	</h3>
+	@tab.Root(tab.Props{
+		DefaultValue: "ui",
+	}) {
+		@tab.List(tab.ListProps{}) {
+			@tab.Button("ui") {
+				UI
+			}
+			@tab.Button("code") {
+				Code
+			}
+		}
+		@tab.Content("ui") {
+			<div class="p-6">
+				{ children... }
+			</div>
+		}
+		@tab.Content("code") {
+			@templ.Raw(highlight(props.Code))
+		}
+	}
+}
+
+templ Content() {
+	<div class="flex flex-col gap-5 p-5">
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Text Input",
+			Code: `
+@input.Text(&input.Props{
+    Label:       "Input Label",
+    Placeholder: "Input Placeholder",
+    Error:       "Input Error",
+    Attrs: templ.Attributes{
+        "name":  "InputName",
+        "value": "",
+    },
+})`,
+		}) {
+			@input.Text(&input.Props{
+				Label:       "Input Label",
+				Placeholder: "Input Placeholder",
+				Error:       "Input Error",
+				Attrs: templ.Attributes{
+					"name":  "InputName",
+					"value": "",
+				},
+			})
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Text Area",
+			Code: `
+@input.TextArea(&input.TextAreaProps{
+    Label:       "Message Template",
+    Placeholder: "Enter your template here",
+    Value:       "",
+    Attrs: templ.Attributes{
+        "name": "Template",
+        "form": "save-form",
+    },
+    Error: "",
+})`,
+		}) {
+			@input.TextArea(&input.TextAreaProps{
+				Label:       "Message Template",
+				Placeholder: "Enter your template here",
+				Value:       "",
+				Attrs: templ.Attributes{
+					"name": "Template",
+					"form": "save-form",
+				},
+				Error: "",
+			})
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Number Input",
+			Code: `
+@input.Number(&input.Props{
+    Label: "Account Balance",
+    Attrs: templ.Attributes{
+        "name":  "Balance",
+        "value": "",
+        "form":  "save-form",
+    },
+    Error: "",
+})`,
+		}) {
+			@input.Number(&input.Props{
+				Label: "Account Balance",
+				Attrs: templ.Attributes{
+					"name":  "Balance",
+					"value": "",
+					"form":  "save-form",
+				},
+				Error: "",
+			})
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Basic select",
+			Code: `
+@base.Select(&base.SelectProps{
+    Placeholder: "Select an option",
+    Attrs: templ.Attributes{
+        "name": "selectName",
+    },
+}) {
+    <option value="option1" selected>Option 1</option>
+    <option value="option2">Option 2</option>
+    <option value="option3">Option 3</option>
+}`,
+		}) {
+			@base.Select(&base.SelectProps{
+				Placeholder: "Select an option",
+				Attrs: templ.Attributes{
+					"name": "selectName",
+				},
+			}) {
+				<option value="option1" selected>Option 1</option>
+				<option value="option2">Option 2</option>
+				<option value="option3">Option 3</option>
+			}
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Searchable select",
+			Code: `
+@base.Combobox(base.ComboboxProps{
+    Label:        "Position",
+    Placeholder:  "Search position",
+    Searchable:   true,
+    NotFoundText: "No positions found",
+    Name:         "PositionID",
+    Endpoint:     "/warehouse/positions/search",
+})`,
+		}) {
+			@base.Combobox(base.ComboboxProps{
+				Label:        "Position",
+				Placeholder:  "Search position",
+				Searchable:   true,
+				NotFoundText: "No positions found",
+				Name:         "PositionID",
+				Endpoint:     "/warehouse/positions/search",
+			})
+		}
+	</div>
+}
+
+type IndexPageProps struct {
+	SidebarProps sidebar.Props
+}
+
+templ Index(props IndexPageProps) {
+	@layouts.Base(&layouts.BaseProps{
+		Title: "Showcase",
+	}) {
+		<div class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto">
+			@sidebar.Sidebar(props.SidebarProps)
+			<div class="flex flex-col h-screen overflow-x-hidden">
+				@Content()
+			</div>
+		</div>
+	}
+}

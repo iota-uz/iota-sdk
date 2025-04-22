@@ -85,6 +85,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewRolesController(app),
 		controllers.NewGroupsController(app),
 		controllers.NewDIExampleController(app),
+		controllers.NewShowcaseController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
