@@ -31,7 +31,9 @@ templ ComponentShowcase(props ShowcaseProps) {
 		@tab.Root(tab.Props{
 			DefaultValue: "ui",
 		}) {
-			@tab.List(tab.ListProps{}) {
+			@tab.List(tab.ListProps{
+				Class: "mb-4",
+			}) {
 				@tab.Button("ui") {
 					UI
 				}
