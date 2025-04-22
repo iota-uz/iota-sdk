@@ -78,13 +78,8 @@ release-local:
 clean:
 	rm -rf $(TAILWIND_OUTPUT)
 
-# Run the JSON linter
-run-iota-linter:
-	go build -o bin/iotalinter tools/iotalinter.go && ./bin/iotalinter ./...
-
-# Clean built binaries
-clean-iota-linter:
-	rm -f bin/iotalinter
+check-tr:
+	go run cmd/command/main.go
 
 build-docker-base:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:base-$v --target base .
