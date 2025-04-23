@@ -106,14 +106,14 @@ type SchemaOpt[T any, ID any] func(s *Schema[T, ID])
 
 // NewSchema constructs a new CRUD Schema and applies options
 func NewSchema[T any, ID any](
-	name, path, idField string,
+	name, path string,
 	store DataStore[T, ID],
 	opts ...SchemaOpt[T, ID],
 ) *Schema[T, ID] {
 	s := &Schema[T, ID]{
 		Name:    name,
 		Path:    path,
-		IDField: idField,
+		IDField: getPrimaryKey[T](),
 		Store:   store,
 	}
 	for _, o := range opts {
@@ -368,10 +368,6 @@ func (s *Schema[T, ID]) editHandler(w http.ResponseWriter, r *http.Request) {
 		WithMethod("PUT").
 		Add(fields...)
 
-	// TODO: Implement setting form values when the form package supports it
-	// For now, we just render the form
-
-	// Render form
 	templ.Handler(formui.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
