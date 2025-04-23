@@ -12,12 +12,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
-var _ spotlight.DataSource = &dataSource{}
+var _ spotlight.DataSource = &ClientDataSource{}
 
-type dataSource struct {
+type ClientDataSource struct {
 }
 
-func (d *dataSource) Find(ctx context.Context, q string) []spotlight.Item {
+func (d *ClientDataSource) Find(ctx context.Context, q string) []spotlight.Item {
 	logger := composables.UseLogger(ctx)
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
