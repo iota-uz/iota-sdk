@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -64,4 +65,27 @@ func (s *SessionService) Delete(ctx context.Context, token string) error {
 	}
 	s.publisher.Publish("session.deleted", token)
 	return nil
+}
+
+func (s *SessionService) DeleteByUserId(ctx context.Context, userId uint) ([]*session.Session, error) {
+	var err error
+	var deletedSessions []*session.Session
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err != nil {
+			return err
+		}
+		sessions, err := s.repo.DeleteByUserId(txCtx, userId)
+		if err != nil {
+			return err
+		}
+		deletedSessions = sessions
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, sess := range deletedSessions {
+		s.publisher.Publish("session.deleted", sess.Token)
+	}
+	return deletedSessions, nil
 }

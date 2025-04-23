@@ -113,6 +113,12 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 	if err != nil {
 		return err
 	}
+
+	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
+	if err != nil {
+		return err
+	}
+
 	if data.Password() != "" {
 		data, err = data.SetPassword(data.Password())
 		if err != nil {
@@ -138,10 +144,7 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 	if err != nil {
 		return err
 	}
-	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
-	if err != nil {
-		return err
-	}
+
 	updatedEvent.Result = updatedUser
 	s.publisher.Publish(updatedEvent)
 
