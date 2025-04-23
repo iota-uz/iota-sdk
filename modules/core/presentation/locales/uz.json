@@ -255,7 +255,7 @@
         "Label": "Rol nomi",
         "Placeholder": "Rol nomini kiriting"
       },
-      "Description": {
+      "_Description": {
         "Label": "Tavsif",
         "Placeholder": "Rol uchun tavsif kiriting"
       },
@@ -282,17 +282,17 @@
     "List": {
       "New": "Yangi guruh",
       "Name": "Nomi",
-      "Description": "Tavsif",
+      "_Description": "Tavsif",
       "Roles": "Rollar",
       "Users": "Foydalanuvchilar",
       "NoGroups": {
         "Title": "Guruhlar topilmadi",
-        "Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
+        "_Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
       }
     },
     "Single": {
       "Name": "Nomi",
-      "Description": "Tavsif",
+      "_Description": "Tavsif",
       "RoleIDs": "Rollar",
       "UserIDs": "Foydalanuvchilar",
       "SelectRole": "Rollarni tanlang",
@@ -319,13 +319,13 @@
     },
     "List": {
       "New": "Yangi loyiha",
-      "Description": "Tavsif",
+      "_Description": "Tavsif",
       "Name": "Nomi"
     },
     "Single": {
       "Edit": "Loyihani tahrirlash",
       "Name": "Nomi",
-      "Description": "Tavsif",
+      "_Description": "Tavsif",
       "Delete": "Loyihani o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu loyihani o'chirmoqchimisiz?"
     }
@@ -483,7 +483,7 @@
     "HU": "Vengriya",
     "IS": "Islandiya",
     "IN": "Hindiston",
-    "ID": "Indoneziya",
+    "IDN": "Indoneziya",
     "IR": "Eron",
     "IQ": "Iroq",
     "IE": "Irlandiya",

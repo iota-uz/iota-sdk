@@ -55,7 +55,7 @@ func PositionsTable(props *IndexPageProps) templ.Component {
 		if len(props.Positions) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehousePositions.List.NoPositions.Title"),
-				Description: pageCtx.T("WarehousePositions.List.NoPositions.Description"),
+				Description: pageCtx.T("WarehousePositions.List.NoPositions._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

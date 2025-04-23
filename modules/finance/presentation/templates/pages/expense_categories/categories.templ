@@ -23,7 +23,7 @@ templ CategoriesTable(props *IndexPageProps) {
 		if len(props.Categories) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("ExpenseCategories.List.NoCategories.Title"),
-				Description: pageCtx.T("ExpenseCategories.List.NoCategories.Description"),
+				Description: pageCtx.T("ExpenseCategories.List.NoCategories._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

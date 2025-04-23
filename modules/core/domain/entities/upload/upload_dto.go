@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"golang.org/x/net/context"
 
 	"github.com/go-playground/validator/v10"

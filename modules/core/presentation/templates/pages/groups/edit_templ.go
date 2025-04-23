@@ -62,7 +62,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-			Label:       pageCtx.T("Groups.Single.Description"),
+			Label:       pageCtx.T("Groups.Single._Description"),
 			Placeholder: pageCtx.T("Groups.Single.EnterDescription"),
 			Error:       props.Errors["Description"],
 			Value:       props.Group.Description,

@@ -56,7 +56,7 @@ func PaymentsTable(props *IndexPageProps) templ.Component {
 		if len(props.Payments) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Payments.List.NoPayments.Title"),
-				Description: pageCtx.T("Payments.List.NoPayments.Description"),
+				Description: pageCtx.T("Payments.List.NoPayments._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

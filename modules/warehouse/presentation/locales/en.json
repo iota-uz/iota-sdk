@@ -26,7 +26,7 @@
       "Status": "Status",
       "NoProducts": {
         "Title": "No products found",
-        "Description": "There are no products yet. Click 'New product' to create one."
+        "_Description": "There are no products yet. Click 'New product' to create one."
       }
     },
     "New": {
@@ -69,7 +69,7 @@
       "Unit": "Unit",
       "NoPositions": {
         "Title": "No positions found",
-        "Description": "There are no positions yet. Click 'New position' to create one."
+        "_Description": "There are no positions yet. Click 'New position' to create one."
       }
     },
     "New": {
@@ -105,7 +105,7 @@
       "Title": "Upload Positions",
       "Example": {
         "Title": "Excel Upload",
-        "Description": "The sequence of cells in Excel should be as follows:",
+        "_Description": "The sequence of cells in Excel should be as follows:",
         "ItemName": "Item Name",
         "ItemCode": "Item Code",
         "Unit": "Unit",
@@ -127,7 +127,7 @@
       "ShortTitle": "Short title",
       "NoUnits": {
         "Title": "No units found",
-        "Description": "There are no units yet. Click 'New unit' to create one."
+        "_Description": "There are no units yet. Click 'New unit' to create one."
       }
     },
     "New": {
@@ -167,7 +167,7 @@
       "Positions": "Positions",
       "NoOrders": {
         "Title": "No orders found",
-        "Description": "There are no orders yet. Click 'New order' to create one."
+        "_Description": "There are no orders yet. Click 'New order' to create one."
       }
     },
     "New": {
@@ -239,7 +239,7 @@
       "SelectType": "Select type",
       "NoInventory": {
         "Title": "No inventory checks found",
-        "Description": "There are no inventory checks yet. Click 'New inventory' to create one."
+        "_Description": "There are no inventory checks yet. Click 'New inventory' to create one."
       }
     },
     "New": {

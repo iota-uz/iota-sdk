@@ -3,8 +3,8 @@ package positionservice
 import (
 	"fmt"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 func NewErrInvalidCell(col string, row uint) *ErrInvalidCell {

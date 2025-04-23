@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"

@@ -25,7 +25,7 @@
 			"Phone": "Telefon",
 			"NoData": {
 				"Title": "Mijozlar topilmadi",
-				"Description": "Ish boshlash uchun yangi mijoz yarating"
+				"_Description": "Ish boshlash uchun yangi mijoz yarating"
 			}
 		},
 		"New": {

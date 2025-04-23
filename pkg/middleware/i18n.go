@@ -8,7 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 
 	"github.com/gorilla/mux"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )
 
