@@ -26,7 +26,7 @@
       "Status": "Holati",
       "NoProducts": {
         "Title": "Mahsulotlar topilmadi",
-        "Description": "Hali mahsulotlar yo'q. Yangi yaratish uchun 'Yangi mahsulot' tugmasini bosing."
+        "_Description": "Hali mahsulotlar yo'q. Yangi yaratish uchun 'Yangi mahsulot' tugmasini bosing."
       }
     },
     "New": {
@@ -69,7 +69,7 @@
       "NewOut": "Yangi chiqish",
       "NoPositions": {
         "Title": "Nomlar topilmadi",
-        "Description": "Hali nomlar yo'q. Yangi yaratish uchun 'Yangi nom' tugmasini bosing."
+        "_Description": "Hali nomlar yo'q. Yangi yaratish uchun 'Yangi nom' tugmasini bosing."
       }
     },
     "New": {
@@ -105,7 +105,7 @@
       "Title": "Nomlarni yuklash",
       "Example": {
         "Title": "Excel yuklash",
-        "Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
+        "_Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
         "ItemName": "Nomi",
         "ItemCode": "Artikul",
         "Unit": "O'lchov birligi",
@@ -127,7 +127,7 @@
       "ShortTitle": "Qisqa nomi",
       "NoUnits": {
         "Title": "Birliklar topilmadi",
-        "Description": "Hali birliklar yo'q. Yangi yaratish uchun 'Yangi birlik' tugmasini bosing."
+        "_Description": "Hali birliklar yo'q. Yangi yaratish uchun 'Yangi birlik' tugmasini bosing."
       }
     },
     "New": {
@@ -167,7 +167,7 @@
       "Positions": "Nomlar",
       "NoOrders": {
         "Title": "Nakladnoylar topilmadi",
-        "Description": "Hali nakladnoylar yo'q. Yangi yaratish uchun 'Yangi nakladnoy' tugmasini bosing."
+        "_Description": "Hali nakladnoylar yo'q. Yangi yaratish uchun 'Yangi nakladnoy' tugmasini bosing."
       }
     },
     "New": {
@@ -239,7 +239,7 @@
       "SelectType": "Turini tanlang",
       "NoInventory": {
         "Title": "Inventarizatsiya topilmadi",
-        "Description": "Hali inventarizatsiya yo'q. Yangi yaratish uchun 'Yangi inventarizatsiya' tugmasini bosing."
+        "_Description": "Hali inventarizatsiya yo'q. Yangi yaratish uchun 'Yangi inventarizatsiya' tugmasini bosing."
       }
     },
     "New": {

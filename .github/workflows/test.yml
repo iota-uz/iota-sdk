@@ -75,8 +75,8 @@ jobs:
           make generate
           git diff --exit-code
 
-      - name: Run custom linter
-        run: make build-iota-linter && make run-iota-linter
+      - name: Check translation files
+        run: make check-tr
 
       - name: Check migrations collect idempotence
         run: |

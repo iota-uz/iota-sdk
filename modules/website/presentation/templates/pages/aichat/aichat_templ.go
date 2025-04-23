@@ -223,8 +223,8 @@ func Configure(props Props) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-					Label:       pageCtx.T("AIChatBot.Description.Label"),
-					Placeholder: pageCtx.T("AIChatBot.Description.Placeholder"),
+					Label:       pageCtx.T("AIChatBot._Description.Label"),
+					Placeholder: pageCtx.T("AIChatBot._Description.Placeholder"),
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-faster/errors"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -13,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 const (

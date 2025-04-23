@@ -24,7 +24,7 @@
       "Amount": "Amount",
       "NoCategories": {
         "Title": "No expense categories found",
-        "Description": "There are no expense categories yet. Click 'New Category' to create one."
+        "_Description": "There are no expense categories yet. Click 'New Category' to create one."
       }
     },
     "Single": {
@@ -35,7 +35,7 @@
         "Label": "Currency",
         "Placeholder": "Select currency"
       },
-      "Description": "Description",
+      "_Description": "Description",
       "Delete": "Delete category",
       "DeleteConfirmation": "Are you sure you want to delete this expense category?"
     }
@@ -57,7 +57,7 @@
       "Amount": "Amount",
       "NoPayments": {
         "Title": "No payments found",
-        "Description": "There are no payments yet. Click 'Add payment' to create one."
+        "_Description": "There are no payments yet. Click 'Add payment' to create one."
       }
     },
     "Single": {
@@ -97,7 +97,7 @@
       "Date": "Date",
       "NoExpenses": {
         "Title": "No expenses found",
-        "Description": "There are no expenses yet. Click 'Add expense' to create one."
+        "_Description": "There are no expenses yet. Click 'Add expense' to create one."
       }
     },
     "Single": {
@@ -133,7 +133,7 @@
       "Balance": "Balance",
       "NoAccounts": {
         "Title": "No accounts found",
-        "Description": "There are no accounts yet. Click 'Add account' to create one."
+        "_Description": "There are no accounts yet. Click 'Add account' to create one."
       }
     },
     "Single": {
@@ -144,7 +144,7 @@
         "Label": "Currency",
         "Placeholder": "Choose currency"
       },
-      "Description": "Description",
+      "_Description": "Description",
       "AccountNumber": "Account number",
       "Delete": "Delete account",
       "DeleteConfirmation": "Are you sure you want to delete this account?"

@@ -4,7 +4,7 @@ go 1.23.2
 
 require (
 	github.com/99designs/gqlgen v0.17.57
-	github.com/BurntSushi/toml v1.4.0
+	github.com/BurntSushi/toml v1.5.0
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
@@ -23,6 +23,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
+	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.2
 	github.com/iota-uz/psql-parser v0.0.0-20250308150107-d4e0b094f3a6
 	github.com/iota-uz/utils v0.0.2
@@ -31,7 +32,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/lithammer/fuzzysearch v1.1.8
-	github.com/nicksnyder/go-i18n/v2 v2.4.1
 	github.com/rs/cors v1.11.1
 	github.com/rubenv/sql-migrate v1.7.0
 	github.com/sashabaranov/go-openai v1.36.0

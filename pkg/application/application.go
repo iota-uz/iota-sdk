@@ -12,8 +12,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"

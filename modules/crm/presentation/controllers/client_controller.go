@@ -21,7 +21,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/base"

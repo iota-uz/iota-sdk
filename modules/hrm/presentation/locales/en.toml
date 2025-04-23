@@ -31,7 +31,7 @@
     FullName = "Full name"
     Position = "Position"
     Email = "Email"
-    NoEmployees = { Title = "No employees found", Description = "There are no employees yet. Click 'Add employee' to create one." }
+    NoEmployees = { Title = "No employees found", _Description = "There are no employees yet. Click 'Add employee' to create one." }
 
   [Employees.Tabs]
     Public = "Public"

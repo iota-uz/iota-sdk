@@ -315,7 +315,7 @@ func ExpensesTable(props *IndexPageProps) templ.Component {
 		if len(props.Expenses) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Expenses.List.NoExpenses.Title"),
-				Description: pageCtx.T("Expenses.List.NoExpenses.Description"),
+				Description: pageCtx.T("Expenses.List.NoExpenses._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

@@ -55,7 +55,7 @@ func OrdersTable(props *IndexPageProps) templ.Component {
 		if len(props.Orders) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehouseOrders.List.NoOrders.Title"),
-				Description: pageCtx.T("WarehouseOrders.List.NoOrders.Description"),
+				Description: pageCtx.T("WarehouseOrders.List.NoOrders._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
