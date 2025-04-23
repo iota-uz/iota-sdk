@@ -18,7 +18,7 @@ import (
 
 // Mock DataStore for testing
 type mockDataStore struct {
-	items map[int]*TestEntity
+	items  map[int]*TestEntity
 	nextID int
 }
 
@@ -30,7 +30,7 @@ func newMockDataStore() *mockDataStore {
 }
 
 func (m *mockDataStore) List(ctx context.Context, params FindParams) ([]*TestEntity, error) {
-	var result []*TestEntity
+	result := make([]*TestEntity, 0, len(m.items))
 	for _, item := range m.items {
 		// Basic search implementation
 		if params.Search != "" && !strings.Contains(item.Name, params.Search) {
@@ -96,15 +96,7 @@ func (v *mockValidator) ValidateModel(ctx context.Context, model *TestEntity) er
 	return nil
 }
 
-// Mock renderer for testing HTTP handlers
-type mockRenderer struct {
-	lastComponent interface{}
-}
-
-func (r *mockRenderer) Render(w http.ResponseWriter, req *http.Request, component interface{}, options ...func(*interface{})) {
-	r.lastComponent = component
-	w.WriteHeader(http.StatusOK)
-}
+// mockRenderer struct removed as unused
 
 func TestParseID(t *testing.T) {
 	tests := []struct {
@@ -195,7 +187,7 @@ func TestParseID(t *testing.T) {
 	}
 }
 
-func TestValidationErrors_Error(t *testing.T) {
+func TestValidationError_Error(t *testing.T) {
 	tests := []struct {
 		name   string
 		errors []FieldError
@@ -225,9 +217,9 @@ func TestValidationErrors_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ve := ValidationErrors{Errors: tt.errors}
+			ve := ValidationError{Errors: tt.errors}
 			if got := ve.Error(); got != tt.want {
-				t.Errorf("ValidationErrors.Error() = %v, want %v", got, tt.want)
+				t.Errorf("ValidationError.Error() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -651,7 +643,7 @@ func TestParseFormToMap(t *testing.T) {
 	formValues.Add("multi", "value3")
 	formValues.Add("multi", "value4") // This should be ignored
 
-	req := httptest.NewRequest("POST", "/test", strings.NewReader(formValues.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formValues.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	result, err := parseFormToMap(req)
@@ -679,7 +671,7 @@ func TestHTTPHandlers(t *testing.T) {
 
 	// Pre-populate the store
 	ctx := context.Background()
-	store.Create(ctx, &TestEntity{Name: "John Doe", Email: "john@example.com"})
+	_, _ = store.Create(ctx, &TestEntity{Name: "John Doe", Email: "john@example.com"})
 
 	// Create custom renderer for testing
 	renderer := func(w http.ResponseWriter, r *http.Request, c templ.Component, options ...func(*templ.ComponentHandler)) {
@@ -697,7 +689,7 @@ func TestHTTPHandlers(t *testing.T) {
 	schema.Register(router)
 
 	t.Run("listHandler", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -708,7 +700,7 @@ func TestHTTPHandlers(t *testing.T) {
 	})
 
 	t.Run("newHandler", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/test/new", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test/new", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -723,7 +715,7 @@ func TestHTTPHandlers(t *testing.T) {
 		formValues.Add("Name", "Jane Doe")
 		formValues.Add("Email", "jane@example.com")
 
-		req := httptest.NewRequest("POST", "/test/", strings.NewReader(formValues.Encode()))
+		req := httptest.NewRequest(http.MethodPost, "/test/", strings.NewReader(formValues.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 
@@ -742,7 +734,7 @@ func TestHTTPHandlers(t *testing.T) {
 	})
 
 	t.Run("editHandler", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/test/1/edit", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test/1/edit", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -757,7 +749,7 @@ func TestHTTPHandlers(t *testing.T) {
 		formValues.Add("Name", "John Updated")
 		formValues.Add("Email", "john.updated@example.com")
 
-		req := httptest.NewRequest("PUT", "/test/1", strings.NewReader(formValues.Encode()))
+		req := httptest.NewRequest(http.MethodPut, "/test/1", strings.NewReader(formValues.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 
@@ -776,7 +768,7 @@ func TestHTTPHandlers(t *testing.T) {
 	})
 
 	t.Run("deleteHandler", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/test/1", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/test/1", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -794,7 +786,7 @@ func TestHTTPHandlers(t *testing.T) {
 	})
 
 	t.Run("nonexistent entity", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/test/999/edit", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test/999/edit", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
