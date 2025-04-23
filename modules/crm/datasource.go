@@ -24,10 +24,16 @@ func (d *ClientDataSource) Find(ctx context.Context, q string) []spotlight.Item 
 		return []spotlight.Item{}
 	}
 
-	ilikeQ := "%" + q + "%"
+	// Split query by spaces to handle cases like "Firstname Lastname"
+	queryParts := strings.Fields(q)
 
-	filters := make([]string, 0, 10)
-	for _, f := range []string{
+	// If no query parts, return empty results
+	if len(queryParts) == 0 {
+		return []spotlight.Item{}
+	}
+
+	// Fields to search in
+	searchFields := []string{
 		"first_name",
 		"last_name",
 		"middle_name",
@@ -35,14 +41,40 @@ func (d *ClientDataSource) Find(ctx context.Context, q string) []spotlight.Item 
 		"phone_number",
 		"address",
 		"pin",
-	} {
-		filters = append(filters, repo.ILike(ilikeQ).String(f, 1))
 	}
+
+	// Build filter conditions for each query part and each field
+	allFilters := make([]string, 0)
+	args := make([]interface{}, 0)
+	argIndex := 1
+
+	for _, part := range queryParts {
+		ilikePart := "%" + part + "%"
+		partFilters := make([]string, 0, len(searchFields))
+
+		for _, field := range searchFields {
+			partFilters = append(partFilters, repo.ILike(fmt.Sprintf("$%d", argIndex)).String(field, argIndex))
+			args = append(args, ilikePart)
+			argIndex++
+		}
+
+		// Group filters for each part with OR
+		if len(partFilters) > 0 {
+			allFilters = append(allFilters, "("+strings.Join(partFilters, " OR ")+")")
+		}
+	}
+
+	// Combine all part filters with AND (each part must match at least one field)
+	whereClause := strings.Join(allFilters, " AND ")
+
+	// Build the query
 	query := repo.Join(
 		"SELECT id, first_name, last_name FROM clients",
-		repo.JoinWhere(strings.Join(filters, " OR ")),
+		repo.JoinWhere(whereClause),
 	)
-	rows, err := tx.Query(ctx, query, ilikeQ)
+
+	// Execute the query with the collected arguments
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		logger.Error("failed to query clients", "error", err)
 		return []spotlight.Item{}
@@ -52,7 +84,6 @@ func (d *ClientDataSource) Find(ctx context.Context, q string) []spotlight.Item 
 	items := make([]spotlight.Item, 0, 10)
 	for rows.Next() {
 		var c models.Client
-
 		if err := rows.Scan(
 			&c.ID,
 			&c.FirstName,
