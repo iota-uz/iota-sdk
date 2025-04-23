@@ -135,15 +135,14 @@ func (g *SessionRepository) Delete(ctx context.Context, token string) error {
 }
 
 func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]*session.Session, error) {
-	where, args := []string{"sessions.user_id = $1"}, []interface{}{userId}
 	sql := repo.Join(
 		selectSessionQuery,
-		repo.JoinWhere(where...),
+		repo.JoinWhere("sessions.user_id = $1"),
 	)
 	sessions, err := g.querySessions(
 		ctx,
 		sql,
-		args...,
+		userId,
 	)
 	if err != nil {
 		return nil, err

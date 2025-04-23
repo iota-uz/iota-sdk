@@ -30,14 +30,12 @@ func RegisterUserHandler(app application.Application) *UserHandler {
 	return handler
 }
 
-func (h *UserHandler) onUserPasswordUpdated(event *user.UpdatedEvent) {
+func (h *UserHandler) onUserPasswordUpdated(event *user.UpdatedPasswordEvent) {
 	ctx := context.Background()
 	ctx = composables.WithPool(ctx, h.pool)
 
-	if event.Data.Password() != event.Result.Password() {
-		if _, err := h.sessionService.DeleteByUserId(ctx, event.Result.ID()); err != nil {
-			log.Printf("failed to register client chat: %v", err)
-			return
-		}
+	if _, err := h.sessionService.DeleteByUserId(ctx, event.Result.ID()); err != nil {
+		log.Printf("failed to register client chat: %v", err)
+		return
 	}
 }
