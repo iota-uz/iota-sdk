@@ -3,6 +3,7 @@ package crud
 import (
 	"context"
 	"encoding"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -18,6 +19,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
+
+// ErrNotFound is returned when an entity is not found
+var ErrNotFound = errors.New("entity not found")
+
+// ErrValidation is returned for validation errors
+var ErrValidation = errors.New("validation error")
 
 // parseID converts the incoming URL string into the generic ID type.
 func parseID[ID any](idStr string) (ID, error) {
@@ -73,6 +80,33 @@ type FindParams struct {
 	Filters []Filter
 }
 
+// FieldError represents a single field validation error
+type FieldError struct {
+	Field   string
+	Message string
+}
+
+// ValidationErrors collects field-level validation errors
+type ValidationErrors struct {
+	Errors []FieldError
+}
+
+func (ve ValidationErrors) Error() string {
+	if len(ve.Errors) == 0 {
+		return "no validation errors"
+	}
+
+	var sb strings.Builder
+	sb.WriteString("validation errors: ")
+	for i, err := range ve.Errors {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("%s: %s", err.Field, err.Message))
+	}
+	return sb.String()
+}
+
 // DataStore abstracts CRUD operations for type T with ID type ID
 type DataStore[T any, ID any] interface {
 	List(ctx context.Context, params FindParams) ([]T, error)
@@ -87,173 +121,43 @@ type ModelLevelValidator[T any] interface {
 	ValidateModel(ctx context.Context, model T) error
 }
 
-// Schema defines a runtime-driven CRUD resource for entity type T with identifier type ID.
-type Schema[T any, ID any] struct {
-	Name            string
-	Path            string
-	IDField         string
-	Fields          []formui.Field
-	Store           DataStore[T, ID]
-	modelValidators []ModelLevelValidator[T]
-	middlewares     []mux.MiddlewareFunc
+// RenderFunc abstracts the rendering logic to make it testable
+type RenderFunc func(w http.ResponseWriter, r *http.Request, component templ.Component, options ...func(*templ.ComponentHandler))
+
+// DefaultRenderFunc provides the default rendering implementation
+func DefaultRenderFunc(w http.ResponseWriter, r *http.Request, component templ.Component, options ...func(*templ.ComponentHandler)) {
+	templ.Handler(component, options...).ServeHTTP(w, r)
 }
 
-// Ensure Schema implements application.Controller
-var _ application.Controller = (*Schema[any, any])(nil)
-
-// SchemaOpt configures optional settings on a Schema
-type SchemaOpt[T any, ID any] func(s *Schema[T, ID])
-
-// NewSchema constructs a new CRUD Schema and applies options
-func NewSchema[T any, ID any](
-	name, path string,
-	store DataStore[T, ID],
-	opts ...SchemaOpt[T, ID],
-) *Schema[T, ID] {
-	s := &Schema[T, ID]{
-		Name:    name,
-		Path:    path,
-		IDField: getPrimaryKey[T](),
-		Store:   store,
-	}
-	for _, o := range opts {
-		o(s)
-	}
-	return s
+// EntityFactory creates new instances of entity type T
+type EntityFactory[T any] interface {
+	Create() T
 }
 
-// WithFields sets the form fields for the Schema
-func WithFields[T any, ID any](fields ...formui.Field) SchemaOpt[T, ID] {
-	return func(s *Schema[T, ID]) {
-		s.Fields = fields
-	}
-}
+// DefaultEntityFactory is the default implementation of EntityFactory
+type DefaultEntityFactory[T any] struct{}
 
-// WithModelValidators adds model-level validators
-func WithModelValidators[T any, ID any](vs ...ModelLevelValidator[T]) SchemaOpt[T, ID] {
-	return func(s *Schema[T, ID]) {
-		s.modelValidators = vs
-	}
-}
-
-// WithMiddlewares adds middleware functions to the Schema
-func WithMiddlewares[T any, ID any](ms ...mux.MiddlewareFunc) SchemaOpt[T, ID] {
-	return func(s *Schema[T, ID]) {
-		s.middlewares = append(s.middlewares, ms...)
-	}
-}
-
-// Register mounts CRUD HTTP handlers on the provided router
-func (s *Schema[T, ID]) Register(r *mux.Router) {
-	subR := r.PathPrefix(s.Path).Subrouter()
-	subR.Use(s.middlewares...)
-	subR.HandleFunc("", s.listHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/new", s.newHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/", s.createHandler).Methods(http.MethodPost)
-	subR.HandleFunc("/{id}/edit", s.editHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/{id}", s.updateHandler).Methods(http.MethodPut)
-	subR.HandleFunc("/{id}", s.deleteHandler).Methods(http.MethodDelete)
-}
-
-// Key returns the base path for routing identification
-func (s *Schema[T, ID]) Key() string {
-	return s.Path
-}
-
-// Handler stubs
-func (s *Schema[T, ID]) listHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// Parse query parameters
-	var params FindParams
-	// sort (format: column:asc|desc)
-	if v := r.URL.Query().Get("sort"); v != "" {
-		parts := strings.Split(v, ":")
-		if len(parts) == 2 {
-			params.SortBy = repo.SortBy[string]{
-				Fields:    []string{parts[0]},
-				Ascending: parts[1] == "asc",
-			}
-		}
-	}
-	// search
-	params.Search = r.URL.Query().Get("search")
-	// (Additional Filters could be appended here...)
-
-	// Fetch data
-	items, err := s.Store.List(ctx, params)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Build table config
-	tcfg := sfui.NewTableConfig(s.Name, s.Path)
-	// Add columns based on schema Fields
-	for _, f := range s.Fields {
-		tcfg.AddCols(
-			sfui.Column(f.Key(), f.Label()),
-		)
-	}
-
-	// Add rows
-	for _, item := range items {
-		// Prepare cell components
-		cells := make([]templ.Component, 0, len(s.Fields))
-		rv := reflect.ValueOf(item)
-		if rv.Kind() == reflect.Ptr {
-			rv = rv.Elem()
-		}
-		for _, f := range s.Fields {
-			fv := rv.FieldByNameFunc(func(name string) bool {
-				return strings.EqualFold(name, f.Key())
-			})
-			val := ""
-			if fv.IsValid() {
-				val = fmt.Sprint(fv.Interface())
-			}
-			cells = append(cells, templ.Raw(val))
-		}
-		// Construct drawer URL for edit
-		idVal := reflect.ValueOf(item)
-		if idVal.Kind() == reflect.Ptr {
-			idVal = idVal.Elem()
-		}
-		idField := idVal.FieldByName(s.IDField)
-		url := fmt.Sprintf("%s/%v/edit", s.Path, idField.Interface())
-
-		tcfg.AddRows(
-			sfui.Row(cells...).ApplyOpts(sfui.WithDrawer(url)),
-		)
-	}
-
-	// Render table or rows for HTMX
-	if htmx.IsHxRequest(r) {
-		templ.Handler(sfui.Rows(tcfg)).ServeHTTP(w, r)
-	} else {
-		templ.Handler(sfui.Page(tcfg)).ServeHTTP(w, r)
-	}
-}
-
-func (s *Schema[T, ID]) newHandler(w http.ResponseWriter, r *http.Request) {
-	cfg := formui.NewFormConfig("New Currency", s.Path, s.Path, "Create").Add(s.Fields...)
-	templ.Handler(formui.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)
-}
-
-func (s *Schema[T, ID]) createHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+// Create instantiates a new entity of type T
+func (f DefaultEntityFactory[T]) Create() T {
 	// Create a new entity using reflection
 	entityType := reflect.TypeOf(*new(T))
 	if entityType.Kind() == reflect.Ptr {
 		entityType = entityType.Elem()
 	}
-	entity := reflect.New(entityType).Interface().(T)
+	return reflect.New(entityType).Interface().(T)
+}
+
+// EntityPatcher applies form values to an entity
+type EntityPatcher[T any] interface {
+	Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationErrors)
+}
+
+// DefaultEntityPatcher is the default implementation of EntityPatcher
+type DefaultEntityPatcher[T any] struct{}
+
+// Patch applies form values to the entity
+func (p DefaultEntityPatcher[T]) Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationErrors) {
+	var validationErrors ValidationErrors
 
 	// Populate fields from form data
 	rVal := reflect.ValueOf(entity)
@@ -261,13 +165,13 @@ func (s *Schema[T, ID]) createHandler(w http.ResponseWriter, r *http.Request) {
 		rVal = rVal.Elem()
 	}
 
-	// Track field validation errors
-	formErrors := make(map[string]string)
-
 	// Process each field
-	for _, field := range s.Fields {
+	for _, field := range fields {
 		fieldName := field.Key()
-		formValue := r.FormValue(fieldName)
+		formValue, exists := formData[fieldName]
+		if !exists {
+			continue
+		}
 
 		// Get the field by name (case-insensitive)
 		fv := rVal.FieldByNameFunc(func(name string) bool {
@@ -280,95 +184,14 @@ func (s *Schema[T, ID]) createHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Set field value based on type
 		if err := setFieldValue(fv, formValue); err != nil {
-			formErrors[fieldName] = err.Error()
+			validationErrors.Errors = append(validationErrors.Errors, FieldError{
+				Field:   fieldName,
+				Message: err.Error(),
+			})
 		}
 	}
 
-	// If there are field validation errors, return HTTP error
-	if len(formErrors) > 0 {
-		http.Error(w, fmt.Sprintf("Validation errors: %v", formErrors), http.StatusBadRequest)
-		return
-	}
-
-	// Run model-level validation
-	for _, validator := range s.modelValidators {
-		if err := validator.ValidateModel(ctx, entity); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-
-	// Create the entity
-	_, err := s.Store.Create(ctx, entity)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Redirect to the list view
-	http.Redirect(w, r, s.Path, http.StatusSeeOther)
-}
-
-func (s *Schema[T, ID]) editHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	idStr := mux.Vars(r)["id"]
-
-	// Parse the ID
-	idVal, err := parseID[ID](idStr)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid ID: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	// Fetch the entity
-	entity, err := s.Store.Get(ctx, idVal)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Create form values from entity
-	formValues := make(map[string][]string)
-	rVal := reflect.ValueOf(entity)
-	if rVal.Kind() == reflect.Ptr {
-		rVal = rVal.Elem()
-	}
-
-	for _, field := range s.Fields {
-		fieldName := field.Key()
-		fv := rVal.FieldByNameFunc(func(name string) bool {
-			return strings.EqualFold(name, fieldName)
-		})
-
-		if fv.IsValid() {
-			// Convert the field value to string
-			var strVal string
-			if fv.Kind() == reflect.String {
-				strVal = fv.String()
-			} else {
-				strVal = fmt.Sprint(fv.Interface())
-			}
-			formValues[fieldName] = []string{strVal}
-		}
-	}
-
-	fields := make([]formui.Field, len(s.Fields))
-	for i, field := range s.Fields {
-		switch f := field.(type) {
-		case formui.TextField:
-			fields[i] = f.WithValue(formValues[field.Key()][0])
-		default:
-			fields[i] = field
-		}
-	}
-
-	// Create form with entity values
-	formAction := fmt.Sprintf("%s/%v", s.Path, idVal)
-	cfg := formui.NewFormConfig("Edit "+s.Name, formAction, s.Path, "Update").
-		WithMethod("PUT").
-		Add(fields...)
-
-	templ.Handler(formui.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+	return entity, validationErrors
 }
 
 // Helper function to set field value based on type
@@ -421,6 +244,418 @@ func setFieldValue(field reflect.Value, value string) error {
 	return nil
 }
 
+// Service encapsulates the business logic of the CRUD operations
+type Service[T any, ID any] struct {
+	Name            string
+	Path            string
+	IDField         string
+	Fields          []formui.Field
+	Store           DataStore[T, ID]
+	EntityFactory   EntityFactory[T]
+	EntityPatcher   EntityPatcher[T]
+	ModelValidators []ModelLevelValidator[T]
+}
+
+// NewService creates a new CRUD service
+func NewService[T any, ID any](
+	name, path, idField string,
+	store DataStore[T, ID],
+	fields []formui.Field,
+) *Service[T, ID] {
+	return &Service[T, ID]{
+		Name:          name,
+		Path:          path,
+		IDField:       idField,
+		Fields:        fields,
+		Store:         store,
+		EntityFactory: DefaultEntityFactory[T]{},
+		EntityPatcher: DefaultEntityPatcher[T]{},
+	}
+}
+
+// List retrieves entities based on the provided parameters
+func (s *Service[T, ID]) List(ctx context.Context, params FindParams) ([]T, error) {
+	return s.Store.List(ctx, params)
+}
+
+// Get retrieves a single entity by ID
+func (s *Service[T, ID]) Get(ctx context.Context, id ID) (T, error) {
+	return s.Store.Get(ctx, id)
+}
+
+// Extract returns entity field values as map for UI rendering
+func (s *Service[T, ID]) Extract(entity T) map[string]string {
+	result := make(map[string]string)
+	rVal := reflect.ValueOf(entity)
+	if rVal.Kind() == reflect.Ptr {
+		rVal = rVal.Elem()
+	}
+
+	for _, field := range s.Fields {
+		fieldName := field.Key()
+		fv := rVal.FieldByNameFunc(func(name string) bool {
+			return strings.EqualFold(name, fieldName)
+		})
+
+		if fv.IsValid() {
+			// Convert the field value to string
+			var strVal string
+			if fv.Kind() == reflect.String {
+				strVal = fv.String()
+			} else {
+				strVal = fmt.Sprint(fv.Interface())
+			}
+			result[fieldName] = strVal
+		}
+	}
+
+	return result
+}
+
+// CreateEntity creates a new entity from form data
+func (s *Service[T, ID]) CreateEntity(ctx context.Context, formData map[string]string) (ID, error) {
+	// Create a new entity
+	entity := s.EntityFactory.Create()
+
+	// Apply form data to entity
+	patchedEntity, valErrs := s.EntityPatcher.Patch(entity, formData, s.Fields)
+	if len(valErrs.Errors) > 0 {
+		return *new(ID), fmt.Errorf("%w: %s", ErrValidation, valErrs.Error())
+	}
+
+	// Run model-level validation
+	for _, validator := range s.ModelValidators {
+		if err := validator.ValidateModel(ctx, patchedEntity); err != nil {
+			return *new(ID), fmt.Errorf("%w: %s", ErrValidation, err.Error())
+		}
+	}
+
+	// Create the entity
+	id, err := s.Store.Create(ctx, patchedEntity)
+	if err != nil {
+		return *new(ID), err
+	}
+
+	return id, nil
+}
+
+// UpdateEntity updates an existing entity from form data
+func (s *Service[T, ID]) UpdateEntity(ctx context.Context, id ID, formData map[string]string) error {
+	// Get the existing entity first
+	entity, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Apply form data to entity
+	patchedEntity, valErrs := s.EntityPatcher.Patch(entity, formData, s.Fields)
+	if len(valErrs.Errors) > 0 {
+		return fmt.Errorf("%w: %s", ErrValidation, valErrs.Error())
+	}
+
+	// Run model-level validation
+	for _, validator := range s.ModelValidators {
+		if err := validator.ValidateModel(ctx, patchedEntity); err != nil {
+			return fmt.Errorf("%w: %s", ErrValidation, err.Error())
+		}
+	}
+
+	// Update the entity
+	return s.Store.Update(ctx, id, patchedEntity)
+}
+
+// DeleteEntity deletes an entity by ID
+func (s *Service[T, ID]) DeleteEntity(ctx context.Context, id ID) error {
+	return s.Store.Delete(ctx, id)
+}
+
+// Schema defines a runtime-driven CRUD resource for entity type T with identifier type ID.
+type Schema[T any, ID any] struct {
+	Service       *Service[T, ID]
+	Renderer      RenderFunc
+	middlewares   []mux.MiddlewareFunc
+	getPrimaryKey func() string
+}
+
+// Ensure Schema implements application.Controller
+var _ application.Controller = (*Schema[any, any])(nil)
+
+// SchemaOpt configures optional settings on a Schema
+type SchemaOpt[T any, ID any] func(s *Schema[T, ID])
+
+// DefaultGetPrimaryKey returns a function that gets the primary key
+func DefaultGetPrimaryKey[T any]() func() string {
+	return func() string {
+		// Default implementation - replace with actual logic to determine primary key
+		return "ID"
+	}
+}
+
+// NewSchema constructs a new CRUD Schema and applies options
+func NewSchema[T any, ID any](
+	name, path string,
+	store DataStore[T, ID],
+	opts ...SchemaOpt[T, ID],
+) *Schema[T, ID] {
+	service := NewService[T, ID](
+		name,
+		path,
+		"ID", // Default ID field, can be overridden with options
+		store,
+		[]formui.Field{}, // Empty fields, can be added with options
+	)
+
+	s := &Schema[T, ID]{
+		Service:       service,
+		Renderer:      DefaultRenderFunc,
+		getPrimaryKey: DefaultGetPrimaryKey[T](),
+	}
+
+	for _, o := range opts {
+		o(s)
+	}
+
+	// Update the IDField from the getPrimaryKey function
+	s.Service.IDField = s.getPrimaryKey()
+
+	return s
+}
+
+// WithFields sets the form fields for the Schema
+func WithFields[T any, ID any](fields ...formui.Field) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.Service.Fields = fields
+	}
+}
+
+// WithModelValidators adds model-level validators
+func WithModelValidators[T any, ID any](vs ...ModelLevelValidator[T]) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.Service.ModelValidators = vs
+	}
+}
+
+// WithMiddlewares adds middleware functions to the Schema
+func WithMiddlewares[T any, ID any](ms ...mux.MiddlewareFunc) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.middlewares = append(s.middlewares, ms...)
+	}
+}
+
+// WithRenderer sets a custom renderer function
+func WithRenderer[T any, ID any](renderer RenderFunc) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.Renderer = renderer
+	}
+}
+
+// WithGetPrimaryKey sets a custom function to get the primary key field name
+func WithGetPrimaryKey[T any, ID any](fn func() string) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.getPrimaryKey = fn
+	}
+}
+
+// WithEntityFactory sets a custom entity factory
+func WithEntityFactory[T any, ID any](factory EntityFactory[T]) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.Service.EntityFactory = factory
+	}
+}
+
+// WithEntityPatcher sets a custom entity patcher
+func WithEntityPatcher[T any, ID any](patcher EntityPatcher[T]) SchemaOpt[T, ID] {
+	return func(s *Schema[T, ID]) {
+		s.Service.EntityPatcher = patcher
+	}
+}
+
+// Register mounts CRUD HTTP handlers on the provided router
+func (s *Schema[T, ID]) Register(r *mux.Router) {
+	subR := r.PathPrefix(s.Service.Path).Subrouter()
+	subR.Use(s.middlewares...)
+	subR.HandleFunc("", s.listHandler).Methods(http.MethodGet)
+	subR.HandleFunc("/new", s.newHandler).Methods(http.MethodGet)
+	subR.HandleFunc("/", s.createHandler).Methods(http.MethodPost)
+	subR.HandleFunc("/{id}/edit", s.editHandler).Methods(http.MethodGet)
+	subR.HandleFunc("/{id}", s.updateHandler).Methods(http.MethodPut)
+	subR.HandleFunc("/{id}", s.deleteHandler).Methods(http.MethodDelete)
+}
+
+// Key returns the base path for routing identification
+func (s *Schema[T, ID]) Key() string {
+	return s.Service.Path
+}
+
+// parseFormToMap extracts form values into a map
+func parseFormToMap(r *http.Request) (map[string]string, error) {
+	if err := r.ParseForm(); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string)
+	for key, values := range r.Form {
+		if len(values) > 0 {
+			result[key] = values[0]
+		}
+	}
+
+	return result, nil
+}
+
+// HTTP Handlers
+func (s *Schema[T, ID]) listHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parse query parameters
+	var params FindParams
+	// sort (format: column:asc|desc)
+	if v := r.URL.Query().Get("sort"); v != "" {
+		parts := strings.Split(v, ":")
+		if len(parts) == 2 {
+			params.SortBy = repo.SortBy[string]{
+				Fields:    []string{parts[0]},
+				Ascending: parts[1] == "asc",
+			}
+		}
+	}
+	// search
+	params.Search = r.URL.Query().Get("search")
+	// (Additional Filters could be appended here...)
+
+	// Fetch data
+	items, err := s.Service.List(ctx, params)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build table config
+	tcfg := sfui.NewTableConfig(s.Service.Name, s.Service.Path)
+	// Add columns based on schema Fields
+	for _, f := range s.Service.Fields {
+		tcfg.AddCols(
+			sfui.Column(f.Key(), f.Label()),
+		)
+	}
+
+	// Add rows
+	for _, item := range items {
+		// Prepare cell components
+		cells := make([]templ.Component, 0, len(s.Service.Fields))
+		rv := reflect.ValueOf(item)
+		if rv.Kind() == reflect.Ptr {
+			rv = rv.Elem()
+		}
+		for _, f := range s.Service.Fields {
+			fv := rv.FieldByNameFunc(func(name string) bool {
+				return strings.EqualFold(name, f.Key())
+			})
+			val := ""
+			if fv.IsValid() {
+				val = fmt.Sprint(fv.Interface())
+			}
+			cells = append(cells, templ.Raw(val))
+		}
+		// Construct drawer URL for edit
+		idVal := reflect.ValueOf(item)
+		if idVal.Kind() == reflect.Ptr {
+			idVal = idVal.Elem()
+		}
+		idField := idVal.FieldByName(s.Service.IDField)
+		url := fmt.Sprintf("%s/%v/edit", s.Service.Path, idField.Interface())
+
+		tcfg.AddRows(
+			sfui.Row(cells...).ApplyOpts(sfui.WithDrawer(url)),
+		)
+	}
+
+	// Render table or rows for HTMX
+	if htmx.IsHxRequest(r) {
+		s.Renderer(w, r, sfui.Rows(tcfg))
+	} else {
+		s.Renderer(w, r, sfui.Page(tcfg))
+	}
+}
+
+func (s *Schema[T, ID]) newHandler(w http.ResponseWriter, r *http.Request) {
+	cfg := formui.NewFormConfig("New "+s.Service.Name, s.Service.Path, s.Service.Path, "Create").
+		Add(s.Service.Fields...)
+	s.Renderer(w, r, formui.Page(cfg), templ.WithStreaming())
+}
+
+func (s *Schema[T, ID]) createHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	formData, err := parseFormToMap(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, err = s.Service.CreateEntity(ctx, formData)
+	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Redirect to the list view
+	http.Redirect(w, r, s.Service.Path, http.StatusSeeOther)
+}
+
+func (s *Schema[T, ID]) editHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := mux.Vars(r)["id"]
+
+	// Parse the ID
+	idVal, err := parseID[ID](idStr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid ID: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Fetch the entity
+	entity, err := s.Service.Get(ctx, idVal)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	// Extract field values from entity
+	fieldValues := s.Service.Extract(entity)
+
+	// Create fields with values
+	fields := make([]formui.Field, len(s.Service.Fields))
+	for i, field := range s.Service.Fields {
+		switch f := field.(type) {
+		case formui.TextField:
+			if val, ok := fieldValues[field.Key()]; ok {
+				fields[i] = f.WithValue(val)
+			} else {
+				fields[i] = field
+			}
+		default:
+			fields[i] = field
+		}
+	}
+
+	// Create form with entity values
+	formAction := fmt.Sprintf("%s/%v", s.Service.Path, idVal)
+	cfg := formui.NewFormConfig("Edit "+s.Service.Name, formAction, s.Service.Path, "Update").
+		WithMethod("PUT").
+		Add(fields...)
+
+	s.Renderer(w, r, formui.Page(cfg), templ.WithStreaming())
+}
+
 func (s *Schema[T, ID]) updateHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	idStr := mux.Vars(r)["id"]
@@ -432,69 +667,26 @@ func (s *Schema[T, ID]) updateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the existing entity first
-	entity, err := s.Store.Get(ctx, idVal)
+	formData, err := parseFormToMap(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Populate fields from form data
-	rVal := reflect.ValueOf(entity)
-	if rVal.Kind() == reflect.Ptr {
-		rVal = rVal.Elem()
-	}
-
-	// Track field validation errors
-	formErrors := make(map[string]string)
-
-	// Process each field
-	for _, field := range s.Fields {
-		fieldName := field.Key()
-		formValue := r.FormValue(fieldName)
-
-		// Get the field by name (case-insensitive)
-		fv := rVal.FieldByNameFunc(func(name string) bool {
-			return strings.EqualFold(name, fieldName)
-		})
-
-		if !fv.IsValid() || !fv.CanSet() {
-			continue
+	err = s.Service.UpdateEntity(ctx, idVal, formData)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrValidation) {
+			status = http.StatusBadRequest
+		} else if errors.Is(err, ErrNotFound) {
+			status = http.StatusNotFound
 		}
-
-		// Set field value based on type
-		if err := setFieldValue(fv, formValue); err != nil {
-			formErrors[fieldName] = err.Error()
-		}
-	}
-
-	// If there are field validation errors, return HTTP error
-	if len(formErrors) > 0 {
-		http.Error(w, fmt.Sprintf("Validation errors: %v", formErrors), http.StatusBadRequest)
-		return
-	}
-
-	// Run model-level validation
-	for _, validator := range s.modelValidators {
-		if err := validator.ValidateModel(ctx, entity); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-
-	// Update the entity
-	if err := s.Store.Update(ctx, idVal, entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), status)
 		return
 	}
 
 	// Redirect to the list view
-	http.Redirect(w, r, s.Path, http.StatusSeeOther)
+	http.Redirect(w, r, s.Service.Path, http.StatusSeeOther)
 }
 
 func (s *Schema[T, ID]) deleteHandler(w http.ResponseWriter, r *http.Request) {
@@ -508,11 +700,16 @@ func (s *Schema[T, ID]) deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// call into the store with the correctly-typed ID
-	if err := s.Store.Delete(ctx, idVal); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// call into the service with the correctly-typed ID
+	err = s.Service.DeleteEntity(ctx, idVal)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		http.Error(w, err.Error(), status)
 		return
 	}
 
-	http.Redirect(w, r, s.Path, http.StatusSeeOther)
+	http.Redirect(w, r, s.Service.Path, http.StatusSeeOther)
 }
