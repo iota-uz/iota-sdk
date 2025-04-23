@@ -39,11 +39,20 @@ func (s *SessionService) GetPaginated(
 }
 
 func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
-	entity := data.ToEntity()
-	if err := s.repo.Create(ctx, entity); err != nil {
-		return err
-	}
-	createdEvent, err := session.NewCreatedEvent(*data, *entity)
+	var err error
+	var createdSession *session.Session
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err != nil {
+			return err
+		}
+		entity := data.ToEntity()
+		if err := s.repo.Create(txCtx, entity); err != nil {
+			return err
+		}
+		createdSession = entity
+		return nil
+	})
+	createdEvent, err := session.NewCreatedEvent(*createdSession)
 	if err != nil {
 		return err
 	}
@@ -52,18 +61,64 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 }
 
 func (s *SessionService) Update(ctx context.Context, data *session.Session) error {
-	if err := s.repo.Update(ctx, data); err != nil {
+	var err error
+
+	updatedEvent, err := session.NewUpdatedEvent(*data)
+	if err != nil {
 		return err
 	}
-	s.publisher.Publish("session.updated", data)
+
+	var updatedSession *session.Session
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err != nil {
+			return err
+		}
+		if err := s.repo.Update(txCtx, data); err != nil {
+			return err
+		}
+		userAfterUpdate, err := s.repo.GetByToken(txCtx, data.Token)
+		if err != nil {
+			return err
+		}
+		updatedSession = userAfterUpdate
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	updatedEvent.Result = *updatedSession
+	s.publisher.Publish(updatedEvent)
+
 	return nil
 }
 
 func (s *SessionService) Delete(ctx context.Context, token string) error {
-	if err := s.repo.Delete(ctx, token); err != nil {
+	var err error
+	var deletedSession *session.Session
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err != nil {
+			return err
+		}
+		ses, err := s.repo.GetByToken(txCtx, token)
+		if err != nil {
+			return err
+		}
+		err = s.repo.Delete(txCtx, token)
+		if err != nil {
+			return err
+		}
+		deletedSession = ses
+		return nil
+	})
+	if err != nil {
 		return err
 	}
-	s.publisher.Publish("session.deleted", token)
+	deletedEvent, err := session.NewDeletedEvent(*deletedSession)
+	if err != nil {
+		return err
+	}
+	s.publisher.Publish(deletedEvent)
 	return nil
 }
 
@@ -85,7 +140,11 @@ func (s *SessionService) DeleteByUserId(ctx context.Context, userId uint) ([]*se
 		return nil, err
 	}
 	for _, sess := range deletedSessions {
-		s.publisher.Publish("session.deleted", sess.Token)
+		deletedEvent, err := session.NewDeletedEvent(*sess)
+		if err != nil {
+			return nil, err
+		}
+		s.publisher.Publish(deletedEvent)
 	}
 	return deletedSessions, nil
 }
