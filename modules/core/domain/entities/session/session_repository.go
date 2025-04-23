@@ -31,4 +31,5 @@ type Repository interface {
 	Create(ctx context.Context, user *Session) error
 	Update(ctx context.Context, user *Session) error
 	Delete(ctx context.Context, token string) error
+	DeleteByUserId(ctx context.Context, userId uint) ([]*Session, error)
 }
