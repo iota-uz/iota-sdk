@@ -1,6 +1,10 @@
 package form
 
-import "github.com/a-h/templ"
+import (
+	"time"
+
+	"github.com/a-h/templ"
+)
 
 // TextFieldBuilder builds a TextField
 type TextFieldBuilder struct {
@@ -158,10 +162,11 @@ func (b *CheckboxFieldBuilder) Build() CheckboxField {
 
 // DateFieldBuilder builds a DateField
 type DateFieldBuilder struct {
-	key, label, defaultVal, min, max string
-	required                         bool
-	attrs                            templ.Attributes
-	validators                       []Validator
+	key, label           string
+	defaultVal, min, max time.Time
+	required             bool
+	attrs                templ.Attributes
+	validators           []Validator
 }
 
 func Date(key, label string) *DateFieldBuilder {
@@ -172,18 +177,18 @@ func Date(key, label string) *DateFieldBuilder {
 	}
 }
 
-func (b *DateFieldBuilder) Default(val string) *DateFieldBuilder {
+func (b *DateFieldBuilder) Default(val time.Time) *DateFieldBuilder {
 	b.defaultVal = val
 	return b
 }
-func (b *DateFieldBuilder) Min(val string) *DateFieldBuilder {
+func (b *DateFieldBuilder) Min(val time.Time) *DateFieldBuilder {
 	b.min = val
-	b.attrs["min"] = val
+	b.attrs["min"] = val.Format("2006-01-02")
 	return b
 }
-func (b *DateFieldBuilder) Max(val string) *DateFieldBuilder {
+func (b *DateFieldBuilder) Max(val time.Time) *DateFieldBuilder {
 	b.max = val
-	b.attrs["max"] = val
+	b.attrs["max"] = val.Format("2006-01-02")
 	return b
 }
 func (b *DateFieldBuilder) Required() *DateFieldBuilder {
@@ -217,25 +222,26 @@ func (b *DateFieldBuilder) Build() DateField {
 
 // DateTimeLocalFieldBuilder builds a DateTimeLocalField
 type DateTimeLocalFieldBuilder struct {
-	key, label, defaultVal, min, max string
-	required                         bool
-	attrs                            templ.Attributes
-	validators                       []Validator
+	key, label           string
+	defaultVal, min, max time.Time
+	required             bool
+	attrs                templ.Attributes
+	validators           []Validator
 }
 
 func DateTime(key, label string) *DateTimeLocalFieldBuilder {
 	return &DateTimeLocalFieldBuilder{key: key, label: label, attrs: templ.Attributes{}}
 }
 
-func (b *DateTimeLocalFieldBuilder) Default(val string) *DateTimeLocalFieldBuilder {
+func (b *DateTimeLocalFieldBuilder) Default(val time.Time) *DateTimeLocalFieldBuilder {
 	b.defaultVal = val
 	return b
 }
-func (b *DateTimeLocalFieldBuilder) Min(val string) *DateTimeLocalFieldBuilder {
+func (b *DateTimeLocalFieldBuilder) Min(val time.Time) *DateTimeLocalFieldBuilder {
 	b.min = val
 	return b
 }
-func (b *DateTimeLocalFieldBuilder) Max(val string) *DateTimeLocalFieldBuilder {
+func (b *DateTimeLocalFieldBuilder) Max(val time.Time) *DateTimeLocalFieldBuilder {
 	b.max = val
 	return b
 }

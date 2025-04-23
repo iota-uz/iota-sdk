@@ -72,12 +72,12 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		"Currency",
 		"/builder",
 		"Code",
-		crud.NewSQLDataStoreAdapter[Currency, string]("currencies"),
+		crud.NewSQLDataStoreAdapter[Currency, string]("currencies", "code"),
 		crud.WithFields[Currency, string](
-			fbuilder.Text("code", "Code").Required().Default("USD").Build(),
-			fbuilder.Text("name", "Name").Required().Build(),
-			fbuilder.Text("symbol", "Symbol").Required().Build(),
-			fbuilder.Color("color", "Color").Required().Build(),
+			fbuilder.Text("Code", "Code").Required().Default("USD").Build(),
+			fbuilder.Text("Name", "Name").Required().Build(),
+			fbuilder.Text("Symbol", "Symbol").Required().Build(),
+			fbuilder.Color("Color", "Color").Required().Build(),
 		),
 		crud.WithMiddlewares[Currency, string](
 			middleware.Authorize(),

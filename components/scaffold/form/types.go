@@ -22,8 +22,14 @@ func NewFormConfig(title, saveURL, deleteURL, submitLabel string, fields ...Fiel
 	}
 }
 
-// AddFields appends one or more Field implementations to the form and returns the config
+// Add appends one or more Field implementations to the form and returns the config
 func (cfg *FormConfig) Add(fields ...Field) *FormConfig {
 	cfg.Fields = append(cfg.Fields, fields...)
+	return cfg
+}
+
+// WithMethod sets the HTTP method for the form
+func (cfg *FormConfig) WithMethod(method string) *FormConfig {
+	// TODO: Implement method setting
 	return cfg
 }
