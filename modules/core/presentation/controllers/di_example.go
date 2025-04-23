@@ -30,7 +30,7 @@ import (
 //    updated_at timestamp with time zone DEFAULT now()
 
 type Currency struct {
-	Code      string
+	Code      string `sdk:"primaryKey"`
 	Name      string
 	Symbol    string
 	CreatedAt time.Time
@@ -71,8 +71,7 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 	schema := crud.NewSchema(
 		"Currency",
 		"/builder",
-		"Code",
-		crud.NewSQLDataStoreAdapter[Currency, string]("currencies", "code"),
+		crud.NewSQLDataStoreAdapter[Currency, string]("currencies"),
 		crud.WithFields[Currency, string](
 			fbuilder.Text("Code", "Code").Required().Default("USD").Build(),
 			fbuilder.Text("Name", "Name").Required().Build(),
