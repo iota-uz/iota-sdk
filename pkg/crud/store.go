@@ -101,24 +101,24 @@ func (s *sqlDataStoreAdapter[T, ID]) Create(ctx context.Context, entity T) (ID, 
 		if field.Tag.Get("db") == "-" {
 			continue
 		}
-		
+
 		fieldName := field.Tag.Get("db")
 		if fieldName == "" {
 			fieldName = strings.ToLower(field.Name)
 		}
-		
+
 		isPrimaryKey := field.Tag.Get("sdk") == "primaryKey"
 		if isPrimaryKey {
 			primaryKeyField = fieldName
 		}
-		
+
 		// Skip if primary key is auto-increment and has zero value
 		fieldValue := entityValue.Field(i)
 		isZeroValue := reflect.DeepEqual(fieldValue.Interface(), reflect.Zero(fieldValue.Type()).Interface())
 		if isPrimaryKey && isZeroValue {
 			continue
 		}
-		
+
 		columns = append(columns, fieldName)
 		values = append(values, fieldValue.Interface())
 		placeholders = append(placeholders, fmt.Sprintf("$%d", len(placeholders)+1))
@@ -137,7 +137,7 @@ func (s *sqlDataStoreAdapter[T, ID]) Create(ctx context.Context, entity T) (ID, 
 	if err != nil {
 		return zero, err
 	}
-	
+
 	return result, nil
 }
 
@@ -163,19 +163,19 @@ func (s *sqlDataStoreAdapter[T, ID]) Update(ctx context.Context, id ID, entity T
 		if field.Tag.Get("db") == "-" || field.Tag.Get("sdk") == "primaryKey" {
 			continue
 		}
-		
+
 		fieldName := field.Tag.Get("db")
 		if fieldName == "" {
 			fieldName = strings.ToLower(field.Name)
 		}
-		
+
 		updates = append(updates, fmt.Sprintf("%s = $%d", fieldName, len(values)+1))
 		values = append(values, entityValue.Field(i).Interface())
 	}
-	
+
 	// Add ID as the last parameter
 	values = append(values, id)
-	
+
 	query := fmt.Sprintf(
 		"UPDATE %s SET %s WHERE %s = $%d",
 		s.tableName,
