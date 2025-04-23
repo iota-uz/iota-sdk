@@ -86,12 +86,12 @@ type FieldError struct {
 	Message string
 }
 
-// ValidationErrors collects field-level validation errors
-type ValidationErrors struct {
+// ValidationError collects field-level validation errors
+type ValidationError struct {
 	Errors []FieldError
 }
 
-func (ve ValidationErrors) Error() string {
+func (ve ValidationError) Error() string {
 	if len(ve.Errors) == 0 {
 		return "no validation errors"
 	}
@@ -149,15 +149,15 @@ func (f DefaultEntityFactory[T]) Create() T {
 
 // EntityPatcher applies form values to an entity
 type EntityPatcher[T any] interface {
-	Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationErrors)
+	Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationError)
 }
 
 // DefaultEntityPatcher is the default implementation of EntityPatcher
 type DefaultEntityPatcher[T any] struct{}
 
 // Patch applies form values to the entity
-func (p DefaultEntityPatcher[T]) Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationErrors) {
-	var validationErrors ValidationErrors
+func (p DefaultEntityPatcher[T]) Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationError) {
+	var validationErrors ValidationError
 
 	// Populate fields from form data
 	rVal := reflect.ValueOf(entity)
@@ -238,6 +238,8 @@ func setFieldValue(field reflect.Value, value string) error {
 		} else {
 			return fmt.Errorf("unsupported struct type: %v", field.Type())
 		}
+	case reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.UnsafePointer:
+		return fmt.Errorf("unsupported field type: %v", field.Kind())
 	default:
 		return fmt.Errorf("unsupported field type: %v", field.Kind())
 	}
