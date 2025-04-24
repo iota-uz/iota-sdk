@@ -129,6 +129,8 @@ type User interface {
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
+	Events() []interface{}
+
 	Can(perm *permission.Permission) bool
 	CheckPassword(password string) bool
 
@@ -203,6 +205,7 @@ type user struct {
 	lastAction  time.Time
 	createdAt   time.Time
 	updatedAt   time.Time
+	events      []interface{}
 }
 
 func (u *user) ID() uint {
@@ -370,6 +373,10 @@ func (u *user) UpdatedAt() time.Time {
 	return u.updatedAt
 }
 
+func (u *user) Events() []interface{} {
+	return u.events
+}
+
 func (u *user) Can(perm *permission.Permission) bool {
 	for _, p := range u.permissions {
 		if p.ID == perm.ID || (p.Resource == perm.Resource && p.Action == perm.Action &&
@@ -446,6 +453,11 @@ func (u *user) SetPassword(password string) (User, error) {
 	result := *u
 	result.password = string(hash)
 	result.updatedAt = time.Now()
+
+	result.events = append(result.events, &UpdatedPasswordEvent{
+		UserID: result.id,
+	})
+
 	return &result, nil
 }
 

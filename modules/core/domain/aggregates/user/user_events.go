@@ -41,22 +41,6 @@ func NewUpdatedEvent(ctx context.Context, data User) (*UpdatedEvent, error) {
 	}, nil
 }
 
-func NewUpdatedPasswordEvent(ctx context.Context, result User) (*UpdatedPasswordEvent, error) {
-	sender, ok := ctx.Value(constants.UserKey).(User)
-	if !ok {
-		return nil, errors.New("no user found")
-	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-	if !ok {
-		return nil, errors.New("no session found")
-	}
-	return &UpdatedPasswordEvent{
-		Sender:  sender,
-		Session: *sess,
-		Result:  result,
-	}, nil
-}
-
 func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
 	sender, ok := ctx.Value(constants.UserKey).(User)
 	if !ok {
@@ -87,9 +71,7 @@ type UpdatedEvent struct {
 }
 
 type UpdatedPasswordEvent struct {
-	Sender  User
-	Session session.Session
-	Result  User
+	UserID uint
 }
 
 type DeletedEvent struct {
