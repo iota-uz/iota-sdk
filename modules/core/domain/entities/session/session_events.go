@@ -1,9 +1,14 @@
 package session
 
-func NewCreatedEvent(data CreateDTO, result Session) (*CreatedEvent, error) {
+func NewCreatedEvent(data Session) (*CreatedEvent, error) {
 	return &CreatedEvent{
-		Data:   data,
-		Result: result,
+		Result: data,
+	}, nil
+}
+
+func NewUpdatedEvent(data Session) (*UpdatedEvent, error) {
+	return &UpdatedEvent{
+		Data: data,
 	}, nil
 }
 
@@ -14,7 +19,11 @@ func NewDeletedEvent(result Session) (*DeletedEvent, error) {
 }
 
 type CreatedEvent struct {
-	Data   CreateDTO
+	Result Session
+}
+
+type UpdatedEvent struct {
+	Data   Session
 	Result Session
 }
 
