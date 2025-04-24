@@ -42,9 +42,6 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 	var err error
 	var createdSession *session.Session
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err != nil {
-			return err
-		}
 		entity := data.ToEntity()
 		if err := s.repo.Create(txCtx, entity); err != nil {
 			return err
@@ -70,9 +67,6 @@ func (s *SessionService) Update(ctx context.Context, data *session.Session) erro
 
 	var updatedSession *session.Session
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err != nil {
-			return err
-		}
 		if err := s.repo.Update(txCtx, data); err != nil {
 			return err
 		}
@@ -97,9 +91,6 @@ func (s *SessionService) Delete(ctx context.Context, token string) error {
 	var err error
 	var deletedSession *session.Session
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err != nil {
-			return err
-		}
 		ses, err := s.repo.GetByToken(txCtx, token)
 		if err != nil {
 			return err
@@ -126,9 +117,6 @@ func (s *SessionService) DeleteByUserId(ctx context.Context, userId uint) ([]*se
 	var err error
 	var deletedSessions []*session.Session
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err != nil {
-			return err
-		}
 		sessions, err := s.repo.DeleteByUserId(txCtx, userId)
 		if err != nil {
 			return err
