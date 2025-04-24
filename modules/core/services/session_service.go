@@ -39,10 +39,9 @@ func (s *SessionService) GetPaginated(
 }
 
 func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) error {
-	var err error
+	entity := data.ToEntity()
 	var createdSession *session.Session
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		entity := data.ToEntity()
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
 		if err := s.repo.Create(txCtx, entity); err != nil {
 			return err
 		}
@@ -58,49 +57,39 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 }
 
 func (s *SessionService) Update(ctx context.Context, data *session.Session) error {
-	var err error
-
 	updatedEvent, err := session.NewUpdatedEvent(*data)
 	if err != nil {
 		return err
 	}
-
 	var updatedSession *session.Session
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		if err := s.repo.Update(txCtx, data); err != nil {
 			return err
 		}
-		userAfterUpdate, err := s.repo.GetByToken(txCtx, data.Token)
-		if err != nil {
+		if updated, err := s.repo.GetByToken(txCtx, data.Token); err != nil {
 			return err
+		} else {
+			updatedSession = updated
 		}
-		updatedSession = userAfterUpdate
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-
 	updatedEvent.Result = *updatedSession
 	s.publisher.Publish(updatedEvent)
-
 	return nil
 }
 
 func (s *SessionService) Delete(ctx context.Context, token string) error {
-	var err error
 	var deletedSession *session.Session
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		ses, err := s.repo.GetByToken(txCtx, token)
-		if err != nil {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if ses, err := s.repo.GetByToken(txCtx, token); err != nil {
 			return err
+		} else {
+			deletedSession = ses
 		}
-		err = s.repo.Delete(txCtx, token)
-		if err != nil {
-			return err
-		}
-		deletedSession = ses
-		return nil
+		return s.repo.Delete(txCtx, token)
 	})
 	if err != nil {
 		return err
@@ -114,14 +103,13 @@ func (s *SessionService) Delete(ctx context.Context, token string) error {
 }
 
 func (s *SessionService) DeleteByUserId(ctx context.Context, userId uint) ([]*session.Session, error) {
-	var err error
 	var deletedSessions []*session.Session
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		sessions, err := s.repo.DeleteByUserId(txCtx, userId)
-		if err != nil {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if sessions, err := s.repo.DeleteByUserId(txCtx, userId); err != nil {
 			return err
+		} else {
+			deletedSessions = sessions
 		}
-		deletedSessions = sessions
 		return nil
 	})
 	if err != nil {
