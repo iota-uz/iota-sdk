@@ -114,8 +114,6 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 		return err
 	}
 
-	var events []interface{}
-
 	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -148,17 +146,11 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 	}
 
 	updatedEvent.Result = updatedUser
-	events = append(events, updatedEvent)
 
-	if data.Password() != "" {
-		updatedPasswordEvent, err := user.NewUpdatedPasswordEvent(ctx, updatedUser)
-		if err != nil {
-			return err
-		}
-		events = append(events, updatedPasswordEvent)
+	s.publisher.Publish(updatedEvent)
+	for _, e := range data.Events() {
+		s.publisher.Publish(e)
 	}
-
-	s.publisher.Publish(events...)
 
 	return nil
 }

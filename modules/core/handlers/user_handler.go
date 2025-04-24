@@ -34,7 +34,7 @@ func (h *UserHandler) onUserPasswordUpdated(event *user.UpdatedPasswordEvent) {
 	ctx := context.Background()
 	ctx = composables.WithPool(ctx, h.pool)
 
-	if _, err := h.sessionService.DeleteByUserId(ctx, event.Result.ID()); err != nil {
+	if _, err := h.sessionService.DeleteByUserId(ctx, event.UserID); err != nil {
 		log.Printf("failed to register client chat: %v", err)
 		return
 	}
