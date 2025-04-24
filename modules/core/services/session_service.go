@@ -48,6 +48,9 @@ func (s *SessionService) Create(ctx context.Context, data *session.CreateDTO) er
 		createdSession = entity
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 	createdEvent, err := session.NewCreatedEvent(*createdSession)
 	if err != nil {
 		return err
