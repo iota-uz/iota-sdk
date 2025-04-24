@@ -158,7 +158,7 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 		events = append(events, updatedPasswordEvent)
 	}
 
-	s.publisher.Publish(events)
+	s.publisher.Publish(events...)
 
 	return nil
 }
