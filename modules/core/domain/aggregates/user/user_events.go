@@ -70,6 +70,10 @@ type UpdatedEvent struct {
 	Result  User
 }
 
+type UpdatedPasswordEvent struct {
+	UserID uint
+}
+
 type DeletedEvent struct {
 	Sender  User
 	Session session.Session
