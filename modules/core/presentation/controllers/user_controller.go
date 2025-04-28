@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -542,6 +543,13 @@ func (c *UsersController) Update(
 			return
 		}
 
+		var selectedRoles []*viewmodels.Role
+		for _, role := range roles {
+			if slices.Contains(dto.RoleIDs, role.ID()) {
+				selectedRoles = append(selectedRoles, mappers.RoleToViewModel(role))
+			}
+		}
+
 		groups, err := groupService.GetAll(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving groups: %v", err)
@@ -549,8 +557,28 @@ func (c *UsersController) Update(
 			return
 		}
 
+		var avatar *viewmodels.Upload
+		if us.Avatar() != nil {
+			avatar = mappers.UploadToViewModel(us.Avatar())
+		}
+
 		props := &users.EditFormProps{
-			User:             mappers.UserToViewModel(us),
+			User: &viewmodels.User{
+				ID:          strconv.FormatUint(uint64(id), 10),
+				FirstName:   dto.FirstName,
+				LastName:    dto.LastName,
+				MiddleName:  dto.MiddleName,
+				Email:       dto.Email,
+				Phone:       dto.Phone,
+				Avatar:      avatar,
+				Language:    dto.Language,
+				LastAction:  us.LastAction().Format(time.RFC3339),
+				CreatedAt:   us.CreatedAt().Format(time.RFC3339),
+				Roles:       selectedRoles,
+				GroupIDs:    dto.GroupIDs,
+				Permissions: mapping.MapViewModels(us.Permissions(), mappers.PermissionToViewModel),
+				AvatarID:    strconv.FormatUint(uint64(dto.AvatarID), 10),
+			},
 			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
 			Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
 			PermissionGroups: c.permissionGroups(c.app.RBAC(), us.Permissions()...),
