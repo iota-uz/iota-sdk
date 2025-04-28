@@ -704,10 +704,6 @@ func (g *PgUserRepository) execQuery(ctx context.Context, query string, args ...
 }
 
 func (g *PgUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
-	if len(roles) == 0 {
-		return nil
-	}
-
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete existing roles for user ID: %d", userID))
 	}
