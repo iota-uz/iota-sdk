@@ -159,7 +159,7 @@ func SelectedValues() templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<ul class=\"flex items-center gap-2\"><template x-for=\"item in Array.from(selectedValues.values())\"><li class=\"flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100\"><span x-text=\"item.label\"></span>q <button class=\"text-brand-500 cursor-pointer\" type=\"button\" @click=\"removeSelectedValue(item.value)\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<ul class=\"flex items-center gap-2\"><template x-for=\"item in Array.from(selectedValues.values())\"><li class=\"flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100\"><span x-text=\"item.label\"></span> <button class=\"text-brand-500 cursor-pointer\" type=\"button\" @click=\"removeSelectedValue(item.value)\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
