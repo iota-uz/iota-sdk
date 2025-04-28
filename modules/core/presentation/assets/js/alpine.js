@@ -268,6 +268,21 @@ let combobox = (searchable = false) => ({
       allOptions[this.activeIndex]?.focus();
     }
   },
+  removeSelectedValue(value) {
+    if (!this.selectedValues.has(value)) return;
+    this.selectedValues.delete(value);
+
+    const select = this.$refs.select;
+    if (select) {
+      for (const option of select.options) {
+        if (option.value === value) {
+          select.removeChild(option);
+          break;
+        }
+      }
+    }
+    select?.dispatchEvent(new Event("change"));
+  },
   select: {
     ["x-init"]() {
       this.options = this.$el.querySelectorAll("option");
