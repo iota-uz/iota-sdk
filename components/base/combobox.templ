@@ -58,11 +58,11 @@ templ SelectedValues() {
 	<ul class="flex items-center gap-2">
 		<template x-for="item in Array.from(selectedValues.values())">
 			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100">
-				<span x-text="item.label"></span>
+				<span x-text="item.label"></span>q
 				<button
 					class="text-brand-500 cursor-pointer"
 					type="button"
-                    @click="removeSelectedValue(item.value)"
+					@click="removeSelectedValue(item.value)"
 				>
 					@icons.XCircle(icons.Props{Size: "20"})
 				</button>
