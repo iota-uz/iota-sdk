@@ -307,12 +307,12 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		params := &user.FindParams{
 			Filters: []user.Filter{
 				{
-					Column: user.RoleID,
+					Column: user.RoleIDField,
 					Filter: repo.Eq(roleEntity.ID()),
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstName},
+				Fields:    []user.Field{user.FirstNameField},
 				Ascending: true,
 			},
 			Limit:  10,
@@ -339,12 +339,12 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		params := &user.FindParams{
 			Filters: []user.Filter{
 				{
-					Column: user.RoleID,
+					Column: user.RoleIDField,
 					Filter: repo.NotEq(roleEntity.ID()),
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstName},
+				Fields:    []user.Field{user.FirstNameField},
 				Ascending: true,
 			},
 			Limit:  10,
@@ -371,12 +371,12 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		params := &user.FindParams{
 			Filters: []user.Filter{
 				{
-					Column: user.RoleID,
+					Column: user.RoleIDField,
 					Filter: repo.In([]interface{}{roleEntity.ID(), secondRoleEntity.ID()}),
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstName},
+				Fields:    []user.Field{user.FirstNameField},
 				Ascending: true,
 			},
 			Limit:  10,
@@ -403,12 +403,12 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		params := &user.FindParams{
 			Filters: []user.Filter{
 				{
-					Column: user.GroupID,
+					Column: user.GroupIDField,
 					Filter: repo.Eq(groupID.String()),
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstName},
+				Fields:    []user.Field{user.FirstNameField},
 				Ascending: true,
 			},
 			Limit:  10,
