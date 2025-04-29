@@ -35,6 +35,10 @@ func (s *ClientService) GetByID(ctx context.Context, id uint) (client.Client, er
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *ClientService) GetByPhone(ctx context.Context, phoneNumber string) (client.Client, error) {
+	return s.repo.GetByPhone(ctx, phoneNumber)
+}
+
 func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindParams) ([]client.Client, error) {
 	return s.repo.GetPaginated(ctx, params)
 }

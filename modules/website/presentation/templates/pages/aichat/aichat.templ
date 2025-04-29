@@ -32,6 +32,7 @@ templ ChatIcon() {
 type Props struct {
 	Title       string
 	Description string
+	Endpoint    string
 }
 
 templ chatCSS() {
@@ -144,6 +145,48 @@ templ chatCSS() {
 			border: 1px solid var(--stroke-color);
 			color: var(--primary-color);
 		}
+
+		.wrapper .messages {
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+			max-height: 300px;
+			overflow-y: auto;
+			margin-bottom: 1rem;
+		}
+
+		.wrapper .message {
+			padding: 0.75rem 1rem;
+			border-radius: 0.5rem;
+			max-width: 80%;
+		}
+
+		.wrapper .user-message {
+			align-self: flex-end;
+			background-color: var(--primary-color);
+			color: white;
+		}
+
+		.wrapper .assistant-message {
+			align-self: flex-start;
+			background-color: #F2F5F8;
+			color: #333;
+		}
+
+		.wrapper #input-container {
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+			margin-bottom: 1rem;
+		}
+
+		.wrapper #phone-input {
+			width: 100%;
+		}
+
+		.wrapper #message-textarea {
+			width: 100%;
+		}
 	</style>
 }
 
@@ -176,12 +219,21 @@ templ Chat(props Props) {
 			id="body"
 			class="body"
 		>
-			<textarea
-				id="message-textarea"
-				rows="7"
-				placeholder="Введите вопрос"
-				class="textarea"
-			></textarea>
+			<div id="chat-messages" class="messages"></div>
+			<div id="input-container" class="flex gap-2">
+				<input
+					id="phone-input"
+					type="tel"
+					placeholder="Телефон"
+					class="textarea"
+				/>
+				<textarea
+					id="message-textarea"
+					rows="7"
+					placeholder="Введите вопрос"
+					class="textarea flex-1"
+				></textarea>
+			</div>
 			<div class="faq">
 				<slot></slot>
 			</div>

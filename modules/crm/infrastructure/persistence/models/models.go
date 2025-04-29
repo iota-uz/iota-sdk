@@ -34,6 +34,7 @@ type Message struct {
 	CreatedAt      time.Time
 	ChatID         uint
 	Message        string
+	Source         string
 	SenderUserID   sql.NullInt64
 	SenderClientID sql.NullInt64
 	ReadAt         sql.NullTime

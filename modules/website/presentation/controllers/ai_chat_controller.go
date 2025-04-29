@@ -1,25 +1,34 @@
 package controllers
 
 import (
+	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
+	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/templates/pages/aichat"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 func NewAIChatController(app application.Application) application.Controller {
 	return &AIChatController{
-		basePath: "/website/ai-chat",
-		app:      app,
+		basePath:      "/website/ai-chat",
+		app:           app,
+		chatService:   app.Service(services.ChatService{}).(*services.ChatService),
+		clientService: app.Service(services.ClientService{}).(*services.ClientService),
 	}
 }
 
 type AIChatController struct {
-	basePath string
-	app      application.Application
+	basePath      string
+	app           application.Application
+	chatService   *services.ChatService
+	clientService *services.ClientService
 }
 
 func (c *AIChatController) Key() string {
@@ -42,12 +51,16 @@ func (c *AIChatController) Register(r *mux.Router) {
 	bareRouter := r.PathPrefix(c.basePath).Subrouter()
 	bareRouter.HandleFunc("/payload", c.aiChat).Methods(http.MethodGet)
 	bareRouter.HandleFunc("/test-wc", c.aiChatWC).Methods(http.MethodGet)
+	bareRouter.HandleFunc("/message", c.handleMessage).Methods(http.MethodPost)
+	bareRouter.HandleFunc("/messages/{chat_id}", c.getThreadMessages).Methods(http.MethodGet)
+	bareRouter.HandleFunc("/messages/{chat_id}", c.addMessageToThread).Methods(http.MethodPost)
 }
 
 func (c *AIChatController) configureAIChat(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(aichat.Configure(aichat.Props{
 		Title:       "AI Chatbot",
 		Description: "Наш AI-бот готов помочь вам круглосуточно",
+		Endpoint:    c.basePath + "/message",
 	})).ServeHTTP(w, r)
 }
 
@@ -57,9 +70,272 @@ func (c *AIChatController) aiChat(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(aichat.Chat(aichat.Props{
 		Title:       title,
 		Description: description,
+		Endpoint:    c.basePath + "/message",
 	})).ServeHTTP(w, r)
 }
 
 func (c *AIChatController) aiChatWC(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(aichat.WebComponent()).ServeHTTP(w, r)
+}
+
+type ChatMessage struct {
+	Message string `json:"message"`
+	Phone   string `json:"phone,omitempty"` // Added phone field
+}
+
+type ChatResponse struct {
+	ThreadID string `json:"thread_id"`
+}
+
+type ThreadMessage struct {
+	Role    string `json:"role"`
+	Message string `json:"message"`
+}
+
+type ThreadMessagesResponse struct {
+	Messages []ThreadMessage `json:"messages"`
+}
+
+func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request) {
+	// Parse the incoming message
+	var msg ChatMessage
+	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	logger := composables.UseLogger(ctx)
+
+	var chatEntity chat.Chat
+	var err error
+
+	// Get or create a chat based on phone number if provided
+	if msg.Phone != "" {
+		logger.WithField("phone", msg.Phone).Info("Using phone number to get or create chat")
+		chatEntity, _, err = c.chatService.GetOrCreateChatByPhone(ctx, msg.Phone)
+		if err != nil {
+			logger.WithError(err).Error("failed to get or create chat by phone")
+			http.Error(w, "Failed to get or create chat", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// No phone provided - not supported in the refactored version
+		http.Error(w, "Phone number is required", http.StatusBadRequest)
+		return
+	}
+
+	// Create a sender for the client message
+	sender := chat.NewClientSender(
+		chatEntity.ClientID(),
+		"Guest", // Default name for incoming messages
+		"User",
+	)
+
+	// Add the client message to the chat using service
+	updatedChat, err := c.chatService.AddMessageToChat(
+		ctx,
+		chatEntity.ID(),
+		msg.Message,
+		sender,
+		chat.WebsiteSource,
+	)
+	if err != nil {
+		logger.WithError(err).Error("failed to add message to chat")
+		http.Error(w, "Failed to add message to chat", http.StatusInternalServerError)
+		return
+	}
+
+	// Add an AI response message
+	aiResponse := "Thank you for your message. I'll get back to you shortly."
+	finalChat, err := c.chatService.AddMessageToChat(
+		ctx,
+		updatedChat.ID(),
+		aiResponse,
+		chat.NewUserSender(1, "AI", "Assistant"),
+		chat.WebsiteSource,
+	)
+	if err != nil {
+		logger.WithError(err).Error("failed to add AI response")
+		http.Error(w, "Failed to add AI response", http.StatusInternalServerError)
+		return
+	}
+
+	// Create a response with a thread ID (using chat ID)
+	response := ChatResponse{
+		ThreadID: strconv.FormatUint(uint64(finalChat.ID()), 10),
+	}
+
+	// Set response headers
+	w.Header().Set("Content-Type", "application/json")
+
+	// Write the response
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (c *AIChatController) getThreadMessages(w http.ResponseWriter, r *http.Request) {
+	// Get the chat ID from the URL path
+	chatIDStr := mux.Vars(r)["chat_id"]
+	logger := composables.UseLogger(r.Context())
+
+	// Convert chat ID to uint
+	chatID, err := strconv.ParseUint(chatIDStr, 10, 32)
+	if err != nil {
+		logger.WithError(err).WithField("chat_id", chatIDStr).Error("invalid chat ID format")
+		http.Error(w, "Invalid chat ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Get the chat by ID using the service
+	chatEntity, err := c.chatService.GetByID(r.Context(), uint(chatID))
+	if err != nil {
+		http.Error(w, "Thread not found", http.StatusNotFound)
+		return
+	}
+
+	// Convert chat messages to thread messages
+	messages := chatEntity.Messages()
+	threadMessages := make([]ThreadMessage, 0, len(messages))
+	for _, msg := range messages {
+		role := "assistant"
+		if msg.Sender().IsClient() {
+			role = "user"
+		}
+		threadMessages = append(threadMessages, ThreadMessage{
+			Role:    role,
+			Message: msg.Message(),
+		})
+	}
+
+	// Create the response
+	response := ThreadMessagesResponse{
+		Messages: threadMessages,
+	}
+
+	// Set response headers
+	w.Header().Set("Content-Type", "application/json")
+
+	// Write the response
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Request) {
+	// Get the chat ID from the URL path
+	vars := mux.Vars(r)
+	chatIDStr := vars["chat_id"]
+	logger := composables.UseLogger(r.Context())
+
+	// Parse the incoming message
+	var msg ChatMessage
+	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Convert chat ID to uint
+	chatID, err := strconv.ParseUint(chatIDStr, 10, 32)
+	if err != nil {
+		logger.WithError(err).WithField("chat_id", chatIDStr).Error("invalid chat ID format")
+		http.Error(w, "Invalid chat ID format", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Create a sender based on message source
+	var sender chat.Sender
+	var clientID uint
+
+	// If phone provided, use it to identify the client
+	if msg.Phone != "" {
+		// Get client by phone first
+		clientEntity, err := c.clientService.GetByPhone(ctx, msg.Phone)
+		if err != nil {
+			chatEntity, clientEntity, err := c.chatService.GetOrCreateChatByPhone(ctx, msg.Phone)
+			if err != nil {
+				logger.WithError(err).Error("failed to get or create chat by phone")
+				http.Error(w, "Failed to get or create chat by phone", http.StatusInternalServerError)
+				return
+			}
+
+			// Verify this client matches the requested chat
+			if chatEntity.ID() != uint(chatID) {
+				logger.Error("chat ID mismatch")
+				http.Error(w, "Invalid chat ID for this phone number", http.StatusBadRequest)
+				return
+			}
+
+			clientID = clientEntity.ID()
+			sender = chat.NewClientSender(clientID, clientEntity.FirstName(), clientEntity.LastName())
+		} else {
+			clientID = clientEntity.ID()
+			sender = chat.NewClientSender(clientID, clientEntity.FirstName(), clientEntity.LastName())
+		}
+	} else {
+		// No phone provided - use anonymous sender
+		sender = chat.NewClientSender(0, "Anonymous", "User")
+	}
+
+	// Add the client message to the chat
+	updatedChat, err := c.chatService.AddMessageToChat(
+		ctx,
+		uint(chatID),
+		msg.Message,
+		sender,
+		chat.WebsiteSource,
+	)
+	if err != nil {
+		logger.WithError(err).Error("failed to add message to chat")
+		http.Error(w, "Failed to add message to chat", http.StatusInternalServerError)
+		return
+	}
+
+	// Add an AI response message
+	aiResponse := "Thank you for your message. I'll get back to you shortly."
+	finalChat, err := c.chatService.AddMessageToChat(
+		ctx,
+		updatedChat.ID(),
+		aiResponse,
+		chat.NewUserSender(1, "AI", "Assistant"),
+		chat.WebsiteSource,
+	)
+	if err != nil {
+		logger.WithError(err).Error("failed to add AI response")
+		http.Error(w, "Failed to add AI response", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert chat messages to thread messages for response
+	messages := finalChat.Messages()
+	threadMessages := make([]ThreadMessage, 0, len(messages))
+	for _, msg := range messages {
+		role := "assistant"
+		if msg.Sender().IsClient() {
+			role = "user"
+		}
+		threadMessages = append(threadMessages, ThreadMessage{
+			Role:    role,
+			Message: msg.Message(),
+		})
+	}
+
+	// Create the response with the updated thread
+	response := ThreadMessagesResponse{
+		Messages: threadMessages,
+	}
+
+	// Set response headers
+	w.Header().Set("Content-Type", "application/json")
+
+	// Write the response
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
