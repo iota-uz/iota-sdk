@@ -88,7 +88,17 @@ func DefaultParams() *composables.Params {
 	}
 }
 
+// sanitizeDBName replaces special characters in database names with underscores
+func sanitizeDBName(name string) string {
+	sanitized := strings.ReplaceAll(name, "/", "_")
+	sanitized = strings.ReplaceAll(sanitized, " ", "_")
+	sanitized = strings.ReplaceAll(sanitized, "-", "_")
+	return sanitized
+}
+
 func CreateDB(name string) {
+	sanitizedName := sanitizeDBName(name)
+
 	c := configuration.Use()
 	db, err := sql.Open("postgres", c.Database.ConnectionString())
 	if err != nil {
@@ -99,21 +109,23 @@ func CreateDB(name string) {
 			panic(err)
 		}
 	}()
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", name))
+	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", name))
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", sanitizedName))
 	if err != nil {
 		panic(err)
 	}
 }
 
 func DbOpts(name string) string {
+	sanitizedName := sanitizeDBName(name)
+
 	c := configuration.Use()
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.Database.Host, c.Database.Port, c.Database.User, strings.ToLower(name), c.Database.Password,
+		c.Database.Host, c.Database.Port, c.Database.User, strings.ToLower(sanitizedName), c.Database.Password,
 	)
 }
 

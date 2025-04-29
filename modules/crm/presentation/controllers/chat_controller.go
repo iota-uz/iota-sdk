@@ -355,10 +355,18 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	chatEntity, err := c.chatService.SendMessage(r.Context(), services.SendMessageDTO{
-		ChatID:  chatID,
-		Message: dto.Message,
-	})
+	usr, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	chatEntity, err := c.chatService.SendMessage(
+		r.Context(),
+		chatID,
+		chat.NewMessage(
+			dto.Message, chat.NewUserSender(chat.SMSTransport, usr.ID(), usr.FirstName(), usr.LastName()),
+		),
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

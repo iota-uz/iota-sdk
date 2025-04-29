@@ -110,6 +110,7 @@ func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request)
 
 	// Create a sender for the client message
 	sender := chat.NewClientSender(
+		chat.WebsiteTransport,
 		chatEntity.ClientID(),
 		"Guest", // Default name for incoming messages
 		"User",
@@ -119,9 +120,10 @@ func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request)
 	updatedChat, err := c.chatService.AddMessageToChat(
 		ctx,
 		chatEntity.ID(),
-		msg.Message,
-		sender,
-		chat.WebsiteSource,
+		chat.NewMessage(
+			msg.Message,
+			sender,
+		),
 	)
 	if err != nil {
 		logger.WithError(err).Error("failed to add message to chat")
@@ -134,9 +136,10 @@ func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request)
 	finalChat, err := c.chatService.AddMessageToChat(
 		ctx,
 		updatedChat.ID(),
-		aiResponse,
-		chat.NewUserSender(1, "AI", "Assistant"),
-		chat.WebsiteSource,
+		chat.NewMessage(
+			aiResponse,
+			chat.NewUserSender(chat.WebsiteTransport, 1, "AI", "Assistant"),
+		),
 	)
 	if err != nil {
 		logger.WithError(err).Error("failed to add AI response")
@@ -184,7 +187,7 @@ func (c *AIChatController) getThreadMessages(w http.ResponseWriter, r *http.Requ
 	threadMessages := make([]dtos.ThreadMessage, 0, len(messages))
 	for _, msg := range messages {
 		role := "assistant"
-		if msg.Sender().IsClient() {
+		if msg.Sender().Type() == chat.ClientSenderType {
 			role = "user"
 		}
 		threadMessages = append(threadMessages, dtos.ThreadMessage{
@@ -255,23 +258,34 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 			}
 
 			clientID = clientEntity.ID()
-			sender = chat.NewClientSender(clientID, clientEntity.FirstName(), clientEntity.LastName())
+			sender = chat.NewClientSender(
+				chat.WebsiteTransport,
+				clientID,
+				clientEntity.FirstName(),
+				clientEntity.LastName(),
+			)
 		} else {
 			clientID = clientEntity.ID()
-			sender = chat.NewClientSender(clientID, clientEntity.FirstName(), clientEntity.LastName())
+			sender = chat.NewClientSender(
+				chat.WebsiteTransport,
+				clientID,
+				clientEntity.FirstName(),
+				clientEntity.LastName(),
+			)
 		}
 	} else {
 		// No phone provided - use anonymous sender
-		sender = chat.NewClientSender(0, "Anonymous", "User")
+		sender = chat.NewClientSender(chat.WebsiteTransport, 0, "Anonymous", "User")
 	}
 
 	// Add the client message to the chat
 	updatedChat, err := c.chatService.AddMessageToChat(
 		ctx,
 		uint(chatID),
-		msg.Message,
-		sender,
-		chat.WebsiteSource,
+		chat.NewMessage(
+			msg.Message,
+			sender,
+		),
 	)
 	if err != nil {
 		logger.WithError(err).Error("failed to add message to chat")
@@ -284,9 +298,10 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 	finalChat, err := c.chatService.AddMessageToChat(
 		ctx,
 		updatedChat.ID(),
-		aiResponse,
-		chat.NewUserSender(1, "AI", "Assistant"),
-		chat.WebsiteSource,
+		chat.NewMessage(
+			aiResponse,
+			chat.NewUserSender(chat.WebsiteTransport, 1, "AI", "Assistant"),
+		),
 	)
 	if err != nil {
 		logger.WithError(err).Error("failed to add AI response")
@@ -299,7 +314,7 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 	threadMessages := make([]dtos.ThreadMessage, 0, len(messages))
 	for _, msg := range messages {
 		role := "assistant"
-		if msg.Sender().IsClient() {
+		if msg.Sender().Type() == chat.ClientSenderType {
 			role = "user"
 		}
 		threadMessages = append(threadMessages, dtos.ThreadMessage{

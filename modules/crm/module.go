@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -45,7 +46,7 @@ func (m *Module) Register(app application.Application) error {
 	chatsService := services.NewChatService(
 		chatRepo,
 		clientRepo,
-		twilioProvider,
+		[]chat.Provider{twilioProvider},
 		app.EventPublisher(),
 	)
 	app.RegisterServices(
@@ -78,7 +79,7 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		controllers.NewChatController(app, "/crm/chats"),
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
-		controllers.NewTwilioController(app, twilioProvider),
+		// controllers.NewTwilioController(app, twilioProvider),
 	)
 
 	handlers.RegisterClientHandler(app)

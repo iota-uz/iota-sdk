@@ -31,14 +31,23 @@ CREATE TABLE chats (
     last_message_at timestamp(3) DEFAULT now()
 );
 
+CREATE TABLE chat_members (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    chat_id int NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
+    -- Whether user_id is not client_id, both can not be set
+    user_id int REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE,
+    client_id int REFERENCES clients (id) ON DELETE SET NULL ON UPDATE CASCADE,
+    client_contact_id int REFERENCES client_contacts (id) ON DELETE SET NULL ON UPDATE CASCADE UNIQUE,
+    transport varchar(20) NOT NULL,
+    transport_meta jsonb
+);
+
 CREATE TABLE messages (
     id serial PRIMARY KEY,
     created_at timestamp(3) DEFAULT now() NOT NULL,
     chat_id int NOT NULL REFERENCES chats (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    sender_id uuid REFERENCES chat_members (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     message text NOT NULL,
-    transport varchar(20) NOT NULL,
-    sender_user_id int REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE,
-    sender_client_id int REFERENCES clients (id) ON DELETE SET NULL ON UPDATE CASCADE,
     is_read boolean DEFAULT FALSE NOT NULL,
     read_at timestamp(3)
 );

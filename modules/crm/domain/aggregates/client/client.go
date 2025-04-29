@@ -82,6 +82,16 @@ func WithPhone(phone phone.Phone) Option {
 
 // --- Interface ---
 
+type ContactType string
+
+const (
+	ContactTypeEmail    ContactType = "email"
+	ContactTypePhone    ContactType = "phone"
+	ContactTypeTelegram ContactType = "telegram"
+	ContactTypeWhatsApp ContactType = "whatsapp"
+	ContactTypeOther    ContactType = "other"
+)
+
 type Client interface {
 	ID() uint
 	FirstName() string
@@ -95,9 +105,13 @@ type Client interface {
 	Passport() passport.Passport
 	Pin() tax.Pin
 	Comments() string
+	Contacts() []Contact
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
+	SetContacts(contacts []Contact) Client
+	AddContact(contact Contact) Client
+	RemoveContact(contactID uint) Client
 	SetPhone(number phone.Phone) Client
 	SetName(firstName, lastName, middleName string) Client
 	SetAddress(address string) Client
@@ -109,8 +123,17 @@ type Client interface {
 	SetComments(comments string) Client
 }
 
-func New(
-	firstName, lastName, middleName string, opts ...Option) (Client, error) {
+type Contact interface {
+	ID() uint
+	Type() ContactType
+	Value() string
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
+}
+
+// --- Constructor ---
+
+func New(firstName, lastName, middleName string, opts ...Option) (Client, error) {
 	c := &client{
 		id:         0,
 		firstName:  firstName,
@@ -138,6 +161,7 @@ type client struct {
 	passport    passport.Passport
 	pin         tax.Pin
 	comments    string
+	contacts    []Contact
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -190,12 +214,44 @@ func (c *client) Comments() string {
 	return c.comments
 }
 
+func (c *client) Contacts() []Contact {
+	return c.contacts
+}
+
 func (c *client) CreatedAt() time.Time {
 	return c.createdAt
 }
 
 func (c *client) UpdatedAt() time.Time {
 	return c.updatedAt
+}
+
+func (c *client) SetContacts(contacts []Contact) Client {
+	result := *c
+	result.contacts = contacts
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (c *client) AddContact(contact Contact) Client {
+	result := *c
+	result.contacts = append(result.contacts, contact)
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (c *client) RemoveContact(contactID uint) Client {
+	var filteredContacts []Contact
+	for _, contact := range c.contacts {
+		if contact.ID() != contactID {
+			filteredContacts = append(filteredContacts, contact)
+		}
+	}
+
+	result := *c
+	result.contacts = filteredContacts
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (c *client) SetPhone(number phone.Phone) Client {

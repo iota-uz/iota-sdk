@@ -2,6 +2,8 @@ package models
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"time"
 )
 
@@ -47,7 +49,77 @@ type Message struct {
 	SenderUserID   sql.NullInt64
 	SenderClientID sql.NullInt64
 	ReadAt         sql.NullTime
+	TransportMeta  *TransportMeta
 	IsRead         bool
+}
+
+func NewTransportMeta(value any) *TransportMeta {
+	return &TransportMeta{value: value}
+}
+
+var _ sql.Scanner = &TransportMeta{}
+
+type TransportMeta struct {
+	value any
+}
+
+func (tm *TransportMeta) Interface() any {
+	return tm.value
+}
+
+func (tm *TransportMeta) Value() (driver.Value, error) {
+	if tm.value == nil {
+		return nil, nil
+	}
+	return driver.Value(tm.value), nil
+}
+
+func (tm *TransportMeta) Scan(value any) error {
+	if value == nil {
+		tm.value = nil
+		return nil
+	}
+	switch v := value.(type) {
+	case []byte:
+		tm.value = string(v)
+	case string:
+		tm.value = v
+	default:
+		return fmt.Errorf("unsupported type: %T", v)
+	}
+	return nil
+}
+
+type TelegramMeta struct {
+	ChatID   int64  `json:"chat_id"`
+	Username string `json:"username"`
+	Phone    string `json:"phone"`
+}
+
+type WhatsAppMeta struct {
+	Phone string `json:"phone"`
+}
+
+type InstagramMeta struct {
+	Username string `json:"username"`
+}
+
+type EmailMeta struct {
+	Email string `json:"email"`
+}
+
+type PhoneMeta struct {
+	Phone string `json:"phone"`
+}
+
+type SMSMeta struct {
+	Phone string `json:"phone"`
+}
+
+// TODO: store IP address & user agent
+type WebsiteMeta struct {
+	Phone string `json:"phone"`
+	Email string `json:"email"`
 }
 
 type MessageTemplate struct {
