@@ -19,6 +19,7 @@ const (
 	roleFindQuery = `
 		SELECT
 			r.id,
+			r.type,
 			r.name,
 			r.description,
 			r.created_at,
@@ -35,7 +36,7 @@ const (
 			rp.role_id
 		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
 	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles`
-	roleInsertQuery            = `INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id`
+	roleInsertQuery            = `INSERT INTO roles (type, name, description) VALUES ($1, $2, $3) RETURNING id`
 	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4`
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
@@ -52,10 +53,10 @@ type GormRoleRepository struct {
 func NewRoleRepository() role.Repository {
 	return &GormRoleRepository{
 		fieldMap: map[role.Field]string{
-			role.Name:         "r.name",
-			role.Description:  "r.description",
-			role.CreatedAt:    "r.created_at",
-			role.PermissionID: "rp.permission_id",
+			role.NameField:         "r.name",
+			role.DescriptionField:  "r.description",
+			role.CreatedAtField:    "r.created_at",
+			role.PermissionIDField: "rp.permission_id",
 		},
 	}
 }
@@ -108,7 +109,7 @@ func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.Find
 	baseQuery := roleFindQuery
 	// Add necessary joins based on filters
 	for _, f := range params.Filters {
-		if f.Column == role.PermissionID {
+		if f.Column == role.PermissionIDField {
 			baseQuery += " JOIN role_permissions rp ON r.id = rp.role_id"
 			break // Only add the join once
 		}
@@ -146,7 +147,7 @@ func (g *GormRoleRepository) Count(ctx context.Context, params *role.FindParams)
 
 	// Add necessary joins based on filters
 	for _, f := range params.Filters {
-		if f.Column == role.PermissionID {
+		if f.Column == role.PermissionIDField {
 			baseQuery += " JOIN role_permissions rp ON r.id = rp.role_id"
 			break // Only add the join once
 		}
@@ -192,6 +193,7 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 	if err := tx.QueryRow(
 		ctx,
 		roleInsertQuery,
+		entity.Type,
 		entity.Name,
 		entity.Description,
 	).Scan(&id); err != nil {
@@ -299,6 +301,7 @@ func (g *GormRoleRepository) queryRoles(ctx context.Context, query string, args 
 
 		if err := rows.Scan(
 			&r.ID,
+			&r.Type,
 			&r.Name,
 			&r.Description,
 			&r.CreatedAt,

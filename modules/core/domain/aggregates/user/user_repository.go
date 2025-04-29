@@ -9,17 +9,17 @@ import (
 type Field = int
 
 const (
-	FirstName Field = iota
-	LastName
-	MiddleName
-	Email
-	Phone
-	GroupID
-	RoleID
-	PermissionID
-	LastLogin
-	CreatedAt
-	UpdatedAt
+	FirstNameField Field = iota
+	LastNameField
+	MiddleNameField
+	EmailField
+	PhoneField
+	GroupIDField
+	RoleIDField
+	PermissionIDField
+	LastLoginField
+	CreatedAtField
+	UpdatedAtField
 )
 
 type SortBy repo.SortBy[Field]
