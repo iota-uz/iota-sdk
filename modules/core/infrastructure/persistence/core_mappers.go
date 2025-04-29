@@ -92,6 +92,7 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 
 	return &models.User{
 		ID:         entity.ID(),
+		Type:       string(entity.Type()),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
 		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
@@ -134,6 +135,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 	}
 	return &models.Role{
 		ID:          entity.ID(),
+		Type:        string(entity.Type()),
 		Name:        entity.Name(),
 		Description: mapping.ValueToSQLNullString(entity.Description()),
 		CreatedAt:   entity.CreatedAt(),
@@ -457,6 +459,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 func ToDBGroup(g group.Group) *models.Group {
 	return &models.Group{
 		ID:          g.ID().String(),
+		Type:        string(g.Type()),
 		Name:        g.Name(),
 		Description: mapping.ValueToSQLNullString(g.Description()),
 		CreatedAt:   g.CreatedAt(),
