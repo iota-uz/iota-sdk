@@ -49,8 +49,8 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 		userRepository: userRepo,
 		roleRepository: roleRepo,
 		fieldMap: map[group.Field]string{
-			group.CreatedAt: "g.created_at",
-			group.UpdatedAt: "g.updated_at",
+			group.CreatedAtField: "g.created_at",
+			group.UpdatedAtField: "g.updated_at",
 		},
 	}
 }
