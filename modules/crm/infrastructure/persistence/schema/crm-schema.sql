@@ -36,7 +36,7 @@ CREATE TABLE messages (
     created_at timestamp(3) DEFAULT now() NOT NULL,
     chat_id int NOT NULL REFERENCES chats (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     message text NOT NULL,
-    source varchar(20) NOT NULL,
+    transport varchar(20) NOT NULL,
     sender_user_id int REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE,
     sender_client_id int REFERENCES clients (id) ON DELETE SET NULL ON UPDATE CASCADE,
     is_read boolean DEFAULT FALSE NOT NULL,

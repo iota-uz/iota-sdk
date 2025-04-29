@@ -137,10 +137,10 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 
 func ToDBMessage(entity chat.Message, chatID uint) *models.Message {
 	dbMessage := &models.Message{
-		ID:      entity.ID(),
-		Message: entity.Message(),
-		ChatID:  chatID,
-		Source:  string(entity.Source()),
+		ID:        entity.ID(),
+		Message:   entity.Message(),
+		ChatID:    chatID,
+		Transport: string(entity.Sender().Transport()),
 		SenderUserID: sql.NullInt64{
 			Int64: 0,
 			Valid: false,
@@ -153,10 +153,10 @@ func ToDBMessage(entity chat.Message, chatID uint) *models.Message {
 		ReadAt:    mapping.PointerToSQLNullTime(entity.ReadAt()),
 		CreatedAt: entity.CreatedAt(),
 	}
-	if entity.Sender().IsUser() {
-		dbMessage.SenderUserID = mapping.ValueToSQLNullInt64(int64(entity.Sender().ID()))
+	if entity.Sender().Type() == chat.UserSenderType {
+		dbMessage.SenderUserID = mapping.ValueToSQLNullInt64(int64(entity.Sender().SenderID()))
 	} else {
-		dbMessage.SenderClientID = mapping.ValueToSQLNullInt64(int64(entity.Sender().ID()))
+		dbMessage.SenderClientID = mapping.ValueToSQLNullInt64(int64(entity.Sender().SenderID()))
 	}
 	return dbMessage
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
+	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/templates/pages/aichat"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -78,27 +79,9 @@ func (c *AIChatController) aiChatWC(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(aichat.WebComponent()).ServeHTTP(w, r)
 }
 
-type ChatMessage struct {
-	Message string `json:"message"`
-	Phone   string `json:"phone,omitempty"` // Added phone field
-}
-
-type ChatResponse struct {
-	ThreadID string `json:"thread_id"`
-}
-
-type ThreadMessage struct {
-	Role    string `json:"role"`
-	Message string `json:"message"`
-}
-
-type ThreadMessagesResponse struct {
-	Messages []ThreadMessage `json:"messages"`
-}
-
 func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request) {
 	// Parse the incoming message
-	var msg ChatMessage
+	var msg dtos.ChatMessage
 	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -162,7 +145,7 @@ func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Create a response with a thread ID (using chat ID)
-	response := ChatResponse{
+	response := dtos.ChatResponse{
 		ThreadID: strconv.FormatUint(uint64(finalChat.ID()), 10),
 	}
 
@@ -198,20 +181,20 @@ func (c *AIChatController) getThreadMessages(w http.ResponseWriter, r *http.Requ
 
 	// Convert chat messages to thread messages
 	messages := chatEntity.Messages()
-	threadMessages := make([]ThreadMessage, 0, len(messages))
+	threadMessages := make([]dtos.ThreadMessage, 0, len(messages))
 	for _, msg := range messages {
 		role := "assistant"
 		if msg.Sender().IsClient() {
 			role = "user"
 		}
-		threadMessages = append(threadMessages, ThreadMessage{
+		threadMessages = append(threadMessages, dtos.ThreadMessage{
 			Role:    role,
 			Message: msg.Message(),
 		})
 	}
 
 	// Create the response
-	response := ThreadMessagesResponse{
+	response := dtos.ThreadMessagesResponse{
 		Messages: threadMessages,
 	}
 
@@ -232,7 +215,7 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 	logger := composables.UseLogger(r.Context())
 
 	// Parse the incoming message
-	var msg ChatMessage
+	var msg dtos.ChatMessage
 	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -313,20 +296,20 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 
 	// Convert chat messages to thread messages for response
 	messages := finalChat.Messages()
-	threadMessages := make([]ThreadMessage, 0, len(messages))
+	threadMessages := make([]dtos.ThreadMessage, 0, len(messages))
 	for _, msg := range messages {
 		role := "assistant"
 		if msg.Sender().IsClient() {
 			role = "user"
 		}
-		threadMessages = append(threadMessages, ThreadMessage{
+		threadMessages = append(threadMessages, dtos.ThreadMessage{
 			Role:    role,
 			Message: msg.Message(),
 		})
 	}
 
 	// Create the response with the updated thread
-	response := ThreadMessagesResponse{
+	response := dtos.ThreadMessagesResponse{
 		Messages: threadMessages,
 	}
 

@@ -84,9 +84,9 @@ func PassportToViewModel(p passport.Passport) viewmodels.Passport {
 }
 
 func SenderToViewModel(entity chat.Sender) viewmodels.MessageSender {
-	senderID := strconv.FormatUint(uint64(entity.ID()), 10)
+	senderID := strconv.FormatUint(uint64(entity.SenderID()), 10)
 	initials := shared.GetInitials(entity.FirstName(), entity.LastName())
-	if entity.IsClient() {
+	if entity.Type() == chat.ClientSenderType {
 		return viewmodels.NewClientMessageSender(senderID, initials)
 	}
 	return viewmodels.NewUserMessageSender(senderID, initials)

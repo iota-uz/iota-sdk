@@ -22,6 +22,15 @@ type Client struct {
 	UpdatedAt   time.Time
 }
 
+type ClientContact struct {
+	ID           uint
+	ClientID     uint
+	ContactType  string
+	ContactValue string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type Chat struct {
 	ID            uint
 	ClientID      uint
@@ -34,7 +43,7 @@ type Message struct {
 	CreatedAt      time.Time
 	ChatID         uint
 	Message        string
-	Source         string
+	Transport      string
 	SenderUserID   sql.NullInt64
 	SenderClientID sql.NullInt64
 	ReadAt         sql.NullTime

@@ -31,24 +31,34 @@ type SendMessageDTO struct {
 }
 
 type ChatService struct {
-	repo          chat.Repository
-	clientRepo    client.Repository
-	cpassProvider cpassproviders.Provider
-	publisher     eventbus.EventBus
+	repo       chat.Repository
+	clientRepo client.Repository
+	providers  map[chat.Transport]chat.Provider
+	publisher  eventbus.EventBus
 }
 
 func NewChatService(
 	repo chat.Repository,
 	clientRepo client.Repository,
-	cpassProvider cpassproviders.Provider,
+	providers []chat.Provider,
 	publisher eventbus.EventBus,
 ) *ChatService {
-	return &ChatService{
-		repo:          repo,
-		clientRepo:    clientRepo,
-		cpassProvider: cpassProvider,
-		publisher:     publisher,
+	providerMap := make(map[chat.Transport]chat.Provider)
+	for _, provider := range providers {
+		providerMap[provider.Source()] = provider
 	}
+
+	service := &ChatService{
+		repo:       repo,
+		clientRepo: clientRepo,
+		providers:  providerMap,
+		publisher:  publisher,
+	}
+
+	for _, provider := range providers {
+		provider.OnReceived(service.onMessageReceived)
+	}
+	return service
 }
 
 func (s *ChatService) Count(ctx context.Context) (int64, error) {
@@ -147,7 +157,7 @@ func (s *ChatService) AddMessageToChat(
 	chatID uint,
 	message string,
 	sender chat.Sender,
-	source chat.MessageSource,
+	source chat.Transport,
 ) (chat.Chat, error) {
 	var updatedChat chat.Chat
 
@@ -249,6 +259,30 @@ func (s *ChatService) GetOrCreateChatByPhone(ctx context.Context, phoneNumber st
 	return chatEntity, clientEntity, nil
 }
 
+func (s *ChatService) onMessageReceived(msg chat.Message) error {
+	// Get or create a chat for the client
+	chatEntity, clientEntity, err := s.GetOrCreateChatByPhone(ctx, msg.Sender())
+	if err != nil {
+		return err
+	}
+
+	// Add the message to the chat
+	_, err = chatEntity.AddMessage(
+		msg.Message(),
+		chat.NewClientSender(
+			clientEntity.ID(),
+			clientEntity.FirstName(),
+			clientEntity.LastName(),
+		),
+		chat.SMSTransport,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *ChatService) RegisterClientMessage(
 	ctx context.Context,
 	params *cpassproviders.ReceivedMessageEvent,
@@ -278,7 +312,7 @@ func (s *ChatService) RegisterClientMessage(
 				clientEntity.FirstName(),
 				clientEntity.LastName(),
 			),
-			chat.SMSSource,
+			chat.SMSTransport,
 		); err != nil {
 			return err
 		}
@@ -313,7 +347,7 @@ func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat
 		_, err = chatEntity.AddMessage(
 			dto.Message,
 			chat.NewUserSender(1, "AI", "Assistant"), // System user ID 1 for AI
-			chat.SMSSource,
+			chat.SMSTransport,
 		)
 		if err != nil {
 			return err
