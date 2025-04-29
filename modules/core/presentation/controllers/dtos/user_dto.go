@@ -96,7 +96,7 @@ func (u *UpdateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 func (u *CreateUserDTO) ToEntity() (user.User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, rID := range u.RoleIDs {
-		r := role.New("", role.WithID(rID))
+		r := role.New(role.TypeUser, "", role.WithID(rID))
 		roles[i] = r
 	}
 
@@ -131,6 +131,7 @@ func (u *CreateUserDTO) ToEntity() (user.User, error) {
 	}
 
 	return user.New(
+		user.TypeUser,
 		u.FirstName,
 		u.LastName,
 		email,
@@ -139,10 +140,11 @@ func (u *CreateUserDTO) ToEntity() (user.User, error) {
 	), nil
 }
 
+// ToEntity TODO: remove ToEntity for UpdateUserDTO and add Apply
 func (u *UpdateUserDTO) ToEntity(id uint) (user.User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, rID := range u.RoleIDs {
-		r := role.New("", role.WithID(rID))
+		r := role.New(role.TypeUser, "", role.WithID(rID))
 		roles[i] = r
 	}
 
@@ -178,6 +180,7 @@ func (u *UpdateUserDTO) ToEntity(id uint) (user.User, error) {
 	}
 
 	return user.New(
+		user.TypeUser,
 		u.FirstName,
 		u.LastName,
 		email,

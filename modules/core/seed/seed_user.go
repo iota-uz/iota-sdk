@@ -65,7 +65,9 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 		return matches[0], nil
 	}
 
-	newRole := role.New(adminRoleName,
+	newRole := role.New(
+		role.TypeSystem,
+		adminRoleName,
 		role.WithDescription(adminRoleDesc),
 		role.WithPermissions(app.RBAC().Permissions()))
 	logger.Infof("Creating role %s", adminRoleName)

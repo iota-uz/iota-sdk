@@ -59,6 +59,7 @@ func (p *CreateDTO) ToEntity() Payment {
 		p.Comment,
 		&moneyaccount.Account{ID: p.AccountID},
 		user.New(
+			user.TypeUser,
 			"", // firstName
 			"", // lastName
 			email,
@@ -97,6 +98,7 @@ func (p *UpdateDTO) ToEntity(id uint) Payment {
 		p.Comment,
 		&moneyaccount.Account{ID: p.AccountID},
 		user.New(
+			user.TypeUser,
 			"", // firstName
 			"", // lastName
 			email,

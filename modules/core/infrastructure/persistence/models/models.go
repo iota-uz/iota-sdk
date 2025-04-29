@@ -53,6 +53,7 @@ type RolePermission struct {
 
 type Role struct {
 	ID          uint
+	Type        string
 	Name        string
 	Description sql.NullString
 	CreatedAt   time.Time
@@ -61,6 +62,7 @@ type Role struct {
 
 type User struct {
 	ID         uint
+	Type       string
 	FirstName  string
 	LastName   string
 	MiddleName sql.NullString
@@ -143,6 +145,7 @@ type Passport struct {
 
 type Group struct {
 	ID          string
+	Type        string
 	Name        string
 	Description sql.NullString
 	CreatedAt   time.Time

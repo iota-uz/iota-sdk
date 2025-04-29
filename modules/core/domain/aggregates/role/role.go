@@ -6,6 +6,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
 
+type Type string
+
+const (
+	TypeUser   Type = "user"
+	TypeSystem Type = "system"
+)
+
 type Option func(r *role)
 
 func WithID(id uint) Option {
@@ -34,6 +41,7 @@ func WithUpdatedAt(t time.Time) Option {
 
 type Role interface {
 	ID() uint
+	Type() Type
 	Name() string
 	Description() string
 	Permissions() []*permission.Permission
@@ -55,11 +63,13 @@ func WithDescription(description string) Option {
 }
 
 func New(
+	type_ Type,
 	name string,
 	opts ...Option,
 ) Role {
 	r := &role{
 		id:          0,
+		type_:       type_,
 		name:        name,
 		description: "",
 		permissions: []*permission.Permission{},
@@ -74,6 +84,7 @@ func New(
 
 type role struct {
 	id          uint
+	type_       Type
 	name        string
 	description string
 	permissions []*permission.Permission
@@ -83,6 +94,10 @@ type role struct {
 
 func (r *role) ID() uint {
 	return r.id
+}
+
+func (r *role) Type() Type {
+	return r.type_
 }
 
 func (r *role) Name() string {

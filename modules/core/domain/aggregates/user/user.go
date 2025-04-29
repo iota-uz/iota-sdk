@@ -16,6 +16,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
+type Type string
+
+const (
+	TypeSystem Type = "system"
+	TypeUser   Type = "user"
+)
+
 type Option func(u *user)
 
 // --- Option setters ---
@@ -111,6 +118,7 @@ func WithPhone(p phone.Phone) Option {
 
 type User interface {
 	ID() uint
+	Type() Type
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -155,6 +163,7 @@ type User interface {
 // ---- Implementation ----
 
 func New(
+	type_ Type,
 	firstName, lastName string,
 	email internet.Email,
 	uiLanguage UILanguage,
@@ -162,6 +171,7 @@ func New(
 ) User {
 	u := &user{
 		id:          0,
+		type_:       type_,
 		firstName:   firstName,
 		lastName:    lastName,
 		middleName:  "",
@@ -188,6 +198,7 @@ func New(
 
 type user struct {
 	id          uint
+	type_       Type
 	firstName   string
 	lastName    string
 	middleName  string
@@ -210,6 +221,10 @@ type user struct {
 
 func (u *user) ID() uint {
 	return u.id
+}
+
+func (u *user) Type() Type {
+	return u.type_
 }
 
 func (u *user) FirstName() string {

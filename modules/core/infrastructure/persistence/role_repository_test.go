@@ -19,6 +19,7 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 	}
 
 	data := role.New(
+		role.TypeUser,
 		"test",
 		role.WithDescription("test"),
 		role.WithPermissions([]*permission.Permission{permissions.PositionCreate}),

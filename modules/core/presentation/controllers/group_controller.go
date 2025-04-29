@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/groups"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -305,7 +306,7 @@ func (c *GroupsController) Create(
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
-	dto, err := composables.UseForm(&group.CreateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.CreateGroupDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -386,7 +387,7 @@ func (c *GroupsController) Update(
 		return
 	}
 
-	dto, err := composables.UseForm(&group.UpdateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.UpdateGroupDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

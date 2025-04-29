@@ -34,6 +34,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 	// First role
 	roleData := role.New(
+		role.TypeUser,
 		"test-role",
 		role.WithDescription("test role description"),
 		role.WithPermissions([]*permission.Permission{
@@ -46,6 +47,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 	// Second role for testing role filtering
 	secondRoleData := role.New(
+		role.TypeSystem,
 		"admin-role",
 		role.WithDescription("admin role description"),
 		role.WithPermissions([]*permission.Permission{
@@ -61,6 +63,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	userEntity := user.New(
+		user.TypeUser,
 		"John",
 		"Doe",
 		email,
@@ -75,6 +78,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	secondUserEntity := user.New(
+		user.TypeUser,
 		"Jane",
 		"Smith",
 		secondEmail,
@@ -90,6 +94,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		groupID := uuid.New()
 		// Create group with ID, name, description, users, and roles
 		groupEntity := group.New(
+			group.TypeUser,
 			"Test Group",
 			group.WithID(groupID),
 			group.WithDescription("Test group description"),
@@ -125,6 +130,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Create another group for testing
 		secondGroupID := uuid.New()
 		secondGroupEntity := group.New(
+			group.TypeUser,
 			"Second Group",
 			group.WithID(secondGroupID),
 			group.WithDescription("Second group description"),
@@ -146,6 +152,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Create a new group
 		groupID := uuid.New()
 		groupEntity := group.New(
+			group.TypeUser,
 			"Get By ID Group",
 			group.WithID(groupID),
 			group.WithDescription("Group for GetByID test"),
@@ -178,6 +185,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Create a new group
 		groupID := uuid.New()
 		groupEntity := group.New(
+			group.TypeUser,
 			"Update Group",
 			group.WithID(groupID),
 			group.WithDescription("Group for update test"),
@@ -237,6 +245,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Create a group with both users and roles
 		groupID := uuid.New()
 		groupEntity := group.New(
+			group.TypeUser,
 			"Remove Test Group",
 			group.WithID(groupID),
 			group.WithDescription("Group for removal test"),
@@ -324,6 +333,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Create a group with custom creation time
 		customTimeGroupID := uuid.New()
 		customTimeGroupEntity := group.New(
+			group.TypeUser,
 			"Time Filter Group",
 			group.WithID(customTimeGroupID),
 			group.WithDescription("Group for time filter test"),
@@ -493,6 +503,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		for i := 0; i < 5; i++ {
 			groupID := uuid.New()
 			groupEntity := group.New(
+				group.TypeUser,
 				"Pagination Group "+string(rune(i+65)), // A, B, C, D, E
 				group.WithID(groupID),
 				group.WithDescription("Group for pagination test"),
@@ -542,6 +553,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Create a group to delete
 		groupID := uuid.New()
 		groupEntity := group.New(
+			group.TypeUser,
 			"Delete Test Group",
 			group.WithID(groupID),
 			group.WithDescription("Group for delete test"),

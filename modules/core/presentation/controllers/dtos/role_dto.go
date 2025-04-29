@@ -64,7 +64,7 @@ func (r *CreateRoleDTO) ToEntity(rbac rbac.RBAC) (role.Role, error) {
 		role.WithPermissions(perms),
 	}
 
-	return role.New(r.Name, options...), nil
+	return role.New(role.TypeUser, r.Name, options...), nil
 }
 
 type UpdateRoleDTO struct {
