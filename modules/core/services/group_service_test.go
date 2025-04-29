@@ -32,7 +32,7 @@ func TestGroupService_GetByID(t *testing.T) {
 
 	// Create test data
 	groupID := uuid.New()
-	testGroup := group.New(group.TypeUser, "Test Group", group.WithID(groupID))
+	testGroup := group.New("Test Group", group.WithID(groupID))
 
 	// Setup service
 	bus := eventbus.NewEventPublisher(logrus.New())
@@ -73,7 +73,7 @@ func TestGroupService_Count(t *testing.T) {
 	// Add some test groups
 	for i := 1; i <= 5; i++ {
 		groupName := "Group " + string(rune(i+64)) // A, B, C, D, E
-		groupEntity := group.New(group.TypeUser, groupName, group.WithID(uuid.New()))
+		groupEntity := group.New(groupName, group.WithID(uuid.New()))
 		_, err := groupRepository.Save(f.ctx, groupEntity)
 		require.NoError(t, err)
 	}
@@ -111,13 +111,11 @@ func TestGroupService_GetPaginated(t *testing.T) {
 
 	// Add test groups with different creation times
 	groupOlder := group.New(
-		group.TypeUser,
 		"Older Group",
 		group.WithID(uuid.New()),
 		group.WithCreatedAt(yesterday),
 	)
 	groupNewer := group.New(
-		group.TypeUser,
 		"Newer Group",
 		group.WithID(uuid.New()),
 		group.WithCreatedAt(now),

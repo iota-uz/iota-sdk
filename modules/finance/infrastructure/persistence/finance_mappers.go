@@ -91,7 +91,6 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		t.Comment,
 		&moneyaccount.Account{ID: *t.DestinationAccountID}, //nolint:exhaustruct
 		user.New(
-			user.TypeUser,
 			"", // firstName
 			"", // lastName
 			email,

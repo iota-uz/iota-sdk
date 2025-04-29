@@ -33,6 +33,12 @@ func WithID(id uint) Option {
 	}
 }
 
+func WithType(type_ Type) Option {
+	return func(u *user) {
+		u.type_ = type_
+	}
+}
+
 func WithMiddleName(middleName string) Option {
 	return func(u *user) {
 		u.middleName = middleName
@@ -163,7 +169,6 @@ type User interface {
 // ---- Implementation ----
 
 func New(
-	type_ Type,
 	firstName, lastName string,
 	email internet.Email,
 	uiLanguage UILanguage,
@@ -171,7 +176,7 @@ func New(
 ) User {
 	u := &user{
 		id:          0,
-		type_:       type_,
+		type_:       TypeUser,
 		firstName:   firstName,
 		lastName:    lastName,
 		middleName:  "",

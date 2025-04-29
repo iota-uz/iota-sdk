@@ -1,9 +1,9 @@
 -- +migrate Up
 
--- 1. Add nullable 'type' column
-ALTER TABLE roles ADD COLUMN type TEXT;
-ALTER TABLE user_groups ADD COLUMN type TEXT;
-ALTER TABLE users ADD COLUMN type TEXT;
+-- 1. Add nullable 'type' column with VARCHAR(50)
+ALTER TABLE roles ADD COLUMN type VARCHAR(50);
+ALTER TABLE user_groups ADD COLUMN type VARCHAR(50);
+ALTER TABLE users ADD COLUMN type VARCHAR(50);
 
 -- 2. Set default value 'user' for all existing records
 UPDATE roles SET type = 'user' WHERE type IS NULL;
@@ -25,7 +25,7 @@ ALTER TABLE users
 
 -- +migrate Down
 
--- Drop 'type' column if exists
+-- Drop 'type' column if it exists
 ALTER TABLE users DROP COLUMN IF EXISTS type;
 ALTER TABLE user_groups DROP COLUMN IF EXISTS type;
 ALTER TABLE roles DROP COLUMN IF EXISTS type;

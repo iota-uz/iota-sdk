@@ -21,6 +21,12 @@ func WithID(id uint) Option {
 	}
 }
 
+func WithType(type_ Type) Option {
+	return func(r *role) {
+		r.type_ = type_
+	}
+}
+
 func WithPermissions(permissions []*permission.Permission) Option {
 	return func(r *role) {
 		r.permissions = permissions
@@ -63,13 +69,12 @@ func WithDescription(description string) Option {
 }
 
 func New(
-	type_ Type,
 	name string,
 	opts ...Option,
 ) Role {
 	r := &role{
 		id:          0,
-		type_:       type_,
+		type_:       TypeUser,
 		name:        name,
 		description: "",
 		permissions: []*permission.Permission{},

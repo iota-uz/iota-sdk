@@ -36,7 +36,7 @@ func setupTestContext() context.Context {
 
 	// Add user to context
 	email, _ := internet.NewEmail("john.doe@example.com")
-	u := user.New(user.TypeUser, "John", "Doe", email, "en")
+	u := user.New("John", "Doe", email, "en")
 	ctx = composables.WithUser(ctx, u)
 
 	// Add localizer to context
