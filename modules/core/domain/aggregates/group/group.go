@@ -46,6 +46,12 @@ func WithID(id uuid.UUID) Option {
 	}
 }
 
+func WithType(_type Type) Option {
+	return func(g *group) {
+		g.type_ = _type
+	}
+}
+
 func WithDescription(desc string) Option {
 	return func(g *group) {
 		g.description = desc
@@ -76,10 +82,10 @@ func WithUpdatedAt(t time.Time) Option {
 	}
 }
 
-func New(type_ Type, name string, opts ...Option) Group {
+func New(name string, opts ...Option) Group {
 	g := &group{
 		id:        uuid.New(),
-		type_:     type_,
+		type_:     TypeUser,
 		name:      name,
 		createdAt: time.Now(),
 		updatedAt: time.Now(),

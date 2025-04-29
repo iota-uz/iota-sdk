@@ -49,7 +49,6 @@ func (dto *CreateGroupDTO) Ok(ctx context.Context) (map[string]string, bool) {
 
 func (dto *CreateGroupDTO) ToEntity() (group.Group, error) {
 	return group.New(
-		group.TypeUser,
 		dto.Name,
 		group.WithDescription(dto.Description),
 		group.WithCreatedAt(time.Now()),

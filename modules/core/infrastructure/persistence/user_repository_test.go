@@ -33,7 +33,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 
 	// First role
 	roleData := role.New(
-		role.TypeUser,
 		"test-role",
 		role.WithDescription("test role description"),
 		role.WithPermissions([]*permission.Permission{
@@ -47,7 +46,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 
 	// Second role for testing role filtering
 	secondRoleData := role.New(
-		role.TypeSystem,
 		"admin-role",
 		role.WithDescription("admin role description"),
 		role.WithPermissions([]*permission.Permission{
@@ -61,7 +59,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	// Create a group to test filtering
 	groupID := uuid.New()
 	groupEntity := group.New(
-		group.TypeUser,
 		"Test Group",
 		group.WithID(groupID),
 		group.WithDescription("Test group description"),
@@ -72,7 +69,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	// Second group
 	secondGroupID := uuid.New()
 	secondGroupEntity := group.New(
-		group.TypeUser,
 		"Second Group",
 		group.WithID(secondGroupID),
 		group.WithDescription("Second group description"),
@@ -86,7 +82,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userEntity := user.New(
-			user.TypeUser,
 			"John",
 			"Doe",
 			email,
@@ -117,7 +112,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userWithRoles := user.New(
-			user.TypeUser,
 			"Admin",
 			"User",
 			secondEmail,
@@ -135,7 +129,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userWithGroup := user.New(
-			user.TypeUser,
 			"Group",
 			"User",
 			thirdEmail,
@@ -154,7 +147,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userEntity := user.New(
-			user.TypeUser,
 			"Get",
 			"ByID",
 			email,
@@ -178,7 +170,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userEntity := user.New(
-			user.TypeUser,
 			"Get",
 			"ByEmail",
 			email,
@@ -200,7 +191,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userEntity := user.New(
-			user.TypeUser,
 			"Before",
 			"Update",
 			email,
@@ -225,7 +215,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userEntity := user.New(
-			user.TypeUser,
 			"User",
 			"Roles",
 			email,
@@ -271,7 +260,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userEntity := user.New(
-			user.TypeUser,
 			"User",
 			"Groups",
 			email,
@@ -436,7 +424,6 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		userEntity := user.New(
-			user.TypeUser,
 			"Delete",
 			"User",
 			email,
