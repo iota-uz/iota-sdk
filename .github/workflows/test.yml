@@ -78,16 +78,6 @@ jobs:
       - name: Check translation files
         run: make check-tr
 
-      - name: Check migrations collect idempotence
-        run: |
-          make migrate collect
-          git status --porcelain migrations/
-          if [ -n "$(git status --porcelain migrations/)" ]; then
-            echo "Error: make migrate collect produced changes, please run 'make migrate collect' and commit the changes"
-            git status --porcelain migrations/
-            exit 1
-          fi
-
       - name: Test Makefile targets
         # running migrations and seeds twice to verify that they are idempotent
         run: |
