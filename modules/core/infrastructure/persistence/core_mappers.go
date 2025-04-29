@@ -69,6 +69,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 	}
 
 	return user.New(
+		user.Type(dbUser.Type),
 		dbUser.FirstName,
 		dbUser.LastName,
 		email,
@@ -123,7 +124,7 @@ func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.R
 		role.WithCreatedAt(dbRole.CreatedAt),
 		role.WithUpdatedAt(dbRole.UpdatedAt),
 	}
-	return role.New(dbRole.Name, options...), nil
+	return role.New(role.Type(dbRole.Type), dbRole.Name, options...), nil
 }
 
 func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
@@ -450,7 +451,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 		group.WithUpdatedAt(dbGroup.UpdatedAt),
 	}
 
-	return group.New(dbGroup.Name, opts...), nil
+	return group.New(group.Type(dbGroup.Type), dbGroup.Name, opts...), nil
 }
 
 func ToDBGroup(g group.Group) *models.Group {

@@ -10,10 +10,18 @@ import (
 
 // ---- Interface ----
 
+type Type string
+
+const (
+	TypeUser   Type = "user"
+	TypeSystem Type = "system"
+)
+
 type Option func(g *group)
 
 type Group interface {
 	ID() uuid.UUID
+	Type() Type
 	Name() string
 	Description() string
 	Users() []user.User
@@ -68,9 +76,10 @@ func WithUpdatedAt(t time.Time) Option {
 	}
 }
 
-func New(name string, opts ...Option) Group {
+func New(type_ Type, name string, opts ...Option) Group {
 	g := &group{
 		id:        uuid.New(),
+		type_:     type_,
 		name:      name,
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
@@ -84,6 +93,7 @@ func New(name string, opts ...Option) Group {
 
 type group struct {
 	id          uuid.UUID
+	type_       Type
 	name        string
 	description string
 	roles       []role.Role
@@ -95,6 +105,8 @@ type group struct {
 func (g *group) ID() uuid.UUID {
 	return g.id
 }
+
+func (g *group) Type() Type { return g.type_ }
 
 func (g *group) Name() string {
 	return g.name

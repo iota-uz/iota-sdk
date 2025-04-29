@@ -62,7 +62,7 @@ func main() {
 	if err != nil {
 		panicWithStack(err)
 	}
-	usr, err := user.New("Test", "User", email, user.UILanguageEN).SetPassword("TestPass123!")
+	usr, err := user.New(user.TypeUser, "Test", "User", email, user.UILanguageEN).SetPassword("TestPass123!")
 	if err != nil {
 		panicWithStack(err)
 	}
