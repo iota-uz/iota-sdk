@@ -8,10 +8,7 @@ import (
 )
 
 func NewCreatedEvent(ctx context.Context, data CreateDTO, result Chat) (*CreatedEvent, error) {
-	u, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, err
-	}
+	u, _ := composables.UseUser(ctx)
 	return &CreatedEvent{
 		User:   u,
 		Data:   data,
@@ -28,10 +25,7 @@ func NewMessageAddedEvent(ctx context.Context, result Chat) (*MessagedAddedEvent
 }
 
 func NewDeletedEvent(ctx context.Context, result Chat) (*DeletedEvent, error) {
-	u, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, err
-	}
+	u, _ := composables.UseUser(ctx)
 	return &DeletedEvent{
 		User:   u,
 		Result: result,

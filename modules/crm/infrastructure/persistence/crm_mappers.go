@@ -140,6 +140,7 @@ func ToDBMessage(entity chat.Message, chatID uint) *models.Message {
 		ID:      entity.ID(),
 		Message: entity.Message(),
 		ChatID:  chatID,
+		Source:  string(entity.Source()),
 		SenderUserID: sql.NullInt64{
 			Int64: 0,
 			Valid: false,

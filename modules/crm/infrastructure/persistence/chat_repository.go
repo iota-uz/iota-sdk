@@ -81,21 +81,23 @@ const (
 		INSERT INTO messages (
 			chat_id,
 			message,
+			source,
 			sender_user_id,
 			sender_client_id,
 			is_read,
 			created_at
-		) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+		) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
 
 	updateMessageQuery = `
 		UPDATE messages SET 
 			chat_id = $1,
 			message = $2,
-			sender_user_id = $3,
-			sender_client_id = $4,
-			is_read = $5, 
-			read_at = $6
-		WHERE id = $7
+			source = $3,
+			sender_user_id = $4,
+			sender_client_id = $5,
+			is_read = $6, 
+			read_at = $7
+		WHERE id = $8
 	`
 
 	deleteMessageQuery = `DELETE FROM messages WHERE id = $1`
@@ -367,6 +369,7 @@ func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Mess
 		insertMessageQuery,
 		message.ChatID,
 		message.Message,
+		message.Source,
 		message.SenderUserID,
 		message.SenderClientID,
 		message.IsRead,
@@ -387,6 +390,7 @@ func (g *ChatRepository) updateMessage(ctx context.Context, message *models.Mess
 		updateMessageQuery,
 		message.ChatID,
 		message.Message,
+		message.Source,
 		message.SenderUserID,
 		message.SenderClientID,
 		message.IsRead,
