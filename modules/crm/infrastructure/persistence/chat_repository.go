@@ -7,6 +7,8 @@ import (
 	"github.com/go-faster/errors"
 
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -50,6 +52,7 @@ const (
 			m.id,
 			m.chat_id,
 			m.message,
+			m.source,
 			m.sender_user_id,
 			m.sender_client_id,
 			m.is_read,
@@ -184,6 +187,7 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 			&msg.ID,
 			&msg.ChatID,
 			&msg.Message,
+			&msg.Transport,
 			&msg.SenderUserID,
 			&msg.SenderClientID,
 			&msg.IsRead,
@@ -211,7 +215,7 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 			); err != nil {
 				return nil, errors.Wrap(err, "failed to scan user sender")
 			}
-			sender = chat.NewUserSender(user.ID, user.FirstName, user.LastName)
+			sender = chat.NewUserSender(chat.Transport(message.Transport), user.ID, user.FirstName, user.LastName)
 		}
 
 		if message.SenderClientID.Valid {
@@ -223,7 +227,38 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 			); err != nil {
 				return nil, errors.Wrap(err, "failed to scan client sender")
 			}
-			sender = chat.NewClientSender(client.ID, client.FirstName, client.LastName.String)
+			baseSender := chat.NewClientSender(
+				chat.Transport(message.Transport),
+				client.ID,
+				client.FirstName,
+				client.LastName.String,
+			)
+
+			// Note: These are placeholder implementations. In a real application,
+			// you would fetch additional data (like phone or email) from the database
+			// based on the client ID and transport type
+			switch chat.Transport(message.Transport) {
+			case chat.TelegramTransport:
+				// This should fetch telegram-specific data from database
+				sender = chat.NewTelegramSender(baseSender, 0, "", phone.Empty())
+			case chat.WhatsAppTransport:
+				sender = chat.NewWhatsAppSender(baseSender, phone.Empty())
+			case chat.InstagramTransport:
+				sender = chat.NewInstagramSender(baseSender, "")
+			case chat.SMSTransport:
+				sender = chat.NewSMSSender(baseSender, phone.Empty())
+			case chat.EmailTransport:
+				sender = chat.NewEmailSender(baseSender, internet.Email{})
+			case chat.PhoneTransport:
+				sender = chat.NewPhoneSender(baseSender, phone.Empty())
+			case chat.WebsiteTransport:
+				sender = chat.NewWebsiteSender(baseSender, phone.Empty(), internet.Email{})
+			case chat.OtherTransport:
+				sender = chat.NewOtherSender(baseSender)
+			default:
+				sender = baseSender
+
+			}
 		}
 
 		uploads, err := pool.Query(ctx, selectMessageAttachmentsQuery, message.ID)
@@ -369,7 +404,7 @@ func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Mess
 		insertMessageQuery,
 		message.ChatID,
 		message.Message,
-		message.Source,
+		message.Transport,
 		message.SenderUserID,
 		message.SenderClientID,
 		message.IsRead,
@@ -390,7 +425,7 @@ func (g *ChatRepository) updateMessage(ctx context.Context, message *models.Mess
 		updateMessageQuery,
 		message.ChatID,
 		message.Message,
-		message.Source,
+		message.Transport,
 		message.SenderUserID,
 		message.SenderClientID,
 		message.IsRead,

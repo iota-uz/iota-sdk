@@ -1,10 +1,13 @@
 package chat
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
@@ -16,24 +19,38 @@ var (
 
 // ---- Interfaces ----
 
-type MessageSource string
+type SenderType string
 
 const (
-	TelegramSource  MessageSource = "telegram"
-	WhatsAppSource  MessageSource = "whatsapp"
-	InstagramSource MessageSource = "instagram"
-	SMSSource       MessageSource = "sms"
-	EmailSource     MessageSource = "email"
-	PhoneSource     MessageSource = "phone"
-	WebsiteSource   MessageSource = "website"
-	OtherSource     MessageSource = "other"
+	UnknownSenderType SenderType = "unknown"
+	UserSenderType    SenderType = "user"
+	ClientSenderType  SenderType = "client"
 )
+
+type Transport string
+
+const (
+	TelegramTransport  Transport = "telegram"
+	WhatsAppTransport  Transport = "whatsapp"
+	InstagramTransport Transport = "instagram"
+	SMSTransport       Transport = "sms"
+	EmailTransport     Transport = "email"
+	PhoneTransport     Transport = "phone"
+	WebsiteTransport   Transport = "website"
+	OtherTransport     Transport = "other"
+)
+
+type Provider interface {
+	Transport() Transport
+	Send(ctx context.Context, msg Message) error
+	OnReceived(callback func(msg Message) error) error
+}
 
 type Chat interface {
 	ID() uint
 	ClientID() uint
 	Messages() []Message
-	AddMessage(content string, sender Sender, source MessageSource, attachments ...upload.Upload) (Message, error)
+	AddMessage(content string, sender Sender, attachments ...upload.Upload) (Message, error)
 	UnreadMessages() int
 	MarkAllAsRead()
 	LastMessage() (Message, error)
@@ -42,19 +59,67 @@ type Chat interface {
 }
 
 type Sender interface {
-	ID() uint
-	IsClient() bool
-	IsUser() bool
+	Transport() Transport
+	Type() SenderType
+	SenderID() uint
 	FirstName() string
 	LastName() string
 }
 
+// TelegramSender represents a message from Telegram
+type TelegramSender interface {
+	Sender
+	ChatID() int64
+	Username() string
+	Phone() phone.Phone
+}
+
+type TwilioSender interface {
+	Sender
+	Phone() phone.Phone
+}
+
+type WhatsAppSender interface {
+	Sender
+	Phone() phone.Phone
+}
+
+type InstagramSender interface {
+	Sender
+	Username() string
+}
+
+type SMSSender interface {
+	Sender
+	Phone() phone.Phone
+}
+
+type EmailSender interface {
+	Sender
+	Email() internet.Email
+}
+
+type PhoneSender interface {
+	Sender
+	Phone() phone.Phone
+}
+
+type OtherSender interface {
+	Sender
+}
+
+type WebsiteSender interface {
+	Sender
+	Phone() phone.Phone
+	Email() internet.Email
+}
+
 type Message interface {
 	ID() uint
+	// TODO: rename
 	Message() string
 	Sender() Sender
 	IsRead() bool
-	Source() MessageSource
 	MarkAsRead()
 	ReadAt() *time.Time
 	Attachments() []upload.Upload
@@ -63,9 +128,7 @@ type Message interface {
 
 // ---- Chat Implementation ----
 
-func New(
-	clientID uint,
-) Chat {
+func New(clientID uint) Chat {
 	return &chat{
 		id:            0,
 		clientID:      clientID,
@@ -114,7 +177,7 @@ func (c *chat) ClientID() uint {
 func (c *chat) UnreadMessages() int {
 	count := 0
 	for _, msg := range c.messages {
-		if !msg.IsRead() && msg.Sender().IsClient() {
+		if !msg.IsRead() && msg.Sender().Type() == UserSenderType {
 			count++
 		}
 	}
@@ -132,7 +195,6 @@ func (c *chat) MarkAllAsRead() {
 func (c *chat) AddMessage(
 	content string,
 	sender Sender,
-	source MessageSource,
 	attachments ...upload.Upload,
 ) (Message, error) {
 	if content == "" && len(attachments) == 0 {
@@ -142,7 +204,6 @@ func (c *chat) AddMessage(
 	msg := WithAttachments(
 		content,
 		sender,
-		source,
 		attachments...,
 	)
 
@@ -175,13 +236,11 @@ func (c *chat) CreatedAt() time.Time {
 func NewMessage(
 	msg string,
 	sender Sender,
-	source MessageSource,
 ) Message {
 	return &message{
 		id:          0,
 		message:     msg,
 		sender:      sender,
-		source:      source,
 		isRead:      false,
 		readAt:      nil,
 		attachments: []upload.Upload{},
@@ -192,14 +251,12 @@ func NewMessage(
 func WithAttachments(
 	msg string,
 	sender Sender,
-	source MessageSource,
 	attachments ...upload.Upload,
 ) Message {
 	return &message{
 		id:          0,
 		message:     msg,
 		sender:      sender,
-		source:      source,
 		isRead:      false,
 		readAt:      nil,
 		attachments: attachments,
@@ -233,7 +290,6 @@ type message struct {
 	sender      Sender
 	isRead      bool
 	readAt      *time.Time
-	source      MessageSource
 	attachments []upload.Upload
 	createdAt   time.Time
 }
@@ -252,10 +308,6 @@ func (m *message) Message() string {
 
 func (m *message) Sender() Sender {
 	return m.sender
-}
-
-func (m *message) Source() MessageSource {
-	return m.source
 }
 
 func (m *message) IsRead() bool {
@@ -280,44 +332,27 @@ func (m *message) CreatedAt() time.Time {
 }
 
 // --------
-// Sender
+// Senders
 // --------
 
-func NewUserSender(clientID uint, firstName, lastName string) Sender {
-	return &sender{
-		id:        clientID,
-		isClient:  false,
-		firstName: firstName,
-		lastName:  lastName,
-	}
-}
-
-func NewClientSender(userID uint, firstName, lastName string) Sender {
-	return &sender{
-		id:        userID,
-		isClient:  true,
-		firstName: firstName,
-		lastName:  lastName,
-	}
-}
-
 type sender struct {
-	id        uint
-	isClient  bool
+	transport Transport
+	type_     SenderType
+	senderID  uint
 	firstName string
 	lastName  string
 }
 
-func (s *sender) ID() uint {
-	return s.id
+func (s *sender) Transport() Transport {
+	return s.transport
 }
 
-func (s *sender) IsClient() bool {
-	return s.isClient
+func (s *sender) Type() SenderType {
+	return s.type_
 }
 
-func (s *sender) IsUser() bool {
-	return !s.isClient
+func (s *sender) SenderID() uint {
+	return s.senderID
 }
 
 func (s *sender) FirstName() string {
@@ -326,4 +361,192 @@ func (s *sender) FirstName() string {
 
 func (s *sender) LastName() string {
 	return s.lastName
+}
+
+// UserSender represents a message sent by a user
+
+func NewUserSender(transport Transport, id uint, firstName, lastName string) Sender {
+	return &sender{
+		senderID:  id,
+		type_:     UserSenderType,
+		firstName: firstName,
+		lastName:  lastName,
+		transport: transport,
+	}
+}
+
+func NewClientSender(transport Transport, id uint, firstName, lastName string) Sender {
+	return &sender{
+		senderID:  id,
+		type_:     ClientSenderType,
+		firstName: firstName,
+		lastName:  lastName,
+		transport: transport,
+	}
+}
+
+func NewTelegramSender(base Sender, chatID int64, username string, phone phone.Phone) TelegramSender {
+	return &telegramSender{
+		Sender:   base,
+		chatID:   chatID,
+		username: username,
+		phone:    phone,
+	}
+}
+
+type telegramSender struct {
+	Sender
+	chatID   int64
+	username string
+	phone    phone.Phone
+}
+
+func (s *telegramSender) ChatID() int64 {
+	return s.chatID
+}
+
+func (s *telegramSender) Username() string {
+	return s.username
+}
+
+func (s *telegramSender) Phone() phone.Phone {
+	return s.phone
+}
+
+// TwilioSender represents a message from Twilio SMS
+
+func NewTwilioSender(base Sender, phone phone.Phone) TwilioSender {
+	return &twilioSender{
+		Sender: base,
+		phone:  phone,
+	}
+}
+
+type twilioSender struct {
+	Sender
+	phone phone.Phone
+}
+
+func (s *twilioSender) Phone() phone.Phone {
+	return s.phone
+}
+
+// WebsiteSender represents a message from the website
+
+func NewWebsiteSender(base Sender, phone phone.Phone, email internet.Email) WebsiteSender {
+	return &websiteSender{
+		Sender: base,
+		phone:  phone,
+		email:  email,
+	}
+}
+
+type websiteSender struct {
+	Sender
+	phone phone.Phone
+	email internet.Email
+}
+
+func (s *websiteSender) Phone() phone.Phone {
+	return s.phone
+}
+
+func (s *websiteSender) Email() internet.Email {
+	return s.email
+}
+
+// WhatsAppSender represents a message from WhatsApp
+func NewWhatsAppSender(base Sender, phone phone.Phone) WhatsAppSender {
+	return &whatsAppSender{
+		Sender: base,
+		phone:  phone,
+	}
+}
+
+type whatsAppSender struct {
+	Sender
+	phone phone.Phone
+}
+
+func (s *whatsAppSender) Phone() phone.Phone {
+	return s.phone
+}
+
+// InstagramSender represents a message from Instagram
+func NewInstagramSender(base Sender, username string) InstagramSender {
+	return &instagramSender{
+		Sender:   base,
+		username: username,
+	}
+}
+
+type instagramSender struct {
+	Sender
+	username string
+}
+
+func (s *instagramSender) Username() string {
+	return s.username
+}
+
+// SMSSender represents a message from SMS
+func NewSMSSender(base Sender, phone phone.Phone) SMSSender {
+	return &smsSender{
+		Sender: base,
+		phone:  phone,
+	}
+}
+
+type smsSender struct {
+	Sender
+	phone phone.Phone
+}
+
+func (s *smsSender) Phone() phone.Phone {
+	return s.phone
+}
+
+// EmailSender represents a message from Email
+func NewEmailSender(base Sender, email internet.Email) EmailSender {
+	return &emailSender{
+		Sender: base,
+		email:  email,
+	}
+}
+
+type emailSender struct {
+	Sender
+	email internet.Email
+}
+
+func (s *emailSender) Email() internet.Email {
+	return s.email
+}
+
+// PhoneSender represents a message from Phone call
+func NewPhoneSender(base Sender, phone phone.Phone) PhoneSender {
+	return &phoneSender{
+		Sender: base,
+		phone:  phone,
+	}
+}
+
+type phoneSender struct {
+	Sender
+	phone phone.Phone
+}
+
+func (s *phoneSender) Phone() phone.Phone {
+	return s.phone
+}
+
+// OtherSender represents a message from other sources
+func NewOtherSender(base Sender) OtherSender {
+	return &otherSender{
+		Sender: base,
+	}
+}
+
+type otherSender struct {
+	Sender
 }
