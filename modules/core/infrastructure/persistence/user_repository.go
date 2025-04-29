@@ -473,6 +473,7 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 
 		if err := rows.Scan(
 			&u.ID,
+			&u.Type,
 			&u.FirstName,
 			&u.LastName,
 			&u.MiddleName,
