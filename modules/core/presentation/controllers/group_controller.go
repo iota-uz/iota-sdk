@@ -205,7 +205,7 @@ func (c *GroupsController) Groups(
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
 		findParams.Filters = append(findParams.Filters, group.Filter{
-			Column: group.CreatedAt,
+			Column: group.CreatedAtField,
 			Filter: repo.Lt(v),
 		})
 	}

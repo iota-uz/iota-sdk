@@ -51,7 +51,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	matches, err := roleRepository.GetPaginated(ctx, &role.FindParams{
 		Filters: []role.Filter{
 			{
-				Column: role.Name,
+				Column: role.NameField,
 				Filter: repo.Eq(adminRoleName),
 			},
 		},

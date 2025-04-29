@@ -256,14 +256,14 @@ func (c *UsersController) Users(
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: user.SortBy{Fields: []user.Field{
-			user.CreatedAt,
+			user.CreatedAtField,
 		}},
 		Search: r.URL.Query().Get("Search"),
 	}
 
 	if len(groupIDs) > 0 {
 		findParams.Filters = append(findParams.Filters, user.Filter{
-			Column: user.GroupID,
+			Column: user.GroupIDField,
 			Filter: repo.In(groupIDs),
 		})
 	}
@@ -276,7 +276,7 @@ func (c *UsersController) Users(
 			return
 		}
 		findParams.Filters = append(findParams.Filters, user.Filter{
-			Column: user.CreatedAt,
+			Column: user.CreatedAtField,
 			Filter: repo.Lt(t),
 		})
 	}
@@ -289,7 +289,7 @@ func (c *UsersController) Users(
 			return
 		}
 		findParams.Filters = append(findParams.Filters, user.Filter{
-			Column: user.CreatedAt,
+			Column: user.CreatedAtField,
 			Filter: repo.Gt(t),
 		})
 	}
