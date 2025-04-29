@@ -50,7 +50,8 @@ type Chat interface {
 	ID() uint
 	ClientID() uint
 	Messages() []Message
-	AddMessage(content string, sender Sender, attachments ...upload.Upload) (Message, error)
+	SendMessage(content string, sender Sender, attachments ...upload.Upload) (Message, error)
+	AddMessage(msg Message) Chat
 	UnreadMessages() int
 	MarkAllAsRead()
 	LastMessage() (Message, error)
@@ -191,8 +192,15 @@ func (c *chat) MarkAllAsRead() {
 	}
 }
 
+func (c *chat) AddMessage(msg Message) Chat {
+	res := *c
+	res.messages = append(c.messages, msg)
+	res.lastMessageAt = mapping.Pointer(time.Now())
+	return &res
+}
+
 // AddMessage adds a new message to the chat
-func (c *chat) AddMessage(
+func (c *chat) SendMessage(
 	content string,
 	sender Sender,
 	attachments ...upload.Upload,
@@ -201,10 +209,10 @@ func (c *chat) AddMessage(
 		return nil, ErrEmptyMessage
 	}
 
-	msg := WithAttachments(
+	msg := NewMessage(
 		content,
 		sender,
-		attachments...,
+		WithAttachments(attachments),
 	)
 
 	c.messages = append(c.messages, msg)
@@ -233,11 +241,44 @@ func (c *chat) CreatedAt() time.Time {
 // Message
 // -------
 
+type MessageOption func(m *message)
+
+func WithMessageID(id uint) MessageOption {
+	return func(m *message) {
+		m.id = id
+	}
+}
+
+func WithIsRead(isRead bool) MessageOption {
+	return func(m *message) {
+		m.isRead = isRead
+	}
+}
+
+func WithReadAt(readAt *time.Time) MessageOption {
+	return func(m *message) {
+		m.readAt = readAt
+	}
+}
+
+func WithAttachments(attachments []upload.Upload) MessageOption {
+	return func(m *message) {
+		m.attachments = attachments
+	}
+}
+
+func WithCreatedAt(createdAt time.Time) MessageOption {
+	return func(m *message) {
+		m.createdAt = createdAt
+	}
+}
+
 func NewMessage(
 	msg string,
 	sender Sender,
+	opts ...MessageOption,
 ) Message {
-	return &message{
+	m := &message{
 		id:          0,
 		message:     msg,
 		sender:      sender,
@@ -246,41 +287,10 @@ func NewMessage(
 		attachments: []upload.Upload{},
 		createdAt:   time.Now(),
 	}
-}
-
-func WithAttachments(
-	msg string,
-	sender Sender,
-	attachments ...upload.Upload,
-) Message {
-	return &message{
-		id:          0,
-		message:     msg,
-		sender:      sender,
-		isRead:      false,
-		readAt:      nil,
-		attachments: attachments,
-		createdAt:   time.Now(),
+	for _, opt := range opts {
+		opt(m)
 	}
-}
-
-func NewMessageWithID(
-	id uint,
-	msg string,
-	sender Sender,
-	isRead bool,
-	attachments []upload.Upload,
-	createdAt time.Time,
-) Message {
-	return &message{
-		id:          id,
-		message:     msg,
-		sender:      sender,
-		isRead:      isRead,
-		readAt:      nil,
-		attachments: attachments,
-		createdAt:   createdAt,
-	}
+	return m
 }
 
 type message struct {

@@ -170,13 +170,13 @@ func ToDomainMessage(
 	for _, u := range dbUploads {
 		uploads = append(uploads, corepersistence.ToDomainUpload(u))
 	}
-	return chat.NewMessageWithID(
-		dbRow.ID,
+	return chat.NewMessage(
 		dbRow.Message,
 		sender,
-		dbRow.IsRead,
-		uploads,
-		dbRow.CreatedAt,
+		chat.WithMessageID(dbRow.ID),
+		chat.WithIsRead(dbRow.IsRead),
+		chat.WithAttachments(uploads),
+		chat.WithCreatedAt(dbRow.CreatedAt),
 	), nil
 }
 
@@ -218,4 +218,126 @@ func ToDBMessageTemplate(domainTemplate messagetemplate.MessageTemplate) *models
 		Template:  domainTemplate.Template(),
 		CreatedAt: domainTemplate.CreatedAt(),
 	}
+}
+
+func TelegramMetaToSender(baseSender chat.Sender, meta *models.TelegramMeta) (chat.Sender, error) {
+	if meta == nil {
+		return baseSender, nil
+	}
+	var p phone.Phone
+	var err error
+	if meta.Phone != "" {
+		p, err = phone.NewFromE164(meta.Phone)
+		if err != nil {
+			p = nil
+		}
+	} else {
+		p = nil
+	}
+	return chat.NewTelegramSender(baseSender, meta.ChatID, meta.Username, p), nil
+}
+
+func WhatsAppMetaToSender(baseSender chat.Sender, meta *models.WhatsAppMeta) (chat.Sender, error) {
+	if meta == nil {
+		return chat.NewWhatsAppSender(baseSender, nil), nil
+	}
+	var p phone.Phone
+	var err error
+	if meta.Phone != "" {
+		p, err = phone.NewFromE164(meta.Phone)
+		if err != nil {
+			p = nil
+		}
+	} else {
+		p = nil
+	}
+	return chat.NewWhatsAppSender(baseSender, p), nil
+}
+
+func InstagramMetaToSender(baseSender chat.Sender, meta *models.InstagramMeta) (chat.Sender, error) {
+	if meta == nil {
+		return chat.NewInstagramSender(baseSender, ""), nil
+	}
+	return chat.NewInstagramSender(baseSender, meta.Username), nil
+}
+
+func EmailMetaToSender(baseSender chat.Sender, meta *models.EmailMeta) (chat.Sender, error) {
+	if meta == nil {
+		return chat.NewEmailSender(baseSender, nil), nil
+	}
+	var emailObj internet.Email
+	var err error
+	if meta.Email != "" {
+		emailObj, err = internet.NewEmail(meta.Email)
+		if err != nil {
+			emailObj = nil
+		}
+	} else {
+		emailObj = nil
+	}
+	return chat.NewEmailSender(baseSender, emailObj), nil
+}
+
+func PhoneMetaToSender(baseSender chat.Sender, meta *models.PhoneMeta) (chat.Sender, error) {
+	if meta == nil {
+		return chat.NewPhoneSender(baseSender, nil), nil
+	}
+	var p phone.Phone
+	var err error
+	if meta.Phone != "" {
+		p, err = phone.NewFromE164(meta.Phone)
+		if err != nil {
+			p = nil
+		}
+	} else {
+		p = nil
+	}
+	return chat.NewPhoneSender(baseSender, p), nil
+}
+
+func SMSMetaToSender(baseSender chat.Sender, meta *models.SMSMeta) (chat.Sender, error) {
+	if meta == nil {
+		return chat.NewSMSSender(baseSender, nil), nil
+	}
+	var p phone.Phone
+	var err error
+	if meta.Phone != "" {
+		p, err = phone.NewFromE164(meta.Phone)
+		if err != nil {
+			p = nil
+		}
+	} else {
+		p = nil
+	}
+	return chat.NewSMSSender(baseSender, p), nil
+}
+
+func WebsiteMetaToSender(baseSender chat.Sender, meta *models.WebsiteMeta) (chat.Sender, error) {
+	if meta == nil {
+		return chat.NewWebsiteSender(baseSender, nil, nil), nil
+	}
+
+	var phoneObj phone.Phone
+	var emailObj internet.Email
+	var err error
+
+	if meta.Phone != "" {
+		phoneObj, err = phone.NewFromE164(meta.Phone)
+		if err != nil {
+			phoneObj = nil
+		}
+	} else {
+		phoneObj = nil
+	}
+
+	if meta.Email != "" {
+		emailObj, err = internet.NewEmail(meta.Email)
+		if err != nil {
+			emailObj = nil
+		}
+	} else {
+		emailObj = nil
+	}
+
+	return chat.NewWebsiteSender(baseSender, phoneObj, emailObj), nil
 }

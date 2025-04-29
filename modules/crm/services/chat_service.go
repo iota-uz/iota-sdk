@@ -9,10 +9,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
-	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -45,7 +43,7 @@ func NewChatService(
 ) *ChatService {
 	providerMap := make(map[chat.Transport]chat.Provider)
 	for _, provider := range providers {
-		providerMap[provider.Source()] = provider
+		providerMap[provider.Transport()] = provider
 	}
 
 	service := &ChatService{
@@ -155,9 +153,7 @@ func (s *ChatService) Update(ctx context.Context, entity chat.Chat) (chat.Chat, 
 func (s *ChatService) AddMessageToChat(
 	ctx context.Context,
 	chatID uint,
-	message string,
-	sender chat.Sender,
-	source chat.Transport,
+	msg chat.Message,
 ) (chat.Chat, error) {
 	var updatedChat chat.Chat
 
@@ -167,15 +163,8 @@ func (s *ChatService) AddMessageToChat(
 		if err != nil {
 			return err
 		}
-
-		// Add message
-		_, err = chatEntity.AddMessage(message, sender, source)
-		if err != nil {
-			return err
-		}
-
 		// Update chat
-		updatedChat, err = s.repo.Update(txCtx, chatEntity)
+		updatedChat, err = s.repo.Update(txCtx, chatEntity.AddMessage(msg))
 		return err
 	})
 	if err != nil {
@@ -261,113 +250,81 @@ func (s *ChatService) GetOrCreateChatByPhone(ctx context.Context, phoneNumber st
 
 func (s *ChatService) onMessageReceived(msg chat.Message) error {
 	// Get or create a chat for the client
-	chatEntity, clientEntity, err := s.GetOrCreateChatByPhone(ctx, msg.Sender())
-	if err != nil {
-		return err
-	}
-
-	// Add the message to the chat
-	_, err = chatEntity.AddMessage(
-		msg.Message(),
-		chat.NewClientSender(
-			clientEntity.ID(),
-			clientEntity.FirstName(),
-			clientEntity.LastName(),
-		),
-		chat.SMSTransport,
-	)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (s *ChatService) RegisterClientMessage(
-	ctx context.Context,
-	params *cpassproviders.ReceivedMessageEvent,
-) (chat.Chat, error) {
-	p, err := phone.NewFromE164(params.From)
-	if err != nil {
-		return nil, err
-	}
+//func (s *ChatService) RegisterClientMessage(
+//	ctx context.Context,
+//	params *cpassproviders.ReceivedMessageEvent,
+//) (chat.Chat, error) {
+//	p, err := phone.NewFromE164(params.From)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	clientEntity, err := s.clientRepo.GetByPhone(ctx, p.Value())
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var updatedChat chat.Chat
+//
+//	err = composables.InTx(ctx, func(txCtx context.Context) error {
+//		chatEntity, err := s.GetByClientIDOrCreate(txCtx, clientEntity.ID())
+//		if err != nil {
+//			return err
+//		}
+//
+//		if _, err := chatEntity.AddMessage(
+//			params.Body,
+//			chat.NewClientSender(
+//				clientEntity.ID(),
+//				clientEntity.FirstName(),
+//				clientEntity.LastName(),
+//			),
+//			chat.SMSTransport,
+//		); err != nil {
+//			return err
+//		}
+//
+//		updatedChat, err = s.repo.Update(txCtx, chatEntity)
+//		return err
+//	})
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	event, err := chat.NewMessageAddedEvent(ctx, updatedChat)
+//	if err != nil {
+//		return nil, err
+//	}
+//	s.publisher.Publish(event)
+//
+//	return updatedChat, nil
+//}
 
-	clientEntity, err := s.clientRepo.GetByPhone(ctx, p.Value())
-	if err != nil {
-		return nil, err
-	}
-
-	var updatedChat chat.Chat
-
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		chatEntity, err := s.GetByClientIDOrCreate(txCtx, clientEntity.ID())
-		if err != nil {
-			return err
-		}
-
-		if _, err := chatEntity.AddMessage(
-			params.Body,
-			chat.NewClientSender(
-				clientEntity.ID(),
-				clientEntity.FirstName(),
-				clientEntity.LastName(),
-			),
-			chat.SMSTransport,
-		); err != nil {
-			return err
-		}
-
-		updatedChat, err = s.repo.Update(txCtx, chatEntity)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	event, err := chat.NewMessageAddedEvent(ctx, updatedChat)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(event)
-
-	return updatedChat, nil
-}
-
-func (s *ChatService) SendMessage(ctx context.Context, dto SendMessageDTO) (chat.Chat, error) {
+func (s *ChatService) SendMessage(ctx context.Context, chatID uint, msg chat.Message) (chat.Chat, error) {
 	var updatedChat chat.Chat
 
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
 		// Get the chat by ID
-		chatEntity, err := s.GetByID(txCtx, dto.ChatID)
+		chatEntity, err := s.GetByID(txCtx, chatID)
 		if err != nil {
 			return err
 		}
 
-		// Add message as system user (for AI responses)
-		_, err = chatEntity.AddMessage(
-			dto.Message,
-			chat.NewUserSender(1, "AI", "Assistant"), // System user ID 1 for AI
-			chat.SMSTransport,
-		)
+		updatedChat, err = s.repo.Update(txCtx, chatEntity.AddMessage(msg))
 		if err != nil {
 			return err
 		}
+		provider := s.providers[msg.Sender().Transport()]
 
-		updatedChat, err = s.repo.Update(txCtx, chatEntity)
-		if err != nil {
-			return err
-		}
-
-		clientEntity, err := s.clientRepo.GetByID(txCtx, chatEntity.ClientID())
-		if err != nil {
-			return err
-		}
-
-		return s.cpassProvider.SendMessage(txCtx, cpassproviders.SendMessageDTO{
-			From:    configuration.Use().Twilio.PhoneNumber,
-			To:      clientEntity.Phone().Value(),
-			Message: dto.Message,
-		})
+		//		cpassproviders.SendMessageDTO{
+		//			From:    configuration.Use().Twilio.PhoneNumber,
+		//			To:      clientEntity.Phone().Value(),
+		//			Message: msg.Message(),
+		//		}
+		return provider.Send(txCtx, msg)
 	})
 	if err != nil {
 		return nil, err

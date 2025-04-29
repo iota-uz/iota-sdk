@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/twilio/twilio-go"
 	"github.com/twilio/twilio-go/client"
@@ -74,7 +75,7 @@ type InboundTwilioMessageDTO struct {
 }
 
 // NewTwilioProvider creates a new instance of TwilioProvider
-func NewTwilioProvider(params twilio.ClientParams, webhookURL string) Provider {
+func NewTwilioProvider(params twilio.ClientParams, webhookURL string) chat.Provider {
 	restClient := twilio.NewRestClientWithParams(params)
 	return &TwilioProvider{
 		webhookURL: webhookURL,
@@ -90,19 +91,32 @@ type TwilioProvider struct {
 	validator  client.RequestValidator
 }
 
-// SendMessage sends a message using Twilio
-func (s *TwilioProvider) SendMessage(ctx context.Context, data SendMessageDTO) error {
-	params := &twilioApi.CreateMessageParams{}
-	params.SetBody(data.Message)
-	params.SetFrom(data.From)
-	params.SetTo(data.To)
+func (s *TwilioProvider) Transport() chat.Transport {
+	return chat.SMSTransport
+}
 
-	if data.MediaURL != "" {
-		params.SetMediaUrl([]string{data.MediaURL})
-	}
+// SendMessage sends a message using Twilio
+func (s *TwilioProvider) Send(ctx context.Context, msg chat.Message) error {
+	params := &twilioApi.CreateMessageParams{}
+	params.SetBody(msg.Message())
+	// TODO: Uncomment and implement the downloadMedia function
+	//	params.SetFrom(data.From)
+	//	params.SetTo(data.To)
+
+	//	if data.MediaURL != "" {
+	//		params.SetMediaUrl([]string{data.MediaURL})
+	//	}
 
 	_, err := s.client.Api.CreateMessage(params)
 	return err
+}
+
+func (s *TwilioProvider) OnReceived(callback func(msg chat.Message) error) error {
+	// Twilio does not support a direct way to register a callback for incoming messages.
+	// Instead, you need to set up a webhook URL in your Twilio console that points to your server.
+	// When a message is received, Twilio will send an HTTP POST request to this URL.
+	// You can then handle the incoming message in the WebhookHandler method.
+	return nil
 }
 
 func (s *TwilioProvider) WebhookHandler(eventBus eventbus.EventBus) http.HandlerFunc {
