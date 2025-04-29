@@ -9,10 +9,10 @@ import (
 type Field int
 
 const (
-	Name Field = iota
-	Description
-	CreatedAt
-	PermissionID
+	NameField Field = iota
+	DescriptionField
+	CreatedAtField
+	PermissionIDField
 )
 
 type SortBy repo.SortBy[Field]

@@ -65,7 +65,7 @@ func (c *DIEmployeeController) ScaffoldTable(
 
 	if r.URL.Query().Get("RoleID") != "" {
 		params.Filters = append(params.Filters, user.Filter{
-			Column: user.RoleID,
+			Column: user.RoleIDField,
 			Filter: repo.In(r.URL.Query()["RoleID"]),
 		})
 	}
@@ -78,7 +78,7 @@ func (c *DIEmployeeController) ScaffoldTable(
 			return
 		}
 		params.Filters = append(params.Filters, user.Filter{
-			Column: user.CreatedAt,
+			Column: user.CreatedAtField,
 			Filter: repo.Gte(t),
 		})
 	}
@@ -91,7 +91,7 @@ func (c *DIEmployeeController) ScaffoldTable(
 			return
 		}
 		params.Filters = append(params.Filters, user.Filter{
-			Column: user.CreatedAt,
+			Column: user.CreatedAtField,
 			Filter: repo.Lte(t),
 		})
 	}

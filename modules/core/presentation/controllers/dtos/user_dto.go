@@ -139,6 +139,7 @@ func (u *CreateUserDTO) ToEntity() (user.User, error) {
 	), nil
 }
 
+// ToEntity TODO: remove ToEntity for UpdateUserDTO and add Apply
 func (u *UpdateUserDTO) ToEntity(id uint) (user.User, error) {
 	roles := make([]role.Role, len(u.RoleIDs))
 	for i, rID := range u.RoleIDs {
