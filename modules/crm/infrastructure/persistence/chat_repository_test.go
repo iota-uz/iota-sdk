@@ -1,7 +1,6 @@
 package persistence_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,7 +91,8 @@ func TestChatRepository_GetByID(t *testing.T) {
 
 	t.Run("Get non-existent chat by ID", func(t *testing.T) {
 		_, err := repo.GetByID(f.ctx, 9999)
-		assert.Error(t, err, "Expected error when getting non-existent chat")
+
+		require.Error(t, err, "Expected error when getting non-existent chat")
 		assert.ErrorIs(t, err, persistence.ErrChatNotFound, "Error should be ErrNotFound")
 	})
 }
@@ -117,8 +117,9 @@ func TestChatRepository_GetByClientID(t *testing.T) {
 
 	t.Run("Get non-existent chat by client ID", func(t *testing.T) {
 		_, err := repo.GetByClientID(f.ctx, 9999)
-		assert.Error(t, err, "Expected error when getting non-existent chat")
-		assert.True(t, errors.Is(err, persistence.ErrChatNotFound), "Error should be ErrChatNotFound")
+
+		require.Error(t, err, "Expected error when getting non-existent chat")
+		assert.ErrorIs(t, err, persistence.ErrChatNotFound, "Error should be ErrChatNotFound")
 	})
 }
 
@@ -328,5 +329,5 @@ func TestChatRepository_Delete(t *testing.T) {
 	// Verify chat was deleted
 	_, err = repo.GetByID(f.ctx, created.ID())
 	require.Error(t, err, "Expected error when getting deleted chat")
-	assert.True(t, errors.Is(err, persistence.ErrChatNotFound), "Error should be ErrChatNotFound")
+	assert.ErrorIs(t, err, persistence.ErrChatNotFound, "Error should be ErrChatNotFound")
 }

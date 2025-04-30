@@ -8,6 +8,12 @@ issues:
     - pkg/graphql/graphql.go
   exclude-dirs:
     - pkg/fp
+    - postgres-data
+    - py-embed
+    - docs
+    - logs
+    - e2e
+    - migrations
 
 output:
   formats:
@@ -108,14 +114,3 @@ linters:
     - whitespace
     - zerologlint
 
-linters-settings:
-  iotalinter:
-    # exclude-dirs uses pattern matching to check if a directory path contains any of these strings
-    # For example, "test" will match "tests", "testing", and any path containing "test"
-    exclude-dirs:
-      - apex
-      - test
-      - node_modules
-      - e2e
-      - .vscode
-    check-zero-byte-files: true
