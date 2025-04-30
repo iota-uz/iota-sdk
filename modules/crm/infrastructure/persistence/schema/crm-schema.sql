@@ -26,9 +26,9 @@ CREATE TABLE client_contacts (
 
 CREATE TABLE chats (
     id serial PRIMARY KEY,
-    created_at timestamp(3) DEFAULT now() NOT NULL,
     client_id int NOT NULL REFERENCES clients (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    last_message_at timestamp(3) DEFAULT now()
+    last_message_at timestamp(3) DEFAULT now(),
+    created_at timestamp(3) DEFAULT now() NOT NULL
 );
 
 CREATE TABLE chat_members (
@@ -37,9 +37,11 @@ CREATE TABLE chat_members (
     -- Whether user_id is not client_id, both can not be set
     user_id int REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE,
     client_id int REFERENCES clients (id) ON DELETE SET NULL ON UPDATE CASCADE,
-    client_contact_id int REFERENCES client_contacts (id) ON DELETE SET NULL ON UPDATE CASCADE UNIQUE,
+    client_contact_id int UNIQUE REFERENCES client_contacts (id) ON DELETE SET NULL ON UPDATE CASCADE,
     transport varchar(20) NOT NULL,
-    transport_meta jsonb
+    transport_meta jsonb,
+    created_at timestamp(3) DEFAULT now() NOT NULL,
+    updated_at timestamp(3) DEFAULT now() NOT NULL
 );
 
 CREATE TABLE messages (
@@ -48,7 +50,7 @@ CREATE TABLE messages (
     chat_id int NOT NULL REFERENCES chats (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     sender_id uuid REFERENCES chat_members (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     message text NOT NULL,
-    is_read boolean DEFAULT FALSE NOT NULL,
+    sent_at timestamp(3),
     read_at timestamp(3)
 );
 

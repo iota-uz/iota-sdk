@@ -1,0 +1,664 @@
+package persistence_test
+
+import (
+	"database/sql"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
+	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
+	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestToDomainClientComplete(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		client     *models.Client
+		passport   passport.Passport
+		wantErr    bool
+		validateFn func(t *testing.T, client client.Client)
+	}{
+		{
+			name: "complete client with all fields",
+			client: &models.Client{
+				ID:        1,
+				FirstName: "John",
+				LastName: sql.NullString{
+					String: "Doe",
+					Valid:  true,
+				},
+				MiddleName: sql.NullString{
+					String: "Smith",
+					Valid:  true,
+				},
+				PhoneNumber: sql.NullString{
+					String: "+12345678901",
+					Valid:  true,
+				},
+				Address: sql.NullString{
+					String: "123 Main St",
+					Valid:  true,
+				},
+				Email: sql.NullString{
+					String: "john.doe@example.com",
+					Valid:  true,
+				},
+				DateOfBirth: sql.NullTime{
+					Time:  time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC),
+					Valid: true,
+				},
+				Gender: sql.NullString{
+					String: "male",
+					Valid:  true,
+				},
+				Pin: sql.NullString{
+					String: "12345678901234",
+					Valid:  true,
+				},
+				Comments: sql.NullString{
+					String: "Test comments",
+					Valid:  true,
+				},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			passport: createTestPassport(),
+			validateFn: func(t *testing.T, c client.Client) {
+				assert.Equal(t, uint(1), c.ID(), "ID should match")
+				assert.Equal(t, "John", c.FirstName(), "FirstName should match")
+				assert.Equal(t, "Doe", c.LastName(), "LastName should match")
+				assert.Equal(t, "Smith", c.MiddleName(), "MiddleName should match")
+
+				require.NotNil(t, c.Phone(), "Phone should not be nil")
+				assert.Equal(t, "12345678901", c.Phone().Value(), "Phone value should match")
+
+				assert.Equal(t, "123 Main St", c.Address(), "Address should match")
+
+				require.NotNil(t, c.Email(), "Email should not be nil")
+				assert.Equal(t, "john.doe@example.com", c.Email().Value(), "Email value should match")
+
+				require.NotNil(t, c.DateOfBirth(), "DateOfBirth should not be nil")
+				assert.Equal(t, "1990-01-01", c.DateOfBirth().Format("2006-01-02"), "DateOfBirth should match")
+
+				require.NotNil(t, c.Gender(), "Gender should not be nil")
+				assert.Equal(t, "male", c.Gender().String(), "Gender should match")
+
+				require.NotNil(t, c.Pin(), "Pin should not be nil")
+				assert.Equal(t, "12345678901234", c.Pin().Value(), "Pin should match")
+
+				assert.Equal(t, "Test comments", c.Comments(), "Comments should match")
+
+				require.NotNil(t, c.Passport(), "Passport should not be nil")
+				assert.Equal(t, "AB", c.Passport().Series(), "Passport series should match")
+			},
+		},
+		{
+			name: "minimal client with required fields only",
+			client: &models.Client{
+				ID:        2,
+				FirstName: "Jane",
+				LastName: sql.NullString{
+					String: "Smith",
+					Valid:  true,
+				},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			passport: nil,
+			validateFn: func(t *testing.T, c client.Client) {
+				assert.Equal(t, uint(2), c.ID(), "ID should match")
+				assert.Equal(t, "Jane", c.FirstName(), "FirstName should match")
+				assert.Equal(t, "Smith", c.LastName(), "LastName should match")
+				assert.Nil(t, c.Phone(), "Phone should be nil")
+				assert.Nil(t, c.Passport(), "Passport should be nil")
+			},
+		},
+		{
+			name: "invalid phone number",
+			client: &models.Client{
+				ID:        3,
+				FirstName: "Invalid",
+				LastName: sql.NullString{
+					String: "Phone",
+					Valid:  true,
+				},
+				PhoneNumber: sql.NullString{
+					String: "invalid",
+					Valid:  true,
+				},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			passport: nil,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := persistence.ToDomainClientComplete(tt.client, tt.passport)
+
+			if tt.wantErr {
+				assert.Error(t, err, "Expected an error")
+				return
+			}
+
+			require.NoError(t, err, "Should not return an error")
+			if tt.validateFn != nil {
+				tt.validateFn(t, result)
+			}
+		})
+	}
+}
+
+func TestToDBClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		client     client.Client
+		validateFn func(t *testing.T, dbClient *models.Client)
+	}{
+		{
+			name:   "complete client with all fields",
+			client: createTestClient(t, true),
+			validateFn: func(t *testing.T, dbClient *models.Client) {
+				assert.Equal(t, "John", dbClient.FirstName, "FirstName should match")
+
+				assert.True(t, dbClient.LastName.Valid, "LastName should be valid")
+				assert.Equal(t, "Doe", dbClient.LastName.String, "LastName value should match")
+
+				assert.True(t, dbClient.PhoneNumber.Valid, "PhoneNumber should be valid")
+				assert.Equal(t, "12345678901", dbClient.PhoneNumber.String, "PhoneNumber value should match")
+
+				assert.True(t, dbClient.Email.Valid, "Email should be valid")
+				assert.Equal(t, "john.doe@example.com", dbClient.Email.String, "Email value should match")
+
+				assert.True(t, dbClient.PassportID.Valid, "PassportID should be valid")
+			},
+		},
+		{
+			name:   "client without passport",
+			client: createTestClient(t, false),
+			validateFn: func(t *testing.T, dbClient *models.Client) {
+				assert.Equal(t, "John", dbClient.FirstName, "FirstName should match")
+
+				assert.True(t, dbClient.PhoneNumber.Valid, "PhoneNumber should be valid")
+				assert.Equal(t, "12345678901", dbClient.PhoneNumber.String, "PhoneNumber value should match")
+
+				assert.False(t, dbClient.PassportID.Valid, "PassportID should not be valid")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := persistence.ToDBClient(tt.client)
+
+			if tt.validateFn != nil {
+				tt.validateFn(t, result)
+			}
+		})
+	}
+}
+
+func TestToDBMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		message    chat.Message
+		chatID     uint
+		validateFn func(t *testing.T, dbMessage *models.Message)
+	}{
+		{
+			name: "message from user",
+			message: chat.NewMessage(
+				"Hello from user",
+				uuid.New(),
+				chat.WithMessageID(1),
+				chat.WithMessageCreatedAt(time.Now()),
+			),
+			chatID: 100,
+			validateFn: func(t *testing.T, dbMessage *models.Message) {
+				assert.Equal(t, uint(100), dbMessage.ChatID, "ChatID should match")
+				assert.Equal(t, "Hello from user", dbMessage.Message, "Message should match")
+			},
+		},
+		{
+			name: "message from client",
+			message: chat.NewMessage(
+				"Hello from client",
+				uuid.New(),
+				chat.WithMessageID(2),
+				chat.WithMessageCreatedAt(time.Now()),
+			),
+			chatID: 200,
+			validateFn: func(t *testing.T, dbMessage *models.Message) {
+				assert.Equal(t, uint(200), dbMessage.ChatID, "ChatID should match")
+				assert.Equal(t, "Hello from client", dbMessage.Message, "Message should match")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := persistence.ToDBMessage(tt.chatID, tt.message)
+
+			if tt.validateFn != nil {
+				tt.validateFn(t, result)
+			}
+		})
+	}
+}
+
+func TestToDomainMessage(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+
+	tests := []struct {
+		name      string
+		dbMessage *models.Message
+		dbUploads []*coremodels.Upload
+		// Sender field removed since it's not used in ToDomainMessage
+		validateFn func(t *testing.T, message chat.Message)
+	}{
+		{
+			name: "message with user sender",
+			dbMessage: &models.Message{
+				ID:        1,
+				Message:   "Test message from user",
+				ChatID:    100,
+				CreatedAt: now,
+			},
+			dbUploads: []*coremodels.Upload{
+				{
+					ID:        1,
+					Path:      "test/file.jpg",
+					CreatedAt: now,
+				},
+			},
+			validateFn: func(t *testing.T, message chat.Message) {
+				assert.Equal(t, uint(1), message.ID(), "ID should match")
+				assert.Equal(t, "Test message from user", message.Message(), "Message should match")
+				assert.True(t, message.IsRead(), "IsRead should be true")
+				assert.Len(t, message.Attachments(), 1, "Should have 1 attachment")
+			},
+		},
+		{
+			name: "message with client sender",
+			dbMessage: &models.Message{
+				ID:        2,
+				Message:   "Test message from client",
+				ChatID:    200,
+				CreatedAt: now,
+			},
+			dbUploads: nil,
+			validateFn: func(t *testing.T, message chat.Message) {
+				assert.Equal(t, uint(2), message.ID(), "ID should match")
+				assert.Equal(t, "Test message from client", message.Message(), "Message should match")
+				assert.False(t, message.IsRead(), "IsRead should be false")
+				assert.Empty(t, message.Attachments(), "Should have no attachments")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			message, err := persistence.ToDomainMessage(tt.dbMessage, tt.dbUploads)
+			require.NoError(t, err, "ToDomainMessage() should not return an error")
+
+			if tt.validateFn != nil {
+				tt.validateFn(t, message)
+			}
+		})
+	}
+}
+
+func TestToDBChat(t *testing.T) {
+	t.Parallel()
+
+	// Create test chat with messages
+	now := time.Now()
+
+	messages := []chat.Message{
+		chat.NewMessage("Message 1", uuid.New(), chat.WithMessageID(1), chat.WithMessageCreatedAt(now.Add(-2*time.Hour))),
+		chat.NewMessage("Message 2", uuid.New(), chat.WithMessageID(2), chat.WithMessageCreatedAt(now.Add(-1*time.Hour))),
+	}
+
+	testChat := chat.New(
+		200, // clientID
+		chat.WithChatID(100),
+		chat.WithCreatedAt(now.Add(-3*time.Hour)),
+		chat.WithMessages(messages),
+		chat.WithLastMessageAt(&now),
+	)
+
+	t.Run("chat with messages", func(t *testing.T) {
+		dbChat, dbMessages := persistence.ToDBChat(testChat)
+
+		assert.Equal(t, uint(100), dbChat.ID, "Chat ID should match")
+		assert.Equal(t, uint(200), dbChat.ClientID, "ClientID should match")
+		assert.True(t, dbChat.LastMessageAt.Valid, "LastMessageAt should be valid")
+		assert.Len(t, dbMessages, 2, "Should have 2 messages")
+
+		// Check the first message
+		assert.Equal(t, uint(1), dbMessages[0].ID, "First message ID should match")
+		assert.Equal(t, uint(100), dbMessages[0].ChatID, "First message ChatID should match")
+		assert.Equal(t, "Message 1", dbMessages[0].Message, "First message content should match")
+		assert.Equal(t, uint(1), dbMessages[0].SenderID, "First message SenderID should match")
+
+		// Check the second message
+		assert.Equal(t, uint(2), dbMessages[1].ID, "Second message ID should match")
+		assert.Equal(t, uint(100), dbMessages[1].ChatID, "Second message ChatID should match")
+		assert.Equal(t, "Message 2", dbMessages[1].Message, "Second message content should match")
+		assert.Equal(t, uint(2), dbMessages[1].SenderID, "Second message SenderID should match")
+	})
+}
+
+func TestToDomainChat(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+
+	messages := []chat.Message{
+		chat.NewMessage("Message 1", uuid.New(), chat.WithMessageID(1), chat.WithMessageCreatedAt(now.Add(-2*time.Hour))),
+		chat.NewMessage("Message 2", uuid.New(), chat.WithMessageID(2), chat.WithMessageCreatedAt(now.Add(-1*time.Hour))),
+	}
+
+	members := []chat.Member{
+		chat.NewMember(
+			chat.TelegramTransport,
+			chat.NewUserSender(chat.TelegramTransport, 1, "User", "Test"),
+			chat.WithMemberID(uuid.New()),
+		),
+		chat.NewMember(
+			chat.WebsiteTransport,
+			chat.NewClientSender(chat.WebsiteTransport, 2, "Client", "Test"),
+			chat.WithMemberID(uuid.New()),
+		),
+	}
+
+	dbChat := &models.Chat{
+		ID:        300,
+		ClientID:  400,
+		CreatedAt: now.Add(-3 * time.Hour),
+		LastMessageAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	t.Run("chat with messages and members", func(t *testing.T) {
+		domainChat, err := persistence.ToDomainChat(dbChat, messages, members)
+		require.NoError(t, err, "ToDomainChat() should not return an error")
+
+		assert.Equal(t, uint(300), domainChat.ID(), "Chat ID should match")
+		assert.Equal(t, uint(400), domainChat.ClientID(), "ClientID should match")
+
+		require.NotNil(t, domainChat.LastMessageAt(), "LastMessageAt should not be nil")
+		assert.True(t, domainChat.LastMessageAt().Equal(now), "LastMessageAt should match")
+
+		assert.Len(t, domainChat.Messages(), 2, "Should have 2 messages")
+		assert.Len(t, domainChat.Members(), 2, "Should have 2 members")
+
+		// Check the first message
+		assert.Equal(t, uint(1), domainChat.Messages()[0].ID(), "First message ID should match")
+		assert.Equal(t, "Message 1", domainChat.Messages()[0].Message(), "First message content should match")
+
+		// Check the second message
+		assert.Equal(t, uint(2), domainChat.Messages()[1].ID(), "Second message ID should match")
+		assert.Equal(t, "Message 2", domainChat.Messages()[1].Message(), "Second message content should match")
+
+		// Check the first member
+		assert.Equal(t, uint(1), domainChat.Members()[0].ID(), "First member ID should match")
+		assert.Equal(t, chat.TelegramTransport, domainChat.Members()[0].Transport(), "First member transport should match")
+
+		// Check the second member
+		assert.Equal(t, uint(2), domainChat.Members()[1].ID(), "Second member ID should match")
+		assert.Equal(t, chat.WebsiteTransport, domainChat.Members()[1].Transport(), "Second member transport should match")
+	})
+}
+
+func TestMessageTemplateMappers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+
+	// Test DbToTemplate
+	t.Run("ToDomainMessageTemplate", func(t *testing.T) {
+		dbTemplate := &models.MessageTemplate{
+			ID:        1,
+			Template:  "Hello, {{name}}!",
+			CreatedAt: now,
+		}
+
+		domainTemplate, err := persistence.ToDomainMessageTemplate(dbTemplate)
+		require.NoError(t, err, "ToDomainMessageTemplate() should not return an error")
+
+		assert.Equal(t, uint(1), domainTemplate.ID(), "ID should match")
+		assert.Equal(t, "Hello, {{name}}!", domainTemplate.Template(), "Template should match")
+		assert.True(t, domainTemplate.CreatedAt().Equal(now), "CreatedAt should match")
+	})
+
+	// Test TemplateToDb
+	t.Run("ToDBMessageTemplate", func(t *testing.T) {
+		domainTemplate := messagetemplate.NewWithID(
+			2,
+			"Good day, {{customer}}!",
+			now,
+		)
+
+		dbTemplate := persistence.ToDBMessageTemplate(domainTemplate)
+
+		assert.Equal(t, uint(2), dbTemplate.ID, "ID should match")
+		assert.Equal(t, "Good day, {{customer}}!", dbTemplate.Template, "Template should match")
+		assert.True(t, dbTemplate.CreatedAt.Equal(now), "CreatedAt should match")
+	})
+}
+
+func TestTransportMappers(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		testFunction func(t *testing.T)
+	}{
+		{
+			name: "TelegramMetaToSender",
+			testFunction: func(t *testing.T) {
+				baseSender := chat.NewClientSender(chat.TelegramTransport, 1, "Test", "Client")
+
+				// Test with nil meta
+				t.Run("with nil meta", func(t *testing.T) {
+					_, err := persistence.TelegramMetaToSender(baseSender, nil)
+					require.NoError(t, err, "TelegramMetaToSender() should not return an error")
+
+					// Additional checks can be added here if needed
+				})
+
+				// Test with valid meta
+				t.Run("with valid meta", func(t *testing.T) {
+					meta := &models.TelegramMeta{
+						ChatID:   12345,
+						Username: "testuser",
+						Phone:    "+12345678901",
+					}
+
+					sender, err := persistence.TelegramMetaToSender(baseSender, meta)
+					require.NoError(t, err, "TelegramMetaToSender() should not return an error")
+
+					telegramSender, ok := sender.(chat.TelegramSender)
+					require.True(t, ok, "Expected TelegramSender type")
+
+					assert.Equal(t, int64(12345), telegramSender.ChatID(), "ChatID should match")
+					assert.Equal(t, "testuser", telegramSender.Username(), "Username should match")
+					require.NotNil(t, telegramSender.Phone(), "Phone should not be nil")
+					assert.Equal(t, "12345678901", telegramSender.Phone().Value(), "Phone value should match")
+				})
+
+				// Test with invalid phone
+				t.Run("with invalid phone", func(t *testing.T) {
+					meta := &models.TelegramMeta{
+						ChatID:   12345,
+						Username: "testuser",
+						Phone:    "invalid",
+					}
+
+					sender, err := persistence.TelegramMetaToSender(baseSender, meta)
+					require.NoError(t, err, "TelegramMetaToSender() should not return an error")
+
+					telegramSender, ok := sender.(chat.TelegramSender)
+					require.True(t, ok, "Expected TelegramSender type")
+
+					if telegramSender.Phone() != nil {
+						assert.Empty(t, telegramSender.Phone().Value(), "Phone should be nil or empty for invalid phone number")
+					}
+				})
+			},
+		},
+		{
+			name: "WhatsAppMetaToSender",
+			testFunction: func(t *testing.T) {
+				baseSender := chat.NewClientSender(chat.WhatsAppTransport, 1, "Test", "Client")
+
+				// Test with nil meta
+				t.Run("with nil meta", func(t *testing.T) {
+					sender, err := persistence.WhatsAppMetaToSender(baseSender, nil)
+					require.NoError(t, err, "WhatsAppMetaToSender() should not return an error")
+
+					whatsappSender, ok := sender.(chat.WhatsAppSender)
+					require.True(t, ok, "Expected WhatsAppSender type")
+
+					assert.Nil(t, whatsappSender.Phone(), "Phone should be nil")
+				})
+
+				// Test with valid meta
+				t.Run("with valid meta", func(t *testing.T) {
+					meta := &models.WhatsAppMeta{
+						Phone: "+12345678901",
+					}
+
+					sender, err := persistence.WhatsAppMetaToSender(baseSender, meta)
+					require.NoError(t, err, "WhatsAppMetaToSender() should not return an error")
+
+					whatsappSender, ok := sender.(chat.WhatsAppSender)
+					require.True(t, ok, "Expected WhatsAppSender type")
+
+					require.NotNil(t, whatsappSender.Phone(), "Phone should not be nil")
+					assert.Equal(t, "12345678901", whatsappSender.Phone().Value(), "Phone value should match")
+				})
+			},
+		},
+		{
+			name: "InstagramMetaToSender",
+			testFunction: func(t *testing.T) {
+				baseSender := chat.NewClientSender(chat.InstagramTransport, 1, "Test", "Client")
+
+				// Test with nil meta
+				t.Run("with nil meta", func(t *testing.T) {
+					sender, err := persistence.InstagramMetaToSender(baseSender, nil)
+					require.NoError(t, err, "InstagramMetaToSender() should not return an error")
+
+					instagramSender, ok := sender.(chat.InstagramSender)
+					require.True(t, ok, "Expected InstagramSender type")
+
+					assert.Empty(t, instagramSender.Username(), "Username should be empty")
+				})
+
+				// Test with valid meta
+				t.Run("with valid meta", func(t *testing.T) {
+					meta := &models.InstagramMeta{
+						Username: "instauser",
+					}
+
+					sender, err := persistence.InstagramMetaToSender(baseSender, meta)
+					require.NoError(t, err, "InstagramMetaToSender() should not return an error")
+
+					instagramSender, ok := sender.(chat.InstagramSender)
+					require.True(t, ok, "Expected InstagramSender type")
+
+					assert.Equal(t, "instauser", instagramSender.Username(), "Username should match")
+				})
+			},
+		},
+		{
+			name: "EmailMetaToSender",
+			testFunction: func(t *testing.T) {
+				baseSender := chat.NewClientSender(chat.EmailTransport, 1, "Test", "Client")
+
+				// Test with nil meta
+				t.Run("with nil meta", func(t *testing.T) {
+					sender, err := persistence.EmailMetaToSender(baseSender, nil)
+					require.NoError(t, err, "EmailMetaToSender() should not return an error")
+
+					emailSender, ok := sender.(chat.EmailSender)
+					require.True(t, ok, "Expected EmailSender type")
+
+					assert.Nil(t, emailSender.Email(), "Email should be nil")
+				})
+
+				// Test with valid meta
+				t.Run("with valid meta", func(t *testing.T) {
+					meta := &models.EmailMeta{
+						Email: "test@example.com",
+					}
+
+					sender, err := persistence.EmailMetaToSender(baseSender, meta)
+					require.NoError(t, err, "EmailMetaToSender() should not return an error")
+
+					emailSender, ok := sender.(chat.EmailSender)
+					require.True(t, ok, "Expected EmailSender type")
+
+					require.NotNil(t, emailSender.Email(), "Email should not be nil")
+					assert.Equal(t, "test@example.com", emailSender.Email().Value(), "Email value should match")
+				})
+
+				// Test with invalid email
+				t.Run("with invalid email", func(t *testing.T) {
+					meta := &models.EmailMeta{
+						Email: "invalid-email",
+					}
+
+					sender, err := persistence.EmailMetaToSender(baseSender, meta)
+					require.NoError(t, err, "EmailMetaToSender() should not return an error")
+
+					emailSender, ok := sender.(chat.EmailSender)
+					require.True(t, ok, "Expected EmailSender type")
+
+					assert.Nil(t, emailSender.Email(), "Email should be nil for invalid email")
+				})
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.testFunction(t)
+		})
+	}
+}

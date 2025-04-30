@@ -2,7 +2,10 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/json"
 
+	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -135,28 +138,14 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 	}
 }
 
-func ToDBMessage(entity chat.Message, chatID uint) *models.Message {
+func ToDBMessage(chatID uint, entity chat.Message) *models.Message {
 	dbMessage := &models.Message{
 		ID:        entity.ID(),
 		Message:   entity.Message(),
 		ChatID:    chatID,
-		Transport: string(entity.Sender().Transport()),
-		SenderUserID: sql.NullInt64{
-			Int64: 0,
-			Valid: false,
-		},
-		SenderClientID: sql.NullInt64{
-			Int64: 0,
-			Valid: false,
-		},
-		IsRead:    entity.IsRead(),
 		ReadAt:    mapping.PointerToSQLNullTime(entity.ReadAt()),
+		SenderID:  entity.SenderID().String(),
 		CreatedAt: entity.CreatedAt(),
-	}
-	if entity.Sender().Type() == chat.UserSenderType {
-		dbMessage.SenderUserID = mapping.ValueToSQLNullInt64(int64(entity.Sender().SenderID()))
-	} else {
-		dbMessage.SenderClientID = mapping.ValueToSQLNullInt64(int64(entity.Sender().SenderID()))
 	}
 	return dbMessage
 }
@@ -164,26 +153,29 @@ func ToDBMessage(entity chat.Message, chatID uint) *models.Message {
 func ToDomainMessage(
 	dbRow *models.Message,
 	dbUploads []*coremodels.Upload,
-	sender chat.Sender,
 ) (chat.Message, error) {
 	uploads := make([]upload.Upload, 0, len(dbUploads))
 	for _, u := range dbUploads {
 		uploads = append(uploads, corepersistence.ToDomainUpload(u))
 	}
+	senderID, err := uuid.Parse(dbRow.SenderID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse sender ID")
+	}
 	return chat.NewMessage(
 		dbRow.Message,
-		sender,
+		senderID,
 		chat.WithMessageID(dbRow.ID),
-		chat.WithIsRead(dbRow.IsRead),
+		chat.WithReadAt(mapping.SQLNullTimeToPointer(dbRow.ReadAt)),
 		chat.WithAttachments(uploads),
-		chat.WithCreatedAt(dbRow.CreatedAt),
+		chat.WithMessageCreatedAt(dbRow.CreatedAt),
 	), nil
 }
 
 func ToDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 	dbMessages := make([]*models.Message, 0, len(domainEntity.Messages()))
 	for _, m := range domainEntity.Messages() {
-		dbMessages = append(dbMessages, ToDBMessage(m, domainEntity.ID()))
+		dbMessages = append(dbMessages, ToDBMessage(domainEntity.ID(), m))
 	}
 	return &models.Chat{
 		ID:            domainEntity.ID(),
@@ -193,15 +185,126 @@ func ToDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 	}, dbMessages
 }
 
-func ToDomainChat(dbRow *models.Chat, messages []chat.Message) (chat.Chat, error) {
-	domainChat := chat.NewWithID(
-		dbRow.ID,
+func ToDomainChat(dbRow *models.Chat, messages []chat.Message, members []chat.Member) (chat.Chat, error) {
+	return chat.New(
 		dbRow.ClientID,
-		dbRow.CreatedAt,
-		messages,
-		mapping.SQLNullTimeToPointer(dbRow.LastMessageAt),
-	)
-	return domainChat, nil
+		chat.WithChatID(dbRow.ID),
+		chat.WithCreatedAt(dbRow.CreatedAt),
+		chat.WithMessages(messages),
+		chat.WithMembers(members),
+		chat.WithLastMessageAt(mapping.SQLNullTimeToPointer(dbRow.LastMessageAt)),
+	), nil
+}
+
+func ToDBChatMember(chatID uint, entity chat.Member) *models.ChatMember {
+	dbRow := &models.ChatMember{
+		ID:        entity.ID().String(),
+		ChatID:    chatID,
+		Transport: string(entity.Transport()),
+		CreatedAt: entity.CreatedAt(),
+		UpdatedAt: entity.UpdatedAt(),
+	}
+	switch v := entity.Sender().(type) {
+	case chat.ClientSender:
+		dbRow.ClientID = v.ClientID()
+		dbRow.ClientContactID = v.ContactID()
+	case chat.UserSender:
+		dbRow.UserID = v.UserID()
+	}
+	return dbRow
+}
+
+func ToDomainChatMember(dbMember *models.ChatMember) (chat.Member, error) {
+	transport := chat.Transport(dbMember.Transport)
+	var sender chat.Sender
+
+	if dbMember.UserID > 0 {
+		// Handle user sender
+		sender = chat.NewUserSender(transport, dbMember.UserID, "", "") // We could fetch user details from DB if needed
+	} else if dbMember.ClientID > 0 {
+		// Handle client sender
+		sender = chat.NewClientSender(transport, dbMember.ClientID, "", "") // We could fetch client details from DB if needed
+	} else {
+		// Default to unknown sender
+		sender = chat.NewOtherSender(nil)
+	}
+
+	// Process transport-specific metadata if available
+	if dbMember.TransportMeta != nil {
+		metaStr, ok := dbMember.TransportMeta.Interface().(string)
+		if ok {
+			switch transport {
+			case chat.TelegramTransport:
+				var meta models.TelegramMeta
+				if err := json.Unmarshal([]byte(metaStr), &meta); err == nil {
+					sender, err = TelegramMetaToSender(sender, &meta)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to process telegram metadata")
+					}
+				}
+			case chat.WhatsAppTransport:
+				var meta models.WhatsAppMeta
+				if err := json.Unmarshal([]byte(metaStr), &meta); err == nil {
+					sender, err = WhatsAppMetaToSender(sender, &meta)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to process whatsapp metadata")
+					}
+				}
+			case chat.InstagramTransport:
+				var meta models.InstagramMeta
+				if err := json.Unmarshal([]byte(metaStr), &meta); err == nil {
+					sender, err = InstagramMetaToSender(sender, &meta)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to process instagram metadata")
+					}
+				}
+			case chat.EmailTransport:
+				var meta models.EmailMeta
+				if err := json.Unmarshal([]byte(metaStr), &meta); err == nil {
+					sender, err = EmailMetaToSender(sender, &meta)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to process email metadata")
+					}
+				}
+			case chat.PhoneTransport:
+				var meta models.PhoneMeta
+				if err := json.Unmarshal([]byte(metaStr), &meta); err == nil {
+					sender, err = PhoneMetaToSender(sender, &meta)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to process phone metadata")
+					}
+				}
+			case chat.SMSTransport:
+				var meta models.SMSMeta
+				if err := json.Unmarshal([]byte(metaStr), &meta); err == nil {
+					sender, err = SMSMetaToSender(sender, &meta)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to process sms metadata")
+					}
+				}
+			case chat.WebsiteTransport:
+				var meta models.WebsiteMeta
+				if err := json.Unmarshal([]byte(metaStr), &meta); err == nil {
+					sender, err = WebsiteMetaToSender(sender, &meta)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to process website metadata")
+					}
+				}
+			}
+		}
+	}
+
+	uid, err := uuid.Parse(dbMember.ID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse member ID")
+	}
+	return chat.NewMember(
+		transport,
+		sender,
+		chat.WithMemberID(uid),
+		chat.WithMemberCreatedAt(dbMember.CreatedAt),
+		chat.WithMemberUpdatedAt(dbMember.UpdatedAt),
+	), nil
 }
 
 func ToDomainMessageTemplate(dbTemplate *models.MessageTemplate) (messagetemplate.MessageTemplate, error) {

@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-faster/errors"
@@ -51,12 +50,9 @@ const (
 			m.id,
 			m.chat_id,
 			m.message,
-			m.transport,
-			m.sender_user_id,
-			m.sender_client_id,
-			m.is_read,
+			m.sender_id,
 			m.read_at,
-			m.transport_meta,
+			m.sent_at,
 			m.created_at
 		FROM messages m
 	`
@@ -80,29 +76,38 @@ const (
 		WHERE m.id = $1
 	`
 
+	selectChatMembersQuery = `
+		SELECT 
+			cm.id,
+			cm.chat_id,
+			cm.user_id,
+			cm.client_id,
+			cm.client_contact_id,
+			cm.transport,
+			cm.transport_meta,
+			cm.created_at,
+			cm.updated_at
+		FROM chat_members cm
+	`
+
 	insertMessageQuery = `
 		INSERT INTO messages (
 			chat_id,
 			message,
-			transport,
-			sender_user_id,
-			sender_client_id,
-			is_read,
-			transport_meta,
+			read_at,
+			sent_at,
+			sender_id,
 			created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+		) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
 	updateMessageQuery = `
-		UPDATE messages SET 
+		UPDATE messages SET
 			chat_id = $1,
 			message = $2,
-			transport = $3,
-			sender_user_id = $4,
-			sender_client_id = $5,
-			is_read = $6,
-			transport_meta = $7,
-			read_at = $8
-		WHERE id = $9
+			read_at = $3,
+			sender_id = $4,
+			sent_at = $5
+		WHERE id = $6
 	`
 
 	deleteMessageQuery = `DELETE FROM messages WHERE id = $1`
@@ -113,6 +118,60 @@ type ChatRepository struct {
 
 func NewChatRepository() chat.Repository {
 	return &ChatRepository{}
+}
+
+func (g *ChatRepository) queryMembers(ctx context.Context, chatID uint) ([]chat.Member, error) {
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	rows, err := pool.Query(ctx, selectChatMembersQuery+" WHERE cm.chat_id = $1", chatID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute chat members query")
+	}
+	defer rows.Close()
+
+	var dbMembers []*models.ChatMember
+	for rows.Next() {
+		var member models.ChatMember
+		var transportMetaData []byte
+		if err := rows.Scan(
+			&member.ID,
+			&member.ChatID,
+			&member.UserID,
+			&member.ClientID,
+			&member.ClientContactID,
+			&member.Transport,
+			&transportMetaData,
+			&member.CreatedAt,
+			&member.UpdatedAt,
+		); err != nil {
+			return nil, errors.Wrap(err, "failed to scan chat member")
+		}
+
+		// Handle transport metadata based on transport type
+		if len(transportMetaData) > 0 {
+			member.TransportMeta = models.NewTransportMeta(string(transportMetaData))
+		}
+
+		dbMembers = append(dbMembers, &member)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "error occurred while iterating chat member rows")
+	}
+
+	members := make([]chat.Member, 0, len(dbMembers))
+	for _, m := range dbMembers {
+		domainMember, err := ToDomainChatMember(m)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to convert to domain chat member")
+		}
+		members = append(members, domainMember)
+	}
+
+	return members, nil
 }
 
 func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...interface{}) ([]chat.Chat, error) {
@@ -160,7 +219,13 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get messages for chat")
 		}
-		domainChat, err := ToDomainChat(c, messages)
+
+		members, err := g.queryMembers(ctx, c.ID)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get members for chat")
+		}
+
+		domainChat, err := ToDomainChat(c, messages, members)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain chat")
 		}
@@ -185,78 +250,16 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 	var dbMessages []*models.Message
 	for rows.Next() {
 		var msg models.Message
-		var transportMetaBytes []byte
 		if err := rows.Scan(
 			&msg.ID,
 			&msg.ChatID,
 			&msg.Message,
-			&msg.Transport,
-			&msg.SenderUserID,
-			&msg.SenderClientID,
-			&msg.IsRead,
+			&msg.SenderID,
 			&msg.ReadAt,
-			&transportMetaBytes,
+			&msg.SentAt,
 			&msg.CreatedAt,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan message")
-		}
-
-		// Process transport meta based on the transport type
-		if len(transportMetaBytes) > 0 {
-			transportType := chat.Transport(msg.Transport)
-
-			// Parse JSON based on transport type
-			switch transportType {
-			case chat.TelegramTransport:
-				var metaData models.TelegramMeta
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal telegram meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(&metaData)
-			case chat.WhatsAppTransport:
-				var metaData models.WhatsAppMeta
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal whatsapp meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(&metaData)
-			case chat.InstagramTransport:
-				var metaData models.InstagramMeta
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal instagram meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(&metaData)
-			case chat.EmailTransport:
-				var metaData models.EmailMeta
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal email meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(&metaData)
-			case chat.SMSTransport:
-				var metaData models.SMSMeta
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal sms meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(&metaData)
-			case chat.PhoneTransport:
-				var metaData models.PhoneMeta
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal phone meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(&metaData)
-			case chat.WebsiteTransport:
-				var metaData models.WebsiteMeta
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal website meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(&metaData)
-			default:
-				// For other transports, store as generic map
-				var metaData map[string]interface{}
-				if err := json.Unmarshal(transportMetaBytes, &metaData); err != nil {
-					return nil, errors.Wrap(err, "failed to unmarshal generic meta")
-				}
-				msg.TransportMeta = models.NewTransportMeta(metaData)
-			}
 		}
 
 		dbMessages = append(dbMessages, &msg)
@@ -268,184 +271,6 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 
 	messages := make([]chat.Message, 0, len(dbMessages))
 	for _, message := range dbMessages {
-		var sender chat.Sender
-		if message.SenderUserID.Valid {
-			var user coremodels.User
-			if err := pool.QueryRow(ctx, selectMessageUserSender, message.SenderUserID.Int64).Scan(
-				&user.ID,
-				&user.FirstName,
-				&user.LastName,
-			); err != nil {
-				return nil, errors.Wrap(err, "failed to scan user sender")
-			}
-			sender = chat.NewUserSender(chat.Transport(message.Transport), user.ID, user.FirstName, user.LastName)
-		}
-
-		if message.SenderClientID.Valid {
-			var client models.Client
-			if err := pool.QueryRow(ctx, selectMessageClientSender, message.SenderClientID.Int64).Scan(
-				&client.ID,
-				&client.FirstName,
-				&client.LastName,
-			); err != nil {
-				return nil, errors.Wrap(err, "failed to scan client sender")
-			}
-			baseSender := chat.NewClientSender(
-				chat.Transport(message.Transport),
-				client.ID,
-				client.FirstName,
-				client.LastName.String,
-			)
-
-			var err error
-			switch chat.Transport(message.Transport) {
-			case chat.TelegramTransport:
-				if message.TransportMeta != nil && message.TransportMeta.Interface() != nil {
-					telegramMeta, ok := message.TransportMeta.Interface().(*models.TelegramMeta)
-					if ok {
-						sender, err = TelegramMetaToSender(baseSender, telegramMeta)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create telegram sender")
-						}
-					} else {
-						sender, err = TelegramMetaToSender(baseSender, nil)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create telegram sender")
-						}
-					}
-				} else {
-					sender, err = TelegramMetaToSender(baseSender, nil)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to create telegram sender")
-					}
-				}
-			case chat.WhatsAppTransport:
-				if message.TransportMeta != nil && message.TransportMeta.Interface() != nil {
-					whatsappMeta, ok := message.TransportMeta.Interface().(*models.WhatsAppMeta)
-					if ok {
-						sender, err = WhatsAppMetaToSender(baseSender, whatsappMeta)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create whatsapp sender")
-						}
-					} else {
-						sender, err = WhatsAppMetaToSender(baseSender, nil)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create whatsapp sender")
-						}
-					}
-				} else {
-					sender, err = WhatsAppMetaToSender(baseSender, nil)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to create whatsapp sender")
-					}
-				}
-			case chat.InstagramTransport:
-				if message.TransportMeta != nil && message.TransportMeta.Interface() != nil {
-					instagramMeta, ok := message.TransportMeta.Interface().(*models.InstagramMeta)
-					if ok {
-						sender, err = InstagramMetaToSender(baseSender, instagramMeta)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create instagram sender")
-						}
-					} else {
-						sender, err = InstagramMetaToSender(baseSender, nil)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create instagram sender")
-						}
-					}
-				} else {
-					sender, err = InstagramMetaToSender(baseSender, nil)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to create instagram sender")
-					}
-				}
-			case chat.SMSTransport:
-				if message.TransportMeta != nil && message.TransportMeta.Interface() != nil {
-					smsMeta, ok := message.TransportMeta.Interface().(*models.SMSMeta)
-					if ok {
-						sender, err = SMSMetaToSender(baseSender, smsMeta)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create sms sender")
-						}
-					} else {
-						sender, err = SMSMetaToSender(baseSender, nil)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create sms sender")
-						}
-					}
-				} else {
-					sender, err = SMSMetaToSender(baseSender, nil)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to create sms sender")
-					}
-				}
-			case chat.EmailTransport:
-				if message.TransportMeta != nil && message.TransportMeta.Interface() != nil {
-					emailMeta, ok := message.TransportMeta.Interface().(*models.EmailMeta)
-					if ok {
-						sender, err = EmailMetaToSender(baseSender, emailMeta)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create email sender")
-						}
-					} else {
-						sender, err = EmailMetaToSender(baseSender, nil)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create email sender")
-						}
-					}
-				} else {
-					sender, err = EmailMetaToSender(baseSender, nil)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to create email sender")
-					}
-				}
-			case chat.PhoneTransport:
-				if message.TransportMeta != nil && message.TransportMeta.Interface() != nil {
-					phoneMeta, ok := message.TransportMeta.Interface().(*models.PhoneMeta)
-					if ok {
-						sender, err = PhoneMetaToSender(baseSender, phoneMeta)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create phone sender")
-						}
-					} else {
-						sender, err = PhoneMetaToSender(baseSender, nil)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create phone sender")
-						}
-					}
-				} else {
-					sender, err = PhoneMetaToSender(baseSender, nil)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to create phone sender")
-					}
-				}
-			case chat.WebsiteTransport:
-				if message.TransportMeta != nil && message.TransportMeta.Interface() != nil {
-					websiteMeta, ok := message.TransportMeta.Interface().(*models.WebsiteMeta)
-					if ok {
-						sender, err = WebsiteMetaToSender(baseSender, websiteMeta)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create website sender")
-						}
-					} else {
-						sender, err = WebsiteMetaToSender(baseSender, nil)
-						if err != nil {
-							return nil, errors.Wrap(err, "failed to create website sender")
-						}
-					}
-				} else {
-					sender, err = WebsiteMetaToSender(baseSender, nil)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to create website sender")
-					}
-				}
-			case chat.OtherTransport:
-				sender = chat.NewOtherSender(baseSender)
-			default:
-				sender = baseSender
-			}
-		}
-
 		uploads, err := pool.Query(ctx, selectMessageAttachmentsQuery, message.ID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to query attachments for message %d", message.ID)
@@ -473,7 +298,7 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 			return nil, errors.Wrap(err, "error occurred while iterating uploads")
 		}
 
-		domainMessage, err := ToDomainMessage(message, dbUploads, sender)
+		domainMessage, err := ToDomainMessage(message, dbUploads)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain message")
 		}
@@ -572,7 +397,7 @@ func (g *ChatRepository) GetMessageByID(ctx context.Context, id uint) (chat.Mess
 }
 
 func (g *ChatRepository) AddMessage(ctx context.Context, chatID uint, message chat.Message) (chat.Message, error) {
-	id, err := g.insertMessage(ctx, ToDBMessage(message, chatID))
+	id, err := g.insertMessage(ctx, ToDBMessage(chatID, message))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to insert message")
 	}
@@ -584,16 +409,16 @@ func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Mess
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
+
 	if err := tx.QueryRow(
 		ctx,
 		insertMessageQuery,
 		message.ChatID,
 		message.Message,
-		message.Transport,
-		message.SenderUserID,
-		message.SenderClientID,
-		message.IsRead,
-		&message.CreatedAt,
+		message.ReadAt,
+		message.SentAt,
+		message.SenderID,
+		message.CreatedAt,
 	).Scan(&message.ID); err != nil {
 		return 0, errors.Wrap(err, "failed to insert message")
 	}
@@ -605,16 +430,15 @@ func (g *ChatRepository) updateMessage(ctx context.Context, message *models.Mess
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
+
 	if _, err := tx.Exec(
 		ctx,
 		updateMessageQuery,
 		message.ChatID,
 		message.Message,
-		message.Transport,
-		message.SenderUserID,
-		message.SenderClientID,
-		message.IsRead,
 		message.ReadAt,
+		message.SenderID,
+		message.SentAt,
 		message.ID,
 	); err != nil {
 		return errors.Wrap(err, "failed to update message")
@@ -622,6 +446,7 @@ func (g *ChatRepository) updateMessage(ctx context.Context, message *models.Mess
 	return nil
 }
 
+// TODO: rename
 func (g *ChatRepository) DeleteMessage(ctx context.Context, id uint) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {

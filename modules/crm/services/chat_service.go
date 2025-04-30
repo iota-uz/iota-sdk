@@ -21,9 +21,10 @@ type MessageMedia struct {
 	MimeType      string
 }
 
-// SendMessageDTO represents the data needed to send a message
-type SendMessageDTO struct {
+// SendMessageCommand represents the data needed to send a message
+type SendMessageCommand struct {
 	ChatID      uint
+	Transport   chat.Transport
 	Message     string
 	Attachments []*upload.Upload
 }
@@ -303,21 +304,31 @@ func (s *ChatService) onMessageReceived(msg chat.Message) error {
 //	return updatedChat, nil
 //}
 
-func (s *ChatService) SendMessage(ctx context.Context, chatID uint, msg chat.Message) (chat.Chat, error) {
+func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (chat.Chat, error) {
 	var updatedChat chat.Chat
 
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		// Get the chat by ID
-		chatEntity, err := s.GetByID(txCtx, chatID)
+		chatEntity, err := s.GetByID(txCtx, cmd.ChatID)
 		if err != nil {
 			return err
 		}
+
+		usr, err := composables.UseUser(ctx)
+		if err != nil {
+			return err
+		}
+
+		memberID, err := chatEntity.MapUserToMemberID(usr.ID())
+		if err != nil {
+			return err
+		}
+		msg := chat.NewMessage(cmd.Message, memberID)
 
 		updatedChat, err = s.repo.Update(txCtx, chatEntity.AddMessage(msg))
 		if err != nil {
 			return err
 		}
-		provider := s.providers[msg.Sender().Transport()]
+		provider := s.providers[cmd.Transport]
 
 		//		cpassproviders.SendMessageDTO{
 		//			From:    configuration.Use().Twilio.PhoneNumber,

@@ -8,15 +8,22 @@ CREATE TABLE chat_members (
 	client_id         INT8 REFERENCES clients (id) ON DELETE SET NULL ON UPDATE CASCADE,
 	client_contact_id INT8 UNIQUE REFERENCES client_contacts (id) ON DELETE SET NULL ON UPDATE CASCADE,
 	transport         VARCHAR(20) NOT NULL,
-	transport_meta    JSONB
+	transport_meta    JSONB,
+	created_at        TIMESTAMP(3) DEFAULT now() NOT NULL,
+	updated_at        TIMESTAMP(3) DEFAULT now() NOT NULL
 );
 
 -- Change ADD_COLUMN: sender_id
 ALTER TABLE messages ADD COLUMN sender_id UUID REFERENCES chat_members (id) ON DELETE RESTRICT ON UPDATE CASCADE;
 
+-- Change ADD_COLUMN: sent_at
+ALTER TABLE messages ADD COLUMN sent_at TIMESTAMP(3);
+
 ALTER TABLE messages DROP COLUMN IF EXISTS sender_user_id;
 
 ALTER TABLE messages DROP COLUMN IF EXISTS sender_client_id;
+
+ALTER TABLE messages DROP COLUMN IF EXISTS is_read;
 
 ALTER TABLE messages DROP COLUMN IF EXISTS source;
 
@@ -25,9 +32,14 @@ ALTER TABLE messages DROP COLUMN IF EXISTS source;
 
 ALTER TABLE messages ADD COLUMN source VARCHAR(20) NOT NULL;
 
+ALTER TABLE messages ADD COLUMN is_read BOOL DEFAULT false NOT NULL;
+
 ALTER TABLE messages ADD COLUMN sender_client_id INT8 REFERENCES clients (id) ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE messages ADD COLUMN sender_user_id INT8 REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Undo ADD_COLUMN: sent_at
+ALTER TABLE messages DROP COLUMN IF EXISTS sent_at;
 
 -- Undo ADD_COLUMN: sender_id
 ALTER TABLE messages DROP COLUMN IF EXISTS sender_id;
