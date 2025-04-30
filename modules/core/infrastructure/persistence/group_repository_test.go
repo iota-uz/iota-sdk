@@ -339,12 +339,12 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		params := &group.FindParams{
 			Filters: []group.Filter{
 				{
-					Column: group.CreatedAt,
+					Column: group.CreatedAtField,
 					Filter: repo.Gt(pastTime),
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
+				Fields:    []group.Field{group.CreatedAtField},
 				Ascending: true,
 			},
 			Limit:  100,
@@ -364,12 +364,12 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		params = &group.FindParams{
 			Filters: []group.Filter{
 				{
-					Column: group.CreatedAt,
+					Column: group.CreatedAtField,
 					Filter: repo.Lt(pastTime),
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
+				Fields:    []group.Field{group.CreatedAtField},
 				Ascending: true,
 			},
 			Limit:  100,
@@ -389,12 +389,12 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		params = &group.FindParams{
 			Filters: []group.Filter{
 				{
-					Column: group.CreatedAt,
+					Column: group.CreatedAtField,
 					Filter: repo.Gte(pastTime),
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
+				Fields:    []group.Field{group.CreatedAtField},
 				Ascending: true,
 			},
 			Limit:  100,
@@ -415,12 +415,12 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		params = &group.FindParams{
 			Filters: []group.Filter{
 				{
-					Column: group.CreatedAt,
+					Column: group.CreatedAtField,
 					Filter: repo.Lte(pastTime),
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
+				Fields:    []group.Field{group.CreatedAtField},
 				Ascending: true,
 			},
 			Limit:  100,
@@ -442,7 +442,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Test sorting by created_at ascending
 		params := &group.FindParams{
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
+				Fields:    []group.Field{group.CreatedAtField},
 				Ascending: true,
 			},
 			Limit:  100,
@@ -474,7 +474,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Test sorting by updated_at
-		params.SortBy.Fields = []group.Field{group.UpdatedAt}
+		params.SortBy.Fields = []group.Field{group.UpdatedAtField}
 		params.SortBy.Ascending = true
 		groups, err = groupRepository.GetPaginated(f.ctx, params)
 		require.NoError(t, err)
@@ -507,7 +507,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Test with limit and offset
 		params := &group.FindParams{
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAt},
+				Fields:    []group.Field{group.CreatedAtField},
 				Ascending: true,
 			},
 			Limit:  3,
