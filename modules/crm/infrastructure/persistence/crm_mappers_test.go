@@ -255,16 +255,16 @@ func TestToDomainMessage(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	
+
 	// Create a test member for messages
 	testMember := chat.NewMember(
 		chat.NewUserSender(chat.WebsiteTransport, 1, "User", "Test"),
 	)
 
 	tests := []struct {
-		name      string
-		dbMessage *models.Message
-		dbUploads []*coremodels.Upload
+		name       string
+		dbMessage  *models.Message
+		dbUploads  []*coremodels.Upload
 		validateFn func(t *testing.T, message chat.Message)
 	}{
 		{
@@ -329,11 +329,11 @@ func TestToDBChat(t *testing.T) {
 
 	// Create test chat with messages
 	now := time.Now()
-	
+
 	// Create members first
 	member1 := chat.NewMember(chat.NewClientSender(chat.WebsiteTransport, 2, "Client", "Test"))
 	member2 := chat.NewMember(chat.NewClientSender(chat.WebsiteTransport, 2, "Client", "Test"))
-	
+
 	messages := []chat.Message{
 		chat.NewMessage(
 			"Message 1",
@@ -369,7 +369,7 @@ func TestToDBChat(t *testing.T) {
 		// Check the first message
 		assert.Equal(t, uint(1), dbMessages[0].ID, "First message ID should match")
 		assert.Equal(t, "Message 1", dbMessages[0].Message, "First message content should match")
-		
+
 		// Now we store UUIDs as strings in the DB, not uint IDs
 		assert.Equal(t, member1.ID().String(), dbMessages[0].SenderID, "First message SenderID should match")
 
@@ -384,16 +384,16 @@ func TestToDomainChat(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	
+
 	// Create members with fixed UUIDs first for predictable testing
 	member1ID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	member2ID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
-	
+
 	member1 := chat.NewMember(
 		chat.NewUserSender(chat.TelegramTransport, 1, "User", "Test"),
 		chat.WithMemberID(member1ID),
 	)
-	
+
 	member2 := chat.NewMember(
 		chat.NewClientSender(chat.WebsiteTransport, 2, "Client", "Test"),
 		chat.WithMemberID(member2ID),
