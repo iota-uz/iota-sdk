@@ -43,9 +43,9 @@ type Chat struct {
 type ChatMember struct {
 	ID              string
 	ChatID          uint
-	UserID          uint
-	ClientID        uint
-	ClientContactID uint
+	UserID          sql.NullInt32
+	ClientID        sql.NullInt32
+	ClientContactID sql.NullInt32
 	Transport       string
 	TransportMeta   *TransportMeta
 	CreatedAt       time.Time

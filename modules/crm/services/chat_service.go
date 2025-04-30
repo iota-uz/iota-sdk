@@ -318,11 +318,20 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 			return err
 		}
 
-		memberID, err := chatEntity.MapUserToMemberID(usr.ID())
-		if err != nil {
-			return err
-		}
-		msg := chat.NewMessage(cmd.Message, memberID)
+		//	transport Transport,
+		//	sender Sender,
+		//	opts ...MemberOption,
+
+		member := chat.NewMember(
+			chat.NewUserSender(
+				cmd.Transport,
+				usr.ID(),
+				usr.FirstName(),
+				usr.LastName(),
+			),
+		)
+
+		msg := chat.NewMessage(cmd.Message, member)
 
 		updatedChat, err = s.repo.Update(txCtx, chatEntity.AddMessage(msg))
 		if err != nil {
