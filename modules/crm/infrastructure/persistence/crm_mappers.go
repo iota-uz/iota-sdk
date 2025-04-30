@@ -290,6 +290,8 @@ func ToDomainChatMember(dbMember *models.ChatMember) (chat.Member, error) {
 						return nil, errors.Wrap(err, "failed to process website metadata")
 					}
 				}
+			case chat.OtherTransport:
+				panic("other transport")
 			}
 		}
 	}

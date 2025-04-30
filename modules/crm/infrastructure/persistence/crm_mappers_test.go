@@ -179,6 +179,7 @@ func TestToDBClient(t *testing.T) {
 			name:   "client without passport",
 			client: createTestClient(t, false),
 			validateFn: func(t *testing.T, dbClient *models.Client) {
+				t.Helper()
 				assert.Equal(t, "John", dbClient.FirstName, "FirstName should match")
 
 				assert.True(t, dbClient.PhoneNumber.Valid, "PhoneNumber should be valid")
@@ -504,6 +505,7 @@ func TestTransportMappers(t *testing.T) {
 		{
 			name: "TelegramMetaToSender",
 			testFunction: func(t *testing.T) {
+				t.Helper()
 				baseSender := chat.NewClientSender(chat.TelegramTransport, 1, "Test", "Client")
 
 				// Test with nil meta
@@ -557,6 +559,7 @@ func TestTransportMappers(t *testing.T) {
 		{
 			name: "WhatsAppMetaToSender",
 			testFunction: func(t *testing.T) {
+				t.Helper()
 				baseSender := chat.NewClientSender(chat.WhatsAppTransport, 1, "Test", "Client")
 
 				// Test with nil meta

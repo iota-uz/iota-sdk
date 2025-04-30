@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -78,7 +79,7 @@ func (tm *TransportMeta) Interface() any {
 
 func (tm *TransportMeta) Value() (driver.Value, error) {
 	if tm.value == nil {
-		return nil, nil
+		return nil, errors.New("empty meta")
 	}
 	return tm.value, nil
 }
