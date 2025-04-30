@@ -131,7 +131,7 @@ func TestGroupService_GetPaginated(t *testing.T) {
 		Limit:  10,
 		Offset: 0,
 		SortBy: group.SortBy{
-			Fields:    []group.Field{group.CreatedAt},
+			Fields:    []group.Field{group.CreatedAtField},
 			Ascending: true,
 		},
 	}

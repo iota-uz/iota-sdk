@@ -74,6 +74,8 @@ func (m *Module) Register(app application.Application) error {
 	)
 	tabHandler.Register(app.EventPublisher())
 
+	handlers.RegisterUserHandler(app)
+
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),
 		controllers.NewLoginController(app),

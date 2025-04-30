@@ -23,6 +23,7 @@ const (
 	userFindQuery = `
         SELECT
             u.id,
+            u.type,
             u.first_name,
             u.last_name,
             u.middle_name,
@@ -91,17 +92,17 @@ func NewUserRepository(uploadRepo upload.Repository) user.Repository {
 	return &PgUserRepository{
 		uploadRepo: uploadRepo,
 		fieldMap: map[user.Field]string{
-			user.FirstName:    "u.first_name",
-			user.LastName:     "u.last_name",
-			user.MiddleName:   "u.middle_name",
-			user.Email:        "u.email",
-			user.GroupID:      "gu.group_id",
-			user.RoleID:       "ur.role_id",
-			user.Phone:        "u.phone",
-			user.PermissionID: "rp.permission_id",
-			user.LastLogin:    "u.last_login",
-			user.CreatedAt:    "u.created_at",
-			user.UpdatedAt:    "u.updated_at",
+			user.FirstNameField:    "u.first_name",
+			user.LastNameField:     "u.last_name",
+			user.MiddleNameField:   "u.middle_name",
+			user.EmailField:        "u.email",
+			user.GroupIDField:      "gu.group_id",
+			user.RoleIDField:       "ur.role_id",
+			user.PhoneField:        "u.phone",
+			user.PermissionIDField: "rp.permission_id",
+			user.LastLoginField:    "u.last_login",
+			user.CreatedAtField:    "u.created_at",
+			user.UpdatedAtField:    "u.updated_at",
 		},
 	}
 }
@@ -157,15 +158,15 @@ func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindPa
 
 	baseQuery := userFindQuery
 	for _, f := range params.Filters {
-		if f.Column == user.RoleID {
+		if f.Column == user.RoleIDField {
 			baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
 		}
 
-		if f.Column == user.GroupID {
+		if f.Column == user.GroupIDField {
 			baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
 		}
 
-		if f.Column == user.PermissionID {
+		if f.Column == user.PermissionIDField {
 			baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
 		}
 	}
@@ -197,15 +198,15 @@ func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (
 	baseQuery := userCountQuery
 
 	for _, f := range params.Filters {
-		if f.Column == user.RoleID {
+		if f.Column == user.RoleIDField {
 			baseQuery += " JOIN user_roles ur ON u.id = ur.user_id"
 		}
 
-		if f.Column == user.GroupID {
+		if f.Column == user.GroupIDField {
 			baseQuery += " JOIN group_users gu ON u.id = gu.user_id"
 		}
 
-		if f.Column == user.PermissionID {
+		if f.Column == user.PermissionIDField {
 			baseQuery += " JOIN role_permissions rp ON ur.role_id = rp.role_id"
 		}
 	}
@@ -305,6 +306,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	dbUser, _ := toDBUser(data)
 
 	fields := []string{
+		"type",
 		"first_name",
 		"last_name",
 		"middle_name",
@@ -318,6 +320,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	}
 
 	values := []interface{}{
+		dbUser.Type,
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -470,6 +473,7 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 
 		if err := rows.Scan(
 			&u.ID,
+			&u.Type,
 			&u.FirstName,
 			&u.LastName,
 			&u.MiddleName,
@@ -704,10 +708,6 @@ func (g *PgUserRepository) execQuery(ctx context.Context, query string, args ...
 }
 
 func (g *PgUserRepository) updateUserRoles(ctx context.Context, userID uint, roles []role.Role) error {
-	if len(roles) == 0 {
-		return nil
-	}
-
 	if err := g.execQuery(ctx, userRoleDeleteQuery, userID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete existing roles for user ID: %d", userID))
 	}

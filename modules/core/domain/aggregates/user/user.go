@@ -16,6 +16,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
+type Type string
+
+const (
+	TypeSystem Type = "system"
+	TypeUser   Type = "user"
+)
+
 type Option func(u *user)
 
 // --- Option setters ---
@@ -23,6 +30,12 @@ type Option func(u *user)
 func WithID(id uint) Option {
 	return func(u *user) {
 		u.id = id
+	}
+}
+
+func WithType(type_ Type) Option {
+	return func(u *user) {
+		u.type_ = type_
 	}
 }
 
@@ -111,6 +124,7 @@ func WithPhone(p phone.Phone) Option {
 
 type User interface {
 	ID() uint
+	Type() Type
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -128,6 +142,8 @@ type User interface {
 	LastAction() time.Time
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+
+	Events() []interface{}
 
 	Can(perm *permission.Permission) bool
 	CheckPassword(password string) bool
@@ -160,6 +176,7 @@ func New(
 ) User {
 	u := &user{
 		id:          0,
+		type_:       TypeUser,
 		firstName:   firstName,
 		lastName:    lastName,
 		middleName:  "",
@@ -186,6 +203,7 @@ func New(
 
 type user struct {
 	id          uint
+	type_       Type
 	firstName   string
 	lastName    string
 	middleName  string
@@ -203,10 +221,15 @@ type user struct {
 	lastAction  time.Time
 	createdAt   time.Time
 	updatedAt   time.Time
+	events      []interface{}
 }
 
 func (u *user) ID() uint {
 	return u.id
+}
+
+func (u *user) Type() Type {
+	return u.type_
 }
 
 func (u *user) FirstName() string {
@@ -370,6 +393,10 @@ func (u *user) UpdatedAt() time.Time {
 	return u.updatedAt
 }
 
+func (u *user) Events() []interface{} {
+	return u.events
+}
+
 func (u *user) Can(perm *permission.Permission) bool {
 	for _, p := range u.permissions {
 		if p.ID == perm.ID || (p.Resource == perm.Resource && p.Action == perm.Action &&
@@ -446,6 +473,11 @@ func (u *user) SetPassword(password string) (User, error) {
 	result := *u
 	result.password = string(hash)
 	result.updatedAt = time.Now()
+
+	result.events = append(result.events, &UpdatedPasswordEvent{
+		UserID: result.id,
+	})
+
 	return &result, nil
 }
 
