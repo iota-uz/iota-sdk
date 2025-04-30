@@ -43,7 +43,7 @@ const (
 type Provider interface {
 	Transport() Transport
 	Send(ctx context.Context, msg Message) error
-	OnReceived(callback func(msg Message) error) error
+	OnReceived(callback func(msg Message) error)
 }
 
 type Chat interface {

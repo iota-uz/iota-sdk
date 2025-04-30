@@ -80,7 +80,7 @@ func (tm *TransportMeta) Value() (driver.Value, error) {
 	if tm.value == nil {
 		return nil, nil
 	}
-	return driver.Value(tm.value), nil
+	return tm.value, nil
 }
 
 func (tm *TransportMeta) Scan(value any) error {

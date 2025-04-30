@@ -44,9 +44,9 @@ func (c *AIChatController) Register(r *mux.Router) {
 	)
 	router.HandleFunc("", c.configureAIChat).Methods(http.MethodGet)
 
-	// bareRouter := r.PathPrefix(c.basePath).Subrouter()
-	// bareRouter.HandleFunc("/payload", c.aiChat).Methods(http.MethodGet)
-	// bareRouter.HandleFunc("/test-wc", c.aiChatWC).Methods(http.MethodGet)
+	bareRouter := r.PathPrefix(c.basePath).Subrouter()
+	bareRouter.HandleFunc("/payload", c.aiChat).Methods(http.MethodGet)
+	bareRouter.HandleFunc("/test-wc", c.aiChatWC).Methods(http.MethodGet)
 	// bareRouter.HandleFunc("/message", c.handleMessage).Methods(http.MethodPost)
 	// bareRouter.HandleFunc("/messages/{chat_id}", c.getThreadMessages).Methods(http.MethodGet)
 	// bareRouter.HandleFunc("/messages/{chat_id}", c.addMessageToThread).Methods(http.MethodPost)
