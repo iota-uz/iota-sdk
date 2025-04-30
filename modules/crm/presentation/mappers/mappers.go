@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -84,28 +83,47 @@ func PassportToViewModel(p passport.Passport) viewmodels.Passport {
 }
 
 func SenderToViewModel(entity chat.Sender) viewmodels.MessageSender {
-	senderID := strconv.FormatUint(uint64(entity.SenderID()), 10)
-	initials := shared.GetInitials(entity.FirstName(), entity.LastName())
-	if entity.Type() == chat.ClientSenderType {
-		return viewmodels.NewClientMessageSender(senderID, initials)
+	switch v := entity.(type) {
+	case chat.ClientSender:
+		return viewmodels.NewClientMessageSender(
+			strconv.FormatUint(uint64(v.ClientID()), 10),
+			shared.GetInitials(v.FirstName(), v.LastName()),
+		)
+	case chat.UserSender:
+		return viewmodels.NewUserMessageSender(
+			strconv.FormatUint(uint64(v.UserID()), 10),
+			shared.GetInitials(v.FirstName(), v.LastName()),
+		)
+	default:
+		panic("unknown sender type")
 	}
-	return viewmodels.NewUserMessageSender(senderID, initials)
 }
 
-func MessageToViewModel(entity chat.Message) *viewmodels.Message {
+func MessageToViewModel(entity chat.Message, sender chat.Sender) *viewmodels.Message {
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Sender:    SenderToViewModel(entity.Sender()),
+		Sender:    SenderToViewModel(sender),
 		Message:   entity.Message(),
 		CreatedAt: entity.CreatedAt(),
 	}
 }
 
 func ChatToViewModel(entity chat.Chat, clientEntity client.Client) *viewmodels.Chat {
+	messages := make([]*viewmodels.Message, 0, len(entity.Messages()))
+	for _, message := range entity.Messages() {
+		var sender chat.Sender
+		for _, member := range entity.Members() {
+			if member.ID() == message.SenderID() {
+				sender = member.Sender()
+				break
+			}
+		}
+		messages = append(messages, MessageToViewModel(message, sender))
+	}
 	return &viewmodels.Chat{
 		ID:             strconv.FormatUint(uint64(entity.ID()), 10),
 		Client:         ClientToViewModel(clientEntity),
-		Messages:       mapping.MapViewModels(entity.Messages(), MessageToViewModel),
+		Messages:       messages,
 		UnreadMessages: entity.UnreadMessages(),
 		CreatedAt:      entity.CreatedAt().Format(time.RFC3339),
 	}

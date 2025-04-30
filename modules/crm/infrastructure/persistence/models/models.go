@@ -40,17 +40,26 @@ type Chat struct {
 	CreatedAt     time.Time
 }
 
+type ChatMember struct {
+	ID              string
+	ChatID          uint
+	UserID          uint
+	ClientID        uint
+	ClientContactID uint
+	Transport       string
+	TransportMeta   *TransportMeta
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type Message struct {
-	ID             uint
-	CreatedAt      time.Time
-	ChatID         uint
-	Message        string
-	Transport      string
-	SenderUserID   sql.NullInt64
-	SenderClientID sql.NullInt64
-	ReadAt         sql.NullTime
-	TransportMeta  *TransportMeta
-	IsRead         bool
+	ID        uint
+	ChatID    uint
+	Message   string
+	ReadAt    sql.NullTime
+	SenderID  string
+	SentAt    sql.NullTime
+	CreatedAt time.Time
 }
 
 func NewTransportMeta(value any) *TransportMeta {

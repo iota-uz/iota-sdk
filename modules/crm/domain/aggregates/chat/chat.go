@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
@@ -50,33 +51,61 @@ type Chat interface {
 	ID() uint
 	ClientID() uint
 	Messages() []Message
-	SendMessage(content string, sender Sender, attachments ...upload.Upload) (Message, error)
+	SendMessage(content string, senderID uuid.UUID, attachments ...upload.Upload) (Message, error)
 	AddMessage(msg Message) Chat
 	UnreadMessages() int
 	MarkAllAsRead()
+	Members() []Member
+	MapUserToMemberID(userID uint) (uuid.UUID, error)
+	MapClientToMemberID(clientID uint) (uuid.UUID, error)
 	LastMessage() (Message, error)
 	LastMessageAt() *time.Time
 	CreatedAt() time.Time
 }
 
+type Message interface {
+	ID() uint
+	// TODO: rename
+	SenderID() uuid.UUID
+	Message() string
+	IsRead() bool
+	MarkAsRead()
+	ReadAt() *time.Time
+	Attachments() []upload.Upload
+	CreatedAt() time.Time
+}
+
+type Member interface {
+	ID() uuid.UUID
+	Transport() Transport
+	Sender() Sender
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
+}
+
 type Sender interface {
 	Transport() Transport
-	Type() SenderType
-	SenderID() uint
+}
+
+type UserSender interface {
+	Sender
+	UserID() uint
 	FirstName() string
 	LastName() string
 }
 
-// TelegramSender represents a message from Telegram
+type ClientSender interface {
+	Sender
+	ClientID() uint
+	ContactID() uint
+	FirstName() string
+	LastName() string
+}
+
 type TelegramSender interface {
 	Sender
 	ChatID() int64
 	Username() string
-	Phone() phone.Phone
-}
-
-type TwilioSender interface {
-	Sender
 	Phone() phone.Phone
 }
 
@@ -105,53 +134,65 @@ type PhoneSender interface {
 	Phone() phone.Phone
 }
 
-type OtherSender interface {
-	Sender
-}
-
 type WebsiteSender interface {
 	Sender
 	Phone() phone.Phone
 	Email() internet.Email
 }
 
-type Message interface {
-	ID() uint
-	// TODO: rename
-	Message() string
-	Sender() Sender
-	IsRead() bool
-	MarkAsRead()
-	ReadAt() *time.Time
-	Attachments() []upload.Upload
-	CreatedAt() time.Time
+type OtherSender interface {
+	Sender
 }
 
 // ---- Chat Implementation ----
 
-func New(clientID uint) Chat {
-	return &chat{
-		id:            0,
-		clientID:      clientID,
-		lastMessageAt: nil,
-		createdAt:     time.Now(),
+type ChatOption func(c *chat)
+
+func WithChatID(id uint) ChatOption {
+	return func(c *chat) {
+		c.id = id
 	}
 }
 
-func NewWithID(
-	id uint,
-	clientID uint,
-	createdAt time.Time,
-	messages []Message,
-	lastMessageAt *time.Time,
-) Chat {
-	return &chat{
-		id:            id,
-		clientID:      clientID,
-		messages:      messages,
-		lastMessageAt: lastMessageAt,
-		createdAt:     createdAt,
+func WithMessages(messages []Message) ChatOption {
+	return func(c *chat) {
+		c.messages = messages
 	}
+}
+
+func WithLastMessageAt(lastMessageAt *time.Time) ChatOption {
+	return func(c *chat) {
+		c.lastMessageAt = lastMessageAt
+	}
+}
+
+func WithMembers(members []Member) ChatOption {
+	return func(c *chat) {
+		c.members = members
+	}
+}
+
+func WithCreatedAt(createdAt time.Time) ChatOption {
+	return func(c *chat) {
+		c.createdAt = createdAt
+	}
+}
+
+func New(clientID uint, opts ...ChatOption) Chat {
+	c := &chat{
+		id:            0,
+		clientID:      clientID,
+		messages:      []Message{},
+		lastMessageAt: nil,
+		members:       []Member{},
+		createdAt:     time.Now(),
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 type chat struct {
@@ -159,6 +200,7 @@ type chat struct {
 	clientID      uint
 	messages      []Message
 	lastMessageAt *time.Time
+	members       []Member
 	createdAt     time.Time
 }
 
@@ -178,7 +220,7 @@ func (c *chat) ClientID() uint {
 func (c *chat) UnreadMessages() int {
 	count := 0
 	for _, msg := range c.messages {
-		if !msg.IsRead() && msg.Sender().Type() == UserSenderType {
+		if !msg.IsRead() {
 			count++
 		}
 	}
@@ -199,10 +241,30 @@ func (c *chat) AddMessage(msg Message) Chat {
 	return &res
 }
 
+// MapUserToMemberID maps a user ID to a member ID in the chat
+func (c *chat) MapUserToMemberID(userID uint) (uuid.UUID, error) {
+	for _, member := range c.members {
+		if user, ok := member.Sender().(UserSender); ok && user.UserID() == userID {
+			return member.ID(), nil
+		}
+	}
+	return uuid.Nil, errors.New("user not found in chat")
+}
+
+// MapClientToMemberID maps a client ID to a member ID in the chat
+func (c *chat) MapClientToMemberID(clientID uint) (uuid.UUID, error) {
+	for _, member := range c.members {
+		if client, ok := member.Sender().(ClientSender); ok && client.ClientID() == clientID {
+			return member.ID(), nil
+		}
+	}
+	return uuid.Nil, errors.New("client not found in chat")
+}
+
 // AddMessage adds a new message to the chat
 func (c *chat) SendMessage(
 	content string,
-	sender Sender,
+	senderID uuid.UUID,
 	attachments ...upload.Upload,
 ) (Message, error) {
 	if content == "" && len(attachments) == 0 {
@@ -211,7 +273,7 @@ func (c *chat) SendMessage(
 
 	msg := NewMessage(
 		content,
-		sender,
+		senderID,
 		WithAttachments(attachments),
 	)
 
@@ -237,6 +299,80 @@ func (c *chat) CreatedAt() time.Time {
 	return c.createdAt
 }
 
+func (c *chat) Members() []Member {
+	return c.members
+}
+
+// -------
+// Member
+// -------
+
+type MemberOption func(m *member)
+
+func WithMemberID(id uuid.UUID) MemberOption {
+	return func(m *member) {
+		m.id = id
+	}
+}
+
+func WithMemberCreatedAt(createdAt time.Time) MemberOption {
+	return func(m *member) {
+		m.createdAt = createdAt
+	}
+}
+
+func WithMemberUpdatedAt(updatedAt time.Time) MemberOption {
+	return func(m *member) {
+		m.updatedAt = updatedAt
+	}
+}
+
+func NewMember(
+	transport Transport,
+	sender Sender,
+	opts ...MemberOption,
+) Member {
+	m := &member{
+		id:        uuid.New(),
+		transport: transport,
+		sender:    sender,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+type member struct {
+	id        uuid.UUID
+	transport Transport
+	sender    Sender
+	createdAt time.Time
+	updatedAt time.Time
+}
+
+func (m *member) ID() uuid.UUID {
+	return m.id
+}
+
+func (m *member) Transport() Transport {
+	return m.transport
+}
+
+func (m *member) Sender() Sender {
+	return m.sender
+}
+
+func (m *member) CreatedAt() time.Time {
+	return m.createdAt
+}
+
+func (m *member) UpdatedAt() time.Time {
+	return m.updatedAt
+}
+
 // -------
 // Message
 // -------
@@ -246,12 +382,6 @@ type MessageOption func(m *message)
 func WithMessageID(id uint) MessageOption {
 	return func(m *message) {
 		m.id = id
-	}
-}
-
-func WithIsRead(isRead bool) MessageOption {
-	return func(m *message) {
-		m.isRead = isRead
 	}
 }
 
@@ -267,7 +397,7 @@ func WithAttachments(attachments []upload.Upload) MessageOption {
 	}
 }
 
-func WithCreatedAt(createdAt time.Time) MessageOption {
+func WithMessageCreatedAt(createdAt time.Time) MessageOption {
 	return func(m *message) {
 		m.createdAt = createdAt
 	}
@@ -275,13 +405,13 @@ func WithCreatedAt(createdAt time.Time) MessageOption {
 
 func NewMessage(
 	msg string,
-	sender Sender,
+	senderID uuid.UUID,
 	opts ...MessageOption,
 ) Message {
 	m := &message{
 		id:          0,
 		message:     msg,
-		sender:      sender,
+		senderID:    senderID,
 		isRead:      false,
 		readAt:      nil,
 		attachments: []upload.Upload{},
@@ -297,7 +427,7 @@ type message struct {
 	id          uint
 	chatID      uint
 	message     string
-	sender      Sender
+	senderID    uuid.UUID
 	isRead      bool
 	readAt      *time.Time
 	attachments []upload.Upload
@@ -316,8 +446,8 @@ func (m *message) Message() string {
 	return m.message
 }
 
-func (m *message) Sender() Sender {
-	return m.sender
+func (m *message) SenderID() uuid.UUID {
+	return m.senderID
 }
 
 func (m *message) IsRead() bool {
@@ -422,26 +552,6 @@ func (s *telegramSender) Username() string {
 func (s *telegramSender) Phone() phone.Phone {
 	return s.phone
 }
-
-// TwilioSender represents a message from Twilio SMS
-
-func NewTwilioSender(base Sender, phone phone.Phone) TwilioSender {
-	return &twilioSender{
-		Sender: base,
-		phone:  phone,
-	}
-}
-
-type twilioSender struct {
-	Sender
-	phone phone.Phone
-}
-
-func (s *twilioSender) Phone() phone.Phone {
-	return s.phone
-}
-
-// WebsiteSender represents a message from the website
 
 func NewWebsiteSender(base Sender, phone phone.Phone, email internet.Email) WebsiteSender {
 	return &websiteSender{
