@@ -111,12 +111,11 @@ func (s *TwilioProvider) Send(ctx context.Context, msg chat.Message) error {
 	return err
 }
 
-func (s *TwilioProvider) OnReceived(callback func(msg chat.Message) error) error {
+func (s *TwilioProvider) OnReceived(callback func(msg chat.Message) error) {
 	// Twilio does not support a direct way to register a callback for incoming messages.
 	// Instead, you need to set up a webhook URL in your Twilio console that points to your server.
 	// When a message is received, Twilio will send an HTTP POST request to this URL.
 	// You can then handle the incoming message in the WebhookHandler method.
-	return nil
 }
 
 func (s *TwilioProvider) WebhookHandler(eventBus eventbus.EventBus) http.HandlerFunc {
