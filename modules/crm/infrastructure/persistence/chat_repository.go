@@ -439,7 +439,7 @@ func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Mess
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
-	
+
 	// Verify that the sender exists in the database
 	var senderExists bool
 	err = tx.QueryRow(
@@ -447,11 +447,11 @@ func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Mess
 		"SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)",
 		message.SenderID,
 	).Scan(&senderExists)
-	
+
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to check if sender exists")
 	}
-	
+
 	if !senderExists {
 		return 0, errors.Errorf("sender with ID %s does not exist in the database", message.SenderID)
 	}
@@ -504,7 +504,7 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 	if err != nil {
 		return errors.Wrap(err, "failed to check if member exists")
 	}
-	
+
 	if exists {
 		// Member already exists, nothing to do
 		return nil
@@ -524,7 +524,7 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 		member.ID,
 		chatID,
 		member.UserID,
-		member.ClientID, 
+		member.ClientID,
 		member.ClientContactID,
 		member.Transport,
 		transportMeta,
@@ -571,11 +571,11 @@ func (g *ChatRepository) saveMembers(ctx context.Context, chatID uint, members [
 		// No members to save
 		return nil
 	}
-	
+
 	for _, member := range members {
 		dbMember := ToDBChatMember(chatID, member)
 		dbMember.ChatID = chatID // Ensure the chat ID is correctly set
-		
+
 		// Directly try to insert, we've already improved insertChatMember to handle duplicate cases
 		if err := g.insertChatMember(ctx, chatID, dbMember); err != nil {
 			return errors.Wrap(err, "failed to add chat member")
@@ -614,13 +614,13 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 	).Scan(&dbChat.ID); err != nil {
 		return nil, errors.Wrap(err, "failed to insert chat")
 	}
-	
+
 	// First save all members including those from messages
 	var allMembers []chat.Member
-	
+
 	// Get members from the chat
 	allMembers = append(allMembers, data.Members()...)
-	
+
 	// Also include members from messages
 	for _, message := range data.Messages() {
 		// Check if this member is already included
@@ -631,27 +631,27 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 				break
 			}
 		}
-		
+
 		if !found {
 			allMembers = append(allMembers, message.Sender())
 		}
 	}
-	
+
 	// Save members first
 	if err := g.saveMembers(ctx, dbChat.ID, allMembers); err != nil {
 		return nil, errors.Wrap(err, "failed to save chat members")
 	}
-	
+
 	// Set the chat ID for all messages
 	for _, m := range dbMessages {
 		m.ChatID = dbChat.ID
 	}
-	
+
 	// Then save messages
 	if err := g.saveMessages(ctx, dbMessages); err != nil {
 		return nil, err
 	}
-	
+
 	return g.GetByID(ctx, dbChat.ID)
 }
 
@@ -672,13 +672,13 @@ func (g *ChatRepository) Update(ctx context.Context, data chat.Chat) (chat.Chat,
 	); err != nil {
 		return nil, errors.Wrap(err, "failed to update chat")
 	}
-	
+
 	// First save all members including those from messages
 	var allMembers []chat.Member
-	
+
 	// Get members from the chat
 	allMembers = append(allMembers, data.Members()...)
-	
+
 	// Also include members from messages
 	for _, message := range data.Messages() {
 		// Check if this member is already included
@@ -689,27 +689,27 @@ func (g *ChatRepository) Update(ctx context.Context, data chat.Chat) (chat.Chat,
 				break
 			}
 		}
-		
+
 		if !found {
 			allMembers = append(allMembers, message.Sender())
 		}
 	}
-	
+
 	// Save members first
 	if err := g.saveMembers(ctx, dbChat.ID, allMembers); err != nil {
 		return nil, errors.Wrap(err, "failed to save chat members")
 	}
-	
+
 	// Set the chat ID for all messages
 	for _, m := range dbMessages {
 		m.ChatID = dbChat.ID
 	}
-	
+
 	// Then save messages
 	if err := g.saveMessages(ctx, dbMessages); err != nil {
 		return nil, err
 	}
-	
+
 	return g.GetByID(ctx, dbChat.ID)
 }
 
@@ -718,19 +718,19 @@ func (g *ChatRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
-	
+
 	// First delete all messages for this chat
 	_, err = tx.Exec(ctx, "DELETE FROM messages WHERE chat_id = $1", id)
 	if err != nil {
 		return errors.Wrapf(err, "failed to delete messages for chat with id %d", id)
 	}
-	
+
 	// Then delete all members for this chat
 	_, err = tx.Exec(ctx, "DELETE FROM chat_members WHERE chat_id = $1", id)
 	if err != nil {
 		return errors.Wrapf(err, "failed to delete members for chat with id %d", id)
 	}
-	
+
 	// Finally delete the chat itself
 	if _, err := tx.Exec(ctx, deleteChatQuery, id); err != nil {
 		return errors.Wrapf(err, "failed to delete chat with id %d", id)
