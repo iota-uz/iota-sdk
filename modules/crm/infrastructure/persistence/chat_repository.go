@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/go-faster/errors"
@@ -90,6 +91,34 @@ const (
 		FROM chat_members cm
 	`
 
+	insertChatMemberQuery = `
+		INSERT INTO chat_members (
+			id,
+			chat_id,
+			user_id,
+			client_id,
+			client_contact_id,
+			transport,
+			transport_meta,
+			created_at,
+			updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`
+
+	updateChatMemberQuery = `
+		UPDATE chat_members SET
+			chat_id = $1,
+			user_id = $2,
+			client_id = $3,
+			client_contact_id = $4,
+			transport = $5,
+			transport_meta = $6,
+			updated_at = $7
+		WHERE id = $8
+	`
+
+	deleteChatMemberQuery = `DELETE FROM chat_members WHERE id = $1`
+
 	insertMessageQuery = `
 		INSERT INTO messages (
 			chat_id,
@@ -120,13 +149,13 @@ func NewChatRepository() chat.Repository {
 	return &ChatRepository{}
 }
 
-func (g *ChatRepository) queryMembers(ctx context.Context, chatID uint) ([]chat.Member, error) {
+func (g *ChatRepository) queryMembers(ctx context.Context, query string, args ...any) ([]chat.Member, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	rows, err := pool.Query(ctx, selectChatMembersQuery+" WHERE cm.chat_id = $1", chatID)
+	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute chat members query")
 	}
@@ -220,7 +249,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 			return nil, errors.Wrap(err, "failed to get messages for chat")
 		}
 
-		members, err := g.queryMembers(ctx, c.ID)
+		members, err := g.queryMembers(ctx, selectChatMembersQuery+" WHERE cm.chat_id = $1", c.ID)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get members for chat")
 		}
@@ -294,11 +323,20 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 			dbUploads = append(dbUploads, &upload)
 		}
 
+		members, err := g.queryMembers(ctx, selectChatMembersQuery+" WHERE cm.id = $1", message.SenderID)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get members for message")
+		}
+
+		if len(members) == 0 {
+			return nil, errors.Wrapf(err, "failed to get members for message %d", message.ID)
+		}
+
 		if err := uploads.Err(); err != nil {
 			return nil, errors.Wrap(err, "error occurred while iterating uploads")
 		}
 
-		domainMessage, err := ToDomainMessage(message, dbUploads)
+		domainMessage, err := ToDomainMessage(message, members[0], dbUploads)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain message")
 		}
@@ -396,18 +434,26 @@ func (g *ChatRepository) GetMessageByID(ctx context.Context, id uint) (chat.Mess
 	return messages[0], nil
 }
 
-func (g *ChatRepository) AddMessage(ctx context.Context, chatID uint, message chat.Message) (chat.Message, error) {
-	id, err := g.insertMessage(ctx, ToDBMessage(chatID, message))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to insert message")
-	}
-	return g.GetMessageByID(ctx, id)
-}
-
 func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Message) (uint, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
+	}
+	
+	// Verify that the sender exists in the database
+	var senderExists bool
+	err = tx.QueryRow(
+		ctx,
+		"SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)",
+		message.SenderID,
+	).Scan(&senderExists)
+	
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to check if sender exists")
+	}
+	
+	if !senderExists {
+		return 0, errors.Errorf("sender with ID %s does not exist in the database", message.SenderID)
 	}
 
 	if err := tx.QueryRow(
@@ -446,14 +492,94 @@ func (g *ChatRepository) updateMessage(ctx context.Context, message *models.Mess
 	return nil
 }
 
-// TODO: rename
-func (g *ChatRepository) DeleteMessage(ctx context.Context, id uint) error {
+func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, member *models.ChatMember) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
-	if _, err := tx.Exec(ctx, deleteMessageQuery, id); err != nil {
-		return errors.Wrapf(err, "failed to delete message with id %d", id)
+
+	// Check if member already exists to avoid duplicate inserts
+	var exists bool
+	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)", member.ID).Scan(&exists)
+	if err != nil {
+		return errors.Wrap(err, "failed to check if member exists")
+	}
+	
+	if exists {
+		// Member already exists, nothing to do
+		return nil
+	}
+
+	var transportMeta []byte
+	if member.TransportMeta != nil {
+		transportMeta, err = json.Marshal(member.TransportMeta.Interface())
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal transport meta")
+		}
+	}
+
+	_, err = tx.Exec(
+		ctx,
+		insertChatMemberQuery,
+		member.ID,
+		chatID,
+		member.UserID,
+		member.ClientID, 
+		member.ClientContactID,
+		member.Transport,
+		transportMeta,
+		member.CreatedAt,
+		member.UpdatedAt,
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to insert chat member")
+	}
+	return nil
+}
+
+func (g *ChatRepository) updateChatMember(ctx context.Context, member *models.ChatMember) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get transaction")
+	}
+
+	transportMeta, err := json.Marshal(member.TransportMeta)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal transport meta")
+	}
+
+	_, err = tx.Exec(
+		ctx,
+		updateChatMemberQuery,
+		member.ChatID,
+		member.UserID,
+		member.ClientID,
+		member.ClientContactID,
+		member.Transport,
+		transportMeta,
+		member.UpdatedAt,
+		member.ID,
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to update chat member")
+	}
+	return nil
+}
+
+func (g *ChatRepository) saveMembers(ctx context.Context, chatID uint, members []chat.Member) error {
+	if len(members) == 0 {
+		// No members to save
+		return nil
+	}
+	
+	for _, member := range members {
+		dbMember := ToDBChatMember(chatID, member)
+		dbMember.ChatID = chatID // Ensure the chat ID is correctly set
+		
+		// Directly try to insert, we've already improved insertChatMember to handle duplicate cases
+		if err := g.insertChatMember(ctx, chatID, dbMember); err != nil {
+			return errors.Wrap(err, "failed to add chat member")
+		}
 	}
 	return nil
 }
@@ -488,9 +614,44 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 	).Scan(&dbChat.ID); err != nil {
 		return nil, errors.Wrap(err, "failed to insert chat")
 	}
+	
+	// First save all members including those from messages
+	var allMembers []chat.Member
+	
+	// Get members from the chat
+	allMembers = append(allMembers, data.Members()...)
+	
+	// Also include members from messages
+	for _, message := range data.Messages() {
+		// Check if this member is already included
+		found := false
+		for _, member := range allMembers {
+			if member.ID() == message.Sender().ID() {
+				found = true
+				break
+			}
+		}
+		
+		if !found {
+			allMembers = append(allMembers, message.Sender())
+		}
+	}
+	
+	// Save members first
+	if err := g.saveMembers(ctx, dbChat.ID, allMembers); err != nil {
+		return nil, errors.Wrap(err, "failed to save chat members")
+	}
+	
+	// Set the chat ID for all messages
+	for _, m := range dbMessages {
+		m.ChatID = dbChat.ID
+	}
+	
+	// Then save messages
 	if err := g.saveMessages(ctx, dbMessages); err != nil {
 		return nil, err
 	}
+	
 	return g.GetByID(ctx, dbChat.ID)
 }
 
@@ -511,9 +672,44 @@ func (g *ChatRepository) Update(ctx context.Context, data chat.Chat) (chat.Chat,
 	); err != nil {
 		return nil, errors.Wrap(err, "failed to update chat")
 	}
+	
+	// First save all members including those from messages
+	var allMembers []chat.Member
+	
+	// Get members from the chat
+	allMembers = append(allMembers, data.Members()...)
+	
+	// Also include members from messages
+	for _, message := range data.Messages() {
+		// Check if this member is already included
+		found := false
+		for _, member := range allMembers {
+			if member.ID() == message.Sender().ID() {
+				found = true
+				break
+			}
+		}
+		
+		if !found {
+			allMembers = append(allMembers, message.Sender())
+		}
+	}
+	
+	// Save members first
+	if err := g.saveMembers(ctx, dbChat.ID, allMembers); err != nil {
+		return nil, errors.Wrap(err, "failed to save chat members")
+	}
+	
+	// Set the chat ID for all messages
+	for _, m := range dbMessages {
+		m.ChatID = dbChat.ID
+	}
+	
+	// Then save messages
 	if err := g.saveMessages(ctx, dbMessages); err != nil {
 		return nil, err
 	}
+	
 	return g.GetByID(ctx, dbChat.ID)
 }
 
@@ -522,6 +718,20 @@ func (g *ChatRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
+	
+	// First delete all messages for this chat
+	_, err = tx.Exec(ctx, "DELETE FROM messages WHERE chat_id = $1", id)
+	if err != nil {
+		return errors.Wrapf(err, "failed to delete messages for chat with id %d", id)
+	}
+	
+	// Then delete all members for this chat
+	_, err = tx.Exec(ctx, "DELETE FROM chat_members WHERE chat_id = $1", id)
+	if err != nil {
+		return errors.Wrapf(err, "failed to delete members for chat with id %d", id)
+	}
+	
+	// Finally delete the chat itself
 	if _, err := tx.Exec(ctx, deleteChatQuery, id); err != nil {
 		return errors.Wrapf(err, "failed to delete chat with id %d", id)
 	}

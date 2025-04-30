@@ -138,13 +138,13 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 	}
 }
 
-func ToDBMessage(chatID uint, entity chat.Message) *models.Message {
+func ToDBMessage(entity chat.Message) *models.Message {
 	dbMessage := &models.Message{
 		ID:        entity.ID(),
 		Message:   entity.Message(),
-		ChatID:    chatID,
+		ChatID:    entity.ChatID(),
 		ReadAt:    mapping.PointerToSQLNullTime(entity.ReadAt()),
-		SenderID:  entity.SenderID().String(),
+		SenderID:  entity.Sender().ID().String(),
 		CreatedAt: entity.CreatedAt(),
 	}
 	return dbMessage
@@ -152,19 +152,17 @@ func ToDBMessage(chatID uint, entity chat.Message) *models.Message {
 
 func ToDomainMessage(
 	dbRow *models.Message,
+	sender chat.Member,
 	dbUploads []*coremodels.Upload,
 ) (chat.Message, error) {
 	uploads := make([]upload.Upload, 0, len(dbUploads))
 	for _, u := range dbUploads {
 		uploads = append(uploads, corepersistence.ToDomainUpload(u))
 	}
-	senderID, err := uuid.Parse(dbRow.SenderID)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse sender ID")
-	}
 	return chat.NewMessage(
 		dbRow.Message,
-		senderID,
+		sender,
+		chat.WithMessageChatID(dbRow.ChatID),
 		chat.WithMessageID(dbRow.ID),
 		chat.WithReadAt(mapping.SQLNullTimeToPointer(dbRow.ReadAt)),
 		chat.WithAttachments(uploads),
@@ -175,7 +173,7 @@ func ToDomainMessage(
 func ToDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 	dbMessages := make([]*models.Message, 0, len(domainEntity.Messages()))
 	for _, m := range domainEntity.Messages() {
-		dbMessages = append(dbMessages, ToDBMessage(domainEntity.ID(), m))
+		dbMessages = append(dbMessages, ToDBMessage(m))
 	}
 	return &models.Chat{
 		ID:            domainEntity.ID(),
@@ -206,10 +204,10 @@ func ToDBChatMember(chatID uint, entity chat.Member) *models.ChatMember {
 	}
 	switch v := entity.Sender().(type) {
 	case chat.ClientSender:
-		dbRow.ClientID = v.ClientID()
-		dbRow.ClientContactID = v.ContactID()
+		dbRow.ClientID = mapping.ValueToSQLNullInt32(int32(v.ClientID()))
+		dbRow.ClientContactID = mapping.ValueToSQLNullInt32(int32(v.ContactID()))
 	case chat.UserSender:
-		dbRow.UserID = v.UserID()
+		dbRow.UserID = mapping.ValueToSQLNullInt32(int32(v.UserID()))
 	}
 	return dbRow
 }
@@ -218,15 +216,17 @@ func ToDomainChatMember(dbMember *models.ChatMember) (chat.Member, error) {
 	transport := chat.Transport(dbMember.Transport)
 	var sender chat.Sender
 
-	if dbMember.UserID > 0 {
+	if dbMember.UserID.Valid {
 		// Handle user sender
-		sender = chat.NewUserSender(transport, dbMember.UserID, "", "") // We could fetch user details from DB if needed
-	} else if dbMember.ClientID > 0 {
+		sender = chat.NewUserSender(transport, uint(dbMember.UserID.Int32), "", "") // We could fetch user details from DB if needed
+	} else if dbMember.ClientID.Valid {
 		// Handle client sender
-		sender = chat.NewClientSender(transport, dbMember.ClientID, "", "") // We could fetch client details from DB if needed
+		sender = chat.NewClientSender(transport, uint(dbMember.ClientID.Int32), "", "") // We could fetch client details from DB if needed
 	} else {
-		// Default to unknown sender
-		sender = chat.NewOtherSender(nil)
+		// Default to unknown sender with a base Sender that has the transport
+		// Create a minimal sender with just the transport to avoid nil pointer dereference
+		baseSender := chat.NewUserSender(transport, 0, "", "")
+		sender = chat.NewOtherSender(baseSender)
 	}
 
 	// Process transport-specific metadata if available
@@ -299,7 +299,6 @@ func ToDomainChatMember(dbMember *models.ChatMember) (chat.Member, error) {
 		return nil, errors.Wrap(err, "failed to parse member ID")
 	}
 	return chat.NewMember(
-		transport,
 		sender,
 		chat.WithMemberID(uid),
 		chat.WithMemberCreatedAt(dbMember.CreatedAt),

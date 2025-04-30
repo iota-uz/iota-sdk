@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -99,31 +100,20 @@ func SenderToViewModel(entity chat.Sender) viewmodels.MessageSender {
 	}
 }
 
-func MessageToViewModel(entity chat.Message, sender chat.Sender) *viewmodels.Message {
+func MessageToViewModel(entity chat.Message) *viewmodels.Message {
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Sender:    SenderToViewModel(sender),
+		Sender:    SenderToViewModel(entity.Sender()),
 		Message:   entity.Message(),
 		CreatedAt: entity.CreatedAt(),
 	}
 }
 
 func ChatToViewModel(entity chat.Chat, clientEntity client.Client) *viewmodels.Chat {
-	messages := make([]*viewmodels.Message, 0, len(entity.Messages()))
-	for _, message := range entity.Messages() {
-		var sender chat.Sender
-		for _, member := range entity.Members() {
-			if member.ID() == message.SenderID() {
-				sender = member.Sender()
-				break
-			}
-		}
-		messages = append(messages, MessageToViewModel(message, sender))
-	}
 	return &viewmodels.Chat{
 		ID:             strconv.FormatUint(uint64(entity.ID()), 10),
 		Client:         ClientToViewModel(clientEntity),
-		Messages:       messages,
+		Messages:       mapping.MapViewModels(entity.Messages(), MessageToViewModel),
 		UnreadMessages: entity.UnreadMessages(),
 		CreatedAt:      entity.CreatedAt().Format(time.RFC3339),
 	}

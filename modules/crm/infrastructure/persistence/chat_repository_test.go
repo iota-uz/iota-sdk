@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/google/uuid"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -32,11 +31,6 @@ func createTestChat(t *testing.T, clientID uint) chat.Chat {
 	return chat.New(clientID)
 }
 
-func createTestMessage(t *testing.T, content string, memberID uuid.UUID) chat.Message {
-	t.Helper()
-	return chat.NewMessage(content, memberID)
-}
-
 func TestChatRepository_Create(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
@@ -59,9 +53,12 @@ func TestChatRepository_Create(t *testing.T) {
 	t.Run("Create chat with messages", func(t *testing.T) {
 		clientID := createClientForTest(t, f)
 		testChat := createTestChat(t, clientID)
+		member := chat.NewMember(
+			chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+		)
 
 		// Add a message to the chat
-		message := createTestMessage(t, "Hello, world!", uuid.New())
+		message := chat.NewMessage("Hello, world!", member)
 		testChat = testChat.AddMessage(message)
 
 		created, err := repo.Create(f.ctx, testChat)
@@ -139,7 +136,9 @@ func TestChatRepository_AddMessageThroughUpdate(t *testing.T) {
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message to the chat domain entity
-	message := createTestMessage(t, "Test message", uuid.New())
+	message := chat.NewMessage("Test message", chat.NewMember(
+		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+	))
 	updatedChat := created.AddMessage(message)
 
 	// Update the chat with the new message
@@ -164,7 +163,9 @@ func TestChatRepository_Update(t *testing.T) {
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message
-	message := createTestMessage(t, "Original message", uuid.New())
+	message := chat.NewMessage("Original message", chat.NewMember(
+		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+	))
 	updatedChat := created.AddMessage(message)
 
 	// Update the chat
@@ -177,7 +178,9 @@ func TestChatRepository_Update(t *testing.T) {
 	assert.Equal(t, "Original message", messages[0].Message(), "Message content should match")
 
 	// Add another message and update again
-	secondMessage := createTestMessage(t, "Second message", uuid.New())
+	secondMessage := chat.NewMessage("Second message", chat.NewMember(
+		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+	))
 	chatWithTwoMessages := updated.AddMessage(secondMessage)
 
 	secondUpdate, err := repo.Update(f.ctx, chatWithTwoMessages)
@@ -199,7 +202,9 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 		testChat := createTestChat(t, clientID)
 
 		// Add a message with the client's ID in it
-		message := createTestMessage(t, "Message for client "+string('0'+byte(i)), uuid.New())
+		message := chat.NewMessage("Message for client "+string('0'+byte(i)), chat.NewMember(
+			chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+		))
 		testChat = testChat.AddMessage(message)
 
 		_, err := repo.Create(f.ctx, testChat)
@@ -308,7 +313,9 @@ func TestChatRepository_Delete(t *testing.T) {
 	testChat := createTestChat(t, clientID)
 
 	// Add a message to test cascade deletion
-	message := createTestMessage(t, "Message to be deleted", uuid.New())
+	message := chat.NewMessage("Message to be deleted", chat.NewMember(
+		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+	))
 	testChat = testChat.AddMessage(message)
 
 	created, err := repo.Create(f.ctx, testChat)
