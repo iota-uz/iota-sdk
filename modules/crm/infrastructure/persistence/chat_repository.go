@@ -117,7 +117,7 @@ const (
 		WHERE id = $8
 	`
 
-	deleteChatMemberQuery = `DELETE FROM chat_members WHERE id = $1`
+	deleteChatMembersQuery = `DELETE FROM chat_members WHERE chat_id = $1`
 
 	insertMessageQuery = `
 		INSERT INTO messages (
@@ -139,7 +139,7 @@ const (
 		WHERE id = $6
 	`
 
-	deleteMessageQuery = `DELETE FROM messages WHERE id = $1`
+	deleteMessageQuery = `DELETE FROM messages WHERE chat_id = $1`
 )
 
 type ChatRepository struct {
@@ -543,9 +543,13 @@ func (g *ChatRepository) updateChatMember(ctx context.Context, member *models.Ch
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
-	transportMeta, err := json.Marshal(member.TransportMeta)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal transport meta")
+	var transportMeta []byte
+	if member.TransportMeta != nil {
+		var jsonErr error
+		transportMeta, jsonErr = json.Marshal(member.TransportMeta.Interface())
+		if jsonErr != nil {
+			return errors.Wrap(jsonErr, "failed to marshal transport meta")
+		}
 	}
 
 	_, err = tx.Exec(
@@ -720,13 +724,13 @@ func (g *ChatRepository) Delete(ctx context.Context, id uint) error {
 	}
 
 	// First delete all messages for this chat
-	_, err = tx.Exec(ctx, "DELETE FROM messages WHERE chat_id = $1", id)
+	_, err = tx.Exec(ctx, deleteMessageQuery, id)
 	if err != nil {
 		return errors.Wrapf(err, "failed to delete messages for chat with id %d", id)
 	}
 
 	// Then delete all members for this chat
-	_, err = tx.Exec(ctx, "DELETE FROM chat_members WHERE chat_id = $1", id)
+	_, err = tx.Exec(ctx, deleteChatMembersQuery, id)
 	if err != nil {
 		return errors.Wrapf(err, "failed to delete members for chat with id %d", id)
 	}
