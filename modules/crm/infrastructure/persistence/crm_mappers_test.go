@@ -593,6 +593,7 @@ func TestTransportMappers(t *testing.T) {
 		{
 			name: "InstagramMetaToSender",
 			testFunction: func(t *testing.T) {
+				t.Helper()
 				baseSender := chat.NewClientSender(chat.InstagramTransport, 1, "Test", "Client")
 
 				// Test with nil meta
@@ -625,6 +626,7 @@ func TestTransportMappers(t *testing.T) {
 		{
 			name: "EmailMetaToSender",
 			testFunction: func(t *testing.T) {
+				t.Helper()
 				baseSender := chat.NewClientSender(chat.EmailTransport, 1, "Test", "Client")
 
 				// Test with nil meta
