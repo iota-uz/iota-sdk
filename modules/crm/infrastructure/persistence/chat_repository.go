@@ -58,10 +58,6 @@ const (
 		FROM messages m
 	`
 
-	selectMessageUserSender = `SELECT id, first_name, last_name FROM users WHERE id = $1`
-
-	selectMessageClientSender = `SELECT id, first_name, last_name FROM clients WHERE id = $1`
-
 	selectMessageAttachmentsQuery = `
 		SELECT 
 			u.id AS upload_id,
@@ -103,18 +99,6 @@ const (
 			created_at,
 			updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-
-	updateChatMemberQuery = `
-		UPDATE chat_members SET
-			chat_id = $1,
-			user_id = $2,
-			client_id = $3,
-			client_contact_id = $4,
-			transport = $5,
-			transport_meta = $6,
-			updated_at = $7
-		WHERE id = $8
 	`
 
 	deleteChatMembersQuery = `DELETE FROM chat_members WHERE chat_id = $1`
@@ -533,39 +517,6 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to insert chat member")
-	}
-	return nil
-}
-
-func (g *ChatRepository) updateChatMember(ctx context.Context, member *models.ChatMember) error {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get transaction")
-	}
-
-	var transportMeta []byte
-	if member.TransportMeta != nil {
-		var jsonErr error
-		transportMeta, jsonErr = json.Marshal(member.TransportMeta.Interface())
-		if jsonErr != nil {
-			return errors.Wrap(jsonErr, "failed to marshal transport meta")
-		}
-	}
-
-	_, err = tx.Exec(
-		ctx,
-		updateChatMemberQuery,
-		member.ChatID,
-		member.UserID,
-		member.ClientID,
-		member.ClientContactID,
-		member.Transport,
-		transportMeta,
-		member.UpdatedAt,
-		member.ID,
-	)
-	if err != nil {
-		return errors.Wrap(err, "failed to update chat member")
 	}
 	return nil
 }
