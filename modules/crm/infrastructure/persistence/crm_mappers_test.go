@@ -73,6 +73,8 @@ func TestToDomainClientComplete(t *testing.T) {
 			},
 			passport: createTestPassport(),
 			validateFn: func(t *testing.T, c client.Client) {
+				t.Helper()
+
 				assert.Equal(t, uint(1), c.ID(), "ID should match")
 				assert.Equal(t, "John", c.FirstName(), "FirstName should match")
 				assert.Equal(t, "Doe", c.LastName(), "LastName should match")
@@ -115,6 +117,7 @@ func TestToDomainClientComplete(t *testing.T) {
 			},
 			passport: nil,
 			validateFn: func(t *testing.T, c client.Client) {
+				t.Helper()
 				assert.Equal(t, uint(2), c.ID(), "ID should match")
 				assert.Equal(t, "Jane", c.FirstName(), "FirstName should match")
 				assert.Equal(t, "Smith", c.LastName(), "LastName should match")
@@ -156,6 +159,8 @@ func TestToDBClient(t *testing.T) {
 			name:   "complete client with all fields",
 			client: createTestClient(t, true),
 			validateFn: func(t *testing.T, dbClient *models.Client) {
+				t.Helper()
+
 				assert.Equal(t, "John", dbClient.FirstName, "FirstName should match")
 
 				assert.True(t, dbClient.LastName.Valid, "LastName should be valid")
