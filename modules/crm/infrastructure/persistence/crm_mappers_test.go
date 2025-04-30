@@ -220,6 +220,8 @@ func TestToDBMessage(t *testing.T) {
 				chat.WithMessageCreatedAt(time.Now()),
 			),
 			validateFn: func(t *testing.T, dbMessage *models.Message) {
+				t.Helper()
+
 				assert.Equal(t, uint(100), dbMessage.ChatID, "ChatID should match")
 				assert.Equal(t, "Hello from user", dbMessage.Message, "Message should match")
 			},
@@ -234,6 +236,8 @@ func TestToDBMessage(t *testing.T) {
 				chat.WithMessageCreatedAt(time.Now()),
 			),
 			validateFn: func(t *testing.T, dbMessage *models.Message) {
+				t.Helper()
+
 				assert.Equal(t, uint(200), dbMessage.ChatID, "ChatID should match")
 				assert.Equal(t, "Hello from client", dbMessage.Message, "Message should match")
 			},
@@ -286,6 +290,8 @@ func TestToDomainMessage(t *testing.T) {
 				},
 			},
 			validateFn: func(t *testing.T, message chat.Message) {
+				t.Helper()
+
 				assert.Equal(t, uint(1), message.ID(), "ID should match")
 				assert.Equal(t, "Test message from user", message.Message(), "Message should match")
 				assert.False(t, message.IsRead(), "IsRead should be false")
@@ -303,6 +309,8 @@ func TestToDomainMessage(t *testing.T) {
 			},
 			dbUploads: nil,
 			validateFn: func(t *testing.T, message chat.Message) {
+				t.Helper()
+
 				assert.Equal(t, uint(2), message.ID(), "ID should match")
 				assert.Equal(t, "Test message from client", message.Message(), "Message should match")
 				assert.False(t, message.IsRead(), "IsRead should be false")
