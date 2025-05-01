@@ -264,7 +264,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	chatEntity.MarkAllAsRead()
-	chatEntity, err = c.chatService.Update(r.Context(), chatEntity)
+	chatEntity, err = c.chatService.Save(r.Context(), chatEntity)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

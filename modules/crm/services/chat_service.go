@@ -64,10 +64,6 @@ func (s *ChatService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *ChatService) GetAll(ctx context.Context) ([]chat.Chat, error) {
-	return s.repo.GetAll(ctx)
-}
-
 func (s *ChatService) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
 	return s.repo.GetByID(ctx, id)
 }
@@ -92,25 +88,13 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	}
 
 	var createdEntity chat.Chat
-	var createDTO *chat.CreateDTO
-
 	// Need to create chat, start a transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		client, err := s.clientRepo.GetByID(txCtx, clientID)
 		if err != nil {
 			return err
 		}
-
-		createDTO = &chat.CreateDTO{
-			ClientID: client.ID(),
-		}
-
-		entity, err := createDTO.ToEntity()
-		if err != nil {
-			return err
-		}
-
-		createdEntity, err = s.repo.Create(txCtx, entity)
+		createdEntity, err = s.repo.Save(txCtx, chat.New(client.ID()))
 		return err
 	})
 	if err != nil {
@@ -118,7 +102,7 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	}
 
 	// Publish event after successful commit
-	event, err := chat.NewCreatedEvent(ctx, *createDTO, createdEntity)
+	event, err := chat.NewCreatedEvent(ctx, createdEntity)
 	if err != nil {
 		return nil, err
 	}
@@ -128,26 +112,17 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 }
 
 // Create creates a new chat
-func (s *ChatService) Create(ctx context.Context, data *chat.CreateDTO) (chat.Chat, error) {
-	entity, err := data.ToEntity()
+func (s *ChatService) Save(ctx context.Context, entity chat.Chat) (chat.Chat, error) {
+	createdEntity, err := s.repo.Save(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
-	createdEntity, err := s.repo.Create(ctx, entity)
-	if err != nil {
-		return nil, err
-	}
-	event, err := chat.NewCreatedEvent(ctx, *data, createdEntity)
+	event, err := chat.NewCreatedEvent(ctx, createdEntity)
 	if err != nil {
 		return nil, err
 	}
 	s.publisher.Publish(event)
 	return createdEntity, nil
-}
-
-// Update updates a chat entity
-func (s *ChatService) Update(ctx context.Context, entity chat.Chat) (chat.Chat, error) {
-	return s.repo.Update(ctx, entity)
 }
 
 // AddMessageToChat adds a message to a chat and handles the transaction
@@ -165,7 +140,7 @@ func (s *ChatService) AddMessageToChat(
 			return err
 		}
 		// Update chat
-		updatedChat, err = s.repo.Update(txCtx, chatEntity.AddMessage(msg))
+		updatedChat, err = s.repo.Save(txCtx, chatEntity.AddMessage(msg))
 		return err
 	})
 	if err != nil {
@@ -212,8 +187,6 @@ func (s *ChatService) CreateOrGetClientByPhone(ctx context.Context, phoneNumber 
 		// Create a new client with the provided phone number
 		newClient, err := client.New(
 			"Guest", // Default first name
-			"User",  // Default last name
-			"",      // No middle name
 			client.WithPhone(phoneValue),
 		)
 		if err != nil {
@@ -222,7 +195,7 @@ func (s *ChatService) CreateOrGetClientByPhone(ctx context.Context, phoneNumber 
 		}
 
 		// Save the new client
-		newClientEntity, err = s.clientRepo.Create(txCtx, newClient)
+		newClientEntity, err = s.clientRepo.Save(txCtx, newClient)
 		return err
 	})
 	if err != nil {
@@ -340,7 +313,7 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 
 		msg := chat.NewMessage(cmd.Message, member)
 
-		updatedChat, err = s.repo.Update(txCtx, chatEntity.AddMessage(msg))
+		updatedChat, err = s.repo.Save(txCtx, chatEntity.AddMessage(msg))
 		if err != nil {
 			return err
 		}

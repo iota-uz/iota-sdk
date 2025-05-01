@@ -570,7 +570,14 @@ func (g *ChatRepository) saveMessages(ctx context.Context, dbMessages []*models.
 	return nil
 }
 
-func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat, error) {
+func (g *ChatRepository) Save(ctx context.Context, data chat.Chat) (chat.Chat, error) {
+	if data.ID() == 0 {
+		return g.create(ctx, data)
+	}
+	return g.update(ctx, data)
+}
+
+func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -623,7 +630,7 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 	return g.GetByID(ctx, dbChat.ID)
 }
 
-func (g *ChatRepository) Update(ctx context.Context, data chat.Chat) (chat.Chat, error) {
+func (g *ChatRepository) update(ctx context.Context, data chat.Chat) (chat.Chat, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")

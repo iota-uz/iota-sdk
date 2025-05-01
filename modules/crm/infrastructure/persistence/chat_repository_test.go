@@ -19,7 +19,7 @@ func createClientForTest(t *testing.T, f *testFixtures) uint {
 	)
 
 	testClient := createTestClient(t, false)
-	created, err := repo.Create(f.ctx, testClient)
+	created, err := repo.Save(f.ctx, testClient)
 	require.NoError(t, err, "Failed to create client for chat test")
 
 	return created.ID()
@@ -39,7 +39,7 @@ func TestChatRepository_Create(t *testing.T) {
 		clientID := createClientForTest(t, f)
 		testChat := createTestChat(t, clientID)
 
-		created, err := repo.Create(f.ctx, testChat)
+		created, err := repo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create chat")
 
 		assert.NotZero(t, created.ID(), "Created chat should have a non-zero ID")
@@ -60,7 +60,7 @@ func TestChatRepository_Create(t *testing.T) {
 		message := chat.NewMessage("Hello, world!", member)
 		testChat = testChat.AddMessage(message)
 
-		created, err := repo.Create(f.ctx, testChat)
+		created, err := repo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create chat with message")
 
 		assert.NotZero(t, created.ID(), "Created chat should have a non-zero ID")
@@ -78,7 +78,7 @@ func TestChatRepository_GetByID(t *testing.T) {
 
 	clientID := createClientForTest(t, f)
 	testChat := createTestChat(t, clientID)
-	created, err := repo.Create(f.ctx, testChat)
+	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	t.Run("Get existing chat by ID", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestChatRepository_GetByClientID(t *testing.T) {
 
 	clientID := createClientForTest(t, f)
 	testChat := createTestChat(t, clientID)
-	created, err := repo.Create(f.ctx, testChat)
+	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	t.Run("Get existing chat by client ID", func(t *testing.T) {
@@ -133,7 +133,7 @@ func TestChatRepository_AddMessageThroughUpdate(t *testing.T) {
 	// Create a chat first
 	clientID := createClientForTest(t, f)
 	testChat := createTestChat(t, clientID)
-	created, err := repo.Create(f.ctx, testChat)
+	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message to the chat domain entity
@@ -143,7 +143,7 @@ func TestChatRepository_AddMessageThroughUpdate(t *testing.T) {
 	updatedChat := created.AddMessage(message)
 
 	// Update the chat with the new message
-	result, err := repo.Update(f.ctx, updatedChat)
+	result, err := repo.Save(f.ctx, updatedChat)
 	require.NoError(t, err, "Failed to update chat with new message")
 
 	// Verify the message was added
@@ -160,7 +160,7 @@ func TestChatRepository_Update(t *testing.T) {
 	// Create a chat first
 	clientID := createClientForTest(t, f)
 	testChat := createTestChat(t, clientID)
-	created, err := repo.Create(f.ctx, testChat)
+	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message
@@ -170,7 +170,7 @@ func TestChatRepository_Update(t *testing.T) {
 	updatedChat := created.AddMessage(message)
 
 	// Update the chat
-	updated, err := repo.Update(f.ctx, updatedChat)
+	updated, err := repo.Save(f.ctx, updatedChat)
 	require.NoError(t, err, "Failed to update chat")
 
 	// Verify the chat was updated
@@ -184,7 +184,7 @@ func TestChatRepository_Update(t *testing.T) {
 	))
 	chatWithTwoMessages := updated.AddMessage(secondMessage)
 
-	secondUpdate, err := repo.Update(f.ctx, chatWithTwoMessages)
+	secondUpdate, err := repo.Save(f.ctx, chatWithTwoMessages)
 	require.NoError(t, err, "Failed to update chat with second message")
 
 	// Verify both messages are there
@@ -208,7 +208,7 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 		))
 		testChat = testChat.AddMessage(message)
 
-		_, err := repo.Create(f.ctx, testChat)
+		_, err := repo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
 	}
 
@@ -267,7 +267,7 @@ func TestChatRepository_Count(t *testing.T) {
 	for i := 0; i < numChats; i++ {
 		clientID := createClientForTest(t, f)
 		testChat := createTestChat(t, clientID)
-		_, err := repo.Create(f.ctx, testChat)
+		_, err := repo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
 	}
 
@@ -292,12 +292,12 @@ func TestChatRepository_GetAll(t *testing.T) {
 	for i := 0; i < numNewChats; i++ {
 		clientID := createClientForTest(t, f)
 		testChat := createTestChat(t, clientID)
-		_, err := repo.Create(f.ctx, testChat)
+		_, err := repo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
 	}
 
 	// Get all chats
-	allChats, err := repo.GetAll(f.ctx)
+	allChats, err := repo.GetPaginated(f.ctx, &chat.FindParams{})
 	require.NoError(t, err, "Failed to get all chats")
 
 	expectedCount := int(initialCount) + numNewChats
@@ -319,7 +319,7 @@ func TestChatRepository_Delete(t *testing.T) {
 	))
 	testChat = testChat.AddMessage(message)
 
-	created, err := repo.Create(f.ctx, testChat)
+	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Delete the chat
