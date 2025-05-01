@@ -108,26 +108,6 @@ func (c *chat) AddMessage(msg Message) Chat {
 	return &res
 }
 
-// MapUserToMemberID maps a user ID to a member ID in the chat
-func (c *chat) MapUserToMemberID(userID uint) (uuid.UUID, error) {
-	for _, member := range c.members {
-		if user, ok := member.Sender().(UserSender); ok && user.UserID() == userID {
-			return member.ID(), nil
-		}
-	}
-	return uuid.Nil, errors.New("user not found in chat")
-}
-
-// MapClientToMemberID maps a client ID to a member ID in the chat
-func (c *chat) MapClientToMemberID(clientID uint) (uuid.UUID, error) {
-	for _, member := range c.members {
-		if client, ok := member.Sender().(ClientSender); ok && client.ClientID() == clientID {
-			return member.ID(), nil
-		}
-	}
-	return uuid.Nil, errors.New("client not found in chat")
-}
-
 // AddMessage adds a new message to the chat
 func (c *chat) SendMessage(
 	content string,

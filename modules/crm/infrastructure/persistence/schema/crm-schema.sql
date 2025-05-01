@@ -48,7 +48,7 @@ CREATE TABLE messages (
     id serial PRIMARY KEY,
     created_at timestamp(3) DEFAULT now() NOT NULL,
     chat_id int NOT NULL REFERENCES chats (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    sender_id uuid REFERENCES chat_members (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    sender_id uuid NOT NULL REFERENCES chat_members (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     message text NOT NULL,
     sent_at timestamp(3),
     read_at timestamp(3)
