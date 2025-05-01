@@ -52,6 +52,8 @@ func createTestClient(t *testing.T, withPassport bool) client.Client {
 		t.Fatal(err)
 	}
 	opts := []client.Option{
+		client.WithLastName("Doe"),
+		client.WithMiddleName("Smith"),
 		client.WithEmail(email),
 		client.WithAddress("123 Main St"),
 		client.WithDateOfBirth(&birthDate),
@@ -64,8 +66,6 @@ func createTestClient(t *testing.T, withPassport bool) client.Client {
 	}
 	client, err := client.New(
 		"John",
-		"Doe",
-		"Smith",
 		opts...,
 	)
 	if err != nil {
@@ -85,7 +85,7 @@ func TestClientRepository_Create(t *testing.T) {
 	t.Run("Create client without passport", func(t *testing.T) {
 		testClient := createTestClient(t, false)
 
-		created, err := repo.Create(f.ctx, testClient)
+		created, err := repo.Save(f.ctx, testClient)
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
@@ -110,7 +110,7 @@ func TestClientRepository_Create(t *testing.T) {
 	t.Run("Create client with passport", func(t *testing.T) {
 		testClient := createTestClient(t, true)
 
-		created, err := repo.Create(f.ctx, testClient)
+		created, err := repo.Save(f.ctx, testClient)
 		if err != nil {
 			t.Fatalf("Failed to create client with passport: %v", err)
 		}
@@ -141,7 +141,7 @@ func TestClientRepository_GetByID(t *testing.T) {
 	)
 
 	testClient := createTestClient(t, true)
-	created, err := repo.Create(f.ctx, testClient)
+	created, err := repo.Save(f.ctx, testClient)
 	if err != nil {
 		t.Fatalf("Failed to create test client: %v", err)
 	}
@@ -206,8 +206,8 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 
 	uniquePhoneClient, err := client.New(
 		"Jane",
-		"Smith",
-		"Doe",
+		client.WithLastName("Smith"),
+		client.WithMiddleName("Doe"),
 		client.WithPhone(p),
 		client.WithID(0),
 		client.WithAddress("456 Oak St"),
@@ -220,7 +220,7 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	created, err := repo.Create(f.ctx, uniquePhoneClient)
+	created, err := repo.Save(f.ctx, uniquePhoneClient)
 	if err != nil {
 		t.Fatalf("Failed to create test client: %v", err)
 	}
@@ -252,6 +252,131 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 	})
 }
 
+func TestClientRepository_GetByContactValue(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
+
+	p, err := phone.NewFromE164("55555555555")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	email, err := internet.NewEmail("contact.test@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pin, err := tax.NewPin("56789012345678", country.Uzbekistan)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clientWithContacts, err := client.New(
+		"Contact",
+		client.WithLastName("Test"),
+		client.WithMiddleName("User"),
+		client.WithPhone(p),
+		client.WithEmail(email),
+		client.WithPin(pin),
+		client.WithGender(general.Male),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	createdClient, err := repo.Save(f.ctx, clientWithContacts)
+	if err != nil {
+		t.Fatalf("Failed to create test client: %v", err)
+	}
+
+	telegramContact := "telegram_user123"
+	clientWithTelegram := createdClient
+	clientWithTelegram, err = repo.Save(f.ctx, clientWithTelegram.AddContact(
+		client.NewContact(client.ContactTypeTelegram, telegramContact),
+	))
+	if err != nil {
+		t.Fatalf("Failed to add Telegram contact: %v", err)
+	}
+
+	whatsappContact := "+1234567890"
+	clientWithWhatsapp, err := repo.Save(f.ctx, clientWithTelegram.AddContact(
+		client.NewContact(client.ContactTypeWhatsApp, whatsappContact),
+	))
+	if err != nil {
+		t.Fatalf("Failed to add WhatsApp contact: %v", err)
+	}
+
+	t.Run("Get client by phone from clients table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypePhone, "55555555555")
+		if err != nil {
+			t.Fatalf("Failed to get client by phone contact: %v", err)
+		}
+
+		if retrieved.ID() != clientWithWhatsapp.ID() {
+			t.Errorf("Expected client ID %d, got %d", clientWithWhatsapp.ID(), retrieved.ID())
+		}
+
+		if retrieved.FirstName() != "Contact" {
+			t.Errorf("Expected FirstName 'Contact', got '%s'", retrieved.FirstName())
+		}
+	})
+
+	t.Run("Get client by email from clients table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeEmail, "contact.test@example.com")
+		if err != nil {
+			t.Fatalf("Failed to get client by email contact: %v", err)
+		}
+
+		if retrieved.ID() != clientWithWhatsapp.ID() {
+			t.Errorf("Expected client ID %d, got %d", clientWithWhatsapp.ID(), retrieved.ID())
+		}
+
+		if retrieved.LastName() != "Test" {
+			t.Errorf("Expected LastName 'Test', got '%s'", retrieved.LastName())
+		}
+	})
+
+	t.Run("Get client by telegram contact from client_contacts table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, telegramContact)
+		if err != nil {
+			t.Fatalf("Failed to get client by telegram contact: %v", err)
+		}
+
+		if retrieved.ID() != clientWithWhatsapp.ID() {
+			t.Errorf("Expected client ID %d, got %d", clientWithWhatsapp.ID(), retrieved.ID())
+		}
+
+		if retrieved.MiddleName() != "User" {
+			t.Errorf("Expected MiddleName 'User', got '%s'", retrieved.MiddleName())
+		}
+	})
+
+	t.Run("Get client by whatsapp contact from client_contacts table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeWhatsApp, whatsappContact)
+		if err != nil {
+			t.Fatalf("Failed to get client by whatsapp contact: %v", err)
+		}
+
+		if retrieved.ID() != clientWithWhatsapp.ID() {
+			t.Errorf("Expected client ID %d, got %d", clientWithWhatsapp.ID(), retrieved.ID())
+		}
+	})
+
+	t.Run("Get client by non-existent contact", func(t *testing.T) {
+		_, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "non_existent_user")
+		if err == nil {
+			t.Fatal("Expected error when getting client by non-existent contact, got nil")
+		}
+
+		if !errors.Is(err, persistence.ErrClientNotFound) {
+			t.Errorf("Expected ErrClientNotFound, got %v", err)
+		}
+	})
+}
+
 func TestClientRepository_GetPaginated(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
@@ -259,7 +384,6 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create multiple clients for pagination testing
 	for i := 0; i < 5; i++ {
 		p, err := phone.NewFromE164(string([]byte{'1', '0', '0', '0', '0', '0', '0', '0', '0', '0' + byte(i), '1'}))
 		if err != nil {
@@ -271,7 +395,6 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Create a valid 14-digit PIN for Uzbekistan
 		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
 		if err != nil {
 			t.Fatal(err)
@@ -279,10 +402,9 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 
 		testClient, err := client.New(
 			"Client",
-			string([]byte{'A' + byte(i)}), // Client A, Client B, ...
-			"Test",
+			client.WithLastName(string([]byte{'A' + byte(i)})),
+			client.WithMiddleName("Test"),
 			client.WithPhone(p),
-			client.WithID(0),
 			client.WithAddress("Address Test"),
 			client.WithEmail(email),
 			client.WithGender(general.Male),
@@ -292,7 +414,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err = repo.Create(f.ctx, testClient)
+		_, err = repo.Save(f.ctx, testClient)
 		if err != nil {
 			t.Fatalf("Failed to create test client %d: %v", i, err)
 		}
@@ -317,7 +439,6 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			t.Errorf("Expected 2 clients, got %d", len(clients))
 		}
 
-		// Should return clients B and C if sorted by last name ascending
 		if clients[0].LastName() != "B" {
 			t.Errorf("Expected first client LastName 'B', got '%s'", clients[0].LastName())
 		}
@@ -361,7 +482,6 @@ func TestClientRepository_Count(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create a known number of clients
 	numClients := 3
 	for i := 0; i < numClients; i++ {
 		p, err := phone.NewFromE164(string([]byte{'2', '0', '0', '0', '0', '0', '0', '0', '0', '0' + byte(i), '1'}))
@@ -374,7 +494,6 @@ func TestClientRepository_Count(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Create a valid 14-digit PIN for Uzbekistan
 		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
 		if err != nil {
 			t.Fatal(err)
@@ -382,10 +501,9 @@ func TestClientRepository_Count(t *testing.T) {
 
 		testClient, err := client.New(
 			"Count",
-			"Test",
-			string([]byte{'X' + byte(i)}),
+			client.WithLastName("Test"),
+			client.WithMiddleName(string([]byte{'X' + byte(i)})),
 			client.WithPhone(p),
-			client.WithID(0),
 			client.WithAddress("Count Test Address"),
 			client.WithEmail(email),
 			client.WithGender(general.Female),
@@ -395,7 +513,7 @@ func TestClientRepository_Count(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err = repo.Create(f.ctx, testClient)
+		_, err = repo.Save(f.ctx, testClient)
 		if err != nil {
 			t.Fatalf("Failed to create test client %d: %v", i, err)
 		}
@@ -418,7 +536,6 @@ func TestClientRepository_GetAll(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create clients for GetAll test
 	initialCount, err := repo.Count(f.ctx)
 	if err != nil {
 		t.Fatalf("Failed to get initial client count: %v", err)
@@ -436,7 +553,6 @@ func TestClientRepository_GetAll(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Create a valid 14-digit PIN for Uzbekistan
 		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
 		if err != nil {
 			t.Fatal(err)
@@ -444,10 +560,9 @@ func TestClientRepository_GetAll(t *testing.T) {
 
 		testClient, err := client.New(
 			"All",
-			"Test",
-			string([]byte{'Y' + byte(i)}),
+			client.WithLastName("Test"),
+			client.WithMiddleName(string([]byte{'Y' + byte(i)})),
 			client.WithPhone(p),
-			client.WithID(0),
 			client.WithAddress("GetAll Test Address"),
 			client.WithEmail(email),
 			client.WithGender(general.Male),
@@ -457,7 +572,7 @@ func TestClientRepository_GetAll(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err = repo.Create(f.ctx, testClient)
+		_, err = repo.Save(f.ctx, testClient)
 		if err != nil {
 			t.Fatalf("Failed to create test client %d: %v", i, err)
 		}
@@ -481,20 +596,17 @@ func TestClientRepository_Delete(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create a client with passport for deletion testing
 	testClient := createTestClient(t, true)
-	created, err := clientRepo.Create(f.ctx, testClient)
+	created, err := clientRepo.Save(f.ctx, testClient)
 	if err != nil {
 		t.Fatalf("Failed to create test client: %v", err)
 	}
 
-	// Delete the client
 	err = clientRepo.Delete(f.ctx, created.ID())
 	if err != nil {
 		t.Fatalf("Failed to delete client: %v", err)
 	}
 
-	// Verify client is deleted
 	_, err = clientRepo.GetByID(f.ctx, created.ID())
 	if err == nil {
 		t.Error("Expected error when getting deleted client, got nil")
@@ -505,7 +617,6 @@ func TestClientRepository_Delete(t *testing.T) {
 	}
 }
 
-// TestClientRepository_Update tests updating client details
 func TestClientRepository_Update(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
@@ -513,7 +624,6 @@ func TestClientRepository_Update(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create a client without passport
 	p, err := phone.NewFromE164("12345678901")
 	if err != nil {
 		t.Fatal(err)
@@ -531,8 +641,8 @@ func TestClientRepository_Update(t *testing.T) {
 
 	basicClient, err := client.New(
 		"John",
-		"Doe",
-		"Smith",
+		client.WithLastName("Doe"),
+		client.WithMiddleName("Smith"),
 		client.WithPhone(p),
 		client.WithEmail(email),
 		client.WithAddress("123 Main St"),
@@ -544,12 +654,11 @@ func TestClientRepository_Update(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	created, err := repo.Create(f.ctx, basicClient)
+	created, err := repo.Save(f.ctx, basicClient)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 
-	// Test updating basic info first
 	t.Run("Update basic info", func(t *testing.T) {
 		newEmail, err := internet.NewEmail("robert.johnson@example.com")
 		if err != nil {
@@ -560,7 +669,7 @@ func TestClientRepository_Update(t *testing.T) {
 			SetEmail(newEmail).
 			SetAddress("789 Pine St")
 
-		result, err := repo.Update(f.ctx, updatedClient)
+		result, err := repo.Save(f.ctx, updatedClient)
 		if err != nil {
 			t.Fatalf("Failed to update client: %v", err)
 		}
@@ -582,13 +691,10 @@ func TestClientRepository_Update(t *testing.T) {
 		}
 	})
 
-	// Create another client specifically for testing passport updates
 	t.Run("Update with passport", func(t *testing.T) {
-		// Create a new client without passport
 		noPassportClient, err := client.New(
 			"Alice",
-			"Wonder",
-			"",
+			client.WithLastName("Wonder"),
 			client.WithPhone(p),
 			client.WithEmail(email),
 			client.WithPin(pin),
@@ -598,16 +704,14 @@ func TestClientRepository_Update(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		created, err := repo.Create(f.ctx, noPassportClient)
+		created, err := repo.Save(f.ctx, noPassportClient)
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
 
-		// Now add a passport
-		pass := createTestPassport()
-		clientWithPassport := created.SetPassport(pass)
+		clientWithPassport := created.SetPassport(createTestPassport())
 
-		updated, err := repo.Update(f.ctx, clientWithPassport)
+		updated, err := repo.Save(f.ctx, clientWithPassport)
 		if err != nil {
 			t.Fatalf("Failed to update client with passport: %v", err)
 		}

@@ -23,12 +23,10 @@ type FindParams struct {
 
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
-	GetAll(ctx context.Context) ([]Chat, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Chat, error)
 	GetByID(ctx context.Context, id uint) (Chat, error)
 	GetByClientID(ctx context.Context, clientID uint) (Chat, error)
 	GetMemberByContact(ctx context.Context, contactType string, contactValue string) (Member, error)
-	Create(ctx context.Context, data Chat) (Chat, error)
-	Update(ctx context.Context, data Chat) (Chat, error)
+	Save(ctx context.Context, data Chat) (Chat, error)
 	Delete(ctx context.Context, id uint) error
 }

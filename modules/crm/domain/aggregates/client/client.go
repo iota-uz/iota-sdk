@@ -20,6 +20,18 @@ func WithID(id uint) Option {
 	}
 }
 
+func WithLastName(lastName string) Option {
+	return func(c *client) {
+		c.lastName = lastName
+	}
+}
+
+func WithMiddleName(middleName string) Option {
+	return func(c *client) {
+		c.middleName = middleName
+	}
+}
+
 func WithAddress(address string) Option {
 	return func(c *client) {
 		c.address = address
@@ -133,14 +145,11 @@ type Contact interface {
 
 // --- Constructor ---
 
-func New(firstName, lastName, middleName string, opts ...Option) (Client, error) {
+func New(firstName string, opts ...Option) (Client, error) {
 	c := &client{
-		id:         0,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: middleName,
-		createdAt:  time.Now(),
-		updatedAt:  time.Now(),
+		firstName: firstName,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -317,4 +326,74 @@ func (c *client) SetComments(comments string) Client {
 	result.comments = comments
 	result.updatedAt = time.Now()
 	return &result
+}
+
+// ContactOption is a function that configures a contact
+type ContactOption func(*contact)
+
+// WithContactID sets the ID of the contact
+func WithContactID(id uint) ContactOption {
+	return func(c *contact) {
+		c.id = id
+	}
+}
+
+// WithContactCreatedAt sets the created time of the contact
+func WithContactCreatedAt(createdAt time.Time) ContactOption {
+	return func(c *contact) {
+		c.createdAt = createdAt
+	}
+}
+
+// WithContactUpdatedAt sets the updated time of the contact
+func WithContactUpdatedAt(updatedAt time.Time) ContactOption {
+	return func(c *contact) {
+		c.updatedAt = updatedAt
+	}
+}
+
+// contact implements the Contact interface
+type contact struct {
+	id          uint
+	contactType ContactType
+	value       string
+	createdAt   time.Time
+	updatedAt   time.Time
+}
+
+// NewContact creates a new contact instance with options pattern
+func NewContact(contactType ContactType, value string, opts ...ContactOption) Contact {
+	now := time.Now()
+	c := &contact{
+		contactType: contactType,
+		value:       value,
+		createdAt:   now,
+		updatedAt:   now,
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
+}
+
+func (c *contact) ID() uint {
+	return c.id
+}
+
+func (c *contact) Type() ContactType {
+	return c.contactType
+}
+
+func (c *contact) Value() string {
+	return c.value
+}
+
+func (c *contact) CreatedAt() time.Time {
+	return c.createdAt
+}
+
+func (c *contact) UpdatedAt() time.Time {
+	return c.updatedAt
 }

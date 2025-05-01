@@ -23,11 +23,19 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
+func ToDomainClient(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
 	options := []client.Option{
 		client.WithID(dbRow.ID),
 		client.WithCreatedAt(dbRow.CreatedAt),
 		client.WithUpdatedAt(dbRow.UpdatedAt),
+	}
+
+	if dbRow.LastName.Valid {
+		options = append(options, client.WithLastName(dbRow.LastName.String))
+	}
+
+	if dbRow.MiddleName.Valid {
+		options = append(options, client.WithMiddleName(dbRow.MiddleName.String))
 	}
 
 	if dbRow.PhoneNumber.Valid {
@@ -77,8 +85,6 @@ func ToDomainClientComplete(dbRow *models.Client, passportData passport.Passport
 
 	return client.New(
 		dbRow.FirstName,
-		dbRow.LastName.String,
-		dbRow.MiddleName.String,
 		options...,
 	)
 }
@@ -317,6 +323,29 @@ func ToDBMessageTemplate(domainTemplate messagetemplate.MessageTemplate) *models
 		ID:        domainTemplate.ID(),
 		Template:  domainTemplate.Template(),
 		CreatedAt: domainTemplate.CreatedAt(),
+	}
+}
+
+// ToDomainClientContact converts a database client contact model to a domain client contact entity
+func ToDomainClientContact(dbContact *models.ClientContact) client.Contact {
+	return client.NewContact(
+		client.ContactType(dbContact.ContactType),
+		dbContact.ContactValue,
+		client.WithContactID(dbContact.ID),
+		client.WithContactCreatedAt(dbContact.CreatedAt),
+		client.WithContactUpdatedAt(dbContact.UpdatedAt),
+	)
+}
+
+// ToDBClientContact converts a domain client contact entity to a database client contact model
+func ToDBClientContact(clientID uint, domainContact client.Contact) *models.ClientContact {
+	return &models.ClientContact{
+		ID:           domainContact.ID(),
+		ClientID:     clientID,
+		ContactType:  string(domainContact.Type()),
+		ContactValue: domainContact.Value(),
+		CreatedAt:    domainContact.CreatedAt(),
+		UpdatedAt:    domainContact.UpdatedAt(),
 	}
 }
 

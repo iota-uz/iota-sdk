@@ -132,7 +132,7 @@ func TestToDomainClientComplete(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := persistence.ToDomainClientComplete(tt.client, tt.passport)
+			result, err := persistence.ToDomainClient(tt.client, tt.passport)
 
 			if tt.wantErr {
 				assert.Error(t, err, "Expected an error")
