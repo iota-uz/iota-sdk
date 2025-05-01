@@ -43,7 +43,6 @@ const (
 	deleteClientChatsQuery  = `DELETE FROM chats WHERE client_id = $1`
 	deleteClientQuery       = `DELETE FROM clients WHERE id = $1`
 
-	// Contact related queries
 	selectClientContactsQuery        = `SELECT id, contact_type, contact_value, created_at, updated_at FROM client_contacts WHERE client_id = $1`
 	insertClientContactQuery         = `INSERT INTO client_contacts (client_id, contact_type, contact_value, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`
 	insertClientContactReturnIDQuery = `INSERT INTO client_contacts (client_id, contact_type, contact_value, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id`
@@ -51,10 +50,8 @@ const (
 	updateContactTimestampQuery      = `UPDATE client_contacts SET updated_at = $1 WHERE id = $2`
 	deleteClientContactQuery         = `DELETE FROM client_contacts`
 
-	// Client existence check
 	clientExistsQuery = `SELECT EXISTS(SELECT 1 FROM clients WHERE id = $1)`
 
-	// GetByContactValue queries
 	selectClientByContactQuery = `
 		SELECT c.id FROM clients c
 		JOIN client_contacts cc ON c.id = cc.client_id
@@ -62,7 +59,6 @@ const (
 		LIMIT 1
 	`
 
-	// Passport related query
 	selectClientPassportQuery = `SELECT passport_id FROM clients WHERE id = $1`
 )
 
@@ -160,13 +156,9 @@ func (g *ClientRepository) queryClients(
 
 		// Get passport from map if it exists, otherwise create an empty one
 		if c.PassportID.Valid {
-			var ok bool
-			passportData, ok = passportMap[c.PassportID.String]
-			if !ok {
-				passportData = passport.New("", "")
+			if p, ok := passportMap[c.PassportID.String]; ok {
+				passportData = p
 			}
-		} else {
-			passportData = passport.New("", "")
 		}
 
 		// Create complete client with passport data
@@ -311,7 +303,7 @@ func (g *ClientRepository) GetByPhone(ctx context.Context, phoneNumber string) (
 	return clients[0], nil
 }
 
-func (g *ClientRepository) Create(ctx context.Context, data client.Client) (client.Client, error) {
+func (g *ClientRepository) create(ctx context.Context, data client.Client) (client.Client, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -390,7 +382,7 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 	return g.GetByID(ctx, dbRow.ID)
 }
 
-func (g *ClientRepository) Update(ctx context.Context, data client.Client) (client.Client, error) {
+func (g *ClientRepository) update(ctx context.Context, data client.Client) (client.Client, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -510,7 +502,7 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		}
 
 		for _, contactID := range existingContacts {
-			if _, err := tx.Exec(ctx, deleteClientContactQuery, contactID); err != nil {
+			if _, err := tx.Exec(ctx, repo.Join(deleteClientContactQuery, "WHERE id = $1"), contactID); err != nil {
 				return nil, err
 			}
 		}
@@ -525,9 +517,9 @@ func (g *ClientRepository) Save(ctx context.Context, data client.Client) (client
 		return nil, err
 	}
 	if exists {
-		return g.Update(ctx, data)
+		return g.update(ctx, data)
 	}
-	return g.Create(ctx, data)
+	return g.create(ctx, data)
 }
 
 func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
@@ -553,7 +545,7 @@ func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
 	}
 
 	// Delete client contacts (will be handled by CASCADE on client delete, but explicit for clarity)
-	if _, err := tx.Exec(ctx, repo.Join(deleteClientContactQuery, " WHERE client_id = $1"), id); err != nil {
+	if _, err := tx.Exec(ctx, repo.Join(deleteClientContactQuery, "WHERE client_id = $1"), id); err != nil {
 		return err
 	}
 
@@ -583,7 +575,7 @@ func (g *ClientRepository) GetByContactValue(
 	}
 
 	if contactType == client.ContactTypeEmail {
-		clients, err := g.queryClients(ctx, selectClientQuery+" WHERE c.email = $1", value)
+		clients, err := g.queryClients(ctx, repo.Join(selectClientQuery, "WHERE c.email = $1"), value)
 		if err != nil {
 			return nil, err
 		}
@@ -600,10 +592,10 @@ func (g *ClientRepository) GetByContactValue(
 
 	var clientID uint
 	err = pool.QueryRow(ctx, selectClientByContactQuery, string(contactType), value).Scan(&clientID)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrClientNotFound
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrClientNotFound
-		}
 		return nil, err
 	}
 
