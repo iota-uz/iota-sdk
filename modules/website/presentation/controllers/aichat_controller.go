@@ -108,7 +108,6 @@ func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request)
 		}
 		member, err = c.chatService.GetMemberByContact(ctx, client.ContactTypePhone, msg.Phone)
 		if err != nil {
-
 			if errors.Is(err, persistence.ErrMemberNotFound) {
 				member = chat.NewMember(
 					chat.NewClientSender(chat.WebsiteTransport, chatEntity.ClientID(), "", ""),
@@ -120,9 +119,7 @@ func (c *AIChatController) handleMessage(w http.ResponseWriter, r *http.Request)
 			}
 
 		}
-
 	} else {
-		// No phone provided - not supported in the refactored version
 		http.Error(w, "Phone number is required", http.StatusBadRequest)
 		return
 	}
