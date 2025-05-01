@@ -217,14 +217,10 @@ func ToDomainChatMember(dbMember *models.ChatMember) (chat.Member, error) {
 	var sender chat.Sender
 
 	if dbMember.UserID.Valid {
-		// Handle user sender
-		sender = chat.NewUserSender(transport, uint(dbMember.UserID.Int32), "", "") // We could fetch user details from DB if needed
+		sender = chat.NewUserSender(transport, uint(dbMember.UserID.Int32), "", "")
 	} else if dbMember.ClientID.Valid {
-		// Handle client sender
-		sender = chat.NewClientSender(transport, uint(dbMember.ClientID.Int32), "", "") // We could fetch client details from DB if needed
+		sender = chat.NewClientSender(transport, uint(dbMember.ClientID.Int32), "", "")
 	} else {
-		// Default to unknown sender with a base Sender that has the transport
-		// Create a minimal sender with just the transport to avoid nil pointer dereference
 		baseSender := chat.NewUserSender(transport, 0, "", "")
 		sender = chat.NewOtherSender(baseSender)
 	}

@@ -232,6 +232,13 @@ func (s *ChatService) CreateOrGetClientByPhone(ctx context.Context, phoneNumber 
 	return newClientEntity, nil
 }
 
+func (s *ChatService) GetMemberByContact(
+	ctx context.Context,
+	contactType client.ContactType, value string,
+) (chat.Member, error) {
+	return s.repo.GetMemberByContact(ctx, string(contactType), value)
+}
+
 // GetOrCreateChatByPhone creates a chat for a client based on phone number
 func (s *ChatService) GetOrCreateChatByPhone(ctx context.Context, phoneNumber string) (chat.Chat, client.Client, error) {
 	// Get or create the client

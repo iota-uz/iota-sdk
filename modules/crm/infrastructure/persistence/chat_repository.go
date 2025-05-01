@@ -17,6 +17,7 @@ import (
 var (
 	ErrChatNotFound    = errors.New("chat not found")
 	ErrMessageNotFound = errors.New("message not found")
+	ErrMemberNotFound  = errors.New("member not found")
 )
 
 const (
@@ -407,15 +408,34 @@ func (g *ChatRepository) GetByClientID(ctx context.Context, clientID uint) (chat
 	return chats[0], nil
 }
 
-func (g *ChatRepository) GetMessageByID(ctx context.Context, id uint) (chat.Message, error) {
-	messages, err := g.queryMessages(ctx, selectMessagesQuery+" WHERE m.id = $1", id)
+func (g *ChatRepository) GetMemberByContact(ctx context.Context, contactType string, contactValue string) (chat.Member, error) {
+	query := `
+		SELECT 
+			cm.id,
+			cm.chat_id,
+			cm.user_id,
+			cm.client_id,
+			cm.client_contact_id,
+			cm.transport,
+			cm.transport_meta,
+			cm.created_at,
+			cm.updated_at
+		FROM chat_members cm
+		JOIN client_contacts cc ON cm.client_contact_id = cc.id
+		WHERE cc.contact_type = $1 AND cc.contact_value = $2
+		LIMIT 1
+	`
+
+	members, err := g.queryMembers(ctx, query, contactType, contactValue)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get message with id %d", id)
+		return nil, errors.Wrap(err, "failed to query member by contact")
 	}
-	if len(messages) == 0 {
-		return nil, ErrMessageNotFound
+
+	if len(members) == 0 {
+		return nil, ErrMemberNotFound
 	}
-	return messages[0], nil
+
+	return members[0], nil
 }
 
 func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Message) (uint, error) {
@@ -523,15 +543,11 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 
 func (g *ChatRepository) saveMembers(ctx context.Context, chatID uint, members []chat.Member) error {
 	if len(members) == 0 {
-		// No members to save
 		return nil
 	}
 
 	for _, member := range members {
 		dbMember := ToDBChatMember(chatID, member)
-		dbMember.ChatID = chatID // Ensure the chat ID is correctly set
-
-		// Directly try to insert, we've already improved insertChatMember to handle duplicate cases
 		if err := g.insertChatMember(ctx, chatID, dbMember); err != nil {
 			return errors.Wrap(err, "failed to add chat member")
 		}
@@ -573,12 +589,9 @@ func (g *ChatRepository) Create(ctx context.Context, data chat.Chat) (chat.Chat,
 	// First save all members including those from messages
 	var allMembers []chat.Member
 
-	// Get members from the chat
 	allMembers = append(allMembers, data.Members()...)
 
-	// Also include members from messages
 	for _, message := range data.Messages() {
-		// Check if this member is already included
 		found := false
 		for _, member := range allMembers {
 			if member.ID() == message.Sender().ID() {
