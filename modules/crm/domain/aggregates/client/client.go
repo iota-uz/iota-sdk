@@ -74,6 +74,18 @@ func WithGender(g general.Gender) Option {
 	}
 }
 
+func WithPhone(phone phone.Phone) Option {
+	return func(c *client) {
+		c.phone = phone
+	}
+}
+
+func WithContacts(contacts []Contact) Option {
+	return func(c *client) {
+		c.contacts = contacts
+	}
+}
+
 func WithCreatedAt(t time.Time) Option {
 	return func(c *client) {
 		c.createdAt = t
@@ -83,12 +95,6 @@ func WithCreatedAt(t time.Time) Option {
 func WithUpdatedAt(t time.Time) Option {
 	return func(c *client) {
 		c.updatedAt = t
-	}
-}
-
-func WithPhone(phone phone.Phone) Option {
-	return func(c *client) {
-		c.phone = phone
 	}
 }
 

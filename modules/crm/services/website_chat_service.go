@@ -27,8 +27,6 @@ func NewWebsiteChatService(
 	}
 }
 
-// CreateThread creates a new chat thread.
-// contact can be either a phone number or an email address.
 func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (chat.Chat, error) {
 	var member chat.Member
 	email, err := internet.NewEmail(contact)
@@ -79,7 +77,7 @@ func (s *WebsiteChatService) createMemberWithPhone(ctx context.Context, phoneNum
 			),
 		), nil
 	}
-	// Create a new client
+
 	c, err := client.New(phoneNumber.Value(), client.WithPhone(phoneNumber))
 	if err != nil {
 		return nil, err
@@ -115,7 +113,7 @@ func (s *WebsiteChatService) createMemberWithEmail(ctx context.Context, email in
 			),
 		), nil
 	}
-	// Create a new client
+
 	c, err := client.New(email.Value(), client.WithEmail(email))
 	if err != nil {
 		return nil, err
