@@ -206,30 +206,23 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 		client.WithPhone(p),
 		client.WithEmail(email),
 		client.WithGender(general.Male),
+		client.WithContacts([]client.Contact{
+			client.NewContact(client.ContactTypePhone, "55555555555"),
+			client.NewContact(client.ContactTypeTelegram, "telegram_user123"),
+			client.NewContact(client.ContactTypeWhatsApp, "+1234567890"),
+			client.NewContact(client.ContactTypeEmail, "test2@example.com"),
+		}),
 	)
 	require.NoError(t, err, "Failed to create client instance")
 
 	createdClient, err := repo.Save(f.ctx, clientWithContacts)
 	require.NoError(t, err, "Failed to create test client")
 
-	telegramContact := "telegram_user123"
-	clientWithTelegram := createdClient
-	clientWithTelegram, err = repo.Save(f.ctx, clientWithTelegram.AddContact(
-		client.NewContact(client.ContactTypeTelegram, telegramContact),
-	))
-	require.NoError(t, err, "Failed to add Telegram contact")
-
-	whatsappContact := "+1234567890"
-	clientWithWhatsapp, err := repo.Save(f.ctx, clientWithTelegram.AddContact(
-		client.NewContact(client.ContactTypeWhatsApp, whatsappContact),
-	))
-	require.NoError(t, err, "Failed to add WhatsApp contact")
-
 	t.Run("Get client by phone from clients table", func(t *testing.T) {
 		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypePhone, "55555555555")
 		require.NoError(t, err, "Failed to get client by phone contact")
 
-		assert.Equal(t, clientWithWhatsapp.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
 		assert.Equal(t, "Contact", retrieved.FirstName(), "FirstName mismatch")
 	})
 
@@ -237,23 +230,30 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeEmail, "contact.test@example.com")
 		require.NoError(t, err, "Failed to get client by email contact")
 
-		assert.Equal(t, clientWithWhatsapp.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
 		assert.Equal(t, "Test", retrieved.LastName(), "LastName mismatch")
 	})
 
+	t.Run("Get client by email from client_contacts table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeEmail, "test2@example.com")
+		require.NoError(t, err, "Failed to get client by email contact from client_contacts table")
+
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
+	})
+
 	t.Run("Get client by telegram contact from client_contacts table", func(t *testing.T) {
-		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, telegramContact)
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "telegram_user123")
 		require.NoError(t, err, "Failed to get client by telegram contact")
 
-		assert.Equal(t, clientWithWhatsapp.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
 		assert.Equal(t, "User", retrieved.MiddleName(), "MiddleName mismatch")
 	})
 
 	t.Run("Get client by whatsapp contact from client_contacts table", func(t *testing.T) {
-		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeWhatsApp, whatsappContact)
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeWhatsApp, "+1234567890")
 		require.NoError(t, err, "Failed to get client by whatsapp contact")
 
-		assert.Equal(t, clientWithWhatsapp.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
 	})
 
 	t.Run("Get client by non-existent contact", func(t *testing.T) {
@@ -413,10 +413,7 @@ func TestClientRepository_GetAll(t *testing.T) {
 	allClients, err := repo.GetAll(f.ctx)
 	require.NoError(t, err, "Failed to get all clients")
 
-	// Check if the number of retrieved clients is at least the number we added plus the initial count
-	assert.GreaterOrEqual(t, len(allClients), int(initialCount)+numNewClients, "Expected at least %d clients", int(initialCount)+numNewClients)
-	// If the test environment guarantees isolation, you can use assert.Len
-	// assert.Len(t, allClients, int(initialCount)+numNewClients, "GetAll returned incorrect number of clients")
+	assert.Len(t, allClients, int(initialCount)+numNewClients, "GetAll returned incorrect number of clients")
 }
 
 func TestClientRepository_Delete(t *testing.T) {
@@ -428,20 +425,18 @@ func TestClientRepository_Delete(t *testing.T) {
 
 	testClient := createTestClient(t, true) // Create a client with a passport
 	created, err := clientRepo.Save(f.ctx, testClient)
-	require.NoError(t, err, "Failed to create test client for delete test") // Use require for setup
+	require.NoError(t, err, "Failed to create test client for delete test")
 
-	// Ensure client exists before delete
 	_, err = clientRepo.GetByID(f.ctx, created.ID())
 	require.NoError(t, err, "Client should exist before deletion")
 
-	// Perform the delete
 	err = clientRepo.Delete(f.ctx, created.ID())
-	require.NoError(t, err, "Failed to delete client") // Use require
+	require.NoError(t, err, "Failed to delete client")
 
 	// Verify deletion
 	_, err = clientRepo.GetByID(f.ctx, created.ID())
-	require.Error(t, err, "Expected error when getting deleted client")                               // Use require
-	require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound after delete") // Use require
+	require.Error(t, err, "Expected error when getting deleted client")
+	require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound after delete")
 }
 
 func TestClientRepository_Update(t *testing.T) {

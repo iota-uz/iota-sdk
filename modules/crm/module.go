@@ -79,6 +79,7 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		controllers.NewChatController(app, "/crm/chats"),
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
+		// TODO: uncomment when Twilio is available
 		// controllers.NewTwilioController(app, twilioProvider),
 	)
 
