@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"net/http"
 	"net/url"
 	"slices"
@@ -592,11 +593,22 @@ func (c *UsersController) Update(
 		return
 	}
 
-	userEntity, err := dto.ToEntity(id)
+	userEntity, err := userService.GetByID(ctx, id)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	roles := make([]role.Role, 0, len(dto.RoleIDs))
+	for _, rID := range dto.RoleIDs {
+		r, err := roleService.GetByID(r.Context(), rID)
+		if err != nil {
+			logger.Errorf("Error getting role: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		roles = append(roles, r)
 	}
 
 	permissionIDs := r.Form["PermissionIDs"]
@@ -612,7 +624,13 @@ func (c *UsersController) Update(
 		}
 		permissions = append(permissions, perm)
 	}
-	userEntity = userEntity.SetPermissions(permissions)
+
+	userEntity, err = dto.Apply(userEntity, roles, permissions)
+	if err != nil {
+		logger.Errorf("Error updating user: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	if err := userService.Update(ctx, userEntity); err != nil {
 		var errs *validators.ValidationError

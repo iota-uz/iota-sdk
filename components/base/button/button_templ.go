@@ -44,15 +44,16 @@ var sizes = map[Size]string{
 }
 
 type Props struct {
-	variant Variant
-	Size    Size
-	Fixed   bool
-	Href    string
-	Rounded bool
-	Loading bool
-	Class   any
-	Icon    templ.Component
-	Attrs   templ.Attributes
+	variant  Variant
+	Size     Size
+	Fixed    bool
+	Href     string
+	Rounded  bool
+	Loading  bool
+	Disabled bool
+	Class    any
+	Icon     templ.Component
+	Attrs    templ.Attributes
 }
 
 func base(props Props) templ.Component {
@@ -84,6 +85,7 @@ func base(props Props) templ.Component {
 				templ.KV("btn-rounded", props.Rounded),
 				templ.KV("btn-with-icon", props.Icon != nil),
 				templ.KV("btn-loading", props.Loading),
+				templ.KV("btn-disabled", props.Disabled),
 				props.Class}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 			if templ_7745c5c3_Err != nil {
@@ -145,12 +147,23 @@ func base(props Props) templ.Component {
 				templ.KV("btn-rounded", props.Rounded),
 				templ.KV("btn-with-icon", props.Icon != nil),
 				templ.KV("btn-loading", props.Loading),
+				templ.KV("btn-disabled", props.Disabled),
 				props.Class}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var5...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if props.Disabled {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " disabled")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, " class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -163,7 +176,7 @@ func base(props Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -171,7 +184,7 @@ func base(props Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, ">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, ">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -185,7 +198,7 @@ func base(props Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"btn-loading-indicator\"></div></button>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"btn-loading-indicator\"></div></button>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -234,15 +247,16 @@ func Primary(props Props) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base(Props{
-			variant: VariantPrimary,
-			Size:    props.Size,
-			Class:   props.Class,
-			Href:    props.Href,
-			Fixed:   props.Fixed,
-			Rounded: props.Rounded,
-			Attrs:   props.Attrs,
-			Icon:    props.Icon,
-			Loading: props.Loading,
+			variant:  VariantPrimary,
+			Size:     props.Size,
+			Class:    props.Class,
+			Href:     props.Href,
+			Fixed:    props.Fixed,
+			Rounded:  props.Rounded,
+			Attrs:    props.Attrs,
+			Icon:     props.Icon,
+			Loading:  props.Loading,
+			Disabled: props.Disabled,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -291,15 +305,16 @@ func Secondary(props Props) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base(Props{
-			variant: VariantSecondary,
-			Size:    props.Size,
-			Class:   props.Class,
-			Href:    props.Href,
-			Fixed:   props.Fixed,
-			Rounded: props.Rounded,
-			Attrs:   props.Attrs,
-			Icon:    props.Icon,
-			Loading: props.Loading,
+			variant:  VariantSecondary,
+			Size:     props.Size,
+			Class:    props.Class,
+			Href:     props.Href,
+			Fixed:    props.Fixed,
+			Rounded:  props.Rounded,
+			Attrs:    props.Attrs,
+			Icon:     props.Icon,
+			Loading:  props.Loading,
+			Disabled: props.Disabled,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -348,15 +363,16 @@ func PrimaryOutline(props Props) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base(Props{
-			variant: VariantPrimaryOutline,
-			Size:    props.Size,
-			Class:   props.Class,
-			Href:    props.Href,
-			Fixed:   props.Fixed,
-			Rounded: props.Rounded,
-			Attrs:   props.Attrs,
-			Icon:    props.Icon,
-			Loading: props.Loading,
+			variant:  VariantPrimaryOutline,
+			Size:     props.Size,
+			Class:    props.Class,
+			Href:     props.Href,
+			Fixed:    props.Fixed,
+			Rounded:  props.Rounded,
+			Attrs:    props.Attrs,
+			Icon:     props.Icon,
+			Loading:  props.Loading,
+			Disabled: props.Disabled,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -405,15 +421,16 @@ func Danger(props Props) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base(Props{
-			variant: VariantDanger,
-			Size:    props.Size,
-			Class:   props.Class,
-			Href:    props.Href,
-			Fixed:   props.Fixed,
-			Rounded: props.Rounded,
-			Attrs:   props.Attrs,
-			Icon:    props.Icon,
-			Loading: props.Loading,
+			variant:  VariantDanger,
+			Size:     props.Size,
+			Class:    props.Class,
+			Href:     props.Href,
+			Fixed:    props.Fixed,
+			Rounded:  props.Rounded,
+			Attrs:    props.Attrs,
+			Icon:     props.Icon,
+			Loading:  props.Loading,
+			Disabled: props.Disabled,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -462,15 +479,16 @@ func Sidebar(props Props) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base(Props{
-			variant: VariantSidebar,
-			Size:    props.Size,
-			Class:   props.Class,
-			Href:    props.Href,
-			Fixed:   props.Fixed,
-			Rounded: props.Rounded,
-			Attrs:   props.Attrs,
-			Icon:    props.Icon,
-			Loading: props.Loading,
+			variant:  VariantSidebar,
+			Size:     props.Size,
+			Class:    props.Class,
+			Href:     props.Href,
+			Fixed:    props.Fixed,
+			Rounded:  props.Rounded,
+			Attrs:    props.Attrs,
+			Icon:     props.Icon,
+			Loading:  props.Loading,
+			Disabled: props.Disabled,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -519,15 +537,16 @@ func Ghost(props Props) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base(Props{
-			variant: VariantGhost,
-			Size:    props.Size,
-			Class:   props.Class,
-			Href:    props.Href,
-			Fixed:   props.Fixed,
-			Rounded: props.Rounded,
-			Attrs:   props.Attrs,
-			Icon:    props.Icon,
-			Loading: props.Loading,
+			variant:  VariantGhost,
+			Size:     props.Size,
+			Class:    props.Class,
+			Href:     props.Href,
+			Fixed:    props.Fixed,
+			Rounded:  props.Rounded,
+			Attrs:    props.Attrs,
+			Icon:     props.Icon,
+			Loading:  props.Loading,
+			Disabled: props.Disabled,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

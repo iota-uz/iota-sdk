@@ -6,6 +6,7 @@ import (
 
 type User struct {
 	ID          string
+	Type        string
 	FirstName   string
 	LastName    string
 	MiddleName  string
@@ -20,6 +21,8 @@ type User struct {
 	GroupIDs    []string
 	Permissions []*Permission
 	Avatar      *Upload
+	CanUpdate   bool
+	CanDelete   bool
 }
 
 func (u *User) FullName() string {
