@@ -17,13 +17,12 @@ import (
 )
 
 type Type string
+type Option func(u *user)
 
 const (
 	TypeSystem Type = "system"
 	TypeUser   Type = "user"
 )
-
-type Option func(u *user)
 
 // --- Option setters ---
 
@@ -146,10 +145,14 @@ type User interface {
 	Events() []interface{}
 
 	Can(perm *permission.Permission) bool
+	CanUpdate() bool
+	CanDelete() bool
+
 	CheckPassword(password string) bool
 
 	AddRole(r role.Role) User
 	RemoveRole(r role.Role) User
+	SetRoles(roles []role.Role) User
 	AddGroupID(groupID uuid.UUID) User
 	RemoveGroupID(groupID uuid.UUID) User
 	SetGroupIDs(groupIDs []uuid.UUID) User
@@ -321,6 +324,13 @@ func (u *user) RemoveRole(r role.Role) User {
 	return &result
 }
 
+func (u *user) SetRoles(roles []role.Role) User {
+	result := *u
+	result.roles = roles
+	result.updatedAt = time.Now()
+	return &result
+}
+
 func (u *user) AddGroupID(groupID uuid.UUID) User {
 	result := *u
 	result.groupIDs = append(result.groupIDs, groupID)
@@ -411,6 +421,14 @@ func (u *user) Can(perm *permission.Permission) bool {
 		}
 	}
 	return false
+}
+
+func (u *user) CanUpdate() bool {
+	return u.type_ != TypeSystem
+}
+
+func (u *user) CanDelete() bool {
+	return u.type_ != TypeSystem
 }
 
 func (u *user) CheckPassword(password string) bool {

@@ -192,7 +192,8 @@ templ EditForm(props *EditFormProps) {
 				hx-disabled-elt="find button"
 			>
 				@button.Danger(button.Props{
-					Size: button.SizeMD,
+					Disabled: !props.User.CanDelete,
+					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
 						"name":   "_action",
 						"value":  "delete",
@@ -213,7 +214,8 @@ templ EditForm(props *EditFormProps) {
 				hx-swap="outerHTML"
 			>
 				@button.Primary(button.Props{
-					Size: button.SizeMD,
+					Disabled: !props.User.CanUpdate,
+					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
 						"name":  "_action",
 						"value": "save",

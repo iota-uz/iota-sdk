@@ -38,8 +38,8 @@ templ CreateForm(props *CreateFormProps) {
 					Error: props.Errors["Name"],
 				})
 				@input.TextArea(&input.TextAreaProps{
-					Label:       pageCtx.T("Roles.Single.Description.Label"),
-					Placeholder: pageCtx.T("Roles.Single.Description.Placeholder"),
+					Label:       pageCtx.T("Roles.Single._Description.Label"),
+					Placeholder: pageCtx.T("Roles.Single._Description.Placeholder"),
 					Attrs: templ.Attributes{
 						"name": "Description",
 						"rows": "4",
