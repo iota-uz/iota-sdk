@@ -602,7 +602,7 @@ func (c *UsersController) Update(
 
 	roles := make([]role.Role, 0, len(dto.RoleIDs))
 	for _, rID := range dto.RoleIDs {
-		r, err := roleService.GetByID(r.Context(), rID)
+		r, err := roleService.GetByID(ctx, rID)
 		if err != nil {
 			logger.Errorf("Error getting role: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
