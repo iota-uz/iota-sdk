@@ -77,10 +77,11 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 		}
 		@base.TableCell(base.TableCellProps{}) {
 			@button.Secondary(button.Props{
-				Fixed: true,
-				Size:  button.SizeSM,
-				Class: "btn-fixed",
-				Href:  fmt.Sprintf("/users/%s", user.ID),
+				Fixed:    true,
+				Size:     button.SizeSM,
+				Disabled: !user.CanUpdate,
+				Class:    "btn-fixed",
+				Href:     fmt.Sprintf("/users/%s", user.ID),
 			}) {
 				@icons.PencilSimple(icons.Props{Size: "20"})
 			}

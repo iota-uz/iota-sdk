@@ -563,6 +563,11 @@
     --text-color: var(--transparent);
   }
 
+  .btn-disabled {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
   .htmx-request .btn,
   .htmx-request.btn {
     --text-color: var(--transparent);

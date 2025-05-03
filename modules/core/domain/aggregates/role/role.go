@@ -7,13 +7,12 @@ import (
 )
 
 type Type string
+type Option func(r *role)
 
 const (
 	TypeUser   Type = "user"
 	TypeSystem Type = "system"
 )
-
-type Option func(r *role)
 
 func WithID(id uint) Option {
 	return func(r *role) {
@@ -54,12 +53,15 @@ type Role interface {
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
+	Can(perm *permission.Permission) bool
+	CanUpdate() bool
+	CanDelete() bool
+
 	SetName(name string) Role
 	SetDescription(description string) Role
 
 	AddPermission(p *permission.Permission) Role
 	SetPermissions(permissions []*permission.Permission) Role
-	Can(perm *permission.Permission) bool
 }
 
 func WithDescription(description string) Option {
@@ -125,6 +127,23 @@ func (r *role) UpdatedAt() time.Time {
 	return r.updatedAt
 }
 
+func (r *role) Can(perm *permission.Permission) bool {
+	for _, p := range r.permissions {
+		if p.Equals(*perm) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *role) CanUpdate() bool {
+	return r.type_ != TypeSystem
+}
+
+func (r *role) CanDelete() bool {
+	return r.type_ != TypeSystem
+}
+
 func (r *role) SetName(name string) Role {
 	result := *r
 	result.name = name
@@ -151,13 +170,4 @@ func (r *role) SetPermissions(permissions []*permission.Permission) Role {
 	result.permissions = permissions
 	result.updatedAt = time.Now()
 	return &result
-}
-
-func (r *role) Can(perm *permission.Permission) bool {
-	for _, p := range r.permissions {
-		if p.Equals(*perm) {
-			return true
-		}
-	}
-	return false
 }

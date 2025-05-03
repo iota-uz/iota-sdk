@@ -8,16 +8,15 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 )
 
-// ---- Interface ----
-
 type Type string
+type Option func(g *group)
 
 const (
 	TypeUser   Type = "user"
 	TypeSystem Type = "system"
 )
 
-type Option func(g *group)
+// ---- Interface ----
 
 type Group interface {
 	ID() uuid.UUID
@@ -28,6 +27,9 @@ type Group interface {
 	Roles() []role.Role
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+
+	CanUpdate() bool
+	CanDelete() bool
 
 	AddUser(u user.User) Group
 	RemoveUser(u user.User) Group
@@ -136,6 +138,14 @@ func (g *group) CreatedAt() time.Time {
 
 func (g *group) UpdatedAt() time.Time {
 	return g.updatedAt
+}
+
+func (g *group) CanUpdate() bool {
+	return g.type_ != TypeSystem
+}
+
+func (g *group) CanDelete() bool {
+	return g.type_ != TypeSystem
 }
 
 func (g *group) SetName(name string) Group {
