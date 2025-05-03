@@ -224,7 +224,7 @@ func (c *RolesController) Update(
 		return
 	}
 
-	updatedEntity, err := dto.ToEntity(roleEntity, c.app.RBAC())
+	updatedEntity, err := dto.Apply(roleEntity, c.app.RBAC())
 	if err != nil {
 		logger.Errorf("Error updating role entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

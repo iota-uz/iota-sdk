@@ -82,8 +82,8 @@ func EditForm(props *EditFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label:       pageCtx.T("Roles.Single.Description.Label"),
-				Placeholder: pageCtx.T("Roles.Single.Description.Placeholder"),
+				Label:       pageCtx.T("Roles.Single._Description.Label"),
+				Placeholder: pageCtx.T("Roles.Single._Description.Placeholder"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
@@ -172,7 +172,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 92, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 93, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -181,7 +181,8 @@ func EditForm(props *EditFormProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = button.Danger(button.Props{
-			Size: button.SizeMD,
+			Disabled: !props.Role.CanDelete,
+			Size:     button.SizeMD,
 			Attrs: templ.Attributes{
 				"name":   "_action",
 				"value":  "delete",
@@ -200,7 +201,7 @@ func EditForm(props *EditFormProps) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/roles/%s", props.Role.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 98, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 99, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -225,7 +226,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 111, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/edit.templ`, Line: 113, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -234,7 +235,8 @@ func EditForm(props *EditFormProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
-			Size: button.SizeMD,
+			Disabled: !props.Role.CanUpdate,
+			Size:     button.SizeMD,
 			Attrs: templ.Attributes{
 				"name":  "_action",
 				"value": "save",
