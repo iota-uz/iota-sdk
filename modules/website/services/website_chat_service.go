@@ -10,15 +10,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/services"
 )
 
 type WebsiteChatService struct {
-	chatService *ChatService
+	chatService *services.ChatService
 	clientRepo  client.Repository
 }
 
 func NewWebsiteChatService(
-	chatService *ChatService,
+	chatService *services.ChatService,
 	clientRepo client.Repository,
 ) *WebsiteChatService {
 	return &WebsiteChatService{
@@ -64,10 +65,7 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (
 
 func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber phone.Phone) (chat.Member, error) {
 	match, err := s.clientRepo.GetByPhone(ctx, phoneNumber.Value())
-	if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
-		return nil, err
-	}
-	if match != nil {
+	if err == nil {
 		return chat.NewMember(
 			chat.NewClientSender(
 				chat.WebsiteTransport,
@@ -76,6 +74,8 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 				match.LastName(),
 			),
 		), nil
+	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
+		return nil, err
 	}
 
 	c, err := client.New(phoneNumber.Value(), client.WithPhone(phoneNumber))
@@ -109,9 +109,7 @@ func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet
 				match.LastName(),
 			),
 		), nil
-	}
-
-	if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
+	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
 		return nil, err
 	}
 

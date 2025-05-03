@@ -354,7 +354,7 @@ func TestClientRepository_Count(t *testing.T) {
 	numClients := 3
 	for i := 0; i < numClients; i++ {
 		p, err := phone.NewFromE164(string([]byte{'2', '0', '0', '0', '0', '0', '0', '0', '0', '0' + byte(i), '1'}))
-		require.NoError(t, err, "Failed to create phone number for count test %d", i) // Use require for setup
+		require.NoError(t, err, "Failed to create phone number for count test %d", i)
 
 		testClient, err := client.New(
 			"Count",
@@ -363,18 +363,16 @@ func TestClientRepository_Count(t *testing.T) {
 			client.WithMiddleName(string([]byte{'X' + byte(i)})),
 			client.WithGender(general.Female),
 		)
-		require.NoError(t, err, "Failed to create client instance for count test %d", i) // Use require for setup
+		require.NoError(t, err, "Failed to create client instance for count test %d", i)
 
 		_, err = repo.Save(f.ctx, testClient)
-		require.NoError(t, err, "Failed to create test client for count test %d", i) // Use require for setup
+		require.NoError(t, err, "Failed to create test client for count test %d", i)
 	}
 
 	count, err := repo.Count(f.ctx)
 	require.NoError(t, err, "Failed to count clients") // Use require
 
 	assert.Equal(t, initialCount+int64(numClients), count, "Client count mismatch")
-	// Or if exact count isn't guaranteed due to parallel tests:
-	// assert.GreaterOrEqual(t, count, initialCount+int64(numClients), "Expected at least %d new clients, count is %d", numClients, count)
 }
 
 func TestClientRepository_GetAll(t *testing.T) {
@@ -390,10 +388,10 @@ func TestClientRepository_GetAll(t *testing.T) {
 	numNewClients := 2
 	for i := 0; i < numNewClients; i++ {
 		p, err := phone.NewFromE164(string([]byte{'3', '0', '0', '0', '0', '0', '0', '0', '0', '0' + byte(i), '1'}))
-		require.NoError(t, err, "Failed to create phone number for GetAll test %d", i) // Use require for setup
+		require.NoError(t, err, "Failed to create phone number for GetAll test %d", i)
 
 		email, err := internet.NewEmail("all" + string([]byte{'a' + byte(i)}) + "@example.com")
-		require.NoError(t, err, "Failed to create email for GetAll test %d", i) // Use require for setup
+		require.NoError(t, err, "Failed to create email for GetAll test %d", i)
 
 		testClient, err := client.New(
 			"All",
@@ -404,10 +402,10 @@ func TestClientRepository_GetAll(t *testing.T) {
 			client.WithEmail(email),
 			client.WithGender(general.Male),
 		)
-		require.NoError(t, err, "Failed to create client instance for GetAll test %d", i) // Use require for setup
+		require.NoError(t, err, "Failed to create client instance for GetAll test %d", i)
 
 		_, err = repo.Save(f.ctx, testClient)
-		require.NoError(t, err, "Failed to create test client for GetAll test %d", i) // Use require for setup
+		require.NoError(t, err, "Failed to create test client for GetAll test %d", i)
 	}
 
 	allClients, err := repo.GetAll(f.ctx)
@@ -423,7 +421,7 @@ func TestClientRepository_Delete(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	testClient := createTestClient(t, true) // Create a client with a passport
+	testClient := createTestClient(t, true)
 	created, err := clientRepo.Save(f.ctx, testClient)
 	require.NoError(t, err, "Failed to create test client for delete test")
 
