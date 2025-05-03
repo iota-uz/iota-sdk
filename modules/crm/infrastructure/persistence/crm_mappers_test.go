@@ -508,15 +508,11 @@ func TestTransportMappers(t *testing.T) {
 				t.Helper()
 				baseSender := chat.NewClientSender(chat.TelegramTransport, 1, "Test", "Client")
 
-				// Test with nil meta
 				t.Run("with nil meta", func(t *testing.T) {
 					_, err := persistence.TelegramMetaToSender(baseSender, nil)
 					require.NoError(t, err, "TelegramMetaToSender() should not return an error")
-
-					// Additional checks can be added here if needed
 				})
 
-				// Test with valid meta
 				t.Run("with valid meta", func(t *testing.T) {
 					meta := &models.TelegramMeta{
 						ChatID:   12345,
@@ -551,7 +547,10 @@ func TestTransportMappers(t *testing.T) {
 					require.True(t, ok, "Expected TelegramSender type")
 
 					if telegramSender.Phone() != nil {
-						assert.Empty(t, telegramSender.Phone().Value(), "Phone should be nil or empty for invalid phone number")
+						assert.Empty(t,
+							telegramSender.Phone().Value(),
+							"Phone should be nil or empty for invalid phone number",
+						)
 					}
 				})
 			},
@@ -629,7 +628,6 @@ func TestTransportMappers(t *testing.T) {
 				t.Helper()
 				baseSender := chat.NewClientSender(chat.EmailTransport, 1, "Test", "Client")
 
-				// Test with nil meta
 				t.Run("with nil meta", func(t *testing.T) {
 					sender, err := persistence.EmailMetaToSender(baseSender, nil)
 					require.NoError(t, err, "EmailMetaToSender() should not return an error")
@@ -640,7 +638,6 @@ func TestTransportMappers(t *testing.T) {
 					assert.Nil(t, emailSender.Email(), "Email should be nil")
 				})
 
-				// Test with valid meta
 				t.Run("with valid meta", func(t *testing.T) {
 					meta := &models.EmailMeta{
 						Email: "test@example.com",
@@ -656,7 +653,6 @@ func TestTransportMappers(t *testing.T) {
 					assert.Equal(t, "test@example.com", emailSender.Email().Value(), "Email value should match")
 				})
 
-				// Test with invalid email
 				t.Run("with invalid email", func(t *testing.T) {
 					meta := &models.EmailMeta{
 						Email: "invalid-email",
