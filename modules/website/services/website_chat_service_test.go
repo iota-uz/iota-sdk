@@ -116,7 +116,7 @@ func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
 
 	// Should fail
 	_, err := sut.CreateThread(fixtures.ctx, invalidContact)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid contact")
 }
 
@@ -218,7 +218,7 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 
 	// Should fail
 	_, err = sut.SendMessageToThread(fixtures.ctx, dto)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, chat.ErrEmptyMessage, err)
 }
 
