@@ -3,6 +3,7 @@ package services_test
 import (
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -15,25 +16,26 @@ import (
 )
 
 // setupChatTest extends the setupTest with WebsiteChatService
-func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, client.Repository, chat.Repository) {
+func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, client.Repository) {
 	t.Helper()
 
 	fixtures := setupTest(t)
 
 	// Create repositories
+	userRepo := corePersistence.NewUserRepository(corePersistence.NewUploadRepository())
 	passportRepo := corePersistence.NewPassportRepository()
 	clientRepo := crmPersistence.NewClientRepository(passportRepo)
 	chatRepo := crmPersistence.NewChatRepository()
 
 	// Create the website chat service
-	websiteChatService := services.NewWebsiteChatService(clientRepo, chatRepo)
+	websiteChatService := services.NewWebsiteChatService(userRepo, clientRepo, chatRepo)
 
-	return fixtures, websiteChatService, clientRepo, chatRepo
+	return fixtures, websiteChatService, clientRepo
 }
 
 func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 	t.Parallel()
-	fixtures, sut, clientRepo, _ := setupChatTest(t)
+	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Test email contact
 	emailStr := "test@example.com"
@@ -59,7 +61,7 @@ func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 
 func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	t.Parallel()
-	fixtures, sut, clientRepo, _ := setupChatTest(t)
+	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Test phone contact
 	phoneStr := "+12126647665" // Valid US number format
@@ -85,7 +87,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 
 func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	t.Parallel()
-	fixtures, sut, clientRepo, _ := setupChatTest(t)
+	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Create an existing client first
 	emailStr := "existing@example.com"
@@ -107,7 +109,7 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 
 func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
 	t.Parallel()
-	fixtures, sut, _, _ := setupChatTest(t)
+	fixtures, sut, _ := setupChatTest(t)
 
 	// Test invalid contact
 	invalidContact := "not-an-email-or-phone"
@@ -120,7 +122,7 @@ func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
 
 func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
 	t.Parallel()
-	fixtures, sut, _, _ := setupChatTest(t)
+	fixtures, sut, _ := setupChatTest(t)
 
 	// Test multiple contacts
 	tests := []struct {
@@ -166,9 +168,8 @@ func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
 }
 
 func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
-	t.Skip("Skipping until implementation is fixed")
 	t.Parallel()
-	fixtures, sut, _, _ := setupChatTest(t)
+	fixtures, sut, _ := setupChatTest(t)
 
 	// Create a thread first
 	emailStr := "sendmessage@example.com"
@@ -201,9 +202,8 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 }
 
 func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
-	t.Skip("Skipping until implementation is fixed")
 	t.Parallel()
-	fixtures, sut, _, _ := setupChatTest(t)
+	fixtures, sut, _ := setupChatTest(t)
 
 	// Create a thread first
 	emailStr := "emptymessage@example.com"
@@ -223,9 +223,10 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 }
 
 func TestWebsiteChatService_ReplyToThread(t *testing.T) {
-	t.Skip("Skipping until foreign key constraint issue is resolved")
 	t.Parallel()
-	fixtures, sut, _, chatRepo := setupChatTest(t)
+	fixtures, sut, _ := setupChatTest(t)
+
+	userRepo := corePersistence.NewUserRepository(corePersistence.NewUploadRepository())
 
 	// Create a thread first
 	emailStr := "reply@example.com"
@@ -233,26 +234,18 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
-	// Create a user member
-	const userID uint = 123
-	userMember := chat.NewMember(
-		chat.NewUserSender(
-			chat.WebsiteTransport,
-			userID,
-			"Support",
-			"Agent",
-		),
-	)
-
-	// Add user member to the chat
-	updatedChat := thread.AddMember(userMember)
-	updatedChat, err = chatRepo.Save(fixtures.ctx, updatedChat)
+	createdUser, err := userRepo.Create(fixtures.ctx, user.New(
+		"Support",
+		"Agent",
+		internet.MustParseEmail("test@gmail.com"),
+		user.UILanguageEN,
+	))
 	require.NoError(t, err)
 
 	// Create reply DTO
 	dto := services.ReplyToThreadDTO{
-		ChatID:  updatedChat.ID(),
-		UserID:  userID,
+		ChatID:  thread.ID(),
+		UserID:  createdUser.ID(),
 		Message: "Reply from support agent",
 	}
 
@@ -270,53 +263,31 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 	sender := lastMsg.Sender().Sender()
 	userSender, ok := sender.(chat.UserSender)
 	require.True(t, ok, "Message sender should be a UserSender")
-	assert.Equal(t, userID, userSender.UserID())
+	assert.Equal(t, createdUser.ID(), userSender.UserID())
 	assert.Equal(t, chat.WebsiteTransport, userSender.Transport())
 }
 
 func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
-	t.Skip("Skipping until foreign key constraint issue is resolved")
 	t.Parallel()
-	fixtures, sut, _, chatRepo := setupChatTest(t)
+	fixtures, sut, _ := setupChatTest(t)
 
-	// Create a thread first
 	emailStr := "emptyreply@example.com"
 	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
 	require.NoError(t, err)
 
-	// Create a user member
-	const userID uint = 456
-	userMember := chat.NewMember(
-		chat.NewUserSender(
-			chat.WebsiteTransport,
-			userID,
-			"Support",
-			"Agent",
-		),
-	)
-
-	// Add user member to the chat
-	updatedChat := thread.AddMember(userMember)
-	updatedChat, err = chatRepo.Save(fixtures.ctx, updatedChat)
-	require.NoError(t, err)
-
-	// Try to send empty reply
-	dto := services.ReplyToThreadDTO{
-		ChatID:  updatedChat.ID(),
-		UserID:  userID,
-		Message: "",
-	}
-
 	// Should fail
-	_, err = sut.ReplyToThread(fixtures.ctx, dto)
+	_, err = sut.ReplyToThread(fixtures.ctx, services.ReplyToThreadDTO{
+		ChatID:  thread.ID(),
+		UserID:  1,
+		Message: "",
+	})
 	assert.Error(t, err)
 	assert.Equal(t, chat.ErrEmptyMessage, err)
 }
 
 func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
-	t.Skip("Skipping until implementation is fixed")
 	t.Parallel()
-	fixtures, sut, _, _ := setupChatTest(t)
+	fixtures, sut, _ := setupChatTest(t)
 
 	// Create a thread first
 	emailStr := "usernotfound@example.com"
@@ -333,5 +304,5 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 	// Should fail because user is not a member
 	_, err = sut.ReplyToThread(fixtures.ctx, dto)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no client member found")
+	assert.ErrorIs(t, err, corePersistence.ErrUserNotFound)
 }

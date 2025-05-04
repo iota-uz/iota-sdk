@@ -5,17 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 )
-
-type WebsiteChatService struct {
-	clientRepo client.Repository
-	chatRepo   chat.Repository
-}
 
 type SendMessageToThreadDTO struct {
 	ChatID  uint
@@ -28,11 +24,19 @@ type ReplyToThreadDTO struct {
 	Message string
 }
 
+type WebsiteChatService struct {
+	userRepo   user.Repository
+	clientRepo client.Repository
+	chatRepo   chat.Repository
+}
+
 func NewWebsiteChatService(
+	userRepo user.Repository,
 	clientRepo client.Repository,
 	chatRepo chat.Repository,
 ) *WebsiteChatService {
 	return &WebsiteChatService{
+		userRepo:   userRepo,
 		clientRepo: clientRepo,
 		chatRepo:   chatRepo,
 	}
@@ -89,7 +93,7 @@ func (s *WebsiteChatService) SendMessageToThread(ctx context.Context, dto SendMe
 		if m.Sender().Transport() != chat.WebsiteTransport {
 			continue
 		}
-		if v, ok := m.Sender().(chat.ClientSender); ok && v.ClientID() != chatEntity.ClientID() {
+		if v, ok := m.Sender().(chat.ClientSender); ok && v.ClientID() == chatEntity.ClientID() {
 			member = m
 			break
 		}
@@ -134,6 +138,7 @@ func (s *WebsiteChatService) ReplyToThread(
 		if m.Sender().Transport() != chat.WebsiteTransport {
 			continue
 		}
+
 		if v, ok := m.Sender().(chat.UserSender); ok && v.UserID() == dto.UserID {
 			member = m
 			break
@@ -141,7 +146,10 @@ func (s *WebsiteChatService) ReplyToThread(
 	}
 
 	if member == nil {
-		return nil, fmt.Errorf("no client member found in chat")
+		member, err = s.memberFromUserID(ctx, dto.UserID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	chatEntity = chatEntity.AddMessage(chat.NewMessage(
@@ -172,6 +180,22 @@ func (s *WebsiteChatService) findMember(ctx context.Context, contact string) (ch
 	}
 
 	return nil, fmt.Errorf("invalid contact: %s", contact)
+}
+
+func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) (chat.Member, error) {
+	usr, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return chat.NewMember(
+		chat.NewUserSender(
+			chat.WebsiteTransport,
+			usr.ID(),
+			usr.FirstName(),
+			usr.LastName(),
+		),
+	), nil
 }
 
 func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber phone.Phone) (chat.Member, error) {

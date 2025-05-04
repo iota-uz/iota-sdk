@@ -84,6 +84,7 @@ type Member interface {
 }
 
 type Sender interface {
+	Type() SenderType
 	Transport() Transport
 }
 
