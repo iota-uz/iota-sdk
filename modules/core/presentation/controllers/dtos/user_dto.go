@@ -2,16 +2,18 @@ package dtos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -43,13 +45,13 @@ type UpdateUserDTO struct {
 	Language   string   `validate:"required"`
 }
 
-func (u *CreateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
+func (dto *CreateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
 		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
-	errs := constants.Validate.Struct(u)
+	errs := constants.Validate.Struct(dto)
 	if errs == nil {
 		return errorMessages, true
 	}
@@ -68,13 +70,13 @@ func (u *CreateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (u *UpdateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
+func (dto *UpdateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
 		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
-	errs := constants.Validate.Struct(u)
+	errs := constants.Validate.Struct(dto)
 	if errs == nil {
 		return errorMessages, true
 	}
@@ -93,15 +95,15 @@ func (u *UpdateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (u *CreateUserDTO) ToEntity() (user.User, error) {
-	roles := make([]role.Role, len(u.RoleIDs))
-	for i, rID := range u.RoleIDs {
+func (dto *CreateUserDTO) ToEntity() (user.User, error) {
+	roles := make([]role.Role, len(dto.RoleIDs))
+	for i, rID := range dto.RoleIDs {
 		r := role.New("", role.WithID(rID))
 		roles[i] = r
 	}
 
-	groupUUIDs := make([]uuid.UUID, len(u.GroupIDs))
-	for i, gID := range u.GroupIDs {
+	groupUUIDs := make([]uuid.UUID, len(dto.GroupIDs))
+	for i, gID := range dto.GroupIDs {
 		groupUUID, err := uuid.Parse(gID)
 		if err != nil {
 			return nil, err
@@ -109,46 +111,57 @@ func (u *CreateUserDTO) ToEntity() (user.User, error) {
 		groupUUIDs[i] = groupUUID
 	}
 
-	email, err := internet.NewEmail(u.Email)
+	email, err := internet.NewEmail(dto.Email)
 	if err != nil {
 		return nil, err
 	}
 
 	options := []user.Option{
-		user.WithMiddleName(u.MiddleName),
-		user.WithPassword(u.Password),
+		user.WithMiddleName(dto.MiddleName),
+		user.WithPassword(dto.Password),
 		user.WithRoles(roles),
 		user.WithGroupIDs(groupUUIDs),
-		user.WithAvatarID(u.AvatarID),
+		user.WithAvatarID(dto.AvatarID),
 	}
 
-	if u.Phone != "" {
-		p, err := phone.NewFromE164(u.Phone)
+	if dto.Phone != "" {
+		p, err := phone.NewFromE164(dto.Phone)
 		if err != nil {
 			return nil, err
 		}
 		options = append(options, user.WithPhone(p))
 	}
 
-	return user.New(
-		u.FirstName,
-		u.LastName,
+	u := user.New(
+		dto.FirstName,
+		dto.LastName,
 		email,
-		user.UILanguage(u.Language),
+		user.UILanguage(dto.Language),
 		options...,
-	), nil
+	)
+
+	if dto.Password != "" {
+		u, err = u.SetPassword(dto.Password)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return u, nil
 }
 
-// ToEntity TODO: remove ToEntity for UpdateUserDTO and add Apply
-func (u *UpdateUserDTO) ToEntity(id uint) (user.User, error) {
-	roles := make([]role.Role, len(u.RoleIDs))
-	for i, rID := range u.RoleIDs {
-		r := role.New("", role.WithID(rID))
-		roles[i] = r
+func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []*permission.Permission) (user.User, error) {
+	if u.ID() == 0 {
+		return nil, errors.New("id cannot be 0")
 	}
 
-	groupUUIDs := make([]uuid.UUID, len(u.GroupIDs))
-	for i, gID := range u.GroupIDs {
+	email, err := internet.NewEmail(dto.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	groupUUIDs := make([]uuid.UUID, len(dto.GroupIDs))
+	for i, gID := range dto.GroupIDs {
 		groupUUID, err := uuid.Parse(gID)
 		if err != nil {
 			return nil, err
@@ -156,33 +169,27 @@ func (u *UpdateUserDTO) ToEntity(id uint) (user.User, error) {
 		groupUUIDs[i] = groupUUID
 	}
 
-	email, err := internet.NewEmail(u.Email)
-	if err != nil {
-		return nil, err
-	}
+	u = u.SetName(dto.FirstName, dto.LastName, dto.MiddleName).
+		SetEmail(email).
+		SetUILanguage(user.UILanguage(dto.Language)).
+		SetRoles(roles).
+		SetGroupIDs(groupUUIDs).
+		SetPermissions(permissions)
 
-	options := []user.Option{
-		user.WithID(id),
-		user.WithMiddleName(u.MiddleName),
-		user.WithPassword(u.Password),
-		user.WithRoles(roles),
-		user.WithGroupIDs(groupUUIDs),
-		user.WithAvatarID(u.AvatarID),
-	}
-
-	if u.Phone != "" {
-		p, err := phone.NewFromE164(u.Phone)
+	if dto.Phone != "" {
+		p, err := phone.NewFromE164(dto.Phone)
 		if err != nil {
 			return nil, err
 		}
-		options = append(options, user.WithPhone(p))
+		u = u.SetPhone(p)
 	}
 
-	return user.New(
-		u.FirstName,
-		u.LastName,
-		email,
-		user.UILanguage(u.Language),
-		options...,
-	), nil
+	if dto.Password != "" {
+		u, err = u.SetPassword(dto.Password)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return u, nil
 }

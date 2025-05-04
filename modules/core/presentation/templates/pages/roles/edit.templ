@@ -36,8 +36,8 @@ templ EditForm(props *EditFormProps) {
 					Error: props.Errors["Name"],
 				})
 				@input.TextArea(&input.TextAreaProps{
-					Label:       pageCtx.T("Roles.Single.Description.Label"),
-					Placeholder: pageCtx.T("Roles.Single.Description.Placeholder"),
+					Label:       pageCtx.T("Roles.Single._Description.Label"),
+					Placeholder: pageCtx.T("Roles.Single._Description.Placeholder"),
 					Attrs: templ.Attributes{
 						"name": "Description",
 						"form": "save-form",
@@ -80,7 +80,8 @@ templ EditForm(props *EditFormProps) {
 				hx-disabled-elt="find button"
 			>
 				@button.Danger(button.Props{
-					Size: button.SizeMD,
+					Disabled: !props.Role.CanDelete,
+					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
 						"name":   "_action",
 						"value":  "delete",
@@ -101,7 +102,8 @@ templ EditForm(props *EditFormProps) {
 				hx-swap="outerHTML"
 			>
 				@button.Primary(button.Props{
-					Size: button.SizeMD,
+					Disabled: !props.Role.CanUpdate,
+					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
 						"name":  "_action",
 						"value": "save",

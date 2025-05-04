@@ -18,10 +18,13 @@ type Upload struct {
 
 type Role struct {
 	ID          string
+	Type        string
 	Name        string
 	Description string
 	CreatedAt   string
 	UpdatedAt   string
+	CanUpdate   bool
+	CanDelete   bool
 }
 
 type Tab struct {
