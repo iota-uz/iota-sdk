@@ -55,6 +55,9 @@ func createTestClient(t *testing.T, withPassport bool) client.Client {
 		client.WithAddress("123 Main St"),
 		client.WithDateOfBirth(&birthDate),
 		client.WithGender(general.Male),
+		client.WithContacts([]client.Contact{
+			client.NewContact(client.ContactTypePhone, "12345678901"),
+		}),
 		client.WithPin(pin),
 		client.WithPhone(p),
 	}
