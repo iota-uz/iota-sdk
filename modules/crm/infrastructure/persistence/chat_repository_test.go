@@ -8,11 +8,12 @@ import (
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 )
 
 // Create a client and return its ID to use in chat tests
-func createClientForTest(t *testing.T, f *testFixtures) uint {
+func createClientForTest(t *testing.T, f *testFixtures) client.Client {
 	t.Helper()
 	repo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
@@ -22,7 +23,7 @@ func createClientForTest(t *testing.T, f *testFixtures) uint {
 	created, err := repo.Save(f.ctx, testClient)
 	require.NoError(t, err, "Failed to create client for chat test")
 
-	return created.ID()
+	return created
 }
 
 func createTestChat(t *testing.T, clientID uint) chat.Chat {
@@ -36,7 +37,7 @@ func TestChatRepository_Create(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	t.Run("Create chat without messages", func(t *testing.T) {
-		clientID := createClientForTest(t, f)
+		clientID := createClientForTest(t, f).ID()
 		testChat := createTestChat(t, clientID)
 
 		created, err := repo.Save(f.ctx, testChat)
@@ -50,10 +51,16 @@ func TestChatRepository_Create(t *testing.T) {
 	})
 
 	t.Run("Create chat with messages", func(t *testing.T) {
-		clientID := createClientForTest(t, f)
-		testChat := createTestChat(t, clientID)
+		client_ := createClientForTest(t, f)
+		testChat := createTestChat(t, client_.ID())
 		member := chat.NewMember(
-			chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+			chat.NewClientSender(
+				chat.TelegramTransport,
+				client_.ID(),
+				client_.Contacts()[0].ID(),
+				"1234567890",
+				"1234567890",
+			),
 		)
 
 		// Add a message to the chat
@@ -76,7 +83,7 @@ func TestChatRepository_GetByID(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewChatRepository()
 
-	clientID := createClientForTest(t, f)
+	clientID := createClientForTest(t, f).ID()
 	testChat := createTestChat(t, clientID)
 	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
@@ -102,7 +109,7 @@ func TestChatRepository_GetByClientID(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewChatRepository()
 
-	clientID := createClientForTest(t, f)
+	clientID := createClientForTest(t, f).ID()
 	testChat := createTestChat(t, clientID)
 	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
@@ -131,14 +138,20 @@ func TestChatRepository_AddMessageThroughUpdate(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	// Create a chat first
-	clientID := createClientForTest(t, f)
-	testChat := createTestChat(t, clientID)
+	client_ := createClientForTest(t, f)
+	testChat := createTestChat(t, client_.ID())
 	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message to the chat domain entity
 	message := chat.NewMessage("Test message", chat.NewMember(
-		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+		chat.NewClientSender(
+			chat.TelegramTransport,
+			client_.ID(),
+			client_.Contacts()[0].ID(),
+			client_.FirstName(),
+			client_.LastName(),
+		),
 	))
 	updatedChat := created.AddMessage(message)
 
@@ -158,14 +171,20 @@ func TestChatRepository_Update(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	// Create a chat first
-	clientID := createClientForTest(t, f)
-	testChat := createTestChat(t, clientID)
+	testClient := createClientForTest(t, f)
+	testChat := createTestChat(t, testClient.ID())
 	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message
 	message := chat.NewMessage("Original message", chat.NewMember(
-		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+		chat.NewClientSender(
+			chat.TelegramTransport,
+			testClient.ID(),
+			testClient.Contacts()[0].ID(),
+			testClient.FirstName(),
+			testClient.LastName(),
+		),
 	))
 	updatedChat := created.AddMessage(message)
 
@@ -180,7 +199,13 @@ func TestChatRepository_Update(t *testing.T) {
 
 	// Add another message and update again
 	secondMessage := chat.NewMessage("Second message", chat.NewMember(
-		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+		chat.NewClientSender(
+			chat.TelegramTransport,
+			testClient.ID(),
+			testClient.Contacts()[0].ID(),
+			testClient.FirstName(),
+			testClient.LastName(),
+		),
 	))
 	chatWithTwoMessages := updated.AddMessage(secondMessage)
 
@@ -199,12 +224,18 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 
 	// Create multiple chats for pagination testing
 	for i := 0; i < 5; i++ {
-		clientID := createClientForTest(t, f)
-		testChat := createTestChat(t, clientID)
+		testClient := createClientForTest(t, f)
+		testChat := createTestChat(t, testClient.ID())
 
 		// Add a message with the client's ID in it
 		message := chat.NewMessage("Message for client "+string('0'+byte(i)), chat.NewMember(
-			chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+			chat.NewClientSender(
+				chat.TelegramTransport,
+				testClient.ID(),
+				testClient.Contacts()[0].ID(),
+				testClient.FirstName(),
+				testClient.LastName(),
+			),
 		))
 		testChat = testChat.AddMessage(message)
 
@@ -265,7 +296,7 @@ func TestChatRepository_Count(t *testing.T) {
 	// Create a few chats
 	numChats := 3
 	for i := 0; i < numChats; i++ {
-		clientID := createClientForTest(t, f)
+		clientID := createClientForTest(t, f).ID()
 		testChat := createTestChat(t, clientID)
 		_, err := repo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
@@ -290,7 +321,7 @@ func TestChatRepository_GetAll(t *testing.T) {
 
 	numNewChats := 2
 	for i := 0; i < numNewChats; i++ {
-		clientID := createClientForTest(t, f)
+		clientID := createClientForTest(t, f).ID()
 		testChat := createTestChat(t, clientID)
 		_, err := repo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
@@ -310,12 +341,18 @@ func TestChatRepository_Delete(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	// Create a chat
-	clientID := createClientForTest(t, f)
-	testChat := createTestChat(t, clientID)
+	testClient := createClientForTest(t, f)
+	testChat := createTestChat(t, testClient.ID())
 
 	// Add a message to test cascade deletion
 	message := chat.NewMessage("Message to be deleted", chat.NewMember(
-		chat.NewClientSender(chat.TelegramTransport, clientID, "1234567890", "1234567890"),
+		chat.NewClientSender(
+			chat.TelegramTransport,
+			testClient.ID(),
+			testClient.Contacts()[0].ID(),
+			testClient.FirstName(),
+			testClient.LastName(),
+		),
 	))
 	testChat = testChat.AddMessage(message)
 
