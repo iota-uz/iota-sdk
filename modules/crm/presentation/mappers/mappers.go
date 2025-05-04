@@ -112,7 +112,7 @@ func MemberToViewModel(entity chat.Member) *viewmodels.Member {
 func MessageToViewModel(entity chat.Message) *viewmodels.Message {
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Sender:    SenderToViewModel(entity.Sender()),
+		Sender:    SenderToViewModel(entity.Sender().Sender()),
 		Message:   entity.Message(),
 		CreatedAt: entity.CreatedAt(),
 	}
