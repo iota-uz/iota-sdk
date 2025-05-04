@@ -502,7 +502,6 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Check if member already exists to avoid duplicate inserts
 	var exists bool
 	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)", member.ID).Scan(&exists)
 	if err != nil {
@@ -510,8 +509,28 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 	}
 
 	if exists {
-		// Member already exists, nothing to do
 		return nil
+	}
+
+	if member.ClientContactID.Valid {
+		var existsByContactID bool
+		err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM chat_members WHERE client_contact_id = $1 AND chat_id = $2)",
+			member.ClientContactID.Int32, chatID).Scan(&existsByContactID)
+		if err != nil {
+			return errors.Wrap(err, "failed to check if member exists by contact ID")
+		}
+
+		if existsByContactID {
+			var existingMemberID string
+			err = tx.QueryRow(ctx, "SELECT id FROM chat_members WHERE client_contact_id = $1 AND chat_id = $2",
+				member.ClientContactID.Int32, chatID).Scan(&existingMemberID)
+			if err != nil {
+				return errors.Wrap(err, "failed to get existing member ID")
+			}
+
+			member.ID = existingMemberID
+			return nil
+		}
 	}
 
 	var transportMeta []byte

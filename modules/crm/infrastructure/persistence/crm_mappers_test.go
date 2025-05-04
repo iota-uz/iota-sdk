@@ -365,7 +365,6 @@ func TestToDBChat(t *testing.T) {
 		chat.WithCreatedAt(now.Add(-3*time.Hour)),
 		chat.WithMessages(messages),
 		chat.WithMembers([]chat.Member{member1, member2}),
-		chat.WithLastMessageAt(&now),
 	)
 
 	t.Run("chat with messages", func(t *testing.T) {

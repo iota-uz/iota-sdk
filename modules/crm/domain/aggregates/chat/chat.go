@@ -2,19 +2,12 @@ package chat
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
-)
-
-// ---- Errors ----
-
-var (
-	ErrEmptyMessage = errors.New("message is empty")
 )
 
 // ---- Interfaces ----
@@ -50,7 +43,6 @@ type Chat interface {
 	ID() uint
 	ClientID() uint
 	Messages() []Message
-	SendMessage(content string, sender Member, attachments ...upload.Upload) (Message, error)
 	AddMessage(msg Message) Chat
 	UnreadMessages() int
 	MarkAllAsRead()
