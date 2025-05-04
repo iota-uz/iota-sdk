@@ -159,7 +159,7 @@ func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, thread)
 				assert.NotZero(t, thread.ID())
 			}
@@ -281,8 +281,8 @@ func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
 		UserID:  1,
 		Message: "",
 	})
-	assert.Error(t, err)
-	assert.Equal(t, chat.ErrEmptyMessage, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, chat.ErrEmptyMessage)
 }
 
 func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
@@ -303,6 +303,6 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 
 	// Should fail because user is not a member
 	_, err = sut.ReplyToThread(fixtures.ctx, dto)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, corePersistence.ErrUserNotFound)
+	require.Error(t, err)
+	require.ErrorIs(t, err, corePersistence.ErrUserNotFound)
 }

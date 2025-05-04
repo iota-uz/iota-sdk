@@ -168,20 +168,6 @@ func (s *WebsiteChatService) ReplyToThread(
 	return savedChat, nil
 }
 
-func (s *WebsiteChatService) findMember(ctx context.Context, contact string) (chat.Member, error) {
-	email, err := internet.NewEmail(contact)
-	if err == nil {
-		return s.chatRepo.GetMemberByContact(ctx, string(client.ContactTypeEmail), email.Value())
-	}
-
-	p, err := phone.NewFromE164(contact)
-	if err == nil {
-		return s.chatRepo.GetMemberByContact(ctx, string(client.ContactTypePhone), p.Value())
-	}
-
-	return nil, fmt.Errorf("invalid contact: %s", contact)
-}
-
 func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) (chat.Member, error) {
 	usr, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
