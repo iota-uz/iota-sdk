@@ -349,31 +349,30 @@ func (m *message) SentAt() *time.Time {
 // Senders
 // --------
 
-type sender struct {
+type userSender struct {
 	transport Transport
-	type_     SenderType
-	senderID  uint
+	userID    uint
 	firstName string
 	lastName  string
 }
 
-func (s *sender) Transport() Transport {
+func (s *userSender) Transport() Transport {
 	return s.transport
 }
 
-func (s *sender) Type() SenderType {
-	return s.type_
+func (s *userSender) Type() SenderType {
+	return UserSenderType
 }
 
-func (s *sender) SenderID() uint {
-	return s.senderID
+func (s *userSender) UserID() uint {
+	return s.userID
 }
 
-func (s *sender) FirstName() string {
+func (s *userSender) FirstName() string {
 	return s.firstName
 }
 
-func (s *sender) LastName() string {
+func (s *userSender) LastName() string {
 	return s.lastName
 }
 
@@ -411,10 +410,9 @@ func (s *clientSender) LastName() string {
 
 // UserSender represents a message sent by a user
 
-func NewUserSender(transport Transport, id uint, firstName, lastName string) Sender {
-	return &sender{
-		senderID:  id,
-		type_:     UserSenderType,
+func NewUserSender(transport Transport, userID uint, firstName, lastName string) UserSender {
+	return &userSender{
+		userID:    userID,
 		firstName: firstName,
 		lastName:  lastName,
 		transport: transport,
@@ -575,9 +573,8 @@ func (s *phoneSender) Phone() phone.Phone {
 func NewOtherSender(base Sender) OtherSender {
 	// If base is nil, create a default sender with OtherTransport
 	if base == nil {
-		base = &sender{
+		base = &userSender{
 			transport: OtherTransport,
-			type_:     UnknownSenderType,
 		}
 	}
 	return &otherSender{
