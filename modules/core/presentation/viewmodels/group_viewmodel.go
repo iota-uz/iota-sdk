@@ -4,12 +4,15 @@ import "strings"
 
 type Group struct {
 	ID          string
+	Type        string
 	Name        string
 	Description string
 	Roles       []*Role
 	Users       []*User
 	CreatedAt   string
 	UpdatedAt   string
+	CanUpdate   bool
+	CanDelete   bool
 }
 
 func (g *Group) UsersCount() int {

@@ -40,6 +40,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 
 	options := []user.Option{
 		user.WithID(dbUser.ID),
+		user.WithType(user.Type(dbUser.Type)),
 		user.WithMiddleName(dbUser.MiddleName.String),
 		user.WithPassword(dbUser.Password.String),
 		user.WithRoles(roles),
@@ -119,6 +120,7 @@ func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.R
 	}
 	options := []role.Option{
 		role.WithID(dbRole.ID),
+		role.WithType(role.Type(dbRole.Type)),
 		role.WithDescription(dbRole.Description.String),
 		role.WithPermissions(domainPermissions),
 		role.WithCreatedAt(dbRole.CreatedAt),
@@ -445,6 +447,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 
 	opts := []group.Option{
 		group.WithID(groupID),
+		group.WithType(group.Type(dbGroup.Type)),
 		group.WithDescription(dbGroup.Description.String),
 		group.WithUsers(users),
 		group.WithRoles(roles),
