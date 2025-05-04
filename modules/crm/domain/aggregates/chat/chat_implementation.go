@@ -11,7 +11,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-// ---- Chat Implementation ----
+var (
+	ErrEmptyMessage    = errors.New("message content and attachments cannot both be empty")
+	ErrNoMessages      = errors.New("chat has no messages")
+	ErrSenderNotMember = errors.New("sender is not a member of this chat")
+	ErrMemberNotFound  = errors.New("member not found")
+)
 
 type ChatOption func(c *chat)
 
@@ -23,19 +28,20 @@ func WithChatID(id uint) ChatOption {
 
 func WithMessages(messages []Message) ChatOption {
 	return func(c *chat) {
-		c.messages = messages
-	}
-}
-
-func WithLastMessageAt(lastMessageAt *time.Time) ChatOption {
-	return func(c *chat) {
-		c.lastMessageAt = lastMessageAt
+		if messages != nil {
+			c.messages = make([]Message, len(messages))
+			copy(c.messages, messages)
+		} else {
+			c.messages = []Message{}
+		}
 	}
 }
 
 func WithMembers(members []Member) ChatOption {
 	return func(c *chat) {
-		c.members = members
+		for _, m := range members {
+			c.members[m.ID()] = m
+		}
 	}
 }
 
@@ -47,14 +53,12 @@ func WithCreatedAt(createdAt time.Time) ChatOption {
 
 func New(clientID uint, opts ...ChatOption) Chat {
 	c := &chat{
-		id:            0,
-		clientID:      clientID,
-		messages:      []Message{},
-		lastMessageAt: nil,
-		members:       []Member{},
-		createdAt:     time.Now(),
+		id:        0,
+		clientID:  clientID,
+		messages:  []Message{},
+		members:   make(map[uuid.UUID]Member),
+		createdAt: time.Now(),
 	}
-
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -63,27 +67,47 @@ func New(clientID uint, opts ...ChatOption) Chat {
 }
 
 type chat struct {
-	id            uint
-	clientID      uint
-	messages      []Message
-	lastMessageAt *time.Time
-	members       []Member
-	createdAt     time.Time
+	id        uint
+	clientID  uint
+	messages  []Message
+	members   map[uuid.UUID]Member
+	createdAt time.Time
+}
+
+func (c *chat) ensureMembersMap() {
+	if c.members == nil {
+		c.members = make(map[uuid.UUID]Member)
+	}
+}
+
+func (c *chat) copy() *chat {
+	newChat := *c
+
+	newChat.messages = make([]Message, len(c.messages))
+	copy(newChat.messages, c.messages)
+
+	newChat.members = make(map[uuid.UUID]Member, len(c.members))
+	for id, member := range c.members {
+		newChat.members[id] = member
+	}
+
+	return &newChat
 }
 
 func (c *chat) ID() uint {
 	return c.id
 }
 
-func (c *chat) Messages() []Message {
-	return c.messages
-}
-
 func (c *chat) ClientID() uint {
 	return c.clientID
 }
 
-// UnreadMessages returns the number of unread messages in the chat
+func (c *chat) Messages() []Message {
+	msgs := make([]Message, len(c.messages))
+	copy(msgs, c.messages)
+	return msgs
+}
+
 func (c *chat) UnreadMessages() int {
 	count := 0
 	for _, msg := range c.messages {
@@ -94,52 +118,44 @@ func (c *chat) UnreadMessages() int {
 	return count
 }
 
-// MarkAllAsRead marks all messages in the chat as read
 func (c *chat) MarkAllAsRead() {
 	for _, msg := range c.messages {
-		msg.MarkAsRead()
+		if !msg.IsRead() {
+			msg.MarkAsRead()
+		}
 	}
 }
 
 func (c *chat) AddMessage(msg Message) Chat {
-	res := *c
-	res.messages = append(c.messages, msg)
-	res.lastMessageAt = mapping.Pointer(time.Now())
-	return &res
-}
-
-// AddMessage adds a new message to the chat
-func (c *chat) SendMessage(
-	content string,
-	sender Member,
-	attachments ...upload.Upload,
-) (Message, error) {
-	if content == "" && len(attachments) == 0 {
-		return nil, ErrEmptyMessage
+	if msg == nil || msg.Sender() == nil {
+		return c
 	}
 
-	msg := NewMessage(
-		content,
-		sender,
-		WithAttachments(attachments),
-	)
+	msgSender := msg.Sender()
+	currentState := c
 
-	c.messages = append(c.messages, msg)
-	c.lastMessageAt = mapping.Pointer(time.Now())
+	if !c.hasMemberByID(msgSender.ID()) {
+		currentState = c.AddMember(msgSender).(*chat)
+	}
 
-	return msg, nil
+	res := currentState.copy()
+	res.messages = append(res.messages, msg)
+
+	return res
 }
 
 func (c *chat) LastMessage() (Message, error) {
 	if len(c.messages) == 0 {
-		return nil, errors.New("no messages")
+		return nil, ErrNoMessages
 	}
-
 	return c.messages[len(c.messages)-1], nil
 }
 
 func (c *chat) LastMessageAt() *time.Time {
-	return c.lastMessageAt
+	if len(c.messages) > 0 {
+		return c.messages[len(c.messages)-1].SentAt()
+	}
+	return nil
 }
 
 func (c *chat) CreatedAt() time.Time {
@@ -147,29 +163,46 @@ func (c *chat) CreatedAt() time.Time {
 }
 
 func (c *chat) Members() []Member {
-	return c.members
+	c.ensureMembersMap()
+	members := make([]Member, 0, len(c.members))
+	for _, member := range c.members {
+		members = append(members, member)
+	}
+	return members
+}
+
+func (c *chat) hasMemberByID(memberID uuid.UUID) bool {
+	c.ensureMembersMap()
+	_, exists := c.members[memberID]
+	return exists
 }
 
 func (c *chat) AddMember(member Member) Chat {
-	res := *c
-	res.members = append(c.members, member)
-	return &res
+	if member == nil {
+		return c
+	}
+	c.ensureMembersMap()
+
+	if _, exists := c.members[member.ID()]; exists {
+		return c
+	}
+
+	res := c.copy()
+	res.members[member.ID()] = member
+	return res
 }
 
 func (c *chat) RemoveMember(memberID uuid.UUID) Chat {
-	res := *c
-	for i, member := range c.members {
-		if member.ID() == memberID {
-			res.members = append(res.members[:i], res.members[i+1:]...)
-			break
-		}
-	}
-	return &res
-}
+	c.ensureMembersMap()
 
-// -------
-// Member
-// -------
+	if _, exists := c.members[memberID]; !exists {
+		return c
+	}
+
+	res := c.copy()
+	delete(res.members, memberID)
+	return res
+}
 
 type MemberOption func(m *member)
 
@@ -195,6 +228,9 @@ func NewMember(
 	sender Sender,
 	opts ...MemberOption,
 ) Member {
+	if sender == nil {
+		panic("sender cannot be nil when creating a new Member")
+	}
 	m := &member{
 		id:        uuid.New(),
 		transport: sender.Transport(),
@@ -216,29 +252,11 @@ type member struct {
 	updatedAt time.Time
 }
 
-func (m *member) ID() uuid.UUID {
-	return m.id
-}
-
-func (m *member) Transport() Transport {
-	return m.transport
-}
-
-func (m *member) Sender() Sender {
-	return m.sender
-}
-
-func (m *member) CreatedAt() time.Time {
-	return m.createdAt
-}
-
-func (m *member) UpdatedAt() time.Time {
-	return m.updatedAt
-}
-
-// -------
-// Message
-// -------
+func (m *member) ID() uuid.UUID        { return m.id }
+func (m *member) Transport() Transport { return m.transport }
+func (m *member) Sender() Sender       { return m.sender }
+func (m *member) CreatedAt() time.Time { return m.createdAt }
+func (m *member) UpdatedAt() time.Time { return m.updatedAt }
 
 type MessageOption func(m *message)
 
@@ -256,13 +274,25 @@ func WithMessageID(id uint) MessageOption {
 
 func WithReadAt(readAt *time.Time) MessageOption {
 	return func(m *message) {
-		m.readAt = readAt
+		if readAt != nil {
+			ts := *readAt
+			m.readAt = &ts
+			m.isRead = true
+		} else {
+			m.readAt = nil
+			m.isRead = false
+		}
 	}
 }
 
 func WithAttachments(attachments []upload.Upload) MessageOption {
 	return func(m *message) {
-		m.attachments = attachments
+		if attachments != nil {
+			m.attachments = make([]upload.Upload, len(attachments))
+			copy(m.attachments, attachments)
+		} else {
+			m.attachments = []upload.Upload{}
+		}
 	}
 }
 
@@ -273,18 +303,22 @@ func WithMessageCreatedAt(createdAt time.Time) MessageOption {
 }
 
 func NewMessage(
-	msg string,
+	msgContent string,
 	sender Member,
 	opts ...MessageOption,
 ) Message {
+	if sender == nil {
+		panic("sender cannot be nil when creating a new Message")
+	}
 	m := &message{
 		id:          0,
-		message:     msg,
+		message:     msgContent,
 		sender:      sender,
 		isRead:      false,
 		readAt:      nil,
 		attachments: []upload.Upload{},
 		createdAt:   time.Now(),
+		sentAt:      nil,
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -304,50 +338,37 @@ type message struct {
 	createdAt   time.Time
 }
 
-func (m *message) ID() uint {
-	return m.id
-}
-
-func (m *message) ChatID() uint {
-	return m.chatID
-}
-
-func (m *message) Message() string {
-	return m.message
-}
-
-func (m *message) Sender() Member {
-	return m.sender
-}
-
-func (m *message) IsRead() bool {
-	return m.isRead
-}
-
+func (m *message) ID() uint        { return m.id }
+func (m *message) ChatID() uint    { return m.chatID }
+func (m *message) Sender() Member  { return m.sender }
+func (m *message) Message() string { return m.message }
+func (m *message) IsRead() bool    { return m.isRead }
 func (m *message) MarkAsRead() {
-	m.isRead = true
-	m.readAt = mapping.Pointer(time.Now())
+	if !m.isRead {
+		m.isRead = true
+		m.readAt = mapping.Pointer(time.Now())
+	}
 }
-
 func (m *message) ReadAt() *time.Time {
-	return m.readAt
+	if m.readAt == nil {
+		return nil
+	}
+	t := *m.readAt
+	return &t
 }
-
-func (m *message) Attachments() []upload.Upload {
-	return m.attachments
-}
-
-func (m *message) CreatedAt() time.Time {
-	return m.createdAt
-}
-
 func (m *message) SentAt() *time.Time {
-	return m.sentAt
+	if m.sentAt == nil {
+		return nil
+	}
+	t := *m.sentAt
+	return &t
 }
-
-// --------
-// Senders
-// --------
+func (m *message) Attachments() []upload.Upload {
+	atts := make([]upload.Upload, len(m.attachments))
+	copy(atts, m.attachments)
+	return atts
+}
+func (m *message) CreatedAt() time.Time { return m.createdAt }
 
 type userSender struct {
 	transport Transport
@@ -356,25 +377,11 @@ type userSender struct {
 	lastName  string
 }
 
-func (s *userSender) Transport() Transport {
-	return s.transport
-}
-
-func (s *userSender) Type() SenderType {
-	return UserSenderType
-}
-
-func (s *userSender) UserID() uint {
-	return s.userID
-}
-
-func (s *userSender) FirstName() string {
-	return s.firstName
-}
-
-func (s *userSender) LastName() string {
-	return s.lastName
-}
+func (s *userSender) Transport() Transport { return s.transport }
+func (s *userSender) Type() SenderType     { return UserSenderType }
+func (s *userSender) UserID() uint         { return s.userID }
+func (s *userSender) FirstName() string    { return s.firstName }
+func (s *userSender) LastName() string     { return s.lastName }
 
 type clientSender struct {
 	transport Transport
@@ -384,204 +391,152 @@ type clientSender struct {
 	lastName  string
 }
 
-func (s *clientSender) Transport() Transport {
-	return s.transport
-}
-
-func (s *clientSender) Type() SenderType {
-	return ClientSenderType
-}
-
-func (s *clientSender) ClientID() uint {
-	return s.clientID
-}
-
-func (s *clientSender) ContactID() uint {
-	return s.contactID
-}
-
-func (s *clientSender) FirstName() string {
-	return s.firstName
-}
-
-func (s *clientSender) LastName() string {
-	return s.lastName
-}
-
-// UserSender represents a message sent by a user
+func (s *clientSender) Transport() Transport { return s.transport }
+func (s *clientSender) Type() SenderType     { return ClientSenderType }
+func (s *clientSender) ClientID() uint       { return s.clientID }
+func (s *clientSender) ContactID() uint      { return s.contactID }
+func (s *clientSender) FirstName() string    { return s.firstName }
+func (s *clientSender) LastName() string     { return s.lastName }
 
 func NewUserSender(transport Transport, userID uint, firstName, lastName string) UserSender {
 	return &userSender{
+		transport: transport,
 		userID:    userID,
 		firstName: firstName,
 		lastName:  lastName,
-		transport: transport,
 	}
 }
 
-func NewClientSender(
-	transport Transport,
-	clientID, contactID uint,
-	firstName,
-	lastName string,
-) ClientSender {
+func NewClientSender(transport Transport, clientID, contactID uint, firstName, lastName string) ClientSender {
 	return &clientSender{
+		transport: transport,
 		clientID:  clientID,
 		contactID: contactID,
 		firstName: firstName,
 		lastName:  lastName,
-		transport: transport,
-	}
-}
-
-func NewTelegramSender(base Sender, chatID int64, username string, phone phone.Phone) TelegramSender {
-	return &telegramSender{
-		Sender:   base,
-		chatID:   chatID,
-		username: username,
-		phone:    phone,
 	}
 }
 
 type telegramSender struct {
-	Sender
+	base     Sender
 	chatID   int64
 	username string
 	phone    phone.Phone
 }
 
-func (s *telegramSender) ChatID() int64 {
-	return s.chatID
+func NewTelegramSender(base Sender, chatID int64, username string, phone phone.Phone) TelegramSender {
+	if base == nil {
+		panic("base sender cannot be nil for TelegramSender")
+	}
+	return &telegramSender{base: base, chatID: chatID, username: username, phone: phone}
 }
+func (s *telegramSender) Transport() Transport { return TelegramTransport }
+func (s *telegramSender) Type() SenderType     { return s.base.Type() }
+func (s *telegramSender) ChatID() int64        { return s.chatID }
+func (s *telegramSender) Username() string     { return s.username }
+func (s *telegramSender) Phone() phone.Phone   { return s.phone }
 
-func (s *telegramSender) Username() string {
-	return s.username
-}
-
-func (s *telegramSender) Phone() phone.Phone {
-	return s.phone
+type websiteSender struct {
+	base  Sender
+	phone phone.Phone
+	email internet.Email
 }
 
 func NewWebsiteSender(base Sender, phone phone.Phone, email internet.Email) WebsiteSender {
-	return &websiteSender{
-		Sender: base,
-		phone:  phone,
-		email:  email,
+	if base == nil {
+		panic("base sender cannot be nil for WebsiteSender")
 	}
+	return &websiteSender{base: base, phone: phone, email: email}
 }
-
-type websiteSender struct {
-	Sender
-	phone phone.Phone
-	email internet.Email
-}
-
-func (s *websiteSender) Phone() phone.Phone {
-	return s.phone
-}
-
-func (s *websiteSender) Email() internet.Email {
-	return s.email
-}
-
-// WhatsAppSender represents a message from WhatsApp
-func NewWhatsAppSender(base Sender, phone phone.Phone) WhatsAppSender {
-	return &whatsAppSender{
-		Sender: base,
-		phone:  phone,
-	}
-}
+func (s *websiteSender) Transport() Transport  { return WebsiteTransport }
+func (s *websiteSender) Type() SenderType      { return s.base.Type() }
+func (s *websiteSender) Phone() phone.Phone    { return s.phone }
+func (s *websiteSender) Email() internet.Email { return s.email }
 
 type whatsAppSender struct {
-	Sender
+	base  Sender
 	phone phone.Phone
 }
 
-func (s *whatsAppSender) Phone() phone.Phone {
-	return s.phone
-}
-
-// InstagramSender represents a message from Instagram
-func NewInstagramSender(base Sender, username string) InstagramSender {
-	return &instagramSender{
-		Sender:   base,
-		username: username,
+func NewWhatsAppSender(base Sender, phone phone.Phone) WhatsAppSender {
+	if base == nil {
+		panic("base sender cannot be nil for WhatsAppSender")
 	}
+	return &whatsAppSender{base: base, phone: phone}
 }
+func (s *whatsAppSender) Transport() Transport { return WhatsAppTransport }
+func (s *whatsAppSender) Type() SenderType     { return s.base.Type() }
+func (s *whatsAppSender) Phone() phone.Phone   { return s.phone }
 
 type instagramSender struct {
-	Sender
+	base     Sender
 	username string
 }
 
-func (s *instagramSender) Username() string {
-	return s.username
-}
-
-// SMSSender represents a message from SMS
-func NewSMSSender(base Sender, phone phone.Phone) SMSSender {
-	return &smsSender{
-		Sender: base,
-		phone:  phone,
+func NewInstagramSender(base Sender, username string) InstagramSender {
+	if base == nil {
+		panic("base sender cannot be nil for InstagramSender")
 	}
+	return &instagramSender{base: base, username: username}
 }
+func (s *instagramSender) Transport() Transport { return InstagramTransport }
+func (s *instagramSender) Type() SenderType     { return s.base.Type() }
+func (s *instagramSender) Username() string     { return s.username }
 
 type smsSender struct {
-	Sender
+	base  Sender
 	phone phone.Phone
 }
 
-func (s *smsSender) Phone() phone.Phone {
-	return s.phone
-}
-
-// EmailSender represents a message from Email
-func NewEmailSender(base Sender, email internet.Email) EmailSender {
-	return &emailSender{
-		Sender: base,
-		email:  email,
+func NewSMSSender(base Sender, phone phone.Phone) SMSSender {
+	if base == nil {
+		panic("base sender cannot be nil for SMSSender")
 	}
+	return &smsSender{base: base, phone: phone}
 }
+func (s *smsSender) Transport() Transport { return SMSTransport }
+func (s *smsSender) Type() SenderType     { return s.base.Type() }
+func (s *smsSender) Phone() phone.Phone   { return s.phone }
 
 type emailSender struct {
-	Sender
+	base  Sender
 	email internet.Email
 }
 
-func (s *emailSender) Email() internet.Email {
-	return s.email
-}
-
-// PhoneSender represents a message from Phone call
-func NewPhoneSender(base Sender, phone phone.Phone) PhoneSender {
-	return &phoneSender{
-		Sender: base,
-		phone:  phone,
+func NewEmailSender(base Sender, email internet.Email) EmailSender {
+	if base == nil {
+		panic("base sender cannot be nil for EmailSender")
 	}
+	return &emailSender{base: base, email: email}
 }
+func (s *emailSender) Transport() Transport  { return EmailTransport }
+func (s *emailSender) Type() SenderType      { return s.base.Type() }
+func (s *emailSender) Email() internet.Email { return s.email }
 
 type phoneSender struct {
-	Sender
+	base  Sender
 	phone phone.Phone
 }
 
-func (s *phoneSender) Phone() phone.Phone {
-	return s.phone
-}
-
-// OtherSender represents a message from other sources
-func NewOtherSender(base Sender) OtherSender {
-	// If base is nil, create a default sender with OtherTransport
+func NewPhoneSender(base Sender, phone phone.Phone) PhoneSender {
 	if base == nil {
-		base = &userSender{
-			transport: OtherTransport,
-		}
+		panic("base sender cannot be nil for PhoneSender")
 	}
-	return &otherSender{
-		Sender: base,
-	}
+	return &phoneSender{base: base, phone: phone}
 }
+func (s *phoneSender) Transport() Transport { return PhoneTransport }
+func (s *phoneSender) Type() SenderType     { return s.base.Type() }
+func (s *phoneSender) Phone() phone.Phone   { return s.phone }
 
 type otherSender struct {
-	Sender
+	base Sender
 }
+
+func NewOtherSender(base Sender) OtherSender {
+	if base == nil {
+		base = &userSender{transport: OtherTransport, userID: 0, firstName: "Unknown", lastName: "Sender"}
+	}
+	return &otherSender{base: base}
+}
+func (s *otherSender) Transport() Transport { return OtherTransport }
+func (s *otherSender) Type() SenderType     { return s.base.Type() }

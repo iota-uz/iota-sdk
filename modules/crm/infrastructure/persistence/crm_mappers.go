@@ -196,7 +196,6 @@ func ToDomainChat(dbRow *models.Chat, messages []chat.Message, members []chat.Me
 		chat.WithCreatedAt(dbRow.CreatedAt),
 		chat.WithMessages(messages),
 		chat.WithMembers(members),
-		chat.WithLastMessageAt(mapping.SQLNullTimeToPointer(dbRow.LastMessageAt)),
 	), nil
 }
 
