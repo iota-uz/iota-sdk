@@ -64,12 +64,20 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (
 }
 
 func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber phone.Phone) (chat.Member, error) {
-	match, err := s.clientRepo.GetByPhone(ctx, phoneNumber.Value())
+	match, err := s.clientRepo.GetByContactValue(ctx, client.ContactTypePhone, phoneNumber.Value())
 	if err == nil {
+		var contactID uint
+		for _, contact := range match.Contacts() {
+			if contact.Type() == client.ContactTypePhone && contact.Value() == phoneNumber.Value() {
+				contactID = contact.ID()
+				break
+			}
+		}
 		return chat.NewMember(
 			chat.NewClientSender(
 				chat.WebsiteTransport,
 				match.ID(),
+				contactID,
 				match.FirstName(),
 				match.LastName(),
 			),
@@ -87,10 +95,18 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 	if err != nil {
 		return nil, err
 	}
+	var contactID uint
+	for _, contact := range clientEntity.Contacts() {
+		if contact.Type() == client.ContactTypePhone && contact.Value() == phoneNumber.Value() {
+			contactID = contact.ID()
+			break
+		}
+	}
 	member := chat.NewMember(
 		chat.NewClientSender(
 			chat.WebsiteTransport,
 			clientEntity.ID(),
+			contactID,
 			clientEntity.FirstName(),
 			clientEntity.LastName(),
 		),
@@ -101,10 +117,18 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet.Email) (chat.Member, error) {
 	match, err := s.clientRepo.GetByContactValue(ctx, client.ContactTypeEmail, email.Value())
 	if err == nil {
+		var contactID uint
+		for _, contact := range match.Contacts() {
+			if contact.Type() == client.ContactTypeEmail && contact.Value() == email.Value() {
+				contactID = contact.ID()
+				break
+			}
+		}
 		return chat.NewMember(
 			chat.NewClientSender(
 				chat.WebsiteTransport,
 				match.ID(),
+				contactID,
 				match.FirstName(),
 				match.LastName(),
 			),
@@ -122,10 +146,18 @@ func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet
 	if err != nil {
 		return nil, err
 	}
+	var contactID uint
+	for _, contact := range clientEntity.Contacts() {
+		if contact.Type() == client.ContactTypeEmail && contact.Value() == email.Value() {
+			contactID = contact.ID()
+			break
+		}
+	}
 	member := chat.NewMember(
 		chat.NewClientSender(
 			chat.WebsiteTransport,
 			clientEntity.ID(),
+			contactID,
 			clientEntity.FirstName(),
 			clientEntity.LastName(),
 		),

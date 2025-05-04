@@ -84,11 +84,10 @@ func New(v string, c country.Country) (Phone, error) {
 
 // NewFromE164 creates a new Phone from an E.164 formatted number, automatically detecting the country
 func NewFromE164(v string) (Phone, error) {
-	if v == "" {
+	stripped := Strip(v)
+	if stripped == "" {
 		return phone(""), errors.Wrap(ErrInvalidPhoneNumber, "phone number is empty")
 	}
-
-	stripped := Strip(v)
 	//	detectedCountry, err := ParseCountry(stripped)
 	//	if err != nil {
 	//		return phone(""), err

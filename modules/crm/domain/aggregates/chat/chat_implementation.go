@@ -377,6 +377,38 @@ func (s *sender) LastName() string {
 	return s.lastName
 }
 
+type clientSender struct {
+	transport Transport
+	clientID  uint
+	contactID uint
+	firstName string
+	lastName  string
+}
+
+func (s *clientSender) Transport() Transport {
+	return s.transport
+}
+
+func (s *clientSender) Type() SenderType {
+	return ClientSenderType
+}
+
+func (s *clientSender) ClientID() uint {
+	return s.clientID
+}
+
+func (s *clientSender) ContactID() uint {
+	return s.contactID
+}
+
+func (s *clientSender) FirstName() string {
+	return s.firstName
+}
+
+func (s *clientSender) LastName() string {
+	return s.lastName
+}
+
 // UserSender represents a message sent by a user
 
 func NewUserSender(transport Transport, id uint, firstName, lastName string) Sender {
@@ -389,10 +421,15 @@ func NewUserSender(transport Transport, id uint, firstName, lastName string) Sen
 	}
 }
 
-func NewClientSender(transport Transport, id uint, firstName, lastName string) Sender {
-	return &sender{
-		senderID:  id,
-		type_:     ClientSenderType,
+func NewClientSender(
+	transport Transport,
+	clientID, contactID uint,
+	firstName,
+	lastName string,
+) ClientSender {
+	return &clientSender{
+		clientID:  clientID,
+		contactID: contactID,
 		firstName: firstName,
 		lastName:  lastName,
 		transport: transport,

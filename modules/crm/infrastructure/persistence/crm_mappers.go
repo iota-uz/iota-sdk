@@ -225,7 +225,12 @@ func ToDomainChatMember(dbMember *models.ChatMember) (chat.Member, error) {
 	if dbMember.UserID.Valid {
 		sender = chat.NewUserSender(transport, uint(dbMember.UserID.Int32), "", "")
 	} else if dbMember.ClientID.Valid {
-		sender = chat.NewClientSender(transport, uint(dbMember.ClientID.Int32), "", "")
+		sender = chat.NewClientSender(
+			transport,
+			uint(dbMember.ClientID.Int32),
+			uint(dbMember.ClientContactID.Int32),
+			"", "",
+		)
 	} else {
 		baseSender := chat.NewUserSender(transport, 0, "", "")
 		sender = chat.NewOtherSender(baseSender)
