@@ -573,7 +573,7 @@ func (g *ChatRepository) updateChatMember(ctx context.Context, member *models.Ch
 	return nil
 }
 
-func (g *ChatRepository) saveMembers(ctx context.Context, data chat.Chat) error {
+func (g *ChatRepository) saveMembers(ctx context.Context, chatID uint, data chat.Chat) error {
 	members := data.Members()
 
 	for _, message := range data.Messages() {
@@ -600,7 +600,7 @@ func (g *ChatRepository) saveMembers(ctx context.Context, data chat.Chat) error 
 	}
 
 	for _, member := range members {
-		dbMember := ToDBChatMember(data.ID(), member)
+		dbMember := ToDBChatMember(chatID, member)
 
 		var exists bool
 		err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)", member.ID()).Scan(&exists)
@@ -659,12 +659,10 @@ func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to insert chat")
 	}
 
-	// Save members first
-	if err := g.saveMembers(ctx, data); err != nil {
+	if err := g.saveMembers(ctx, dbChat.ID, data); err != nil {
 		return nil, errors.Wrap(err, "failed to save chat members")
 	}
 
-	// Set the chat ID for all messages
 	for _, m := range dbMessages {
 		m.ChatID = dbChat.ID
 	}
@@ -695,16 +693,14 @@ func (g *ChatRepository) update(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to update chat")
 	}
 
-	if err := g.saveMembers(ctx, data); err != nil {
+	if err := g.saveMembers(ctx, dbChat.ID, data); err != nil {
 		return nil, errors.Wrap(err, "failed to save chat members")
 	}
 
-	// Set the chat ID for all messages
 	for _, m := range dbMessages {
 		m.ChatID = dbChat.ID
 	}
 
-	// Then save messages
 	if err := g.saveMessages(ctx, dbMessages); err != nil {
 		return nil, err
 	}

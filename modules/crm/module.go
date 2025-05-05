@@ -32,17 +32,21 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	conf := configuration.Use()
-	twilioProvider := cpassproviders.NewTwilioProvider(
-		twilio.ClientParams{
-			Username: conf.Twilio.AccountSID,
-			Password: conf.Twilio.AuthToken,
-		},
-		conf.Twilio.WebhookURL,
-	)
 
 	passportRepo := corepersistence.NewPassportRepository()
 	chatRepo := persistence.NewChatRepository()
 	clientRepo := persistence.NewClientRepository(passportRepo)
+	twilioProvider := cpassproviders.NewTwilioProvider(
+		cpassproviders.Config{
+			Params: twilio.ClientParams{
+				Username: conf.Twilio.AccountSID,
+				Password: conf.Twilio.AuthToken,
+			},
+			WebhookURL: conf.Twilio.WebhookURL,
+		},
+		clientRepo,
+		chatRepo,
+	)
 	chatsService := services.NewChatService(
 		chatRepo,
 		clientRepo,
@@ -79,8 +83,7 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		controllers.NewChatController(app, "/crm/chats"),
 		controllers.NewMessageTemplateController(app, "/crm/instant-messages"),
-		// TODO: uncomment when Twilio is available
-		// controllers.NewTwilioController(app, twilioProvider),
+		controllers.NewTwilioController(app, twilioProvider),
 	)
 
 	handlers.RegisterClientHandler(app)

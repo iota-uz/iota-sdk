@@ -3,11 +3,14 @@ package cpassproviders
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
+	clientagg "github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/twilio/twilio-go"
 	"github.com/twilio/twilio-go/client"
@@ -16,8 +19,9 @@ import (
 
 // Config holds the Twilio service configuration
 type Config struct {
-	AccountSID string
-	AuthToken  string
+	Params     twilio.ClientParams
+	From       string
+	WebhookURL string
 }
 
 // DownloadMediaDTO represents the data needed to download media
@@ -75,20 +79,33 @@ type InboundTwilioMessageDTO struct {
 }
 
 // NewTwilioProvider creates a new instance of TwilioProvider
-func NewTwilioProvider(params twilio.ClientParams, webhookURL string) chat.Provider {
-	restClient := twilio.NewRestClientWithParams(params)
+func NewTwilioProvider(
+	config Config,
+	clientRepo clientagg.Repository,
+	chatRepo chat.Repository,
+) *TwilioProvider {
+	restClient := twilio.NewRestClientWithParams(config.Params)
 	return &TwilioProvider{
-		webhookURL: webhookURL,
+		webhookURL: config.WebhookURL,
+		fromPhone:  config.From,
 		client:     restClient,
-		validator:  client.NewRequestValidator(params.Password),
+		clientRepo: clientRepo,
+		chatRepo:   chatRepo,
+		validator:  client.NewRequestValidator(config.Params.Password),
 	}
 }
+
+var _ chat.Provider = &TwilioProvider{}
 
 // TwilioProvider handles Twilio-related operations
 type TwilioProvider struct {
 	webhookURL string
+	fromPhone  string
+	clientRepo clientagg.Repository
+	chatRepo   chat.Repository
 	client     *twilio.RestClient
 	validator  client.RequestValidator
+	callbacks  []func(msg chat.Message) error
 }
 
 func (s *TwilioProvider) Transport() chat.Transport {
@@ -99,35 +116,52 @@ func (s *TwilioProvider) Transport() chat.Transport {
 func (s *TwilioProvider) Send(ctx context.Context, msg chat.Message) error {
 	params := &twilioApi.CreateMessageParams{}
 	params.SetBody(msg.Message())
-	// TODO: Uncomment and implement the downloadMedia function
-	//	params.SetFrom(data.From)
-	//	params.SetTo(data.To)
+	params.SetFrom(s.fromPhone)
+	if msg.Sender().Transport() != chat.SMSTransport {
+		return fmt.Errorf("unsupported transport: %s", msg.Sender().Transport())
+	}
+	clientSender := msg.Sender().(chat.ClientSender)
+	receiver, err := s.clientRepo.GetByID(ctx, clientSender.ClientID())
+	if err != nil {
+		return err
+	}
+	contactID := clientSender.ContactID()
+	var contact clientagg.Contact
+	for _, v := range receiver.Contacts() {
+		if v.ID() == contactID {
+			contact = v
+			break
+		}
+	}
+	if contact == nil {
+		return fmt.Errorf("contact not found: %d", contactID)
+	}
+	params.SetTo(contact.Value())
 
+	// TODO: Uncomment and implement the downloadMedia function
 	//	if data.MediaURL != "" {
 	//		params.SetMediaUrl([]string{data.MediaURL})
 	//	}
 
-	_, err := s.client.Api.CreateMessage(params)
+	_, err = s.client.Api.CreateMessage(params)
 	return err
 }
 
 func (s *TwilioProvider) OnReceived(callback func(msg chat.Message) error) {
-	// Twilio does not support a direct way to register a callback for incoming messages.
-	// Instead, you need to set up a webhook URL in your Twilio console that points to your server.
-	// When a message is received, Twilio will send an HTTP POST request to this URL.
-	// You can then handle the incoming message in the WebhookHandler method.
+	s.callbacks = append(s.callbacks, callback)
 }
 
 func (s *TwilioProvider) WebhookHandler(eventBus eventbus.EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		logger := composables.UseLogger(r.Context())
 		signature := r.Header.Get("X-Twilio-Signature")
 		if signature == "" {
-			log.Printf("Missing X-Twilio-Signature header")
+			logger.WithField("signature", signature).Error("Missing X-Twilio-Signature header")
 			http.Error(w, "missing signature header", http.StatusBadRequest)
 		}
 		// Parse form params if not already parsed
 		if err := r.ParseForm(); err != nil {
-			log.Printf("Error parsing form: %v", err)
+			logger.WithError(err).Error("Failed to parse form")
 			http.Error(w, "failed to parse form", http.StatusBadRequest)
 		}
 		// Convert form values to params map
@@ -141,18 +175,36 @@ func (s *TwilioProvider) WebhookHandler(eventBus eventbus.EventBus) http.Handler
 		if err != nil {
 			log.Printf("Error marshalling params: %v", err)
 		}
-		log.Printf("Received webhook: %s", string(b))
+		logger.WithField("params", string(b)).Info("Received webhook params")
 		isValid := s.validator.Validate(s.webhookURL, params, signature)
 		if !isValid {
-			log.Printf("Invalid signature")
+			logger.WithField("signature", signature).Error("Invalid X-Twilio-Signature header")
 			http.Error(w, "invalid signature", http.StatusUnauthorized)
 		}
 
-		eventBus.Publish(&ReceivedMessageEvent{
-			From: params["From"],
-			To:   params["To"],
-			Body: params["Body"],
-		})
+		//		eventBus.Publish(&ReceivedMessageEvent{
+		//			From: params["From"],
+		//			To:   params["To"],
+		//			Body: params["Body"],
+		//		})
+
+		member, err := s.chatRepo.GetMemberByContact(r.Context(), string(clientagg.ContactTypePhone), params["From"])
+		if err != nil {
+			logger.WithError(err).Error("Failed to get member by contact")
+			http.Error(w, "failed to get member by contact", http.StatusInternalServerError)
+			return
+		}
+		for _, cb := range s.callbacks {
+			msg := chat.NewMessage(
+				params["Body"],
+				member,
+			)
+			if err := cb(msg); err != nil {
+				logger.WithError(err).Error("Failed to execute callback")
+				http.Error(w, "failed to execute callback", http.StatusInternalServerError)
+				return
+			}
+		}
 		w.WriteHeader(http.StatusOK)
 	}
 }
