@@ -171,7 +171,16 @@ func TestChatRepository_Update(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	// Create a chat first
-	testClient := createClientForTest(t, f)
+	testClient := createClientForTest(t, f).AddContact(client.NewContact(
+		client.ContactTypeEmail,
+		"test@gmail.com",
+	))
+	clientRepo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
+	_, err := clientRepo.Save(f.ctx, testClient)
+	require.NoError(t, err, "Failed to save test client")
+
 	testChat := createTestChat(t, testClient.ID())
 	created, err := repo.Save(f.ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
@@ -202,7 +211,7 @@ func TestChatRepository_Update(t *testing.T) {
 		chat.NewClientSender(
 			chat.TelegramTransport,
 			testClient.ID(),
-			testClient.Contacts()[0].ID(),
+			testClient.Contacts()[1].ID(),
 			testClient.FirstName(),
 			testClient.LastName(),
 		),

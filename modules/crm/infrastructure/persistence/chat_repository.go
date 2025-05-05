@@ -102,6 +102,18 @@ const (
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
+	updateChatMemberQuery = `
+		UPDATE chat_members SET
+			chat_id = $1,
+			user_id = $2,
+			client_id = $3,
+			client_contact_id = $4,
+			transport = $5,
+			transport_meta = $6,
+			updated_at = $7
+		WHERE id = $8
+	`
+
 	deleteChatMembersQuery = `DELETE FROM chat_members WHERE chat_id = $1`
 
 	insertMessageQuery = `
@@ -444,22 +456,6 @@ func (g *ChatRepository) insertMessage(ctx context.Context, message *models.Mess
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Verify that the sender exists in the database
-	var senderExists bool
-	err = tx.QueryRow(
-		ctx,
-		"SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)",
-		message.SenderID,
-	).Scan(&senderExists)
-
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to check if sender exists")
-	}
-
-	if !senderExists {
-		return 0, errors.Errorf("sender with ID %s does not exist in the database", message.SenderID)
-	}
-
 	if err := tx.QueryRow(
 		ctx,
 		insertMessageQuery,
@@ -496,40 +492,26 @@ func (g *ChatRepository) updateMessage(ctx context.Context, message *models.Mess
 	return nil
 }
 
-func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, member *models.ChatMember) error {
+func (g *ChatRepository) insertChatMember(ctx context.Context, member *models.ChatMember) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
-	var exists bool
-	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)", member.ID).Scan(&exists)
-	if err != nil {
-		return errors.Wrap(err, "failed to check if member exists")
-	}
-
-	if exists {
-		return nil
-	}
-
 	if member.ClientContactID.Valid {
 		var existsByContactID bool
-		err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM chat_members WHERE client_contact_id = $1 AND chat_id = $2)",
-			member.ClientContactID.Int32, chatID).Scan(&existsByContactID)
+		err = tx.QueryRow(
+			ctx,
+			"SELECT EXISTS(SELECT 1 FROM chat_members WHERE client_contact_id = $1 AND chat_id = $2)",
+			member.ClientContactID.Int32,
+			member.ChatID,
+		).Scan(&existsByContactID)
 		if err != nil {
 			return errors.Wrap(err, "failed to check if member exists by contact ID")
 		}
 
 		if existsByContactID {
-			var existingMemberID string
-			err = tx.QueryRow(ctx, "SELECT id FROM chat_members WHERE client_contact_id = $1 AND chat_id = $2",
-				member.ClientContactID.Int32, chatID).Scan(&existingMemberID)
-			if err != nil {
-				return errors.Wrap(err, "failed to get existing member ID")
-			}
-
-			member.ID = existingMemberID
-			return nil
+			return errors.New("member already exists by contact ID")
 		}
 	}
 
@@ -545,7 +527,7 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 		ctx,
 		insertChatMemberQuery,
 		member.ID,
-		chatID,
+		member.ChatID,
 		member.UserID,
 		member.ClientID,
 		member.ClientContactID,
@@ -560,15 +542,80 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, chatID uint, memb
 	return nil
 }
 
-func (g *ChatRepository) saveMembers(ctx context.Context, chatID uint, members []chat.Member) error {
+func (g *ChatRepository) updateChatMember(ctx context.Context, member *models.ChatMember) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get transaction")
+	}
+
+	var transportMeta []byte
+	if member.TransportMeta != nil {
+		transportMeta, err = json.Marshal(member.TransportMeta.Interface())
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal transport meta")
+		}
+	}
+
+	if _, err := tx.Exec(
+		ctx,
+		updateChatMemberQuery,
+		member.ChatID,
+		member.UserID,
+		member.ClientID,
+		member.ClientContactID,
+		member.Transport,
+		transportMeta,
+		member.UpdatedAt,
+		member.ID,
+	); err != nil {
+		return errors.Wrap(err, "failed to update chat member")
+	}
+	return nil
+}
+
+func (g *ChatRepository) saveMembers(ctx context.Context, data chat.Chat) error {
+	members := data.Members()
+
+	for _, message := range data.Messages() {
+		found := false
+		for _, member := range members {
+			if member.ID() == message.Sender().ID() {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			members = append(members, message.Sender())
+		}
+	}
+
 	if len(members) == 0 {
 		return nil
 	}
 
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, member := range members {
-		dbMember := ToDBChatMember(chatID, member)
-		if err := g.insertChatMember(ctx, chatID, dbMember); err != nil {
-			return errors.Wrap(err, "failed to add chat member")
+		dbMember := ToDBChatMember(data.ID(), member)
+
+		var exists bool
+		err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM chat_members WHERE id = $1)", member.ID()).Scan(&exists)
+		if err != nil {
+			return errors.Wrap(err, "failed to check if member exists")
+		}
+
+		if exists {
+			if err := g.updateChatMember(ctx, dbMember); err != nil {
+				return errors.Wrap(err, "failed to update chat member")
+			}
+		} else {
+			if err := g.insertChatMember(ctx, dbMember); err != nil {
+				return errors.Wrap(err, "failed to add chat member")
+			}
 		}
 	}
 	return nil
@@ -612,27 +659,8 @@ func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to insert chat")
 	}
 
-	// First save all members including those from messages
-	var allMembers []chat.Member
-
-	allMembers = append(allMembers, data.Members()...)
-
-	for _, message := range data.Messages() {
-		found := false
-		for _, member := range allMembers {
-			if member.ID() == message.Sender().ID() {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			allMembers = append(allMembers, message.Sender())
-		}
-	}
-
 	// Save members first
-	if err := g.saveMembers(ctx, dbChat.ID, allMembers); err != nil {
+	if err := g.saveMembers(ctx, data); err != nil {
 		return nil, errors.Wrap(err, "failed to save chat members")
 	}
 
@@ -667,30 +695,7 @@ func (g *ChatRepository) update(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to update chat")
 	}
 
-	// First save all members including those from messages
-	var allMembers []chat.Member
-
-	// Get members from the chat
-	allMembers = append(allMembers, data.Members()...)
-
-	// Also include members from messages
-	for _, message := range data.Messages() {
-		// Check if this member is already included
-		found := false
-		for _, member := range allMembers {
-			if member.ID() == message.Sender().ID() {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			allMembers = append(allMembers, message.Sender())
-		}
-	}
-
-	// Save members first
-	if err := g.saveMembers(ctx, dbChat.ID, allMembers); err != nil {
+	if err := g.saveMembers(ctx, data); err != nil {
 		return nil, errors.Wrap(err, "failed to save chat members")
 	}
 

@@ -152,8 +152,10 @@ func (c *chat) LastMessage() (Message, error) {
 }
 
 func (c *chat) LastMessageAt() *time.Time {
-	if len(c.messages) > 0 {
-		return c.messages[len(c.messages)-1].SentAt()
+	for i := len(c.messages) - 1; i >= 0; i-- {
+		if c.messages[i].SentAt() != nil {
+			return c.messages[i].SentAt()
+		}
 	}
 	return nil
 }
@@ -277,10 +279,8 @@ func WithReadAt(readAt *time.Time) MessageOption {
 		if readAt != nil {
 			ts := *readAt
 			m.readAt = &ts
-			m.isRead = true
 		} else {
 			m.readAt = nil
-			m.isRead = false
 		}
 	}
 }
@@ -292,6 +292,17 @@ func WithAttachments(attachments []upload.Upload) MessageOption {
 			copy(m.attachments, attachments)
 		} else {
 			m.attachments = []upload.Upload{}
+		}
+	}
+}
+
+func WithMessageSentAt(sentAt *time.Time) MessageOption {
+	return func(m *message) {
+		if sentAt != nil {
+			ts := *sentAt
+			m.sentAt = &ts
+		} else {
+			m.sentAt = nil
 		}
 	}
 }
@@ -314,7 +325,6 @@ func NewMessage(
 		id:          0,
 		message:     msgContent,
 		sender:      sender,
-		isRead:      false,
 		readAt:      nil,
 		attachments: []upload.Upload{},
 		createdAt:   time.Now(),
@@ -331,7 +341,6 @@ type message struct {
 	chatID      uint
 	message     string
 	sender      Member
-	isRead      bool
 	readAt      *time.Time
 	sentAt      *time.Time
 	attachments []upload.Upload
@@ -342,10 +351,9 @@ func (m *message) ID() uint        { return m.id }
 func (m *message) ChatID() uint    { return m.chatID }
 func (m *message) Sender() Member  { return m.sender }
 func (m *message) Message() string { return m.message }
-func (m *message) IsRead() bool    { return m.isRead }
+func (m *message) IsRead() bool    { return m.readAt != nil }
 func (m *message) MarkAsRead() {
-	if !m.isRead {
-		m.isRead = true
+	if m.readAt == nil {
 		m.readAt = mapping.Pointer(time.Now())
 	}
 }
