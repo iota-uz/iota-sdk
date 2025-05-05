@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/sashabaranov/go-openai"
 )
 
 type SendMessageToThreadDTO struct {
@@ -25,21 +26,28 @@ type ReplyToThreadDTO struct {
 }
 
 type WebsiteChatService struct {
-	userRepo   user.Repository
-	clientRepo client.Repository
-	chatRepo   chat.Repository
+	openaiClient *openai.Client
+	userRepo     user.Repository
+	clientRepo   client.Repository
+	chatRepo     chat.Repository
 }
 
 func NewWebsiteChatService(
+	openaiClient *openai.Client,
 	userRepo user.Repository,
 	clientRepo client.Repository,
 	chatRepo chat.Repository,
 ) *WebsiteChatService {
 	return &WebsiteChatService{
-		userRepo:   userRepo,
-		clientRepo: clientRepo,
-		chatRepo:   chatRepo,
+		openaiClient: openaiClient,
+		userRepo:     userRepo,
+		clientRepo:   clientRepo,
+		chatRepo:     chatRepo,
 	}
+}
+
+func (s *WebsiteChatService) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
+	return s.chatRepo.GetByID(ctx, id)
 }
 
 func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (chat.Chat, error) {
@@ -166,6 +174,62 @@ func (s *WebsiteChatService) ReplyToThread(
 	}
 
 	return savedChat, nil
+}
+
+func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat.Chat, error) {
+	chatEntity, err := s.chatRepo.GetByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get all messages from the chat
+	messages := chatEntity.Messages()
+	if len(messages) == 0 {
+		return nil, chat.ErrNoMessages
+	}
+
+	// Convert chat messages to OpenAI messages format
+	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages))
+	for _, msg := range messages {
+		role := openai.ChatMessageRoleUser
+		if msg.Sender().Sender().Type() == chat.UserSenderType {
+			role = openai.ChatMessageRoleAssistant
+		}
+
+		openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
+			Role:    role,
+			Content: msg.Message(),
+		})
+	}
+
+	completionReq := openai.ChatCompletionRequest{
+		Model:    openai.GPT3Dot5Turbo,
+		Messages: openaiMessages,
+	}
+
+	completionResp, err := s.openaiClient.CreateChatCompletion(ctx, completionReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AI response: %w", err)
+	}
+
+	if len(completionResp.Choices) == 0 {
+		return nil, fmt.Errorf("no response from AI")
+	}
+
+	// Use the first choice as the AI response
+	aiResponse := completionResp.Choices[0].Message.Content
+
+	// Reply to the thread with the AI-generated response
+	chatEntity, err = s.ReplyToThread(ctx, ReplyToThreadDTO{
+		ChatID:  chatID,
+		UserID:  1, // AI user ID (you should replace with a configured AI user ID)
+		Message: aiResponse,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return chatEntity, nil
 }
 
 func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) (chat.Member, error) {

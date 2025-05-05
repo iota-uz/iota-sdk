@@ -3,9 +3,14 @@ package website
 import (
 	"embed"
 
+	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/sashabaranov/go-openai"
 )
 
 //go:embed presentation/locales/*.json
@@ -22,6 +27,22 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	userRepo := corePersistence.NewUserRepository(
+		corePersistence.NewUploadRepository(),
+	)
+	chatRepo := persistence.NewChatRepository()
+	passportRepo := corePersistence.NewPassportRepository()
+	clientRepo := persistence.NewClientRepository(
+		passportRepo,
+	)
+	app.RegisterServices(
+		services.NewWebsiteChatService(
+			openai.NewClient(configuration.Use().OpenAIKey),
+			userRepo,
+			clientRepo,
+			chatRepo,
+		),
+	)
 	app.RegisterControllers(
 		controllers.NewAIChatController(app),
 	)
