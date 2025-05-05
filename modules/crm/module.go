@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -31,21 +32,25 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	conf := configuration.Use()
-	twilioProvider := cpassproviders.NewTwilioProvider(
-		twilio.ClientParams{
-			Username: conf.Twilio.AccountSID,
-			Password: conf.Twilio.AuthToken,
-		},
-		conf.Twilio.WebhookURL,
-	)
 
 	passportRepo := corepersistence.NewPassportRepository()
 	chatRepo := persistence.NewChatRepository()
 	clientRepo := persistence.NewClientRepository(passportRepo)
+	twilioProvider := cpassproviders.NewTwilioProvider(
+		cpassproviders.Config{
+			Params: twilio.ClientParams{
+				Username: conf.Twilio.AccountSID,
+				Password: conf.Twilio.AuthToken,
+			},
+			WebhookURL: conf.Twilio.WebhookURL,
+		},
+		clientRepo,
+		chatRepo,
+	)
 	chatsService := services.NewChatService(
 		chatRepo,
 		clientRepo,
-		twilioProvider,
+		[]chat.Provider{twilioProvider},
 		app.EventPublisher(),
 	)
 	app.RegisterServices(

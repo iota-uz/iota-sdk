@@ -11,7 +11,7 @@ import (
 
 func NewTwilioController(
 	app application.Application,
-	twilioProvider cpassproviders.Provider,
+	twilioProvider *cpassproviders.TwilioProvider,
 ) *TwillioController {
 	return &TwillioController{
 		app:            app,
@@ -21,7 +21,7 @@ func NewTwilioController(
 
 type TwillioController struct {
 	app            application.Application
-	twilioProvider cpassproviders.Provider
+	twilioProvider *cpassproviders.TwilioProvider
 }
 
 func (c *TwillioController) Register(r *mux.Router) {

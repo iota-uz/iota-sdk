@@ -264,7 +264,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	chatEntity.MarkAllAsRead()
-	chatEntity, err = c.chatService.Update(r.Context(), chatEntity)
+	chatEntity, err = c.chatService.Save(r.Context(), chatEntity)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -355,10 +355,14 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	chatEntity, err := c.chatService.SendMessage(r.Context(), services.SendMessageDTO{
-		ChatID:  chatID,
-		Message: dto.Message,
-	})
+	chatEntity, err := c.chatService.SendMessage(
+		r.Context(),
+		services.SendMessageCommand{
+			ChatID:    chatID,
+			Message:   dto.Message,
+			Transport: chat.SMSTransport,
+		},
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

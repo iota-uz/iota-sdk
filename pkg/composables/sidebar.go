@@ -3,6 +3,7 @@ package composables
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -14,7 +15,7 @@ var (
 func UseNavItems(ctx context.Context) []types.NavigationItem {
 	navItems := ctx.Value(constants.NavItemsKey)
 	if navItems == nil {
-		panic("navigation items not found")
+		panic(ErrNavItemsNotFound)
 	}
 	return navItems.([]types.NavigationItem)
 }

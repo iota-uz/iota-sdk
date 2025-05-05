@@ -1,6 +1,7 @@
 package mappers
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -84,18 +85,34 @@ func PassportToViewModel(p passport.Passport) viewmodels.Passport {
 }
 
 func SenderToViewModel(entity chat.Sender) viewmodels.MessageSender {
-	senderID := strconv.FormatUint(uint64(entity.ID()), 10)
-	initials := shared.GetInitials(entity.FirstName(), entity.LastName())
-	if entity.IsClient() {
-		return viewmodels.NewClientMessageSender(senderID, initials)
+	if v, ok := entity.(chat.ClientSender); ok {
+		return viewmodels.NewClientMessageSender(
+			strconv.FormatUint(uint64(v.ClientID()), 10),
+			shared.GetInitials(v.FirstName(), v.LastName()),
+		)
 	}
-	return viewmodels.NewUserMessageSender(senderID, initials)
+	if v, ok := entity.(chat.UserSender); ok {
+		return viewmodels.NewUserMessageSender(
+			strconv.FormatUint(uint64(v.UserID()), 10),
+			shared.GetInitials(v.FirstName(), v.LastName()),
+		)
+	}
+	panic(fmt.Sprintf("unknown sender type: %T", entity))
+}
+
+func MemberToViewModel(entity chat.Member) *viewmodels.Member {
+	return &viewmodels.Member{
+		ID:        entity.ID().String(),
+		Transport: string(entity.Transport()),
+		Sender:    SenderToViewModel(entity.Sender()),
+		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
+	}
 }
 
 func MessageToViewModel(entity chat.Message) *viewmodels.Message {
 	return &viewmodels.Message{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
-		Sender:    SenderToViewModel(entity.Sender()),
+		Sender:    SenderToViewModel(entity.Sender().Sender()),
 		Message:   entity.Message(),
 		CreatedAt: entity.CreatedAt(),
 	}
