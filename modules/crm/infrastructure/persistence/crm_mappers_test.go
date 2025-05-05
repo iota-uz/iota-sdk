@@ -350,6 +350,7 @@ func TestToDBChat(t *testing.T) {
 			member1,
 			chat.WithMessageID(1),
 			chat.WithMessageCreatedAt(now.Add(-2*time.Hour)),
+			chat.WithMessageSentAt(&now),
 		),
 		chat.NewMessage(
 			"Message 2",
@@ -410,8 +411,19 @@ func TestToDomainChat(t *testing.T) {
 
 	// Create messages with these members as senders
 	messages := []chat.Message{
-		chat.NewMessage("Message 1", member1, chat.WithMessageID(1), chat.WithMessageCreatedAt(now.Add(-2*time.Hour))),
-		chat.NewMessage("Message 2", member2, chat.WithMessageID(2), chat.WithMessageCreatedAt(now.Add(-1*time.Hour))),
+		chat.NewMessage(
+			"Message 1",
+			member1,
+			chat.WithMessageID(1),
+			chat.WithMessageCreatedAt(now.Add(-2*time.Hour)),
+			chat.WithMessageSentAt(&now),
+		),
+		chat.NewMessage(
+			"Message 2",
+			member2,
+			chat.WithMessageID(2),
+			chat.WithMessageCreatedAt(now.Add(-1*time.Hour)),
+		),
 	}
 
 	members := []chat.Member{member1, member2}
@@ -420,10 +432,6 @@ func TestToDomainChat(t *testing.T) {
 		ID:        300,
 		ClientID:  400,
 		CreatedAt: now.Add(-3 * time.Hour),
-		LastMessageAt: sql.NullTime{
-			Time:  now,
-			Valid: true,
-		},
 	}
 
 	t.Run("chat with messages and members", func(t *testing.T) {
@@ -446,6 +454,19 @@ func TestToDomainChat(t *testing.T) {
 		// Check the second message
 		assert.Equal(t, uint(2), domainChat.Messages()[1].ID(), "Second message ID should match")
 		assert.Equal(t, "Message 2", domainChat.Messages()[1].Message(), "Second message content should match")
+
+		assert.ElementsMatch(
+			t,
+			[]uuid.UUID{member1ID, member2ID},
+			[]uuid.UUID{domainChat.Members()[0].ID(), domainChat.Members()[1].ID()},
+			"Member IDs should match",
+		)
+
+		assert.ElementsMatch(t,
+			[]chat.Transport{chat.TelegramTransport, chat.WebsiteTransport},
+			[]chat.Transport{domainChat.Members()[0].Transport(), domainChat.Members()[1].Transport()},
+			"Member transports should match",
+		)
 
 		// Check the first member
 		assert.Equal(t, member1ID, domainChat.Members()[0].ID(), "First member ID should match")
