@@ -1,329 +1,138 @@
 package chat
 
 import (
-	"errors"
+	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
-)
-
-// ---- Errors ----
-
-var (
-	ErrEmptyMessage = errors.New("message is empty")
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 )
 
 // ---- Interfaces ----
 
-type MessageSource string
+type SenderType string
 
 const (
-	TelegramSource  MessageSource = "telegram"
-	WhatsAppSource  MessageSource = "whatsapp"
-	InstagramSource MessageSource = "instagram"
-	SMSSource       MessageSource = "sms"
-	EmailSource     MessageSource = "email"
-	PhoneSource     MessageSource = "phone"
-	WebsiteSource   MessageSource = "website"
-	OtherSource     MessageSource = "other"
+	UnknownSenderType SenderType = "unknown"
+	UserSenderType    SenderType = "user"
+	ClientSenderType  SenderType = "client"
 )
+
+type Transport string
+
+const (
+	TelegramTransport  Transport = "telegram"
+	WhatsAppTransport  Transport = "whatsapp"
+	InstagramTransport Transport = "instagram"
+	SMSTransport       Transport = "sms"
+	EmailTransport     Transport = "email"
+	PhoneTransport     Transport = "phone"
+	WebsiteTransport   Transport = "website"
+	OtherTransport     Transport = "other"
+)
+
+type Provider interface {
+	Transport() Transport
+	Send(ctx context.Context, msg Message) error
+	OnReceived(callback func(msg Message) error)
+}
 
 type Chat interface {
 	ID() uint
 	ClientID() uint
 	Messages() []Message
-	AddMessage(content string, sender Sender, source MessageSource, attachments ...upload.Upload) (Message, error)
+	AddMessage(msg Message) Chat
 	UnreadMessages() int
 	MarkAllAsRead()
+	Members() []Member
+	AddMember(member Member) Chat
+	RemoveMember(memberID uuid.UUID) Chat
 	LastMessage() (Message, error)
 	LastMessageAt() *time.Time
 	CreatedAt() time.Time
 }
 
-type Sender interface {
-	ID() uint
-	IsClient() bool
-	IsUser() bool
-	FirstName() string
-	LastName() string
-}
-
 type Message interface {
 	ID() uint
+	ChatID() uint
+	Sender() Member
 	Message() string
-	Sender() Sender
 	IsRead() bool
-	Source() MessageSource
 	MarkAsRead()
 	ReadAt() *time.Time
+	SentAt() *time.Time
 	Attachments() []upload.Upload
 	CreatedAt() time.Time
 }
 
-// ---- Chat Implementation ----
-
-func New(
-	clientID uint,
-) Chat {
-	return &chat{
-		id:            0,
-		clientID:      clientID,
-		lastMessageAt: nil,
-		createdAt:     time.Now(),
-	}
+type Member interface {
+	ID() uuid.UUID
+	Transport() Transport
+	Sender() Sender
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
 }
 
-func NewWithID(
-	id uint,
-	clientID uint,
-	createdAt time.Time,
-	messages []Message,
-	lastMessageAt *time.Time,
-) Chat {
-	return &chat{
-		id:            id,
-		clientID:      clientID,
-		messages:      messages,
-		lastMessageAt: lastMessageAt,
-		createdAt:     createdAt,
-	}
+type Sender interface {
+	Type() SenderType
+	Transport() Transport
 }
 
-type chat struct {
-	id            uint
-	clientID      uint
-	messages      []Message
-	lastMessageAt *time.Time
-	createdAt     time.Time
+type UserSender interface {
+	Sender
+	UserID() uint
+	FirstName() string
+	LastName() string
 }
 
-func (c *chat) ID() uint {
-	return c.id
+type ClientSender interface {
+	Sender
+	ClientID() uint
+	ContactID() uint
+	FirstName() string
+	LastName() string
 }
 
-func (c *chat) Messages() []Message {
-	return c.messages
+type TelegramSender interface {
+	Sender
+	ChatID() int64
+	Username() string
+	Phone() phone.Phone
 }
 
-func (c *chat) ClientID() uint {
-	return c.clientID
+type WhatsAppSender interface {
+	Sender
+	Phone() phone.Phone
 }
 
-// UnreadMessages returns the number of unread messages in the chat
-func (c *chat) UnreadMessages() int {
-	count := 0
-	for _, msg := range c.messages {
-		if !msg.IsRead() && msg.Sender().IsClient() {
-			count++
-		}
-	}
-	return count
+type InstagramSender interface {
+	Sender
+	Username() string
 }
 
-// MarkAllAsRead marks all messages in the chat as read
-func (c *chat) MarkAllAsRead() {
-	for _, msg := range c.messages {
-		msg.MarkAsRead()
-	}
+type SMSSender interface {
+	Sender
+	Phone() phone.Phone
 }
 
-// AddMessage adds a new message to the chat
-func (c *chat) AddMessage(
-	content string,
-	sender Sender,
-	source MessageSource,
-	attachments ...upload.Upload,
-) (Message, error) {
-	if content == "" && len(attachments) == 0 {
-		return nil, ErrEmptyMessage
-	}
-
-	msg := WithAttachments(
-		content,
-		sender,
-		source,
-		attachments...,
-	)
-
-	c.messages = append(c.messages, msg)
-	c.lastMessageAt = mapping.Pointer(time.Now())
-
-	return msg, nil
+type EmailSender interface {
+	Sender
+	Email() internet.Email
 }
 
-func (c *chat) LastMessage() (Message, error) {
-	if len(c.messages) == 0 {
-		return nil, errors.New("no messages")
-	}
-
-	return c.messages[len(c.messages)-1], nil
+type PhoneSender interface {
+	Sender
+	Phone() phone.Phone
 }
 
-func (c *chat) LastMessageAt() *time.Time {
-	return c.lastMessageAt
+type WebsiteSender interface {
+	Sender
+	Phone() phone.Phone
+	Email() internet.Email
 }
 
-func (c *chat) CreatedAt() time.Time {
-	return c.createdAt
-}
-
-// -------
-// Message
-// -------
-
-func NewMessage(
-	msg string,
-	sender Sender,
-	source MessageSource,
-) Message {
-	return &message{
-		id:          0,
-		message:     msg,
-		sender:      sender,
-		source:      source,
-		isRead:      false,
-		readAt:      nil,
-		attachments: []upload.Upload{},
-		createdAt:   time.Now(),
-	}
-}
-
-func WithAttachments(
-	msg string,
-	sender Sender,
-	source MessageSource,
-	attachments ...upload.Upload,
-) Message {
-	return &message{
-		id:          0,
-		message:     msg,
-		sender:      sender,
-		source:      source,
-		isRead:      false,
-		readAt:      nil,
-		attachments: attachments,
-		createdAt:   time.Now(),
-	}
-}
-
-func NewMessageWithID(
-	id uint,
-	msg string,
-	sender Sender,
-	isRead bool,
-	attachments []upload.Upload,
-	createdAt time.Time,
-) Message {
-	return &message{
-		id:          id,
-		message:     msg,
-		sender:      sender,
-		isRead:      isRead,
-		readAt:      nil,
-		attachments: attachments,
-		createdAt:   createdAt,
-	}
-}
-
-type message struct {
-	id          uint
-	chatID      uint
-	message     string
-	sender      Sender
-	isRead      bool
-	readAt      *time.Time
-	source      MessageSource
-	attachments []upload.Upload
-	createdAt   time.Time
-}
-
-func (m *message) ID() uint {
-	return m.id
-}
-
-func (m *message) ChatID() uint {
-	return m.chatID
-}
-
-func (m *message) Message() string {
-	return m.message
-}
-
-func (m *message) Sender() Sender {
-	return m.sender
-}
-
-func (m *message) Source() MessageSource {
-	return m.source
-}
-
-func (m *message) IsRead() bool {
-	return m.isRead
-}
-
-func (m *message) MarkAsRead() {
-	m.isRead = true
-	m.readAt = mapping.Pointer(time.Now())
-}
-
-func (m *message) ReadAt() *time.Time {
-	return m.readAt
-}
-
-func (m *message) Attachments() []upload.Upload {
-	return m.attachments
-}
-
-func (m *message) CreatedAt() time.Time {
-	return m.createdAt
-}
-
-// --------
-// Sender
-// --------
-
-func NewUserSender(clientID uint, firstName, lastName string) Sender {
-	return &sender{
-		id:        clientID,
-		isClient:  false,
-		firstName: firstName,
-		lastName:  lastName,
-	}
-}
-
-func NewClientSender(userID uint, firstName, lastName string) Sender {
-	return &sender{
-		id:        userID,
-		isClient:  true,
-		firstName: firstName,
-		lastName:  lastName,
-	}
-}
-
-type sender struct {
-	id        uint
-	isClient  bool
-	firstName string
-	lastName  string
-}
-
-func (s *sender) ID() uint {
-	return s.id
-}
-
-func (s *sender) IsClient() bool {
-	return s.isClient
-}
-
-func (s *sender) IsUser() bool {
-	return !s.isClient
-}
-
-func (s *sender) FirstName() string {
-	return s.firstName
-}
-
-func (s *sender) LastName() string {
-	return s.lastName
+type OtherSender interface {
+	Sender
 }

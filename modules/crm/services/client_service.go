@@ -35,6 +35,10 @@ func (s *ClientService) GetByID(ctx context.Context, id uint) (client.Client, er
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *ClientService) GetByPhone(ctx context.Context, phoneNumber string) (client.Client, error) {
+	return s.repo.GetByPhone(ctx, phoneNumber)
+}
+
 func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindParams) ([]client.Client, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
@@ -43,7 +47,7 @@ func (s *ClientService) Create(ctx context.Context, data client.Client) error {
 	var err error
 	var createdClient client.Client
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		created, err := s.repo.Create(ctx, data)
+		created, err := s.repo.Save(ctx, data)
 		if err != nil {
 			return err
 		}
@@ -66,7 +70,7 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 	var err error
 	var updatedClient client.Client
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		updated, err := s.repo.Update(ctx, data)
+		updated, err := s.repo.Save(ctx, data)
 		if err != nil {
 			return err
 		}

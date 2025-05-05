@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
@@ -41,6 +42,25 @@ const (
 	deleteChatMessagesQuery = `DELETE FROM messages WHERE chat_id IN (SELECT id FROM chats WHERE client_id = $1)`
 	deleteClientChatsQuery  = `DELETE FROM chats WHERE client_id = $1`
 	deleteClientQuery       = `DELETE FROM clients WHERE id = $1`
+
+	selectClientContactsQuery = `SELECT id, contact_type, contact_value, created_at, updated_at FROM client_contacts WHERE client_id = $1`
+	insertClientContactQuery  = `INSERT INTO client_contacts (client_id, contact_type, contact_value, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`
+	updateClientContactQuery  = `UPDATE client_contacts SET contact_type = $1, contact_value = $2, updated_at = $3 WHERE id = $4`
+
+	selectExistingContactsQuery = `SELECT id, contact_type, contact_value FROM client_contacts WHERE client_id = $1`
+	updateContactTimestampQuery = `UPDATE client_contacts SET updated_at = $1 WHERE id = $2`
+	deleteClientContactQuery    = `DELETE FROM client_contacts`
+
+	clientExistsQuery = `SELECT EXISTS(SELECT 1 FROM clients WHERE id = $1)`
+
+	selectClientByContactQuery = `
+		SELECT c.id FROM clients c
+		JOIN client_contacts cc ON c.id = cc.client_id
+		WHERE cc.contact_type = $1 AND cc.contact_value = $2
+		LIMIT 1
+	`
+
+	selectClientPassportQuery = `SELECT passport_id FROM clients WHERE id = $1`
 )
 
 type ClientRepository struct {
@@ -70,11 +90,9 @@ func (g *ClientRepository) queryClients(
 	}
 	defer rows.Close()
 
-	// Temporary slice to store client records and passport IDs
 	clientRecords := make([]models.Client, 0)
 	passportIDs := make([]string, 0)
 
-	// Collect all client records and passport IDs first
 	for rows.Next() {
 		var c models.Client
 		if err := rows.Scan(
@@ -98,7 +116,6 @@ func (g *ClientRepository) queryClients(
 
 		clientRecords = append(clientRecords, c)
 
-		// Collect passport IDs for later retrieval
 		if c.PassportID.Valid {
 			passportIDs = append(passportIDs, c.PassportID.String)
 		}
@@ -113,17 +130,12 @@ func (g *ClientRepository) queryClients(
 		return []client.Client{}, nil
 	}
 
-	// Create a map to store passport data by ID
 	passportMap := make(map[string]passport.Passport)
 
-	// Fetch passport data if there are any passport IDs
 	if len(passportIDs) > 0 {
-		// Fetch passports individually using passport repository
-		// In a real implementation, the passport repository should have a GetByIDs batch method
 		for _, passportID := range passportIDs {
 			passportEntity, err := g.passportRepo.GetByID(ctx, uuid.MustParse(passportID))
 			if err != nil {
-				// If we can't get a passport, skip it (don't fail the whole operation)
 				continue
 			}
 			passportMap[passportID] = passportEntity
@@ -135,21 +147,48 @@ func (g *ClientRepository) queryClients(
 	for _, c := range clientRecords {
 		var passportData passport.Passport
 
-		// Get passport from map if it exists, otherwise create an empty one
 		if c.PassportID.Valid {
-			var ok bool
-			passportData, ok = passportMap[c.PassportID.String]
-			if !ok {
-				passportData = passport.New("", "")
+			if p, ok := passportMap[c.PassportID.String]; ok {
+				passportData = p
 			}
-		} else {
-			passportData = passport.New("", "")
 		}
 
-		// Create complete client with passport data
-		entity, err := ToDomainClientComplete(&c, passportData)
+		entity, err := ToDomainClient(&c, passportData)
 		if err != nil {
 			return nil, err
+		}
+
+		contactRows, err := pool.Query(ctx, selectClientContactsQuery, c.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load client contacts: %w", err)
+		}
+
+		var contacts []client.Contact
+		for contactRows.Next() {
+			var id uint
+			var contactType, contactValue string
+			var createdAt, updatedAt time.Time
+
+			if err := contactRows.Scan(&id, &contactType, &contactValue, &createdAt, &updatedAt); err != nil {
+				contactRows.Close()
+				return nil, fmt.Errorf("failed to scan contact row: %w", err)
+			}
+
+			dbContact := &models.ClientContact{
+				ID:           id,
+				ContactType:  contactType,
+				ContactValue: contactValue,
+				CreatedAt:    createdAt,
+				UpdatedAt:    updatedAt,
+			}
+
+			contact := ToDomainClientContact(dbContact)
+			contacts = append(contacts, contact)
+		}
+		contactRows.Close()
+
+		if len(contacts) > 0 {
+			entity = entity.SetContacts(contacts)
 		}
 
 		clients = append(clients, entity)
@@ -164,8 +203,7 @@ func (g *ClientRepository) exists(ctx context.Context, id uint) (bool, error) {
 		return false, err
 	}
 	var exists bool
-	q := "SELECT EXISTS(SELECT 1 FROM clients WHERE id = $1)"
-	if err := pool.QueryRow(ctx, q, id).Scan(&exists); err != nil {
+	if err := pool.QueryRow(ctx, clientExistsQuery, id).Scan(&exists); err != nil {
 		return false, err
 	}
 	return exists, nil
@@ -255,7 +293,7 @@ func (g *ClientRepository) GetByPhone(ctx context.Context, phoneNumber string) (
 	return clients[0], nil
 }
 
-func (g *ClientRepository) Create(ctx context.Context, data client.Client) (client.Client, error) {
+func (g *ClientRepository) create(ctx context.Context, data client.Client) (client.Client, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -315,10 +353,56 @@ func (g *ClientRepository) Create(ctx context.Context, data client.Client) (clie
 		return nil, err
 	}
 
+	for _, contact := range data.Contacts() {
+		if err := g.saveContact(ctx, dbRow.ID, contact); err != nil {
+			return nil, err
+		}
+	}
+
 	return g.GetByID(ctx, dbRow.ID)
 }
 
-func (g *ClientRepository) Update(ctx context.Context, data client.Client) (client.Client, error) {
+func (g *ClientRepository) saveContact(
+	ctx context.Context,
+	clientID uint,
+	contact client.Contact,
+) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	dbContact := ToDBClientContact(clientID, contact)
+
+	if contact.ID() == 0 {
+		if _, err = tx.Exec(
+			ctx,
+			insertClientContactQuery,
+			dbContact.ClientID,
+			dbContact.ContactType,
+			dbContact.ContactValue,
+			dbContact.CreatedAt,
+			dbContact.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("failed to insert contact: %w", err)
+		}
+	} else {
+		if _, err := tx.Exec(
+			ctx,
+			updateClientContactQuery,
+			dbContact.ContactType,
+			dbContact.ContactValue,
+			dbContact.UpdatedAt,
+			contact.ID(),
+		); err != nil {
+			return fmt.Errorf("failed to update contact: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (g *ClientRepository) update(ctx context.Context, data client.Client) (client.Client, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -383,6 +467,54 @@ func (g *ClientRepository) Update(ctx context.Context, data client.Client) (clie
 		return nil, err
 	}
 
+	if contacts := data.Contacts(); len(contacts) > 0 {
+		existingContactsRows, err := tx.Query(ctx, selectExistingContactsQuery, data.ID())
+		if err != nil {
+			return nil, err
+		}
+		defer existingContactsRows.Close()
+
+		existingContacts := make(map[string]uint)
+		for existingContactsRows.Next() {
+			var id uint
+			var contactType, contactValue string
+			if err := existingContactsRows.Scan(&id, &contactType, &contactValue); err != nil {
+				return nil, err
+			}
+			key := contactType + ":" + contactValue
+			existingContacts[key] = id
+		}
+
+		for _, contact := range contacts {
+			key := string(contact.Type()) + ":" + contact.Value()
+
+			if existingContactID, exists := existingContacts[key]; exists {
+				delete(existingContacts, key)
+
+				if contact.ID() != 0 && contact.ID() != existingContactID {
+					if _, err := tx.Exec(
+						ctx,
+						updateContactTimestampQuery,
+						time.Now(),
+						existingContactID,
+					); err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				if err := g.saveContact(ctx, data.ID(), contact); err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		for _, contactID := range existingContacts {
+			if _, err := tx.Exec(ctx, repo.Join(deleteClientContactQuery, "WHERE id = $1"), contactID); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return g.GetByID(ctx, data.ID())
 }
 
@@ -392,9 +524,9 @@ func (g *ClientRepository) Save(ctx context.Context, data client.Client) (client
 		return nil, err
 	}
 	if exists {
-		return g.Update(ctx, data)
+		return g.update(ctx, data)
 	}
-	return g.Create(ctx, data)
+	return g.create(ctx, data)
 }
 
 func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
@@ -404,27 +536,27 @@ func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
 	}
 
 	var passportID sql.NullString
-	err = tx.QueryRow(ctx, "SELECT passport_id FROM clients WHERE id = $1", id).Scan(&passportID)
+	err = tx.QueryRow(ctx, selectClientPassportQuery, id).Scan(&passportID)
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
 
-	// Delete all related chat messages
 	if _, err := tx.Exec(ctx, deleteChatMessagesQuery, id); err != nil {
 		return err
 	}
 
-	// Delete client chats
 	if _, err := tx.Exec(ctx, deleteClientChatsQuery, id); err != nil {
 		return err
 	}
 
-	// Delete the client record
+	if _, err := tx.Exec(ctx, repo.Join(deleteClientContactQuery, "WHERE client_id = $1"), id); err != nil {
+		return err
+	}
+
 	if _, err := tx.Exec(ctx, deleteClientQuery, id); err != nil {
 		return err
 	}
 
-	// If client had a passport, delete it using passport repository
 	if passportID.Valid {
 		err = g.passportRepo.Delete(ctx, uuid.MustParse(passportID.String))
 		if err != nil {
@@ -433,4 +565,53 @@ func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
 	}
 
 	return nil
+}
+
+func (g *ClientRepository) getByContactValue(
+	ctx context.Context,
+	contactType client.ContactType,
+	value string,
+) (client.Client, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var clientID uint
+	err = tx.QueryRow(ctx, selectClientByContactQuery, string(contactType), value).Scan(&clientID)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrClientNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return g.GetByID(ctx, clientID)
+}
+
+func (g *ClientRepository) GetByContactValue(
+	ctx context.Context,
+	contactType client.ContactType,
+	value string,
+) (client.Client, error) {
+	if contactType == client.ContactTypePhone {
+		v, err := g.GetByPhone(ctx, value)
+		if err == nil {
+			return v, nil
+		}
+		if err != nil && !errors.Is(err, ErrClientNotFound) {
+			return nil, err
+		}
+	}
+
+	if contactType == client.ContactTypeEmail {
+		clients, err := g.queryClients(ctx, repo.Join(selectClientQuery, "WHERE c.email = $1"), value)
+		if err != nil {
+			return nil, err
+		}
+		if len(clients) > 0 {
+			return clients[0], nil
+		}
+	}
+	return g.getByContactValue(ctx, contactType, value)
 }

@@ -34,7 +34,7 @@ func (h *ClientHandler) onCreated(event *client.CreatedEvent) {
 	ctx := context.Background()
 	ctx = composables.WithPool(ctx, h.pool)
 
-	if _, err := h.chatService.Create(ctx, &chat.CreateDTO{ClientID: event.Result.ID()}); err != nil {
+	if _, err := h.chatService.Save(ctx, chat.New(event.Result.ID())); err != nil {
 		log.Printf("failed to register client chat: %v", err)
 		return
 	}

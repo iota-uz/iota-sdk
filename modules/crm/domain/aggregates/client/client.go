@@ -20,6 +20,18 @@ func WithID(id uint) Option {
 	}
 }
 
+func WithLastName(lastName string) Option {
+	return func(c *client) {
+		c.lastName = lastName
+	}
+}
+
+func WithMiddleName(middleName string) Option {
+	return func(c *client) {
+		c.middleName = middleName
+	}
+}
+
 func WithAddress(address string) Option {
 	return func(c *client) {
 		c.address = address
@@ -62,6 +74,18 @@ func WithGender(g general.Gender) Option {
 	}
 }
 
+func WithPhone(phone phone.Phone) Option {
+	return func(c *client) {
+		c.phone = phone
+	}
+}
+
+func WithContacts(contacts []Contact) Option {
+	return func(c *client) {
+		c.contacts = contacts
+	}
+}
+
 func WithCreatedAt(t time.Time) Option {
 	return func(c *client) {
 		c.createdAt = t
@@ -74,13 +98,17 @@ func WithUpdatedAt(t time.Time) Option {
 	}
 }
 
-func WithPhone(phone phone.Phone) Option {
-	return func(c *client) {
-		c.phone = phone
-	}
-}
-
 // --- Interface ---
+
+type ContactType string
+
+const (
+	ContactTypeEmail    ContactType = "email"
+	ContactTypePhone    ContactType = "phone"
+	ContactTypeTelegram ContactType = "telegram"
+	ContactTypeWhatsApp ContactType = "whatsapp"
+	ContactTypeOther    ContactType = "other"
+)
 
 type Client interface {
 	ID() uint
@@ -95,9 +123,13 @@ type Client interface {
 	Passport() passport.Passport
 	Pin() tax.Pin
 	Comments() string
+	Contacts() []Contact
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
+	SetContacts(contacts []Contact) Client
+	AddContact(contact Contact) Client
+	RemoveContact(contactID uint) Client
 	SetPhone(number phone.Phone) Client
 	SetName(firstName, lastName, middleName string) Client
 	SetAddress(address string) Client
@@ -109,15 +141,21 @@ type Client interface {
 	SetComments(comments string) Client
 }
 
-func New(
-	firstName, lastName, middleName string, opts ...Option) (Client, error) {
+type Contact interface {
+	ID() uint
+	Type() ContactType
+	Value() string
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
+}
+
+// --- Constructor ---
+
+func New(firstName string, opts ...Option) (Client, error) {
 	c := &client{
-		id:         0,
-		firstName:  firstName,
-		lastName:   lastName,
-		middleName: middleName,
-		createdAt:  time.Now(),
-		updatedAt:  time.Now(),
+		firstName: firstName,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -138,6 +176,7 @@ type client struct {
 	passport    passport.Passport
 	pin         tax.Pin
 	comments    string
+	contacts    []Contact
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -190,12 +229,44 @@ func (c *client) Comments() string {
 	return c.comments
 }
 
+func (c *client) Contacts() []Contact {
+	return c.contacts
+}
+
 func (c *client) CreatedAt() time.Time {
 	return c.createdAt
 }
 
 func (c *client) UpdatedAt() time.Time {
 	return c.updatedAt
+}
+
+func (c *client) SetContacts(contacts []Contact) Client {
+	result := *c
+	result.contacts = contacts
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (c *client) AddContact(contact Contact) Client {
+	result := *c
+	result.contacts = append(result.contacts, contact)
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (c *client) RemoveContact(contactID uint) Client {
+	var filteredContacts []Contact
+	for _, contact := range c.contacts {
+		if contact.ID() != contactID {
+			filteredContacts = append(filteredContacts, contact)
+		}
+	}
+
+	result := *c
+	result.contacts = filteredContacts
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (c *client) SetPhone(number phone.Phone) Client {
@@ -261,4 +332,74 @@ func (c *client) SetComments(comments string) Client {
 	result.comments = comments
 	result.updatedAt = time.Now()
 	return &result
+}
+
+// ContactOption is a function that configures a contact
+type ContactOption func(*contact)
+
+// WithContactID sets the ID of the contact
+func WithContactID(id uint) ContactOption {
+	return func(c *contact) {
+		c.id = id
+	}
+}
+
+// WithContactCreatedAt sets the created time of the contact
+func WithContactCreatedAt(createdAt time.Time) ContactOption {
+	return func(c *contact) {
+		c.createdAt = createdAt
+	}
+}
+
+// WithContactUpdatedAt sets the updated time of the contact
+func WithContactUpdatedAt(updatedAt time.Time) ContactOption {
+	return func(c *contact) {
+		c.updatedAt = updatedAt
+	}
+}
+
+// contact implements the Contact interface
+type contact struct {
+	id          uint
+	contactType ContactType
+	value       string
+	createdAt   time.Time
+	updatedAt   time.Time
+}
+
+// NewContact creates a new contact instance with options pattern
+func NewContact(contactType ContactType, value string, opts ...ContactOption) Contact {
+	now := time.Now()
+	c := &contact{
+		contactType: contactType,
+		value:       value,
+		createdAt:   now,
+		updatedAt:   now,
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
+}
+
+func (c *contact) ID() uint {
+	return c.id
+}
+
+func (c *contact) Type() ContactType {
+	return c.contactType
+}
+
+func (c *contact) Value() string {
+	return c.value
+}
+
+func (c *contact) CreatedAt() time.Time {
+	return c.createdAt
+}
+
+func (c *contact) UpdatedAt() time.Time {
+	return c.updatedAt
 }

@@ -1,7 +1,6 @@
 package persistence_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +9,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -38,41 +39,38 @@ func createTestPassport() passport.Passport {
 func createTestClient(t *testing.T, withPassport bool) client.Client {
 	t.Helper()
 	p, err := phone.NewFromE164("12345678901")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create phone number")
 
 	birthDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
 	email, err := internet.NewEmail("john.doe@example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create email")
+
 	pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create tax ID")
+
 	opts := []client.Option{
+		client.WithLastName("Doe"),
+		client.WithMiddleName("Smith"),
 		client.WithEmail(email),
 		client.WithAddress("123 Main St"),
 		client.WithDateOfBirth(&birthDate),
 		client.WithGender(general.Male),
+		client.WithContacts([]client.Contact{
+			client.NewContact(client.ContactTypePhone, "12345678901"),
+		}),
 		client.WithPin(pin),
 		client.WithPhone(p),
 	}
 	if withPassport {
 		opts = append(opts, client.WithPassport(createTestPassport()))
 	}
-	client, err := client.New(
+	newClient, err := client.New(
 		"John",
-		"Doe",
-		"Smith",
 		opts...,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create client instance")
 
-	return client
+	return newClient
 }
 
 func TestClientRepository_Create(t *testing.T) {
@@ -85,51 +83,28 @@ func TestClientRepository_Create(t *testing.T) {
 	t.Run("Create client without passport", func(t *testing.T) {
 		testClient := createTestClient(t, false)
 
-		created, err := repo.Create(f.ctx, testClient)
-		if err != nil {
-			t.Fatalf("Failed to create client: %v", err)
-		}
+		created, err := repo.Save(f.ctx, testClient)
+		require.NoError(t, err, "Failed to create client")
 
-		if created.ID() == 0 {
-			t.Error("Created client should have a non-zero ID")
-		}
-
-		if created.FirstName() != "John" {
-			t.Errorf("Expected FirstName to be 'John', got '%s'", created.FirstName())
-		}
-
-		if created.LastName() != "Doe" {
-			t.Errorf("Expected LastName to be 'Doe', got '%s'", created.LastName())
-		}
-
-		if created.Phone().Value() != "12345678901" {
-			t.Errorf("Expected Phone to be '12345678901', got '%s'", created.Phone().Value())
-		}
+		assert.NotZero(t, created.ID(), "Created client should have a non-zero ID")
+		assert.Equal(t, "John", created.FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Doe", created.LastName(), "LastName mismatch")
+		require.NotNil(t, created.Phone(), "Phone should not be nil")
+		assert.Equal(t, "12345678901", created.Phone().Value(), "Phone value mismatch")
+		assert.Nil(t, created.Passport(), "Passport should be nil for this test case")
 	})
 
 	t.Run("Create client with passport", func(t *testing.T) {
 		testClient := createTestClient(t, true)
 
-		created, err := repo.Create(f.ctx, testClient)
-		if err != nil {
-			t.Fatalf("Failed to create client with passport: %v", err)
-		}
+		created, err := repo.Save(f.ctx, testClient)
+		require.NoError(t, err, "Failed to create client with passport")
 
-		if created.ID() == 0 {
-			t.Error("Created client should have a non-zero ID")
-		}
+		assert.NotZero(t, created.ID(), "Created client should have a non-zero ID")
+		require.NotNil(t, created.Passport(), "Created client should have a passport")
 
-		if created.Passport() == nil {
-			t.Error("Created client should have a passport")
-		}
-
-		if created.Passport().Series() != "AB" {
-			t.Errorf("Expected passport series to be 'AB', got '%s'", created.Passport().Series())
-		}
-
-		if created.Passport().Number() != "1234567" {
-			t.Errorf("Expected passport number to be '1234567', got '%s'", created.Passport().Number())
-		}
+		assert.Equal(t, "AB", created.Passport().Series(), "Passport series mismatch")
+		assert.Equal(t, "1234567", created.Passport().Number(), "Passport number mismatch")
 	})
 }
 
@@ -141,43 +116,25 @@ func TestClientRepository_GetByID(t *testing.T) {
 	)
 
 	testClient := createTestClient(t, true)
-	created, err := repo.Create(f.ctx, testClient)
-	if err != nil {
-		t.Fatalf("Failed to create test client: %v", err)
-	}
+	created, err := repo.Save(f.ctx, testClient)
+	require.NoError(t, err, "Failed to create test client for GetByID")
 
 	t.Run("Get existing client by ID", func(t *testing.T) {
 		retrieved, err := repo.GetByID(f.ctx, created.ID())
-		if err != nil {
-			t.Fatalf("Failed to get client by ID: %v", err)
-		}
+		require.NoError(t, err, "Failed to get client by ID")
 
-		if retrieved.ID() != created.ID() {
-			t.Errorf("Expected ID %d, got %d", created.ID(), retrieved.ID())
-		}
+		assert.Equal(t, created.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, created.FirstName(), retrieved.FirstName(), "FirstName mismatch")
+		require.NotNil(t, retrieved.Passport(), "Retrieved client should have a passport")
 
-		if retrieved.FirstName() != created.FirstName() {
-			t.Errorf("Expected FirstName '%s', got '%s'", created.FirstName(), retrieved.FirstName())
-		}
-
-		if retrieved.Passport() == nil {
-			t.Error("Retrieved client should have a passport")
-		}
-
-		if retrieved.Passport().Series() != created.Passport().Series() {
-			t.Errorf("Expected passport series '%s', got '%s'", created.Passport().Series(), retrieved.Passport().Series())
-		}
+		assert.Equal(t, created.Passport().Series(), retrieved.Passport().Series(), "Passport series mismatch")
+		assert.Equal(t, created.Passport().Number(), retrieved.Passport().Number(), "Passport number mismatch")
 	})
 
 	t.Run("Get non-existent client by ID", func(t *testing.T) {
 		_, err := repo.GetByID(f.ctx, 9999)
-		if err == nil {
-			t.Fatal("Expected error when getting non-existent client, got nil")
-		}
-
-		if !errors.Is(err, persistence.ErrClientNotFound) {
-			t.Errorf("Expected ErrClientNotFound, got %v", err)
-		}
+		require.Error(t, err, "Expected error when getting non-existent client, got nil")
+		require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound")
 	})
 }
 
@@ -189,25 +146,19 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 	)
 
 	p, err := phone.NewFromE164("98765432109")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create phone number")
 
 	birthDate := time.Date(1992, 2, 2, 0, 0, 0, 0, time.UTC)
 	email, err := internet.NewEmail("jane.smith@example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create email")
 
 	pin, err := tax.NewPin("98765432109876", country.Uzbekistan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create tax ID")
 
 	uniquePhoneClient, err := client.New(
 		"Jane",
-		"Smith",
-		"Doe",
+		client.WithLastName("Smith"),
+		client.WithMiddleName("Doe"),
 		client.WithPhone(p),
 		client.WithID(0),
 		client.WithAddress("456 Oak St"),
@@ -216,39 +167,102 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 		client.WithGender(general.Female),
 		client.WithPin(pin),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create client instance")
 
-	created, err := repo.Create(f.ctx, uniquePhoneClient)
-	if err != nil {
-		t.Fatalf("Failed to create test client: %v", err)
-	}
+	created, err := repo.Save(f.ctx, uniquePhoneClient)
+	require.NoError(t, err, "Failed to create test client for GetByPhone")
 
 	t.Run("Get existing client by phone", func(t *testing.T) {
 		retrieved, err := repo.GetByPhone(f.ctx, "98765432109")
-		if err != nil {
-			t.Fatalf("Failed to get client by phone: %v", err)
-		}
+		require.NoError(t, err, "Failed to get client by phone")
 
-		if retrieved.ID() != created.ID() {
-			t.Errorf("Expected ID %d, got %d", created.ID(), retrieved.ID())
-		}
-
-		if retrieved.FirstName() != "Jane" {
-			t.Errorf("Expected FirstName 'Jane', got '%s'", retrieved.FirstName())
-		}
+		assert.Equal(t, created.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, "Jane", retrieved.FirstName(), "FirstName mismatch")
+		require.NotNil(t, retrieved.Phone(), "Phone should not be nil")
+		assert.Equal(t, "98765432109", retrieved.Phone().Value(), "Phone value mismatch")
 	})
 
 	t.Run("Get non-existent client by phone", func(t *testing.T) {
 		_, err := repo.GetByPhone(f.ctx, "11111111111")
-		if err == nil {
-			t.Fatal("Expected error when getting non-existent client, got nil")
-		}
+		require.Error(t, err, "Expected error when getting non-existent client, got nil")
+		require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound")
+	})
+}
 
-		if !errors.Is(err, persistence.ErrClientNotFound) {
-			t.Errorf("Expected ErrClientNotFound, got %v", err)
-		}
+func TestClientRepository_GetByContactValue(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	repo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
+
+	p, err := phone.NewFromE164("55555555555")
+	require.NoError(t, err, "Failed to create phone number")
+
+	email, err := internet.NewEmail("contact.test@example.com")
+	require.NoError(t, err, "Failed to create email")
+
+	clientWithContacts, err := client.New(
+		"Contact",
+		client.WithLastName("Test"),
+		client.WithMiddleName("User"),
+		client.WithPhone(p),
+		client.WithEmail(email),
+		client.WithGender(general.Male),
+		client.WithContacts([]client.Contact{
+			client.NewContact(client.ContactTypePhone, "55555555555"),
+			client.NewContact(client.ContactTypeTelegram, "telegram_user123"),
+			client.NewContact(client.ContactTypeWhatsApp, "+1234567890"),
+			client.NewContact(client.ContactTypeEmail, "test2@example.com"),
+		}),
+	)
+	require.NoError(t, err, "Failed to create client instance")
+
+	createdClient, err := repo.Save(f.ctx, clientWithContacts)
+	require.NoError(t, err, "Failed to create test client")
+
+	t.Run("Get client by phone from clients table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypePhone, "55555555555")
+		require.NoError(t, err, "Failed to get client by phone contact")
+
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, "Contact", retrieved.FirstName(), "FirstName mismatch")
+	})
+
+	t.Run("Get client by email from clients table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeEmail, "contact.test@example.com")
+		require.NoError(t, err, "Failed to get client by email contact")
+
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, "Test", retrieved.LastName(), "LastName mismatch")
+	})
+
+	t.Run("Get client by email from client_contacts table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeEmail, "test2@example.com")
+		require.NoError(t, err, "Failed to get client by email contact from client_contacts table")
+
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
+	})
+
+	t.Run("Get client by telegram contact from client_contacts table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "telegram_user123")
+		require.NoError(t, err, "Failed to get client by telegram contact")
+
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
+		assert.Equal(t, "User", retrieved.MiddleName(), "MiddleName mismatch")
+	})
+
+	t.Run("Get client by whatsapp contact from client_contacts table", func(t *testing.T) {
+		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeWhatsApp, "+1234567890")
+		require.NoError(t, err, "Failed to get client by whatsapp contact")
+
+		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
+	})
+
+	t.Run("Get client by non-existent contact", func(t *testing.T) {
+		_, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "non_existent_user")
+		require.Error(t, err, "Expected error when getting client by non-existent contact")
+		require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound")
 	})
 }
 
@@ -259,43 +273,32 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create multiple clients for pagination testing
-	for i := 0; i < 5; i++ {
+	// Setup: Create multiple clients
+	clientLastNames := []string{"A", "B", "C", "D", "E"}
+	for i, lastName := range clientLastNames {
 		p, err := phone.NewFromE164(string([]byte{'1', '0', '0', '0', '0', '0', '0', '0', '0', '0' + byte(i), '1'}))
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create phone number for client %d", i) // Use require for setup
 
 		email, err := internet.NewEmail("client" + string([]byte{'a' + byte(i)}) + "@example.com")
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create email for client %d", i) // Use require for setup
 
-		// Create a valid 14-digit PIN for Uzbekistan
-		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)        // Assuming same PIN is okay for test data
+		require.NoError(t, err, "Failed to create tax ID for client %d", i) // Use require for setup
 
 		testClient, err := client.New(
 			"Client",
-			string([]byte{'A' + byte(i)}), // Client A, Client B, ...
-			"Test",
+			client.WithLastName(lastName),
+			client.WithMiddleName("Test"),
 			client.WithPhone(p),
-			client.WithID(0),
 			client.WithAddress("Address Test"),
 			client.WithEmail(email),
 			client.WithGender(general.Male),
 			client.WithPin(pin),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create client instance %d", i) // Use require for setup
 
-		_, err = repo.Create(f.ctx, testClient)
-		if err != nil {
-			t.Fatalf("Failed to create test client %d: %v", i, err)
-		}
+		_, err = repo.Save(f.ctx, testClient)
+		require.NoError(t, err, "Failed to create test client %d", i) // Use require for setup
 	}
 
 	t.Run("Get clients with limit and offset", func(t *testing.T) {
@@ -309,29 +312,21 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		}
 
 		clients, err := repo.GetPaginated(f.ctx, params)
-		if err != nil {
-			t.Fatalf("Failed to get paginated clients: %v", err)
-		}
+		require.NoError(t, err, "Failed to get paginated clients") // Use require
 
-		if len(clients) != 2 {
-			t.Errorf("Expected 2 clients, got %d", len(clients))
-		}
+		require.Len(t, clients, 2, "Expected 2 clients") // Use require for length check
 
-		// Should return clients B and C if sorted by last name ascending
-		if clients[0].LastName() != "B" {
-			t.Errorf("Expected first client LastName 'B', got '%s'", clients[0].LastName())
-		}
-
-		if clients[1].LastName() != "C" {
-			t.Errorf("Expected second client LastName 'C', got '%s'", clients[1].LastName())
-		}
+		// Assuming sorting by LastName works correctly (A, B, C, D, E)
+		// Offset 1, Limit 2 should return B and C
+		assert.Equal(t, "B", clients[0].LastName(), "First client LastName mismatch")
+		assert.Equal(t, "C", clients[1].LastName(), "Second client LastName mismatch")
 	})
 
 	t.Run("Get clients with query filter", func(t *testing.T) {
 		params := &client.FindParams{
 			Limit:  10,
 			Offset: 0,
-			Query:  "D",
+			Query:  "D", // Filter by LastName containing "D"
 			Field:  "last_name",
 			SortBy: client.SortBy{
 				Fields:    []client.Field{client.LastName},
@@ -340,17 +335,11 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		}
 
 		clients, err := repo.GetPaginated(f.ctx, params)
-		if err != nil {
-			t.Fatalf("Failed to get filtered clients: %v", err)
-		}
+		require.NoError(t, err, "Failed to get clients with query filter") // Use require
 
-		if len(clients) != 1 {
-			t.Errorf("Expected 1 client, got %d", len(clients))
-		}
+		require.Len(t, clients, 1, "Expected 1 client") // Use require for length check
 
-		if len(clients) > 0 && clients[0].LastName() != "D" {
-			t.Errorf("Expected client LastName 'D', got '%s'", clients[0].LastName())
-		}
+		assert.Equal(t, "D", clients[0].LastName(), "Filtered client LastName mismatch")
 	})
 }
 
@@ -361,54 +350,32 @@ func TestClientRepository_Count(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create a known number of clients
+	// Get initial count to account for clients created in parallel tests
+	initialCount, err := repo.Count(f.ctx)
+	require.NoError(t, err, "Failed to get initial client count")
+
 	numClients := 3
 	for i := 0; i < numClients; i++ {
 		p, err := phone.NewFromE164(string([]byte{'2', '0', '0', '0', '0', '0', '0', '0', '0', '0' + byte(i), '1'}))
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		email, err := internet.NewEmail("count" + string([]byte{'a' + byte(i)}) + "@example.com")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Create a valid 14-digit PIN for Uzbekistan
-		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create phone number for count test %d", i)
 
 		testClient, err := client.New(
 			"Count",
-			"Test",
-			string([]byte{'X' + byte(i)}),
+			client.WithLastName("Test"),
 			client.WithPhone(p),
-			client.WithID(0),
-			client.WithAddress("Count Test Address"),
-			client.WithEmail(email),
+			client.WithMiddleName(string([]byte{'X' + byte(i)})),
 			client.WithGender(general.Female),
-			client.WithPin(pin),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create client instance for count test %d", i)
 
-		_, err = repo.Create(f.ctx, testClient)
-		if err != nil {
-			t.Fatalf("Failed to create test client %d: %v", i, err)
-		}
+		_, err = repo.Save(f.ctx, testClient)
+		require.NoError(t, err, "Failed to create test client for count test %d", i)
 	}
 
 	count, err := repo.Count(f.ctx)
-	if err != nil {
-		t.Fatalf("Failed to get client count: %v", err)
-	}
+	require.NoError(t, err, "Failed to count clients") // Use require
 
-	if int(count) < numClients {
-		t.Errorf("Expected at least %d clients, got %d", numClients, count)
-	}
+	assert.Equal(t, initialCount+int64(numClients), count, "Client count mismatch")
 }
 
 func TestClientRepository_GetAll(t *testing.T) {
@@ -418,60 +385,36 @@ func TestClientRepository_GetAll(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create clients for GetAll test
 	initialCount, err := repo.Count(f.ctx)
-	if err != nil {
-		t.Fatalf("Failed to get initial client count: %v", err)
-	}
+	require.NoError(t, err, "Failed to get initial client count for GetAll test")
 
 	numNewClients := 2
 	for i := 0; i < numNewClients; i++ {
 		p, err := phone.NewFromE164(string([]byte{'3', '0', '0', '0', '0', '0', '0', '0', '0', '0' + byte(i), '1'}))
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create phone number for GetAll test %d", i)
 
 		email, err := internet.NewEmail("all" + string([]byte{'a' + byte(i)}) + "@example.com")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Create a valid 14-digit PIN for Uzbekistan
-		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create email for GetAll test %d", i)
 
 		testClient, err := client.New(
 			"All",
-			"Test",
-			string([]byte{'Y' + byte(i)}),
+			client.WithLastName("Test"),
+			client.WithMiddleName(string([]byte{'Y' + byte(i)})),
 			client.WithPhone(p),
-			client.WithID(0),
 			client.WithAddress("GetAll Test Address"),
 			client.WithEmail(email),
 			client.WithGender(general.Male),
-			client.WithPin(pin),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create client instance for GetAll test %d", i)
 
-		_, err = repo.Create(f.ctx, testClient)
-		if err != nil {
-			t.Fatalf("Failed to create test client %d: %v", i, err)
-		}
+		_, err = repo.Save(f.ctx, testClient)
+		require.NoError(t, err, "Failed to create test client for GetAll test %d", i)
 	}
 
 	allClients, err := repo.GetAll(f.ctx)
-	if err != nil {
-		t.Fatalf("Failed to get all clients: %v", err)
-	}
+	require.NoError(t, err, "Failed to get all clients")
 
-	expectedCount := int(initialCount) + numNewClients
-	if len(allClients) != expectedCount {
-		t.Errorf("Expected %d clients, got %d", expectedCount, len(allClients))
-	}
+	assert.Len(t, allClients, int(initialCount)+numNewClients, "GetAll returned incorrect number of clients")
 }
 
 func TestClientRepository_Delete(t *testing.T) {
@@ -481,31 +424,22 @@ func TestClientRepository_Delete(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create a client with passport for deletion testing
 	testClient := createTestClient(t, true)
-	created, err := clientRepo.Create(f.ctx, testClient)
-	if err != nil {
-		t.Fatalf("Failed to create test client: %v", err)
-	}
+	created, err := clientRepo.Save(f.ctx, testClient)
+	require.NoError(t, err, "Failed to create test client for delete test")
 
-	// Delete the client
-	err = clientRepo.Delete(f.ctx, created.ID())
-	if err != nil {
-		t.Fatalf("Failed to delete client: %v", err)
-	}
-
-	// Verify client is deleted
 	_, err = clientRepo.GetByID(f.ctx, created.ID())
-	if err == nil {
-		t.Error("Expected error when getting deleted client, got nil")
-	}
+	require.NoError(t, err, "Client should exist before deletion")
 
-	if !errors.Is(err, persistence.ErrClientNotFound) {
-		t.Errorf("Expected ErrClientNotFound, got %v", err)
-	}
+	err = clientRepo.Delete(f.ctx, created.ID())
+	require.NoError(t, err, "Failed to delete client")
+
+	// Verify deletion
+	_, err = clientRepo.GetByID(f.ctx, created.ID())
+	require.Error(t, err, "Expected error when getting deleted client")
+	require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound after delete")
 }
 
-// TestClientRepository_Update tests updating client details
 func TestClientRepository_Update(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
@@ -513,26 +447,21 @@ func TestClientRepository_Update(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	// Create a client without passport
+	// --- Setup initial client ---
 	p, err := phone.NewFromE164("12345678901")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create phone number")
 
 	birthDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
 	email, err := internet.NewEmail("john.doe@example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create email")
+
 	pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create tax ID")
 
 	basicClient, err := client.New(
 		"John",
-		"Doe",
-		"Smith",
+		client.WithLastName("Doe"),
+		client.WithMiddleName("Smith"),
 		client.WithPhone(p),
 		client.WithEmail(email),
 		client.WithAddress("123 Main St"),
@@ -540,88 +469,75 @@ func TestClientRepository_Update(t *testing.T) {
 		client.WithGender(general.Male),
 		client.WithPin(pin),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Failed to create client instance")
 
-	created, err := repo.Create(f.ctx, basicClient)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
+	created, err := repo.Save(f.ctx, basicClient)
+	require.NoError(t, err, "Failed to save initial client for update test")
+	// --- End Setup ---
 
-	// Test updating basic info first
 	t.Run("Update basic info", func(t *testing.T) {
 		newEmail, err := internet.NewEmail("robert.johnson@example.com")
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create new email for update")
 
-		updatedClient := created.SetName("Robert", "Johnson", "Lee").
+		updatedClientState := created.SetName("Robert", "Johnson", "Lee").
 			SetEmail(newEmail).
 			SetAddress("789 Pine St")
 
-		result, err := repo.Update(f.ctx, updatedClient)
-		if err != nil {
-			t.Fatalf("Failed to update client: %v", err)
-		}
+		_, err = repo.Save(f.ctx, updatedClientState)
+		require.NoError(t, err, "Failed to update client basic info")
 
-		if result.FirstName() != "Robert" {
-			t.Errorf("Expected FirstName 'Robert', got '%s'", result.FirstName())
-		}
+		retrievedAfterUpdate, err := repo.GetByID(f.ctx, created.ID()) // Re-fetch to ensure persistence
+		require.NoError(t, err, "Failed to retrieve client after basic update")
 
-		if result.LastName() != "Johnson" {
-			t.Errorf("Expected LastName 'Johnson', got '%s'", result.LastName())
-		}
-
-		if result.Email().Value() != "robert.johnson@example.com" {
-			t.Errorf("Expected Email 'robert.johnson@example.com', got '%s'", result.Email().Value())
-		}
-
-		if result.Address() != "789 Pine St" {
-			t.Errorf("Expected Address '789 Pine St', got '%s'", result.Address())
-		}
+		assert.Equal(t, "Robert", retrievedAfterUpdate.FirstName(), "FirstName mismatch after update")
+		assert.Equal(t, "Johnson", retrievedAfterUpdate.LastName(), "LastName mismatch after update")
+		assert.Equal(t, "Lee", retrievedAfterUpdate.MiddleName(), "MiddleName mismatch after update")
+		require.NotNil(t, retrievedAfterUpdate.Email(), "Email should not be nil after update")
+		assert.Equal(t, "robert.johnson@example.com", retrievedAfterUpdate.Email().Value(), "Email mismatch after update")
+		assert.Equal(t, "789 Pine St", retrievedAfterUpdate.Address(), "Address mismatch after update")
+		// Also check that unchanged fields remain the same
+		require.NotNil(t, retrievedAfterUpdate.Phone(), "Phone should not be nil")
+		assert.Equal(t, "12345678901", retrievedAfterUpdate.Phone().Value(), "Phone should not change")
 	})
 
-	// Create another client specifically for testing passport updates
-	t.Run("Update with passport", func(t *testing.T) {
-		// Create a new client without passport
+	t.Run("Update by adding passport", func(t *testing.T) {
+		// --- Setup client without passport ---
+		pUpdate, err := phone.NewFromE164("11223344556")
+		require.NoError(t, err)
+		emailUpdate, err := internet.NewEmail("alice.wonder@example.com")
+		require.NoError(t, err)
+		pinUpdate, err := tax.NewPin("98765432101234", country.Uzbekistan)
+		require.NoError(t, err)
+
 		noPassportClient, err := client.New(
 			"Alice",
-			"Wonder",
-			"",
-			client.WithPhone(p),
-			client.WithEmail(email),
-			client.WithPin(pin),
+			client.WithLastName("Wonder"),
+			client.WithPhone(pUpdate),
+			client.WithEmail(emailUpdate),
+			client.WithPin(pinUpdate),
 			client.WithGender(general.Female),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "Failed to create client instance without passport")
 
-		created, err := repo.Create(f.ctx, noPassportClient)
-		if err != nil {
-			t.Fatalf("Failed to create client: %v", err)
-		}
+		createdNoPassport, err := repo.Save(f.ctx, noPassportClient)
+		require.NoError(t, err, "Failed to create client without passport for update test")
+		require.Nil(t, createdNoPassport.Passport(), "Client should initially have no passport")
+		// --- End Setup ---
 
-		// Now add a passport
-		pass := createTestPassport()
-		clientWithPassport := created.SetPassport(pass)
+		// Add passport
+		clientWithPassport := createdNoPassport.SetPassport(createTestPassport())
 
-		updated, err := repo.Update(f.ctx, clientWithPassport)
-		if err != nil {
-			t.Fatalf("Failed to update client with passport: %v", err)
-		}
+		// Save the updated client
+		_, err = repo.Save(f.ctx, clientWithPassport)
+		require.NoError(t, err, "Failed to update client with passport")
 
-		if updated.Passport() == nil {
-			t.Errorf("Expected client to have passport after update")
-		}
+		// Verify the result from the database
+		retrievedAfterPassport, err := repo.GetByID(f.ctx, createdNoPassport.ID())
+		require.NoError(t, err, "Failed to retrieve client after adding passport")
 
-		if updated.Passport().Series() != "AB" {
-			t.Errorf("Expected passport series to be 'AB', got '%s'", updated.Passport().Series())
-		}
-
-		if updated.Passport().Number() != "1234567" {
-			t.Errorf("Expected passport number to be '1234567', got '%s'", updated.Passport().Number())
-		}
+		require.NotNil(t, retrievedAfterPassport.Passport(), "Expected client to have passport after update")
+		assert.Equal(t, "AB", retrievedAfterPassport.Passport().Series(), "Passport series mismatch after update")
+		assert.Equal(t, "1234567", retrievedAfterPassport.Passport().Number(), "Passport number mismatch after update")
+		assert.Equal(t, "Alice", retrievedAfterPassport.FirstName(), "FirstName should remain after adding passport")
 	})
 }

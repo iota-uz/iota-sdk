@@ -103,12 +103,15 @@ func (d *CreateClientDTO) ToEntity() (client.Client, error) {
 		opts = append(opts, client.WithPin(pin))
 	}
 
-	return client.New(
-		d.FirstName,
-		d.LastName,
-		d.MiddleName,
-		opts...,
-	)
+	if d.LastName != "" {
+		opts = append(opts, client.WithLastName(d.LastName))
+	}
+
+	if d.MiddleName != "" {
+		opts = append(opts, client.WithMiddleName(d.MiddleName))
+	}
+
+	return client.New(d.FirstName, opts...)
 }
 
 type UpdateClientPersonalDTO struct {

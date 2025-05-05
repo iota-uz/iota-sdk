@@ -39,6 +39,13 @@ func (c *Chat) UnreadMessagesFormatted() string {
 	return strconv.Itoa(c.UnreadMessages)
 }
 
+type Member struct {
+	ID        string
+	Transport string
+	Sender    MessageSender
+	CreatedAt string
+}
+
 type MessageSender interface {
 	ID() string
 	IsUser() bool
