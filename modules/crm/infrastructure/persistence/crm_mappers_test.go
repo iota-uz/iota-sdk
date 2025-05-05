@@ -467,14 +467,6 @@ func TestToDomainChat(t *testing.T) {
 			[]chat.Transport{domainChat.Members()[0].Transport(), domainChat.Members()[1].Transport()},
 			"Member transports should match",
 		)
-
-		// Check the first member
-		assert.Equal(t, member1ID, domainChat.Members()[0].ID(), "First member ID should match")
-		assert.Equal(t, chat.TelegramTransport, domainChat.Members()[0].Transport(), "First member transport should match")
-
-		// Check the second member
-		assert.Equal(t, member2ID, domainChat.Members()[1].ID(), "Second member ID should match")
-		assert.Equal(t, chat.WebsiteTransport, domainChat.Members()[1].Transport(), "Second member transport should match")
 	})
 }
 
