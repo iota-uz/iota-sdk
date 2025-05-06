@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/go-faster/errors"
+	"github.com/jackc/pgx/v5"
 
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -650,6 +651,21 @@ func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat,
 	}
 
 	dbChat, dbMessages := ToDBChat(data)
+
+	var existingChatID uint
+	err = tx.QueryRow(
+		ctx,
+		"SELECT id FROM chats WHERE client_id = $1",
+		dbChat.ClientID,
+	).Scan(&existingChatID)
+
+	if err == nil {
+		data = data.WithID(existingChatID)
+		return g.update(ctx, data)
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, errors.Wrap(err, "failed to check for existing chat")
+	}
+
 	if err := tx.QueryRow(
 		ctx,
 		insertChatQuery,
@@ -667,7 +683,6 @@ func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat,
 		m.ChatID = dbChat.ID
 	}
 
-	// Then save messages
 	if err := g.saveMessages(ctx, dbMessages); err != nil {
 		return nil, err
 	}

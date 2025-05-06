@@ -192,42 +192,25 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 		return nil, chat.ErrNoMessages
 	}
 
-	// Convert chat messages to OpenAI messages format
 	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages)+1) // +1 for system prompt
 
-	// Get AI configuration if available
-	var modelName string
-	var temperature float32
-	var maxTokens int
-
 	config, err := s.aiconfigRepo.GetDefault(ctx)
-	if err == nil {
-		// Add system prompt if available
-		if config.SystemPrompt() != "" {
-			openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: config.SystemPrompt(),
-			})
-		}
-
-		// Set model configuration
-		modelName = config.ModelName()
-		temperature = config.Temperature()
-		maxTokens = config.MaxTokens()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AI configuration: %w", err)
 	}
 
-	// Set defaults if no configuration found
-	if modelName == "" {
-		modelName = openai.GPT3Dot5Turbo
-	}
-	if temperature == 0 {
-		temperature = 0.7 // Default temperature
-	}
-	if maxTokens == 0 {
-		maxTokens = 1024 // Default max tokens
+	if config.SystemPrompt() != "" {
+		openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: config.SystemPrompt(),
+		})
 	}
 
-	// Add chat messages
+	// Set model configuration
+	modelName := config.ModelName()
+	temperature := config.Temperature()
+	maxTokens := config.MaxTokens()
+
 	for _, msg := range messages {
 		role := openai.ChatMessageRoleUser
 		if msg.Sender().Sender().Type() == chat.UserSenderType {
@@ -247,17 +230,17 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 		MaxTokens:   maxTokens,
 	}
 
-	completionResp, err := s.openaiClient.CreateChatCompletion(ctx, completionReq)
+	response, err := s.openaiClient.CreateChatCompletion(ctx, completionReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AI response: %w", err)
 	}
 
-	if len(completionResp.Choices) == 0 {
+	if len(response.Choices) == 0 {
 		return nil, fmt.Errorf("no response from AI")
 	}
 
 	// Use the first choice as the AI response
-	aiResponse := completionResp.Choices[0].Message.Content
+	aiResponse := response.Choices[0].Message.Content
 
 	// Reply to the thread with the AI-generated response
 	chatEntity, err = s.ReplyToThread(ctx, ReplyToThreadDTO{

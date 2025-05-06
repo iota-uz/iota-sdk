@@ -31,14 +31,16 @@ type AIConfig interface {
 	MaxTokens() int
 	BaseURL() string
 	AccessToken() string
+	IsDefault() bool
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
-	WithSystemPrompt(prompt string) (AIConfig, error)
+	SetSystemPrompt(prompt string) AIConfig
 	WithTemperature(temp float32) (AIConfig, error)
 	WithMaxTokens(tokens int) (AIConfig, error)
 	WithModelName(modelName string) (AIConfig, error)
 	WithBaseURL(baseURL string) (AIConfig, error)
-	WithAccessToken(accessToken string) (AIConfig, error)
+	SetAccessToken(accessToken string) AIConfig
+	WithIsDefault(isDefault bool) (AIConfig, error)
 }
 
 type Repository interface {
@@ -59,6 +61,7 @@ type aiConfig struct {
 	maxTokens    int
 	baseURL      string
 	accessToken  string
+	isDefault    bool
 	createdAt    time.Time
 	updatedAt    time.Time
 }
@@ -160,6 +163,12 @@ func WithAccessToken(accessToken string) Option {
 	}
 }
 
+func WithIsDefault(isDefault bool) Option {
+	return func(c *aiConfig) {
+		c.isDefault = isDefault
+	}
+}
+
 func (c *aiConfig) ID() uuid.UUID {
 	return c.id
 }
@@ -200,12 +209,16 @@ func (c *aiConfig) UpdatedAt() time.Time {
 	return c.updatedAt
 }
 
-func (c *aiConfig) WithSystemPrompt(prompt string) (AIConfig, error) {
+func (c *aiConfig) IsDefault() bool {
+	return c.isDefault
+}
+
+func (c *aiConfig) SetSystemPrompt(prompt string) AIConfig {
 	newConfig := *c
 	newConfig.systemPrompt = prompt
 	newConfig.updatedAt = time.Now()
 
-	return &newConfig, nil
+	return &newConfig
 }
 
 func (c *aiConfig) WithTemperature(temp float32) (AIConfig, error) {
@@ -256,9 +269,17 @@ func (c *aiConfig) WithBaseURL(baseURL string) (AIConfig, error) {
 	return &newConfig, nil
 }
 
-func (c *aiConfig) WithAccessToken(accessToken string) (AIConfig, error) {
+func (c *aiConfig) SetAccessToken(accessToken string) AIConfig {
 	newConfig := *c
 	newConfig.accessToken = accessToken
+	newConfig.updatedAt = time.Now()
+
+	return &newConfig
+}
+
+func (c *aiConfig) WithIsDefault(isDefault bool) (AIConfig, error) {
+	newConfig := *c
+	newConfig.isDefault = isDefault
 	newConfig.updatedAt = time.Now()
 
 	return &newConfig, nil

@@ -35,14 +35,14 @@ const (
 
 	aiConfigInsertQuery = `
 		INSERT INTO ai_chat_configs 
-		(id, model_name, model_type, system_prompt, temperature, max_tokens, base_url, access_token, created_at, updated_at) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+		(id, model_name, model_type, system_prompt, temperature, max_tokens, base_url, access_token, is_default, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
 		RETURNING id`
 
 	aiConfigUpdateQuery = `
 		UPDATE ai_chat_configs 
-		SET model_name = $1, model_type = $2, system_prompt = $3, temperature = $4, max_tokens = $5, base_url = $6, access_token = $7, updated_at = $8
-		WHERE id = $9
+		SET model_name = $1, model_type = $2, system_prompt = $3, temperature = $4, max_tokens = $5, base_url = $6, access_token = $7, is_default = $8, updated_at = $9
+		WHERE id = $10
 		RETURNING id`
 
 	aiConfigDeleteQuery = `DELETE FROM ai_chat_configs WHERE id = $1`
@@ -117,6 +117,7 @@ func (r *AIChatConfigRepository) Save(ctx context.Context, config aichatconfig.A
 			dbConfig.MaxTokens,
 			dbConfig.BaseURL,
 			dbConfig.AccessToken,
+			dbConfig.IsDefault,
 			now,
 			dbConfig.ID,
 		).Scan(&dbConfig.ID)
@@ -134,6 +135,7 @@ func (r *AIChatConfigRepository) Save(ctx context.Context, config aichatconfig.A
 			dbConfig.MaxTokens,
 			dbConfig.BaseURL,
 			dbConfig.AccessToken,
+			dbConfig.IsDefault,
 			now,
 			now,
 		).Scan(

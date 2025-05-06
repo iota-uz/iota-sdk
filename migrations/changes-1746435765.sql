@@ -14,8 +14,14 @@ CREATE TABLE IF NOT EXISTS ai_chat_configs (
     updated_at timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
+-- Add unique index to ensure only one default AIChat config
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_chat_configs_unique_default ON ai_chat_configs (is_default) WHERE (is_default = true);
+
 -- +migrate Down
 -- Undo CREATE_TABLE: ai_chat_configs
 DROP TABLE IF EXISTS ai_chat_configs CASCADE;
+
+-- Remove unique index
+DROP INDEX IF EXISTS idx_ai_chat_configs_unique_default;
 
 

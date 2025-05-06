@@ -26,7 +26,7 @@ CREATE TABLE client_contacts (
 
 CREATE TABLE chats (
     id serial PRIMARY KEY,
-    client_id int NOT NULL REFERENCES clients (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    client_id int NOT NULL UNIQUE REFERENCES clients (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     last_message_at timestamp(3) DEFAULT now(),
     created_at timestamp(3) DEFAULT now() NOT NULL
 );

@@ -20,6 +20,7 @@ func ToDBConfig(config aichatconfig.AIConfig) models.AIChatConfig {
 		MaxTokens:    config.MaxTokens(),
 		BaseURL:      config.BaseURL(),
 		AccessToken:  config.AccessToken(),
+		IsDefault:    config.IsDefault(),
 		CreatedAt:    config.CreatedAt(),
 		UpdatedAt:    config.UpdatedAt(),
 	}
@@ -41,6 +42,7 @@ func ToDomainConfig(model models.AIChatConfig) (aichatconfig.AIConfig, error) {
 		aichatconfig.WithTemperature(model.Temperature),
 		aichatconfig.WithMaxTokens(model.MaxTokens),
 		aichatconfig.WithAccessToken(model.AccessToken),
+		aichatconfig.WithIsDefault(model.IsDefault),
 		aichatconfig.WithCreatedAt(model.CreatedAt),
 		aichatconfig.WithUpdatedAt(model.UpdatedAt),
 	)
