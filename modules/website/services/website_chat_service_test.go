@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmPersistence "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/assert"
@@ -27,12 +28,13 @@ func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, c
 	passportRepo := corePersistence.NewPassportRepository()
 	clientRepo := crmPersistence.NewClientRepository(passportRepo)
 	chatRepo := crmPersistence.NewChatRepository()
+	aiconfigRepo := persistence.NewAIChatConfigRepository()
 
 	// Create mock OpenAI client
 	openaiClient := openai.NewClient("test-api-key")
 
 	// Create the website chat service
-	websiteChatService := services.NewWebsiteChatService(openaiClient, userRepo, clientRepo, chatRepo)
+	websiteChatService := services.NewWebsiteChatService(openaiClient, aiconfigRepo, userRepo, clientRepo, chatRepo)
 
 	return fixtures, websiteChatService, clientRepo
 }

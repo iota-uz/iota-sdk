@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -27,6 +28,7 @@ type ReplyToThreadDTO struct {
 
 type WebsiteChatService struct {
 	openaiClient *openai.Client
+	aiconfigRepo aichatconfig.Repository
 	userRepo     user.Repository
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
@@ -34,12 +36,14 @@ type WebsiteChatService struct {
 
 func NewWebsiteChatService(
 	openaiClient *openai.Client,
+	aiconfigRepo aichatconfig.Repository,
 	userRepo user.Repository,
 	clientRepo client.Repository,
 	chatRepo chat.Repository,
 ) *WebsiteChatService {
 	return &WebsiteChatService{
 		openaiClient: openaiClient,
+		aiconfigRepo: aiconfigRepo,
 		userRepo:     userRepo,
 		clientRepo:   clientRepo,
 		chatRepo:     chatRepo,
@@ -189,7 +193,41 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 	}
 
 	// Convert chat messages to OpenAI messages format
-	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages))
+	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages)+1) // +1 for system prompt
+
+	// Get AI configuration if available
+	var modelName string
+	var temperature float32
+	var maxTokens int
+
+	config, err := s.aiconfigRepo.GetDefault(ctx)
+	if err == nil {
+		// Add system prompt if available
+		if config.SystemPrompt() != "" {
+			openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: config.SystemPrompt(),
+			})
+		}
+
+		// Set model configuration
+		modelName = config.ModelName()
+		temperature = config.Temperature()
+		maxTokens = config.MaxTokens()
+	}
+
+	// Set defaults if no configuration found
+	if modelName == "" {
+		modelName = openai.GPT3Dot5Turbo
+	}
+	if temperature == 0 {
+		temperature = 0.7 // Default temperature
+	}
+	if maxTokens == 0 {
+		maxTokens = 1024 // Default max tokens
+	}
+
+	// Add chat messages
 	for _, msg := range messages {
 		role := openai.ChatMessageRoleUser
 		if msg.Sender().Sender().Type() == chat.UserSenderType {
@@ -203,8 +241,10 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 	}
 
 	completionReq := openai.ChatCompletionRequest{
-		Model:    openai.GPT3Dot5Turbo,
-		Messages: openaiMessages,
+		Model:       modelName,
+		Messages:    openaiMessages,
+		Temperature: float32(temperature),
+		MaxTokens:   maxTokens,
 	}
 
 	completionResp, err := s.openaiClient.CreateChatCompletion(ctx, completionReq)

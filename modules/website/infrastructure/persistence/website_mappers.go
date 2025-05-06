@@ -18,6 +18,8 @@ func ToDBConfig(config aichatconfig.AIConfig) models.AIChatConfig {
 		SystemPrompt: config.SystemPrompt(),
 		Temperature:  config.Temperature(),
 		MaxTokens:    config.MaxTokens(),
+		BaseURL:      config.BaseURL(),
+		AccessToken:  config.AccessToken(),
 		CreatedAt:    config.CreatedAt(),
 		UpdatedAt:    config.UpdatedAt(),
 	}
@@ -34,9 +36,11 @@ func ToDomainConfig(model models.AIChatConfig) (aichatconfig.AIConfig, error) {
 		model.ModelName,
 		aichatconfig.AIModelType(model.ModelType),
 		model.SystemPrompt,
+		model.BaseURL,
 		aichatconfig.WithID(id),
 		aichatconfig.WithTemperature(model.Temperature),
 		aichatconfig.WithMaxTokens(model.MaxTokens),
+		aichatconfig.WithAccessToken(model.AccessToken),
 		aichatconfig.WithCreatedAt(model.CreatedAt),
 		aichatconfig.WithUpdatedAt(model.UpdatedAt),
 	)

@@ -10,9 +10,9 @@ import (
 
 var (
 	ErrInvalidID          = errors.New("invalid ID")
-	ErrEmptySystemPrompt  = errors.New("empty system prompt")
 	ErrInvalidTemperature = errors.New("temperature must be between 0.0 and 2.0")
 	ErrEmptyModelName     = errors.New("empty model name")
+	ErrEmptyBaseURL       = errors.New("empty base URL")
 	ErrConfigNotFound     = errors.New("AI chat configuration not found")
 )
 
@@ -29,12 +29,16 @@ type AIConfig interface {
 	SystemPrompt() string
 	Temperature() float32
 	MaxTokens() int
+	BaseURL() string
+	AccessToken() string
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 	WithSystemPrompt(prompt string) (AIConfig, error)
 	WithTemperature(temp float32) (AIConfig, error)
 	WithMaxTokens(tokens int) (AIConfig, error)
 	WithModelName(modelName string) (AIConfig, error)
+	WithBaseURL(baseURL string) (AIConfig, error)
+	WithAccessToken(accessToken string) (AIConfig, error)
 }
 
 type Repository interface {
@@ -53,6 +57,8 @@ type aiConfig struct {
 	systemPrompt string
 	temperature  float32
 	maxTokens    int
+	baseURL      string
+	accessToken  string
 	createdAt    time.Time
 	updatedAt    time.Time
 }
@@ -61,14 +67,15 @@ func New(
 	modelName string,
 	modelType AIModelType,
 	systemPrompt string,
+	baseURL string,
 	opts ...Option,
 ) (AIConfig, error) {
 	if modelName == "" {
 		return nil, ErrEmptyModelName
 	}
 
-	if systemPrompt == "" {
-		return nil, ErrEmptySystemPrompt
+	if baseURL == "" {
+		return nil, ErrEmptyBaseURL
 	}
 
 	cfg := &aiConfig{
@@ -76,6 +83,8 @@ func New(
 		modelName:    modelName,
 		modelType:    modelType,
 		systemPrompt: systemPrompt,
+		baseURL:      baseURL,
+		accessToken:  "",   // No default access token
 		temperature:  0.7,  // Default temperature
 		maxTokens:    1024, // Default max tokens
 		createdAt:    time.Now(),
@@ -96,6 +105,12 @@ func WithID(id uuid.UUID) Option {
 		if id != uuid.Nil {
 			c.id = id
 		}
+	}
+}
+
+func WithSystemPrompt(prompt string) Option {
+	return func(c *aiConfig) {
+		c.systemPrompt = prompt
 	}
 }
 
@@ -131,6 +146,20 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 	}
 }
 
+func WithBaseURL(baseURL string) Option {
+	return func(c *aiConfig) {
+		if baseURL != "" {
+			c.baseURL = baseURL
+		}
+	}
+}
+
+func WithAccessToken(accessToken string) Option {
+	return func(c *aiConfig) {
+		c.accessToken = accessToken
+	}
+}
+
 func (c *aiConfig) ID() uuid.UUID {
 	return c.id
 }
@@ -155,6 +184,14 @@ func (c *aiConfig) MaxTokens() int {
 	return c.maxTokens
 }
 
+func (c *aiConfig) BaseURL() string {
+	return c.baseURL
+}
+
+func (c *aiConfig) AccessToken() string {
+	return c.accessToken
+}
+
 func (c *aiConfig) CreatedAt() time.Time {
 	return c.createdAt
 }
@@ -164,10 +201,6 @@ func (c *aiConfig) UpdatedAt() time.Time {
 }
 
 func (c *aiConfig) WithSystemPrompt(prompt string) (AIConfig, error) {
-	if prompt == "" {
-		return nil, ErrEmptySystemPrompt
-	}
-
 	newConfig := *c
 	newConfig.systemPrompt = prompt
 	newConfig.updatedAt = time.Now()
@@ -206,6 +239,26 @@ func (c *aiConfig) WithModelName(modelName string) (AIConfig, error) {
 
 	newConfig := *c
 	newConfig.modelName = modelName
+	newConfig.updatedAt = time.Now()
+
+	return &newConfig, nil
+}
+
+func (c *aiConfig) WithBaseURL(baseURL string) (AIConfig, error) {
+	if baseURL == "" {
+		return nil, ErrEmptyBaseURL
+	}
+
+	newConfig := *c
+	newConfig.baseURL = baseURL
+	newConfig.updatedAt = time.Now()
+
+	return &newConfig, nil
+}
+
+func (c *aiConfig) WithAccessToken(accessToken string) (AIConfig, error) {
+	newConfig := *c
+	newConfig.accessToken = accessToken
 	newConfig.updatedAt = time.Now()
 
 	return &newConfig, nil
