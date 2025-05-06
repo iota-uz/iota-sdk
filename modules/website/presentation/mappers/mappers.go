@@ -15,7 +15,6 @@ func AIConfigToViewModel(config aichatconfig.AIConfig) *viewmodels.AIConfig {
 		Temperature:  config.Temperature(),
 		MaxTokens:    config.MaxTokens(),
 		BaseURL:      config.BaseURL(),
-		AccessToken:  config.AccessToken(),
 		CreatedAt:    config.CreatedAt().Format("2006-01-02 15:04:05"),
 		UpdatedAt:    config.UpdatedAt().Format("2006-01-02 15:04:05"),
 	}

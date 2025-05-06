@@ -113,6 +113,34 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	assert.Equal(t, savedClient.ID(), thread.ClientID())
 }
 
+func TestWebsiteChatService_CreateThread_ReuseExistingThread(t *testing.T) {
+	t.Parallel()
+	fixtures, sut, clientRepo := setupChatTest(t)
+
+	// 1. Create a client and get the client ID
+	emailStr := "reuse@example.com"
+	email, _ := internet.NewEmail(emailStr)
+	existingClient, err := client.New(emailStr, client.WithEmail(email))
+	require.NoError(t, err)
+
+	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
+	require.NoError(t, err)
+
+	// 2. Create first thread with the client's email
+	firstThread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	require.NoError(t, err)
+	require.NotNil(t, firstThread)
+
+	// 3. Create a second thread with the same email
+	secondThread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	require.NoError(t, err)
+	require.NotNil(t, secondThread)
+
+	// 4. Verify both threads have the same ID and client ID
+	assert.Equal(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same contact should return the existing thread")
+	assert.Equal(t, savedClient.ID(), secondThread.ClientID(), "Thread should be associated with the correct client")
+}
+
 func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
 	t.Parallel()
 	fixtures, sut, _ := setupChatTest(t)

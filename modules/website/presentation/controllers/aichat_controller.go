@@ -19,16 +19,21 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/validators"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
-func NewAIChatController(app application.Application) application.Controller {
+type AIChatControllerConfig struct {
+	BasePath string
+	App      application.Application
+}
+
+func NewAIChatController(cfg AIChatControllerConfig) application.Controller {
 	return &AIChatController{
 		basePath:      "/website/ai-chat",
-		app:           app,
-		chatService:   app.Service(websiteServices.WebsiteChatService{}).(*websiteServices.WebsiteChatService),
-		clientService: app.Service(crmServices.ClientService{}).(*crmServices.ClientService),
-		configService: app.Service(websiteServices.AIChatConfigService{}).(*websiteServices.AIChatConfigService),
+		app:           cfg.App,
+		chatService:   cfg.App.Service(websiteServices.WebsiteChatService{}).(*websiteServices.WebsiteChatService),
+		clientService: cfg.App.Service(crmServices.ClientService{}).(*crmServices.ClientService),
+		configService: cfg.App.Service(websiteServices.AIChatConfigService{}).(*websiteServices.AIChatConfigService),
 	}
 }
 
@@ -79,7 +84,7 @@ func (c *AIChatController) configureAIChat(w http.ResponseWriter, r *http.Reques
 
 	// Create props with default values if no config exists
 	props := aichat.ConfigureProps{
-		FormAction: templ.SafeURL(c.basePath + "/config"),
+		FormAction: c.basePath + "/config",
 	}
 
 	// If we have a config, add its values
@@ -92,7 +97,6 @@ func (c *AIChatController) configureAIChat(w http.ResponseWriter, r *http.Reques
 			Temperature: 0.7,
 			MaxTokens:   1024,
 			BaseURL:     "https://api.openai.com/v1",
-			AccessToken: "",
 		}
 	}
 
@@ -102,7 +106,6 @@ func (c *AIChatController) configureAIChat(w http.ResponseWriter, r *http.Reques
 func (c *AIChatController) saveConfig(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
-	// Parse the form
 	dto, err := composables.UseForm(&dtos.AIConfigDTO{}, r)
 	if err != nil {
 		logger.WithError(err).Error("failed to parse form")
@@ -110,33 +113,27 @@ func (c *AIChatController) saveConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the DTO
+	config, _ := c.configService.GetDefault(r.Context())
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		logger.WithField("errors", errors).Error("validation failed")
 
-		// Get the default config for re-rendering the form
-		config, _ := c.configService.GetDefault(r.Context())
-
 		props := aichat.ConfigureProps{
-			FormAction: templ.SafeURL(c.basePath + "/config"),
+			FormAction: c.basePath + "/config",
 			Config: &viewmodels.AIConfig{
 				ModelName:    dto.ModelName,
 				ModelType:    dto.ModelType,
 				SystemPrompt: dto.SystemPrompt,
 				BaseURL:      dto.BaseURL,
-				AccessToken:  dto.AccessToken,
 			},
 			Errors: errors,
 		}
 
-		if dto.Temperature != "" {
-			temp, _ := strconv.ParseFloat(dto.Temperature, 32)
-			props.Config.Temperature = float32(temp)
+		if dto.Temperature > 0 {
+			props.Config.Temperature = dto.Temperature
 		}
 
-		if dto.MaxTokens != "" {
-			tokens, _ := strconv.Atoi(dto.MaxTokens)
-			props.Config.MaxTokens = tokens
+		if dto.MaxTokens > 0 {
+			props.Config.MaxTokens = dto.MaxTokens
 		}
 
 		if config != nil {
@@ -147,65 +144,21 @@ func (c *AIChatController) saveConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert DTO to entity
-	configEntity, err := dto.ToEntity()
+	configEntity, err := dto.Apply(config)
 	if err != nil {
 		logger.WithError(err).Error("failed to convert DTO to entity")
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
 		return
 	}
 
-	// Save the configuration
 	_, err = c.configService.Save(r.Context(), configEntity)
 	if err != nil {
-		var validationErr *validators.ValidationError
-		if errors.As(err, &validationErr) {
-			// Handle validation errors
-			logger.WithError(err).Error("validation failed while saving")
-
-			props := aichat.ConfigureProps{
-				FormAction: templ.SafeURL(c.basePath + "/config"),
-				Config: &viewmodels.AIConfig{
-					ModelName:    dto.ModelName,
-					ModelType:    dto.ModelType,
-					SystemPrompt: dto.SystemPrompt,
-					BaseURL:      dto.BaseURL,
-					AccessToken:  dto.AccessToken,
-				},
-				Errors: validationErr.Fields,
-			}
-
-			if dto.Temperature != "" {
-				temp, _ := strconv.ParseFloat(dto.Temperature, 32)
-				props.Config.Temperature = float32(temp)
-			}
-
-			if dto.MaxTokens != "" {
-				tokens, _ := strconv.Atoi(dto.MaxTokens)
-				props.Config.MaxTokens = tokens
-			}
-
-			templ.Handler(aichat.ConfigureForm(props)).ServeHTTP(w, r)
-			return
-		}
-
 		logger.WithError(err).Error("failed to save AI chat configuration")
 		http.Error(w, "Failed to save AI chat configuration", http.StatusInternalServerError)
 		return
 	}
 
-	// Set as default if it's the first configuration
-	configs, err := c.configService.List(r.Context())
-	if err != nil {
-		logger.WithError(err).Error("failed to list AI chat configurations")
-	} else if len(configs) == 1 {
-		if err := c.configService.SetDefault(r.Context(), configEntity.ID()); err != nil {
-			logger.WithError(err).Error("failed to set default AI chat configuration")
-		}
-	}
-
-	// Redirect back to the configuration page
-	http.Redirect(w, r, c.basePath, http.StatusSeeOther)
+	shared.Redirect(w, r, c.basePath)
 }
 
 func (c *AIChatController) aiChat(w http.ResponseWriter, r *http.Request) {
@@ -325,6 +278,18 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 		ChatID:  uint(chatID),
 		Message: msg.Message,
 	})
+	if err != nil {
+		logger.WithError(err).Error("failed to send message to chat thread")
+		http.Error(w, "Failed to send message to chat thread", http.StatusInternalServerError)
+		return
+	}
+
+	chatEntity, err = c.chatService.ReplyWithAI(r.Context(), uint(chatID))
+	if err != nil {
+		logger.WithError(err).Error("failed to get AI response")
+		http.Error(w, "Failed to get AI response", http.StatusInternalServerError)
+		return
+	}
 
 	response := dtos.ChatResponse{
 		ThreadID: strconv.FormatUint(uint64(chatEntity.ID()), 10),

@@ -98,6 +98,12 @@ func (c *chat) ID() uint {
 	return c.id
 }
 
+func (c *chat) WithID(id uint) Chat {
+	newChat := c.copy()
+	newChat.id = id
+	return newChat
+}
+
 func (c *chat) ClientID() uint {
 	return c.clientID
 }

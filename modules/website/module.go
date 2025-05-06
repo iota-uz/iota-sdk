@@ -48,7 +48,10 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 	app.RegisterControllers(
-		controllers.NewAIChatController(app),
+		controllers.NewAIChatController(controllers.AIChatControllerConfig{
+			BasePath: "/website/ai-chat",
+			App:      app,
+		}),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.RegisterHashFsAssets(assets.HashFS)

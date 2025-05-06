@@ -21,6 +21,7 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"You are a helpful assistant",
+		"https://api.openai.com/v1",
 		aichatconfig.WithTemperature(0.8),
 		aichatconfig.WithMaxTokens(2048),
 	)
@@ -37,6 +38,7 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 	assert.Equal(t, "You are a helpful assistant", savedConfig.SystemPrompt())
 	assert.Equal(t, float32(0.8), savedConfig.Temperature())
 	assert.Equal(t, 2048, savedConfig.MaxTokens())
+	assert.False(t, savedConfig.IsDefault())
 	assert.False(t, savedConfig.CreatedAt().IsZero())
 	assert.False(t, savedConfig.UpdatedAt().IsZero())
 }
@@ -53,6 +55,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 		"gpt-3.5-turbo",
 		aichatconfig.AIModelTypeOpenAI,
 		"Original system prompt",
+		"https://api.openai.com/v1",
 		aichatconfig.WithTemperature(0.7),
 		aichatconfig.WithMaxTokens(1024),
 	)
@@ -66,10 +69,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Update the config
-	updatedConfigTemp, err := savedConfig.WithSystemPrompt("Updated system prompt")
-	require.NoError(t, err)
-
-	updatedConfigFinal, err := updatedConfigTemp.WithTemperature(0.9)
+	updatedConfigFinal, err := savedConfig.SetSystemPrompt("Updated system prompt").WithTemperature(0.9)
 	require.NoError(t, err)
 
 	// Save the updated config
@@ -99,6 +99,7 @@ func TestAIChatConfigRepository_GetByID(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"Test system prompt",
+		"https://api.openai.com/v1",
 		aichatconfig.WithTemperature(0.8),
 		aichatconfig.WithMaxTokens(2048),
 	)
@@ -148,6 +149,7 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 		"gpt-3.5-turbo",
 		aichatconfig.AIModelTypeOpenAI,
 		"Config 1 system prompt",
+		"https://api.openai.com/v1",
 	)
 	require.NoError(t, err)
 
@@ -155,6 +157,7 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"Config 2 system prompt",
+		"https://api.openai.com/v1",
 		aichatconfig.WithTemperature(0.9),
 	)
 	require.NoError(t, err)
@@ -203,6 +206,7 @@ func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"Test system prompt",
+		"https://api.openai.com/v1",
 	)
 	require.NoError(t, err)
 
@@ -222,6 +226,7 @@ func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 	// Verify the default config
 	assert.Equal(t, savedConfig.ID(), defaultConfig.ID())
 	assert.Equal(t, savedConfig.ModelName(), defaultConfig.ModelName())
+	assert.True(t, defaultConfig.IsDefault())
 }
 
 func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
@@ -236,6 +241,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 		"gpt-3.5-turbo",
 		aichatconfig.AIModelTypeOpenAI,
 		"Config 1 system prompt",
+		"https://api.openai.com/v1",
 	)
 	require.NoError(t, err)
 
@@ -243,6 +249,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"Config 2 system prompt",
+		"https://api.openai.com/v1",
 	)
 	require.NoError(t, err)
 
@@ -260,6 +267,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 	defaultConfig, err := repo.GetDefault(fixtures.ctx)
 	require.NoError(t, err)
 	assert.Equal(t, savedConfig1.ID(), defaultConfig.ID())
+	assert.True(t, defaultConfig.IsDefault())
 
 	// Set the second config as default
 	err = repo.SetDefault(fixtures.ctx, savedConfig2.ID())
@@ -269,6 +277,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 	defaultConfig, err = repo.GetDefault(fixtures.ctx)
 	require.NoError(t, err)
 	assert.Equal(t, savedConfig2.ID(), defaultConfig.ID())
+	assert.True(t, defaultConfig.IsDefault())
 }
 
 func TestAIChatConfigRepository_SetDefault_NonExistentConfig(t *testing.T) {
@@ -295,6 +304,7 @@ func TestAIChatConfigRepository_Delete(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"Test system prompt",
+		"https://api.openai.com/v1",
 	)
 	require.NoError(t, err)
 
@@ -323,6 +333,7 @@ func TestAIChatConfigRepository_Delete_DefaultConfig(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"Test system prompt",
+		"https://api.openai.com/v1",
 	)
 	require.NoError(t, err)
 
@@ -369,6 +380,7 @@ func TestAIChatConfigRepository_GetDefault_NoDefaultConfig(t *testing.T) {
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
 		"Test system prompt",
+		"https://api.openai.com/v1",
 	)
 	require.NoError(t, err)
 
@@ -378,4 +390,38 @@ func TestAIChatConfigRepository_GetDefault_NoDefaultConfig(t *testing.T) {
 	// Try to get the default config when none is set
 	_, err = repo.GetDefault(fixtures.ctx)
 	assert.ErrorIs(t, err, aichatconfig.ErrConfigNotFound)
+}
+
+func TestAIChatConfigRepository_SaveWithIsDefault(t *testing.T) {
+	t.Parallel()
+	fixtures := setupTest(t)
+
+	// Create a new repository instance
+	repo := persistence.NewAIChatConfigRepository()
+
+	// Create a config with IsDefault set to true
+	config, err := aichatconfig.New(
+		"gpt-4",
+		aichatconfig.AIModelTypeOpenAI,
+		"Test system prompt",
+		"https://api.openai.com/v1",
+		aichatconfig.WithIsDefault(true),
+	)
+	require.NoError(t, err)
+	require.True(t, config.IsDefault())
+
+	// Save the config
+	savedConfig, err := repo.Save(fixtures.ctx, config)
+	require.NoError(t, err)
+	require.NotNil(t, savedConfig)
+
+	// Verify the config is saved with IsDefault true
+	assert.True(t, savedConfig.IsDefault())
+
+	// Get the default config and verify it's the same one
+	defaultConfig, err := repo.GetDefault(fixtures.ctx)
+	require.NoError(t, err)
+	require.NotNil(t, defaultConfig)
+	assert.Equal(t, savedConfig.ID(), defaultConfig.ID())
+	assert.True(t, defaultConfig.IsDefault())
 }

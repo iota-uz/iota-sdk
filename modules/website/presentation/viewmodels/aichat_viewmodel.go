@@ -9,7 +9,6 @@ type AIConfig struct {
 	Temperature  float32
 	MaxTokens    int
 	BaseURL      string
-	AccessToken  string
 	CreatedAt    string
 	UpdatedAt    string
 	IsDefault    bool

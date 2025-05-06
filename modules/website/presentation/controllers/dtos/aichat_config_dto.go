@@ -2,116 +2,109 @@ package dtos
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 
+	"github.com/go-playground/validator/v10"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-// AIConfigDTO represents a data transfer object for AI chat configuration
 type AIConfigDTO struct {
-	ModelName    string
-	ModelType    string
-	SystemPrompt string
-	Temperature  string
-	MaxTokens    string
-	BaseURL      string
-	AccessToken  string
+	ModelName    string  `validate:"required"`
+	ModelType    string  `validate:"required"`
+	SystemPrompt string  `validate:"omitempty"`
+	Temperature  float32 `validate:"omitempty,gte=0,lte=2"`
+	MaxTokens    int     `validate:"omitempty,gt=0"`
+	BaseURL      string  `validate:"required,url"`
+	AccessToken  string  `validate:"omitempty"`
 }
 
-// ToEntity converts the DTO to a domain entity
-func (dto *AIConfigDTO) ToEntity() (aichatconfig.AIConfig, error) {
-	// Parse Temperature
-	var temperature float32
-	if dto.Temperature != "" {
-		temp, err := strconv.ParseFloat(dto.Temperature, 32)
+func (dto *AIConfigDTO) Apply(cfg aichatconfig.AIConfig) (aichatconfig.AIConfig, error) {
+	if cfg == nil {
+		options := []aichatconfig.Option{
+			aichatconfig.WithTemperature(mapping.Or(dto.Temperature, 0.7)),
+			aichatconfig.WithMaxTokens(mapping.Or(dto.MaxTokens, 1024)),
+			aichatconfig.WithIsDefault(true),
+		}
+
+		if dto.AccessToken != "" {
+			options = append(options, aichatconfig.WithAccessToken(dto.AccessToken))
+		}
+
+		modelType := aichatconfig.AIModelType(dto.ModelType)
+
+		return aichatconfig.New(
+			dto.ModelName,
+			modelType,
+			dto.SystemPrompt,
+			dto.BaseURL,
+			options...,
+		)
+	}
+	var err error
+	if dto.ModelName != "" {
+		cfg, err = cfg.WithModelName(dto.ModelName)
 		if err != nil {
 			return nil, err
 		}
-		temperature = float32(temp)
-	} else {
-		temperature = 0.7 // Default value
 	}
-
-	// Parse MaxTokens
-	var maxTokens int
-	if dto.MaxTokens != "" {
-		tokens, err := strconv.Atoi(dto.MaxTokens)
+	if dto.SystemPrompt != "" {
+		cfg = cfg.SetSystemPrompt(dto.SystemPrompt)
+	}
+	if dto.Temperature != 0 {
+		cfg, err = cfg.WithTemperature(dto.Temperature)
 		if err != nil {
 			return nil, err
 		}
-		maxTokens = tokens
-	} else {
-		maxTokens = 1024 // Default value
 	}
-
-	// Set default base URL if not provided
-	baseURL := dto.BaseURL
-	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
+	if dto.MaxTokens != 0 {
+		cfg, err = cfg.WithMaxTokens(dto.MaxTokens)
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	// Create the entity
-	options := []aichatconfig.Option{
-		aichatconfig.WithTemperature(temperature),
-		aichatconfig.WithMaxTokens(maxTokens),
+	if dto.BaseURL != "" {
+		cfg, err = cfg.WithBaseURL(dto.BaseURL)
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	// Add access token if provided
 	if dto.AccessToken != "" {
-		options = append(options, aichatconfig.WithAccessToken(dto.AccessToken))
+		cfg = cfg.SetAccessToken(dto.AccessToken)
 	}
-
-	modelType := aichatconfig.AIModelType(dto.ModelType)
-
-	return aichatconfig.New(
-		dto.ModelName,
-		modelType,
-		dto.SystemPrompt,
-		baseURL,
-		options...,
-	)
+	return cfg, nil
 }
 
-// Ok validates the DTO
 func (dto *AIConfigDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	errors := make(map[string]string)
-
-	// Validate ModelName
-	if dto.ModelName == "" {
-		errors["ModelName"] = "Model name is required"
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		panic(intl.ErrNoLocalizer)
 	}
-
-	// Validate ModelType
-	if dto.ModelType == "" {
-		errors["ModelType"] = "Model type is required"
-	} else if dto.ModelType != string(aichatconfig.AIModelTypeOpenAI) {
-		errors["ModelType"] = "Invalid model type"
-	}
-
-	// Validate BaseURL
-	if dto.BaseURL == "" {
-		errors["BaseURL"] = "Base URL is required"
-	}
-
-	// Validate Temperature
-	if dto.Temperature != "" {
-		temp, err := strconv.ParseFloat(dto.Temperature, 32)
-		if err != nil {
-			errors["Temperature"] = "Temperature must be a valid number"
-		} else if temp < 0.0 || temp > 2.0 {
-			errors["Temperature"] = "Temperature must be between 0.0 and 2.0"
+	errorMessages := map[string]string{}
+	errs := constants.Validate.Struct(dto)
+	if errs == nil {
+		// Additional custom validations
+		if dto.ModelType != "" && dto.ModelType != string(aichatconfig.AIModelTypeOpenAI) {
+			errorMessages["ModelType"] = "Invalid model type"
 		}
+
+		return errorMessages, len(errorMessages) == 0
 	}
 
-	// Validate MaxTokens
-	if dto.MaxTokens != "" {
-		tokens, err := strconv.Atoi(dto.MaxTokens)
-		if err != nil {
-			errors["MaxTokens"] = "Max tokens must be a valid number"
-		} else if tokens <= 0 {
-			errors["MaxTokens"] = "Max tokens must be positive"
-		}
+	for _, err := range errs.(validator.ValidationErrors) {
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("AIChatBot.%s.Label", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
 	}
 
-	return errors, len(errors) == 0
+	return errorMessages, len(errorMessages) == 0
 }
