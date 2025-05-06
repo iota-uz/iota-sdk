@@ -39,7 +39,7 @@ templ ConfigureForm(props ConfigureProps) {
 			hx-target="#configure-content"
 			hx-swap="outerHTML"
 			hx-indicator="#save-btn"
-			class="space-y-4"
+			class="grid grid-cols-2 gap-4"
 		>
 			<input type="hidden" name="id" value={ props.Config.ID }/>
 			// AI Chat Configuration fields
@@ -89,18 +89,6 @@ templ ConfigureForm(props ConfigureProps) {
 				}
 			</div>
 			<div class="mb-4">
-				@input.TextArea(&input.TextAreaProps{
-					Label:       pgCtx.T("AIChatBot.SystemPrompt.Label"),
-					Placeholder: pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
-					Value:       props.Config.SystemPrompt,
-					Error:       props.Errors["SystemPrompt"],
-					Attrs: templ.Attributes{
-						"name": "SystemPrompt",
-						"rows": "5",
-					},
-				})
-			</div>
-			<div class="mb-4">
 				@input.Number(&input.Props{
 					Label:       pgCtx.T("AIChatBot.Temperature.Label"),
 					Placeholder: pgCtx.T("AIChatBot.Temperature.Placeholder"),
@@ -126,7 +114,19 @@ templ ConfigureForm(props ConfigureProps) {
 					},
 				})
 			</div>
-			<div class="flex justify-end">
+			<div class="mb-4 col-span-2">
+				@input.TextArea(&input.TextAreaProps{
+					Label:       pgCtx.T("AIChatBot.SystemPrompt.Label"),
+					Placeholder: pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
+					Value:       props.Config.SystemPrompt,
+					Error:       props.Errors["SystemPrompt"],
+					Attrs: templ.Attributes{
+						"name": "SystemPrompt",
+						"rows": "5",
+					},
+				})
+			</div>
+			<div class="flex justify-end col-span-2">
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{

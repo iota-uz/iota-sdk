@@ -137,7 +137,7 @@ func ConfigureForm(props ConfigureProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-target=\"#configure-content\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\" class=\"space-y-4\"><input type=\"hidden\" name=\"id\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-target=\"#configure-content\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\" class=\"grid grid-cols-2 gap-4\"><input type=\"hidden\" name=\"id\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -245,23 +245,6 @@ func ConfigureForm(props ConfigureProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-			Label:       pgCtx.T("AIChatBot.SystemPrompt.Label"),
-			Placeholder: pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
-			Value:       props.Config.SystemPrompt,
-			Error:       props.Errors["SystemPrompt"],
-			Attrs: templ.Attributes{
-				"name": "SystemPrompt",
-				"rows": "5",
-			},
-		}).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><div class=\"mb-4\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
 		templ_7745c5c3_Err = input.Number(&input.Props{
 			Label:       pgCtx.T("AIChatBot.Temperature.Label"),
 			Placeholder: pgCtx.T("AIChatBot.Temperature.Placeholder"),
@@ -277,7 +260,7 @@ func ConfigureForm(props ConfigureProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div><div class=\"mb-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><div class=\"mb-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -294,7 +277,24 @@ func ConfigureForm(props ConfigureProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><div class=\"flex justify-end\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div><div class=\"mb-4 col-span-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
+			Label:       pgCtx.T("AIChatBot.SystemPrompt.Label"),
+			Placeholder: pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
+			Value:       props.Config.SystemPrompt,
+			Error:       props.Errors["SystemPrompt"],
+			Attrs: templ.Attributes{
+				"name": "SystemPrompt",
+				"rows": "5",
+			},
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><div class=\"flex justify-end col-span-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
