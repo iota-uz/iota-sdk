@@ -4,7 +4,8 @@ import (
 	"embed"
 
 	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	crmPersistence "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
@@ -30,14 +31,17 @@ func (m *Module) Register(app application.Application) error {
 	userRepo := corePersistence.NewUserRepository(
 		corePersistence.NewUploadRepository(),
 	)
-	chatRepo := persistence.NewChatRepository()
+	chatRepo := crmPersistence.NewChatRepository()
 	passportRepo := corePersistence.NewPassportRepository()
-	clientRepo := persistence.NewClientRepository(
+	clientRepo := crmPersistence.NewClientRepository(
 		passportRepo,
 	)
+	aiconfigRepo := persistence.NewAIChatConfigRepository()
 	app.RegisterServices(
+		services.NewAIChatConfigService(aiconfigRepo),
 		services.NewWebsiteChatService(
 			openai.NewClient(configuration.Use().OpenAIKey),
+			aiconfigRepo,
 			userRepo,
 			clientRepo,
 			chatRepo,

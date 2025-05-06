@@ -1,10 +1,7 @@
-package models
+package viewmodels
 
-import (
-	"time"
-)
-
-type AIChatConfig struct {
+// AIConfig represents the view model for the AI chat configuration
+type AIConfig struct {
 	ID           string
 	ModelName    string
 	ModelType    string
@@ -13,7 +10,7 @@ type AIChatConfig struct {
 	MaxTokens    int
 	BaseURL      string
 	AccessToken  string
+	CreatedAt    string
+	UpdatedAt    string
 	IsDefault    bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
 }

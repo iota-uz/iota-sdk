@@ -1,13 +1,6 @@
 package aichat
 
-import (
-	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/card"
-	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-)
+import icons "github.com/iota-uz/icons/phosphor"
 
 templ ChatIcon() {
 	<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -252,33 +245,4 @@ templ Chat(props Props) {
 			</button>
 		</div>
 	</div>
-}
-
-// ---- Configuration ----
-templ Configure(props Props) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("AIChatBot.Meta.Title")},
-	}) {
-		<div class="flex gap-10 items-stretch p-10">
-			@card.Card(card.Props{WrapperClass: "flex-1"}) {
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("AIChatBot.Title.Label"),
-					Placeholder: pageCtx.T("AIChatBot.Title.Placeholder"),
-				})
-				@input.TextArea(&input.TextAreaProps{
-					Label:       pageCtx.T("AIChatBot._Description.Label"),
-					Placeholder: pageCtx.T("AIChatBot._Description.Placeholder"),
-				})
-				<div class="flex justify-end">
-					@button.Primary(button.Props{
-						Size: button.SizeMD,
-					}) {
-						{ pageCtx.T("Save") }
-					}
-				</div>
-			}
-			@Chat(props)
-		</div>
-	}
 }

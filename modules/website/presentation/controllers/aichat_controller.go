@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,12 +10,16 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	crmServices "github.com/iota-uz/iota-sdk/modules/crm/services"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers/dtos"
+	"github.com/iota-uz/iota-sdk/modules/website/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/templates/pages/aichat"
+	"github.com/iota-uz/iota-sdk/modules/website/presentation/viewmodels"
 	websiteServices "github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/validators"
 )
 
 func NewAIChatController(app application.Application) application.Controller {
@@ -23,6 +28,7 @@ func NewAIChatController(app application.Application) application.Controller {
 		app:           app,
 		chatService:   app.Service(websiteServices.WebsiteChatService{}).(*websiteServices.WebsiteChatService),
 		clientService: app.Service(crmServices.ClientService{}).(*crmServices.ClientService),
+		configService: app.Service(websiteServices.AIChatConfigService{}).(*websiteServices.AIChatConfigService),
 	}
 }
 
@@ -31,6 +37,7 @@ type AIChatController struct {
 	app           application.Application
 	chatService   *websiteServices.WebsiteChatService
 	clientService *crmServices.ClientService
+	configService *websiteServices.AIChatConfigService
 }
 
 func (c *AIChatController) Key() string {
@@ -49,6 +56,7 @@ func (c *AIChatController) Register(r *mux.Router) {
 		middleware.NavItems(),
 	)
 	router.HandleFunc("", c.configureAIChat).Methods(http.MethodGet)
+	router.HandleFunc("/config", c.saveConfig).Methods(http.MethodPost)
 
 	bareRouter := r.PathPrefix(c.basePath).Subrouter()
 	bareRouter.HandleFunc("/payload", c.aiChat).Methods(http.MethodGet)
@@ -59,11 +67,145 @@ func (c *AIChatController) Register(r *mux.Router) {
 }
 
 func (c *AIChatController) configureAIChat(w http.ResponseWriter, r *http.Request) {
-	templ.Handler(aichat.Configure(aichat.Props{
-		Title:       "AI Chatbot",
-		Description: "Наш AI-бот готов помочь вам круглосуточно",
-		Endpoint:    c.basePath + "/message",
-	})).ServeHTTP(w, r)
+	logger := composables.UseLogger(r.Context())
+
+	// Try to get the default configuration
+	config, err := c.configService.GetDefault(r.Context())
+	if err != nil && !errors.Is(err, aichatconfig.ErrConfigNotFound) {
+		logger.WithError(err).Error("failed to get default AI chat configuration")
+		http.Error(w, "Failed to get AI chat configuration", http.StatusInternalServerError)
+		return
+	}
+
+	// Create props with default values if no config exists
+	props := aichat.ConfigureProps{
+		FormAction: templ.SafeURL(c.basePath + "/config"),
+	}
+
+	// If we have a config, add its values
+	if err == nil {
+		props.Config = mappers.AIConfigToViewModel(config)
+	} else {
+		// Create empty configuration
+		props.Config = &viewmodels.AIConfig{
+			ModelType:   string(aichatconfig.AIModelTypeOpenAI),
+			Temperature: 0.7,
+			MaxTokens:   1024,
+			BaseURL:     "https://api.openai.com/v1",
+			AccessToken: "",
+		}
+	}
+
+	templ.Handler(aichat.Configure(props)).ServeHTTP(w, r)
+}
+
+func (c *AIChatController) saveConfig(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+
+	// Parse the form
+	dto, err := composables.UseForm(&dtos.AIConfigDTO{}, r)
+	if err != nil {
+		logger.WithError(err).Error("failed to parse form")
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	// Validate the DTO
+	if errors, ok := dto.Ok(r.Context()); !ok {
+		logger.WithField("errors", errors).Error("validation failed")
+
+		// Get the default config for re-rendering the form
+		config, _ := c.configService.GetDefault(r.Context())
+
+		props := aichat.ConfigureProps{
+			FormAction: templ.SafeURL(c.basePath + "/config"),
+			Config: &viewmodels.AIConfig{
+				ModelName:    dto.ModelName,
+				ModelType:    dto.ModelType,
+				SystemPrompt: dto.SystemPrompt,
+				BaseURL:      dto.BaseURL,
+				AccessToken:  dto.AccessToken,
+			},
+			Errors: errors,
+		}
+
+		if dto.Temperature != "" {
+			temp, _ := strconv.ParseFloat(dto.Temperature, 32)
+			props.Config.Temperature = float32(temp)
+		}
+
+		if dto.MaxTokens != "" {
+			tokens, _ := strconv.Atoi(dto.MaxTokens)
+			props.Config.MaxTokens = tokens
+		}
+
+		if config != nil {
+			props.Config.ID = config.ID().String()
+		}
+
+		templ.Handler(aichat.ConfigureForm(props)).ServeHTTP(w, r)
+		return
+	}
+
+	// Convert DTO to entity
+	configEntity, err := dto.ToEntity()
+	if err != nil {
+		logger.WithError(err).Error("failed to convert DTO to entity")
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	// Save the configuration
+	_, err = c.configService.Save(r.Context(), configEntity)
+	if err != nil {
+		var validationErr *validators.ValidationError
+		if errors.As(err, &validationErr) {
+			// Handle validation errors
+			logger.WithError(err).Error("validation failed while saving")
+
+			props := aichat.ConfigureProps{
+				FormAction: templ.SafeURL(c.basePath + "/config"),
+				Config: &viewmodels.AIConfig{
+					ModelName:    dto.ModelName,
+					ModelType:    dto.ModelType,
+					SystemPrompt: dto.SystemPrompt,
+					BaseURL:      dto.BaseURL,
+					AccessToken:  dto.AccessToken,
+				},
+				Errors: validationErr.Fields,
+			}
+
+			if dto.Temperature != "" {
+				temp, _ := strconv.ParseFloat(dto.Temperature, 32)
+				props.Config.Temperature = float32(temp)
+			}
+
+			if dto.MaxTokens != "" {
+				tokens, _ := strconv.Atoi(dto.MaxTokens)
+				props.Config.MaxTokens = tokens
+			}
+
+			templ.Handler(aichat.ConfigureForm(props)).ServeHTTP(w, r)
+			return
+		}
+
+		logger.WithError(err).Error("failed to save AI chat configuration")
+		http.Error(w, "Failed to save AI chat configuration", http.StatusInternalServerError)
+		return
+	}
+
+	// Set as default if it's the first configuration
+	configs, err := c.configService.List(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("failed to list AI chat configurations")
+	} else if len(configs) == 1 {
+		if err := c.configService.SetDefault(r.Context(), configEntity.ID()); err != nil {
+			logger.WithError(err).Error("failed to set default AI chat configuration")
+		}
+	}
+
+	// Redirect back to the configuration page
+	http.Redirect(w, r, c.basePath, http.StatusSeeOther)
 }
 
 func (c *AIChatController) aiChat(w http.ResponseWriter, r *http.Request) {

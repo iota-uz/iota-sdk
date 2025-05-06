@@ -17,3 +17,24 @@ type ThreadMessage struct {
 type ThreadMessagesResponse struct {
 	Messages []ThreadMessage `json:"messages"`
 }
+
+// AIConfigRequest represents a request to create or update an AI chat configuration
+type AIConfigRequest struct {
+	ModelName    string  `json:"ModelName"`
+	ModelType    string  `json:"ModelType"`
+	SystemPrompt string  `json:"SystemPrompt"`
+	Temperature  float32 `json:"Temperature"`
+	MaxTokens    int     `json:"MaxTokens"`
+}
+
+// AIConfigResponse represents the response for an AI chat configuration
+type AIConfigResponse struct {
+	ID           string  `json:"id"`
+	ModelName    string  `json:"model_name"`
+	ModelType    string  `json:"model_type"`
+	SystemPrompt string  `json:"system_prompt"`
+	Temperature  float32 `json:"temperature"`
+	MaxTokens    int     `json:"max_tokens"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
+}
