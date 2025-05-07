@@ -366,6 +366,7 @@ type Props struct {
     Href string
     Rounded bool
     Loading bool
+    Disabled bool
     Class any
     Icon templ.Component
     Attrs templ.Attributes
@@ -1223,7 +1224,7 @@ visual feedback to users while content or data is being processed.
 
 ---
 
-## Package `scaffold` (components/scaffold)
+## Package `table` (components/scaffold)
 
 templ: version: v0.3.857
 
@@ -1282,7 +1283,7 @@ type TableConfig struct {
 ##### Interface Methods
 
 - `Cells() []templ.Component`
-- `Atrrs() templ.Attributes`
+- `Attrs() templ.Attributes`
 - `ApplyOpts(opts ...RowOpt) TableRow`
 
 ### Functions
@@ -1498,22 +1499,14 @@ type Props struct {
 
 ## Package `spotlight` (components/spotlight)
 
-### Types
-
-#### Item
-
-Item represents a search result in the Spotlight component.
-
-
-```go
-type Item struct {
-    Title string
-    Icon templ.Component
-    Link string
-}
-```
-
 ### Functions
+
+#### `func LinkItem(title, link string, icon templ.Component) templ.Component`
+
+#### `func NotFound() templ.Component`
+
+NotFound renders a message indicating that no search results were found.
+
 
 #### `func Spotlight() templ.Component`
 
@@ -1521,7 +1514,12 @@ Spotlight renders a search dialog component that can be triggered
 with a button click or keyboard shortcut.
 
 
-#### `func SpotlightItems(items []*Item) templ.Component`
+#### `func SpotlightItem(i int) templ.Component`
+
+SpotlightItem renders a single item in the Spotlight search results.
+
+
+#### `func SpotlightItems(items []templ.Component, startIdx int) templ.Component`
 
 SpotlightItems renders a list of search results in the Spotlight component.
 If no items are found, it displays a "nothing found" message.
@@ -1612,6 +1610,7 @@ Application with a dynamically extendable service registry
 - `HashFsAssets() []*hashfs.FS`
 - `RBAC() rbac.RBAC`
 - `Spotlight() spotlight.Spotlight`
+- `QuickLinks() *spotlight.QuickLinks`
 - `Migrations() MigrationManager`
 - `NavItems(localizer *i18n.Localizer) []types.NavigationItem`
 - `RegisterNavItems(items ...types.NavigationItem)`
@@ -1685,6 +1684,8 @@ MigrationManager is an interface for handling database migrations
 
 ### Functions
 
+#### `func CheckTrKeys(mods ...application.Module) error`
+
 #### `func Migrate(mods ...application.Module) error`
 
 ### Variables and Constants
@@ -1734,21 +1735,9 @@ CanUserAny checks if the user has any of the given permissions (OR logic)
 
 #### `func InTx(ctx context.Context, fn func(context.Context) error) error`
 
-#### `func MustT(ctx context.Context, msgID string) string`
-
-MustT returns the translation for the given message ID.
-If the translation is not found, it will panic.
-
-
 #### `func MustUseHead(ctx context.Context) templ.Component`
 
 MustUseHead returns the head component from the context or panics
-
-
-#### `func MustUseLocalizer(ctx context.Context) *i18n.Localizer`
-
-MustUseLocalizer returns the localizer from the context.
-If the localizer is not found, it will panic.
 
 
 #### `func MustUseLogo(ctx context.Context) templ.Component`
@@ -1791,20 +1780,6 @@ UseIP returns the IP address from the context.
 If the IP address is not found, the second return value will be false.
 
 
-#### `func UseLocale(ctx context.Context, defaultLocale language.Tag) language.Tag`
-
-UseLocale returns the locale from the context.
-If the locale is not found, the second return value will be false.
-
-
-#### `func UseLocalizedOrFallback(ctx context.Context, key string, fallback string) string`
-
-#### `func UseLocalizer(ctx context.Context) (*i18n.Localizer, bool)`
-
-UseLocalizer returns the localizer from the context.
-If the localizer is not found, the second return value will be false.
-
-
 #### `func UseLogger(ctx context.Context) *logrus.Entry`
 
 UseLogger returns the logger from the context.
@@ -1837,8 +1812,6 @@ UseSession returns the session from the context.
 
 #### `func UseTx(ctx context.Context) (repo.Tx, error)`
 
-#### `func UseUniLocalizer(ctx context.Context) (ut.Translator, error)`
-
 #### `func UseUser(ctx context.Context) (user.User, error)`
 
 UseUser returns the user from the context.
@@ -1855,8 +1828,6 @@ If the user agent is not found, the second return value will be false.
 UseWriter returns the response writer from the context.
 If the response writer is not found, the second return value will be false.
 
-
-#### `func WithLocalizer(ctx context.Context, l *i18n.Localizer) context.Context`
 
 #### `func WithPageCtx(ctx context.Context, pageCtx *types.PageContext) context.Context`
 
@@ -1892,9 +1863,9 @@ WithUser returns a new context with the user.
 
 - Var: `[ErrNoLogoFound ErrNoHeadFound]`
 
-- Var: `[ErrNoLocalizer ErrNoLogger]`
-
 - Var: `[ErrNavItemsNotFound]`
+
+- Var: `[ErrNoLogger]`
 
 - Var: `[ErrTabsNotFound]`
 
@@ -2740,6 +2711,11 @@ Reswap sets the HX-Reswap header to specify how the response will be swapped.
 Retarget sets the HX-Retarget header to specify a new target element.
 
 
+#### `func SSEEvent(html string, event ...string) string`
+
+SSEEvent creates a Server-Sent Event (SSE) formatted string.
+
+
 #### `func SetTrigger(w http.ResponseWriter, event, detail string)`
 
 Trigger sets the HX-Trigger header to trigger client-side events.
@@ -2816,7 +2792,35 @@ type SupportedLanguage struct {
 }
 ```
 
+### Functions
+
+#### `func MustT(ctx context.Context, msgID string) string`
+
+MustT returns the translation for the given message ID.
+If the translation is not found, it will panic.
+
+
+#### `func UseLocale(ctx context.Context) (language.Tag, bool)`
+
+UseLocale returns the locale from the context.
+If the locale is not found, the second return value will be false.
+
+
+#### `func UseLocalizer(ctx context.Context) (*i18n.Localizer, bool)`
+
+UseLocalizer returns the localizer from the context.
+If the localizer is not found, the second return value will be false.
+
+
+#### `func UseUniLocalizer(ctx context.Context) (ut.Translator, error)`
+
+#### `func WithLocale(ctx context.Context, l language.Tag) context.Context`
+
+#### `func WithLocalizer(ctx context.Context, l *i18n.Localizer) context.Context`
+
 ### Variables and Constants
+
+- Var: `[registerTranslations translationLock ErrNoLocalizer]`
 
 - Var: `[SupportedLanguages]`
 
@@ -2998,6 +3002,11 @@ MapDBModels maps entities to db models
 MapViewModels maps entities to view models
 
 
+#### `func Or(args ...T) T`
+
+Or is a utility function that returns the first non-zero value.
+
+
 #### `func Pointer(v T) *T`
 
 Pointer is a utility function that returns a pointer to the given value.
@@ -3056,6 +3065,8 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 
 #### `func Provide(k constants.ContextKey, v any) mux.MiddlewareFunc`
 
+#### `func ProvideLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc`
+
 #### `func ProvideUser() mux.MiddlewareFunc`
 
 #### `func RedirectNotAuthenticated() mux.MiddlewareFunc`
@@ -3067,8 +3078,6 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 #### `func Tabs() mux.MiddlewareFunc`
 
 #### `func TracedMiddleware(name string) mux.MiddlewareFunc`
-
-#### `func WithLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc`
 
 #### `func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc`
 
@@ -3557,20 +3566,47 @@ Package spotlight is a package that provides a way to show a list of items in a 
 
 ### Types
 
-#### Item
+#### DataSource
+
+DataSource provides external items for Spotlight.
+
 
 ##### Interface Methods
 
-- `Icon() templ.Component`
-- `Localized(localizer *i18n.Localizer) string`
-- `Link() string`
+- `Find(ctx context.Context, q string) []Item`
+
+#### Item
+
+Item represents a renderable spotlight entry.
+
+
+##### Interface Methods
+
+- `templ.Component`
+
+#### QuickLink
+
+##### Methods
+
+- `func (QuickLink) Render(ctx context.Context, w io.Writer) error`
+
+#### QuickLinks
+
+##### Methods
+
+- `func (QuickLinks) Add(links ...*QuickLink)`
+
+- `func (QuickLinks) Find(ctx context.Context, q string) []Item`
 
 #### Spotlight
 
+Spotlight streams items matching a query over a channel.
+
+
 ##### Interface Methods
 
-- `Find(localizer *i18n.Localizer, q string) []Item`
-- `Register(...Item)`
+- `Find(ctx context.Context, q string) (chan Item)`
+- `Register(ds DataSource)`
 
 ---
 
@@ -3705,6 +3741,10 @@ type ValidationError struct {
 
 - `func (ValidationError) HasField(field string) bool`
 
+### Functions
+
+#### `func FieldLabel(dto T, err validator.FieldError) string`
+
 ---
 
 ## Package `ws` (pkg/ws)
@@ -3784,63 +3824,6 @@ type SubscriptionMessage struct {
 ```
 
 ### Variables and Constants
-
----
-
-## Package `main` (tools)
-
-### Types
-
-#### Config
-
-```go
-type Config struct {
-    ExcludeDirs []string `yaml:"exclude-dirs"`
-    CheckZeroByteFiles bool `yaml:"check-zero-byte-files"`
-}
-```
-
-#### JSONKeys
-
-```go
-type JSONKeys struct {
-    Keys map[string]bool
-    Path string
-}
-```
-
-#### KeyStore
-
-Add a mutex to protect our key operations
-
-
-#### LintError
-
-```go
-type LintError struct {
-    File string
-    Line int
-    Message string
-}
-```
-
-##### Methods
-
-- `func (LintError) Error() string`
-
-#### LinterConfig
-
-```go
-type LinterConfig struct {
-    LintersSettings struct{...} `yaml:"linters-settings"`
-}
-```
-
-### Functions
-
-### Variables and Constants
-
-- Var: `[JSONLinter]`
 
 ---
 
