@@ -81,14 +81,22 @@ func OrderToViewModel(entity order.Order, inStockByPosition map[uint]int) *viewm
 }
 
 func CheckToViewModel(entity *inventory.Check) *viewmodels.Check {
+	var createdBy *coreviewmodels.User
+	if entity.CreatedBy != nil {
+		createdBy = mappers.UserToViewModel(entity.CreatedBy)
+	}
+	var finishedBy *coreviewmodels.User
+	if entity.FinishedBy != nil {
+		finishedBy = mappers.UserToViewModel(entity.FinishedBy)
+	}
 	return &viewmodels.Check{
 		ID:         strconv.FormatUint(uint64(entity.ID), 10),
 		Name:       entity.Name,
 		Results:    mapping.MapViewModels(entity.Results, CheckResultToViewModel),
 		Status:     string(entity.Status),
 		CreatedAt:  entity.CreatedAt.Format(time.RFC3339),
-		CreatedBy:  mappers.UserToViewModel(entity.CreatedBy),
-		FinishedBy: mappers.UserToViewModel(entity.FinishedBy),
+		CreatedBy:  createdBy,
+		FinishedBy: finishedBy,
 	}
 }
 
