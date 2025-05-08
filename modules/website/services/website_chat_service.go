@@ -27,7 +27,6 @@ type ReplyToThreadDTO struct {
 }
 
 type WebsiteChatService struct {
-	openaiClient *openai.Client
 	aiconfigRepo aichatconfig.Repository
 	userRepo     user.Repository
 	clientRepo   client.Repository
@@ -35,14 +34,12 @@ type WebsiteChatService struct {
 }
 
 func NewWebsiteChatService(
-	openaiClient *openai.Client,
 	aiconfigRepo aichatconfig.Repository,
 	userRepo user.Repository,
 	clientRepo client.Repository,
 	chatRepo chat.Repository,
 ) *WebsiteChatService {
 	return &WebsiteChatService{
-		openaiClient: openaiClient,
 		aiconfigRepo: aiconfigRepo,
 		userRepo:     userRepo,
 		clientRepo:   clientRepo,
@@ -186,7 +183,6 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 		return nil, err
 	}
 
-	// Get all messages from the chat
 	messages := chatEntity.Messages()
 	if len(messages) == 0 {
 		return nil, chat.ErrNoMessages
@@ -206,11 +202,6 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 		})
 	}
 
-	// Set model configuration
-	modelName := config.ModelName()
-	temperature := config.Temperature()
-	maxTokens := config.MaxTokens()
-
 	for _, msg := range messages {
 		role := openai.ChatMessageRoleUser
 		if msg.Sender().Sender().Type() == chat.UserSenderType {
@@ -224,13 +215,14 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 	}
 
 	completionReq := openai.ChatCompletionRequest{
-		Model:       modelName,
+		Model:       config.ModelName(),
 		Messages:    openaiMessages,
-		Temperature: float32(temperature),
-		MaxTokens:   maxTokens,
+		Temperature: float32(config.Temperature()),
+		MaxTokens:   config.MaxTokens(),
 	}
+	openaiClient := openai.NewClient(config.AccessToken())
 
-	response, err := s.openaiClient.CreateChatCompletion(ctx, completionReq)
+	response, err := openaiClient.CreateChatCompletion(ctx, completionReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AI response: %w", err)
 	}

@@ -155,7 +155,6 @@ func (r *AIChatConfigRepository) SetDefault(ctx context.Context, id uuid.UUID) e
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Check if the config exists
 	var exists bool
 	err = tx.QueryRow(ctx, aiConfigExistsQuery, id.String()).Scan(&exists)
 	if err != nil {
@@ -168,13 +167,11 @@ func (r *AIChatConfigRepository) SetDefault(ctx context.Context, id uuid.UUID) e
 
 	now := time.Now()
 
-	// First clear any existing default
 	_, err = tx.Exec(ctx, aiConfigClearDefaultQuery, now)
 	if err != nil {
 		return errors.Wrap(err, "failed to clear default config")
 	}
 
-	// Then set the new default
 	result, err := tx.Exec(ctx, aiConfigSetDefaultQuery, now, id.String())
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to set config ID %s as default", id.String()))
@@ -194,7 +191,6 @@ func (r *AIChatConfigRepository) Delete(ctx context.Context, id uuid.UUID) error
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Check if the config exists
 	var exists bool
 	err = tx.QueryRow(ctx, aiConfigExistsQuery, id.String()).Scan(&exists)
 	if err != nil {
@@ -205,7 +201,6 @@ func (r *AIChatConfigRepository) Delete(ctx context.Context, id uuid.UUID) error
 		return aichatconfig.ErrConfigNotFound
 	}
 
-	// Check if it's the default config
 	var isDefault bool
 	err = tx.QueryRow(ctx, aiConfigGetIsDefaultQuery, id.String()).Scan(&isDefault)
 	if err != nil {

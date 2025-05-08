@@ -10,15 +10,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/sashabaranov/go-openai"
 )
 
 //go:embed presentation/locales/*.json
-var localeFiles embed.FS
+var LocaleFiles embed.FS
 
-////go:embed infrastructure/persistence/schema/warehouse-schema.sql
-//var migrationFiles embed.FS
+//go:embed infrastructure/persistence/schema/website-schema.sql
+var MigrationFiles embed.FS
 
 func NewModule() application.Module {
 	return &Module{}
@@ -40,7 +38,6 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterServices(
 		services.NewAIChatConfigService(aiconfigRepo),
 		services.NewWebsiteChatService(
-			openai.NewClient(configuration.Use().OpenAIKey),
 			aiconfigRepo,
 			userRepo,
 			clientRepo,
@@ -53,7 +50,8 @@ func (m *Module) Register(app application.Application) error {
 			App:      app,
 		}),
 	)
-	app.RegisterLocaleFiles(&localeFiles)
+	app.RegisterLocaleFiles(&LocaleFiles)
+	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterHashFsAssets(assets.HashFS)
 	return nil
 }
