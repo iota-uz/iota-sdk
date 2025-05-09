@@ -7,7 +7,7 @@ import type { Translations } from '@/lib/translations';
 interface CallbackModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (phoneNumber: string) => void
+  onSubmit: (_phoneNumber: string) => void
   translations: Translations
 }
 

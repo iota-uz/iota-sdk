@@ -1,6 +1,6 @@
 'use client';
 
-import type React from 'react';
+import * as React from 'react';
 
 import { ChevronDown, Send } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
@@ -35,11 +35,10 @@ interface MessageBubbleProps {
 const MessageBubble = ({ message, translations, botTitle }: MessageBubbleProps) => {
   return (
     <div
-      className={`max-w-[80%] w-fit ${
-        message.sender === 'user'
-          ? 'ml-auto bg-[#dce6f3] rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl p-3'
-          : 'bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm'
-      }`}
+      className={`max-w-[80%] w-fit ${message.sender === 'user'
+        ? 'ml-auto bg-[#dce6f3] rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl p-3'
+        : 'bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm'
+        }`}
     >
       {message.sender === 'bot' && (
         <div className="text-[#2e67b4] font-medium mb-2">{botTitle || translations.chatbotTitle}</div>
@@ -87,62 +86,10 @@ export default function ChatbotInterface({
   const [isOpen, setIsOpen] = useState(true);
   const [windowHeight, setWindowHeight] = useState(0);
 
-  // Use custom title/subtitle or fallback to translations
   const chatbotTitle = title || translations.chatbotTitle;
   const chatbotSubtitle = subtitle || translations.chatbotSubtitle;
 
-  // Update window height on mount and resize
-  useEffect(() => {
-    const updateWindowHeight = () => {
-      setWindowHeight(window.innerHeight);
-    };
-
-    // Set initial height
-    updateWindowHeight();
-
-    // Add event listener for resize
-    window.addEventListener('resize', updateWindowHeight);
-
-    // Clean up
-    return () => window.removeEventListener('resize', updateWindowHeight);
-  }, []);
-
-  // Check for existing thread ID in localStorage on component mount
-  useEffect(() => {
-    const storedThreadId = localStorage.getItem('chatThreadId');
-    const storedPhone = localStorage.getItem('chatPhoneNumber');
-
-    if (storedThreadId && storedPhone) {
-      setThreadId(storedThreadId);
-      setPhoneNumber(storedPhone);
-      setPhoneSubmitted(true);
-      setShowDateHeader(true);
-      fetchMessages(storedThreadId);
-    } else {
-      // Show initial welcome message if no existing thread
-      setMessages([
-        {
-          id: 'welcome',
-          content: `${translations.welcomeGreeting}\n\n${translations.welcomeMessage}`,
-          sender: 'bot',
-          timestamp: new Date(),
-        },
-      ]);
-    }
-
-    // Clear the newThreadId flag when loading an existing thread
-    if (storedThreadId) {
-      localStorage.removeItem('newThreadId');
-    }
-  }, [translations]);
-
-  // Auto-scroll to bottom of messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
-
-  // Reset chat - clear thread ID and messages
-  const handleResetChat = () => {
+  const handleResetChat = React.useCallback(() => {
     localStorage.removeItem('chatThreadId');
     localStorage.removeItem('chatPhoneNumber');
     setThreadId(null);
@@ -157,11 +104,9 @@ export default function ChatbotInterface({
         timestamp: new Date(),
       },
     ]);
-  };
+  }, [translations, setThreadId, setPhoneSubmitted, setPhoneNumber, setError, setMessages]);
 
-  // Handle 404 errors by resetting the chat
-  const handle404Error = () => {
-    // Add a message explaining what happened
+  const handle404Error = React.useCallback(() => {
     const errorMsg: ChatMessage = {
       id: `bot-error-${Date.now()}`,
       content: translations.threadNotFoundMessage,
@@ -171,19 +116,16 @@ export default function ChatbotInterface({
 
     setMessages([errorMsg]);
 
-    // Reset the chat state
     handleResetChat();
-  };
+  }, [translations, setMessages, handleResetChat]);
 
-  // Fetch message history for an existing thread
-  const fetchMessages = async (threadId: string) => {
+  const fetchMessages = React.useCallback(async (threadId: string) => {
     try {
       setIsTyping(true);
       setError(null);
 
       const response = await chatApi.getMessages(threadId);
 
-      // Convert API messages to UI message format
       const chatMessages: ChatMessage[] = response.messages.map((msg, index) => ({
         id: `${msg.role}-${index}`,
         content: msg.message,
@@ -193,9 +135,6 @@ export default function ChatbotInterface({
 
       setMessages(chatMessages);
     } catch (error) {
-      console.error('Error fetching messages:', error);
-
-      // Check if it's a 404 error (thread not found)
       if (error instanceof Error && error.message.includes('404')) {
         handle404Error();
         return;
@@ -215,38 +154,74 @@ export default function ChatbotInterface({
     } finally {
       setIsTyping(false);
     }
-  };
+  }, [setIsTyping, setError, setMessages, handle404Error, translations]);
 
-  // Handle phone submission - create a new thread
+
+
+  useEffect(() => {
+    const updateWindowHeight = () => {
+      setWindowHeight(window.innerHeight);
+    };
+
+    updateWindowHeight();
+
+    window.addEventListener('resize', updateWindowHeight);
+
+    return () => window.removeEventListener('resize', updateWindowHeight);
+  }, []);
+
+  useEffect(() => {
+    const storedThreadId = localStorage.getItem('chatThreadId');
+    const storedPhone = localStorage.getItem('chatPhoneNumber');
+
+    if (storedThreadId && storedPhone) {
+      setThreadId(storedThreadId);
+      setPhoneNumber(storedPhone);
+      setPhoneSubmitted(true);
+      setShowDateHeader(true);
+      fetchMessages(storedThreadId);
+    } else {
+      setMessages([
+        {
+          id: 'welcome',
+          content: `${translations.welcomeGreeting}\n\n${translations.welcomeMessage}`,
+          sender: 'bot',
+          timestamp: new Date(),
+        },
+      ]);
+    }
+
+    if (storedThreadId) {
+      localStorage.removeItem('newThreadId');
+    }
+  }, [translations, fetchMessages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
+
   const handlePhoneSubmit = async () => {
-    if (phoneNumber.trim().length === 0) {return;}
+    if (phoneNumber.trim().length === 0) { return; }
 
     try {
       setIsTyping(true);
       setError(null);
 
-      // Create initial message - using the same message regardless of locale for simplicity
-      // In a real app, you might want to translate this too
       const initialMessage = 'Здравствуйте, я хотел бы узнать больше о страховых услугах.';
 
-      // Create a new thread with the phone number
       const response = await chatApi.createThread({
         message: initialMessage,
         phone: phoneNumber,
       });
 
-      // Store thread ID and phone number
       setThreadId(response.thread_id);
-      // Mark this as a new thread created in this session
       localStorage.setItem('newThreadId', response.thread_id);
       localStorage.setItem('chatThreadId', response.thread_id);
       localStorage.setItem('chatPhoneNumber', phoneNumber);
 
-      // Update UI state
       setPhoneSubmitted(true);
       setShowDateHeader(true);
 
-      // Add initial message to UI
       const userMessage: ChatMessage = {
         id: 'user-initial',
         content: initialMessage,
@@ -256,10 +231,8 @@ export default function ChatbotInterface({
 
       setMessages([userMessage]);
 
-      // Fetch messages to get the assistant's response
       await fetchMessages(response.thread_id);
     } catch (error) {
-      console.error('Error creating thread:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`${translations.errorCreatingChat}: ${errorMessage}`);
 
@@ -276,11 +249,9 @@ export default function ChatbotInterface({
     }
   };
 
-  // Handle message submission - add message to existing thread
   const handleSendMessage = async () => {
-    if (currentMessage.trim().length === 0 || !threadId) {return;}
+    if (currentMessage.trim().length === 0 || !threadId) { return; }
 
-    // Add user message to UI immediately
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       content: currentMessage,
@@ -293,24 +264,19 @@ export default function ChatbotInterface({
     setCurrentMessage('');
     setError(null);
 
-    // Show typing indicator
     setIsTyping(true);
 
     try {
-      // Send message to API
       await chatApi.addMessage(threadId, {
         message: messageToSend,
       });
 
-      // Fetch updated messages to get the assistant's response
       const response = await chatApi.getMessages(threadId);
 
-      // Find the latest assistant message
       const assistantMessages = response.messages.filter((msg) => msg.role === 'assistant');
       if (assistantMessages.length > 0) {
         const latestAssistantMessage = assistantMessages[assistantMessages.length - 1];
 
-        // Add bot response to UI
         const botMessage: ChatMessage = {
           id: `bot-${Date.now()}`,
           content: latestAssistantMessage.message,
@@ -322,13 +288,11 @@ export default function ChatbotInterface({
           // Check if this message is already in the list to avoid duplicates
           const isDuplicate = prev.some((msg) => msg.sender === 'bot' && msg.content === latestAssistantMessage.message);
 
-          if (isDuplicate) {return prev;}
+          if (isDuplicate) { return prev; }
           return [...prev, botMessage];
         });
       }
     } catch (error) {
-      console.error('Error sending message:', error);
-
       // Check if it's a 404 error (thread not found)
       if (error instanceof Error && error.message.includes('404')) {
         handle404Error();
@@ -380,7 +344,6 @@ export default function ChatbotInterface({
     setMessages((prev) => [...prev, botMessage]);
 
     // In a real application, you would send this request to your backend
-    console.log('Callback requested for phone:', callbackPhone);
   };
 
   // Calculate chat dimensions
@@ -392,9 +355,8 @@ export default function ChatbotInterface({
   return (
     <div className="fixed bottom-4 right-4 z-50">
       <div
-        className={`overflow-hidden bg-white rounded-lg shadow-lg transition-all duration-300 ${
-          isOpen ? 'opacity-100' : 'opacity-95'
-        }`}
+        className={`overflow-hidden bg-white rounded-lg shadow-lg transition-all duration-300 ${isOpen ? 'opacity-100' : 'opacity-95'
+          }`}
         style={{
           width: `${chatWidth}px`,
           height: isOpen ? `${maxChatHeight}px` : `${headerHeight}px`,
@@ -414,9 +376,8 @@ export default function ChatbotInterface({
             <p className="text-sm opacity-90">{chatbotSubtitle}</p>
           </div>
           <ChevronDown
-            className={`absolute right-4 top-1/2 transform -translate-y-1/2 transition-transform duration-300 ${
-              isOpen ? '' : 'rotate-180'
-            }`}
+            className={`absolute right-4 top-1/2 transform -translate-y-1/2 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'
+              }`}
           />
         </div>
 
@@ -515,11 +476,10 @@ export default function ChatbotInterface({
 
               {/* Send Button */}
               <button
-                className={`w-full py-3 rounded-lg mb-4 ${
-                  phoneSubmitted && currentMessage.trim() && !isTyping
-                    ? 'bg-[#2e67b4] text-white'
-                    : 'bg-[#e4e9ee] text-[#bdc8d2]'
-                }`}
+                className={`w-full py-3 rounded-lg mb-4 ${phoneSubmitted && currentMessage.trim() && !isTyping
+                  ? 'bg-[#2e67b4] text-white'
+                  : 'bg-[#e4e9ee] text-[#bdc8d2]'
+                  }`}
                 onClick={phoneSubmitted ? handleSendMessage : handlePhoneSubmit}
                 disabled={
                   (phoneSubmitted ? currentMessage.trim().length === 0 : phoneNumber.trim().length === 0) || isTyping
