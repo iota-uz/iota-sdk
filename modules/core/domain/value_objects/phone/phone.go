@@ -22,6 +22,7 @@ type AreaCode struct {
 
 type Phone interface {
 	Value() string
+	E164() string
 }
 
 func Strip(v string) string {
@@ -105,12 +106,17 @@ func NewFromE164(v string) (Phone, error) {
 	//		return phone(""), err
 	//	}
 
-	return phone(stripped), nil
+	return phone("+" + stripped), nil
 }
 
 type phone string
 
+// TODO: rewrite this, kept for backward compatibility
 func (p phone) Value() string {
+	return Strip(string(p))
+}
+
+func (p phone) E164() string {
 	return string(p)
 }
 
