@@ -1,437 +1,143 @@
-"use client"
+'use client';
 
-import type React from "react"
+import { useState } from 'react';
+import ChatbotInterface, { type FAQItem } from '@/components/chatbot-interface';
 
-import { ChevronDown, Send } from "lucide-react"
-import { useState, useRef, useEffect } from "react"
-import { formatDate } from "@/lib/utils"
-import { CallbackModal } from "@/components/callback-modal"
-import { TypingIndicator } from "@/components/typing-indicator"
-import { QuickReplyButtons } from "@/components/quick-reply-buttons"
-import { chatApi } from "@/lib/api-service"
-import { getTranslations, type Translations } from "@/lib/translations"
+export default function Home() {
+  const [locale, setLocale] = useState<string>('ru');
+  const [apiEndpoint, setApiEndpoint] = useState<string>('http://localhost:3200/website/ai-chat');
+  const [title, setTitle] = useState<string>('AI Chat Bot');
+  const [subtitle, setSubtitle] = useState<string>('Our AI bot is ready to help you 24/7');
 
-// Message type definition for UI
-type ChatMessage = {
-  id: string
-  content: string
-  sender: "user" | "bot"
-  timestamp: Date
-}
-
-// Message component
-interface MessageBubbleProps {
-  message: ChatMessage
-  translations: Translations
-}
-
-const MessageBubble = ({ message, translations }: MessageBubbleProps) => {
-  return (
-    <div
-      className={`max-w-[80%] w-fit ${
-        message.sender === "user"
-          ? "ml-auto bg-[#dce6f3] rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl p-3"
-          : "bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm"
-      }`}
-    >
-      {message.sender === "bot" && <div className="text-[#2e67b4] font-medium mb-2">{translations.chatbotTitle}</div>}
-      <p className="whitespace-pre-line">{message.content}</p>
-    </div>
-  )
-}
-
-interface ChatbotInterfaceProps {
-  locale?: string
-}
-
-export default function ChatbotInterface({ locale = "ru" }: ChatbotInterfaceProps) {
-  // Get translations for the specified locale
-  const translations = getTranslations(locale)
-
-  const [phoneSubmitted, setPhoneSubmitted] = useState(false)
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [currentMessage, setCurrentMessage] = useState("")
-  const [showDateHeader, setShowDateHeader] = useState(false)
-  const [isCallbackModalOpen, setIsCallbackModalOpen] = useState(false)
-  const [isTyping, setIsTyping] = useState(false)
-  const [threadId, setThreadId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // Check for existing thread ID in localStorage on component mount
-  useEffect(() => {
-    const storedThreadId = localStorage.getItem("chatThreadId")
-    const storedPhone = localStorage.getItem("chatPhoneNumber")
-
-    if (storedThreadId && storedPhone) {
-      setThreadId(storedThreadId)
-      setPhoneNumber(storedPhone)
-      setPhoneSubmitted(true)
-      setShowDateHeader(true)
-      fetchMessages(storedThreadId)
-    } else {
-      // Show initial welcome message if no existing thread
-      setMessages([
-        {
-          id: "welcome",
-          content: `${translations.welcomeGreeting}\n\n${translations.welcomeMessage}`,
-          sender: "bot",
-          timestamp: new Date(),
-        },
-      ])
-    }
-
-    // Clear the newThreadId flag when loading an existing thread
-    if (storedThreadId) {
-      localStorage.removeItem("newThreadId")
-    }
-  }, [translations])
-
-  // Auto-scroll to bottom of messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, isTyping])
-
-  // Fetch message history for an existing thread
-  const fetchMessages = async (threadId: string) => {
-    try {
-      setIsTyping(true)
-      setError(null)
-
-      const response = await chatApi.getMessages(threadId)
-
-      // Convert API messages to UI message format
-      const chatMessages: ChatMessage[] = response.messages.map((msg, index) => ({
-        id: `${msg.role}-${index}`,
-        content: msg.message,
-        sender: msg.role === "user" ? "user" : "bot",
-        timestamp: new Date(), // API doesn't provide timestamps, so we use current time
-      }))
-
-      setMessages(chatMessages)
-    } catch (error) {
-      console.error("Error fetching messages:", error)
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      setError(`${translations.errorLoadingMessages}: ${errorMessage}`)
-
-      setMessages([
-        {
-          id: "error",
-          content: translations.errorLoadingMessages,
-          sender: "bot",
-          timestamp: new Date(),
-        },
-      ])
-    } finally {
-      setIsTyping(false)
-    }
-  }
-
-  // Handle phone submission - create a new thread
-  const handlePhoneSubmit = async () => {
-    if (phoneNumber.trim().length === 0) return
-
-    try {
-      setIsTyping(true)
-      setError(null)
-
-      // Create initial message - using the same message regardless of locale for simplicity
-      // In a real app, you might want to translate this too
-      const initialMessage = "Здравствуйте, я хотел бы узнать больше о страховых услугах."
-
-      // Create a new thread with the phone number
-      const response = await chatApi.createThread({
-        message: initialMessage,
-        phone: phoneNumber,
-      })
-
-      // Store thread ID and phone number
-      setThreadId(response.thread_id)
-      // Mark this as a new thread created in this session
-      localStorage.setItem("newThreadId", response.thread_id)
-      localStorage.setItem("chatThreadId", response.thread_id)
-      localStorage.setItem("chatPhoneNumber", phoneNumber)
-
-      // Update UI state
-      setPhoneSubmitted(true)
-      setShowDateHeader(true)
-
-      // Add initial message to UI
-      const userMessage: ChatMessage = {
-        id: `user-initial`,
-        content: initialMessage,
-        sender: "user",
-        timestamp: new Date(),
-      }
-
-      setMessages([userMessage])
-
-      // Fetch messages to get the assistant's response
-      await fetchMessages(response.thread_id)
-    } catch (error) {
-      console.error("Error creating thread:", error)
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      setError(`${translations.errorCreatingChat}: ${errorMessage}`)
-
-      setMessages([
-        {
-          id: "error",
-          content: translations.errorCreatingChat,
-          sender: "bot",
-          timestamp: new Date(),
-        },
-      ])
-    } finally {
-      setIsTyping(false)
-    }
-  }
-
-  // Handle message submission - add message to existing thread
-  const handleSendMessage = async () => {
-    if (currentMessage.trim().length === 0 || !threadId) return
-
-    // Add user message to UI immediately
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      content: currentMessage,
-      sender: "user",
-      timestamp: new Date(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    const messageToSend = currentMessage
-    setCurrentMessage("")
-    setError(null)
-
-    // Show typing indicator
-    setIsTyping(true)
-
-    try {
-      // Send message to API
-      await chatApi.addMessage(threadId, {
-        message: messageToSend,
-      })
-
-      // Fetch updated messages to get the assistant's response
-      const response = await chatApi.getMessages(threadId)
-
-      // Find the latest assistant message
-      const assistantMessages = response.messages.filter((msg) => msg.role === "assistant")
-      if (assistantMessages.length > 0) {
-        const latestAssistantMessage = assistantMessages[assistantMessages.length - 1]
-
-        // Add bot response to UI
-        const botMessage: ChatMessage = {
-          id: `bot-${Date.now()}`,
-          content: latestAssistantMessage.message,
-          sender: "bot",
-          timestamp: new Date(),
-        }
-
-        setMessages((prev) => {
-          // Check if this message is already in the list to avoid duplicates
-          const isDuplicate = prev.some((msg) => msg.sender === "bot" && msg.content === latestAssistantMessage.message)
-
-          if (isDuplicate) return prev
-          return [...prev, botMessage]
-        })
-      }
-    } catch (error) {
-      console.error("Error sending message:", error)
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      setError(`${translations.errorSendingMessage}: ${errorMessage}`)
-
-      // Add error message to UI
-      const errorMsg: ChatMessage = {
-        id: `bot-error-${Date.now()}`,
-        content: translations.errorSendingMessage,
-        sender: "bot",
-        timestamp: new Date(),
-      }
-
-      setMessages((prev) => [...prev, errorMsg])
-    } finally {
-      setIsTyping(false)
-    }
-  }
-
-  // Handle quick reply button click
-  const handleQuickReply = (question: string) => {
-    setCurrentMessage(question)
-    setTimeout(() => {
-      handleSendMessage()
-    }, 100)
-  }
-
-  // Handle Enter key press
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      phoneSubmitted ? handleSendMessage() : handlePhoneSubmit()
-    }
-  }
-
-  // Handle callback request submission
-  const handleCallbackSubmit = (callbackPhone: string) => {
-    // Add bot confirmation message
-    const botMessage: ChatMessage = {
-      id: `bot-${Date.now()}`,
-      content: translations.callbackConfirmation.replace("{phone}", callbackPhone),
-      sender: "bot",
-      timestamp: new Date(),
-    }
-
-    setMessages((prev) => [...prev, botMessage])
-
-    // In a real application, you would send this request to your backend
-    console.log("Callback requested for phone:", callbackPhone)
-  }
-
-  // Reset chat - clear thread ID and messages
-  const handleResetChat = () => {
-    localStorage.removeItem("chatThreadId")
-    localStorage.removeItem("chatPhoneNumber")
-    setThreadId(null)
-    setPhoneSubmitted(false)
-    setPhoneNumber("")
-    setError(null)
-    setMessages([
-      {
-        id: "welcome",
-        content: `${translations.welcomeGreeting}\n\n${translations.welcomeMessage}`,
-        sender: "bot",
-        timestamp: new Date(),
-      },
-    ])
-  }
+  // Custom FAQ items for demo
+  const [faqItems, setFaqItems] = useState<FAQItem[]>([
+    { id: 'extend-policy', question: 'Как продлить полис?' },
+    { id: 'find-contract', question: 'Где найти номер договора?' },
+    { id: 'submit-claim', question: 'Как подать заявление на страховой случай?' },
+  ]);
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-[#f2f5f8]">
-      <div className="w-full max-w-md mx-auto overflow-hidden bg-white rounded-lg shadow-lg">
-        {/* Header */}
-        <div className="relative bg-[#0a223e] text-white p-4 flex items-center">
-          <div className="w-10 h-10 bg-[#8b98a5] rounded-full flex items-center justify-center mr-3">
-            <span className="text-white">•••</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-medium">{translations.chatbotTitle}</h1>
-            <p className="text-sm opacity-90">{translations.chatbotSubtitle}</p>
-          </div>
-          <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2" />
-        </div>
+    <div className="min-h-screen bg-gray-100">
+      <div className="container mx-auto py-8">
+        <div className="mb-8 bg-white p-6 rounded-lg shadow">
+          <h1 className="text-2xl font-bold mb-6">AI Chatbot Configuration Demo</h1>
 
-        {/* Chat Area */}
-        <div className="bg-[#f2f5f8] p-4 h-[500px] overflow-y-auto">
-          {!phoneSubmitted ? (
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <div className="text-[#2e67b4] font-medium mb-2">{translations.chatbotTitle}</div>
-              <p className="mb-2">{translations.welcomeGreeting}</p>
-              <p className="mb-4">{translations.welcomeMessage}</p>
-              <p className="flex items-start">
-                <span className="inline-block mr-2 mt-1">🔒</span>
-                <span>{translations.phoneRequestMessage}</span>
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {showDateHeader && (
-                <div className="text-center text-[#8b98a5] text-sm py-2">{formatDate(new Date(), translations)}</div>
-              )}
-
-              {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                  <span className="block sm:inline">{error}</span>
-                </div>
-              )}
-
-              {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} translations={translations} />
-              ))}
-
-              {/* Typing indicator */}
-              {isTyping && <TypingIndicator translations={translations} />}
-
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 bg-white">
-          {!phoneSubmitted ? (
-            /* Phone Input */
-            <div className="flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg">
-              <input
-                type="text"
-                className="bg-transparent focus:outline-none text-[#0a223e] flex-1"
-                placeholder={translations.phoneInputPlaceholder}
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                onKeyDown={handleKeyPress}
-              />
-              <button onClick={handlePhoneSubmit} disabled={isTyping}>
-                <Send className={`ml-auto ${isTyping ? "text-[#8b98a5]" : "text-[#0a223e]"}`} size={20} />
+          {/* Language Selection */}
+          <div className="mb-6">
+            <h2 className="text-lg font-medium mb-3">Language</h2>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setLocale('ru')}
+                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'ru' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
+              >
+                Russian
+              </button>
+              <button
+                onClick={() => setLocale('uz')}
+                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'uz' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
+              >
+                Uzbek (Latin)
+              </button>
+              <button
+                onClick={() => setLocale('uzCyrl')}
+                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'uzCyrl'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
+              >
+                Uzbek (Cyrillic)
+              </button>
+              <button
+                onClick={() => setLocale('en')}
+                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'en' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
+              >
+                English
               </button>
             </div>
-          ) : (
-            /* Message Input */
-            <div className="flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg">
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Title and Subtitle Configuration */}
+            <div>
+              <h2 className="text-lg font-medium mb-3">Chatbot Title</h2>
               <input
                 type="text"
-                className="bg-transparent focus:outline-none text-[#0a223e] flex-1"
-                placeholder={translations.messageInputPlaceholder}
-                value={currentMessage}
-                onChange={(e) => setCurrentMessage(e.target.value)}
-                onKeyDown={handleKeyPress}
-                disabled={isTyping}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter chatbot title"
               />
-              <button onClick={handleSendMessage} disabled={isTyping || currentMessage.trim().length === 0}>
-                <Send
-                  className={`ml-auto ${currentMessage.trim() && !isTyping ? "text-[#0a223e]" : "text-[#8b98a5]"}`}
-                  size={20}
+            </div>
+            <div>
+              <h2 className="text-lg font-medium mb-3">Chatbot Subtitle</h2>
+              <input
+                type="text"
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter chatbot subtitle"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6">
+            {/* API Endpoint Input */}
+            <div>
+              <h2 className="text-lg font-medium mb-3">API Endpoint</h2>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="apiEndpoint"
+                  value={apiEndpoint}
+                  onChange={(e) => setApiEndpoint(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter API endpoint"
                 />
-              </button>
+                <button
+                  onClick={() => setApiEndpoint('http://localhost:3200/website/ai-chat')}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                >
+                  Reset
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Enter the direct URL to your IOTA SDK server</p>
             </div>
-          )}
 
-          {/* Quick Reply Buttons - only show for new conversations */}
-          {(!threadId || threadId === localStorage.getItem("newThreadId")) && (
-            <QuickReplyButtons translations={translations} isTyping={isTyping} onQuickReply={handleQuickReply} />
-          )}
-
-          {/* Send Button */}
-          <button
-            className={`w-full py-3 rounded-lg mb-4 ${
-              phoneSubmitted && currentMessage.trim() && !isTyping
-                ? "bg-[#2e67b4] text-white"
-                : "bg-[#e4e9ee] text-[#bdc8d2]"
-            }`}
-            onClick={phoneSubmitted ? handleSendMessage : handlePhoneSubmit}
-            disabled={
-              (phoneSubmitted ? currentMessage.trim().length === 0 : phoneNumber.trim().length === 0) || isTyping
-            }
-          >
-            {translations.sendButton}
-          </button>
-
-          {/* Request Callback Button */}
-          <button
-            className="w-full py-3 border border-[#2e67b4] text-[#2e67b4] rounded-lg"
-            onClick={() => setIsCallbackModalOpen(true)}
-            disabled={isTyping}
-          >
-            {translations.callbackRequestButton}
-          </button>
+            {/* FAQ Items Configuration */}
+            <div>
+              <h2 className="text-lg font-medium mb-3">FAQ Items</h2>
+              <div className="space-y-3">
+                {faqItems.map((faq, index) => (
+                  <div key={faq.id} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={faq.question}
+                      onChange={(e) => {
+                        const newFaqItems = [...faqItems];
+                        newFaqItems[index] = { ...faq, question: e.target.value };
+                        setFaqItems(newFaqItems);
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder={`FAQ Question ${index + 1}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Callback Request Modal */}
-      <CallbackModal
-        isOpen={isCallbackModalOpen}
-        onClose={() => setIsCallbackModalOpen(false)}
-        onSubmit={handleCallbackSubmit}
-        translations={translations}
-      />
+        <ChatbotInterface
+          locale={locale}
+          apiEndpoint={apiEndpoint}
+          faqItems={faqItems}
+          title={title}
+          subtitle={subtitle}
+        />
+      </div>
     </div>
-  )
+  );
 }
