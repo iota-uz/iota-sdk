@@ -36,6 +36,7 @@ const (
 	insertChatQuery = `
 		INSERT INTO chats (
 			client_id,
+			last_message_at,
 			created_at
 		) VALUES ($1, $2) RETURNING id
 	`
@@ -670,6 +671,7 @@ func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat,
 		ctx,
 		insertChatQuery,
 		dbChat.ClientID,
+		dbChat.LastMessageAt,
 		&dbChat.CreatedAt,
 	).Scan(&dbChat.ID); err != nil {
 		return nil, errors.Wrap(err, "failed to insert chat")
