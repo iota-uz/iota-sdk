@@ -6,7 +6,7 @@ import type { FAQItem } from '@/components/chatbot-interface';
 interface QuickReplyButtonsProps {
   translations: Translations
   isTyping: boolean
-  onQuickReply: (question: string) => void
+  onQuickReply: (_question: string) => void
   faqItems?: FAQItem[]
 }
 
