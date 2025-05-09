@@ -1,8 +1,8 @@
-"use client"
+'use client';
 
-import { X } from "lucide-react"
-import { useState } from "react"
-import type { Translations } from "@/lib/translations"
+import { X } from 'lucide-react';
+import { useState } from 'react';
+import type { Translations } from '@/lib/translations';
 
 interface CallbackModalProps {
   isOpen: boolean
@@ -12,17 +12,17 @@ interface CallbackModalProps {
 }
 
 export function CallbackModal({ isOpen, onClose, onSubmit, translations }: CallbackModalProps) {
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [consentChecked, setConsentChecked] = useState(false)
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [consentChecked, setConsentChecked] = useState(false);
 
-  if (!isOpen) return null
+  if (!isOpen) {return null;}
 
   const handleSubmit = () => {
     if (phoneNumber.trim() && consentChecked) {
-      onSubmit(phoneNumber)
-      onClose()
+      onSubmit(phoneNumber);
+      onClose();
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -61,7 +61,7 @@ export function CallbackModal({ isOpen, onClose, onSubmit, translations }: Callb
           <div className="flex items-start mb-6">
             <div
               className={`w-6 h-6 flex-shrink-0 rounded border ${
-                consentChecked ? "bg-[#2e67b4] border-[#2e67b4] flex items-center justify-center" : "border-gray-300"
+                consentChecked ? 'bg-[#2e67b4] border-[#2e67b4] flex items-center justify-center' : 'border-gray-300'
               } mr-2 cursor-pointer`}
               onClick={() => setConsentChecked(!consentChecked)}
             >
@@ -78,7 +78,7 @@ export function CallbackModal({ isOpen, onClose, onSubmit, translations }: Callb
               onClick={handleSubmit}
               disabled={!phoneNumber.trim() || !consentChecked}
               className={`flex-1 py-3 rounded-lg ${
-                phoneNumber.trim() && consentChecked ? "bg-[#2e67b4] text-white" : "bg-[#e4e9ee] text-[#bdc8d2]"
+                phoneNumber.trim() && consentChecked ? 'bg-[#2e67b4] text-white' : 'bg-[#e4e9ee] text-[#bdc8d2]'
               }`}
             >
               {translations.requestCallButton}
@@ -87,5 +87,5 @@ export function CallbackModal({ isOpen, onClose, onSubmit, translations }: Callb
         </div>
       </div>
     </div>
-  )
+  );
 }
