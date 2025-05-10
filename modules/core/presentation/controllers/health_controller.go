@@ -5,6 +5,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 func NewHealthController(app application.Application) application.Controller {
@@ -29,5 +30,7 @@ func (c *HealthController) Register(r *mux.Router) {
 func (c *HealthController) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok"}`))
+	if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+		composables.UseLogger(r.Context()).Errorf("Failed to write response: %v", err)
+	}
 }
