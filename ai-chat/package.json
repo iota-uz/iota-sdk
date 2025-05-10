@@ -1,13 +1,19 @@
 {
-  "name": "my-v0-project",
+  "name": "@iota-sdk/ai-chat",
   "version": "0.1.0",
-  "private": true,
+  "description": "A customizable React chatbot component for IOTA SDK",
+  "private": false,
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "lint:fix": "next lint --fix"
+    "lint:fix": "next lint --fix",
+    "build:lib": "tsup",
+    "prepare": "npm run build:lib"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -68,6 +74,27 @@
     "eslint-config-next": "15.2.4",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
+    "tsup": "^8.4.0",
     "typescript": "^5"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "keywords": [
+    "iota",
+    "chatbot",
+    "react",
+    "ai",
+    "chat"
+  ],
+  "author": "IOTA Foundation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iotaledger/iota-sdk"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

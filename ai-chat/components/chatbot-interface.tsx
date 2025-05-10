@@ -207,10 +207,9 @@ export default function ChatbotInterface({
       setIsTyping(true);
       setError(null);
 
-      const initialMessage = 'Здравствуйте, я хотел бы узнать больше о страховых услугах.';
-
+      // Create thread without initial message
       const response = await chatApi.createThread({
-        message: initialMessage,
+        message: "", // Empty message instead of hardcoded text
         phone: phoneNumber,
       });
 
@@ -222,14 +221,8 @@ export default function ChatbotInterface({
       setPhoneSubmitted(true);
       setShowDateHeader(true);
 
-      const userMessage: ChatMessage = {
-        id: 'user-initial',
-        content: initialMessage,
-        sender: 'user',
-        timestamp: new Date(),
-      };
-
-      setMessages([userMessage]);
+      // Don't add any initial user message
+      setMessages([]);
 
       await fetchMessages(response.thread_id);
     } catch (error) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	crmServices "github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
@@ -66,7 +67,7 @@ func (c *AIChatController) Register(r *mux.Router) {
 	bareRouter := r.PathPrefix(c.basePath).Subrouter()
 	bareRouter.HandleFunc("/payload", c.aiChat).Methods(http.MethodGet)
 	bareRouter.HandleFunc("/test-wc", c.aiChatWC).Methods(http.MethodGet)
-	bareRouter.HandleFunc("/message", c.createThread).Methods(http.MethodPost)
+	bareRouter.HandleFunc("/messages", c.createThread).Methods(http.MethodPost)
 	bareRouter.HandleFunc("/messages/{chat_id}", c.getThreadMessages).Methods(http.MethodGet)
 	bareRouter.HandleFunc("/messages/{chat_id}", c.addMessageToThread).Methods(http.MethodPost)
 }
@@ -185,21 +186,10 @@ func (c *AIChatController) createThread(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	chatEntity, err := c.chatService.CreateThread(r.Context(), msg.Contact)
+	chatEntity, err := c.chatService.CreateThread(r.Context(), msg.Contact, country.Uzbekistan)
 	if err != nil {
 		logger.WithError(err).Error("failed to create chat thread")
 		http.Error(w, "Failed to create chat thread", http.StatusInternalServerError)
-		return
-	}
-
-	chatEntity, err = c.chatService.SendMessageToThread(r.Context(), websiteServices.SendMessageToThreadDTO{
-		ChatID:  chatEntity.ID(),
-		Message: msg.Message,
-	})
-
-	if err != nil {
-		logger.WithError(err).Error("failed to send message to chat thread")
-		http.Error(w, "Failed to send message to chat thread", http.StatusInternalServerError)
 		return
 	}
 
