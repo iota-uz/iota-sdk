@@ -77,6 +77,7 @@ func (m *Module) Register(app application.Application) error {
 	handlers.RegisterUserHandler(app)
 
 	app.RegisterControllers(
+		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
 		controllers.NewLoginController(app),
 		controllers.NewSpotlightController(app),
