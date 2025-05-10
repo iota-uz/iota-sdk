@@ -221,4 +221,3 @@ func RequestParams() mux.MiddlewareFunc {
 		},
 	)
 }
-
