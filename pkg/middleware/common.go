@@ -19,6 +19,28 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
+type statusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *statusResponseWriter) WriteHeader(code int) {
+	w.statusCode = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// Status returns the HTTP status code
+func (w *statusResponseWriter) Status() int {
+	if w.statusCode == 0 {
+		return http.StatusOK
+	}
+	return w.statusCode
+}
+
+func wrapResponseWriter(w http.ResponseWriter) *statusResponseWriter {
+	return &statusResponseWriter{ResponseWriter: w, statusCode: 0}
+}
+
 var AllowMethods = []string{
 	http.MethodConnect,
 	http.MethodOptions,
@@ -144,15 +166,23 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 
 				w.Header().Set("X-Request-Id", requestID)
 
-				next.ServeHTTP(w, r.WithContext(ctx))
+				wrappedWriter := wrapResponseWriter(w)
+				next.ServeHTTP(wrappedWriter, r.WithContext(ctx))
 
+				// Log the status code
+				statusCode := wrappedWriter.Status()
 				duration := time.Since(start)
 				fieldsLogger.WithFields(logrus.Fields{
-					"duration":  duration,
-					"completed": true,
+					"duration":     duration,
+					"completed":    true,
+					"status-code":  statusCode,
+					"status-class": statusCode / 100,
 				}).Info("request completed")
 
-				span.SetAttributes(attribute.Int64("http.request_duration_ms", duration.Milliseconds()))
+				span.SetAttributes(
+					attribute.Int64("http.request_duration_ms", duration.Milliseconds()),
+					attribute.Int("http.status_code", statusCode),
+				)
 			},
 		)
 	}
@@ -191,3 +221,4 @@ func RequestParams() mux.MiddlewareFunc {
 		},
 	)
 }
+
