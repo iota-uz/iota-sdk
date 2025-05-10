@@ -142,6 +142,8 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 					})
 				}
 
+				w.Header().Set("X-Request-Id", requestID)
+
 				next.ServeHTTP(w, r.WithContext(ctx))
 
 				duration := time.Since(start)

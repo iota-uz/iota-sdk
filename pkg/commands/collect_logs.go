@@ -64,6 +64,7 @@ func CollectLogs(ctx context.Context, options ...func(*LogCollector)) error {
 		"user-agent",
 		"trace-id",
 		"span-id",
+		"status-code",
 	}
 
 	collector := &LogCollector{
