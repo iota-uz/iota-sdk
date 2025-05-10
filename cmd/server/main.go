@@ -60,6 +60,7 @@ func main() {
 	app.RegisterControllers(
 		controllers.NewStaticFilesController(app.HashFsAssets()),
 		controllers.NewGraphQLController(app),
+		controllers.NewHealthController(app),
 	)
 	options := &server.DefaultOptions{
 		Logger:        logger,
