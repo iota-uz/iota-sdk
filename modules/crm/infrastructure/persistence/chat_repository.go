@@ -38,7 +38,7 @@ const (
 			client_id,
 			last_message_at,
 			created_at
-		) VALUES ($1, $2) RETURNING id
+		) VALUES ($1, $2, $3) RETURNING id
 	`
 
 	updateChatQuery = `UPDATE chats SET

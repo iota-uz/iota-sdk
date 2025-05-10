@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -51,7 +52,7 @@ func (s *WebsiteChatService) GetByID(ctx context.Context, id uint) (chat.Chat, e
 	return s.chatRepo.GetByID(ctx, id)
 }
 
-func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (chat.Chat, error) {
+func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string, _country country.Country) (chat.Chat, error) {
 	var member chat.Member
 	email, err := internet.NewEmail(contact)
 	if err == nil {
@@ -61,7 +62,7 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (
 		}
 	}
 
-	p, err := phone.NewFromE164(contact)
+	p, err := phone.Parse(contact, _country)
 	if err == nil {
 		member, err = s.memberFromPhone(ctx, p)
 		if err != nil {
