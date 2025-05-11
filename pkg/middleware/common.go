@@ -131,18 +131,19 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 				start := time.Now()
 				requestID := getRequestID(r, conf)
 
-				logFields := logrus.Fields{
-					"timestamp":  start.UnixNano(),
+				fieldsLogger := logger.WithFields(logrus.Fields{
+					"request-id": requestID,
 					"path":       r.RequestURI,
 					"method":     r.Method,
+				})
+
+				fieldsLogger.WithFields(logrus.Fields{
+					"timestamp":  start.UnixNano(),
 					"host":       r.Host,
 					"ip":         getRealIP(r, conf),
 					"user-agent": r.UserAgent(),
-					"request-id": requestID,
 					"headers":    getHeaders(r),
-				}
-
-				fieldsLogger := logger.WithFields(logFields)
+				}).Info("request started")
 
 				propagator := propagation.TraceContext{}
 				ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
