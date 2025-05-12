@@ -88,14 +88,13 @@
     "ai",
     "chat"
   ],
-  "author": "IOTA Foundation",
+  "author": "IOTA Uzbekistan",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/iotaledger/iota-sdk"
+    "url": "https://github.com/iota-uz/iota-sdk"
   },
   "publishConfig": {
     "access": "public"
   }
 }
-
