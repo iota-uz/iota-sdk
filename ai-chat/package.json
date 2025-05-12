@@ -1,5 +1,5 @@
 {
-  "name": "@iota-sdk/ai-chat",
+  "name": "@iotauz/ai-chat",
   "version": "0.1.0",
   "description": "A customizable React chatbot component for IOTA SDK",
   "private": false,
@@ -98,3 +98,4 @@
     "access": "public"
   }
 }
+
