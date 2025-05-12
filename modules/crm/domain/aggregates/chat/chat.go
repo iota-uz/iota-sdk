@@ -41,6 +41,7 @@ type Provider interface {
 
 type Chat interface {
 	ID() uint
+	WithID(id uint) Chat
 	ClientID() uint
 	Messages() []Message
 	AddMessage(msg Message) Chat
@@ -77,7 +78,6 @@ type Member interface {
 
 type Sender interface {
 	Type() SenderType
-	Transport() Transport
 }
 
 type UserSender interface {

@@ -215,7 +215,7 @@ func TestToDBMessage(t *testing.T) {
 			name: "message from user",
 			message: chat.NewMessage(
 				"Hello from user",
-				chat.NewMember(chat.NewUserSender(chat.WebsiteTransport, 1, "User", "Test")),
+				chat.NewMember(chat.NewUserSender(1, "User", "Test"), chat.WebsiteTransport),
 				chat.WithMessageID(1),
 				chat.WithMessageChatID(100),
 				chat.WithMessageCreatedAt(time.Now()),
@@ -231,7 +231,7 @@ func TestToDBMessage(t *testing.T) {
 			name: "message from client",
 			message: chat.NewMessage(
 				"Hello from client",
-				chat.NewMember(chat.NewClientSender(chat.WebsiteTransport, 2, 1, "Client", "Test")),
+				chat.NewMember(chat.NewClientSender(2, 1, "Client", "Test"), chat.WebsiteTransport),
 				chat.WithMessageID(2),
 				chat.WithMessageChatID(200),
 				chat.WithMessageCreatedAt(time.Now()),
@@ -265,7 +265,8 @@ func TestToDomainMessage(t *testing.T) {
 
 	// Create a test member for messages
 	testMember := chat.NewMember(
-		chat.NewUserSender(chat.WebsiteTransport, 1, "User", "Test"),
+		chat.NewUserSender(1, "User", "Test"),
+		chat.WebsiteTransport,
 	)
 
 	tests := []struct {
@@ -341,8 +342,8 @@ func TestToDBChat(t *testing.T) {
 	now := time.Now()
 
 	// Create members first
-	member1 := chat.NewMember(chat.NewClientSender(chat.WebsiteTransport, 2, 1, "Client", "Test"))
-	member2 := chat.NewMember(chat.NewClientSender(chat.WebsiteTransport, 2, 1, "Client", "Test"))
+	member1 := chat.NewMember(chat.NewClientSender(2, 1, "Client", "Test"), chat.WebsiteTransport)
+	member2 := chat.NewMember(chat.NewClientSender(2, 1, "Client", "Test"), chat.WebsiteTransport)
 
 	messages := []chat.Message{
 		chat.NewMessage(
@@ -400,12 +401,14 @@ func TestToDomainChat(t *testing.T) {
 	member2ID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	member1 := chat.NewMember(
-		chat.NewUserSender(chat.TelegramTransport, 1, "User", "Test"),
+		chat.NewUserSender(1, "User", "Test"),
+		chat.TelegramTransport,
 		chat.WithMemberID(member1ID),
 	)
 
 	member2 := chat.NewMember(
-		chat.NewClientSender(chat.WebsiteTransport, 2, 1, "Client", "Test"),
+		chat.NewClientSender(2, 1, "Client", "Test"),
+		chat.WebsiteTransport,
 		chat.WithMemberID(member2ID),
 	)
 
@@ -426,8 +429,6 @@ func TestToDomainChat(t *testing.T) {
 		),
 	}
 
-	members := []chat.Member{member1, member2}
-
 	dbChat := &models.Chat{
 		ID:        300,
 		ClientID:  400,
@@ -435,7 +436,7 @@ func TestToDomainChat(t *testing.T) {
 	}
 
 	t.Run("chat with messages and members", func(t *testing.T) {
-		domainChat, err := persistence.ToDomainChat(dbChat, messages, members)
+		domainChat, err := persistence.ToDomainChat(dbChat, messages, []chat.Member{member1, member2})
 		require.NoError(t, err, "ToDomainChat() should not return an error")
 
 		assert.Equal(t, uint(300), domainChat.ID(), "Chat ID should match")
@@ -462,9 +463,13 @@ func TestToDomainChat(t *testing.T) {
 			"Member IDs should match",
 		)
 
+		// Collect the transports from our test members
+		expectedTransports := []chat.Transport{member1.Transport(), member2.Transport()}
+		actualTransports := []chat.Transport{domainChat.Members()[0].Transport(), domainChat.Members()[1].Transport()}
+
 		assert.ElementsMatch(t,
-			[]chat.Transport{chat.TelegramTransport, chat.WebsiteTransport},
-			[]chat.Transport{domainChat.Members()[0].Transport(), domainChat.Members()[1].Transport()},
+			expectedTransports,
+			actualTransports,
 			"Member transports should match",
 		)
 	})
@@ -518,7 +523,7 @@ func TestTransportMappers(t *testing.T) {
 			name: "TelegramMetaToSender",
 			testFunction: func(t *testing.T) {
 				t.Helper()
-				baseSender := chat.NewClientSender(chat.TelegramTransport, 1, 1, "Test", "Client")
+				baseSender := chat.NewClientSender(1, 1, "Test", "Client")
 
 				t.Run("with nil meta", func(t *testing.T) {
 					_, err := persistence.TelegramMetaToSender(baseSender, nil)
@@ -571,7 +576,7 @@ func TestTransportMappers(t *testing.T) {
 			name: "WhatsAppMetaToSender",
 			testFunction: func(t *testing.T) {
 				t.Helper()
-				baseSender := chat.NewClientSender(chat.WhatsAppTransport, 1, 1, "Test", "Client")
+				baseSender := chat.NewClientSender(1, 1, "Test", "Client")
 
 				// Test with nil meta
 				t.Run("with nil meta", func(t *testing.T) {
@@ -605,7 +610,7 @@ func TestTransportMappers(t *testing.T) {
 			name: "InstagramMetaToSender",
 			testFunction: func(t *testing.T) {
 				t.Helper()
-				baseSender := chat.NewClientSender(chat.InstagramTransport, 1, 1, "Test", "Client")
+				baseSender := chat.NewClientSender(1, 1, "Test", "Client")
 
 				// Test with nil meta
 				t.Run("with nil meta", func(t *testing.T) {
@@ -638,7 +643,7 @@ func TestTransportMappers(t *testing.T) {
 			name: "EmailMetaToSender",
 			testFunction: func(t *testing.T) {
 				t.Helper()
-				baseSender := chat.NewClientSender(chat.EmailTransport, 1, 2, "Test", "Client")
+				baseSender := chat.NewClientSender(1, 2, "Test", "Client")
 
 				t.Run("with nil meta", func(t *testing.T) {
 					sender, err := persistence.EmailMetaToSender(baseSender, nil)

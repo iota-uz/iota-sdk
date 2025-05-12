@@ -7,13 +7,33 @@
 		"Meta": {
 			"Title": "ИИ Чатбот"
 		},
-		"Title": {
-			"Label": "Заголовок",
-			"Placeholder": "Введите заголовок"
+		"ModelName": {
+			"Label": "Название модели",
+			"Placeholder": "Введите название модели (напр. gpt-4)"
 		},
-		"_Description": {
-			"Label": "Описание",
-			"Placeholder": "Введите описание"
+		"ModelType": {
+			"Label": "Тип модели",
+			"Placeholder": "Выберите тип модели"
+		},
+		"SystemPrompt": {
+			"Label": "Системный промпт",
+			"Placeholder": "Введите системный промпт для ИИ"
+		},
+		"Temperature": {
+			"Label": "Температура",
+			"Placeholder": "Введите значение от 0.0 до 2.0"
+		},
+		"MaxTokens": {
+			"Label": "Максимум токенов",
+			"Placeholder": "Введите максимальное количество токенов"
+		},
+		"BaseURL": {
+			"Label": "Базовый URL API",
+			"Placeholder": "Введите базовый URL API (напр. https://api.openai.com/v1)"
+		},
+		"AccessToken": {
+			"Label": "Токен доступа API",
+			"Placeholder": "Введите ваш токен доступа к API"
 		}
 	}
 }
