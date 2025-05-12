@@ -34,6 +34,7 @@ pnpm add @iotauz/ai-chat
 
 ```jsx
 import { ChatbotInterface } from '@iotauz/ai-chat';
+import { MessagesSquare } from 'lucide-react'; // or any other icon library
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
       apiEndpoint="https://your-iota-sdk-server.com/website/ai-chat"
       title="Custom Title"
       subtitle="Custom Subtitle"
+      chatIcon={<MessagesSquare size={24} className="text-white" />}
     />
   );
 }
@@ -62,6 +64,7 @@ The main component that renders the chatbot UI.
 | `faqItems` | `FAQItem[]` | `undefined` | Custom FAQ items for quick replies |
 | `title` | `string` | `undefined` | Custom chatbot title (falls back to translation) |
 | `subtitle` | `string` | `undefined` | Custom chatbot subtitle (falls back to translation) |
+| `chatIcon` | `React.ReactNode` | `undefined` | Custom icon for the chat button and header |
 
 ### Types
 

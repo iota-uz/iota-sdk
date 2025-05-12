@@ -56,7 +56,7 @@ export const ru: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
-  messageInputPlaceholder: 'Сообщения',
+  messageInputPlaceholder: 'Ваш запрос',
 
   // Buttons
   sendButton: 'Отправить',
@@ -115,7 +115,7 @@ export const uz: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
-  messageInputPlaceholder: 'Xabarlar',
+  messageInputPlaceholder: 'Sizning so\'rovingiz',
 
   // Buttons
   sendButton: 'Yuborish',
@@ -176,7 +176,7 @@ export const uzCyrl: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
-  messageInputPlaceholder: 'Хабарлар',
+  messageInputPlaceholder: 'Сизнинг сўровингиз',
 
   // Buttons
   sendButton: 'Юбориш',
@@ -235,7 +235,7 @@ export const en: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
-  messageInputPlaceholder: 'Messages',
+  messageInputPlaceholder: 'Your request',
 
   // Buttons
   sendButton: 'Send',

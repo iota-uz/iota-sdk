@@ -11,6 +11,7 @@ export interface ThreadResponse {
 export interface Message {
   role: 'user' | 'assistant'
   message: string
+  timestamp: string // ISO format: "2006-01-02T15:04:05Z07:00"
 }
 
 export interface MessagesResponse {
