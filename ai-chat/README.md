@@ -1,4 +1,4 @@
-# @iota-sdk/ai-chat
+# @iotauz/ai-chat
 
 A customizable React chatbot component that integrates with IOTA SDK's backend for AI-powered conversations.
 
@@ -17,13 +17,13 @@ A customizable React chatbot component that integrates with IOTA SDK's backend f
 
 ```bash
 # Install with npm
-npm install @iota-sdk/ai-chat
+npm install @iotauz/ai-chat
 
 # Or with yarn
-yarn add @iota-sdk/ai-chat
+yarn add @iotauz/ai-chat
 
 # Or with pnpm
-pnpm add @iota-sdk/ai-chat
+pnpm add @iotauz/ai-chat
 ```
 
 ## Quick Start
@@ -33,7 +33,7 @@ pnpm add @iota-sdk/ai-chat
 2. Import and use the component:
 
 ```jsx
-import { ChatbotInterface } from '@iota-sdk/ai-chat';
+import { ChatbotInterface } from '@iotauz/ai-chat';
 
 function App() {
   return (
