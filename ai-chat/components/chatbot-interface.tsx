@@ -209,7 +209,7 @@ export default function ChatbotInterface({
 
       // Create thread without initial message
       const response = await chatApi.createThread({
-        message: "", // Empty message instead of hardcoded text
+        message: '', // Empty message instead of hardcoded text
         phone: phoneNumber,
       });
 

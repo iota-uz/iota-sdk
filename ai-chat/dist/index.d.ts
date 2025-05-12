@@ -1,4 +1,5 @@
-import * as react from 'react';
+import * as React from 'react';
+import React__default from 'react';
 
 type ChatMessage = {
     id: string;
@@ -18,7 +19,7 @@ interface ChatbotInterfaceProps {
     subtitle?: string;
 }
 declare function ChatbotInterface({ locale, apiEndpoint, // Direct API endpoint (required)
-faqItems, title, subtitle, }: ChatbotInterfaceProps): react.JSX.Element;
+faqItems, title, subtitle, }: ChatbotInterfaceProps): React.JSX.Element;
 
 interface CreateThreadRequest {
     message: string;
@@ -75,13 +76,15 @@ interface Translations {
 }
 declare function getTranslations(locale: string): Translations;
 
+declare function formatDate(date: Date, translations: Translations): string;
+
 interface CallbackModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (_phoneNumber: string) => void;
     translations: Translations;
 }
-declare function CallbackModal({ isOpen, onClose, onSubmit, translations }: CallbackModalProps): react.JSX.Element | null;
+declare function CallbackModal({ isOpen, onClose, onSubmit, translations }: CallbackModalProps): React__default.JSX.Element | null;
 
 interface QuickReplyButtonsProps {
     translations: Translations;
@@ -89,12 +92,12 @@ interface QuickReplyButtonsProps {
     onQuickReply: (_question: string) => void;
     faqItems?: FAQItem[];
 }
-declare function QuickReplyButtons({ translations, isTyping, onQuickReply, faqItems }: QuickReplyButtonsProps): react.JSX.Element;
+declare function QuickReplyButtons({ translations, isTyping, onQuickReply, faqItems }: QuickReplyButtonsProps): React__default.JSX.Element;
 
 interface TypingIndicatorProps {
     translations: Translations;
     botTitle?: string;
 }
-declare function TypingIndicator({ translations, botTitle }: TypingIndicatorProps): react.JSX.Element;
+declare function TypingIndicator({ translations, botTitle }: TypingIndicatorProps): React__default.JSX.Element;
 
-export { type AddMessageRequest, CallbackModal, type ChatMessage, ChatbotInterface, type CreateThreadRequest, type FAQItem, type Message, type MessagesResponse, QuickReplyButtons, type ThreadResponse, type Translations, TypingIndicator, chatApi, getTranslations };
+export { type AddMessageRequest, CallbackModal, type ChatMessage, ChatbotInterface, type CreateThreadRequest, type FAQItem, type Message, type MessagesResponse, QuickReplyButtons, type ThreadResponse, type Translations, TypingIndicator, chatApi, formatDate, getTranslations };

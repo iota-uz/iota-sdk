@@ -1,6 +1,6 @@
 'use strict';
 
-var React2 = require('react');
+var React4 = require('react');
 var lucideReact = require('lucide-react');
 require('clsx');
 require('tailwind-merge');
@@ -23,7 +23,7 @@ function _interopNamespace(e) {
   return Object.freeze(n);
 }
 
-var React2__namespace = /*#__PURE__*/_interopNamespace(React2);
+var React4__namespace = /*#__PURE__*/_interopNamespace(React4);
 
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -52,8 +52,8 @@ function formatDate(date, translations2) {
   return `${month} ${day}, ${year}`;
 }
 function CallbackModal({ isOpen, onClose, onSubmit, translations: translations2 }) {
-  const [phoneNumber, setPhoneNumber] = React2.useState("");
-  const [consentChecked, setConsentChecked] = React2.useState(false);
+  const [phoneNumber, setPhoneNumber] = React4.useState("");
+  const [consentChecked, setConsentChecked] = React4.useState(false);
   if (!isOpen) {
     return null;
   }
@@ -63,14 +63,14 @@ function CallbackModal({ isOpen, onClose, onSubmit, translations: translations2 
       onClose();
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-3xl w-full max-w-md mx-4 overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 flex justify-between items-center" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-500 text-sm" }, "Modal"), /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50" }, /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "bg-white rounded-3xl w-full max-w-md mx-4 overflow-hidden" }, /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "p-4 flex justify-between items-center" }, /* @__PURE__ */ React4__namespace.default.createElement("span", { className: "text-gray-500 text-sm" }, "Modal"), /* @__PURE__ */ React4__namespace.default.createElement(
     "button",
     {
       onClick: onClose,
       className: "w-8 h-8 flex items-center justify-center rounded-full border border-gray-300"
     },
-    /* @__PURE__ */ React.createElement(lucideReact.X, { size: 16 })
-  )), /* @__PURE__ */ React.createElement("div", { className: "p-6 pt-0" }, /* @__PURE__ */ React.createElement("h2", { className: "text-2xl font-medium text-[#0a223e] mb-2" }, translations2.callbackModalTitle), /* @__PURE__ */ React.createElement("p", { className: "text-[#8b98a5] mb-6" }, translations2.callbackModalSubtitle), /* @__PURE__ */ React.createElement("div", { className: "mb-2 text-[#8b98a5] text-sm" }, translations2.callbackPhoneInputLabel), /* @__PURE__ */ React.createElement("div", { className: "relative mb-4" }, /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React4__namespace.default.createElement(lucideReact.X, { size: 16 })
+  )), /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "p-6 pt-0" }, /* @__PURE__ */ React4__namespace.default.createElement("h2", { className: "text-2xl font-medium text-[#0a223e] mb-2" }, translations2.callbackModalTitle), /* @__PURE__ */ React4__namespace.default.createElement("p", { className: "text-[#8b98a5] mb-6" }, translations2.callbackModalSubtitle), /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "mb-2 text-[#8b98a5] text-sm" }, translations2.callbackPhoneInputLabel), /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "relative mb-4" }, /* @__PURE__ */ React4__namespace.default.createElement(
     "input",
     {
       type: "text",
@@ -79,14 +79,14 @@ function CallbackModal({ isOpen, onClose, onSubmit, translations: translations2 
       value: phoneNumber,
       onChange: (e) => setPhoneNumber(e.target.value)
     }
-  ), /* @__PURE__ */ React.createElement("div", { className: "absolute right-3 top-1/2 transform -translate-y-1/2 bg-[#2e67b4] text-white w-6 h-6 rounded-full flex items-center justify-center" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs" }, "B"))), /* @__PURE__ */ React.createElement("p", { className: "text-[#2e67b4] text-sm mb-4" }, translations2.dataPrivacyMessage), /* @__PURE__ */ React.createElement("div", { className: "flex items-start mb-6" }, /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "absolute right-3 top-1/2 transform -translate-y-1/2 bg-[#2e67b4] text-white w-6 h-6 rounded-full flex items-center justify-center" }, /* @__PURE__ */ React4__namespace.default.createElement("span", { className: "text-xs" }, "B"))), /* @__PURE__ */ React4__namespace.default.createElement("p", { className: "text-[#2e67b4] text-sm mb-4" }, translations2.dataPrivacyMessage), /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "flex items-start mb-6" }, /* @__PURE__ */ React4__namespace.default.createElement(
     "div",
     {
       className: `w-6 h-6 flex-shrink-0 rounded border ${consentChecked ? "bg-[#2e67b4] border-[#2e67b4] flex items-center justify-center" : "border-gray-300"} mr-2 cursor-pointer`,
       onClick: () => setConsentChecked(!consentChecked)
     },
-    consentChecked && /* @__PURE__ */ React.createElement("span", { className: "text-white text-xs" }, "\u2713")
-  ), /* @__PURE__ */ React.createElement("span", { className: "text-[#0a223e]" }, translations2.dataProcessingConsent)), /* @__PURE__ */ React.createElement("div", { className: "flex gap-4" }, /* @__PURE__ */ React.createElement("button", { onClick: onClose, className: "flex-1 py-3 bg-[#e4e9ee] text-[#0a223e] rounded-lg" }, translations2.backButton), /* @__PURE__ */ React.createElement(
+    consentChecked && /* @__PURE__ */ React4__namespace.default.createElement("span", { className: "text-white text-xs" }, "\u2713")
+  ), /* @__PURE__ */ React4__namespace.default.createElement("span", { className: "text-[#0a223e]" }, translations2.dataProcessingConsent)), /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "flex gap-4" }, /* @__PURE__ */ React4__namespace.default.createElement("button", { onClick: onClose, className: "flex-1 py-3 bg-[#e4e9ee] text-[#0a223e] rounded-lg" }, translations2.backButton), /* @__PURE__ */ React4__namespace.default.createElement(
     "button",
     {
       onClick: handleSubmit,
@@ -97,8 +97,8 @@ function CallbackModal({ isOpen, onClose, onSubmit, translations: translations2 
   )))));
 }
 function TypingIndicator({ translations: translations2, botTitle }) {
-  const [dots, setDots] = React2.useState(".");
-  React2.useEffect(() => {
+  const [dots, setDots] = React4.useState(".");
+  React4.useEffect(() => {
     const interval = setInterval(() => {
       setDots((prev) => {
         if (prev === "...") {
@@ -109,10 +109,8 @@ function TypingIndicator({ translations: translations2, botTitle }) {
     }, 500);
     return () => clearInterval(interval);
   }, []);
-  return /* @__PURE__ */ React.createElement("div", { className: "max-w-[80%] bg-white rounded-lg p-4 shadow-sm" }, /* @__PURE__ */ React.createElement("div", { className: "text-[#2e67b4] font-medium mb-2" }, botTitle || translations2.chatbotTitle), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("span", { className: "text-[#8b98a5] font-medium" }, dots)));
+  return /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "max-w-[80%] bg-white rounded-lg p-4 shadow-sm" }, /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "text-[#2e67b4] font-medium mb-2" }, botTitle || translations2.chatbotTitle), /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React4__namespace.default.createElement("span", { className: "text-[#8b98a5] font-medium" }, dots)));
 }
-
-// components/quick-reply-buttons.tsx
 function QuickReplyButtons({ translations: translations2, isTyping, onQuickReply, faqItems }) {
   const buttonClasses = "flex-1 px-4 py-3 text-[#0a223e] bg-white border border-gray-300 rounded-full text-sm whitespace-normal text-center min-h-[40px] flex items-center justify-center";
   const defaultFAQs = [
@@ -121,7 +119,7 @@ function QuickReplyButtons({ translations: translations2, isTyping, onQuickReply
     { id: "submit-claim", question: translations2.submitClaimQuestion }
   ];
   const faqs = faqItems || defaultFAQs;
-  return /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2 mb-4" }, faqs.length > 0 && faqs.slice(0, 2).map((faq) => /* @__PURE__ */ React.createElement("button", { key: faq.id, className: buttonClasses, onClick: () => onQuickReply(faq.question), disabled: isTyping }, faq.question)), faqs.length > 2 && /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React4__namespace.default.createElement("div", { className: "flex flex-wrap gap-2 mb-4" }, faqs.length > 0 && faqs.slice(0, 2).map((faq) => /* @__PURE__ */ React4__namespace.default.createElement("button", { key: faq.id, className: buttonClasses, onClick: () => onQuickReply(faq.question), disabled: isTyping }, faq.question)), faqs.length > 2 && /* @__PURE__ */ React4__namespace.default.createElement(
     "button",
     {
       className: "w-full px-4 py-3 text-[#0a223e] bg-white border border-gray-300 rounded-full text-sm whitespace-normal text-center min-h-[40px] flex items-center justify-center mt-2",
@@ -397,13 +395,13 @@ function getTranslations(locale) {
 
 // components/chatbot-interface.tsx
 var MessageBubble = ({ message, translations: translations2, botTitle }) => {
-  return /* @__PURE__ */ React2__namespace.createElement(
+  return /* @__PURE__ */ React4__namespace.createElement(
     "div",
     {
       className: `max-w-[80%] w-fit ${message.sender === "user" ? "ml-auto bg-[#dce6f3] rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl p-3" : "bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm"}`
     },
-    message.sender === "bot" && /* @__PURE__ */ React2__namespace.createElement("div", { className: "text-[#2e67b4] font-medium mb-2" }, botTitle || translations2.chatbotTitle),
-    /* @__PURE__ */ React2__namespace.createElement("p", { className: "whitespace-pre-line" }, message.content)
+    message.sender === "bot" && /* @__PURE__ */ React4__namespace.createElement("div", { className: "text-[#2e67b4] font-medium mb-2" }, botTitle || translations2.chatbotTitle),
+    /* @__PURE__ */ React4__namespace.createElement("p", { className: "whitespace-pre-line" }, message.content)
   );
 };
 function ChatbotInterface({
@@ -415,26 +413,26 @@ function ChatbotInterface({
   subtitle
 }) {
   const translations2 = getTranslations(locale);
-  React2.useEffect(() => {
+  React4.useEffect(() => {
     if (apiEndpoint) {
       chatApi.setApiEndpoint(apiEndpoint);
     }
   }, [apiEndpoint]);
-  const [phoneSubmitted, setPhoneSubmitted] = React2.useState(false);
-  const [phoneNumber, setPhoneNumber] = React2.useState("");
-  const [messages, setMessages] = React2.useState([]);
-  const [currentMessage, setCurrentMessage] = React2.useState("");
-  const [showDateHeader, setShowDateHeader] = React2.useState(false);
-  const [isCallbackModalOpen, setIsCallbackModalOpen] = React2.useState(false);
-  const [isTyping, setIsTyping] = React2.useState(false);
-  const [threadId, setThreadId] = React2.useState(null);
-  const [error, setError] = React2.useState(null);
-  const messagesEndRef = React2.useRef(null);
-  const [isOpen, setIsOpen] = React2.useState(true);
-  const [windowHeight, setWindowHeight] = React2.useState(0);
+  const [phoneSubmitted, setPhoneSubmitted] = React4.useState(false);
+  const [phoneNumber, setPhoneNumber] = React4.useState("");
+  const [messages, setMessages] = React4.useState([]);
+  const [currentMessage, setCurrentMessage] = React4.useState("");
+  const [showDateHeader, setShowDateHeader] = React4.useState(false);
+  const [isCallbackModalOpen, setIsCallbackModalOpen] = React4.useState(false);
+  const [isTyping, setIsTyping] = React4.useState(false);
+  const [threadId, setThreadId] = React4.useState(null);
+  const [error, setError] = React4.useState(null);
+  const messagesEndRef = React4.useRef(null);
+  const [isOpen, setIsOpen] = React4.useState(true);
+  const [windowHeight, setWindowHeight] = React4.useState(0);
   const chatbotTitle = title || translations2.chatbotTitle;
   const chatbotSubtitle = subtitle || translations2.chatbotSubtitle;
-  const handleResetChat = React2__namespace.useCallback(() => {
+  const handleResetChat = React4__namespace.useCallback(() => {
     localStorage.removeItem("chatThreadId");
     localStorage.removeItem("chatPhoneNumber");
     setThreadId(null);
@@ -452,7 +450,7 @@ ${translations2.welcomeMessage}`,
       }
     ]);
   }, [translations2, setThreadId, setPhoneSubmitted, setPhoneNumber, setError, setMessages]);
-  const handle404Error = React2__namespace.useCallback(() => {
+  const handle404Error = React4__namespace.useCallback(() => {
     const errorMsg = {
       id: `bot-error-${Date.now()}`,
       content: translations2.threadNotFoundMessage,
@@ -462,7 +460,7 @@ ${translations2.welcomeMessage}`,
     setMessages([errorMsg]);
     handleResetChat();
   }, [translations2, setMessages, handleResetChat]);
-  const fetchMessages = React2__namespace.useCallback((threadId2) => __async(null, null, function* () {
+  const fetchMessages = React4__namespace.useCallback((threadId2) => __async(null, null, function* () {
     try {
       setIsTyping(true);
       setError(null);
@@ -494,7 +492,7 @@ ${translations2.welcomeMessage}`,
       setIsTyping(false);
     }
   }), [setIsTyping, setError, setMessages, handle404Error, translations2]);
-  React2.useEffect(() => {
+  React4.useEffect(() => {
     const updateWindowHeight = () => {
       setWindowHeight(window.innerHeight);
     };
@@ -502,7 +500,7 @@ ${translations2.welcomeMessage}`,
     window.addEventListener("resize", updateWindowHeight);
     return () => window.removeEventListener("resize", updateWindowHeight);
   }, []);
-  React2.useEffect(() => {
+  React4.useEffect(() => {
     const storedThreadId = localStorage.getItem("chatThreadId");
     const storedPhone = localStorage.getItem("chatPhoneNumber");
     if (storedThreadId && storedPhone) {
@@ -527,7 +525,7 @@ ${translations2.welcomeMessage}`,
       localStorage.removeItem("newThreadId");
     }
   }, [translations2, fetchMessages]);
-  React2.useEffect(() => {
+  React4.useEffect(() => {
     var _a;
     (_a = messagesEndRef.current) == null ? void 0 : _a.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
@@ -645,7 +643,7 @@ ${translations2.welcomeMessage}`,
   const headerHeight = 60;
   const maxChatHeight = windowHeight ? Math.min(windowHeight * 0.8, 700) : 600;
   const contentHeight = maxChatHeight - headerHeight;
-  return /* @__PURE__ */ React2__namespace.createElement("div", { className: "fixed bottom-4 right-4 z-50" }, /* @__PURE__ */ React2__namespace.createElement(
+  return /* @__PURE__ */ React4__namespace.createElement("div", { className: "fixed bottom-4 right-4 z-50" }, /* @__PURE__ */ React4__namespace.createElement(
     "div",
     {
       className: `overflow-hidden bg-white rounded-lg shadow-lg transition-all duration-300 ${isOpen ? "opacity-100" : "opacity-95"}`,
@@ -654,23 +652,23 @@ ${translations2.welcomeMessage}`,
         height: isOpen ? `${maxChatHeight}px` : `${headerHeight}px`
       }
     },
-    /* @__PURE__ */ React2__namespace.createElement(
+    /* @__PURE__ */ React4__namespace.createElement(
       "div",
       {
         className: "relative bg-[#0a223e] text-white p-4 flex items-center cursor-pointer",
         style: { height: `${headerHeight}px` },
         onClick: () => setIsOpen(!isOpen)
       },
-      /* @__PURE__ */ React2__namespace.createElement("div", { className: "w-10 h-10 bg-[#8b98a5] rounded-full flex items-center justify-center mr-3" }, /* @__PURE__ */ React2__namespace.createElement("span", { className: "text-white" }, "\u2022\u2022\u2022")),
-      /* @__PURE__ */ React2__namespace.createElement("div", null, /* @__PURE__ */ React2__namespace.createElement("h1", { className: "text-xl font-medium" }, chatbotTitle), /* @__PURE__ */ React2__namespace.createElement("p", { className: "text-sm opacity-90" }, chatbotSubtitle)),
-      /* @__PURE__ */ React2__namespace.createElement(
+      /* @__PURE__ */ React4__namespace.createElement("div", { className: "w-10 h-10 bg-[#8b98a5] rounded-full flex items-center justify-center mr-3" }, /* @__PURE__ */ React4__namespace.createElement("span", { className: "text-white" }, "\u2022\u2022\u2022")),
+      /* @__PURE__ */ React4__namespace.createElement("div", null, /* @__PURE__ */ React4__namespace.createElement("h1", { className: "text-xl font-medium" }, chatbotTitle), /* @__PURE__ */ React4__namespace.createElement("p", { className: "text-sm opacity-90" }, chatbotSubtitle)),
+      /* @__PURE__ */ React4__namespace.createElement(
         lucideReact.ChevronDown,
         {
           className: `absolute right-4 top-1/2 transform -translate-y-1/2 transition-transform duration-300 ${isOpen ? "" : "rotate-180"}`
         }
       )
     ),
-    isOpen && /* @__PURE__ */ React2__namespace.createElement("div", { className: "flex flex-col", style: { height: `${contentHeight}px` } }, /* @__PURE__ */ React2__namespace.createElement("div", { className: "bg-[#f2f5f8] p-4 flex-grow overflow-y-auto" }, !phoneSubmitted ? /* @__PURE__ */ React2__namespace.createElement("div", { className: "bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm" }, /* @__PURE__ */ React2__namespace.createElement("div", { className: "text-[#2e67b4] font-medium mb-2" }, chatbotTitle), /* @__PURE__ */ React2__namespace.createElement("p", { className: "mb-2" }, translations2.welcomeGreeting), /* @__PURE__ */ React2__namespace.createElement("p", { className: "mb-4" }, translations2.welcomeMessage), /* @__PURE__ */ React2__namespace.createElement("p", { className: "flex items-start" }, /* @__PURE__ */ React2__namespace.createElement("span", { className: "inline-block mr-2 mt-1" }, "\u{1F512}"), /* @__PURE__ */ React2__namespace.createElement("span", null, translations2.phoneRequestMessage))) : /* @__PURE__ */ React2__namespace.createElement("div", { className: "space-y-4" }, showDateHeader && /* @__PURE__ */ React2__namespace.createElement("div", { className: "text-center text-[#8b98a5] text-sm py-2" }, formatDate(/* @__PURE__ */ new Date(), translations2)), error && /* @__PURE__ */ React2__namespace.createElement("div", { className: "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" }, /* @__PURE__ */ React2__namespace.createElement("span", { className: "block sm:inline" }, error)), messages.map((message) => /* @__PURE__ */ React2__namespace.createElement(
+    isOpen && /* @__PURE__ */ React4__namespace.createElement("div", { className: "flex flex-col", style: { height: `${contentHeight}px` } }, /* @__PURE__ */ React4__namespace.createElement("div", { className: "bg-[#f2f5f8] p-4 flex-grow overflow-y-auto" }, !phoneSubmitted ? /* @__PURE__ */ React4__namespace.createElement("div", { className: "bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm" }, /* @__PURE__ */ React4__namespace.createElement("div", { className: "text-[#2e67b4] font-medium mb-2" }, chatbotTitle), /* @__PURE__ */ React4__namespace.createElement("p", { className: "mb-2" }, translations2.welcomeGreeting), /* @__PURE__ */ React4__namespace.createElement("p", { className: "mb-4" }, translations2.welcomeMessage), /* @__PURE__ */ React4__namespace.createElement("p", { className: "flex items-start" }, /* @__PURE__ */ React4__namespace.createElement("span", { className: "inline-block mr-2 mt-1" }, "\u{1F512}"), /* @__PURE__ */ React4__namespace.createElement("span", null, translations2.phoneRequestMessage))) : /* @__PURE__ */ React4__namespace.createElement("div", { className: "space-y-4" }, showDateHeader && /* @__PURE__ */ React4__namespace.createElement("div", { className: "text-center text-[#8b98a5] text-sm py-2" }, formatDate(/* @__PURE__ */ new Date(), translations2)), error && /* @__PURE__ */ React4__namespace.createElement("div", { className: "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" }, /* @__PURE__ */ React4__namespace.createElement("span", { className: "block sm:inline" }, error)), messages.map((message) => /* @__PURE__ */ React4__namespace.createElement(
       MessageBubble,
       {
         key: message.id,
@@ -678,9 +676,9 @@ ${translations2.welcomeMessage}`,
         translations: translations2,
         botTitle: chatbotTitle
       }
-    )), isTyping && /* @__PURE__ */ React2__namespace.createElement(TypingIndicator, { translations: translations2, botTitle: chatbotTitle }), /* @__PURE__ */ React2__namespace.createElement("div", { ref: messagesEndRef }))), /* @__PURE__ */ React2__namespace.createElement("div", { className: "p-4 bg-white shrink-0" }, !phoneSubmitted ? (
+    )), isTyping && /* @__PURE__ */ React4__namespace.createElement(TypingIndicator, { translations: translations2, botTitle: chatbotTitle }), /* @__PURE__ */ React4__namespace.createElement("div", { ref: messagesEndRef }))), /* @__PURE__ */ React4__namespace.createElement("div", { className: "p-4 bg-white shrink-0" }, !phoneSubmitted ? (
       /* Phone Input */
-      /* @__PURE__ */ React2__namespace.createElement("div", { className: "flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg" }, /* @__PURE__ */ React2__namespace.createElement(
+      /* @__PURE__ */ React4__namespace.createElement("div", { className: "flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg" }, /* @__PURE__ */ React4__namespace.createElement(
         "input",
         {
           type: "text",
@@ -690,10 +688,10 @@ ${translations2.welcomeMessage}`,
           onChange: (e) => setPhoneNumber(e.target.value),
           onKeyDown: handleKeyPress
         }
-      ), /* @__PURE__ */ React2__namespace.createElement("button", { onClick: handlePhoneSubmit, disabled: isTyping }, /* @__PURE__ */ React2__namespace.createElement(lucideReact.Send, { className: `ml-auto ${isTyping ? "text-[#8b98a5]" : "text-[#0a223e]"}`, size: 20 })))
+      ), /* @__PURE__ */ React4__namespace.createElement("button", { onClick: handlePhoneSubmit, disabled: isTyping }, /* @__PURE__ */ React4__namespace.createElement(lucideReact.Send, { className: `ml-auto ${isTyping ? "text-[#8b98a5]" : "text-[#0a223e]"}`, size: 20 })))
     ) : (
       /* Message Input */
-      /* @__PURE__ */ React2__namespace.createElement("div", { className: "flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg" }, /* @__PURE__ */ React2__namespace.createElement(
+      /* @__PURE__ */ React4__namespace.createElement("div", { className: "flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg" }, /* @__PURE__ */ React4__namespace.createElement(
         "input",
         {
           type: "text",
@@ -704,14 +702,14 @@ ${translations2.welcomeMessage}`,
           onKeyDown: handleKeyPress,
           disabled: isTyping
         }
-      ), /* @__PURE__ */ React2__namespace.createElement("button", { onClick: handleSendMessage, disabled: isTyping || currentMessage.trim().length === 0 }, /* @__PURE__ */ React2__namespace.createElement(
+      ), /* @__PURE__ */ React4__namespace.createElement("button", { onClick: handleSendMessage, disabled: isTyping || currentMessage.trim().length === 0 }, /* @__PURE__ */ React4__namespace.createElement(
         lucideReact.Send,
         {
           className: `ml-auto ${currentMessage.trim() && !isTyping ? "text-[#0a223e]" : "text-[#8b98a5]"}`,
           size: 20
         }
       )))
-    ), (!threadId || threadId === localStorage.getItem("newThreadId")) && /* @__PURE__ */ React2__namespace.createElement(
+    ), (!threadId || threadId === localStorage.getItem("newThreadId")) && /* @__PURE__ */ React4__namespace.createElement(
       QuickReplyButtons,
       {
         translations: translations2,
@@ -719,7 +717,7 @@ ${translations2.welcomeMessage}`,
         onQuickReply: handleQuickReply,
         faqItems
       }
-    ), /* @__PURE__ */ React2__namespace.createElement(
+    ), /* @__PURE__ */ React4__namespace.createElement(
       "button",
       {
         className: `w-full py-3 rounded-lg mb-4 ${phoneSubmitted && currentMessage.trim() && !isTyping ? "bg-[#2e67b4] text-white" : "bg-[#e4e9ee] text-[#bdc8d2]"}`,
@@ -727,7 +725,7 @@ ${translations2.welcomeMessage}`,
         disabled: (phoneSubmitted ? currentMessage.trim().length === 0 : phoneNumber.trim().length === 0) || isTyping
       },
       translations2.sendButton
-    ), /* @__PURE__ */ React2__namespace.createElement(
+    ), /* @__PURE__ */ React4__namespace.createElement(
       "button",
       {
         className: "w-full py-3 border border-[#2e67b4] text-[#2e67b4] rounded-lg",
@@ -736,7 +734,7 @@ ${translations2.welcomeMessage}`,
       },
       translations2.callbackRequestButton
     )))
-  ), isCallbackModalOpen && /* @__PURE__ */ React2__namespace.createElement(
+  ), isCallbackModalOpen && /* @__PURE__ */ React4__namespace.createElement(
     CallbackModal,
     {
       isOpen: isCallbackModalOpen,
@@ -752,6 +750,7 @@ exports.ChatbotInterface = ChatbotInterface;
 exports.QuickReplyButtons = QuickReplyButtons;
 exports.TypingIndicator = TypingIndicator;
 exports.chatApi = chatApi;
+exports.formatDate = formatDate;
 exports.getTranslations = getTranslations;
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

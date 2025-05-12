@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import type { Translations } from '@/lib/translations';
 import type { FAQItem } from '@/components/chatbot-interface';
 

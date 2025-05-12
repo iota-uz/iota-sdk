@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { X } from 'lucide-react';
 import { useState } from 'react';
 import type { Translations } from '@/lib/translations';
