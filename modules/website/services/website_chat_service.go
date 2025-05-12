@@ -223,7 +223,9 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 		Temperature: float32(config.Temperature()),
 		MaxTokens:   config.MaxTokens(),
 	}
-	openaiClient := openai.NewClient(config.AccessToken())
+	openaiConfig := openai.DefaultConfig(config.AccessToken())
+	openaiConfig.BaseURL = config.BaseURL()
+	openaiClient := openai.NewClientWithConfig(openaiConfig)
 
 	response, err := openaiClient.CreateChatCompletion(ctx, completionReq)
 	if err != nil {
