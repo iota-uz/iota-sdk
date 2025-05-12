@@ -55,12 +55,12 @@ func TestChatRepository_Create(t *testing.T) {
 		testChat := createTestChat(t, client_.ID())
 		member := chat.NewMember(
 			chat.NewClientSender(
-				chat.TelegramTransport,
 				client_.ID(),
 				client_.Contacts()[0].ID(),
 				"1234567890",
 				"1234567890",
 			),
+			chat.TelegramTransport,
 		)
 
 		// Add a message to the chat
@@ -146,12 +146,12 @@ func TestChatRepository_AddMessageThroughUpdate(t *testing.T) {
 	// Add a message to the chat domain entity
 	message := chat.NewMessage("Test message", chat.NewMember(
 		chat.NewClientSender(
-			chat.TelegramTransport,
 			client_.ID(),
 			client_.Contacts()[0].ID(),
 			client_.FirstName(),
 			client_.LastName(),
 		),
+		chat.TelegramTransport,
 	))
 	updatedChat := created.AddMessage(message)
 
@@ -188,12 +188,12 @@ func TestChatRepository_Update(t *testing.T) {
 	// Add a message
 	message := chat.NewMessage("Original message", chat.NewMember(
 		chat.NewClientSender(
-			chat.TelegramTransport,
 			testClient.ID(),
 			testClient.Contacts()[0].ID(),
 			testClient.FirstName(),
 			testClient.LastName(),
 		),
+		chat.TelegramTransport,
 	))
 	updatedChat := created.AddMessage(message)
 
@@ -209,12 +209,12 @@ func TestChatRepository_Update(t *testing.T) {
 	// Add another message and update again
 	secondMessage := chat.NewMessage("Second message", chat.NewMember(
 		chat.NewClientSender(
-			chat.TelegramTransport,
 			testClient.ID(),
 			testClient.Contacts()[1].ID(),
 			testClient.FirstName(),
 			testClient.LastName(),
 		),
+		chat.TelegramTransport,
 	))
 	chatWithTwoMessages := updated.AddMessage(secondMessage)
 
@@ -239,12 +239,12 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 		// Add a message with the client's ID in it
 		message := chat.NewMessage("Message for client "+string('0'+byte(i)), chat.NewMember(
 			chat.NewClientSender(
-				chat.TelegramTransport,
 				testClient.ID(),
 				testClient.Contacts()[0].ID(),
 				testClient.FirstName(),
 				testClient.LastName(),
 			),
+			chat.TelegramTransport,
 		))
 		testChat = testChat.AddMessage(message)
 
@@ -356,12 +356,12 @@ func TestChatRepository_Delete(t *testing.T) {
 	// Add a message to test cascade deletion
 	message := chat.NewMessage("Message to be deleted", chat.NewMember(
 		chat.NewClientSender(
-			chat.TelegramTransport,
 			testClient.ID(),
 			testClient.Contacts()[0].ID(),
 			testClient.FirstName(),
 			testClient.LastName(),
 		),
+		chat.TelegramTransport,
 	))
 	testChat = testChat.AddMessage(message)
 

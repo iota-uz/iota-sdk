@@ -100,7 +100,8 @@ func (s *WebsiteChatService) SendMessageToThread(ctx context.Context, dto SendMe
 	var member chat.Member
 
 	for _, m := range chatEntity.Members() {
-		if m.Sender().Transport() != chat.WebsiteTransport {
+		// Get transport from member instead of sender
+		if m.Transport() != chat.WebsiteTransport {
 			continue
 		}
 		if v, ok := m.Sender().(chat.ClientSender); ok && v.ClientID() == chatEntity.ClientID() {
@@ -145,7 +146,8 @@ func (s *WebsiteChatService) ReplyToThread(
 	var member chat.Member
 
 	for _, m := range chatEntity.Members() {
-		if m.Sender().Transport() != chat.WebsiteTransport {
+		// Get transport from member instead of sender
+		if m.Transport() != chat.WebsiteTransport {
 			continue
 		}
 
@@ -256,11 +258,11 @@ func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) 
 
 	return chat.NewMember(
 		chat.NewUserSender(
-			chat.WebsiteTransport,
 			usr.ID(),
 			usr.FirstName(),
 			usr.LastName(),
 		),
+		chat.WebsiteTransport,
 	), nil
 }
 
@@ -276,12 +278,12 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 		}
 		return chat.NewMember(
 			chat.NewClientSender(
-				chat.WebsiteTransport,
 				match.ID(),
 				contactID,
 				match.FirstName(),
 				match.LastName(),
 			),
+			chat.WebsiteTransport,
 		), nil
 	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
 		return nil, err
@@ -305,12 +307,12 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 	}
 	member := chat.NewMember(
 		chat.NewClientSender(
-			chat.WebsiteTransport,
 			clientEntity.ID(),
 			contactID,
 			clientEntity.FirstName(),
 			clientEntity.LastName(),
 		),
+		chat.WebsiteTransport,
 	)
 	return member, nil
 }
@@ -327,12 +329,12 @@ func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet
 		}
 		return chat.NewMember(
 			chat.NewClientSender(
-				chat.WebsiteTransport,
 				match.ID(),
 				contactID,
 				match.FirstName(),
 				match.LastName(),
 			),
+			chat.WebsiteTransport,
 		), nil
 	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
 		return nil, err
@@ -356,12 +358,12 @@ func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet
 	}
 	member := chat.NewMember(
 		chat.NewClientSender(
-			chat.WebsiteTransport,
 			clientEntity.ID(),
 			contactID,
 			clientEntity.FirstName(),
 			clientEntity.LastName(),
 		),
+		chat.WebsiteTransport,
 	)
 	return member, nil
 }

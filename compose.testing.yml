@@ -3,7 +3,7 @@ services:
     restart: always
     build:
       context: .
-      target: testing-local
+      dockerfile: Dockerfile.test
     environment:
       GO_APP_ENV: testing
       DB_NAME: iota_erp
@@ -12,8 +12,6 @@ services:
       DB_PASSWORD: postgres
       DOMAIN: iota.uz
       SESSION_DURATION: 720h
-    volumes:
-      - .:/build
     depends_on:
       - erp_db
 
