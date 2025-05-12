@@ -36,7 +36,7 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 	assert.Equal(t, "gpt-4", savedConfig.ModelName())
 	assert.Equal(t, aichatconfig.AIModelTypeOpenAI, savedConfig.ModelType())
 	assert.Equal(t, "You are a helpful assistant", savedConfig.SystemPrompt())
-	assert.Equal(t, float32(0.8), savedConfig.Temperature())
+	assert.InEpsilon(t, float32(0.8), savedConfig.Temperature(), 0.01)
 	assert.Equal(t, 2048, savedConfig.MaxTokens())
 	assert.False(t, savedConfig.IsDefault())
 	assert.False(t, savedConfig.CreatedAt().IsZero())
@@ -82,7 +82,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 	assert.Equal(t, "gpt-3.5-turbo", finalConfig.ModelName())
 	assert.Equal(t, aichatconfig.AIModelTypeOpenAI, finalConfig.ModelType())
 	assert.Equal(t, "Updated system prompt", finalConfig.SystemPrompt())
-	assert.Equal(t, float32(0.9), finalConfig.Temperature())
+	assert.InEpsilon(t, float32(0.9), finalConfig.Temperature(), 0.01)
 	assert.Equal(t, 1024, finalConfig.MaxTokens())
 	assert.Equal(t, savedConfig.CreatedAt(), finalConfig.CreatedAt())
 	assert.True(t, finalConfig.UpdatedAt().After(savedConfig.UpdatedAt()))
@@ -119,7 +119,7 @@ func TestAIChatConfigRepository_GetByID(t *testing.T) {
 	assert.Equal(t, savedConfig.ModelName(), retrievedConfig.ModelName())
 	assert.Equal(t, savedConfig.ModelType(), retrievedConfig.ModelType())
 	assert.Equal(t, savedConfig.SystemPrompt(), retrievedConfig.SystemPrompt())
-	assert.Equal(t, savedConfig.Temperature(), retrievedConfig.Temperature())
+	assert.InEpsilon(t, savedConfig.Temperature(), retrievedConfig.Temperature(), 0.01)
 	assert.Equal(t, savedConfig.MaxTokens(), retrievedConfig.MaxTokens())
 	assert.Equal(t, savedConfig.CreatedAt().Unix(), retrievedConfig.CreatedAt().Unix())
 	assert.Equal(t, savedConfig.UpdatedAt().Unix(), retrievedConfig.UpdatedAt().Unix())
@@ -347,7 +347,7 @@ func TestAIChatConfigRepository_Delete_DefaultConfig(t *testing.T) {
 
 	// Try to delete the default config
 	err = repo.Delete(fixtures.ctx, savedConfig.ID())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot delete default config")
 
 	// Verify the config still exists
