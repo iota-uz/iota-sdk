@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"bufio"
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -18,6 +21,41 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
+
+type statusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *statusResponseWriter) WriteHeader(code int) {
+	w.statusCode = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// Status returns the HTTP status code
+func (w *statusResponseWriter) Status() int {
+	if w.statusCode == 0 {
+		return http.StatusOK
+	}
+	return w.statusCode
+}
+
+func (w *statusResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (w *statusResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
+}
+
+func wrapResponseWriter(w http.ResponseWriter) *statusResponseWriter {
+	return &statusResponseWriter{ResponseWriter: w, statusCode: 0}
+}
 
 var AllowMethods = []string{
 	http.MethodConnect,
@@ -93,18 +131,19 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 				start := time.Now()
 				requestID := getRequestID(r, conf)
 
-				logFields := logrus.Fields{
-					"timestamp":  start.UnixNano(),
+				fieldsLogger := logger.WithFields(logrus.Fields{
+					"request-id": requestID,
 					"path":       r.RequestURI,
 					"method":     r.Method,
+				})
+
+				fieldsLogger.WithFields(logrus.Fields{
+					"timestamp":  start.UnixNano(),
 					"host":       r.Host,
 					"ip":         getRealIP(r, conf),
 					"user-agent": r.UserAgent(),
-					"request-id": requestID,
 					"headers":    getHeaders(r),
-				}
-
-				fieldsLogger := logger.WithFields(logFields)
+				}).Info("request started")
 
 				propagator := propagation.TraceContext{}
 				ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
@@ -142,15 +181,25 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 					})
 				}
 
-				next.ServeHTTP(w, r.WithContext(ctx))
+				w.Header().Set("X-Request-Id", requestID)
 
+				wrappedWriter := wrapResponseWriter(w)
+				next.ServeHTTP(wrappedWriter, r.WithContext(ctx))
+
+				// Log the status code
+				statusCode := wrappedWriter.Status()
 				duration := time.Since(start)
 				fieldsLogger.WithFields(logrus.Fields{
-					"duration":  duration,
-					"completed": true,
+					"duration":     duration,
+					"completed":    true,
+					"status-code":  statusCode,
+					"status-class": statusCode / 100,
 				}).Info("request completed")
 
-				span.SetAttributes(attribute.Int64("http.request_duration_ms", duration.Milliseconds()))
+				span.SetAttributes(
+					attribute.Int64("http.request_duration_ms", duration.Milliseconds()),
+					attribute.Int("http.status_code", statusCode),
+				)
 			},
 		)
 	}

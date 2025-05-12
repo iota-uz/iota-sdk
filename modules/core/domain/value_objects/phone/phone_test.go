@@ -167,8 +167,8 @@ func TestParse(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			if phoneObj.Value() != tt.expected {
-				t.Errorf("Parse(%q).Value() = %q, expected %q", tt.phone, phoneObj.Value(), tt.expected)
+			if phoneObj.E164() != tt.expected {
+				t.Errorf("Parse(%q).Value() = %q, expected %q", tt.phone, phoneObj.E164(), tt.expected)
 			}
 		})
 	}
