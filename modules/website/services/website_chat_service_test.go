@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -43,7 +44,7 @@ func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 	emailStr := "test@example.com"
 
 	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -69,7 +70,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	phoneStr := "+12126647665" // Valid US number format
 
 	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, phoneStr)
+	thread, err := sut.CreateThread(fixtures.ctx, phoneStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -101,7 +102,7 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create thread with existing client's email
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -123,12 +124,12 @@ func TestWebsiteChatService_CreateThread_ReuseExistingThread(t *testing.T) {
 	require.NoError(t, err)
 
 	// 2. Create first thread with the client's email
-	firstThread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	firstThread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, firstThread)
 
 	// 3. Create a second thread with the same email
-	secondThread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	secondThread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, secondThread)
 
@@ -145,7 +146,7 @@ func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
 	invalidContact := "not-an-email-or-phone"
 
 	// Should fail
-	_, err := sut.CreateThread(fixtures.ctx, invalidContact)
+	_, err := sut.CreateThread(fixtures.ctx, invalidContact, country.UnitedStates)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid contact")
 }
@@ -184,7 +185,7 @@ func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			thread, err := sut.CreateThread(fixtures.ctx, tt.contact)
+			thread, err := sut.CreateThread(fixtures.ctx, tt.contact, country.UnitedStates)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -203,7 +204,7 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "sendmessage@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -237,7 +238,7 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "emptymessage@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 
 	// Try to send empty message
@@ -260,7 +261,7 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "reply@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -302,7 +303,7 @@ func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
 	fixtures, sut, _ := setupChatTest(t)
 
 	emailStr := "emptyreply@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 
 	// Should fail
@@ -321,7 +322,7 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "usernotfound@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 
 	// Try to reply with non-existent user
