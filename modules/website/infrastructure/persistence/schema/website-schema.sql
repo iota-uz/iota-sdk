@@ -13,6 +13,6 @@ CREATE TABLE IF NOT EXISTS ai_chat_configs (
 );
 
 -- Add partial unique index to ensure only one row can have is_default=true
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_chat_configs_unique_default ON ai_chat_configs (is_default) WHERE (is_default = true);
-
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_chat_configs_unique_default ON ai_chat_configs (is_default)
+WHERE (is_default = TRUE);
 
