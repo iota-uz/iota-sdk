@@ -281,7 +281,7 @@ func TestAIChatController_SaveConfig_FirstConfigSetsDefault(t *testing.T) {
 	// Ensure no configs exist initially
 	configs, err := fixtures.service.List(fixtures.ctx)
 	require.NoError(t, err)
-	require.Len(t, configs, 0, "No configs should exist initially")
+	require.Empty(t, configs, "No configs should exist initially")
 
 	// Prepare form data
 	formData := url.Values{}

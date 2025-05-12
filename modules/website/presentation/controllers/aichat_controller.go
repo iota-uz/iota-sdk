@@ -264,7 +264,7 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	chatEntity, err := c.chatService.SendMessageToThread(r.Context(), websiteServices.SendMessageToThreadDTO{
+	_, err = c.chatService.SendMessageToThread(r.Context(), websiteServices.SendMessageToThreadDTO{
 		ChatID:  uint(chatID),
 		Message: msg.Message,
 	})
@@ -274,7 +274,7 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	chatEntity, err = c.chatService.ReplyWithAI(r.Context(), uint(chatID))
+	chatEntity, err := c.chatService.ReplyWithAI(r.Context(), uint(chatID))
 	if err != nil {
 		logger.WithError(err).Error("failed to get AI response")
 		http.Error(w, "Failed to get AI response", http.StatusInternalServerError)

@@ -17,9 +17,15 @@ import (
 
 // DataToMap converts any data structure to a logrus.Fields map
 func DataToMap(data any) logrus.Fields {
-	b, _ := json.Marshal(data)
+	b, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
 	var loggerFields map[string]any
-	_ = json.Unmarshal(b, &loggerFields)
+	err = json.Unmarshal(b, &loggerFields)
+	if err != nil {
+		panic(err)
+	}
 	return loggerFields
 }
 
