@@ -55,7 +55,7 @@ templ ViewDrawer(props ViewDrawerProps) {
 			"@closed":  "document.getElementById('view-drawer').remove()",
 		},
 	}) {
-		<div class="flex flex-col flex-1 overflow-y-auto">
+		<div class="flex flex-col h-full">
 			@tab.Root(tab.Props{DefaultValue: props.SelectedTab}) {
 				@tab.List(tab.ListProps{}) {
 					for _, t := range props.Tabs {

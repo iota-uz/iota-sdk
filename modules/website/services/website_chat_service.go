@@ -6,11 +6,14 @@ import (
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
+	"github.com/sashabaranov/go-openai"
 )
 
 type SendMessageToThreadDTO struct {
@@ -25,24 +28,31 @@ type ReplyToThreadDTO struct {
 }
 
 type WebsiteChatService struct {
-	userRepo   user.Repository
-	clientRepo client.Repository
-	chatRepo   chat.Repository
+	aiconfigRepo aichatconfig.Repository
+	userRepo     user.Repository
+	clientRepo   client.Repository
+	chatRepo     chat.Repository
 }
 
 func NewWebsiteChatService(
+	aiconfigRepo aichatconfig.Repository,
 	userRepo user.Repository,
 	clientRepo client.Repository,
 	chatRepo chat.Repository,
 ) *WebsiteChatService {
 	return &WebsiteChatService{
-		userRepo:   userRepo,
-		clientRepo: clientRepo,
-		chatRepo:   chatRepo,
+		aiconfigRepo: aiconfigRepo,
+		userRepo:     userRepo,
+		clientRepo:   clientRepo,
+		chatRepo:     chatRepo,
 	}
 }
 
-func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (chat.Chat, error) {
+func (s *WebsiteChatService) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
+	return s.chatRepo.GetByID(ctx, id)
+}
+
+func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string, _country country.Country) (chat.Chat, error) {
 	var member chat.Member
 	email, err := internet.NewEmail(contact)
 	if err == nil {
@@ -52,7 +62,7 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string) (
 		}
 	}
 
-	p, err := phone.NewFromE164(contact)
+	p, err := phone.Parse(contact, _country)
 	if err == nil {
 		member, err = s.memberFromPhone(ctx, p)
 		if err != nil {
@@ -90,7 +100,8 @@ func (s *WebsiteChatService) SendMessageToThread(ctx context.Context, dto SendMe
 	var member chat.Member
 
 	for _, m := range chatEntity.Members() {
-		if m.Sender().Transport() != chat.WebsiteTransport {
+		// Get transport from member instead of sender
+		if m.Transport() != chat.WebsiteTransport {
 			continue
 		}
 		if v, ok := m.Sender().(chat.ClientSender); ok && v.ClientID() == chatEntity.ClientID() {
@@ -135,7 +146,8 @@ func (s *WebsiteChatService) ReplyToThread(
 	var member chat.Member
 
 	for _, m := range chatEntity.Members() {
-		if m.Sender().Transport() != chat.WebsiteTransport {
+		// Get transport from member instead of sender
+		if m.Transport() != chat.WebsiteTransport {
 			continue
 		}
 
@@ -168,6 +180,76 @@ func (s *WebsiteChatService) ReplyToThread(
 	return savedChat, nil
 }
 
+func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat.Chat, error) {
+	chatEntity, err := s.chatRepo.GetByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	messages := chatEntity.Messages()
+	if len(messages) == 0 {
+		return nil, chat.ErrNoMessages
+	}
+
+	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages)+1) // +1 for system prompt
+
+	config, err := s.aiconfigRepo.GetDefault(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AI configuration: %w", err)
+	}
+
+	if config.SystemPrompt() != "" {
+		openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: config.SystemPrompt(),
+		})
+	}
+
+	for _, msg := range messages {
+		role := openai.ChatMessageRoleUser
+		if msg.Sender().Sender().Type() == chat.UserSenderType {
+			role = openai.ChatMessageRoleAssistant
+		}
+
+		openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
+			Role:    role,
+			Content: msg.Message(),
+		})
+	}
+
+	completionReq := openai.ChatCompletionRequest{
+		Model:       config.ModelName(),
+		Messages:    openaiMessages,
+		Temperature: float32(config.Temperature()),
+		MaxTokens:   config.MaxTokens(),
+	}
+	openaiClient := openai.NewClient(config.AccessToken())
+
+	response, err := openaiClient.CreateChatCompletion(ctx, completionReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AI response: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return nil, fmt.Errorf("no response from AI")
+	}
+
+	// Use the first choice as the AI response
+	aiResponse := response.Choices[0].Message.Content
+
+	// Reply to the thread with the AI-generated response
+	chatEntity, err = s.ReplyToThread(ctx, ReplyToThreadDTO{
+		ChatID:  chatID,
+		UserID:  1, // AI user ID (you should replace with a configured AI user ID)
+		Message: aiResponse,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return chatEntity, nil
+}
+
 func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) (chat.Member, error) {
 	usr, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -176,11 +258,11 @@ func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) 
 
 	return chat.NewMember(
 		chat.NewUserSender(
-			chat.WebsiteTransport,
 			usr.ID(),
 			usr.FirstName(),
 			usr.LastName(),
 		),
+		chat.WebsiteTransport,
 	), nil
 }
 
@@ -196,12 +278,12 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 		}
 		return chat.NewMember(
 			chat.NewClientSender(
-				chat.WebsiteTransport,
 				match.ID(),
 				contactID,
 				match.FirstName(),
 				match.LastName(),
 			),
+			chat.WebsiteTransport,
 		), nil
 	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
 		return nil, err
@@ -225,12 +307,12 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 	}
 	member := chat.NewMember(
 		chat.NewClientSender(
-			chat.WebsiteTransport,
 			clientEntity.ID(),
 			contactID,
 			clientEntity.FirstName(),
 			clientEntity.LastName(),
 		),
+		chat.WebsiteTransport,
 	)
 	return member, nil
 }
@@ -247,12 +329,12 @@ func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet
 		}
 		return chat.NewMember(
 			chat.NewClientSender(
-				chat.WebsiteTransport,
 				match.ID(),
 				contactID,
 				match.FirstName(),
 				match.LastName(),
 			),
+			chat.WebsiteTransport,
 		), nil
 	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
 		return nil, err
@@ -276,12 +358,12 @@ func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet
 	}
 	member := chat.NewMember(
 		chat.NewClientSender(
-			chat.WebsiteTransport,
 			clientEntity.ID(),
 			contactID,
 			clientEntity.FirstName(),
 			clientEntity.LastName(),
 		),
+		chat.WebsiteTransport,
 	)
 	return member, nil
 }

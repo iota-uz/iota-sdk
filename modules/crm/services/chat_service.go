@@ -304,11 +304,11 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 
 		member := chat.NewMember(
 			chat.NewUserSender(
-				cmd.Transport,
 				usr.ID(),
 				usr.FirstName(),
 				usr.LastName(),
 			),
+			cmd.Transport,
 		)
 
 		msg := chat.NewMessage(cmd.Message, member)

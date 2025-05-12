@@ -4,12 +4,14 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmPersistence "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,9 +28,10 @@ func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, c
 	passportRepo := corePersistence.NewPassportRepository()
 	clientRepo := crmPersistence.NewClientRepository(passportRepo)
 	chatRepo := crmPersistence.NewChatRepository()
+	aiconfigRepo := persistence.NewAIChatConfigRepository()
 
 	// Create the website chat service
-	websiteChatService := services.NewWebsiteChatService(userRepo, clientRepo, chatRepo)
+	websiteChatService := services.NewWebsiteChatService(aiconfigRepo, userRepo, clientRepo, chatRepo)
 
 	return fixtures, websiteChatService, clientRepo
 }
@@ -41,7 +44,7 @@ func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 	emailStr := "test@example.com"
 
 	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -67,7 +70,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	phoneStr := "+12126647665" // Valid US number format
 
 	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, phoneStr)
+	thread, err := sut.CreateThread(fixtures.ctx, phoneStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -99,12 +102,40 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create thread with existing client's email
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
 	// Verify the thread has the same client ID as our pre-created client
 	assert.Equal(t, savedClient.ID(), thread.ClientID())
+}
+
+func TestWebsiteChatService_CreateThread_ReuseExistingThread(t *testing.T) {
+	t.Parallel()
+	fixtures, sut, clientRepo := setupChatTest(t)
+
+	// 1. Create a client and get the client ID
+	emailStr := "reuse@example.com"
+	email, _ := internet.NewEmail(emailStr)
+	existingClient, err := client.New(emailStr, client.WithEmail(email))
+	require.NoError(t, err)
+
+	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
+	require.NoError(t, err)
+
+	// 2. Create first thread with the client's email
+	firstThread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	require.NoError(t, err)
+	require.NotNil(t, firstThread)
+
+	// 3. Create a second thread with the same email
+	secondThread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	require.NoError(t, err)
+	require.NotNil(t, secondThread)
+
+	// 4. Verify both threads have the same ID and client ID
+	assert.Equal(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same contact should return the existing thread")
+	assert.Equal(t, savedClient.ID(), secondThread.ClientID(), "Thread should be associated with the correct client")
 }
 
 func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
@@ -115,7 +146,7 @@ func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
 	invalidContact := "not-an-email-or-phone"
 
 	// Should fail
-	_, err := sut.CreateThread(fixtures.ctx, invalidContact)
+	_, err := sut.CreateThread(fixtures.ctx, invalidContact, country.UnitedStates)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid contact")
 }
@@ -154,7 +185,7 @@ func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			thread, err := sut.CreateThread(fixtures.ctx, tt.contact)
+			thread, err := sut.CreateThread(fixtures.ctx, tt.contact, country.UnitedStates)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -173,7 +204,7 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "sendmessage@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -198,7 +229,8 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	clientSender, ok := sender.(chat.ClientSender)
 	require.True(t, ok, "Message sender should be a ClientSender")
 	assert.Equal(t, thread.ClientID(), clientSender.ClientID())
-	assert.Equal(t, chat.WebsiteTransport, clientSender.Transport())
+	// Now we get the transport from the member, not the sender
+	assert.Equal(t, chat.WebsiteTransport, lastMsg.Sender().Transport())
 }
 
 func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
@@ -207,7 +239,7 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "emptymessage@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 
 	// Try to send empty message
@@ -230,7 +262,7 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "reply@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -264,7 +296,8 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 	userSender, ok := sender.(chat.UserSender)
 	require.True(t, ok, "Message sender should be a UserSender")
 	assert.Equal(t, createdUser.ID(), userSender.UserID())
-	assert.Equal(t, chat.WebsiteTransport, userSender.Transport())
+	// Now we get the transport from the member, not the sender
+	assert.Equal(t, chat.WebsiteTransport, lastMsg.Sender().Transport())
 }
 
 func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
@@ -272,7 +305,7 @@ func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
 	fixtures, sut, _ := setupChatTest(t)
 
 	emailStr := "emptyreply@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 
 	// Should fail
@@ -291,7 +324,7 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "usernotfound@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr)
+	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
 	require.NoError(t, err)
 
 	// Try to reply with non-existent user

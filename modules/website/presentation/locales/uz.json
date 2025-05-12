@@ -7,13 +7,33 @@
 		"Meta": {
 			"Title": "AI Chatbot"
 		},
-		"Title": {
-			"Label": "Sarlavha",
-			"Placeholder": "Sarlavhani kiriting"
+		"ModelName": {
+			"Label": "Model nomi",
+			"Placeholder": "Model nomini kiriting (masalan gpt-4)"
 		},
-		"_Description": {
-			"Label": "Tavsif",
-			"Placeholder": "Tavsifni kiriting"
+		"ModelType": {
+			"Label": "Model turi",
+			"Placeholder": "Model turini tanlang"
+		},
+		"SystemPrompt": {
+			"Label": "Tizim promti",
+			"Placeholder": "AI uchun tizim promptini kiriting"
+		},
+		"Temperature": {
+			"Label": "Temperatura",
+			"Placeholder": "0.0 dan 2.0 gacha qiymat kiriting"
+		},
+		"MaxTokens": {
+			"Label": "Maksimal tokenlar",
+			"Placeholder": "Maksimal tokenlar sonini kiriting"
+		},
+		"BaseURL": {
+			"Label": "API baza URL",
+			"Placeholder": "API baza URL manzilini kiriting (masalan https://api.openai.com/v1)"
+		},
+		"AccessToken": {
+			"Label": "API kirish tokeni",
+			"Placeholder": "API kirish tokenini kiriting"
 		}
 	}
 }
