@@ -190,7 +190,7 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	assert.Equal(t, "gpt-4", savedConfig.ModelName())
 	assert.Equal(t, aichatconfig.AIModelTypeOpenAI, savedConfig.ModelType())
 	assert.Equal(t, "You are a helpful assistant.", savedConfig.SystemPrompt())
-	assert.Equal(t, float32(0.7), savedConfig.Temperature())
+	assert.InEpsilon(t, float32(0.7), savedConfig.Temperature(), 0.01)
 	assert.Equal(t, 1024, savedConfig.MaxTokens())
 	assert.Equal(t, "https://api.openai.com/v1", savedConfig.BaseURL())
 	assert.Equal(t, "test-api-key", savedConfig.AccessToken())
@@ -268,7 +268,7 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 
 	assert.Equal(t, "updated-model", updatedConfig.ModelName())
 	assert.Equal(t, "Updated prompt", updatedConfig.SystemPrompt())
-	assert.Equal(t, float32(0.8), updatedConfig.Temperature())
+	assert.InEpsilon(t, float32(0.8), updatedConfig.Temperature(), 0.01)
 	assert.Equal(t, 2048, updatedConfig.MaxTokens())
 	assert.Equal(t, "updated-key", updatedConfig.AccessToken())
 	assert.True(t, updatedConfig.IsDefault())

@@ -7,10 +7,9 @@ RUN chmod +x install.sh && ./install.sh && go install github.com/a-h/templ/cmd/t
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
 
-RUN go install github.com/mitranim/gow@latest
-
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-CMD [ "gow", "test", "./..." ]
+CMD ["sh", "-c", "go vet ./... && golangci-lint run ./... && go test -v ./..."]
+

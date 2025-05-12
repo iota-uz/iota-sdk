@@ -229,7 +229,8 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	clientSender, ok := sender.(chat.ClientSender)
 	require.True(t, ok, "Message sender should be a ClientSender")
 	assert.Equal(t, thread.ClientID(), clientSender.ClientID())
-	assert.Equal(t, chat.WebsiteTransport, clientSender.Transport())
+	// Now we get the transport from the member, not the sender
+	assert.Equal(t, chat.WebsiteTransport, lastMsg.Sender().Transport())
 }
 
 func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
@@ -295,7 +296,8 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 	userSender, ok := sender.(chat.UserSender)
 	require.True(t, ok, "Message sender should be a UserSender")
 	assert.Equal(t, createdUser.ID(), userSender.UserID())
-	assert.Equal(t, chat.WebsiteTransport, userSender.Transport())
+	// Now we get the transport from the member, not the sender
+	assert.Equal(t, chat.WebsiteTransport, lastMsg.Sender().Transport())
 }
 
 func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {

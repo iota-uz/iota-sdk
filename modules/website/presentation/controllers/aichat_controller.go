@@ -223,7 +223,6 @@ func (c *AIChatController) getThreadMessages(w http.ResponseWriter, r *http.Requ
 	messages := chatEntity.Messages()
 	threadMessages := make([]dtos.ThreadMessage, 0, len(messages))
 	for _, msg := range messages {
-
 		var role string
 		if msg.Sender().Sender().Type() == chat.ClientSenderType {
 			role = "user"

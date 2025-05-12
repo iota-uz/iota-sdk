@@ -74,12 +74,6 @@ type chat struct {
 	createdAt time.Time
 }
 
-func (c *chat) ensureMembersMap() {
-	if c.members == nil {
-		c.members = make(map[uuid.UUID]Member)
-	}
-}
-
 func (c *chat) copy() *chat {
 	newChat := *c
 
@@ -171,7 +165,6 @@ func (c *chat) CreatedAt() time.Time {
 }
 
 func (c *chat) Members() []Member {
-	c.ensureMembersMap()
 	members := make([]Member, 0, len(c.members))
 	for _, member := range c.members {
 		members = append(members, member)
@@ -180,7 +173,6 @@ func (c *chat) Members() []Member {
 }
 
 func (c *chat) hasMemberByID(memberID uuid.UUID) bool {
-	c.ensureMembersMap()
 	_, exists := c.members[memberID]
 	return exists
 }
@@ -189,7 +181,6 @@ func (c *chat) AddMember(member Member) Chat {
 	if member == nil {
 		return c
 	}
-	c.ensureMembersMap()
 
 	if _, exists := c.members[member.ID()]; exists {
 		return c
@@ -201,8 +192,6 @@ func (c *chat) AddMember(member Member) Chat {
 }
 
 func (c *chat) RemoveMember(memberID uuid.UUID) Chat {
-	c.ensureMembersMap()
-
 	if _, exists := c.members[memberID]; !exists {
 		return c
 	}
@@ -234,6 +223,7 @@ func WithMemberUpdatedAt(updatedAt time.Time) MemberOption {
 
 func NewMember(
 	sender Sender,
+	transport Transport,
 	opts ...MemberOption,
 ) Member {
 	if sender == nil {
@@ -241,7 +231,7 @@ func NewMember(
 	}
 	m := &member{
 		id:        uuid.New(),
-		transport: sender.Transport(),
+		transport: transport,
 		sender:    sender,
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
@@ -385,45 +375,39 @@ func (m *message) Attachments() []upload.Upload {
 func (m *message) CreatedAt() time.Time { return m.createdAt }
 
 type userSender struct {
-	transport Transport
 	userID    uint
 	firstName string
 	lastName  string
 }
 
-func (s *userSender) Transport() Transport { return s.transport }
-func (s *userSender) Type() SenderType     { return UserSenderType }
-func (s *userSender) UserID() uint         { return s.userID }
-func (s *userSender) FirstName() string    { return s.firstName }
-func (s *userSender) LastName() string     { return s.lastName }
+func (s *userSender) Type() SenderType  { return UserSenderType }
+func (s *userSender) UserID() uint      { return s.userID }
+func (s *userSender) FirstName() string { return s.firstName }
+func (s *userSender) LastName() string  { return s.lastName }
 
 type clientSender struct {
-	transport Transport
 	clientID  uint
 	contactID uint
 	firstName string
 	lastName  string
 }
 
-func (s *clientSender) Transport() Transport { return s.transport }
-func (s *clientSender) Type() SenderType     { return ClientSenderType }
-func (s *clientSender) ClientID() uint       { return s.clientID }
-func (s *clientSender) ContactID() uint      { return s.contactID }
-func (s *clientSender) FirstName() string    { return s.firstName }
-func (s *clientSender) LastName() string     { return s.lastName }
+func (s *clientSender) Type() SenderType  { return ClientSenderType }
+func (s *clientSender) ClientID() uint    { return s.clientID }
+func (s *clientSender) ContactID() uint   { return s.contactID }
+func (s *clientSender) FirstName() string { return s.firstName }
+func (s *clientSender) LastName() string  { return s.lastName }
 
-func NewUserSender(transport Transport, userID uint, firstName, lastName string) UserSender {
+func NewUserSender(userID uint, firstName, lastName string) UserSender {
 	return &userSender{
-		transport: transport,
 		userID:    userID,
 		firstName: firstName,
 		lastName:  lastName,
 	}
 }
 
-func NewClientSender(transport Transport, clientID, contactID uint, firstName, lastName string) ClientSender {
+func NewClientSender(clientID, contactID uint, firstName, lastName string) ClientSender {
 	return &clientSender{
-		transport: transport,
 		clientID:  clientID,
 		contactID: contactID,
 		firstName: firstName,
@@ -444,11 +428,10 @@ func NewTelegramSender(base Sender, chatID int64, username string, phone phone.P
 	}
 	return &telegramSender{base: base, chatID: chatID, username: username, phone: phone}
 }
-func (s *telegramSender) Transport() Transport { return TelegramTransport }
-func (s *telegramSender) Type() SenderType     { return s.base.Type() }
-func (s *telegramSender) ChatID() int64        { return s.chatID }
-func (s *telegramSender) Username() string     { return s.username }
-func (s *telegramSender) Phone() phone.Phone   { return s.phone }
+func (s *telegramSender) Type() SenderType   { return s.base.Type() }
+func (s *telegramSender) ChatID() int64      { return s.chatID }
+func (s *telegramSender) Username() string   { return s.username }
+func (s *telegramSender) Phone() phone.Phone { return s.phone }
 
 type websiteSender struct {
 	base  Sender
@@ -462,7 +445,6 @@ func NewWebsiteSender(base Sender, phone phone.Phone, email internet.Email) Webs
 	}
 	return &websiteSender{base: base, phone: phone, email: email}
 }
-func (s *websiteSender) Transport() Transport  { return WebsiteTransport }
 func (s *websiteSender) Type() SenderType      { return s.base.Type() }
 func (s *websiteSender) Phone() phone.Phone    { return s.phone }
 func (s *websiteSender) Email() internet.Email { return s.email }
@@ -478,9 +460,8 @@ func NewWhatsAppSender(base Sender, phone phone.Phone) WhatsAppSender {
 	}
 	return &whatsAppSender{base: base, phone: phone}
 }
-func (s *whatsAppSender) Transport() Transport { return WhatsAppTransport }
-func (s *whatsAppSender) Type() SenderType     { return s.base.Type() }
-func (s *whatsAppSender) Phone() phone.Phone   { return s.phone }
+func (s *whatsAppSender) Type() SenderType   { return s.base.Type() }
+func (s *whatsAppSender) Phone() phone.Phone { return s.phone }
 
 type instagramSender struct {
 	base     Sender
@@ -493,9 +474,8 @@ func NewInstagramSender(base Sender, username string) InstagramSender {
 	}
 	return &instagramSender{base: base, username: username}
 }
-func (s *instagramSender) Transport() Transport { return InstagramTransport }
-func (s *instagramSender) Type() SenderType     { return s.base.Type() }
-func (s *instagramSender) Username() string     { return s.username }
+func (s *instagramSender) Type() SenderType { return s.base.Type() }
+func (s *instagramSender) Username() string { return s.username }
 
 type smsSender struct {
 	base  Sender
@@ -508,9 +488,8 @@ func NewSMSSender(base Sender, phone phone.Phone) SMSSender {
 	}
 	return &smsSender{base: base, phone: phone}
 }
-func (s *smsSender) Transport() Transport { return SMSTransport }
-func (s *smsSender) Type() SenderType     { return s.base.Type() }
-func (s *smsSender) Phone() phone.Phone   { return s.phone }
+func (s *smsSender) Type() SenderType   { return s.base.Type() }
+func (s *smsSender) Phone() phone.Phone { return s.phone }
 
 type emailSender struct {
 	base  Sender
@@ -523,7 +502,6 @@ func NewEmailSender(base Sender, email internet.Email) EmailSender {
 	}
 	return &emailSender{base: base, email: email}
 }
-func (s *emailSender) Transport() Transport  { return EmailTransport }
 func (s *emailSender) Type() SenderType      { return s.base.Type() }
 func (s *emailSender) Email() internet.Email { return s.email }
 
@@ -538,9 +516,8 @@ func NewPhoneSender(base Sender, phone phone.Phone) PhoneSender {
 	}
 	return &phoneSender{base: base, phone: phone}
 }
-func (s *phoneSender) Transport() Transport { return PhoneTransport }
-func (s *phoneSender) Type() SenderType     { return s.base.Type() }
-func (s *phoneSender) Phone() phone.Phone   { return s.phone }
+func (s *phoneSender) Type() SenderType   { return s.base.Type() }
+func (s *phoneSender) Phone() phone.Phone { return s.phone }
 
 type otherSender struct {
 	base Sender
@@ -548,9 +525,8 @@ type otherSender struct {
 
 func NewOtherSender(base Sender) OtherSender {
 	if base == nil {
-		base = &userSender{transport: OtherTransport, userID: 0, firstName: "Unknown", lastName: "Sender"}
+		base = &userSender{userID: 0, firstName: "Unknown", lastName: "Sender"}
 	}
 	return &otherSender{base: base}
 }
-func (s *otherSender) Transport() Transport { return OtherTransport }
-func (s *otherSender) Type() SenderType     { return s.base.Type() }
+func (s *otherSender) Type() SenderType { return s.base.Type() }

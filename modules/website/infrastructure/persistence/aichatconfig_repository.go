@@ -14,9 +14,6 @@ import (
 )
 
 const (
-	aiConfigSelectFields = `
-`
-
 	aiConfigFindQuery = `
 		SELECT id,
 			model_name,
@@ -72,7 +69,6 @@ func (r *AIChatConfigRepository) GetByID(ctx context.Context, id uuid.UUID) (aic
 }
 
 func (r *AIChatConfigRepository) GetDefault(ctx context.Context) (aichatconfig.AIConfig, error) {
-
 	configs, err := r.queryConfigs(ctx, repo.Join(aiConfigFindQuery, "WHERE is_default = true LIMIT 1"))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query default AI chat config")
