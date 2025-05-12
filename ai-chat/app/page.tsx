@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { MessagesSquare, Bot, MessageCircle } from 'lucide-react';
 import ChatbotInterface, { type FAQItem } from '@/components/chatbot-interface';
 
 export default function Home() {
@@ -8,6 +9,7 @@ export default function Home() {
   const [apiEndpoint, setApiEndpoint] = useState<string>('http://localhost:3200/website/ai-chat');
   const [title, setTitle] = useState<string>('AI Chat Bot');
   const [subtitle, setSubtitle] = useState<string>('Our AI bot is ready to help you 24/7');
+  const [selectedIcon, setSelectedIcon] = useState<string>('message-circle');
 
   // Custom FAQ items for demo
   const [faqItems, setFaqItems] = useState<FAQItem[]>([
@@ -83,7 +85,42 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Chat Icon Selection */}
+          <div className="mb-6">
+            <h2 className="text-lg font-medium mb-3">Chat Icon</h2>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setSelectedIcon('message-circle')}
+                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${
+                  selectedIcon === 'message-circle' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                <MessageCircle className="mr-2" size={20} />
+                Default
+              </button>
+              <button
+                onClick={() => setSelectedIcon('messages-square')}
+                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${
+                  selectedIcon === 'messages-square' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                <MessagesSquare className="mr-2" size={20} />
+                Messages Square
+              </button>
+              <button
+                onClick={() => setSelectedIcon('bot')}
+                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${
+                  selectedIcon === 'bot' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                <Bot className="mr-2" size={20} />
+                Bot
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-6">
+
             {/* API Endpoint Input */}
             <div>
               <h2 className="text-lg font-medium mb-3">API Endpoint</h2>
@@ -136,6 +173,15 @@ export default function Home() {
           faqItems={faqItems}
           title={title}
           subtitle={subtitle}
+          chatIcon={
+            selectedIcon === 'messages-square' ? (
+              <MessagesSquare className="text-white" size={24} />
+            ) : selectedIcon === 'bot' ? (
+              <Bot className="text-white" size={24} />
+            ) : (
+              <MessageCircle className="text-white" size={24} />
+            )
+          }
         />
       </div>
     </div>

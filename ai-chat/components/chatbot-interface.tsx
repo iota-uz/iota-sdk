@@ -2,14 +2,25 @@
 
 import * as React from 'react';
 
-import { ChevronDown, Send } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { formatDate } from '@/lib/utils';
 import { CallbackModal } from '@/components/callback-modal';
 import { TypingIndicator } from '@/components/typing-indicator';
 import { QuickReplyButtons } from '@/components/quick-reply-buttons';
 import { chatApi } from '@/lib/api-service';
-import { getTranslations, type Translations } from '@/lib/translations';
+import { getTranslations } from '@/lib/translations';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useSoundEffects } from '@/hooks/use-sound-effects';
+
+// Import components
+import {
+  ChatHeader,
+  ChatFloatingButton,
+  MessageBubble,
+  MessageInput,
+  PhoneInput,
+  WelcomeMessage
+} from '@/components/chat';
 
 // Message type definition for UI
 export type ChatMessage = {
@@ -25,35 +36,13 @@ export interface FAQItem {
   question: string
 }
 
-// Message component
-interface MessageBubbleProps {
-  message: ChatMessage
-  translations: Translations
-  botTitle?: string
-}
-
-const MessageBubble = ({ message, translations, botTitle }: MessageBubbleProps) => {
-  return (
-    <div
-      className={`max-w-[80%] w-fit ${message.sender === 'user'
-        ? 'ml-auto bg-[#dce6f3] rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl p-3'
-        : 'bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm'
-        }`}
-    >
-      {message.sender === 'bot' && (
-        <div className="text-[#2e67b4] font-medium mb-2">{botTitle || translations.chatbotTitle}</div>
-      )}
-      <p className="whitespace-pre-line">{message.content}</p>
-    </div>
-  );
-};
-
 interface ChatbotInterfaceProps {
   locale?: string
   apiEndpoint: string // Required prop - direct API endpoint
   faqItems?: FAQItem[]
   title?: string
   subtitle?: string
+  chatIcon?: React.ReactNode // Custom chat icon for the chat button
 }
 
 export default function ChatbotInterface({
@@ -62,9 +51,12 @@ export default function ChatbotInterface({
   faqItems,
   title,
   subtitle,
+  chatIcon,
 }: ChatbotInterfaceProps) {
   // Get translations for the specified locale
   const translations = getTranslations(locale);
+  const isMobile = useIsMobile();
+  const { playSubmitSound, playOperatorSound } = useSoundEffects();
 
   // Set API endpoint
   useEffect(() => {
@@ -83,43 +75,45 @@ export default function ChatbotInterface({
   const [threadId, setThreadId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [messageCount, setMessageCount] = useState<number>(1);
   const [windowHeight, setWindowHeight] = useState(0);
 
   const chatbotTitle = title || translations.chatbotTitle;
   const chatbotSubtitle = subtitle || translations.chatbotSubtitle;
 
-  const handleResetChat = React.useCallback(() => {
+  const handleResetChat = useCallback(() => {
     localStorage.removeItem('chatThreadId');
     localStorage.removeItem('chatPhoneNumber');
     setThreadId(null);
     setPhoneSubmitted(false);
     setPhoneNumber('');
     setError(null);
+    const now = new Date();
     setMessages([
       {
         id: 'welcome',
         content: `${translations.welcomeGreeting}\n\n${translations.welcomeMessage}`,
         sender: 'bot',
-        timestamp: new Date(),
+        timestamp: now,
       },
     ]);
-  }, [translations, setThreadId, setPhoneSubmitted, setPhoneNumber, setError, setMessages]);
+  }, [translations]);
 
-  const handle404Error = React.useCallback(() => {
+  const handle404Error = useCallback(() => {
+    const now = new Date();
     const errorMsg: ChatMessage = {
       id: `bot-error-${Date.now()}`,
       content: translations.threadNotFoundMessage,
       sender: 'bot',
-      timestamp: new Date(),
+      timestamp: now,
     };
 
     setMessages([errorMsg]);
-
     handleResetChat();
-  }, [translations, setMessages, handleResetChat]);
+  }, [translations, handleResetChat]);
 
-  const fetchMessages = React.useCallback(async (threadId: string) => {
+  const fetchMessages = useCallback(async (threadId: string) => {
     try {
       setIsTyping(true);
       setError(null);
@@ -130,7 +124,7 @@ export default function ChatbotInterface({
         id: `${msg.role}-${index}`,
         content: msg.message,
         sender: msg.role === 'user' ? 'user' : 'bot',
-        timestamp: new Date(), // API doesn't provide timestamps, so we use current time
+        timestamp: new Date(msg.timestamp), // Parse ISO timestamp from API
       }));
 
       setMessages(chatMessages);
@@ -143,32 +137,65 @@ export default function ChatbotInterface({
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`${translations.errorLoadingMessages}: ${errorMessage}`);
 
+      const now = new Date();
       setMessages([
         {
           id: 'error',
           content: translations.errorLoadingMessages,
           sender: 'bot',
-          timestamp: new Date(),
+          timestamp: now,
         },
       ]);
     } finally {
       setIsTyping(false);
     }
-  }, [setIsTyping, setError, setMessages, handle404Error, translations]);
-
-
+  }, [handle404Error, translations]);
 
   useEffect(() => {
     const updateWindowHeight = () => {
-      setWindowHeight(window.innerHeight);
+      // On mobile, use a slight delay to account for software keyboard and orientation changes
+      setTimeout(() => {
+        setWindowHeight(window.innerHeight);
+      }, 100);
     };
 
     updateWindowHeight();
 
     window.addEventListener('resize', updateWindowHeight);
 
-    return () => window.removeEventListener('resize', updateWindowHeight);
-  }, []);
+    // For mobile, also listen to orientation changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('orientationchange', () => {
+        // Add a longer delay for orientation changes to ensure UI is fully updated
+        setTimeout(updateWindowHeight, 300);
+      });
+    }
+
+    // For mobile, add specific event listeners for input focus to handle keyboard properly
+    if (isMobile) {
+      const handleFocus = () => {
+        // Prevent scrolling issues when keyboard appears
+        window.scrollTo(0, 0);
+      };
+
+      document.addEventListener('focus', handleFocus, true);
+
+      return () => {
+        window.removeEventListener('resize', updateWindowHeight);
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('orientationchange', updateWindowHeight);
+        }
+        document.removeEventListener('focus', handleFocus, true);
+      };
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateWindowHeight);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('orientationchange', updateWindowHeight);
+      }
+    };
+  }, [isMobile]);
 
   useEffect(() => {
     const storedThreadId = localStorage.getItem('chatThreadId');
@@ -181,12 +208,13 @@ export default function ChatbotInterface({
       setShowDateHeader(true);
       fetchMessages(storedThreadId);
     } else {
+      const now = new Date();
       setMessages([
         {
           id: 'welcome',
           content: `${translations.welcomeGreeting}\n\n${translations.welcomeMessage}`,
           sender: 'bot',
-          timestamp: new Date(),
+          timestamp: now,
         },
       ]);
     }
@@ -229,12 +257,13 @@ export default function ChatbotInterface({
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`${translations.errorCreatingChat}: ${errorMessage}`);
 
+      const now = new Date();
       setMessages([
         {
           id: 'error',
           content: translations.errorCreatingChat,
           sender: 'bot',
-          timestamp: new Date(),
+          timestamp: now,
         },
       ]);
     } finally {
@@ -245,11 +274,14 @@ export default function ChatbotInterface({
   const handleSendMessage = async () => {
     if (currentMessage.trim().length === 0 || !threadId) { return; }
 
+    playSubmitSound();
+
+    const now = new Date();
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       content: currentMessage,
       sender: 'user',
-      timestamp: new Date(),
+      timestamp: now,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -274,7 +306,7 @@ export default function ChatbotInterface({
           id: `bot-${Date.now()}`,
           content: latestAssistantMessage.message,
           sender: 'bot',
-          timestamp: new Date(),
+          timestamp: new Date(latestAssistantMessage.timestamp),
         };
 
         setMessages((prev) => {
@@ -282,6 +314,7 @@ export default function ChatbotInterface({
           const isDuplicate = prev.some((msg) => msg.sender === 'bot' && msg.content === latestAssistantMessage.message);
 
           if (isDuplicate) { return prev; }
+          playOperatorSound();
           return [...prev, botMessage];
         });
       }
@@ -296,11 +329,12 @@ export default function ChatbotInterface({
       setError(`${translations.errorSendingMessage}: ${errorMessage}`);
 
       // Add error message to UI
+      const now = new Date();
       const errorMsg: ChatMessage = {
         id: `bot-error-${Date.now()}`,
         content: translations.errorSendingMessage,
         sender: 'bot',
-        timestamp: new Date(),
+        timestamp: now,
       };
 
       setMessages((prev) => [...prev, errorMsg]);
@@ -327,67 +361,93 @@ export default function ChatbotInterface({
   // Handle callback request submission
   const handleCallbackSubmit = (callbackPhone: string) => {
     // Add bot confirmation message
+    const now = new Date();
     const botMessage: ChatMessage = {
       id: `bot-${Date.now()}`,
       content: translations.callbackConfirmation.replace('{phone}', callbackPhone),
       sender: 'bot',
-      timestamp: new Date(),
+      timestamp: now,
     };
 
+    playOperatorSound();
     setMessages((prev) => [...prev, botMessage]);
 
     // In a real application, you would send this request to your backend
   };
 
   // Calculate chat dimensions
-  const chatWidth = 450;
+  const chatWidth = isMobile ? '100%' : 450;
   const headerHeight = 60;
-  const maxChatHeight = windowHeight ? Math.min(windowHeight * 0.8, 700) : 600;
-  const contentHeight = maxChatHeight - headerHeight;
+  const maxChatHeight = isMobile ? '100%' : (windowHeight ? Math.min(windowHeight * 0.8, 700) : 600);
+  const contentHeight = isMobile ? `calc(100vh - ${headerHeight}px)` : (maxChatHeight as number) - headerHeight;
+
+  // Handle auto-increment unread message count
+  useEffect(() => {
+    // Chat is already closed by default, no need to auto-minimize
+
+    // Simulate receiving new messages when minimized
+    let messageInterval: ReturnType<typeof setTimeout>;
+
+    if (!isOpen) {
+      messageInterval = setInterval(() => {
+        // Simulate new message arrival when closed (for demo)
+        setMessageCount(prev => Math.min(prev + 1, 9));
+      }, 15000);
+    } else {
+      // Reset message count when chat is opened
+      setMessageCount(0);
+    }
+
+    return () => {
+      if (messageInterval) {clearInterval(messageInterval);}
+    };
+  }, [isOpen]);
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className={`fixed ${isMobile ? 'inset-0' : 'bottom-4 right-4'} z-50 flex flex-col items-end`}>
+      {!isOpen && (
+        <ChatFloatingButton
+          onClick={() => setIsOpen(true)}
+          isMobile={isMobile}
+          messageCount={messageCount}
+          chatIcon={chatIcon}
+        />
+      )}
       <div
-        className={`overflow-hidden bg-white rounded-lg shadow-lg transition-all duration-300 ${isOpen ? 'opacity-100' : 'opacity-95'
+        className={`overflow-hidden bg-white transition-all duration-300 ${isMobile ? '' : 'rounded-lg shadow-lg'} ${isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
           }`}
         style={{
-          width: `${chatWidth}px`,
-          height: isOpen ? `${maxChatHeight}px` : `${headerHeight}px`,
+          width: typeof chatWidth === 'number' ? `${chatWidth}px` : chatWidth,
+          height: isOpen ? (typeof maxChatHeight === 'number' ? `${maxChatHeight}px` : maxChatHeight) : '0px',
+          position: isMobile && isOpen ? 'fixed' : 'relative',
+          top: isMobile && isOpen ? 0 : 'auto',
+          left: isMobile && isOpen ? 0 : 'auto',
+          right: isMobile && isOpen ? 0 : 'auto',
+          bottom: isMobile && isOpen ? 0 : 'auto',
+          visibility: isOpen ? 'visible' : 'hidden',
+          zIndex: 40,
+          marginLeft: isMobile ? 0 : 'auto',
+          display: isMobile && isOpen ? 'flex' : 'block',
+          flexDirection: isMobile && isOpen ? 'column' : 'initial',
+          minHeight: isMobile ? '100vh' : 'auto',
+          overflowY: isMobile ? 'hidden' : 'visible'
         }}
       >
         {/* Header */}
-        <div
-          className="relative bg-[#0a223e] text-white p-4 flex items-center cursor-pointer"
-          style={{ height: `${headerHeight}px` }}
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <div className="w-10 h-10 bg-[#8b98a5] rounded-full flex items-center justify-center mr-3">
-            <span className="text-white">•••</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-medium">{chatbotTitle}</h1>
-            <p className="text-sm opacity-90">{chatbotSubtitle}</p>
-          </div>
-          <ChevronDown
-            className={`absolute right-4 top-1/2 transform -translate-y-1/2 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'
-              }`}
-          />
-        </div>
+        <ChatHeader
+          title={chatbotTitle}
+          subtitle={chatbotSubtitle}
+          chatIcon={chatIcon}
+          onClose={() => setIsOpen(false)}
+          isMobile={isMobile}
+        />
 
         {isOpen && (
-          <div className="flex flex-col" style={{ height: `${contentHeight}px` }}>
+          <div className={`flex flex-col ${isMobile ? 'flex-1' : ''}`} style={{ height: isMobile ? contentHeight : `${contentHeight}px`, maxHeight: isMobile ? contentHeight : undefined }}>
             {/* Chat Area */}
-            <div className="bg-[#f2f5f8] p-4 flex-grow overflow-y-auto">
+            <div className={`bg-[#f2f5f8] ${isMobile ? 'p-3 pb-4' : 'p-4'} flex-grow overflow-y-auto`} style={{ minHeight: isMobile ? '50vh' : undefined }}>
               {!phoneSubmitted ? (
-                <div className="bg-white rounded-tr-2xl rounded-tl-2xl rounded-br-xl p-4 shadow-sm">
-                  <div className="text-[#2e67b4] font-medium mb-2">{chatbotTitle}</div>
-                  <p className="mb-2">{translations.welcomeGreeting}</p>
-                  <p className="mb-4">{translations.welcomeMessage}</p>
-                  <p className="flex items-start">
-                    <span className="inline-block mr-2 mt-1">🔒</span>
-                    <span>{translations.phoneRequestMessage}</span>
-                  </p>
-                </div>
+                <WelcomeMessage chatbotTitle={chatbotTitle} translations={translations} />
               ) : (
                 <div className="space-y-4">
                   {showDateHeader && (
@@ -414,47 +474,35 @@ export default function ChatbotInterface({
                   {/* Typing indicator */}
                   {isTyping && <TypingIndicator translations={translations} botTitle={chatbotTitle} />}
 
-                  <div ref={messagesEndRef} />
+                  <div ref={messagesEndRef} style={{ height: 10 }} />
                 </div>
               )}
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white shrink-0">
+            <div className={`${isMobile ? 'p-3' : 'p-4'} bg-white shrink-0`} style={{ position: isMobile ? 'sticky' : 'relative', bottom: 0 }}>
               {!phoneSubmitted ? (
                 /* Phone Input */
-                <div className="flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg">
-                  <input
-                    type="text"
-                    className="bg-transparent focus:outline-none text-[#0a223e] flex-1"
-                    placeholder={translations.phoneInputPlaceholder}
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                  />
-                  <button onClick={handlePhoneSubmit} disabled={isTyping}>
-                    <Send className={`ml-auto ${isTyping ? 'text-[#8b98a5]' : 'text-[#0a223e]'}`} size={20} />
-                  </button>
-                </div>
+                <PhoneInput
+                  phoneNumber={phoneNumber}
+                  setPhoneNumber={setPhoneNumber}
+                  handleSubmit={handlePhoneSubmit}
+                  handleKeyPress={handleKeyPress}
+                  isTyping={isTyping}
+                  translations={translations}
+                  isMobile={isMobile}
+                />
               ) : (
                 /* Message Input */
-                <div className="flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg">
-                  <input
-                    type="text"
-                    className="bg-transparent focus:outline-none text-[#0a223e] flex-1"
-                    placeholder={translations.messageInputPlaceholder}
-                    value={currentMessage}
-                    onChange={(e) => setCurrentMessage(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    disabled={isTyping}
-                  />
-                  <button onClick={handleSendMessage} disabled={isTyping || currentMessage.trim().length === 0}>
-                    <Send
-                      className={`ml-auto ${currentMessage.trim() && !isTyping ? 'text-[#0a223e]' : 'text-[#8b98a5]'}`}
-                      size={20}
-                    />
-                  </button>
-                </div>
+                <MessageInput
+                  currentMessage={currentMessage}
+                  setCurrentMessage={setCurrentMessage}
+                  handleSubmit={handleSendMessage}
+                  handleKeyPress={handleKeyPress}
+                  isTyping={isTyping}
+                  translations={translations}
+                  isMobile={isMobile}
+                />
               )}
 
               {/* Quick Reply Buttons - only show for new conversations */}
@@ -469,7 +517,7 @@ export default function ChatbotInterface({
 
               {/* Send Button */}
               <button
-                className={`w-full py-3 rounded-lg mb-4 ${phoneSubmitted && currentMessage.trim() && !isTyping
+                className={`w-full py-3 ${isMobile ? 'py-4 text-base' : 'py-3'} rounded-lg mb-4 ${phoneSubmitted && currentMessage.trim() && !isTyping
                   ? 'bg-[#2e67b4] text-white'
                   : 'bg-[#e4e9ee] text-[#bdc8d2]'
                   }`}
@@ -483,7 +531,7 @@ export default function ChatbotInterface({
 
               {/* Request Callback Button */}
               <button
-                className="w-full py-3 border border-[#2e67b4] text-[#2e67b4] rounded-lg"
+                className={`w-full ${isMobile ? 'py-4 text-base' : 'py-3'} border border-[#2e67b4] text-[#2e67b4] rounded-lg`}
                 onClick={() => setIsCallbackModalOpen(true)}
                 disabled={isTyping}
               >

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -230,8 +231,9 @@ func (c *AIChatController) getThreadMessages(w http.ResponseWriter, r *http.Requ
 			role = "assistant"
 		}
 		threadMessages = append(threadMessages, dtos.ThreadMessage{
-			Role:    role,
-			Message: msg.Message(),
+			Role:      role,
+			Message:   msg.Message(),
+			Timestamp: msg.CreatedAt().Format(time.RFC3339),
 		})
 	}
 

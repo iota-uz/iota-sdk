@@ -10,8 +10,9 @@ type ChatResponse struct {
 }
 
 type ThreadMessage struct {
-	Role    string `json:"role"`
-	Message string `json:"message"`
+	Role      string `json:"role"`
+	Message   string `json:"message"`
+	Timestamp string `json:"timestamp"`
 }
 
 type ThreadMessagesResponse struct {
