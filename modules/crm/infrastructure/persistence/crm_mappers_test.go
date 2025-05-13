@@ -468,7 +468,7 @@ func TestToDomainChat(t *testing.T) {
 
 		// Collect the transports from our test members
 		expectedTransports := []chat.Transport{member1.Transport(), member2.Transport()}
-		actualTransports := []chat.Transport{domainChat.Members()[0].Transport(), domainChat.Members()[1].Transport()}
+		actualTransports := []chat.Transport{domainMembers[0].Transport(), domainMembers[1].Transport()}
 
 		assert.ElementsMatch(t,
 			expectedTransports,
