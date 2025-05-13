@@ -12,14 +12,3 @@ services:
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
 
-  app:
-    build:
-      context: .
-    environment:
-      DB_NAME: iota_erp
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_PASSWORD: password
-      DOMAIN: localhost
-      SESSION_DURATION: 720h
-
