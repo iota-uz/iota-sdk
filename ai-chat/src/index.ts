@@ -2,6 +2,10 @@
 export { default as ChatbotInterface } from '../components/chatbot-interface';
 export type { ChatMessage, FAQItem } from '../components/chatbot-interface';
 
+// Export sound effects hook and type
+export { useSoundEffects } from '../hooks';
+export type { SoundOptions } from '../hooks/use-sound-effects';
+
 // Re-export useful utils and services
 export { chatApi } from '../lib/api-service';
 export type {

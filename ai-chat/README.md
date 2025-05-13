@@ -44,6 +44,13 @@ function App() {
       title="Custom Title"
       subtitle="Custom Subtitle"
       chatIcon={<MessagesSquare size={24} className="text-white" />}
+      soundOptions={{
+        // Optional: customize sound effects
+        submitSoundPath: "/sounds/custom-submit.mp3",
+        operatorSoundPath: "/sounds/custom-operator.mp3",
+        volume: 0.4,
+        enabled: true
+      }}
     />
   );
 }
@@ -65,6 +72,7 @@ The main component that renders the chatbot UI.
 | `title` | `string` | `undefined` | Custom chatbot title (falls back to translation) |
 | `subtitle` | `string` | `undefined` | Custom chatbot subtitle (falls back to translation) |
 | `chatIcon` | `React.ReactNode` | `undefined` | Custom icon for the chat button and header |
+| `soundOptions` | `SoundOptions` | `undefined` | Customize sound effects (see below) |
 
 ### Types
 
@@ -82,6 +90,14 @@ export type ChatMessage = {
   sender: "user" | "bot";
   timestamp: Date;
 };
+
+// Sound options configuration
+export interface SoundOptions {
+  enabled?: boolean;        // Enable/disable sound effects (default: true)
+  volume?: number;          // Sound volume from 0.0 to 1.0 (default: 0.5)
+  submitSoundPath?: string; // Path to submit sound file (default: '/sounds/submit.mp3')
+  operatorSoundPath?: string; // Path to operator sound file (default: '/sounds/operator.mp3')
+}
 ```
 
 ## Backend Integration
@@ -166,6 +182,32 @@ The component uses Tailwind CSS for styling. You can customize the appearance by
 ### Translations
 
 Translations are stored in `lib/translations.ts`. You can add additional languages or modify existing translations as needed.
+
+### Sound Effects
+
+The chatbot includes sound effects for message submission and operator responses. You can:
+
+1. Customize the sound file paths:
+```jsx
+<ChatbotInterface 
+  apiEndpoint="/api/chat"
+  soundOptions={{
+    submitSoundPath: "/my-custom-sounds/submit.mp3",
+    operatorSoundPath: "/my-custom-sounds/operator.mp3",
+    volume: 0.5
+  }}
+/>
+```
+
+2. Disable sounds:
+```jsx
+<ChatbotInterface 
+  apiEndpoint="/api/chat"
+  soundOptions={{ enabled: false }}
+/>
+```
+
+Make sure to place your custom sound files in the public directory of your Next.js application.
 
 ## CORS Considerations
 
