@@ -43,6 +43,12 @@ interface ChatbotInterfaceProps {
   title?: string
   subtitle?: string
   chatIcon?: React.ReactNode // Custom chat icon for the chat button
+  soundOptions?: {
+    enabled?: boolean
+    volume?: number
+    submitSoundPath?: string
+    operatorSoundPath?: string
+  }
 }
 
 export default function ChatbotInterface({
@@ -52,11 +58,12 @@ export default function ChatbotInterface({
   title,
   subtitle,
   chatIcon,
+  soundOptions,
 }: ChatbotInterfaceProps) {
   // Get translations for the specified locale
   const translations = getTranslations(locale);
   const isMobile = useIsMobile();
-  const { playSubmitSound, playOperatorSound } = useSoundEffects();
+  const { playSubmitSound, playOperatorSound } = useSoundEffects(soundOptions);
 
   // Set API endpoint
   useEffect(() => {
