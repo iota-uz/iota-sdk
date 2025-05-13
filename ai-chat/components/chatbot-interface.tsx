@@ -76,7 +76,7 @@ export default function ChatbotInterface({
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [messageCount, setMessageCount] = useState<number>(1);
+  const [messageCount, setMessageCount] = useState<number>(0);
   const [windowHeight, setWindowHeight] = useState(0);
 
   const chatbotTitle = title || translations.chatbotTitle;
@@ -381,26 +381,11 @@ export default function ChatbotInterface({
   const maxChatHeight = isMobile ? '100%' : (windowHeight ? Math.min(windowHeight * 0.8, 700) : 600);
   const contentHeight = isMobile ? `calc(100vh - ${headerHeight}px)` : (maxChatHeight as number) - headerHeight;
 
-  // Handle auto-increment unread message count
+  // Reset message count when chat is opened
   useEffect(() => {
-    // Chat is already closed by default, no need to auto-minimize
-
-    // Simulate receiving new messages when minimized
-    let messageInterval: ReturnType<typeof setTimeout>;
-
-    if (!isOpen) {
-      messageInterval = setInterval(() => {
-        // Simulate new message arrival when closed (for demo)
-        setMessageCount(prev => Math.min(prev + 1, 9));
-      }, 15000);
-    } else {
-      // Reset message count when chat is opened
+    if (isOpen) {
       setMessageCount(0);
     }
-
-    return () => {
-      if (messageInterval) {clearInterval(messageInterval);}
-    };
   }, [isOpen]);
 
   return (
@@ -443,7 +428,9 @@ export default function ChatbotInterface({
         />
 
         {isOpen && (
-          <div className={`flex flex-col ${isMobile ? 'flex-1' : ''}`} style={{ height: isMobile ? contentHeight : `${contentHeight}px`, maxHeight: isMobile ? contentHeight : undefined }}>
+          <div
+            className={`flex flex-col ${isMobile ? 'flex-1' : ''}`}
+            style={{ height: isMobile ? contentHeight : `${contentHeight}px`, maxHeight: isMobile ? contentHeight : undefined }}>
             {/* Chat Area */}
             <div className={`bg-[#f2f5f8] ${isMobile ? 'p-3 pb-4' : 'p-4'} flex-grow overflow-y-auto`} style={{ minHeight: isMobile ? '50vh' : undefined }}>
               {!phoneSubmitted ? (
