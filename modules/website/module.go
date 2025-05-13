@@ -3,6 +3,7 @@ package website
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	crmPersistence "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
@@ -38,10 +39,13 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterServices(
 		services.NewAIChatConfigService(aiconfigRepo),
 		services.NewWebsiteChatService(
-			aiconfigRepo,
-			userRepo,
-			clientRepo,
-			chatRepo,
+			services.WebsiteChatServiceConfig{
+				AIConfigRepo: aiconfigRepo,
+				UserRepo:     userRepo,
+				ClientRepo:   clientRepo,
+				ChatRepo:     chatRepo,
+				AIUserEmail:  internet.MustParseEmail("ai@llm.com"),
+			},
 		),
 	)
 	app.RegisterControllers(

@@ -27,24 +27,29 @@ type ReplyToThreadDTO struct {
 	Message string
 }
 
+type WebsiteChatServiceConfig struct {
+	AIConfigRepo aichatconfig.Repository
+	UserRepo     user.Repository
+	ClientRepo   client.Repository
+	ChatRepo     chat.Repository
+	AIUserEmail  internet.Email
+}
+
 type WebsiteChatService struct {
 	aiconfigRepo aichatconfig.Repository
 	userRepo     user.Repository
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
+	aiUserEmail  internet.Email
 }
 
-func NewWebsiteChatService(
-	aiconfigRepo aichatconfig.Repository,
-	userRepo user.Repository,
-	clientRepo client.Repository,
-	chatRepo chat.Repository,
-) *WebsiteChatService {
+func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
 	return &WebsiteChatService{
-		aiconfigRepo: aiconfigRepo,
-		userRepo:     userRepo,
-		clientRepo:   clientRepo,
-		chatRepo:     chatRepo,
+		aiconfigRepo: config.AIConfigRepo,
+		userRepo:     config.UserRepo,
+		clientRepo:   config.ClientRepo,
+		chatRepo:     config.ChatRepo,
+		aiUserEmail:  config.AIUserEmail,
 	}
 }
 
@@ -235,14 +240,16 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 	if len(response.Choices) == 0 {
 		return nil, fmt.Errorf("no response from AI")
 	}
-
-	// Use the first choice as the AI response
 	aiResponse := response.Choices[0].Message.Content
 
-	// Reply to the thread with the AI-generated response
+	aiUser, err := s.userRepo.GetByEmail(ctx, s.aiUserEmail.Value())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AI user: %w", err)
+	}
+
 	chatEntity, err = s.ReplyToThread(ctx, ReplyToThreadDTO{
 		ChatID:  chatID,
-		UserID:  1, // AI user ID (you should replace with a configured AI user ID)
+		UserID:  aiUser.ID(),
 		Message: aiResponse,
 	})
 	if err != nil {

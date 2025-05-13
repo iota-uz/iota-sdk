@@ -36,10 +36,13 @@ func (dto *AIConfigDTO) Apply(cfg aichatconfig.AIConfig) (aichatconfig.AIConfig,
 
 		modelType := aichatconfig.AIModelType(dto.ModelType)
 
+		if dto.SystemPrompt != "" {
+			options = append(options, aichatconfig.WithSystemPrompt(dto.SystemPrompt))
+		}
+
 		return aichatconfig.New(
 			dto.ModelName,
 			modelType,
-			dto.SystemPrompt,
 			dto.BaseURL,
 			options...,
 		)

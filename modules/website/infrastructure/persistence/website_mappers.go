@@ -33,11 +33,7 @@ func ToDomainConfig(model models.AIChatConfig) (aichatconfig.AIConfig, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to parse UUID from string: %s", model.ID))
 	}
 
-	return aichatconfig.New(
-		model.ModelName,
-		aichatconfig.AIModelType(model.ModelType),
-		model.SystemPrompt,
-		model.BaseURL,
+	options := []aichatconfig.Option{
 		aichatconfig.WithID(id),
 		aichatconfig.WithTemperature(model.Temperature),
 		aichatconfig.WithMaxTokens(model.MaxTokens),
@@ -45,5 +41,16 @@ func ToDomainConfig(model models.AIChatConfig) (aichatconfig.AIConfig, error) {
 		aichatconfig.WithIsDefault(model.IsDefault),
 		aichatconfig.WithCreatedAt(model.CreatedAt),
 		aichatconfig.WithUpdatedAt(model.UpdatedAt),
+	}
+
+	if model.SystemPrompt != "" {
+		options = append(options, aichatconfig.WithSystemPrompt(model.SystemPrompt))
+	}
+
+	return aichatconfig.New(
+		model.ModelName,
+		aichatconfig.AIModelType(model.ModelType),
+		model.BaseURL,
+		options...,
 	)
 }

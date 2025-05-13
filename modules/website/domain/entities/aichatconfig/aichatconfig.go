@@ -66,10 +66,22 @@ type aiConfig struct {
 	updatedAt    time.Time
 }
 
+func MustNew(
+	modelName string,
+	modelType AIModelType,
+	baseURL string,
+	opts ...Option,
+) AIConfig {
+	cfg, err := New(modelName, modelType, baseURL, opts...)
+	if err != nil {
+		panic(err)
+	}
+	return cfg
+}
+
 func New(
 	modelName string,
 	modelType AIModelType,
-	systemPrompt string,
 	baseURL string,
 	opts ...Option,
 ) (AIConfig, error) {
@@ -85,7 +97,7 @@ func New(
 		id:           uuid.New(),
 		modelName:    modelName,
 		modelType:    modelType,
-		systemPrompt: systemPrompt,
+		systemPrompt: "",
 		baseURL:      baseURL,
 		accessToken:  "",   // No default access token
 		temperature:  0.7,  // Default temperature

@@ -17,13 +17,17 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 
 	repo := persistence.NewAIChatConfigRepository()
 
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("You are a helpful assistant"),
+		aichatconfig.WithTemperature(0.8),
+		aichatconfig.WithMaxTokens(2048),
+	}
+
 	config, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"You are a helpful assistant",
 		"https://api.openai.com/v1",
-		aichatconfig.WithTemperature(0.8),
-		aichatconfig.WithMaxTokens(2048),
+		options...,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, config)
@@ -51,13 +55,17 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save a new config
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Original system prompt"),
+		aichatconfig.WithTemperature(0.7),
+		aichatconfig.WithMaxTokens(1024),
+	}
+
 	originalConfig, err := aichatconfig.New(
 		"gpt-3.5-turbo",
 		aichatconfig.AIModelTypeOpenAI,
-		"Original system prompt",
 		"https://api.openai.com/v1",
-		aichatconfig.WithTemperature(0.7),
-		aichatconfig.WithMaxTokens(1024),
+		options...,
 	)
 	require.NoError(t, err)
 
@@ -95,13 +103,17 @@ func TestAIChatConfigRepository_GetByID(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save a new config
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Test system prompt"),
+		aichatconfig.WithTemperature(0.8),
+		aichatconfig.WithMaxTokens(2048),
+	}
+
 	config, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Test system prompt",
 		"https://api.openai.com/v1",
-		aichatconfig.WithTemperature(0.8),
-		aichatconfig.WithMaxTokens(2048),
+		options...,
 	)
 	require.NoError(t, err)
 
@@ -145,20 +157,28 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save multiple configs
+	options1 := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Config 1 system prompt"),
+	}
+
 	config1, err := aichatconfig.New(
 		"gpt-3.5-turbo",
 		aichatconfig.AIModelTypeOpenAI,
-		"Config 1 system prompt",
 		"https://api.openai.com/v1",
+		options1...,
 	)
 	require.NoError(t, err)
+
+	options2 := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Config 2 system prompt"),
+		aichatconfig.WithTemperature(0.9),
+	}
 
 	config2, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Config 2 system prompt",
 		"https://api.openai.com/v1",
-		aichatconfig.WithTemperature(0.9),
+		options2...,
 	)
 	require.NoError(t, err)
 
@@ -202,11 +222,15 @@ func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save a new config
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Test system prompt"),
+	}
+
 	config, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Test system prompt",
 		"https://api.openai.com/v1",
+		options...,
 	)
 	require.NoError(t, err)
 
@@ -237,19 +261,27 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save two configs
+	options1 := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Config 1 system prompt"),
+	}
+
 	config1, err := aichatconfig.New(
 		"gpt-3.5-turbo",
 		aichatconfig.AIModelTypeOpenAI,
-		"Config 1 system prompt",
 		"https://api.openai.com/v1",
+		options1...,
 	)
 	require.NoError(t, err)
+
+	options2 := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Config 2 system prompt"),
+	}
 
 	config2, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Config 2 system prompt",
 		"https://api.openai.com/v1",
+		options2...,
 	)
 	require.NoError(t, err)
 
@@ -300,11 +332,15 @@ func TestAIChatConfigRepository_Delete(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save a new config
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Test system prompt"),
+	}
+
 	config, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Test system prompt",
 		"https://api.openai.com/v1",
+		options...,
 	)
 	require.NoError(t, err)
 
@@ -329,11 +365,15 @@ func TestAIChatConfigRepository_Delete_DefaultConfig(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save a new config
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Test system prompt"),
+	}
+
 	config, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Test system prompt",
 		"https://api.openai.com/v1",
+		options...,
 	)
 	require.NoError(t, err)
 
@@ -376,11 +416,15 @@ func TestAIChatConfigRepository_GetDefault_NoDefaultConfig(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create and save a new config without setting it as default
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Test system prompt"),
+	}
+
 	config, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Test system prompt",
 		"https://api.openai.com/v1",
+		options...,
 	)
 	require.NoError(t, err)
 
@@ -400,12 +444,16 @@ func TestAIChatConfigRepository_SaveWithIsDefault(t *testing.T) {
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Create a config with IsDefault set to true
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Test system prompt"),
+		aichatconfig.WithIsDefault(true),
+	}
+
 	config, err := aichatconfig.New(
 		"gpt-4",
 		aichatconfig.AIModelTypeOpenAI,
-		"Test system prompt",
 		"https://api.openai.com/v1",
-		aichatconfig.WithIsDefault(true),
+		options...,
 	)
 	require.NoError(t, err)
 	require.True(t, config.IsDefault())

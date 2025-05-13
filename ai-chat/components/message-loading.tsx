@@ -1,5 +1,7 @@
 'use client';
 
+import React from 'react';
+
 // @hidden
 function MessageLoading() {
   return (

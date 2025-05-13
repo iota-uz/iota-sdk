@@ -227,15 +227,19 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 	fixtures := setupTest(t)
 
 	// First, create an initial configuration
-	initialConfig, err := aichatconfig.New(
-		"initial-model",
-		aichatconfig.AIModelTypeOpenAI,
-		"Initial prompt",
-		"https://api.openai.com/v1",
+	options := []aichatconfig.Option{
+		aichatconfig.WithSystemPrompt("Initial prompt"),
 		aichatconfig.WithTemperature(0.5),
 		aichatconfig.WithMaxTokens(512),
 		aichatconfig.WithAccessToken("initial-key"),
 		aichatconfig.WithIsDefault(true),
+	}
+
+	initialConfig, err := aichatconfig.New(
+		"initial-model",
+		aichatconfig.AIModelTypeOpenAI,
+		"https://api.openai.com/v1",
+		options...,
 	)
 	require.NoError(t, err)
 
