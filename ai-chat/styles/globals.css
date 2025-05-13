@@ -91,4 +91,7 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  .markdown-content a {
+    @apply text-blue-600 underline hover:text-blue-800;
+  }
 }
