@@ -31,14 +31,14 @@ describe("user auth and registration flow", () => {
 		cy.get("ul[x-ref=list]").should("be.visible");
 		cy.get("ul[x-ref=list]").find("li").first().click();
 		cy.get("[id=save-btn]").click();
-		cy.get("tbody tr").should("have.length", 3); // including the spinner row
+		cy.get("tbody tr").should("have.length", 4); // including the spinner row
 		cy.logout();
 
 		cy.login("test1@gmail.com", "TestPass123!");
 		cy.visit("http://localhost:3200/users");
 
 		cy.url().should("include", "/users");
-		cy.get("tbody tr").should("have.length", 3); // including the spinner row
+		cy.get("tbody tr").should("have.length", 4); // including the spinner row
 	});
 
 	it("edits a user and displays changes in users table", () => {
@@ -58,7 +58,7 @@ describe("user auth and registration flow", () => {
 		cy.get("[id=save-btn]").click();
 
 		cy.visit("http://localhost:3200/users");
-		cy.get("tbody tr").should("have.length", 3); // including the spinner row
+		cy.get("tbody tr").should("have.length", 4); // including the spinner row
 		cy.get("tbody tr").should("contain.text", "TestNew UserNew");
 
 		// Verify phone number persists by checking the edit page

@@ -448,18 +448,21 @@ func TestToDomainChat(t *testing.T) {
 		assert.Len(t, domainChat.Messages(), 2, "Should have 2 messages")
 		assert.Len(t, domainChat.Members(), 2, "Should have 2 members")
 
+		domainMessages := domainChat.Messages()
+		domainMembers := domainChat.Members()
+
 		// Check the first message
-		assert.Equal(t, uint(1), domainChat.Messages()[0].ID(), "First message ID should match")
-		assert.Equal(t, "Message 1", domainChat.Messages()[0].Message(), "First message content should match")
+		assert.Equal(t, uint(1), domainMessages[0].ID(), "First message ID should match")
+		assert.Equal(t, "Message 1", domainMessages[0].Message(), "First message content should match")
 
 		// Check the second message
-		assert.Equal(t, uint(2), domainChat.Messages()[1].ID(), "Second message ID should match")
-		assert.Equal(t, "Message 2", domainChat.Messages()[1].Message(), "Second message content should match")
+		assert.Equal(t, uint(2), domainMessages[1].ID(), "Second message ID should match")
+		assert.Equal(t, "Message 2", domainMessages[1].Message(), "Second message content should match")
 
 		assert.ElementsMatch(
 			t,
 			[]uuid.UUID{member1ID, member2ID},
-			[]uuid.UUID{domainChat.Members()[0].ID(), domainChat.Members()[1].ID()},
+			[]uuid.UUID{domainMembers[0].ID(), domainMembers[1].ID()},
 			"Member IDs should match",
 		)
 
