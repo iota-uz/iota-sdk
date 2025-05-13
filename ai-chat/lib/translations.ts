@@ -49,8 +49,8 @@ export const ru: Translations = {
   chatbotSubtitle: 'Наш AI-бот готов помочь вам круглосуточно',
 
   // Welcome message
-  welcomeGreeting: 'Привет! Я виртуальный помощник Euroasia Insurance 👋',
-  welcomeMessage: 'Готов помочь вам с оформлением полиса, расчетом стоимости и любыми вопросами.',
+  welcomeGreeting: 'Привет! 👋',
+  welcomeMessage: 'Я Али, ваш виртуальный помощник от Euroasia Insurance. Готов помочь разобраться в мире страхования, подобрать нужный полис или ответить на любые ваши вопросы. Спрашивайте, не стесняйтесь! Чем могу быть полезен сегодня?',
   phoneRequestMessage:
     'Чтобы начать, пожалуйста, введите свой номер телефона — мы используем его для связи и сохранения истории обращений.',
 
@@ -107,9 +107,9 @@ export const uz: Translations = {
   chatbotSubtitle: 'Bizning AI-botimiz sizga 24/7 yordam berishga tayyor',
 
   // Welcome message
-  welcomeGreeting: 'Salom! Men Euroasia Insurance virtual yordamchisiman 👋',
+  welcomeGreeting: 'Assalomu alaykum! 👋',
   welcomeMessage:
-    "Sug'urta polisini rasmiylashtirish, narxni hisoblash va har qanday savollar bo'yicha yordam berishga tayyorman.",
+    "Men Ali, Euroasia Insurance'dan sizning virtual yordamchingizman. Sug'urta olamida yo'l ko'rsatish, kerakli polisni tanlash yoki har qanday savollaringizga javob berishga tayyorman. Bemalol murojaat qiling! Bugun sizga qanday yordam bera olaman?",
   phoneRequestMessage:
     'Boshlash uchun, iltimos, telefon raqamingizni kiriting — biz undan aloqa va murojaat tarixini saqlash uchun foydalanamiz.',
 
@@ -168,9 +168,9 @@ export const uzCyrl: Translations = {
   chatbotSubtitle: 'Бизнинг AI-ботимиз сизга 24/7 ёрдам беришга тайёр',
 
   // Welcome message
-  welcomeGreeting: 'Салом! Мен Euroasia Insurance виртуал ёрдамчисиман 👋',
+  welcomeGreeting: 'Ассалому алайкум! 👋',
   welcomeMessage:
-    'Суғурта полисини расмийлаштириш, нархни ҳисоблаш ва ҳар қандай саволлар бўйича ёрдам беришга тайёрман.',
+    'Мен Али, Euroasia Insurance\'дан сизнинг виртуал ёрдамчингизман. Суғурта оламида йўл кўрсатиш, керакли полисни танлаш ёки ҳар қандай саволларингизга жавоб беришга тайёрман. Бемалол мурожаат қилинг! Бугун сизга қандай ёрдам бера оламан?',
   phoneRequestMessage:
     'Бошлаш учун, илтимос, телефон рақамингизни киритинг — биз ундан алоқа ва мурожаат тарихини сақлаш учун фойдаланамиз.',
 
@@ -228,8 +228,8 @@ export const en: Translations = {
   chatbotSubtitle: 'Our AI bot is ready to help you 24/7',
 
   // Welcome message
-  welcomeGreeting: "Hello! I'm the virtual assistant of Euroasia Insurance 👋",
-  welcomeMessage: "I'm ready to help you with policy registration, cost calculation, and any questions you may have.",
+  welcomeGreeting: 'Hi there! 👋',
+  welcomeMessage: "I'm Ally, your virtual assistant from Euroasia Insurance. I'm ready to help you navigate the world of insurance, pick the right policy, or answer any questions you have. Feel free to ask! How can I help you today?",
   phoneRequestMessage:
     'To get started, please enter your phone number — we use it for communication and to save your request history.',
 
