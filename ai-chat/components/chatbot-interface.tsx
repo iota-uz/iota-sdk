@@ -213,6 +213,7 @@ export default function ChatbotInterface({
       setPhoneNumber(storedPhone);
       setPhoneSubmitted(true);
       setShowDateHeader(true);
+      setMessageCount(0); // Reset message count for loaded threads
       fetchMessages(storedThreadId);
     } else {
       const now = new Date();
@@ -224,6 +225,7 @@ export default function ChatbotInterface({
           timestamp: now,
         },
       ]);
+      setMessageCount(1); // Only set message count to 1 for new chats
     }
 
   }, [translations, fetchMessages]);

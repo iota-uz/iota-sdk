@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -41,6 +42,19 @@ type WebsiteChatService struct {
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
 	aiUserEmail  internet.Email
+}
+
+type ToolcallParams struct {
+	Type       string                 `json:"type"`
+	Properties map[string]interface{} `json:"properties"`
+}
+
+type GetUserPolicyArgs struct {
+	UserID string `json:"user_id"`
+}
+
+func getUserPolicy(args GetUserPolicyArgs) string {
+	return fmt.Sprintf("https://eai.uz/policies/user-%s", args.UserID)
 }
 
 func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
@@ -105,7 +119,6 @@ func (s *WebsiteChatService) SendMessageToThread(ctx context.Context, dto SendMe
 	var member chat.Member
 
 	for _, m := range chatEntity.Members() {
-		// Get transport from member instead of sender
 		if m.Transport() != chat.WebsiteTransport {
 			continue
 		}
@@ -227,6 +240,24 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 		Messages:    openaiMessages,
 		Temperature: float32(config.Temperature()),
 		MaxTokens:   config.MaxTokens(),
+		Tools: []openai.Tool{
+			{
+				Type: openai.ToolTypeFunction,
+				Function: &openai.FunctionDefinition{
+					Name:        "get_user_policy",
+					Description: "Get user policy URL",
+					Parameters: &ToolcallParams{
+						Type: "object",
+						Properties: map[string]any{
+							"user_id": map[string]any{
+								"type":        "string",
+								"description": "User ID",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	openaiConfig := openai.DefaultConfig(config.AccessToken())
 	openaiConfig.BaseURL = config.BaseURL()
@@ -239,6 +270,28 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 
 	if len(response.Choices) == 0 {
 		return nil, fmt.Errorf("no response from AI")
+	}
+	if response.Choices[0].Message.ToolCalls != nil && len(response.Choices[0].Message.ToolCalls) > 0 {
+		for _, toolCall := range response.Choices[0].Message.ToolCalls {
+			if toolCall.Function.Name == "get_user_policy" {
+				var args GetUserPolicyArgs
+				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal function arguments: %w", err)
+				}
+				policyURL := getUserPolicy(args)
+				completionReq.Messages = append(completionReq.Messages, openai.ChatCompletionMessage{
+					Role:    openai.ChatMessageRoleFunction,
+					Name:    toolCall.Function.Name,
+					Content: policyURL,
+				})
+			} else {
+				return nil, fmt.Errorf("unknown function call: %s", toolCall.Function.Name)
+			}
+		}
+		response, err = openaiClient.CreateChatCompletion(ctx, completionReq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AI response: %w", err)
+		}
 	}
 	aiResponse := response.Choices[0].Message.Content
 
