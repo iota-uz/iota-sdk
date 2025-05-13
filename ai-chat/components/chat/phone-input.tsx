@@ -22,22 +22,28 @@ export const PhoneInput = ({
   isMobile 
 }: PhoneInputProps) => {
   return (
-    <div className="flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg">
-      <input
-        type="text"
-        className="bg-transparent focus:outline-none text-[#0a223e] flex-1"
-        placeholder={translations.phoneInputPlaceholder}
-        value={phoneNumber}
-        onChange={(e) => setPhoneNumber(e.target.value)}
-        onKeyDown={handleKeyPress}
-        style={{ fontSize: isMobile ? '16px' : 'inherit' }}
-      />
-      <button onClick={handleSubmit} disabled={isTyping}>
-        <Send 
-          className={`ml-auto ${isTyping ? 'text-[#8b98a5]' : 'text-[#0a223e]'}`} 
-          size={isMobile ? 24 : 20} 
+    <div className="mb-4">
+      <label htmlFor="phone-input" className="block mb-2 text-sm font-medium text-[#0a223e]">
+        {translations.phoneInputLabel}
+      </label>
+      <div className="flex items-center p-3 bg-[#f2f5f8] rounded-lg">
+        <input
+          id="phone-input"
+          type="text"
+          className="bg-transparent focus:outline-none text-[#0a223e] flex-1"
+          placeholder={translations.phoneInputPlaceholder}
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          onKeyDown={handleKeyPress}
+          style={{ fontSize: isMobile ? '16px' : 'inherit' }}
         />
-      </button>
+        <button onClick={handleSubmit} disabled={isTyping}>
+          <Send 
+            className={`ml-auto ${isTyping ? 'text-[#8b98a5]' : 'text-[#0a223e]'}`} 
+            size={isMobile ? 24 : 20} 
+          />
+        </button>
+      </div>
     </div>
   );
 };

@@ -11,6 +11,7 @@ export interface Translations {
 
   // Input placeholders
   phoneInputPlaceholder: string
+  phoneInputLabel: string
   messageInputPlaceholder: string
 
   // Buttons
@@ -56,6 +57,7 @@ export const ru: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
+  phoneInputLabel: 'Введите ваш номер телефона',
   messageInputPlaceholder: 'Ваш запрос',
 
   // Buttons
@@ -115,6 +117,7 @@ export const uz: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
+  phoneInputLabel: 'Telefon raqamingizni kiriting',
   messageInputPlaceholder: 'Sizning so\'rovingiz',
 
   // Buttons
@@ -176,6 +179,7 @@ export const uzCyrl: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
+  phoneInputLabel: 'Телефон рақамингизни киритинг',
   messageInputPlaceholder: 'Сизнинг сўровингиз',
 
   // Buttons
@@ -235,6 +239,7 @@ export const en: Translations = {
 
   // Input placeholders
   phoneInputPlaceholder: '+ 998 (__) ___ __ __',
+  phoneInputLabel: 'Enter your phone number',
   messageInputPlaceholder: 'Your request',
 
   // Buttons

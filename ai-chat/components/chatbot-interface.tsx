@@ -226,9 +226,6 @@ export default function ChatbotInterface({
       ]);
     }
 
-    if (storedThreadId) {
-      localStorage.removeItem('newThreadId');
-    }
   }, [translations, fetchMessages]);
 
   useEffect(() => {
@@ -249,7 +246,6 @@ export default function ChatbotInterface({
       });
 
       setThreadId(response.thread_id);
-      localStorage.setItem('newThreadId', response.thread_id);
       localStorage.setItem('chatThreadId', response.thread_id);
       localStorage.setItem('chatPhoneNumber', phoneNumber);
 
@@ -259,7 +255,19 @@ export default function ChatbotInterface({
       // Don't add any initial user message
       setMessages([]);
 
-      await fetchMessages(response.thread_id);
+      // Fetch messages and check if there are any existing user messages already
+      const messagesResponse = await chatApi.getMessages(response.thread_id);
+
+      const chatMessages: ChatMessage[] = messagesResponse.messages.map((msg, index) => ({
+        id: `${msg.role}-${index}`,
+        content: msg.message,
+        sender: msg.role === 'user' ? 'user' : 'bot',
+        timestamp: new Date(msg.timestamp),
+      }));
+
+      setMessages(chatMessages);
+
+      // No need to call fetchMessages again since we already got the messages above
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`${translations.errorCreatingChat}: ${errorMessage}`);
@@ -499,15 +507,18 @@ export default function ChatbotInterface({
                 />
               )}
 
-              {/* Quick Reply Buttons - only show for new conversations */}
-              {(!threadId || threadId === localStorage.getItem('newThreadId')) && (
-                <QuickReplyButtons
-                  translations={translations}
-                  isTyping={isTyping}
-                  onQuickReply={handleQuickReply}
-                  faqItems={faqItems}
-                />
-              )}
+              {/* Quick Reply Buttons - only show when phone is submitted and no user messages exist yet */}
+              {phoneSubmitted &&
+                // Only show for threads with no user messages
+                messages.filter(msg => msg.sender === 'user').length === 0 &&
+                !isTyping && (
+                  <QuickReplyButtons
+                    translations={translations}
+                    isTyping={isTyping}
+                    onQuickReply={handleQuickReply}
+                    faqItems={faqItems}
+                  />
+                )}
 
               {/* Send Button */}
               <button
