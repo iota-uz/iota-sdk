@@ -30,10 +30,12 @@ pnpm add @iotauz/ai-chat
 
 1. Set up your IOTA SDK backend endpoint in the `apiEndpoint` prop
 
-2. Import and use the component:
+2. Import the component and CSS:
 
 ```jsx
 import { ChatbotInterface } from '@iotauz/ai-chat';
+// Import the pre-compiled CSS styles
+import '@iotauz/ai-chat/dist/styles.css';
 import { MessagesSquare } from 'lucide-react'; // or any other icon library
 
 function App() {
@@ -177,7 +179,16 @@ Visit [http://localhost:3000](http://localhost:3000) to see the demo.
 
 ### Styling
 
-The component uses Tailwind CSS for styling. You can customize the appearance by modifying the class names in the component files.
+The component uses Tailwind CSS for styling. The package now includes a pre-compiled CSS file that you must import in your application:
+
+```js
+// Import the pre-compiled CSS styles
+import '@iotauz/ai-chat/dist/styles.css';
+```
+
+This CSS file contains all the necessary styles for the component, including Tailwind utilities used by the chatbot interface. 
+
+For custom styling, you can override these styles in your application's CSS files.
 
 ### Translations
 
