@@ -11,6 +11,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
+	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -58,11 +60,12 @@ func main() {
 		panicWithStack(err)
 	}
 	seeder := application.NewSeeder()
-	email, err := internet.NewEmail("test@gmail.com")
-	if err != nil {
-		panicWithStack(err)
-	}
-	usr, err := user.New("Test", "User", email, user.UILanguageEN).SetPassword("TestPass123!")
+	usr, err := user.New(
+		"Test",
+		"User",
+		internet.MustParseEmail("test@gmail.com"),
+		user.UILanguageEN,
+	).SetPassword("TestPass123!")
 	if err != nil {
 		panicWithStack(err)
 	}
@@ -70,6 +73,17 @@ func main() {
 		coreseed.CreateCurrencies,
 		coreseed.CreatePermissions,
 		coreseed.UserSeedFunc(usr),
+		coreseed.UserSeedFunc(user.New(
+			"AI",
+			"User",
+			internet.MustParseEmail("ai@llm.com"),
+			user.UILanguageEN,
+		)),
+		websiteseed.AIChatConfigSeedFunc(aichatconfig.MustNew(
+			"gemma-12b-it",
+			aichatconfig.AIModelTypeOpenAI,
+			"https://llm2.eai.uz/v1",
+		)),
 	)
 	if err := seeder.Seed(composables.WithTx(ctx, tx), app); err != nil {
 		panicWithStack(err)

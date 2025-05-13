@@ -15,9 +15,9 @@ export const ChatHeader = ({ title, subtitle, chatIcon, onClose, isMobile }: Cha
       className="relative bg-[#0a223e] text-white p-4 flex items-center"
       style={{ height: '60px' }}
     >
-      <div className="w-10 h-10 bg-[#8b98a5] rounded-full flex items-center justify-center mr-3">
+      <div className="w-10 h-10 rounded-full flex items-center justify-center mr-3">
         {chatIcon ? (
-          <div className="text-white">{chatIcon}</div>
+          { chatIcon }
         ) : (
           <span className="text-white">•••</span>
         )}

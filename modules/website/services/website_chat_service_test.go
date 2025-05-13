@@ -31,7 +31,13 @@ func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, c
 	aiconfigRepo := persistence.NewAIChatConfigRepository()
 
 	// Create the website chat service
-	websiteChatService := services.NewWebsiteChatService(aiconfigRepo, userRepo, clientRepo, chatRepo)
+	websiteChatService := services.NewWebsiteChatService(services.WebsiteChatServiceConfig{
+		AIConfigRepo: aiconfigRepo,
+		UserRepo:     userRepo,
+		ClientRepo:   clientRepo,
+		ChatRepo:     chatRepo,
+		AIUserEmail:  internet.MustParseEmail("ai@example.com"),
+	})
 
 	return fixtures, websiteChatService, clientRepo
 }
