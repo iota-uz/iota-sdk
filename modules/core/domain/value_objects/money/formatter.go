@@ -64,10 +64,10 @@ func (f *Formatter) FormatCompact(amount int64) string {
 	// Work with absolute amount value
 	absAmount := f.abs(amount)
 	majorUnits := f.ToMajorUnits(absAmount)
-	
+
 	var value float64
 	var suffix string
-	
+
 	switch {
 	case majorUnits >= 1_000_000_000: // Billion
 		value = majorUnits / 1_000_000_000
@@ -85,20 +85,20 @@ func (f *Formatter) FormatCompact(amount int64) string {
 		// For small values, use the standard format
 		return f.Format(amount)
 	}
-	
+
 	// Format to one decimal place
 	formattedValue := strconv.FormatFloat(math.Floor(value*10)/10, 'f', 1, 64)
 	// Remove trailing .0
 	formattedValue = strings.TrimSuffix(formattedValue, ".0")
-	
+
 	// Construct the result
 	result := formattedValue + suffix + " " + f.Grapheme
-	
+
 	// Add minus sign for negative amount
 	if amount < 0 {
 		result = "-" + result
 	}
-	
+
 	return result
 }
 

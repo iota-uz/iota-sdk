@@ -99,12 +99,12 @@ func TestFormatter_FormatCompact(t *testing.T) {
 		// Small amounts (should use standard format)
 		{2, ".", ",", "UZS", "1 $", 123, "1.23 UZS"},
 		{2, ".", ",", "UZS", "1 $", 999, "9.99 UZS"},
-		
+
 		// Thousands
 		{2, ".", ",", "UZS", "1 $", 100000, "1K UZS"},
 		{2, ".", ",", "UZS", "1 $", 123400, "1.2K UZS"},
 		{2, ".", ",", "UZS", "1 $", 999900, "9.9K UZS"},
-		
+
 		// Millions
 		{2, ".", ",", "UZS", "1 $", 1000000, "10K UZS"},
 		{2, ".", ",", "UZS", "1 $", 1230000, "12.3K UZS"},
@@ -113,21 +113,21 @@ func TestFormatter_FormatCompact(t *testing.T) {
 		{2, ".", ",", "UZS", "1 $", 1200000000, "12M UZS"},
 		{2, ".", ",", "UZS", "1 $", 1250000000, "12.5M UZS"},
 		{2, ".", ",", "UZS", "1 $", 2252423200, "22.5M UZS"}, // Example from requirement
-		
+
 		// Billions
 		{2, ".", ",", "UZS", "1 $", 100000000000, "1B UZS"},
 		{2, ".", ",", "UZS", "1 $", 123000000000, "1.2B UZS"},
-		
+
 		// Different fraction
 		{0, ".", ",", "UZS", "1 $", 1234, "1.2K UZS"},
 		{0, ".", ",", "UZS", "1 $", 1000000, "1M UZS"},
 		{0, ".", ",", "UZS", "1 $", 1200000, "1.2M UZS"},
-		
+
 		// Negative values
 		{2, ".", ",", "UZS", "1 $", -1234567, "-12.3K UZS"},
 		{2, ".", ",", "UZS", "1 $", -1000000000, "-10M UZS"},
 		{2, ".", ",", "UZS", "1 $", -1200000000, "-12M UZS"},
-		
+
 		// Different currency symbols
 		{2, ".", ",", "$", "1 $", 1234567, "12.3K $"},
 		{2, ".", ",", "€", "1 $", 1234567, "12.3K €"},
