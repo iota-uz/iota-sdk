@@ -253,7 +253,7 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	require.NotNil(t, updatedThread)
 
 	// Verify message was added
-	messages := updatedThread.Messages()
+	messages := updatedThread.Chat().Messages()
 	require.NotEmpty(t, messages)
 	lastMsg := messages[len(messages)-1]
 	require.NoError(t, err)
