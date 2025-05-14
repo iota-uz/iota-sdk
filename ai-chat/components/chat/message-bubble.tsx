@@ -24,7 +24,14 @@ export const MessageBubble = ({ message, translations, botTitle }: MessageBubble
 
       {message.sender === 'bot' ? (
         <div className="markdown-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]}
+            components={{
+              a: ({ node, ...props }) => (
+                <a target="_blank" rel="noopener noreferrer" {...props} />
+              )
+            }}
+          >
             {message.content}
           </ReactMarkdown>
         </div>

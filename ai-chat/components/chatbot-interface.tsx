@@ -11,6 +11,7 @@ import { chatApi } from '@/lib/api-service';
 import { getTranslations } from '@/lib/translations';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSoundEffects } from '@/hooks/use-sound-effects';
+import { useToast } from '@/hooks/use-toast';
 
 // Import components
 import {
@@ -64,6 +65,7 @@ export default function ChatbotInterface({
   const translations = getTranslations(locale);
   const isMobile = useIsMobile();
   const { playSubmitSound, playOperatorSound } = useSoundEffects(soundOptions);
+  const { toast } = useToast();
 
   // Set API endpoint
   useEffect(() => {
@@ -80,7 +82,6 @@ export default function ChatbotInterface({
   const [isCallbackModalOpen, setIsCallbackModalOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [messageCount, setMessageCount] = useState<number>(0);
@@ -95,7 +96,6 @@ export default function ChatbotInterface({
     setThreadId(null);
     setPhoneSubmitted(false);
     setPhoneNumber('');
-    setError(null);
     const now = new Date();
     setMessages([
       {
@@ -123,7 +123,6 @@ export default function ChatbotInterface({
   const fetchMessages = useCallback(async (threadId: string) => {
     try {
       setIsTyping(true);
-      setError(null);
 
       const response = await chatApi.getMessages(threadId);
 
@@ -142,7 +141,11 @@ export default function ChatbotInterface({
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(`${translations.errorLoadingMessages}: ${errorMessage}`);
+      toast({
+        variant: 'destructive',
+        title: translations.errorLoadingMessages,
+        description: errorMessage,
+      });
 
       const now = new Date();
       setMessages([
@@ -156,7 +159,7 @@ export default function ChatbotInterface({
     } finally {
       setIsTyping(false);
     }
-  }, [handle404Error, translations]);
+  }, [handle404Error, toast, translations]);
 
   useEffect(() => {
     const updateWindowHeight = () => {
@@ -237,7 +240,6 @@ export default function ChatbotInterface({
 
     try {
       setIsTyping(true);
-      setError(null);
 
       // Create thread without initial message
       const response = await chatApi.createThread({
@@ -270,7 +272,11 @@ export default function ChatbotInterface({
       // No need to call fetchMessages again since we already got the messages above
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(`${translations.errorCreatingChat}: ${errorMessage}`);
+      toast({
+        variant: 'destructive',
+        title: translations.errorCreatingChat,
+        description: errorMessage,
+      });
 
       const now = new Date();
       setMessages([
@@ -302,7 +308,6 @@ export default function ChatbotInterface({
     setMessages((prev) => [...prev, userMessage]);
     const messageToSend = currentMessage;
     setCurrentMessage('');
-    setError(null);
 
     setIsTyping(true);
 
@@ -341,7 +346,11 @@ export default function ChatbotInterface({
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(`${translations.errorSendingMessage}: ${errorMessage}`);
+      toast({
+        variant: 'destructive',
+        title: translations.errorSendingMessage,
+        description: errorMessage,
+      });
 
       // Add error message to UI
       const now = new Date();
@@ -458,12 +467,6 @@ export default function ChatbotInterface({
                     </div>
                   )}
 
-                  {error && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                      <span className="block sm:inline">{error}</span>
-                    </div>
-                  )}
-
                   {messages.map((message) => (
                     <MessageBubble
                       key={message.id}
@@ -534,14 +537,14 @@ export default function ChatbotInterface({
                 {translations.sendButton}
               </button>
 
-              {/* Request Callback Button */}
+              {/* Request Callback Button - temporarily hidden
               <button
                 className={`w-full ${isMobile ? 'py-4 text-base' : 'py-3'} border border-[#2e67b4] text-[#2e67b4] rounded-lg`}
                 onClick={() => setIsCallbackModalOpen(true)}
                 disabled={isTyping}
               >
                 {translations.callbackRequestButton}
-              </button>
+              </button> */}
             </div>
           </div>
         )}
