@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -13,18 +14,24 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
 	"github.com/sashabaranov/go-openai"
 )
 
+type CreateThreadDTO struct {
+	Contact string
+	Country country.Country
+}
+
 type SendMessageToThreadDTO struct {
-	ChatID  uint
-	Message string
+	ThreadID uuid.UUID
+	Message  string
 }
 
 type ReplyToThreadDTO struct {
-	ChatID  uint
-	UserID  uint
-	Message string
+	ThreadID uuid.UUID
+	UserID   uint
+	Message  string
 }
 
 type WebsiteChatServiceConfig struct {
@@ -41,7 +48,10 @@ type WebsiteChatService struct {
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
 	aiUserEmail  internet.Email
+	threadsMap   ThreadsMap
 }
+
+type ThreadsMap map[uuid.UUID]chatthread.ChatThread
 
 func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
 	return &WebsiteChatService{
@@ -50,16 +60,21 @@ func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService 
 		clientRepo:   config.ClientRepo,
 		chatRepo:     config.ChatRepo,
 		aiUserEmail:  config.AIUserEmail,
+		threadsMap:   make(ThreadsMap),
 	}
 }
 
-func (s *WebsiteChatService) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
-	return s.chatRepo.GetByID(ctx, id)
+func (s *WebsiteChatService) GetThreadByID(threadID uuid.UUID) (chatthread.ChatThread, error) {
+	thread, ok := s.threadsMap[threadID]
+	if !ok {
+		return nil, chatthread.ErrChatThreadNotFound
+	}
+	return thread, nil
 }
 
-func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string, _country country.Country) (chat.Chat, error) {
+func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadDTO) (chatthread.ChatThread, error) {
 	var member chat.Member
-	email, err := internet.NewEmail(contact)
+	email, err := internet.NewEmail(dto.Contact)
 	if err == nil {
 		member, err = s.memberFromEmail(ctx, email)
 		if err != nil {
@@ -67,7 +82,7 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string, _
 		}
 	}
 
-	p, err := phone.Parse(contact, _country)
+	p, err := phone.Parse(dto.Contact, dto.Country)
 	if err == nil {
 		member, err = s.memberFromPhone(ctx, p)
 		if err != nil {
@@ -76,11 +91,13 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string, _
 	}
 
 	if member == nil {
-		return nil, fmt.Errorf("invalid contact: %s", contact)
+		return nil, fmt.Errorf("invalid contact: %s", dto.Contact)
 	}
 
+	clientID := member.Sender().(chat.ClientSender).ClientID()
+
 	chatEntity := chat.New(
-		member.Sender().(chat.ClientSender).ClientID(),
+		clientID,
 		chat.WithMembers([]chat.Member{member}),
 	)
 
@@ -89,23 +106,28 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, contact string, _
 		return nil, err
 	}
 
-	return createdChat, nil
+	threadID := uuid.New()
+	thread := chatthread.New(createdChat, chatthread.WithID(threadID))
+	s.threadsMap[threadID] = thread
+
+	return thread, nil
 }
 
-func (s *WebsiteChatService) SendMessageToThread(ctx context.Context, dto SendMessageToThreadDTO) (chat.Chat, error) {
-	chatEntity, err := s.chatRepo.GetByID(ctx, dto.ChatID)
+func (s *WebsiteChatService) SendMessageToThread(
+	ctx context.Context,
+	dto SendMessageToThreadDTO,
+) (chatthread.ChatThread, error) {
+	thread, err := s.GetThreadByID(dto.ThreadID)
 	if err != nil {
 		return nil, err
 	}
 
+	chatEntity := thread.Chat()
 	if dto.Message == "" {
 		return nil, chat.ErrEmptyMessage
 	}
-
 	var member chat.Member
-
 	for _, m := range chatEntity.Members() {
-		// Get transport from member instead of sender
 		if m.Transport() != chat.WebsiteTransport {
 			continue
 		}
@@ -132,17 +154,26 @@ func (s *WebsiteChatService) SendMessageToThread(ctx context.Context, dto SendMe
 		return nil, err
 	}
 
-	return savedChat, nil
+	updatedThread := chatthread.New(
+		savedChat,
+		chatthread.WithID(thread.ID()),
+		chatthread.WithTimestamp(thread.Timestamp()),
+	)
+	s.threadsMap[thread.ID()] = updatedThread
+
+	return updatedThread, nil
 }
 
 func (s *WebsiteChatService) ReplyToThread(
 	ctx context.Context,
 	dto ReplyToThreadDTO,
-) (chat.Chat, error) {
-	chatEntity, err := s.chatRepo.GetByID(ctx, dto.ChatID)
+) (chatthread.ChatThread, error) {
+	thread, err := s.GetThreadByID(dto.ThreadID)
 	if err != nil {
 		return nil, err
 	}
+
+	chatEntity := thread.Chat()
 
 	if dto.Message == "" {
 		return nil, chat.ErrEmptyMessage
@@ -151,7 +182,6 @@ func (s *WebsiteChatService) ReplyToThread(
 	var member chat.Member
 
 	for _, m := range chatEntity.Members() {
-		// Get transport from member instead of sender
 		if m.Transport() != chat.WebsiteTransport {
 			continue
 		}
@@ -182,16 +212,20 @@ func (s *WebsiteChatService) ReplyToThread(
 		return nil, err
 	}
 
-	return savedChat, nil
+	// Update the thread with the saved chat
+	updatedThread := chatthread.New(savedChat, chatthread.WithID(thread.ID()), chatthread.WithTimestamp(thread.Timestamp()))
+	s.threadsMap[thread.ID()] = updatedThread
+
+	return updatedThread, nil
 }
 
-func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat.Chat, error) {
-	chatEntity, err := s.chatRepo.GetByID(ctx, chatID)
+func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
+	thread, err := s.GetThreadByID(threadID)
 	if err != nil {
 		return nil, err
 	}
 
-	messages := chatEntity.Messages()
+	messages := thread.Messages()
 	if len(messages) == 0 {
 		return nil, chat.ErrNoMessages
 	}
@@ -247,16 +281,16 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, chatID uint) (chat
 		return nil, fmt.Errorf("failed to get AI user: %w", err)
 	}
 
-	chatEntity, err = s.ReplyToThread(ctx, ReplyToThreadDTO{
-		ChatID:  chatID,
-		UserID:  aiUser.ID(),
-		Message: aiResponse,
+	respThread, err := s.ReplyToThread(ctx, ReplyToThreadDTO{
+		ThreadID: threadID,
+		UserID:   aiUser.ID(),
+		Message:  aiResponse,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return chatEntity, nil
+	return respThread, nil
 }
 
 func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) (chat.Member, error) {

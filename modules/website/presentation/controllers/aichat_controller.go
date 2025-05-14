@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -66,11 +66,9 @@ func (c *AIChatController) Register(r *mux.Router) {
 	router.HandleFunc("/config", c.saveConfig).Methods(http.MethodPost)
 
 	bareRouter := r.PathPrefix(c.basePath).Subrouter()
-	bareRouter.HandleFunc("/payload", c.aiChat).Methods(http.MethodGet)
-	bareRouter.HandleFunc("/test-wc", c.aiChatWC).Methods(http.MethodGet)
 	bareRouter.HandleFunc("/messages", c.createThread).Methods(http.MethodPost)
-	bareRouter.HandleFunc("/messages/{chat_id}", c.getThreadMessages).Methods(http.MethodGet)
-	bareRouter.HandleFunc("/messages/{chat_id}", c.addMessageToThread).Methods(http.MethodPost)
+	bareRouter.HandleFunc("/messages/{thread_id}", c.getThreadMessages).Methods(http.MethodGet)
+	bareRouter.HandleFunc("/messages/{thread_id}", c.addMessageToThread).Methods(http.MethodPost)
 }
 
 func (c *AIChatController) configureAIChat(w http.ResponseWriter, r *http.Request) {
@@ -163,20 +161,6 @@ func (c *AIChatController) saveConfig(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *AIChatController) aiChat(w http.ResponseWriter, r *http.Request) {
-	title := r.URL.Query().Get("title")
-	description := r.URL.Query().Get("description")
-	templ.Handler(aichat.Chat(aichat.Props{
-		Title:       title,
-		Description: description,
-		Endpoint:    c.basePath + "/message",
-	})).ServeHTTP(w, r)
-}
-
-func (c *AIChatController) aiChatWC(w http.ResponseWriter, r *http.Request) {
-	templ.Handler(aichat.WebComponent()).ServeHTTP(w, r)
-}
-
 func (c *AIChatController) createThread(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
@@ -187,7 +171,10 @@ func (c *AIChatController) createThread(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	chatEntity, err := c.chatService.CreateThread(r.Context(), msg.Contact, country.Uzbekistan)
+	thread, err := c.chatService.CreateThread(r.Context(), websiteServices.CreateThreadDTO{
+		Contact: msg.Contact,
+		Country: country.Uzbekistan,
+	})
 	if err != nil {
 		logger.WithError(err).Error("failed to create chat thread")
 		http.Error(w, "Failed to create chat thread", http.StatusInternalServerError)
@@ -195,7 +182,7 @@ func (c *AIChatController) createThread(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response := dtos.ChatResponse{
-		ThreadID: strconv.FormatUint(uint64(chatEntity.ID()), 10),
+		ThreadID: thread.ID().String(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -207,21 +194,27 @@ func (c *AIChatController) createThread(w http.ResponseWriter, r *http.Request) 
 
 func (c *AIChatController) getThreadMessages(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
-	chatID, err := strconv.ParseUint(mux.Vars(r)["chat_id"], 10, 32)
+
+	// Extract the thread ID from the URL
+	threadIDStr := mux.Vars(r)["thread_id"]
+
+	// Try to parse the thread ID as UUID
+	threadID, err := uuid.Parse(threadIDStr)
 	if err != nil {
-		logger.WithError(err).Error("invalid chat ID format")
-		http.Error(w, "Invalid chat ID format", http.StatusBadRequest)
+		logger.WithError(err).Error("invalid thread ID format")
+		http.Error(w, "Invalid thread ID format", http.StatusBadRequest)
 		return
 	}
 
-	chatEntity, err := c.chatService.GetByID(r.Context(), uint(chatID))
+	// Get the thread from the service
+	thread, err := c.chatService.GetThreadByID(threadID)
 	if err != nil {
-		logger.WithError(err).Error("failed to get chat by ID")
+		logger.WithError(err).Error("failed to get thread by ID")
 		http.Error(w, "Thread not found", http.StatusNotFound)
 		return
 	}
 
-	messages := chatEntity.Messages()
+	messages := thread.Messages()
 	threadMessages := make([]dtos.ThreadMessage, 0, len(messages))
 	for _, msg := range messages {
 		var role string
@@ -258,16 +251,29 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	chatID, err := strconv.ParseUint(mux.Vars(r)["chat_id"], 10, 32)
+	// Extract the thread ID from the URL
+	threadIDStr := mux.Vars(r)["thread_id"]
+
+	// Try to parse the thread ID as UUID
+	threadID, err := uuid.Parse(threadIDStr)
 	if err != nil {
-		logger.WithError(err).Error("failed to parse chat ID")
-		http.Error(w, "Invalid chat ID", http.StatusBadRequest)
+		logger.WithError(err).Error("invalid thread ID format")
+		http.Error(w, "Invalid thread ID format", http.StatusBadRequest)
 		return
 	}
 
+	// Verify the thread exists
+	_, err = c.chatService.GetThreadByID(threadID)
+	if err != nil {
+		logger.WithError(err).Error("failed to get thread by ID")
+		http.Error(w, "Thread not found", http.StatusNotFound)
+		return
+	}
+
+	// Send message to the thread using thread ID
 	_, err = c.chatService.SendMessageToThread(r.Context(), websiteServices.SendMessageToThreadDTO{
-		ChatID:  uint(chatID),
-		Message: msg.Message,
+		ThreadID: threadID,
+		Message:  msg.Message,
 	})
 	if err != nil {
 		logger.WithError(err).Error("failed to send message to chat thread")
@@ -275,7 +281,8 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	chatEntity, err := c.chatService.ReplyWithAI(r.Context(), uint(chatID))
+	// Get AI reply to the thread
+	aiResponseThread, err := c.chatService.ReplyWithAI(r.Context(), threadID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get AI response")
 		http.Error(w, "Failed to get AI response", http.StatusInternalServerError)
@@ -283,7 +290,7 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 	}
 
 	response := dtos.ChatResponse{
-		ThreadID: strconv.FormatUint(uint64(chatEntity.ID()), 10),
+		ThreadID: aiResponseThread.ID().String(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
