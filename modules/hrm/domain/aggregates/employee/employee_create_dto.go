@@ -128,7 +128,7 @@ func (d *CreateDTO) ToEntity() (Employee, error) {
 		d.MiddleName,
 		d.Phone,
 		mail,
-		money.New(d.Salary, currency.UsdCode),
+		money.NewFromFloat(d.Salary, string(currency.UsdCode)),
 		tin,
 		pin,
 		NewLanguage(d.PrimaryLanguage, d.SecondaryLanguage),

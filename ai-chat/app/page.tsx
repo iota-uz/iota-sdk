@@ -36,15 +36,15 @@ export default function Home() {
                 Russian
               </button>
               <button
-                onClick={() => setLocale('uz')}
-                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'uz' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                onClick={() => setLocale('oz')}
+                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'oz' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
                   }`}
               >
                 Uzbek (Latin)
               </button>
               <button
-                onClick={() => setLocale('uzCyrl')}
-                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'uzCyrl'
+                onClick={() => setLocale('uz')}
+                className={`px-6 py-3 rounded-lg text-base font-medium ${locale === 'uz'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
                   }`}
@@ -91,27 +91,24 @@ export default function Home() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setSelectedIcon('message-circle')}
-                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${
-                  selectedIcon === 'message-circle' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
+                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${selectedIcon === 'message-circle' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
               >
                 <MessageCircle className="mr-2" size={20} />
                 Default
               </button>
               <button
                 onClick={() => setSelectedIcon('messages-square')}
-                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${
-                  selectedIcon === 'messages-square' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
+                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${selectedIcon === 'messages-square' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
               >
                 <MessagesSquare className="mr-2" size={20} />
                 Messages Square
               </button>
               <button
                 onClick={() => setSelectedIcon('bot')}
-                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${
-                  selectedIcon === 'bot' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
+                className={`px-6 py-3 rounded-lg text-base font-medium flex items-center ${selectedIcon === 'bot' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
               >
                 <Bot className="mr-2" size={20} />
                 Bot

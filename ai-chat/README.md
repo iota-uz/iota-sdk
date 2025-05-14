@@ -68,7 +68,7 @@ The main component that renders the chatbot UI.
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `locale` | `string` | `"ru"` | Language code for translations ("en", "ru", "uz", "uzCyrl") |
+| `locale` | `string` | `"ru"` | Language code for translations ("en", "ru", "oz", "uz") |
 | `apiEndpoint` | `string` | *Required* | Direct URL to your IOTA SDK chat backend |
 | `faqItems` | `FAQItem[]` | `undefined` | Custom FAQ items for quick replies |
 | `title` | `string` | `undefined` | Custom chatbot title (falls back to translation) |

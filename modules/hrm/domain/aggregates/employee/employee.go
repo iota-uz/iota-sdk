@@ -22,7 +22,7 @@ type Employee interface {
 	MiddleName() string
 	Email() internet.Email
 	Phone() string
-	Salary() money.Amount
+	Salary() *money.Money
 	AvatarID() uint
 	HireDate() time.Time
 	BirthDate() time.Time
@@ -48,7 +48,7 @@ func NewWithID(
 	id uint,
 	firstName, lastName, middleName, phone string,
 	email internet.Email,
-	salary money.Amount,
+	salary *money.Money,
 	tin tax.Tin,
 	pin tax.Pin,
 	language Language,
@@ -81,7 +81,7 @@ func NewWithID(
 func New(
 	firstName, lastName, middleName, phone string,
 	email internet.Email,
-	salary money.Amount,
+	salary *money.Money,
 	tin tax.Tin,
 	pin tax.Pin,
 	language Language,
@@ -117,7 +117,7 @@ type employee struct {
 	middleName      string
 	email           internet.Email
 	phone           string
-	salary          money.Amount
+	salary          *money.Money
 	avatarID        uint
 	language        Language
 	tin             tax.Tin
@@ -151,7 +151,7 @@ func (e *employee) Phone() string {
 	return e.phone
 }
 
-func (e *employee) Salary() money.Amount {
+func (e *employee) Salary() *money.Money {
 	return e.salary
 }
 
