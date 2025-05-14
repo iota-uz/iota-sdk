@@ -50,6 +50,7 @@ interface ChatbotInterfaceProps {
     submitSoundPath?: string
     operatorSoundPath?: string
   }
+  onMessageSubmit?: (message: string) => void
 }
 
 export default function ChatbotInterface({
@@ -60,6 +61,7 @@ export default function ChatbotInterface({
   subtitle,
   chatIcon,
   soundOptions,
+  onMessageSubmit,
 }: ChatbotInterfaceProps) {
   // Get translations for the specified locale
   const translations = getTranslations(locale);
@@ -309,6 +311,9 @@ export default function ChatbotInterface({
     const messageToSend = currentMessage;
     setCurrentMessage('');
 
+    // Note: don't call onMessageSubmit here as it's already called from the input component
+    // to avoid double-firing of the callback
+    
     setIsTyping(true);
 
     try {
@@ -372,13 +377,23 @@ export default function ChatbotInterface({
     setCurrentMessage(question);
     setTimeout(() => {
       handleSendMessage();
+      if (onMessageSubmit && question.trim().length > 0) {
+        onMessageSubmit(question.trim());
+      }
     }, 100);
   };
 
   // Handle Enter key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      phoneSubmitted ? handleSendMessage() : handlePhoneSubmit();
+      if (phoneSubmitted) {
+        handleSendMessage();
+        if (onMessageSubmit && currentMessage.trim().length > 0) {
+          onMessageSubmit(currentMessage.trim());
+        }
+      } else {
+        handlePhoneSubmit();
+      }
     }
   };
 
@@ -507,6 +522,7 @@ export default function ChatbotInterface({
                   isTyping={isTyping}
                   translations={translations}
                   isMobile={isMobile}
+                  onMessageSubmit={onMessageSubmit}
                 />
               )}
 

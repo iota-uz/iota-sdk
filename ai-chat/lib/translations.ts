@@ -281,8 +281,8 @@ export const en: Translations = {
 
 export const translations: Record<string, Translations> = {
   ru,
-  uz,
   oz,
+  uz,
   en,
 };
 

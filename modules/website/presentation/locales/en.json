@@ -1,39 +1,40 @@
 {
-	"NavigationLinks": {
-		"Website": "Website",
-		"AIChatbot": "AI Chatbot"
-	},
-	"AIChatBot": {
-		"Meta": {
-			"Title": "AI Chatbot"
-		},
-		"ModelName": {
-			"Label": "Model Name",
-			"Placeholder": "Enter the model name (e.g. gpt-4)"
-		},
-		"ModelType": {
-			"Label": "Model Type",
-			"Placeholder": "Select model type"
-		},
-		"SystemPrompt": {
-			"Label": "System Prompt",
-			"Placeholder": "Enter the system prompt for the AI"
-		},
-		"Temperature": {
-			"Label": "Temperature",
-			"Placeholder": "Enter a value between 0.0 and 2.0"
-		},
-		"MaxTokens": {
-			"Label": "Max Tokens",
-			"Placeholder": "Enter the maximum number of tokens"
-		},
-		"BaseURL": {
-			"Label": "API Base URL",
-			"Placeholder": "Enter the API base URL (e.g. https://api.openai.com/v1)"
-		},
-		"AccessToken": {
-			"Label": "API Access Token",
-			"Placeholder": "Enter your API access token"
-		}
-	}
+  "NavigationLinks": {
+    "Website": "Website",
+    "AIChatbot": "AI Chatbot"
+  },
+  "AIChatBot": {
+    "Meta": {
+      "Title": "AI Chatbot"
+    },
+    "ModelName": {
+      "Label": "Model Name",
+      "Placeholder": "Enter the model name (e.g. gpt-4)"
+    },
+    "ModelType": {
+      "Label": "Model Type",
+      "Placeholder": "Select model type"
+    },
+    "SystemPrompt": {
+      "Label": "System Prompt",
+      "Placeholder": "Enter the system prompt for the AI"
+    },
+    "Temperature": {
+      "Label": "Temperature",
+      "Placeholder": "Enter a value between 0.0 and 2.0"
+    },
+    "MaxTokens": {
+      "Label": "Max Tokens",
+      "Placeholder": "Enter the maximum number of tokens"
+    },
+    "BaseURL": {
+      "Label": "API Base URL",
+      "Placeholder": "Enter the API base URL (e.g. https://api.openai.com/v1)"
+    },
+    "AccessToken": {
+      "Label": "API Access Token",
+      "Placeholder": "Enter your API access token"
+    }
+  }
 }
+

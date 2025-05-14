@@ -12,6 +12,7 @@ A customizable React chatbot component that integrates with IOTA SDK's backend f
 - Mobile-responsive design
 - Typing indicators
 - Error handling
+- Message submission callback function
 
 ## Installation
 
@@ -53,6 +54,10 @@ function App() {
         volume: 0.4,
         enabled: true
       }}
+      onMessageSubmit={(message) => {
+        console.log("User submitted message:", message);
+        // Perform actions when a user submits a message
+      }}
     />
   );
 }
@@ -75,6 +80,7 @@ The main component that renders the chatbot UI.
 | `subtitle` | `string` | `undefined` | Custom chatbot subtitle (falls back to translation) |
 | `chatIcon` | `React.ReactNode` | `undefined` | Custom icon for the chat button and header |
 | `soundOptions` | `SoundOptions` | `undefined` | Customize sound effects (see below) |
+| `onMessageSubmit` | `(message: string) => void` | `undefined` | Callback function that is called when a user submits a message |
 
 ### Types
 
