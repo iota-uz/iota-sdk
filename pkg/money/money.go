@@ -346,10 +346,16 @@ func (m *Money) Display() string {
 	return c.Formatter().Format(m.amount)
 }
 
-// DisplayCompact lets represent Money struct as a compact string for large values (e.g., 22.5M UZS).
-func (m *Money) DisplayCompact() string {
+// DisplayCompact lets represent Money struct as a compact string for large values
+// with the specified number of decimal places (e.g., 22.5M UZS with decimals=1, 22.52M UZS with decimals=2).
+// If decimals is not specified (0), defaults to 1 decimal place.
+func (m *Money) DisplayCompact(decimals ...int) string {
 	c := m.currency.get()
-	return c.Formatter().FormatCompact(m.amount)
+	d := 1 // Default is 1 decimal place
+	if len(decimals) > 0 && decimals[0] > 0 {
+		d = decimals[0]
+	}
+	return c.Formatter().FormatCompact(m.amount, d)
 }
 
 // AsMajorUnits lets represent Money struct as subunits (float64) in given Currency value

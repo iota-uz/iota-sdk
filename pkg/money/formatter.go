@@ -55,12 +55,19 @@ func (f *Formatter) Format(amount int64) string {
 	return sa
 }
 
-// FormatCompact returns a compactly formatted string for large monetary values.
+// FormatCompact returns a compactly formatted string for large monetary values
+// with the specified number of decimal places.
 // For example:
-// - 1,234,567 -> 1.2M
-// - 22,524,232 -> 22.5M
-// - 1,234 -> 1.2K
-func (f *Formatter) FormatCompact(amount int64) string {
+// - 1,234,567 -> 1.2M (decimals=1)
+// - 1,234,567 -> 1.23M (decimals=2)
+// - 22,524,232 -> 22.52M (decimals=2)
+// - 1,234 -> 1.23K (decimals=2)
+// If decimals is not specified (0), defaults to 1 decimal place.
+func (f *Formatter) FormatCompact(amount int64, decimals int) string {
+	// Default to 1 decimal place if not specified
+	if decimals <= 0 {
+		decimals = 1
+	}
 	// Work with absolute amount value
 	absAmount := f.abs(amount)
 	majorUnits := f.ToMajorUnits(absAmount)
@@ -86,10 +93,12 @@ func (f *Formatter) FormatCompact(amount int64) string {
 		return f.Format(amount)
 	}
 
-	// Format to one decimal place
-	formattedValue := strconv.FormatFloat(math.Floor(value*10)/10, 'f', 1, 64)
-	// Remove trailing .0
-	formattedValue = strings.TrimSuffix(formattedValue, ".0")
+	// Format to the specified number of decimal places
+	formattedValue := strconv.FormatFloat(value, 'f', decimals, 64)
+	// Remove trailing .0 if decimals = 1 and ends with .0
+	if decimals == 1 {
+		formattedValue = strings.TrimSuffix(formattedValue, ".0")
+	}
 
 	// Construct the result
 	result := formattedValue + suffix + " " + f.Grapheme
