@@ -87,6 +87,7 @@ func TestFormatter_Format(t *testing.T) {
 }
 
 func TestFormatter_FormatCompact(t *testing.T) {
+	// Test with default decimals (1)
 	tcs := []struct {
 		fraction int
 		decimal  string
@@ -94,51 +95,66 @@ func TestFormatter_FormatCompact(t *testing.T) {
 		grapheme string
 		template string
 		amount   int64
+		decimals int
 		expected string
 	}{
 		// Small amounts (should use standard format)
-		{2, ".", ",", "UZS", "1 $", 123, "1.23 UZS"},
-		{2, ".", ",", "UZS", "1 $", 999, "9.99 UZS"},
+		{2, ".", ",", "UZS", "1 $", 123, 1, "1.23 UZS"},
+		{2, ".", ",", "UZS", "1 $", 999, 1, "9.99 UZS"},
 
 		// Thousands
-		{2, ".", ",", "UZS", "1 $", 100000, "1K UZS"},
-		{2, ".", ",", "UZS", "1 $", 123400, "1.2K UZS"},
-		{2, ".", ",", "UZS", "1 $", 999900, "9.9K UZS"},
+		{2, ".", ",", "UZS", "1 $", 100000, 1, "1K UZS"},
+		{2, ".", ",", "UZS", "1 $", 123400, 1, "1.2K UZS"},
+		{2, ".", ",", "UZS", "1 $", 999900, 1, "10K UZS"},
 
 		// Millions
-		{2, ".", ",", "UZS", "1 $", 1000000, "10K UZS"},
-		{2, ".", ",", "UZS", "1 $", 1230000, "12.3K UZS"},
-		{2, ".", ",", "UZS", "1 $", 10000000, "100K UZS"},
-		{2, ".", ",", "UZS", "1 $", 100000000, "1M UZS"},
-		{2, ".", ",", "UZS", "1 $", 1200000000, "12M UZS"},
-		{2, ".", ",", "UZS", "1 $", 1250000000, "12.5M UZS"},
-		{2, ".", ",", "UZS", "1 $", 2252423200, "22.5M UZS"}, // Example from requirement
+		{2, ".", ",", "UZS", "1 $", 1000000, 1, "10K UZS"},
+		{2, ".", ",", "UZS", "1 $", 1230000, 1, "12.3K UZS"},
+		{2, ".", ",", "UZS", "1 $", 10000000, 1, "100K UZS"},
+		{2, ".", ",", "UZS", "1 $", 100000000, 1, "1M UZS"},
+		{2, ".", ",", "UZS", "1 $", 1200000000, 1, "12M UZS"},
+		{2, ".", ",", "UZS", "1 $", 1250000000, 1, "12.5M UZS"},
+		{2, ".", ",", "UZS", "1 $", 2252423200, 1, "22.5M UZS"}, // Example from requirement
 
 		// Billions
-		{2, ".", ",", "UZS", "1 $", 100000000000, "1B UZS"},
-		{2, ".", ",", "UZS", "1 $", 123000000000, "1.2B UZS"},
+		{2, ".", ",", "UZS", "1 $", 100000000000, 1, "1B UZS"},
+		{2, ".", ",", "UZS", "1 $", 123000000000, 1, "1.2B UZS"},
 
 		// Different fraction
-		{0, ".", ",", "UZS", "1 $", 1234, "1.2K UZS"},
-		{0, ".", ",", "UZS", "1 $", 1000000, "1M UZS"},
-		{0, ".", ",", "UZS", "1 $", 1200000, "1.2M UZS"},
+		{0, ".", ",", "UZS", "1 $", 1234, 1, "1.2K UZS"},
+		{0, ".", ",", "UZS", "1 $", 1000000, 1, "1M UZS"},
+		{0, ".", ",", "UZS", "1 $", 1200000, 1, "1.2M UZS"},
 
 		// Negative values
-		{2, ".", ",", "UZS", "1 $", -1234567, "-12.3K UZS"},
-		{2, ".", ",", "UZS", "1 $", -1000000000, "-10M UZS"},
-		{2, ".", ",", "UZS", "1 $", -1200000000, "-12M UZS"},
+		{2, ".", ",", "UZS", "1 $", -1234567, 1, "-12.3K UZS"},
+		{2, ".", ",", "UZS", "1 $", -1000000000, 1, "-10M UZS"},
+		{2, ".", ",", "UZS", "1 $", -1200000000, 1, "-12M UZS"},
 
 		// Different currency symbols
-		{2, ".", ",", "$", "1 $", 1234567, "12.3K $"},
-		{2, ".", ",", "€", "1 $", 1234567, "12.3K €"},
+		{2, ".", ",", "$", "1 $", 1234567, 1, "12.3K $"},
+		{2, ".", ",", "€", "1 $", 1234567, 1, "12.3K €"},
+
+		// Test with 2 decimal places
+		{2, ".", ",", "UZS", "1 $", 123400, 2, "1.23K UZS"},
+		{2, ".", ",", "UZS", "1 $", 1234567, 2, "12.35K UZS"},
+		{2, ".", ",", "UZS", "1 $", 123456789, 2, "1.23M UZS"},
+		{2, ".", ",", "UZS", "1 $", 2252423200, 2, "22.52M UZS"}, // Example from requirement with 2 decimals
+
+		// Test with 0 decimal places (should default to 1)
+		{2, ".", ",", "UZS", "1 $", 123400, 0, "1.2K UZS"},
+		{2, ".", ",", "UZS", "1 $", 1234567, 0, "12.3K UZS"},
+
+		// Test with 3 decimal places
+		{2, ".", ",", "UZS", "1 $", 123400, 3, "1.234K UZS"},
+		{2, ".", ",", "UZS", "1 $", 1234567, 3, "12.346K UZS"},
 	}
 
 	for _, tc := range tcs {
 		formatter := NewFormatter(tc.fraction, tc.decimal, tc.thousand, tc.grapheme, tc.template)
-		r := formatter.FormatCompact(tc.amount)
+		r := formatter.FormatCompact(tc.amount, tc.decimals)
 
 		if r != tc.expected {
-			t.Errorf("Expected %d compact formatted to be %s got %s", tc.amount, tc.expected, r)
+			t.Errorf("Expected %d compact formatted with %d decimals to be %s got %s", tc.amount, tc.decimals, tc.expected, r)
 		}
 	}
 }
