@@ -10,6 +10,7 @@ interface MessageInputProps {
   isTyping: boolean
   translations: Translations
   isMobile: boolean
+  onMessageSubmit?: (message: string) => void
 }
 
 export const MessageInput = ({ 
@@ -19,7 +20,8 @@ export const MessageInput = ({
   handleKeyPress, 
   isTyping, 
   translations, 
-  isMobile 
+  isMobile,
+  onMessageSubmit
 }: MessageInputProps) => {
   return (
     <div className="flex items-center p-3 mb-4 bg-[#f2f5f8] rounded-lg">
@@ -33,7 +35,15 @@ export const MessageInput = ({
         disabled={isTyping}
         style={{ fontSize: isMobile ? '16px' : 'inherit' }}
       />
-      <button onClick={handleSubmit} disabled={isTyping || currentMessage.trim().length === 0}>
+      <button 
+        onClick={() => {
+          handleSubmit();
+          if (onMessageSubmit && currentMessage.trim().length > 0) {
+            onMessageSubmit(currentMessage.trim());
+          }
+        }} 
+        disabled={isTyping || currentMessage.trim().length === 0}
+      >
         <Send
           className={`ml-auto ${currentMessage.trim() && !isTyping ? 'text-[#0a223e]' : 'text-[#8b98a5]'}`}
           size={isMobile ? 24 : 20}
