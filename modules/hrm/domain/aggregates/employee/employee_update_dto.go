@@ -7,7 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
