@@ -103,7 +103,7 @@ export const ru: Translations = {
 };
 
 // Uzbek translations (Latin script)
-export const uz: Translations = {
+export const oz: Translations = {
   // Header
   chatbotTitle: 'AI suhbat boti',
   chatbotSubtitle: 'Bizning AI-botimiz sizga 24/7 yordam berishga tayyor',
@@ -165,7 +165,7 @@ export const uz: Translations = {
 };
 
 // Uzbek translations (Cyrillic script)
-export const uzCyrl: Translations = {
+export const uz: Translations = {
   // Header
   chatbotTitle: 'AI суҳбат боти',
   chatbotSubtitle: 'Бизнинг AI-ботимиз сизга 24/7 ёрдам беришга тайёр',
@@ -287,8 +287,8 @@ export const en: Translations = {
 // Map of all available translations
 export const translations: Record<string, Translations> = {
   ru,
+  oz,
   uz,
-  uzCyrl,
   en,
 };
 
