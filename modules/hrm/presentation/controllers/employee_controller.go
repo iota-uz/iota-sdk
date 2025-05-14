@@ -99,7 +99,7 @@ func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
 		"",
 		"",
 		nil,
-		money.New(0, currency.UsdCode),
+		money.NewFromFloat(0, string(currency.UsdCode)),
 		nil,
 		nil,
 		nil,

@@ -1,4 +1,3 @@
-// Define the structure of our translations
 export interface Translations {
   // Header
   chatbotTitle: string
@@ -43,7 +42,6 @@ export interface Translations {
   months: string[]
 }
 
-// Russian translations (default)
 export const ru: Translations = {
   // Header
   chatbotTitle: 'Ai chat bot',
@@ -102,8 +100,7 @@ export const ru: Translations = {
   ],
 };
 
-// Uzbek translations (Latin script)
-export const uz: Translations = {
+export const oz: Translations = {
   // Header
   chatbotTitle: 'AI suhbat boti',
   chatbotSubtitle: 'Bizning AI-botimiz sizga 24/7 yordam berishga tayyor',
@@ -164,8 +161,7 @@ export const uz: Translations = {
   ],
 };
 
-// Uzbek translations (Cyrillic script)
-export const uzCyrl: Translations = {
+export const uz: Translations = {
   // Header
   chatbotTitle: 'AI суҳбат боти',
   chatbotSubtitle: 'Бизнинг AI-ботимиз сизга 24/7 ёрдам беришга тайёр',
@@ -225,7 +221,6 @@ export const uzCyrl: Translations = {
   ],
 };
 
-// English translations
 export const en: Translations = {
   // Header
   chatbotTitle: 'AI chat bot',
@@ -284,15 +279,13 @@ export const en: Translations = {
   ],
 };
 
-// Map of all available translations
 export const translations: Record<string, Translations> = {
   ru,
   uz,
-  uzCyrl,
+  oz,
   en,
 };
 
-// Function to get translations for a specific locale
 export function getTranslations(locale: string): Translations {
-  return translations[locale] || en; // Fallback to English if locale not found
+  return translations[locale] || en;
 }
