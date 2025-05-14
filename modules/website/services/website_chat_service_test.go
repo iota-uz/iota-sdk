@@ -50,13 +50,18 @@ func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 	emailStr := "test@example.com"
 
 	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
 	// Verify thread
 	assert.NotZero(t, thread.ID())
-	assert.NotEmpty(t, thread.Members())
+
+	chatEntity := thread.Chat()
+	assert.NotEmpty(t, chatEntity.Members())
 
 	// Verify client was created
 	email, _ := internet.NewEmail(emailStr)
@@ -65,7 +70,7 @@ func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 	assert.Equal(t, email.Value(), client.Email().Value())
 
 	// Verify thread has correct client ID
-	assert.Equal(t, client.ID(), thread.ClientID())
+	assert.Equal(t, client.ID(), chatEntity.ClientID())
 }
 
 func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
@@ -76,13 +81,17 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	phoneStr := "+12126647665" // Valid US number format
 
 	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, phoneStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: phoneStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
 	// Verify thread
 	assert.NotZero(t, thread.ID())
-	assert.NotEmpty(t, thread.Members())
+	chatEntity := thread.Chat()
+	assert.NotEmpty(t, chatEntity.Members())
 
 	// Verify client was created
 	p, _ := phone.NewFromE164(phoneStr)
@@ -91,7 +100,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	assert.Equal(t, p.Value(), client.Phone().Value())
 
 	// Verify thread has correct client ID
-	assert.Equal(t, client.ID(), thread.ClientID())
+	assert.Equal(t, client.ID(), thread.Chat().ClientID())
 }
 
 func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
@@ -108,15 +117,18 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create thread with existing client's email
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
 	// Verify the thread has the same client ID as our pre-created client
-	assert.Equal(t, savedClient.ID(), thread.ClientID())
+	assert.Equal(t, savedClient.ID(), thread.Chat().ClientID())
 }
 
-func TestWebsiteChatService_CreateThread_ReuseExistingThread(t *testing.T) {
+func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	t.Parallel()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
@@ -130,18 +142,24 @@ func TestWebsiteChatService_CreateThread_ReuseExistingThread(t *testing.T) {
 	require.NoError(t, err)
 
 	// 2. Create first thread with the client's email
-	firstThread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	firstThread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, firstThread)
 
 	// 3. Create a second thread with the same email
-	secondThread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	secondThread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, secondThread)
 
-	// 4. Verify both threads have the same ID and client ID
-	assert.Equal(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same contact should return the existing thread")
-	assert.Equal(t, savedClient.ID(), secondThread.ClientID(), "Thread should be associated with the correct client")
+	// 4. Verify both threads have different IDs but same client ID
+	assert.NotEqual(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same contact should create a new thread")
+	assert.Equal(t, savedClient.ID(), secondThread.Chat().ClientID(), "Thread should be associated with the correct client")
 }
 
 func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
@@ -152,7 +170,10 @@ func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
 	invalidContact := "not-an-email-or-phone"
 
 	// Should fail
-	_, err := sut.CreateThread(fixtures.ctx, invalidContact, country.UnitedStates)
+	_, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: invalidContact,
+		Country: country.UnitedStates,
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid contact")
 }
@@ -191,7 +212,10 @@ func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			thread, err := sut.CreateThread(fixtures.ctx, tt.contact, country.UnitedStates)
+			thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+				Contact: tt.contact,
+				Country: country.UnitedStates,
+			})
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -210,14 +234,17 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "sendmessage@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
 	// Create message DTO
 	dto := services.SendMessageToThreadDTO{
-		ChatID:  thread.ID(),
-		Message: "Hello from client",
+		ThreadID: thread.ID(),
+		Message:  "Hello from client",
 	}
 
 	// Send message
@@ -226,7 +253,9 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	require.NotNil(t, updatedThread)
 
 	// Verify message was added
-	lastMsg, err := updatedThread.LastMessage()
+	messages := updatedThread.Messages()
+	require.NotEmpty(t, messages)
+	lastMsg := messages[len(messages)-1]
 	require.NoError(t, err)
 	assert.Equal(t, "Hello from client", lastMsg.Message())
 
@@ -234,7 +263,7 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	sender := lastMsg.Sender().Sender()
 	clientSender, ok := sender.(chat.ClientSender)
 	require.True(t, ok, "Message sender should be a ClientSender")
-	assert.Equal(t, thread.ClientID(), clientSender.ClientID())
+	assert.Equal(t, updatedThread.Chat().ClientID(), clientSender.ClientID())
 	// Now we get the transport from the member, not the sender
 	assert.Equal(t, chat.WebsiteTransport, lastMsg.Sender().Transport())
 }
@@ -245,13 +274,16 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "emptymessage@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 
 	// Try to send empty message
 	dto := services.SendMessageToThreadDTO{
-		ChatID:  thread.ID(),
-		Message: "",
+		ThreadID: thread.ID(),
+		Message:  "",
 	}
 
 	// Should fail
@@ -268,7 +300,10 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "reply@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
@@ -282,9 +317,9 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 
 	// Create reply DTO
 	dto := services.ReplyToThreadDTO{
-		ChatID:  thread.ID(),
-		UserID:  createdUser.ID(),
-		Message: "Reply from support agent",
+		ThreadID: thread.ID(),
+		UserID:   createdUser.ID(),
+		Message:  "Reply from support agent",
 	}
 
 	// Send reply
@@ -293,7 +328,10 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 	require.NotNil(t, repliedThread)
 
 	// Verify message was added
-	lastMsg, err := repliedThread.LastMessage()
+	messages := repliedThread.Messages()
+	require.NotEmpty(t, messages)
+
+	lastMsg := messages[len(messages)-1]
 	require.NoError(t, err)
 	assert.Equal(t, "Reply from support agent", lastMsg.Message())
 
@@ -311,14 +349,17 @@ func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
 	fixtures, sut, _ := setupChatTest(t)
 
 	emailStr := "emptyreply@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 
 	// Should fail
 	_, err = sut.ReplyToThread(fixtures.ctx, services.ReplyToThreadDTO{
-		ChatID:  thread.ID(),
-		UserID:  1,
-		Message: "",
+		ThreadID: thread.ID(),
+		UserID:   1,
+		Message:  "",
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, chat.ErrEmptyMessage)
@@ -330,14 +371,17 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 
 	// Create a thread first
 	emailStr := "usernotfound@example.com"
-	thread, err := sut.CreateThread(fixtures.ctx, emailStr, country.UnitedStates)
+	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+		Contact: emailStr,
+		Country: country.UnitedStates,
+	})
 	require.NoError(t, err)
 
 	// Try to reply with non-existent user
 	dto := services.ReplyToThreadDTO{
-		ChatID:  thread.ID(),
-		UserID:  999, // Non-existent user
-		Message: "This should fail",
+		ThreadID: thread.ID(),
+		UserID:   999, // Non-existent user
+		Message:  "This should fail",
 	}
 
 	// Should fail because user is not a member
