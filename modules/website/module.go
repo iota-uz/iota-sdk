@@ -7,7 +7,6 @@ import (
 	corePersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	crmPersistence "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/website/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -56,7 +55,6 @@ func (m *Module) Register(app application.Application) error {
 	)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.Migrations().RegisterSchema(&MigrationFiles)
-	app.RegisterHashFsAssets(assets.HashFS)
 	return nil
 }
 
