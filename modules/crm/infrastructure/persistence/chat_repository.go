@@ -364,7 +364,7 @@ func (g *ChatRepository) GetPaginated(
 	if params.Search != "" {
 		where = append(
 			where,
-			"cl.first_name ILIKE $1 OR cl.last_name ILIKE $1 OR cl.middle_name ILIKE $1 OR cl.phone_number ILIKE $1",
+			"c.first_name ILIKE $1 OR c.last_name ILIKE $1 OR c.middle_name ILIKE $1 OR c.phone_number ILIKE $1",
 		)
 		args = append(args, "%"+params.Search+"%")
 	}
