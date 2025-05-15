@@ -91,7 +91,7 @@ func (c *AIChatController) configureAIChat(
 		if err != nil {
 			logger.WithError(err).Error("failed to encode error response")
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(dtos.NewAPIError(
+			_ = json.NewEncoder(w).Encode(dtos.NewAPIError(
 				localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToEncodeResponse"}),
 				dtos.ErrorCodeInternalServer,
 			))
@@ -133,7 +133,7 @@ func (c *AIChatController) saveConfig(
 		logger.WithError(err).Error("failed to parse form")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
+		_ = json.NewEncoder(w).Encode(dtos.NewAPIError(
 			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.InvalidFormData"}),
 			dtos.ErrorCodeInvalidRequest,
 		))
@@ -210,7 +210,7 @@ func (c *AIChatController) createThread(
 		logger.WithError(err).Error("failed to decode request body")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
+		_ = json.NewEncoder(w).Encode(dtos.NewAPIError(
 			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.InvalidRequestBody"}),
 			dtos.ErrorCodeInvalidRequest,
 		))
@@ -224,7 +224,6 @@ func (c *AIChatController) createThread(
 	if err != nil {
 		logger.WithError(err).Error("failed to create chat thread")
 
-		// Check for validation errors that should return 400 instead of 500
 		w.Header().Set("Content-Type", "application/json")
 		if errors.Is(err, phone.ErrInvalidPhoneNumber) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -250,12 +249,10 @@ func (c *AIChatController) createThread(
 		}
 	}
 
-	response := dtos.ChatResponse{
-		ThreadID: thread.ID().String(),
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(&dtos.ChatResponse{
+		ThreadID: thread.ID().String(),
+	})
 }
 
 func (c *AIChatController) getThreadMessages(
@@ -322,18 +319,8 @@ func (c *AIChatController) addMessageToThread(
 	localizer *i18n.Localizer,
 ) {
 	var msg dtos.ChatMessage
-	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
-		logger.WithError(err).Error("failed to decode request body")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
-			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.InvalidRequestBody"}),
-			dtos.ErrorCodeInvalidRequest,
-		))
-		return
-	}
+	_ = json.NewDecoder(r.Body).Decode(&msg)
 
-	// Try to parse the thread ID as UUID
 	threadID, err := uuid.Parse(mux.Vars(r)["thread_id"])
 	if err != nil {
 		logger.WithError(err).Error("invalid thread ID format")
@@ -346,7 +333,6 @@ func (c *AIChatController) addMessageToThread(
 		return
 	}
 
-	// Verify the thread exists
 	_, err = chatService.GetThreadByID(r.Context(), threadID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get thread by ID")
@@ -359,7 +345,6 @@ func (c *AIChatController) addMessageToThread(
 		return
 	}
 
-	// Send message to the thread using thread ID
 	_, err = chatService.SendMessageToThread(r.Context(), websiteServices.SendMessageToThreadDTO{
 		ThreadID: threadID,
 		Message:  msg.Message,
@@ -375,31 +360,20 @@ func (c *AIChatController) addMessageToThread(
 		return
 	}
 
-	// Get AI reply to the thread
 	aiResponseThread, err := chatService.ReplyWithAI(r.Context(), threadID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get AI response")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
+		_ = json.NewEncoder(w).Encode(dtos.NewAPIError(
 			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToGetAIResponse"}),
 			dtos.ErrorCodeInternalServer,
 		))
 		return
 	}
 
-	response := dtos.ChatResponse{
-		ThreadID: aiResponseThread.ID().String(),
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
-			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToEncodeResponse"}),
-			dtos.ErrorCodeInternalServer,
-		))
-		return
-	}
+	_ = json.NewEncoder(w).Encode(&dtos.ChatResponse{
+		ThreadID: aiResponseThread.ID().String(),
+	})
 }
