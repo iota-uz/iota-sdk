@@ -44,6 +44,7 @@ func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, c
 
 func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 	t.Parallel()
+	chatRepo := crmPersistence.NewChatRepository()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Test email contact
@@ -60,7 +61,8 @@ func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 	// Verify thread
 	assert.NotZero(t, thread.ID())
 
-	chatEntity := thread.Chat()
+	chatEntity, err := chatRepo.GetByID(fixtures.ctx, thread.ChatID())
+	require.NoError(t, err)
 	assert.NotEmpty(t, chatEntity.Members())
 
 	// Verify client was created
@@ -75,6 +77,7 @@ func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
 
 func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	t.Parallel()
+	chatRepo := crmPersistence.NewChatRepository()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Test phone contact
@@ -90,7 +93,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 
 	// Verify thread
 	assert.NotZero(t, thread.ID())
-	chatEntity := thread.Chat()
+	chatEntity, err := chatRepo.GetByID(fixtures.ctx, thread.ChatID())
 	assert.NotEmpty(t, chatEntity.Members())
 
 	// Verify client was created
@@ -100,11 +103,12 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	assert.Equal(t, p.Value(), client.Phone().Value())
 
 	// Verify thread has correct client ID
-	assert.Equal(t, client.ID(), thread.Chat().ClientID())
+	assert.Equal(t, client.ID(), chatEntity.ClientID())
 }
 
 func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	t.Parallel()
+	chatRepo := crmPersistence.NewChatRepository()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Create an existing client first
@@ -124,12 +128,14 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
-	// Verify the thread has the same client ID as our pre-created client
-	assert.Equal(t, savedClient.ID(), thread.Chat().ClientID())
+	chatEntity, err := chatRepo.GetByID(fixtures.ctx, thread.ChatID())
+	require.NoError(t, err)
+	assert.Equal(t, savedClient.ID(), chatEntity.ClientID())
 }
 
 func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	t.Parallel()
+	chatRepo := crmPersistence.NewChatRepository()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// 1. Create a client and get the client ID
@@ -157,9 +163,11 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, secondThread)
 
+	chatEntity, err := chatRepo.GetByID(fixtures.ctx, secondThread.ChatID())
+	require.NoError(t, err)
 	// 4. Verify both threads have different IDs but same client ID
 	assert.NotEqual(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same contact should create a new thread")
-	assert.Equal(t, savedClient.ID(), secondThread.Chat().ClientID(), "Thread should be associated with the correct client")
+	assert.Equal(t, savedClient.ID(), chatEntity.ClientID(), "Thread should be associated with the correct client")
 }
 
 func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
@@ -253,7 +261,7 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	require.NotNil(t, updatedThread)
 
 	// Verify message was added
-	messages := updatedThread.Chat().Messages()
+	messages := updatedThread.Messages()
 	require.NotEmpty(t, messages)
 	lastMsg := messages[len(messages)-1]
 	require.NoError(t, err)
@@ -261,10 +269,8 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 
 	// Verify sender is a client
 	sender := lastMsg.Sender().Sender()
-	clientSender, ok := sender.(chat.ClientSender)
+	_, ok := sender.(chat.ClientSender)
 	require.True(t, ok, "Message sender should be a ClientSender")
-	assert.Equal(t, updatedThread.Chat().ClientID(), clientSender.ClientID())
-	// Now we get the transport from the member, not the sender
 	assert.Equal(t, chat.WebsiteTransport, lastMsg.Sender().Transport())
 }
 

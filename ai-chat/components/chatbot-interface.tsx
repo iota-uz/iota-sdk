@@ -86,7 +86,7 @@ export default function ChatbotInterface({
   const [threadId, setThreadId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [messageCount, setMessageCount] = useState<number>(0);
+  const [messageCount, setMessageCount] = useState<number>(1);
   const [windowHeight, setWindowHeight] = useState(0);
 
   const chatbotTitle = title || translations.chatbotTitle;
@@ -374,13 +374,84 @@ export default function ChatbotInterface({
 
   // Handle quick reply button click
   const handleQuickReply = (question: string) => {
-    setCurrentMessage(question);
-    setTimeout(() => {
-      handleSendMessage();
-      if (onMessageSubmit && question.trim().length > 0) {
-        onMessageSubmit(question.trim());
-      }
-    }, 100);
+    // Directly process and send the question without setting input field
+    const now = new Date();
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      content: question,
+      sender: 'user',
+      timestamp: now,
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    playSubmitSound();
+    
+    // Call the onMessageSubmit callback if it exists
+    if (onMessageSubmit && question.trim().length > 0) {
+      onMessageSubmit(question.trim());
+    }
+    
+    // Process the message with the API
+    setIsTyping(true);
+    
+    if (threadId) {
+      (async () => {
+        try {
+          await chatApi.addMessage(threadId, {
+            message: question,
+          });
+
+          const response = await chatApi.getMessages(threadId);
+
+          const assistantMessages = response.messages.filter((msg) => msg.role === 'assistant');
+          if (assistantMessages.length > 0) {
+            const latestAssistantMessage = assistantMessages[assistantMessages.length - 1];
+
+            const botMessage: ChatMessage = {
+              id: `bot-${Date.now()}`,
+              content: latestAssistantMessage.message,
+              sender: 'bot',
+              timestamp: new Date(latestAssistantMessage.timestamp),
+            };
+
+            setMessages((prev) => {
+              // Check if this message is already in the list to avoid duplicates
+              const isDuplicate = prev.some((msg) => msg.sender === 'bot' && msg.content === latestAssistantMessage.message);
+
+              if (isDuplicate) { return prev; }
+              playOperatorSound();
+              return [...prev, botMessage];
+            });
+          }
+        } catch (error) {
+          // Check if it's a 404 error (thread not found)
+          if (error instanceof Error && error.message.includes('404')) {
+            handle404Error();
+            return;
+          }
+
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          toast({
+            variant: 'destructive',
+            title: translations.errorSendingMessage,
+            description: errorMessage,
+          });
+
+          // Add error message to UI
+          const now = new Date();
+          const errorMsg: ChatMessage = {
+            id: `bot-error-${Date.now()}`,
+            content: translations.errorSendingMessage,
+            sender: 'bot',
+            timestamp: now,
+          };
+
+          setMessages((prev) => [...prev, errorMsg]);
+        } finally {
+          setIsTyping(false);
+        }
+      })();
+    }
   };
 
   // Handle Enter key press

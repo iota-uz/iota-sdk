@@ -44,7 +44,7 @@ func setupTest(t *testing.T) *testFixtures {
 		pool.Close()
 	})
 
-	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
 
 	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
