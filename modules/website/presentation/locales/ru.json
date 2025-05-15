@@ -50,13 +50,5 @@
       "FailedToGetAIResponse": "Не удалось получить ответ от ИИ",
       "FailedToEncodeResponse": "Не удалось закодировать ответ"
     }
-  },
-  "Errors": {
-    "Internal": "Произошла внутренняя ошибка сервера: {{.Error}}",
-    "BadRequest": "Некорректный запрос: {{.Error}}",
-    "NotFound": "Ресурс не найден: {{.Error}}",
-    "Unauthorized": "Неавторизован: {{.Error}}",
-    "Forbidden": "Доступ запрещен: {{.Error}}"
   }
 }
-
