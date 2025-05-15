@@ -231,7 +231,6 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewChatRepository()
 
-	// Create multiple chats for pagination testing
 	for i := 0; i < 5; i++ {
 		testClient := createClientForTest(t, f)
 		testChat := createTestChat(t, testClient.ID())
@@ -376,4 +375,78 @@ func TestChatRepository_Delete(t *testing.T) {
 	_, err = repo.GetByID(f.ctx, created.ID())
 	require.Error(t, err, "Expected error when getting deleted chat")
 	assert.ErrorIs(t, err, persistence.ErrChatNotFound, "Error should be ErrChatNotFound")
+}
+
+func TestChatRepository_Search(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	repo := persistence.NewChatRepository()
+
+	for i := 0; i < 5; i++ {
+		testClient := createClientForTest(t, f)
+		testChat := createTestChat(t, testClient.ID())
+		_, err := repo.Save(f.ctx, testChat)
+		require.NoError(t, err, "Failed to create test chat for client %d", i)
+	}
+
+	t.Run("Search by first name", func(t *testing.T) {
+		params := &chat.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "John",
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.CreatedAt},
+				Ascending: true,
+			},
+		}
+
+		_, err := repo.GetPaginated(f.ctx, params)
+		require.NoError(t, err, "Failed to search chats by first name")
+	})
+
+	t.Run("Search by last name", func(t *testing.T) {
+		params := &chat.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "Doe",
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.CreatedAt},
+				Ascending: true,
+			},
+		}
+
+		_, err := repo.GetPaginated(f.ctx, params)
+		require.NoError(t, err, "Failed to search chats by last name")
+	})
+
+	t.Run("Search by phone number", func(t *testing.T) {
+		params := &chat.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "12345",
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.CreatedAt},
+				Ascending: true,
+			},
+		}
+
+		_, err := repo.GetPaginated(f.ctx, params)
+		require.NoError(t, err, "Failed to search chats by phone number")
+	})
+
+	t.Run("Search with no matches", func(t *testing.T) {
+		params := &chat.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "NonExistentName",
+			SortBy: chat.SortBy{
+				Fields:    []chat.Field{chat.CreatedAt},
+				Ascending: true,
+			},
+		}
+
+		chats, err := repo.GetPaginated(f.ctx, params)
+		require.NoError(t, err, "Failed to execute search with no expected matches")
+		assert.Empty(t, chats, "Expected no chats for non-existent name")
+	})
 }

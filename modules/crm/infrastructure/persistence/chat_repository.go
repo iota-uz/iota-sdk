@@ -360,18 +360,20 @@ func (g *ChatRepository) GetPaginated(
 		}
 	}
 
-	where, args := []string{"1 = 1"}, []interface{}{}
+	where, args, joins := []string{"1 = 1"}, []interface{}{}, []string{}
 	if params.Search != "" {
 		where = append(
 			where,
-			"c.first_name ILIKE $1 OR c.last_name ILIKE $1 OR c.middle_name ILIKE $1 OR c.phone_number ILIKE $1",
+			"cl.first_name ILIKE $1 OR cl.last_name ILIKE $1 OR cl.middle_name ILIKE $1 OR cl.phone_number ILIKE $1",
 		)
 		args = append(args, "%"+params.Search+"%")
+		joins = append(joins, "JOIN clients cl ON c.client_id = cl.id")
 	}
 	return g.queryChats(
 		ctx,
 		repo.Join(
 			selectChatQuery,
+			repo.Join(joins...),
 			repo.JoinWhere(where...),
 			repo.OrderBy(sortFields, params.SortBy.Ascending),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
