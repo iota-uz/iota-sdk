@@ -63,6 +63,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	// Verify thread
 	assert.NotZero(t, thread.ID())
 	chatEntity, err := chatRepo.GetByID(fixtures.ctx, thread.ChatID())
+	require.NoError(t, err)
 	assert.NotEmpty(t, chatEntity.Members())
 
 	// Verify client was created

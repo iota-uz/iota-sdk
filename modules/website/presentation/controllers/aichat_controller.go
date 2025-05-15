@@ -84,10 +84,19 @@ func (c *AIChatController) configureAIChat(
 		logger.WithError(err).Error("failed to get default AI chat configuration")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
+		err = json.NewEncoder(w).Encode(dtos.NewAPIError(
 			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToGetConfig"}),
 			dtos.ErrorCodeInternalServer,
 		))
+		if err != nil {
+			logger.WithError(err).Error("failed to encode error response")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(dtos.NewAPIError(
+				localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToEncodeResponse"}),
+				dtos.ErrorCodeInternalServer,
+			))
+			return
+		}
 		return
 	}
 
@@ -167,10 +176,19 @@ func (c *AIChatController) saveConfig(
 		logger.WithError(err).Error("failed to convert DTO to entity")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
+		err = json.NewEncoder(w).Encode(dtos.NewAPIError(
 			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.InvalidFormData"}),
 			dtos.ErrorCodeInvalidRequest,
 		))
+		if err != nil {
+			logger.WithError(err).Error("failed to encode error response")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(dtos.NewAPIError(
+				localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToEncodeResponse"}),
+				dtos.ErrorCodeInternalServer,
+			))
+			return
+		}
 		return
 	}
 
@@ -179,10 +197,19 @@ func (c *AIChatController) saveConfig(
 		logger.WithError(err).Error("failed to save AI chat configuration")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(dtos.NewAPIError(
+		err = json.NewEncoder(w).Encode(dtos.NewAPIError(
 			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToSaveConfig"}),
 			dtos.ErrorCodeInternalServer,
 		))
+		if err != nil {
+			logger.WithError(err).Error("failed to encode error response")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(dtos.NewAPIError(
+				localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToEncodeResponse"}),
+				dtos.ErrorCodeInternalServer,
+			))
+			return
+		}
 		return
 	}
 
