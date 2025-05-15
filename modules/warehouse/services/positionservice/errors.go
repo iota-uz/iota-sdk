@@ -7,8 +7,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-func NewErrInvalidCell(col string, row uint) *ErrInvalidCell {
-	return &ErrInvalidCell{
+func NewErrInvalidCell(col string, row uint) *InvalidCellError {
+	return &InvalidCellError{
 		BaseError: serrors.BaseError{
 			Code:    "ERR_INVALID_CELL",
 			Message: "Invalid cell found",
@@ -18,13 +18,13 @@ func NewErrInvalidCell(col string, row uint) *ErrInvalidCell {
 	}
 }
 
-type ErrInvalidCell struct {
+type InvalidCellError struct {
 	serrors.BaseError
 	Col string
 	Row uint
 }
 
-func (e *ErrInvalidCell) Localize(l *i18n.Localizer) string {
+func (e *InvalidCellError) Localize(l *i18n.Localizer) string {
 	return l.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
 			ID: fmt.Sprintf("Errors.%s", e.Code),
