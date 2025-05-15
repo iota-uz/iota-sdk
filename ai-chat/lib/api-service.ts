@@ -1,3 +1,5 @@
+import { ApiError } from './errors';
+
 // Types for API requests and responses
 export interface CreateThreadRequest {
   message: string
@@ -41,7 +43,12 @@ class ChatApiService {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.error || errorData?.details || `API error: ${response.status}`);
+      // Create ApiError with the response data
+      throw new ApiError(
+        errorData?.message || `API error: ${response.status}`,
+        errorData?.code || 'UNKNOWN_ERROR',
+        errorData || { status: response.status }
+      );
     }
 
     return await response.json();
@@ -58,7 +65,12 @@ class ChatApiService {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.error || errorData?.details || `API error: ${response.status}`);
+      // Create ApiError with the response data
+      throw new ApiError(
+        errorData?.message || `API error: ${response.status}`,
+        errorData?.code || 'UNKNOWN_ERROR',
+        errorData || { status: response.status }
+      );
     }
 
     return await response.json();
@@ -76,7 +88,12 @@ class ChatApiService {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.error || errorData?.details || `API error: ${response.status}`);
+      // Create ApiError with the response data
+      throw new ApiError(
+        errorData?.message || `API error: ${response.status}`,
+        errorData?.code || 'UNKNOWN_ERROR',
+        errorData || { status: response.status }
+      );
     }
 
     return await response.json();

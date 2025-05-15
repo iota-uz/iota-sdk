@@ -12,6 +12,7 @@ import { getTranslations } from '@/lib/translations';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSoundEffects } from '@/hooks/use-sound-effects';
 import { useToast } from '@/hooks/use-toast';
+import { ApiError } from '@/lib/errors';
 
 // Import components
 import {
@@ -78,6 +79,15 @@ export default function ChatbotInterface({
 
   const [phoneSubmitted, setPhoneSubmitted] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneError, setPhoneError] = useState<string | undefined>(undefined);
+  
+  // Create a wrapper function to clear errors when phone number is changed
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(value);
+    if (phoneError) {
+      setPhoneError(undefined);
+    }
+  };
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [showDateHeader, setShowDateHeader] = useState(false);
@@ -94,7 +104,6 @@ export default function ChatbotInterface({
 
   const handleResetChat = useCallback(() => {
     localStorage.removeItem('chatThreadId');
-    localStorage.removeItem('chatPhoneNumber');
     setThreadId(null);
     setPhoneSubmitted(false);
     setPhoneNumber('');
@@ -137,17 +146,35 @@ export default function ChatbotInterface({
 
       setMessages(chatMessages);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('404')) {
-        handle404Error();
-        return;
-      }
+      // Handle ApiError directly
+      if (error instanceof ApiError) {
+        // Check for 404 errors
+        if (error.hasOneOfCodes(['NOT_FOUND', 'THREAD_NOT_FOUND'])) {
+          handle404Error();
+          return;
+        }
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      toast({
-        variant: 'destructive',
-        title: translations.errorLoadingMessages,
-        description: errorMessage,
-      });
+        toast({
+          variant: 'destructive',
+          title: translations.errorLoadingMessages,
+          description: error.message,
+        });
+      } else {
+        // Fallback for non-ApiError cases
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Check for legacy 404 errors
+        if (error instanceof Error && errorMessage.includes('404')) {
+          handle404Error();
+          return;
+        }
+        
+        toast({
+          variant: 'destructive',
+          title: translations.errorLoadingMessages,
+          description: errorMessage,
+        });
+      }
 
       const now = new Date();
       setMessages([
@@ -211,11 +238,9 @@ export default function ChatbotInterface({
 
   useEffect(() => {
     const storedThreadId = localStorage.getItem('chatThreadId');
-    const storedPhone = localStorage.getItem('chatPhoneNumber');
 
-    if (storedThreadId && storedPhone) {
+    if (storedThreadId) {
       setThreadId(storedThreadId);
-      setPhoneNumber(storedPhone);
       setPhoneSubmitted(true);
       setShowDateHeader(true);
       fetchMessages(storedThreadId);
@@ -238,7 +263,11 @@ export default function ChatbotInterface({
   }, [messages, isTyping]);
 
   const handlePhoneSubmit = async () => {
-    if (phoneNumber.trim().length === 0) { return; }
+    // Don't submit if the phone number is empty or is just the placeholder
+    if (phoneNumber.trim().length === 0 || phoneNumber === '+998 __ ___ __ __' || phoneNumber === '+998') { return; }
+
+    // Clear previous errors
+    setPhoneError(undefined);
 
     try {
       setIsTyping(true);
@@ -251,8 +280,7 @@ export default function ChatbotInterface({
 
       setThreadId(response.thread_id);
       localStorage.setItem('chatThreadId', response.thread_id);
-      localStorage.setItem('chatPhoneNumber', phoneNumber);
-
+      
       setPhoneSubmitted(true);
       setShowDateHeader(true);
 
@@ -273,22 +301,50 @@ export default function ChatbotInterface({
 
       // No need to call fetchMessages again since we already got the messages above
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      toast({
-        variant: 'destructive',
-        title: translations.errorCreatingChat,
-        description: errorMessage,
-      });
+      // Handle ApiError directly
+      if (error instanceof ApiError) {
+        // Check for phone validation errors based on error codes
+        if (error.hasOneOfCodes(['INVALID_PHONE_FORMAT', 'UNKNOWN_COUNTRY_CODE'])) {
+          // Display error message under the phone input field
+          setPhoneError(error.message);
+        } else {
+          // For other errors, use toast
+          toast({
+            variant: 'destructive',
+            title: translations.errorCreatingChat,
+            description: error.message,
+          });
 
-      const now = new Date();
-      setMessages([
-        {
-          id: 'error',
-          content: translations.errorCreatingChat,
-          sender: 'bot',
-          timestamp: now,
-        },
-      ]);
+          const now = new Date();
+          setMessages([
+            {
+              id: 'error',
+              content: translations.errorCreatingChat,
+              sender: 'bot',
+              timestamp: now,
+            },
+          ]);
+        }
+      } else {
+        // Fallback for non-ApiError cases
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        toast({
+          variant: 'destructive',
+          title: translations.errorCreatingChat,
+          description: errorMessage,
+        });
+
+        const now = new Date();
+        setMessages([
+          {
+            id: 'error',
+            content: translations.errorCreatingChat,
+            sender: 'bot',
+            timestamp: now,
+          },
+        ]);
+      }
     } finally {
       setIsTyping(false);
     }
@@ -344,18 +400,35 @@ export default function ChatbotInterface({
         });
       }
     } catch (error) {
-      // Check if it's a 404 error (thread not found)
-      if (error instanceof Error && error.message.includes('404')) {
-        handle404Error();
-        return;
-      }
+      // Handle ApiError directly
+      if (error instanceof ApiError) {
+        // Check for 404 errors
+        if (error.hasOneOfCodes(['NOT_FOUND', 'THREAD_NOT_FOUND'])) {
+          handle404Error();
+          return;
+        }
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      toast({
-        variant: 'destructive',
-        title: translations.errorSendingMessage,
-        description: errorMessage,
-      });
+        toast({
+          variant: 'destructive',
+          title: translations.errorSendingMessage,
+          description: error.message,
+        });
+      } else {
+        // Fallback for non-ApiError cases
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Check for legacy 404 errors
+        if (error instanceof Error && errorMessage.includes('404')) {
+          handle404Error();
+          return;
+        }
+        
+        toast({
+          variant: 'destructive',
+          title: translations.errorSendingMessage,
+          description: errorMessage,
+        });
+      }
 
       // Add error message to UI
       const now = new Date();
@@ -424,18 +497,35 @@ export default function ChatbotInterface({
             });
           }
         } catch (error) {
-          // Check if it's a 404 error (thread not found)
-          if (error instanceof Error && error.message.includes('404')) {
-            handle404Error();
-            return;
-          }
+          // Handle ApiError directly
+          if (error instanceof ApiError) {
+            // Check for 404 errors
+            if (error.hasOneOfCodes(['NOT_FOUND', 'THREAD_NOT_FOUND'])) {
+              handle404Error();
+              return;
+            }
 
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          toast({
-            variant: 'destructive',
-            title: translations.errorSendingMessage,
-            description: errorMessage,
-          });
+            toast({
+              variant: 'destructive',
+              title: translations.errorSendingMessage,
+              description: error.message,
+            });
+          } else {
+            // Fallback for non-ApiError cases
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            
+            // Check for legacy 404 errors
+            if (error instanceof Error && errorMessage.includes('404')) {
+              handle404Error();
+              return;
+            }
+            
+            toast({
+              variant: 'destructive',
+              title: translations.errorSendingMessage,
+              description: errorMessage,
+            });
+          }
 
           // Add error message to UI
           const now = new Date();
@@ -463,6 +553,8 @@ export default function ChatbotInterface({
           onMessageSubmit(currentMessage.trim());
         }
       } else {
+        // Clear any previous phone errors before attempting to submit
+        setPhoneError(undefined);
         handlePhoneSubmit();
       }
     }
@@ -576,12 +668,13 @@ export default function ChatbotInterface({
                 /* Phone Input */
                 <PhoneInput
                   phoneNumber={phoneNumber}
-                  setPhoneNumber={setPhoneNumber}
+                  setPhoneNumber={handlePhoneNumberChange}
                   handleSubmit={handlePhoneSubmit}
                   handleKeyPress={handleKeyPress}
                   isTyping={isTyping}
                   translations={translations}
                   isMobile={isMobile}
+                  error={phoneError}
                 />
               ) : (
                 /* Message Input */
