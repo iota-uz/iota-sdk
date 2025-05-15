@@ -145,7 +145,7 @@ func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 		ctx,
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt},
+				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
 				Ascending: false,
 			},
 		},
@@ -197,7 +197,7 @@ func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
 		&chat.FindParams{
 			Search: searchQ,
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt},
+				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
 				Ascending: false,
 			},
 		},
@@ -214,7 +214,7 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt},
+				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
 				Ascending: false,
 			},
 		},
