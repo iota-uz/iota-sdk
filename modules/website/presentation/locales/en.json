@@ -34,7 +34,29 @@
     "AccessToken": {
       "Label": "API Access Token",
       "Placeholder": "Enter your API access token"
+    },
+    "Errors": {
+      "ConfigNotFound": "AI chat configuration not found",
+      "FailedToGetConfig": "Failed to get AI chat configuration",
+      "InvalidFormData": "Invalid form data provided",
+      "FailedToSaveConfig": "Failed to save AI chat configuration",
+      "InvalidRequestBody": "Invalid request body",
+      "InvalidThreadIDFormat": "Invalid thread ID format",
+      "ThreadNotFound": "Thread not found",
+      "FailedToCreateThread": "Failed to create chat thread",
+      "InvalidPhoneFormat": "Invalid phone number format. Expected format: +998XXXXXXXXX (with country code)",
+      "UnknownCountryCode": "Unknown country code in phone number. Please provide a valid country code",
+      "FailedToSendMessage": "Failed to send message to chat thread",
+      "FailedToGetAIResponse": "Failed to get AI response",
+      "FailedToEncodeResponse": "Failed to encode response"
     }
+  },
+  "Errors": {
+    "Internal": "An internal server error occurred: {{.Error}}",
+    "BadRequest": "Bad request: {{.Error}}",
+    "NotFound": "Resource not found: {{.Error}}",
+    "Unauthorized": "Unauthorized: {{.Error}}",
+    "Forbidden": "Forbidden: {{.Error}}"
   }
 }
 

@@ -34,7 +34,29 @@
     "AccessToken": {
       "Label": "Токен доступа API",
       "Placeholder": "Введите ваш токен доступа к API"
+    },
+    "Errors": {
+      "ConfigNotFound": "Конфигурация ИИ чата не найдена",
+      "FailedToGetConfig": "Не удалось получить конфигурацию ИИ чата",
+      "InvalidFormData": "Предоставлены недопустимые данные формы",
+      "FailedToSaveConfig": "Не удалось сохранить конфигурацию ИИ чата",
+      "InvalidRequestBody": "Недопустимое тело запроса",
+      "InvalidThreadIDFormat": "Недопустимый формат ID треда",
+      "ThreadNotFound": "Тред не найден",
+      "FailedToCreateThread": "Не удалось создать тред чата",
+      "InvalidPhoneFormat": "Неверный формат номера телефона. Ожидаемый формат: +998XXXXXXXXX (с кодом страны)",
+      "UnknownCountryCode": "Неизвестный код страны в номере телефона. Пожалуйста, укажите действительный код страны",
+      "FailedToSendMessage": "Не удалось отправить сообщение в тред чата",
+      "FailedToGetAIResponse": "Не удалось получить ответ от ИИ",
+      "FailedToEncodeResponse": "Не удалось закодировать ответ"
     }
+  },
+  "Errors": {
+    "Internal": "Произошла внутренняя ошибка сервера: {{.Error}}",
+    "BadRequest": "Некорректный запрос: {{.Error}}",
+    "NotFound": "Ресурс не найден: {{.Error}}",
+    "Unauthorized": "Неавторизован: {{.Error}}",
+    "Forbidden": "Доступ запрещен: {{.Error}}"
   }
 }
 

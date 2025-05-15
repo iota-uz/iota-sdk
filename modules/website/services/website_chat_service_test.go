@@ -42,38 +42,7 @@ func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, c
 	return fixtures, websiteChatService, clientRepo
 }
 
-func TestWebsiteChatService_CreateThread_WithEmail(t *testing.T) {
-	t.Parallel()
-	chatRepo := crmPersistence.NewChatRepository()
-	fixtures, sut, clientRepo := setupChatTest(t)
-
-	// Test email contact
-	emailStr := "test@example.com"
-
-	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
-		Country: country.UnitedStates,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, thread)
-
-	// Verify thread
-	assert.NotZero(t, thread.ID())
-
-	chatEntity, err := chatRepo.GetByID(fixtures.ctx, thread.ChatID())
-	require.NoError(t, err)
-	assert.NotEmpty(t, chatEntity.Members())
-
-	// Verify client was created
-	email, _ := internet.NewEmail(emailStr)
-	client, err := clientRepo.GetByContactValue(fixtures.ctx, client.ContactTypeEmail, email.Value())
-	require.NoError(t, err)
-	assert.Equal(t, email.Value(), client.Email().Value())
-
-	// Verify thread has correct client ID
-	assert.Equal(t, client.ID(), chatEntity.ClientID())
-}
+// Email-based test removed as the service now only supports phone numbers
 
 func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	t.Parallel()
@@ -85,7 +54,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 
 	// Create thread
 	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: phoneStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
@@ -111,18 +80,20 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	chatRepo := crmPersistence.NewChatRepository()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
-	// Create an existing client first
-	emailStr := "existing@example.com"
-	email, _ := internet.NewEmail(emailStr)
-	existingClient, err := client.New(emailStr, client.WithEmail(email))
+	// Create an existing client first with phone
+	phoneStr := "+12126647668" // Valid US number format
+	p, err := phone.Parse(phoneStr, country.UnitedStates)
+	require.NoError(t, err)
+
+	existingClient, err := client.New(phoneStr, client.WithPhone(p))
 	require.NoError(t, err)
 
 	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
 	require.NoError(t, err)
 
-	// Create thread with existing client's email
+	// Create thread with existing client's phone
 	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
@@ -139,25 +110,27 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// 1. Create a client and get the client ID
-	emailStr := "reuse@example.com"
-	email, _ := internet.NewEmail(emailStr)
-	existingClient, err := client.New(emailStr, client.WithEmail(email))
+	phoneStr := "+12126647669" // Valid US number format
+	p, err := phone.Parse(phoneStr, country.UnitedStates)
+	require.NoError(t, err)
+
+	existingClient, err := client.New(phoneStr, client.WithPhone(p))
 	require.NoError(t, err)
 
 	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
 	require.NoError(t, err)
 
-	// 2. Create first thread with the client's email
+	// 2. Create first thread with the client's phone
 	firstThread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, firstThread)
 
-	// 3. Create a second thread with the same email
+	// 3. Create a second thread with the same phone
 	secondThread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
@@ -166,54 +139,59 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	chatEntity, err := chatRepo.GetByID(fixtures.ctx, secondThread.ChatID())
 	require.NoError(t, err)
 	// 4. Verify both threads have different IDs but same client ID
-	assert.NotEqual(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same contact should create a new thread")
+	assert.NotEqual(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same phone should create a new thread")
 	assert.Equal(t, savedClient.ID(), chatEntity.ClientID(), "Thread should be associated with the correct client")
 }
 
-func TestWebsiteChatService_CreateThread_InvalidContact(t *testing.T) {
+func TestWebsiteChatService_CreateThread_InvalidPhone(t *testing.T) {
 	t.Parallel()
 	fixtures, sut, _ := setupChatTest(t)
 
-	// Test invalid contact
-	invalidContact := "not-an-email-or-phone"
+	// Test invalid phone
+	invalidPhone := "not-a-phone-number"
 
 	// Should fail
 	_, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: invalidContact,
+		Phone:   invalidPhone,
 		Country: country.UnitedStates,
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid contact")
+	assert.ErrorIs(t, err, phone.ErrInvalidPhoneNumber)
 }
 
-func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
+func TestWebsiteChatService_CreateThread_WithDifferentPhones(t *testing.T) {
 	t.Parallel()
 	fixtures, sut, _ := setupChatTest(t)
 
-	// Test multiple contacts
+	// Test multiple phone formats
 	tests := []struct {
 		name      string
-		contact   string
+		phone     string
 		expectErr bool
 	}{
 		{
-			name:      "Valid email",
-			contact:   "test1@example.com",
+			name:      "Valid US phone with plus",
+			phone:     "+12126647667",
 			expectErr: false,
 		},
 		{
-			name:      "Valid phone",
-			contact:   "+12126647667",
-			expectErr: false,
+			name:      "Valid US phone without plus",
+			phone:     "12126647667",
+			expectErr: false, // This implementation accepts without plus
 		},
 		{
-			name:      "Invalid contact",
-			contact:   "invalid-contact",
+			name:      "Valid phone with different format",
+			phone:     "+1-212-664-7667",
+			expectErr: false, // This implementation accepts different formats
+		},
+		{
+			name:      "Invalid phone",
+			phone:     "invalid-phone",
 			expectErr: true,
 		},
 		{
-			name:      "Empty contact",
-			contact:   "",
+			name:      "Empty phone",
+			phone:     "",
 			expectErr: true,
 		},
 	}
@@ -221,7 +199,7 @@ func TestWebsiteChatService_CreateThread_WithEmailAndPhone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-				Contact: tt.contact,
+				Phone:   tt.phone,
 				Country: country.UnitedStates,
 			})
 
@@ -241,9 +219,9 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	fixtures, sut, _ := setupChatTest(t)
 
 	// Create a thread first
-	emailStr := "sendmessage@example.com"
+	phoneStr := "+12126647670" // Valid US number
 	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
@@ -279,9 +257,9 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 	fixtures, sut, _ := setupChatTest(t)
 
 	// Create a thread first
-	emailStr := "emptymessage@example.com"
+	phoneStr := "+12126647671" // Valid US number
 	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
@@ -305,9 +283,9 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 	userRepo := corePersistence.NewUserRepository(corePersistence.NewUploadRepository())
 
 	// Create a thread first
-	emailStr := "reply@example.com"
+	phoneStr := "+12126647672" // Valid US number
 	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
@@ -354,9 +332,9 @@ func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
 	t.Parallel()
 	fixtures, sut, _ := setupChatTest(t)
 
-	emailStr := "emptyreply@example.com"
+	phoneStr := "+12126647673" // Valid US number
 	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
@@ -376,9 +354,9 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 	fixtures, sut, _ := setupChatTest(t)
 
 	// Create a thread first
-	emailStr := "usernotfound@example.com"
+	phoneStr := "+12126647674" // Valid US number
 	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
-		Contact: emailStr,
+		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)

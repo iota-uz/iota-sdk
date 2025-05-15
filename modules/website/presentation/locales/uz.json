@@ -34,7 +34,29 @@
     "AccessToken": {
       "Label": "API kirish tokeni",
       "Placeholder": "API kirish tokenini kiriting"
+    },
+    "Errors": {
+      "ConfigNotFound": "AI chat konfiguratsiyasi topilmadi",
+      "FailedToGetConfig": "AI chat konfiguratsiyasini olishda xatolik yuz berdi",
+      "InvalidFormData": "Noto'g'ri shakl ma'lumotlari taqdim etildi",
+      "FailedToSaveConfig": "AI chat konfiguratsiyasini saqlashda xatolik yuz berdi",
+      "InvalidRequestBody": "Noto'g'ri so'rov tanasi",
+      "InvalidThreadIDFormat": "Noto'g'ri suhbat ID formati",
+      "ThreadNotFound": "Suhbat topilmadi",
+      "FailedToCreateThread": "Suhbat yaratishda xatolik yuz berdi",
+      "InvalidPhoneFormat": "Noto'g'ri telefon raqami formati. Kutilgan format: +998XXXXXXXXX (mamlakat kodi bilan)",
+      "UnknownCountryCode": "Telefon raqamida noma'lum mamlakat kodi. Iltimos, to'g'ri mamlakat kodini kiriting",
+      "FailedToSendMessage": "Suhbatga xabar yuborishda xatolik yuz berdi",
+      "FailedToGetAIResponse": "AI javobini olishda xatolik yuz berdi",
+      "FailedToEncodeResponse": "Javobni kodlashda xatolik yuz berdi"
     }
+  },
+  "Errors": {
+    "Internal": "Ichki server xatosi yuz berdi: {{.Error}}",
+    "BadRequest": "Noto'g'ri so'rov: {{.Error}}",
+    "NotFound": "Resurs topilmadi: {{.Error}}",
+    "Unauthorized": "Ruxsatsiz: {{.Error}}",
+    "Forbidden": "Taqiqlangan: {{.Error}}"
   }
 }
 

@@ -21,7 +21,7 @@ import (
 )
 
 type CreateThreadDTO struct {
-	Contact string
+	Phone   string
 	Country country.Country
 }
 
@@ -85,24 +85,13 @@ func (s *WebsiteChatService) GetThreadByID(ctx context.Context, threadID uuid.UU
 
 func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadDTO) (chatthread.ChatThread, error) {
 	var member chat.Member
-	email, err := internet.NewEmail(dto.Contact)
-	if err == nil {
-		member, err = s.memberFromEmail(ctx, email)
-		if err != nil {
-			return nil, err
-		}
+	p, err := phone.Parse(dto.Phone, dto.Country)
+	if err != nil {
+		return nil, err
 	}
-
-	p, err := phone.Parse(dto.Contact, dto.Country)
-	if err == nil {
-		member, err = s.memberFromPhone(ctx, p)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if member == nil {
-		return nil, fmt.Errorf("invalid contact: %s", dto.Contact)
+	member, err = s.memberFromPhone(ctx, p)
+	if err != nil {
+		return nil, err
 	}
 
 	chatEntity := chat.New(
@@ -215,7 +204,6 @@ func (s *WebsiteChatService) ReplyToThread(
 
 	var member chat.Member
 
-	fmt.Println(composables.UsePool(ctx))
 	chatEntity, err := s.chatRepo.GetByID(ctx, thread.ChatID())
 	if err != nil {
 		return nil, err

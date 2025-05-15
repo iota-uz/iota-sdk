@@ -2,7 +2,7 @@ package dtos
 
 type ChatMessage struct {
 	Message string `json:"message"`
-	Contact string `json:"phone,omitempty"`
+	Phone   string `json:"phone,omitempty"`
 }
 
 type ChatResponse struct {
