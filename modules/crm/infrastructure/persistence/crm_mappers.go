@@ -150,6 +150,7 @@ func ToDBMessage(entity chat.Message) *models.Message {
 		Message:   entity.Message(),
 		ChatID:    entity.ChatID(),
 		ReadAt:    mapping.PointerToSQLNullTime(entity.ReadAt()),
+		SentAt:    mapping.PointerToSQLNullTime(entity.SentAt()),
 		SenderID:  entity.Sender().ID().String(),
 		CreatedAt: entity.CreatedAt(),
 	}
@@ -171,6 +172,7 @@ func ToDomainMessage(
 		chat.WithMessageChatID(dbRow.ChatID),
 		chat.WithMessageID(dbRow.ID),
 		chat.WithReadAt(mapping.SQLNullTimeToPointer(dbRow.ReadAt)),
+		chat.WithMessageSentAt(mapping.SQLNullTimeToPointer(dbRow.SentAt)),
 		chat.WithAttachments(uploads),
 		chat.WithMessageCreatedAt(dbRow.CreatedAt),
 	), nil
