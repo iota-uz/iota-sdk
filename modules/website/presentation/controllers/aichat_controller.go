@@ -333,11 +333,8 @@ func (c *AIChatController) addMessageToThread(
 		return
 	}
 
-	// Extract the thread ID from the URL
-	threadIDStr := mux.Vars(r)["thread_id"]
-
 	// Try to parse the thread ID as UUID
-	threadID, err := uuid.Parse(threadIDStr)
+	threadID, err := uuid.Parse(mux.Vars(r)["thread_id"])
 	if err != nil {
 		logger.WithError(err).Error("invalid thread ID format")
 		w.Header().Set("Content-Type", "application/json")
