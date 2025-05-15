@@ -1,6 +1,10 @@
 {
   "Errors": {
-    "Internal": "Внутренная серверная ошибка"
+    "Internal": "Произошла внутренняя ошибка сервера: {{.Error}}",
+    "BadRequest": "Некорректный запрос: {{.Error}}",
+    "NotFound": "Ресурс не найден: {{.Error}}",
+    "Unauthorized": "Неавторизован: {{.Error}}",
+    "Forbidden": "Доступ запрещен: {{.Error}}"
   },
   "ValidationErrors": {
     "required": "Это поле обязательно для заполнения",

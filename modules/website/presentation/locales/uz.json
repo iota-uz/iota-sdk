@@ -50,13 +50,5 @@
       "FailedToGetAIResponse": "AI javobini olishda xatolik yuz berdi",
       "FailedToEncodeResponse": "Javobni kodlashda xatolik yuz berdi"
     }
-  },
-  "Errors": {
-    "Internal": "Ichki server xatosi yuz berdi: {{.Error}}",
-    "BadRequest": "Noto'g'ri so'rov: {{.Error}}",
-    "NotFound": "Resurs topilmadi: {{.Error}}",
-    "Unauthorized": "Ruxsatsiz: {{.Error}}",
-    "Forbidden": "Taqiqlangan: {{.Error}}"
   }
 }
-

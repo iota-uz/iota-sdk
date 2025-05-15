@@ -50,13 +50,5 @@
       "FailedToGetAIResponse": "Failed to get AI response",
       "FailedToEncodeResponse": "Failed to encode response"
     }
-  },
-  "Errors": {
-    "Internal": "An internal server error occurred: {{.Error}}",
-    "BadRequest": "Bad request: {{.Error}}",
-    "NotFound": "Resource not found: {{.Error}}",
-    "Unauthorized": "Unauthorized: {{.Error}}",
-    "Forbidden": "Forbidden: {{.Error}}"
   }
 }
-

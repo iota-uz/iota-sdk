@@ -1,6 +1,10 @@
 {
   "Errors": {
-    "Internal": "Ichki server xatosi"
+    "Internal": "Ichki server xatosi yuz berdi: {{.Error}}",
+    "BadRequest": "Noto'g'ri so'rov: {{.Error}}",
+    "NotFound": "Resurs topilmadi: {{.Error}}",
+    "Unauthorized": "Ruxsatsiz: {{.Error}}",
+    "Forbidden": "Taqiqlangan: {{.Error}}"
   },
   "ValidationErrors": {
     "required": "Bu maydon to'ldirilishi shart",
