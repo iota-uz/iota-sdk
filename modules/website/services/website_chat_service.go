@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -64,12 +66,21 @@ func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService 
 	}
 }
 
-func (s *WebsiteChatService) GetThreadByID(threadID uuid.UUID) (chatthread.ChatThread, error) {
+func (s *WebsiteChatService) GetThreadByID(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
 	thread, ok := s.threadsMap[threadID]
 	if !ok {
 		return nil, chatthread.ErrChatThreadNotFound
 	}
-	return thread, nil
+	chatEntity, err := s.chatRepo.GetByID(ctx, thread.ChatID())
+	if err != nil {
+		return nil, err
+	}
+	return chatthread.New(
+		chatEntity.ID(),
+		chatEntity.Messages(),
+		chatthread.WithID(thread.ID()),
+		chatthread.WithTimestamp(thread.Timestamp()),
+	), nil
 }
 
 func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadDTO) (chatthread.ChatThread, error) {
@@ -94,20 +105,30 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadD
 		return nil, fmt.Errorf("invalid contact: %s", dto.Contact)
 	}
 
-	clientID := member.Sender().(chat.ClientSender).ClientID()
-
 	chatEntity := chat.New(
-		clientID,
+		member.Sender().(chat.ClientSender).ClientID(),
 		chat.WithMembers([]chat.Member{member}),
 	)
 
-	createdChat, err := s.chatRepo.Save(ctx, chatEntity)
+	var createdChat chat.Chat
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		v, e := s.chatRepo.Save(txCtx, chatEntity)
+		if e != nil {
+			return e
+		}
+		createdChat = v
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	threadID := uuid.New()
-	thread := chatthread.New(createdChat, chatthread.WithID(threadID))
+	thread := chatthread.New(
+		createdChat.ID(),
+		createdChat.Messages(),
+		chatthread.WithID(threadID),
+	)
 	s.threadsMap[threadID] = thread
 
 	return thread, nil
@@ -117,14 +138,17 @@ func (s *WebsiteChatService) SendMessageToThread(
 	ctx context.Context,
 	dto SendMessageToThreadDTO,
 ) (chatthread.ChatThread, error) {
-	thread, err := s.GetThreadByID(dto.ThreadID)
+	if dto.Message == "" {
+		return nil, chat.ErrEmptyMessage
+	}
+	thread, err := s.GetThreadByID(ctx, dto.ThreadID)
 	if err != nil {
 		return nil, err
 	}
 
-	chatEntity := thread.Chat()
-	if dto.Message == "" {
-		return nil, chat.ErrEmptyMessage
+	chatEntity, err := s.chatRepo.GetByID(ctx, thread.ChatID())
+	if err != nil {
+		return nil, err
 	}
 	var member chat.Member
 	for _, m := range chatEntity.Members() {
@@ -141,21 +165,33 @@ func (s *WebsiteChatService) SendMessageToThread(
 		return nil, fmt.Errorf("no client member found in chat")
 	}
 
+	t := time.Now()
 	chatEntity = chatEntity.AddMessage(chat.NewMessage(
 		dto.Message,
 		member,
+		chat.WithMessageSentAt(&t),
+		chat.WithMessageCreatedAt(t),
 	))
 	if err != nil {
 		return nil, err
 	}
 
-	savedChat, err := s.chatRepo.Save(ctx, chatEntity)
+	var savedChat chat.Chat
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		v, e := s.chatRepo.Save(txCtx, chatEntity)
+		if e != nil {
+			return e
+		}
+		savedChat = v
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	updatedThread := chatthread.New(
-		savedChat,
+		savedChat.ID(),
+		savedChat.Messages(),
 		chatthread.WithID(thread.ID()),
 		chatthread.WithTimestamp(thread.Timestamp()),
 	)
@@ -168,12 +204,10 @@ func (s *WebsiteChatService) ReplyToThread(
 	ctx context.Context,
 	dto ReplyToThreadDTO,
 ) (chatthread.ChatThread, error) {
-	thread, err := s.GetThreadByID(dto.ThreadID)
+	thread, err := s.GetThreadByID(ctx, dto.ThreadID)
 	if err != nil {
 		return nil, err
 	}
-
-	chatEntity := thread.Chat()
 
 	if dto.Message == "" {
 		return nil, chat.ErrEmptyMessage
@@ -181,6 +215,11 @@ func (s *WebsiteChatService) ReplyToThread(
 
 	var member chat.Member
 
+	fmt.Println(composables.UsePool(ctx))
+	chatEntity, err := s.chatRepo.GetByID(ctx, thread.ChatID())
+	if err != nil {
+		return nil, err
+	}
 	for _, m := range chatEntity.Members() {
 		if m.Transport() != chat.WebsiteTransport {
 			continue
@@ -199,28 +238,43 @@ func (s *WebsiteChatService) ReplyToThread(
 		}
 	}
 
+	t := time.Now()
 	chatEntity = chatEntity.AddMessage(chat.NewMessage(
 		dto.Message,
 		member,
+		chat.WithMessageSentAt(&t),
+		chat.WithMessageCreatedAt(t),
 	))
 	if err != nil {
 		return nil, err
 	}
 
-	savedChat, err := s.chatRepo.Save(ctx, chatEntity)
+	var savedChat chat.Chat
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		v, e := s.chatRepo.Save(txCtx, chatEntity)
+		if e != nil {
+			return e
+		}
+		savedChat = v
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Update the thread with the saved chat
-	updatedThread := chatthread.New(savedChat, chatthread.WithID(thread.ID()), chatthread.WithTimestamp(thread.Timestamp()))
+	updatedThread := chatthread.New(
+		savedChat.ID(),
+		savedChat.Messages(),
+		chatthread.WithID(thread.ID()),
+		chatthread.WithTimestamp(thread.Timestamp()),
+	)
 	s.threadsMap[thread.ID()] = updatedThread
 
 	return updatedThread, nil
 }
 
 func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
-	thread, err := s.GetThreadByID(threadID)
+	thread, err := s.GetThreadByID(ctx, threadID)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +391,15 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 		return nil, err
 	}
 
-	clientEntity, err := s.clientRepo.Save(ctx, c)
+	var clientEntity client.Client
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		v, e := s.clientRepo.Save(txCtx, c)
+		if e != nil {
+			return e
+		}
+		clientEntity = v
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +450,15 @@ func (s *WebsiteChatService) memberFromEmail(ctx context.Context, email internet
 		return nil, err
 	}
 
-	clientEntity, err := s.clientRepo.Save(ctx, c)
+	var clientEntity client.Client
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		v, e := s.clientRepo.Save(txCtx, c)
+		if e != nil {
+			return e
+		}
+		clientEntity = v
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}

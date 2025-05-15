@@ -16,7 +16,7 @@ var (
 type ChatThread interface {
 	ID() uuid.UUID
 	Timestamp() time.Time
-	Chat() chat.Chat
+	ChatID() uint
 	Messages() []chat.Message
 }
 
@@ -30,14 +30,16 @@ type Repository interface {
 type chatThread struct {
 	id        uuid.UUID
 	timestamp time.Time
-	chat      chat.Chat
+	chatID    uint
+	messages  []chat.Message
 }
 
-func New(chat chat.Chat, opts ...Option) ChatThread {
+func New(chatID uint, messages []chat.Message, opts ...Option) ChatThread {
 	thread := &chatThread{
 		id:        uuid.New(),
 		timestamp: time.Now(),
-		chat:      chat,
+		chatID:    chatID,
+		messages:  messages,
 	}
 
 	for _, opt := range opts {
@@ -73,15 +75,14 @@ func (t *chatThread) Timestamp() time.Time {
 	return t.timestamp
 }
 
-func (t *chatThread) Chat() chat.Chat {
-	return t.chat
+func (t *chatThread) ChatID() uint {
+	return t.chatID
 }
 
 func (t *chatThread) Messages() []chat.Message {
-	messages := t.chat.Messages()
-	filteredMessages := make([]chat.Message, 0, len(messages))
+	filteredMessages := make([]chat.Message, 0, len(t.messages))
 
-	for _, msg := range messages {
+	for _, msg := range t.messages {
 		if !msg.CreatedAt().Before(t.timestamp) {
 			filteredMessages = append(filteredMessages, msg)
 		}

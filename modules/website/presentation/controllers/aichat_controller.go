@@ -207,7 +207,7 @@ func (c *AIChatController) getThreadMessages(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get the thread from the service
-	thread, err := c.chatService.GetThreadByID(threadID)
+	thread, err := c.chatService.GetThreadByID(r.Context(), threadID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get thread by ID")
 		http.Error(w, "Thread not found", http.StatusNotFound)
@@ -263,7 +263,7 @@ func (c *AIChatController) addMessageToThread(w http.ResponseWriter, r *http.Req
 	}
 
 	// Verify the thread exists
-	_, err = c.chatService.GetThreadByID(threadID)
+	_, err = c.chatService.GetThreadByID(r.Context(), threadID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get thread by ID")
 		http.Error(w, "Thread not found", http.StatusNotFound)
