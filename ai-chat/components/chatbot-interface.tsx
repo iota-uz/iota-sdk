@@ -80,7 +80,7 @@ export default function ChatbotInterface({
   const [phoneSubmitted, setPhoneSubmitted] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneError, setPhoneError] = useState<string | undefined>(undefined);
-  
+
   // Create a wrapper function to clear errors when phone number is changed
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value);
@@ -162,13 +162,13 @@ export default function ChatbotInterface({
       } else {
         // Fallback for non-ApiError cases
         const errorMessage = error instanceof Error ? error.message : String(error);
-        
+
         // Check for legacy 404 errors
         if (error instanceof Error && errorMessage.includes('404')) {
           handle404Error();
           return;
         }
-        
+
         toast({
           variant: 'destructive',
           title: translations.errorLoadingMessages,
@@ -208,24 +208,6 @@ export default function ChatbotInterface({
         // Add a longer delay for orientation changes to ensure UI is fully updated
         setTimeout(updateWindowHeight, 300);
       });
-    }
-
-    // For mobile, add specific event listeners for input focus to handle keyboard properly
-    if (isMobile) {
-      const handleFocus = () => {
-        // Prevent scrolling issues when keyboard appears
-        window.scrollTo(0, 0);
-      };
-
-      document.addEventListener('focus', handleFocus, true);
-
-      return () => {
-        window.removeEventListener('resize', updateWindowHeight);
-        if (typeof window !== 'undefined') {
-          window.removeEventListener('orientationchange', updateWindowHeight);
-        }
-        document.removeEventListener('focus', handleFocus, true);
-      };
     }
 
     return () => {
@@ -280,7 +262,7 @@ export default function ChatbotInterface({
 
       setThreadId(response.thread_id);
       localStorage.setItem('chatThreadId', response.thread_id);
-      
+
       setPhoneSubmitted(true);
       setShowDateHeader(true);
 
@@ -328,7 +310,7 @@ export default function ChatbotInterface({
       } else {
         // Fallback for non-ApiError cases
         const errorMessage = error instanceof Error ? error.message : String(error);
-        
+
         toast({
           variant: 'destructive',
           title: translations.errorCreatingChat,
@@ -369,7 +351,7 @@ export default function ChatbotInterface({
 
     // Note: don't call onMessageSubmit here as it's already called from the input component
     // to avoid double-firing of the callback
-    
+
     setIsTyping(true);
 
     try {
@@ -416,13 +398,13 @@ export default function ChatbotInterface({
       } else {
         // Fallback for non-ApiError cases
         const errorMessage = error instanceof Error ? error.message : String(error);
-        
+
         // Check for legacy 404 errors
         if (error instanceof Error && errorMessage.includes('404')) {
           handle404Error();
           return;
         }
-        
+
         toast({
           variant: 'destructive',
           title: translations.errorSendingMessage,
@@ -458,15 +440,15 @@ export default function ChatbotInterface({
 
     setMessages((prev) => [...prev, userMessage]);
     playSubmitSound();
-    
+
     // Call the onMessageSubmit callback if it exists
     if (onMessageSubmit && question.trim().length > 0) {
       onMessageSubmit(question.trim());
     }
-    
+
     // Process the message with the API
     setIsTyping(true);
-    
+
     if (threadId) {
       (async () => {
         try {
@@ -513,13 +495,13 @@ export default function ChatbotInterface({
           } else {
             // Fallback for non-ApiError cases
             const errorMessage = error instanceof Error ? error.message : String(error);
-            
+
             // Check for legacy 404 errors
             if (error instanceof Error && errorMessage.includes('404')) {
               handle404Error();
               return;
             }
-            
+
             toast({
               variant: 'destructive',
               title: translations.errorSendingMessage,
