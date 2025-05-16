@@ -10,6 +10,7 @@
     "required": "This field is required",
     "emptySelect": "Select value",
     "email": "Invalid email format",
+    "lte": "{{.Field}} must be less than or equal to the specified value",
     "custom": "{{.Field}}: {{.Error}}"
   },
   "Filters": {

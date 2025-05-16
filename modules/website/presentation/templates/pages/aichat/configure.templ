@@ -3,10 +3,10 @@ package aichat
 import (
 	"fmt"
 
-	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/slider"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -23,39 +23,36 @@ templ Configure(props ConfigureProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pgCtx.T("AIChatBot.Meta.Title")},
 	}) {
-		<div class="flex gap-10 items-stretch p-10">
-			@card.Card(card.Props{WrapperClass: "flex-1"}) {
-				@ConfigureForm(props)
-			}
+		<div id="configure-content" class="h-full">
+			@ConfigureForm(props)
 		</div>
 	}
 }
 
 templ ConfigureForm(props ConfigureProps) {
 	{{ pgCtx := composables.UsePageCtx(ctx) }}
-	<div id="configure-content">
-		<form
-			hx-post={ props.FormAction }
-			hx-target="#configure-content"
-			hx-swap="outerHTML"
-			hx-indicator="#save-btn"
-			class="grid grid-cols-12 gap-4"
-		>
-			<div class="col-span-8">
-				<div class="mb-4 col-span-2">
-					@input.TextArea(&input.TextAreaProps{
-						Label:       pgCtx.T("AIChatBot.SystemPrompt.Label"),
-						Placeholder: pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
-						Value:       props.Config.SystemPrompt,
-						Error:       props.Errors["SystemPrompt"],
-						Attrs: templ.Attributes{
-							"name": "SystemPrompt",
-							"rows": "20",
-						},
-					})
-				</div>
-			</div>
-			<div class="col-span-4">
+	<div class="flex flex-col h-full">
+		<div class="grid grid-cols-12 gap-4 flex-1 p-6">
+			@card.Card(card.Props{
+				WrapperClass: "col-span-8 h-full",
+				Class:        "h-full",
+			}) {
+				@input.TextArea(&input.TextAreaProps{
+					Label:        pgCtx.T("AIChatBot.SystemPrompt.Label"),
+					Placeholder:  pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
+					Value:        props.Config.SystemPrompt,
+					Error:        props.Errors["SystemPrompt"],
+					Class:        "h-full",
+					WrapperClass: "h-full",
+					Attrs: templ.Attributes{
+						"form": "save-form",
+						"name": "SystemPrompt",
+					},
+				})
+			}
+			@card.Card(card.Props{
+				WrapperClass: "col-span-4",
+			}) {
 				<input type="hidden" name="id" value={ props.Config.ID }/>
 				// AI Chat Configuration fields
 				<div class="mb-4">
@@ -65,6 +62,7 @@ templ ConfigureForm(props ConfigureProps) {
 						Error:       props.Errors["BaseURL"],
 						Attrs: templ.Attributes{
 							"name":  "BaseURL",
+							"form":  "save-form",
 							"value": props.Config.BaseURL,
 						},
 					})
@@ -77,6 +75,7 @@ templ ConfigureForm(props ConfigureProps) {
 						Attrs: templ.Attributes{
 							"name": "AccessToken",
 							"type": "password",
+							"form": "save-form",
 						},
 					})
 				</div>
@@ -87,33 +86,23 @@ templ ConfigureForm(props ConfigureProps) {
 						Error:       props.Errors["ModelName"],
 						Attrs: templ.Attributes{
 							"name":  "ModelName",
+							"form":  "save-form",
 							"value": props.Config.ModelName,
 						},
 					})
 				</div>
 				<div class="mb-4">
-					@base.Select(&base.SelectProps{
-						Label:       pgCtx.T("AIChatBot.ModelType.Label"),
-						Placeholder: pgCtx.T("AIChatBot.ModelType.Placeholder"),
-						Error:       props.Errors["ModelType"],
+					@slider.Slider(slider.SliderProps{
+						Label:    pgCtx.T("AIChatBot.Temperature.Label"),
+						Error:    props.Errors["Temperature"],
+						Min:      0,
+						Max:      2,
+						Step:     0.1,
+						Value:    float64(props.Config.Temperature),
+						HelpText: pgCtx.T("AIChatBot.Temperature.Placeholder"),
 						Attrs: templ.Attributes{
-							"name": "ModelType",
-						},
-					}) {
-						<option value="openai" selected?={ props.Config.ModelType == "openai" }>OpenAI</option>
-					}
-				</div>
-				<div class="mb-4">
-					@input.Number(&input.Props{
-						Label:       pgCtx.T("AIChatBot.Temperature.Label"),
-						Placeholder: pgCtx.T("AIChatBot.Temperature.Placeholder"),
-						Error:       props.Errors["Temperature"],
-						Attrs: templ.Attributes{
-							"value": fmt.Sprintf("%.1f", props.Config.Temperature),
-							"name":  "Temperature",
-							"min":   "0.0",
-							"max":   "2.0",
-							"step":  "0.1",
+							"name": "Temperature",
+							"form": "save-form",
 						},
 					})
 				</div>
@@ -129,8 +118,19 @@ templ ConfigureForm(props ConfigureProps) {
 						},
 					})
 				</div>
-			</div>
-			<div class="flex justify-end col-span-12">
+			}
+		</div>
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="save-form"
+				hx-post={ props.FormAction }
+				hx-target="#configure-content"
+				hx-swap="innerHTML"
+				hx-indicator="#save-btn"
+			>
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
@@ -139,7 +139,7 @@ templ ConfigureForm(props ConfigureProps) {
 				}) {
 					{ pgCtx.T("Save") }
 				}
-			</div>
-		</form>
+			</form>
+		</div>
 	</div>
 }

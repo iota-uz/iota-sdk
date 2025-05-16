@@ -4,7 +4,6 @@ package viewmodels
 type AIConfig struct {
 	ID           string
 	ModelName    string
-	ModelType    string
 	SystemPrompt string
 	Temperature  float32
 	MaxTokens    int

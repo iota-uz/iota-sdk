@@ -10,7 +10,6 @@ func AIConfigToViewModel(config aichatconfig.AIConfig) *viewmodels.AIConfig {
 	return &viewmodels.AIConfig{
 		ID:           config.ID().String(),
 		ModelName:    config.ModelName(),
-		ModelType:    string(config.ModelType()),
 		SystemPrompt: config.SystemPrompt(),
 		Temperature:  config.Temperature(),
 		MaxTokens:    config.MaxTokens(),

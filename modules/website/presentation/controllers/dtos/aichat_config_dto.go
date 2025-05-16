@@ -14,7 +14,6 @@ import (
 
 type AIConfigDTO struct {
 	ModelName    string  `validate:"required"`
-	ModelType    string  `validate:"required"`
 	SystemPrompt string  `validate:"omitempty"`
 	Temperature  float32 `validate:"omitempty,gte=0,lte=2"`
 	MaxTokens    int     `validate:"omitempty,gt=0"`
@@ -34,15 +33,13 @@ func (dto *AIConfigDTO) Apply(cfg aichatconfig.AIConfig) (aichatconfig.AIConfig,
 			options = append(options, aichatconfig.WithAccessToken(dto.AccessToken))
 		}
 
-		modelType := aichatconfig.AIModelType(dto.ModelType)
-
 		if dto.SystemPrompt != "" {
 			options = append(options, aichatconfig.WithSystemPrompt(dto.SystemPrompt))
 		}
 
 		return aichatconfig.New(
 			dto.ModelName,
-			modelType,
+			aichatconfig.AIModelTypeOpenAI,
 			dto.BaseURL,
 			options...,
 		)
@@ -89,11 +86,6 @@ func (dto *AIConfigDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(dto)
 	if errs == nil {
-		// Additional custom validations
-		if dto.ModelType != "" && dto.ModelType != string(aichatconfig.AIModelTypeOpenAI) {
-			errorMessages["ModelType"] = "Invalid model type"
-		}
-
 		return errorMessages, len(errorMessages) == 0
 	}
 
