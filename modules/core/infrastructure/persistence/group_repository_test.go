@@ -344,8 +344,9 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAtField},
-				Ascending: true,
+				Fields: []repo.SortByField[group.Field]{
+					{Field: group.CreatedAtField, Ascending: true},
+				},
 			},
 			Limit:  100,
 			Offset: 0,
@@ -369,8 +370,9 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAtField},
-				Ascending: true,
+				Fields: []repo.SortByField[group.Field]{
+					{Field: group.CreatedAtField, Ascending: true},
+				},
 			},
 			Limit:  100,
 			Offset: 0,
@@ -394,8 +396,9 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAtField},
-				Ascending: true,
+				Fields: []repo.SortByField[group.Field]{
+					{Field: group.CreatedAtField, Ascending: true},
+				},
 			},
 			Limit:  100,
 			Offset: 0,
@@ -420,8 +423,9 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAtField},
-				Ascending: true,
+				Fields: []repo.SortByField[group.Field]{
+					{Field: group.CreatedAtField, Ascending: true},
+				},
 			},
 			Limit:  100,
 			Offset: 0,
@@ -442,8 +446,9 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Test sorting by created_at ascending
 		params := &group.FindParams{
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAtField},
-				Ascending: true,
+				Fields: []repo.SortByField[group.Field]{
+					{Field: group.CreatedAtField, Ascending: true},
+				},
 			},
 			Limit:  100,
 			Offset: 0,
@@ -461,7 +466,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Test sorting by created_at descending
-		params.SortBy.Ascending = false
+		params.SortBy.Fields[0].Ascending = false
 		groups, err = groupRepository.GetPaginated(f.ctx, params)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 2, "Should return at least 2 groups")
@@ -474,8 +479,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Test sorting by updated_at
-		params.SortBy.Fields = []group.Field{group.UpdatedAtField}
-		params.SortBy.Ascending = true
+		params.SortBy.Fields = []repo.SortByField[group.Field]{{Field: group.UpdatedAtField, Ascending: true}}
 		groups, err = groupRepository.GetPaginated(f.ctx, params)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 2, "Should return at least 2 groups")
@@ -507,8 +511,9 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		// Test with limit and offset
 		params := &group.FindParams{
 			SortBy: group.SortBy{
-				Fields:    []group.Field{group.CreatedAtField},
-				Ascending: true,
+				Fields: []repo.SortByField[group.Field]{
+					{Field: group.CreatedAtField, Ascending: true},
+				},
 			},
 			Limit:  3,
 			Offset: 0,

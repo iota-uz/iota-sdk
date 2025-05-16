@@ -78,16 +78,6 @@ func (g *PgGroupRepository) buildGroupFilters(params *group.FindParams) ([]strin
 }
 
 func (g *PgGroupRepository) GetPaginated(ctx context.Context, params *group.FindParams) ([]group.Group, error) {
-	sortFields := make([]string, 0, len(params.SortBy.Fields))
-
-	for _, f := range params.SortBy.Fields {
-		if field, ok := g.fieldMap[f]; ok {
-			sortFields = append(sortFields, field)
-		} else {
-			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid pagination parameters")
-		}
-	}
-
 	where, args, err := g.buildGroupFilters(params)
 	if err != nil {
 		return nil, err
@@ -98,7 +88,7 @@ func (g *PgGroupRepository) GetPaginated(ctx context.Context, params *group.Find
 	query := repo.Join(
 		baseQuery,
 		repo.JoinWhere(where...),
-		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 

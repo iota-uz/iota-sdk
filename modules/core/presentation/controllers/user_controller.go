@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"net/http"
 	"net/url"
 	"slices"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -256,9 +257,14 @@ func (c *UsersController) Users(
 	findParams := &user.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: user.SortBy{Fields: []user.Field{
-			user.CreatedAtField,
-		}},
+		SortBy: user.SortBy{
+			Fields: []repo.SortByField[user.Field]{
+				{
+					Field:     user.CreatedAtField,
+					Ascending: false,
+				},
+			},
+		},
 		Search: r.URL.Query().Get("Search"),
 	}
 
