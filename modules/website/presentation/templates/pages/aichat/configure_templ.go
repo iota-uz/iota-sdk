@@ -127,7 +127,7 @@ func ConfigureForm(props ConfigureProps) templ.Component {
 				Placeholder:  pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
 				Value:        props.Config.SystemPrompt,
 				Error:        props.Errors["SystemPrompt"],
-				Class:        "h-full",
+				Class:        "h-full resize-none",
 				WrapperClass: "h-full",
 				Attrs: templ.Attributes{
 					"form": "save-form",
