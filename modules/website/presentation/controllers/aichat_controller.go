@@ -105,7 +105,6 @@ func (c *AIChatController) configureAIChat(
 	} else {
 		// Create empty configuration
 		props.Config = &viewmodels.AIConfig{
-			ModelType:   string(aichatconfig.AIModelTypeOpenAI),
 			Temperature: 0.7,
 			MaxTokens:   1024,
 			BaseURL:     "https://api.openai.com/v1",
@@ -145,7 +144,6 @@ func (c *AIChatController) saveConfig(
 			FormAction: c.basePath + "/config",
 			Config: &viewmodels.AIConfig{
 				ModelName:    dto.ModelName,
-				ModelType:    dto.ModelType,
 				SystemPrompt: dto.SystemPrompt,
 				BaseURL:      dto.BaseURL,
 			},
