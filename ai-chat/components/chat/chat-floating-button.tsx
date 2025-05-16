@@ -11,7 +11,7 @@ interface ChatFloatingButtonProps {
 export const ChatFloatingButton = ({ onClick, isMobile, messageCount, chatIcon }: ChatFloatingButtonProps) => {
   return (
     <div
-      className="w-16 h-16 bg-[#0a223e] rounded-full shadow-lg flex items-center justify-center cursor-pointer hover:bg-[#1e3b66] transition-all duration-300 hover:scale-110 ml-auto"
+      className="w-16 h-16 bg-[#0a223e] rounded-full shadow-lg flex items-center justify-center cursor-pointer hover:bg-[#1e3b66] transition-all duration-300 hover:scale-110 ml-auto pointer-events-auto"
       onClick={onClick}
       style={{
         position: isMobile ? 'fixed' : 'relative',

@@ -591,7 +591,7 @@ export default function ChatbotInterface({
   }, [isOpen]);
 
   return (
-    <div className={`fixed ${isMobile ? 'inset-0' : 'bottom-4 right-4'} z-50 flex flex-col items-end`}>
+    <div className={`fixed ${isMobile && isOpen ? 'inset-0' : 'bottom-4 right-4'} z-50 flex flex-col items-end ${isMobile && !isOpen ? 'pointer-events-none' : ''}`}>
       {!isOpen && (
         <ChatFloatingButton
           onClick={() => setIsOpen(true)}
